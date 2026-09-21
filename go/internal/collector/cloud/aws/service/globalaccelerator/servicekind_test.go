@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "globalaccelerator".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceGlobalAccelerator + "  "
+	boundary.ServiceKind = "  " + aws.ServiceGlobalAccelerator + "  "
 	client := fakeClient{accelerators: []Accelerator{fullTopologyAccelerator()}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
@@ -28,7 +28,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceGlobalAccelerator; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceGlobalAccelerator; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

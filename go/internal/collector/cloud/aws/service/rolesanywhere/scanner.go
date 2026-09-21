@@ -26,15 +26,15 @@ type Scanner struct {
 
 // Scan observes Roles Anywhere trust anchors, profiles, and CRLs plus their
 // direct IAM-role and ACM-PCA dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("rolesanywhere scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRolesAnywhere:
+	case "", aws.ServiceRolesAnywhere:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRolesAnywhere
+		boundary.ServiceKind = aws.ServiceRolesAnywhere
 	default:
 		return nil, fmt.Errorf("rolesanywhere scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -71,9 +71,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -84,13 +84,13 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 
 func appendRelationships(
 	envelopes []facts.Envelope,
-	observations ...*awscloud.RelationshipObservation,
+	observations ...*aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
 	for _, observation := range observations {
 		if observation == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*observation)
+		envelope, err := aws.NewRelationshipEnvelope(*observation)
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +99,8 @@ func appendRelationships(
 	return envelopes, nil
 }
 
-func trustAnchorEnvelopes(boundary awscloud.Boundary, anchor TrustAnchor) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(trustAnchorObservation(boundary, anchor))
+func trustAnchorEnvelopes(boundary aws.Boundary, anchor TrustAnchor) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(trustAnchorObservation(boundary, anchor))
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +108,8 @@ func trustAnchorEnvelopes(boundary awscloud.Boundary, anchor TrustAnchor) ([]fac
 	return appendRelationships(envelopes, trustAnchorACMPCARelationship(boundary, anchor))
 }
 
-func profileEnvelopes(boundary awscloud.Boundary, profile Profile) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(profileObservation(boundary, profile))
+func profileEnvelopes(boundary aws.Boundary, profile Profile) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(profileObservation(boundary, profile))
 	if err != nil {
 		return nil, err
 	}
@@ -124,8 +124,8 @@ func profileEnvelopes(boundary awscloud.Boundary, profile Profile) ([]facts.Enve
 	return envelopes, nil
 }
 
-func crlEnvelopes(boundary awscloud.Boundary, crl CRL) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(crlObservation(boundary, crl))
+func crlEnvelopes(boundary aws.Boundary, crl CRL) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(crlObservation(boundary, crl))
 	if err != nil {
 		return nil, err
 	}
@@ -133,15 +133,15 @@ func crlEnvelopes(boundary awscloud.Boundary, crl CRL) ([]facts.Envelope, error)
 	return appendRelationships(envelopes, crlTrustAnchorRelationship(boundary, crl))
 }
 
-func trustAnchorObservation(boundary awscloud.Boundary, anchor TrustAnchor) awscloud.ResourceObservation {
+func trustAnchorObservation(boundary aws.Boundary, anchor TrustAnchor) aws.ResourceObservation {
 	arn := strings.TrimSpace(anchor.ARN)
 	name := strings.TrimSpace(anchor.Name)
 	resourceID := trustAnchorResourceID(anchor)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereTrustAnchor,
+		ResourceType: aws.ResourceTypeRolesAnywhereTrustAnchor,
 		Name:         name,
 		Tags:         cloneStringMap(anchor.Tags),
 		Attributes: map[string]any{
@@ -157,15 +157,15 @@ func trustAnchorObservation(boundary awscloud.Boundary, anchor TrustAnchor) awsc
 	}
 }
 
-func profileObservation(boundary awscloud.Boundary, profile Profile) awscloud.ResourceObservation {
+func profileObservation(boundary aws.Boundary, profile Profile) aws.ResourceObservation {
 	arn := strings.TrimSpace(profile.ARN)
 	name := strings.TrimSpace(profile.Name)
 	resourceID := profileResourceID(profile)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereProfile,
+		ResourceType: aws.ResourceTypeRolesAnywhereProfile,
 		Name:         name,
 		Tags:         cloneStringMap(profile.Tags),
 		Attributes: map[string]any{
@@ -186,15 +186,15 @@ func profileObservation(boundary awscloud.Boundary, profile Profile) awscloud.Re
 	}
 }
 
-func crlObservation(boundary awscloud.Boundary, crl CRL) awscloud.ResourceObservation {
+func crlObservation(boundary aws.Boundary, crl CRL) aws.ResourceObservation {
 	arn := strings.TrimSpace(crl.ARN)
 	name := strings.TrimSpace(crl.Name)
 	resourceID := crlResourceID(crl)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereCRL,
+		ResourceType: aws.ResourceTypeRolesAnywhereCRL,
 		Name:         name,
 		Tags:         cloneStringMap(crl.Tags),
 		Attributes: map[string]any{

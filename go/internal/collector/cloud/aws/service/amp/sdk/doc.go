@@ -11,4 +11,4 @@
 // and scrape-configuration reads, and every Create/Update/Delete/Put mutation
 // API, so the adapter cannot read ingested samples, rule definitions, or
 // scrape-configuration bodies, and cannot mutate AMP state.
-package awssdk
+package sdk

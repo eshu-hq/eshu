@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/controltower guidance
+# AGENTS.md - internal/collector/cloud/aws/service/controltower guidance
 
 ## Read First
 
@@ -38,7 +38,7 @@
   Organizations ARN, or names a family the organizations scanner does not
   publish. Never key a dangling edge.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Trim whitespace on any string used as an id or service_kind. Canonicalize the
   boundary service_kind on the trimmed value in `Scan` and write the canonical
@@ -51,13 +51,13 @@
 
 - Add a new Control Tower metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a manifest, parameter, or
+  `aws` envelope builders. If the field can carry a manifest, parameter, or
   governance payload value, leave it out of the scanner contract.
 - Add new relationship evidence only when the Control Tower API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (bare Organizations id for OU/account/root, the landing-zone
   ARN for the internal edge).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

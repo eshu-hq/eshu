@@ -24,15 +24,15 @@ type Scanner struct {
 // through the configured client. Host key fingerprints, host key material, SSH
 // public key bodies, user policy JSON, POSIX UID/GID material, login banners,
 // and identity-provider invocation secrets stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("transfer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceTransfer:
+	case "", aws.ServiceTransfer:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceTransfer
+		boundary.ServiceKind = aws.ServiceTransfer
 	default:
 		return nil, fmt.Errorf("transfer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -66,14 +66,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func serverEnvelopes(boundary awscloud.Boundary, server Server) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serverObservation(boundary, server))
+func serverEnvelopes(boundary aws.Boundary, server Server) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(serverObservation(boundary, server))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range serverRelationships(boundary, server) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -82,14 +82,14 @@ func serverEnvelopes(boundary awscloud.Boundary, server Server) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func userEnvelopes(boundary awscloud.Boundary, user User) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
+func userEnvelopes(boundary aws.Boundary, user User) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(userObservation(boundary, user))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range userRelationships(boundary, user) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -98,14 +98,14 @@ func userEnvelopes(boundary awscloud.Boundary, user User) ([]facts.Envelope, err
 	return envelopes, nil
 }
 
-func serverObservation(boundary awscloud.Boundary, server Server) awscloud.ResourceObservation {
+func serverObservation(boundary aws.Boundary, server Server) aws.ResourceObservation {
 	serverARN := strings.TrimSpace(server.ARN)
 	serverID := strings.TrimSpace(server.ServerID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          serverARN,
 		ResourceID:   firstNonEmpty(serverARN, serverID),
-		ResourceType: awscloud.ResourceTypeTransferServer,
+		ResourceType: aws.ResourceTypeTransferServer,
 		Name:         serverID,
 		State:        strings.TrimSpace(server.State),
 		Attributes: map[string]any{
@@ -131,16 +131,16 @@ func serverObservation(boundary awscloud.Boundary, server Server) awscloud.Resou
 	}
 }
 
-func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObservation {
+func userObservation(boundary aws.Boundary, user User) aws.ResourceObservation {
 	userARN := strings.TrimSpace(user.ARN)
 	userID := userResourceID(user)
 	serverID := strings.TrimSpace(user.ServerID)
 	userName := strings.TrimSpace(user.UserName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   userID,
-		ResourceType: awscloud.ResourceTypeTransferUser,
+		ResourceType: aws.ResourceTypeTransferUser,
 		Name:         userName,
 		Attributes: map[string]any{
 			"server_id":               serverID,

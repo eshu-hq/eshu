@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/dynamodb/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/dynamodb/sdk` adapts AWS SDK for Go v2
 DynamoDB responses to the scanner-owned `Client` contract. It owns DynamoDB
 pagination, table metadata point reads, resource tag reads, TTL and continuous
 backup metadata reads, throttle classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/dynamodb` for scanner-owned result
+- `internal/collector/cloud/aws/service/dynamodb` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `dynamodb` and Smithy error contracts.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ec2` owns scanner-side EC2 network and
+`internal/collector/cloud/aws/service/ec2` owns scanner-side EC2 network and
 volume fact selection for the AWS cloud collector. It converts VPCs, subnets,
 security groups, security group rules, network interfaces, and EBS volumes into
 `aws_resource` and `aws_relationship` facts. Each security-group rule
@@ -90,7 +90,7 @@ See `doc.go` for the godoc contract.
 - `Scanner` - emits EC2 network topology, EBS volume, instance-posture,
   (#5448) instance-identity, and (#5717) AMI-identity facts for one claimed
   AWS boundary.
-- `Client` - scanner-owned read surface implemented by `awssdk.Client`.
+- `Client` - scanner-owned read surface implemented by `sdk.Client`.
 - `VPC`, `Subnet`, `SecurityGroup`, `SecurityGroupRule`, `NetworkInterface`,
   `Volume`, and `Instance` - scanner-owned EC2 records.
 - `BlockDevice` - one instance block-device mapping entry (device name, volume
@@ -103,22 +103,22 @@ See `doc.go` for the godoc contract.
   resource ARN when AWS reports enough data to derive one.
 
 The normalized `aws_security_group_rule` posture fact and its source-kind /
-direction constants are owned by `internal/collector/awscloud`
+direction constants are owned by `internal/collector/cloud/aws`
 (`NewSecurityGroupRuleEnvelope`, `SecurityGroupRuleObservation`); this scanner
 maps each `SecurityGroupRule` into that observation in `scanner.go`. The
 `ec2_instance_posture` fact, its `EC2InstancePostureObservation`, and
 `NewEC2InstancePostureEnvelope` are likewise owned by
-`internal/collector/awscloud`; this scanner maps each `Instance` into that
+`internal/collector/cloud/aws`; this scanner maps each `Instance` into that
 observation in `posture.go`.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits
+This package emits no metrics or spans directly. The `sdk` adapter emits
 AWS API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants
@@ -183,7 +183,7 @@ AWS API call counters, throttle counters, and pagination spans.
 ### ec2_instance_posture fact, PR1 facts-only (#1146)
 
 No-Regression Evidence: `go test
-./internal/collector/awscloud/service/ec2/... ./internal/facts -count=1` covers
+./internal/collector/cloud/aws/service/ec2/... ./internal/facts -count=1` covers
 `TestScannerEmitsInstancePostureFactsWithoutInventory` (one
 `ec2_instance_posture` fact, zero `aws_resource` facts, no `aws_ec2_instance`
 resource, IMDS / user-data-presence / instance-profile-ARN asserted, no
@@ -198,7 +198,7 @@ pass the scanner now runs once per boundary; user-data content is never fetched,
 so there is no per-instance API fan-out.
 
 No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The `awssdk` adapter's existing
+span, metric label, or `aws_scan_status` row. The `sdk` adapter's existing
 pagination span and API-call counter cover the new `DescribeInstances` read via
 `recordAPICall`.
 
@@ -206,14 +206,14 @@ pagination span and API-call counter cover the new `DescribeInstances` read via
 
 Collector Performance Evidence: the EBS volume path is one paginated
 `DescribeVolumes` stream per claimed account/region boundary, not a
-per-instance fan-out. `go test ./internal/collector/awscloud/service/ec2/... -count=1`
+per-instance fan-out. `go test ./internal/collector/cloud/aws/service/ec2/... -count=1`
 covers scanner emission and SDK mapping for the boundary-scoped pass, including
 encrypted/KMS, missing-key, unencrypted, attached, and missing-identity cases.
 The emitted fact volume is linear in the number of volumes returned by AWS and
 adds at most one resource fact plus one optional KMS relationship fact per
 volume.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/ec2/... -count=1`
 covers `TestScannerEmitsEBSVolumeMetadataAndKMSRelationship` (one
 `aws_ec2_volume` resource fact, one volume-to-KMS relationship keyed to
 `aws_kms_key`, one attachment summary, and no `aws_ec2_instance` inventory fact),
@@ -233,7 +233,7 @@ facts only and adds no new metric labels or scan-status dimensions.
 ### security_group_rule posture fact, PR1 facts-only (#1135)
 
 No-Regression Evidence: `go test
-./internal/collector/awscloud/service/ec2/... ./internal/facts -count=1` covers
+./internal/collector/cloud/aws/service/ec2/... ./internal/facts -count=1` covers
 `TestScannerEmitsNetworkTopologyWithoutInstanceFacts` (now also asserting one
 `aws_security_group_rule` fact with `group_id=sg-123`, `direction=ingress`,
 `source_kind=cidr_ipv4`, `source_value=0.0.0.0/0`, `is_internet=true`) and the
@@ -244,17 +244,17 @@ and no per-resource fan-out; emission is one extra in-memory envelope per rule
 inside the existing rule loop.
 
 No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The `awssdk` adapter's existing
+span, metric label, or `aws_scan_status` row. The `sdk` adapter's existing
 `DescribeSecurityGroupRules` pagination span and API-call counter already cover
 the read that sources the fact.
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/ec2/... -count=1`
 covers the new `TestEC2InstanceARNDerivesPartition` (commercial / `aws-us-gov` /
 `aws-cn`) alongside the existing commercial assertions. The synthesized EC2
 instance ARN used as a network-interface attachment target now derives its
-partition from the instance region via `awscloud.PartitionForRegion` instead of
+partition from the instance region via `aws.PartitionForRegion` instead of
 hardcoding `aws`, so the ENI->instance edge resolves in GovCloud and China.
 Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
 metadata-only correctness fix with no graph-write, queue, or hot-path behavior
@@ -266,7 +266,7 @@ row changes.
 
 ### EC2 instance identity fact + instance->AMI relationship (#5448)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/ec2/... -count=1`
 covers `TestScannerEmitsInstancePostureAndIdentityFacts` (one
 `ec2_instance_posture` fact, one `aws_resource` identity fact carrying
 `ami_id`, and one `aws_relationship` instance->AMI fact) and
@@ -274,7 +274,7 @@ covers `TestScannerEmitsInstancePostureAndIdentityFacts` (one
 fact still emits with an empty `ami_id` when the instance carries no AMI id,
 but no relationship fact is fabricated). The identity fact is built from the
 same `DescribeInstances` entry the posture fact already reads (`instance.ImageID`,
-mapped in `awssdk/mapper.go`'s `mapInstance`), so it adds no AWS API call and
+mapped in `sdk/mapper.go`'s `mapInstance`), so it adds no AWS API call and
 no per-instance fan-out.
 
 No-Observability-Change: the scanner emits facts only; it adds no instrument,
@@ -283,7 +283,7 @@ pagination span and API-call counter already cover the read.
 
 ### AMI resource identity fact (#5717)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/ec2/... -count=1`
 covers `TestScannerEmitsInstancePostureAndIdentityFacts` (now also asserting a
 second `aws_resource` fact, `resource_type=aws_ec2_ami`, with matching
 `resource_id`/`account_id`/`region`),

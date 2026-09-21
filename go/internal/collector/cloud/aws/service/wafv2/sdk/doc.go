@@ -14,4 +14,4 @@
 // never persists rule Statement bodies. A global boundary region selects the
 // CLOUDFRONT scope on the us-east-1 endpoint; a concrete region selects
 // REGIONAL.
-package awssdk
+package sdk

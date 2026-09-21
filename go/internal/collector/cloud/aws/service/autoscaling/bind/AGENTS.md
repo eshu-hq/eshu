@@ -1,17 +1,17 @@
-# AGENTS.md - services/autoscaling/runtimebind guidance
+# AGENTS.md - services/autoscaling/bind guidance
 
 ## Read First
 
 1. `README.md` - binding purpose and invariants.
-2. `bind.go` - the `awsruntime.Register` call.
+2. `bind.go` - the `runtime.Register` call.
 3. `../README.md` - Auto Scaling scanner contract.
-4. `../../../awsruntime/README.md` - registry and runtime surface.
+4. `../../../runtime/README.md` - registry and runtime surface.
 
 ## Invariants
 
 - Register exactly once in `init()`. The registry panics on duplicate
   registrations.
-- Wire `awscloud.ServiceAutoScaling` to the Auto Scaling scanner builder only.
+- Wire `aws.ServiceAutoScaling` to the Auto Scaling scanner builder only.
 - Do not set `RequiresRedactionKey`; the Auto Scaling scanner emits no redacted
   metadata.
 - Do not load AWS config, acquire credentials, or construct clients at init

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/iam/awssdk` adapts AWS SDK for Go v2 IAM
+`internal/collector/cloud/aws/service/iam/sdk` adapts AWS SDK for Go v2 IAM
 responses to the scanner-owned `iam.Client` contract. It owns IAM API
 pagination, trust policy decoding, policy-document normalization, throttle
 classification, permission-boundary detail reads, OIDC provider metadata
@@ -45,9 +45,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/iam` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/iam` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `iam` and Smithy error contracts.
 

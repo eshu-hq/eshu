@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/docdb/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/docdb/sdk` adapts AWS SDK for Go v2
 DocumentDB responses to the scanner-owned `Client` contract. It owns
 DocumentDB pagination, resource tag reads, parameter counting, throttle
 classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/docdb` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/docdb` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `docdb` and Smithy error contracts.
 

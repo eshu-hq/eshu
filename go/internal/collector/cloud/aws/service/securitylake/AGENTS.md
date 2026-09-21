@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/securitylake guidance
+# AGENTS.md - internal/collector/cloud/aws/service/securitylake guidance
 
 ## Read First
 
@@ -37,7 +37,7 @@
 - Skip the data-lake-to-Glue edge: Security Lake does not report a resolvable
   Glue identifier, so do not dangle one.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from data lake, source, or
@@ -47,12 +47,12 @@
 
 - Add a new Security Lake metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry record content, a
+  `aws` envelope builders. If the field can carry record content, a
   credential, an external id, or an endpoint, leave it out of the contract.
 - Add new relationship evidence only when the Security Lake API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/fsx guidance
+# AGENTS.md - internal/collector/cloud/aws/service/fsx guidance
 
 ## Read First
 
@@ -15,7 +15,7 @@
 - Keep FSx API access behind `Client`; do not import the AWS SDK into this
   package.
 - NEVER add a mutation API (Create/Delete/Update/Restore/Copy/Release) or a
-  file-content read to the `Client` interface. A reflection test in the `awssdk`
+  file-content read to the `Client` interface. A reflection test in the `sdk`
   adapter enforces the metadata-only SDK seam.
 - NEVER persist Active Directory self-managed credentials across any flavor: the
   Windows/SVM self-managed AD `Password`, `UserName`,
@@ -35,11 +35,11 @@
 ## Common Changes
 
 - Add a new FSx resource or attribute by extending the scanner-owned type,
-  writing a focused scanner test first, then mapping it through `awscloud`
+  writing a focused scanner test first, then mapping it through `aws`
   envelope builders.
 - Add new file system fields only when the FSx API reports them on the describe
   path and the field is safe for persistence (not a secret).
-- Extend SDK pagination and SDK-to-scanner mapping in the `awssdk` adapter, not
+- Extend SDK pagination and SDK-to-scanner mapping in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

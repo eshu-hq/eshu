@@ -12,9 +12,9 @@ import (
 // taskDefinitionImageRelationships aggregates container evidence by image so
 // relationship fact identity does not collapse same-image containers.
 func taskDefinitionImageRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	taskDefinition TaskDefinition,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	taskDefinitionARN := strings.TrimSpace(taskDefinition.ARN)
 	type imageEvidence struct {
 		image          string
@@ -38,12 +38,12 @@ func taskDefinitionImageRelationships(
 		}
 	}
 
-	observations := make([]awscloud.RelationshipObservation, 0, len(orderedImages))
+	observations := make([]aws.RelationshipObservation, 0, len(orderedImages))
 	for _, image := range orderedImages {
 		evidence := byImage[image]
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipECSTaskDefinitionUsesImage,
+			RelationshipType: aws.RelationshipECSTaskDefinitionUsesImage,
 			SourceResourceID: taskDefinitionARN,
 			SourceARN:        taskDefinitionARN,
 			TargetResourceID: evidence.image,
@@ -58,26 +58,26 @@ func taskDefinitionImageRelationships(
 }
 
 func taskNetworkInterfaceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	task Task,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	taskARN := strings.TrimSpace(task.ARN)
 	if taskARN == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, networkInterface := range task.NetworkInterfaces {
 		networkInterfaceID := strings.TrimSpace(networkInterface.NetworkInterfaceID)
 		if networkInterfaceID == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipECSTaskUsesNetworkInterface,
+			RelationshipType: aws.RelationshipECSTaskUsesNetworkInterface,
 			SourceResourceID: taskARN,
 			SourceARN:        taskARN,
 			TargetResourceID: networkInterfaceID,
-			TargetType:       awscloud.ResourceTypeEC2NetworkInterface,
+			TargetType:       aws.ResourceTypeEC2NetworkInterface,
 			Attributes: map[string]any{
 				"mac_address":          strings.TrimSpace(networkInterface.MACAddress),
 				"network_interface_id": networkInterfaceID,

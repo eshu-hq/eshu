@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudtrail` owns the CloudTrail scanner
+`internal/collector/cloud/aws/service/cloudtrail` owns the CloudTrail scanner
 contract for the AWS cloud collector. CloudTrail is the audit-config service:
 the scanner emits trail and Lake configuration only. The audit event payloads
 themselves are the protected data class for this service and are never read
@@ -50,7 +50,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -59,9 +59,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records CloudTrail API call counts, throttles, and
+The `sdk` adapter records CloudTrail API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="cloudtrail"}` with the existing
 bounded AWS collector labels.
@@ -86,14 +86,14 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/cloudtrail/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/cloudtrail/...`
 covers the bounded CloudTrail metadata path: paginated trail discovery,
 trail configuration reads, event data store discovery, channel discovery, Lake
 dashboard discovery, and the guard test for forbidden APIs. No event payload
 or query data-plane call appears anywhere in the test surface.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers CloudTrail resource and relationship fact emission, the runtimebind
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
+covers CloudTrail resource and relationship fact emission, the bind
 registration, command configuration, and the SDK adapter contract.
 
 Collector Observability Evidence: CloudTrail uses the existing AWS collector

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdax "github.com/aws/aws-sdk-go-v2/service/dax"
 	awsdaxtypes "github.com/aws/aws-sdk-go-v2/service/dax/types"
 
@@ -53,54 +53,54 @@ func TestClientListsDAXMetadataOnly(t *testing.T) {
 	api := &fakeDAXAPI{
 		clusterPages: []*awsdax.DescribeClustersOutput{{
 			Clusters: []awsdaxtypes.Cluster{{
-				ClusterArn:                    aws.String(clusterARN),
-				ClusterName:                   aws.String("orders-dax"),
-				Description:                   aws.String("orders dax accelerator"),
-				Status:                        aws.String("available"),
-				NodeType:                      aws.String("dax.r5.large"),
-				ActiveNodes:                   aws.Int32(3),
-				TotalNodes:                    aws.Int32(3),
+				ClusterArn:                    awsv2.String(clusterARN),
+				ClusterName:                   awsv2.String("orders-dax"),
+				Description:                   awsv2.String("orders dax accelerator"),
+				Status:                        awsv2.String("available"),
+				NodeType:                      awsv2.String("dax.r5.large"),
+				ActiveNodes:                   awsv2.Int32(3),
+				TotalNodes:                    awsv2.Int32(3),
 				NetworkType:                   awsdaxtypes.NetworkTypeIpv4,
 				ClusterEndpointEncryptionType: awsdaxtypes.ClusterEndpointEncryptionTypeTls,
-				IamRoleArn:                    aws.String(roleARN),
-				PreferredMaintenanceWindow:    aws.String("sun:05:00-sun:06:00"),
-				SubnetGroup:                   aws.String("orders-dax-subnets"),
+				IamRoleArn:                    awsv2.String(roleARN),
+				PreferredMaintenanceWindow:    awsv2.String("sun:05:00-sun:06:00"),
+				SubnetGroup:                   awsv2.String("orders-dax-subnets"),
 				ParameterGroup: &awsdaxtypes.ParameterGroupStatus{
-					ParameterGroupName: aws.String("default.dax1.0"),
+					ParameterGroupName: awsv2.String("default.dax1.0"),
 				},
 				SecurityGroups: []awsdaxtypes.SecurityGroupMembership{{
-					SecurityGroupIdentifier: aws.String("sg-aaa"),
-					Status:                  aws.String("active"),
+					SecurityGroupIdentifier: awsv2.String("sg-aaa"),
+					Status:                  awsv2.String("active"),
 				}},
 				SSEDescription: &awsdaxtypes.SSEDescription{
 					Status: awsdaxtypes.SSEStatusEnabled,
 				},
 				ClusterDiscoveryEndpoint: &awsdaxtypes.Endpoint{
-					Address: aws.String("orders-dax.abc123.dax-clusters.us-east-1.amazonaws.com"),
+					Address: awsv2.String("orders-dax.abc123.dax-clusters.us-east-1.amazonaws.com"),
 					Port:    8111,
 				},
 			}},
 		}},
 		subnetGroupPages: []*awsdax.DescribeSubnetGroupsOutput{{
 			SubnetGroups: []awsdaxtypes.SubnetGroup{{
-				SubnetGroupName: aws.String("orders-dax-subnets"),
-				Description:     aws.String("orders dax subnets"),
-				VpcId:           aws.String("vpc-123"),
+				SubnetGroupName: awsv2.String("orders-dax-subnets"),
+				Description:     awsv2.String("orders dax subnets"),
+				VpcId:           awsv2.String("vpc-123"),
 				Subnets: []awsdaxtypes.Subnet{{
-					SubnetIdentifier: aws.String("subnet-a"),
+					SubnetIdentifier: awsv2.String("subnet-a"),
 				}, {
-					SubnetIdentifier: aws.String("subnet-b"),
+					SubnetIdentifier: awsv2.String("subnet-b"),
 				}},
 			}},
 		}},
 		parameterGroupPages: []*awsdax.DescribeParameterGroupsOutput{{
 			ParameterGroups: []awsdaxtypes.ParameterGroup{{
-				ParameterGroupName: aws.String("default.dax1.0"),
-				Description:        aws.String("default dax parameter group"),
+				ParameterGroupName: awsv2.String("default.dax1.0"),
+				Description:        awsv2.String("default dax parameter group"),
 			}},
 		}},
 		tags: map[string][]awsdaxtypes.Tag{
-			clusterARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			clusterARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -179,10 +179,10 @@ func TestClientListsDAXMetadataOnly(t *testing.T) {
 func TestClientPaginatesClusters(t *testing.T) {
 	api := &fakeDAXAPI{
 		clusterPages: []*awsdax.DescribeClustersOutput{{
-			Clusters:  []awsdaxtypes.Cluster{{ClusterName: aws.String("first")}},
-			NextToken: aws.String("next"),
+			Clusters:  []awsdaxtypes.Cluster{{ClusterName: awsv2.String("first")}},
+			NextToken: awsv2.String("next"),
 		}, {
-			Clusters: []awsdaxtypes.Cluster{{ClusterName: aws.String("second")}},
+			Clusters: []awsdaxtypes.Cluster{{ClusterName: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -199,11 +199,11 @@ func TestClientPaginatesClusters(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDAX,
+		ServiceKind: aws.ServiceDAX,
 	}
 }
 
@@ -228,7 +228,7 @@ func (f *fakeDAXAPI) DescribeClusters(
 	input *awsdax.DescribeClustersInput,
 	_ ...func(*awsdax.Options),
 ) (*awsdax.DescribeClustersOutput, error) {
-	f.clusterTokens = append(f.clusterTokens, aws.ToString(input.NextToken))
+	f.clusterTokens = append(f.clusterTokens, awsv2.ToString(input.NextToken))
 	if f.clusterCalls >= len(f.clusterPages) {
 		return &awsdax.DescribeClustersOutput{}, nil
 	}
@@ -271,7 +271,7 @@ func (f *fakeDAXAPI) ListTags(
 	if f.tags == nil {
 		return &awsdax.ListTagsOutput{}, nil
 	}
-	tags := f.tags[aws.ToString(input.ResourceName)]
+	tags := f.tags[awsv2.ToString(input.ResourceName)]
 	return &awsdax.ListTagsOutput{Tags: tags}, nil
 }
 

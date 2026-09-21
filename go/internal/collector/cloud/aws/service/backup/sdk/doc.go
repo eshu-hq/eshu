@@ -16,4 +16,4 @@
 // (GetRecoveryPointRestoreMetadata) and recovery-point object contents are
 // never read; only identity and timing metadata is projected to the
 // scanner-owned record.
-package awssdk
+package sdk

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/smithy-go"
@@ -25,45 +25,45 @@ func TestClientListKeysEmitsMetadataAndDropsEncryptionContext(t *testing.T) {
 	creation := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID), KeyArn: aws.String(keyARN)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID), KeyArn: awsv2.String(keyARN)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
 			keyID: {
-				KeyId:        aws.String(keyID),
-				Arn:          aws.String(keyARN),
-				Description:  aws.String("Orders application key"),
+				KeyId:        awsv2.String(keyID),
+				Arn:          awsv2.String(keyARN),
+				Description:  awsv2.String("Orders application key"),
 				KeyManager:   kmstypes.KeyManagerTypeCustomer,
 				KeyUsage:     kmstypes.KeyUsageTypeEncryptDecrypt,
 				KeySpec:      kmstypes.KeySpecSymmetricDefault,
 				KeyState:     kmstypes.KeyStateEnabled,
 				Origin:       kmstypes.OriginTypeAwsKms,
-				CreationDate: aws.Time(creation),
+				CreationDate: awsv2.Time(creation),
 				Enabled:      true,
-				MultiRegion:  aws.Bool(true),
+				MultiRegion:  awsv2.Bool(true),
 				MultiRegionConfiguration: &kmstypes.MultiRegionConfiguration{
 					MultiRegionKeyType: kmstypes.MultiRegionKeyTypePrimary,
-					PrimaryKey:         &kmstypes.MultiRegionKey{Arn: aws.String(keyARN)},
+					PrimaryKey:         &kmstypes.MultiRegionKey{Arn: awsv2.String(keyARN)},
 				},
 				EncryptionAlgorithms: []kmstypes.EncryptionAlgorithmSpec{kmstypes.EncryptionAlgorithmSpecSymmetricDefault},
 			},
 		},
 		listAliasesPages: []*awskms.ListAliasesOutput{{
 			Aliases: []kmstypes.AliasListEntry{{
-				AliasName:       aws.String("alias/orders"),
-				AliasArn:        aws.String(aliasARN),
-				TargetKeyId:     aws.String(keyID),
-				LastUpdatedDate: aws.Time(creation),
+				AliasName:       awsv2.String("alias/orders"),
+				AliasArn:        awsv2.String(aliasARN),
+				TargetKeyId:     awsv2.String(keyID),
+				LastUpdatedDate: awsv2.Time(creation),
 			}},
 		}},
 		listGrantsByKey: map[string][]*awskms.ListGrantsOutput{
 			keyID: {{
 				Grants: []kmstypes.GrantListEntry{{
-					GrantId:           aws.String("grant-1"),
-					Name:              aws.String("eshu-app-grant"),
-					CreationDate:      aws.Time(creation),
-					GranteePrincipal:  aws.String("arn:aws:iam::123456789012:role/eshu-app"),
-					RetiringPrincipal: aws.String("arn:aws:iam::123456789012:role/eshu-admin"),
-					IssuingAccount:    aws.String("123456789012"),
+					GrantId:           awsv2.String("grant-1"),
+					Name:              awsv2.String("eshu-app-grant"),
+					CreationDate:      awsv2.Time(creation),
+					GranteePrincipal:  awsv2.String("arn:aws:iam::123456789012:role/eshu-app"),
+					RetiringPrincipal: awsv2.String("arn:aws:iam::123456789012:role/eshu-admin"),
+					IssuingAccount:    awsv2.String("123456789012"),
 					Operations:        []kmstypes.GrantOperation{kmstypes.GrantOperationEncrypt, kmstypes.GrantOperationDecrypt},
 					// Constraints intentionally set so the test proves the
 					// adapter does NOT propagate encryption context pairs.
@@ -81,12 +81,12 @@ func TestClientListKeysEmitsMetadataAndDropsEncryptionContext(t *testing.T) {
 			keyID: {KeyRotationEnabled: true},
 		},
 		listTagsByKey: map[string][]*awskms.ListResourceTagsOutput{
-			keyID: {{Tags: []kmstypes.Tag{{TagKey: aws.String("Environment"), TagValue: aws.String("prod")}}}},
+			keyID: {{Tags: []kmstypes.Tag{{TagKey: awsv2.String("Environment"), TagValue: awsv2.String("prod")}}}},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())
@@ -178,11 +178,11 @@ func TestClientListKeysOmitsRotationStatusForAsymmetricKeys(t *testing.T) {
 	keyID := "asymmetric-key"
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
 			keyID: {
-				KeyId:      aws.String(keyID),
+				KeyId:      awsv2.String(keyID),
 				KeyManager: kmstypes.KeyManagerTypeCustomer,
 				KeyUsage:   kmstypes.KeyUsageTypeSignVerify,
 				KeySpec:    kmstypes.KeySpecRsa2048,
@@ -192,7 +192,7 @@ func TestClientListKeysOmitsRotationStatusForAsymmetricKeys(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())
@@ -214,11 +214,11 @@ func TestClientListKeysTreatsUnsupportedOperationAsUnknownRotation(t *testing.T)
 	keyID := "managed-key"
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
 			keyID: {
-				KeyId:      aws.String(keyID),
+				KeyId:      awsv2.String(keyID),
 				KeyManager: kmstypes.KeyManagerTypeCustomer,
 				KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
 				KeySpec:    kmstypes.KeySpecSymmetricDefault,
@@ -229,7 +229,7 @@ func TestClientListKeysTreatsUnsupportedOperationAsUnknownRotation(t *testing.T)
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())
@@ -250,11 +250,11 @@ func TestClientListKeysSurfacesUnexpectedRotationErrors(t *testing.T) {
 	keyID := "managed-key"
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
 			keyID: {
-				KeyId:      aws.String(keyID),
+				KeyId:      awsv2.String(keyID),
 				KeyManager: kmstypes.KeyManagerTypeCustomer,
 				KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
 				KeySpec:    kmstypes.KeySpecSymmetricDefault,
@@ -267,7 +267,7 @@ func TestClientListKeysSurfacesUnexpectedRotationErrors(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	_, err := adapter.ListKeys(context.Background())
@@ -287,11 +287,11 @@ func TestClientListKeyPoliciesHonorsTruncatedFlag(t *testing.T) {
 	keyID := "policy-paged-key"
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
 			keyID: {
-				KeyId:      aws.String(keyID),
+				KeyId:      awsv2.String(keyID),
 				KeyManager: kmstypes.KeyManagerTypeCustomer,
 				KeyUsage:   kmstypes.KeyUsageTypeSignVerify,
 				KeySpec:    kmstypes.KeySpecRsa2048,
@@ -301,16 +301,16 @@ func TestClientListKeyPoliciesHonorsTruncatedFlag(t *testing.T) {
 		listPoliciesByKey: map[string][]*awskms.ListKeyPoliciesOutput{
 			keyID: {
 				// First page is truncated and points at the next marker.
-				{PolicyNames: []string{"default"}, Truncated: true, NextMarker: aws.String("next")},
+				{PolicyNames: []string{"default"}, Truncated: true, NextMarker: awsv2.String("next")},
 				// Final page is not truncated; the stray marker must NOT trigger
 				// another call.
-				{PolicyNames: []string{"backup"}, Truncated: false, NextMarker: aws.String("ignored")},
+				{PolicyNames: []string{"backup"}, Truncated: false, NextMarker: awsv2.String("ignored")},
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())

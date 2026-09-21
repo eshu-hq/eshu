@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsresiliencehub "github.com/aws/aws-sdk-go-v2/service/resiliencehub"
 	awsresiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
 
@@ -21,14 +21,14 @@ import (
 // resources, and assessments. A missing published application version yields a
 // warning and an app carrying only its summary metadata rather than a hard
 // failure, so one unprepared application never blocks the whole scan.
-func (c *Client) listApps(ctx context.Context) ([]resiliencehubservice.App, []awscloud.WarningObservation, error) {
+func (c *Client) listApps(ctx context.Context) ([]resiliencehubservice.App, []aws.WarningObservation, error) {
 	summaries, err := c.listAppSummaries(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	var (
 		apps     []resiliencehubservice.App
-		warnings []awscloud.WarningObservation
+		warnings []aws.WarningObservation
 	)
 	for _, summary := range summaries {
 		app, appWarnings, appErr := c.enrichApp(ctx, summary)
@@ -61,7 +61,7 @@ func (c *Client) listAppSummaries(ctx context.Context) ([]awsresiliencehubtypes.
 		}
 		summaries = append(summaries, page.AppSummaries...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -73,21 +73,21 @@ func (c *Client) listAppSummaries(ctx context.Context) ([]awsresiliencehubtypes.
 func (c *Client) enrichApp(
 	ctx context.Context,
 	summary awsresiliencehubtypes.AppSummary,
-) (resiliencehubservice.App, []awscloud.WarningObservation, error) {
-	appARN := strings.TrimSpace(aws.ToString(summary.AppArn))
+) (resiliencehubservice.App, []aws.WarningObservation, error) {
+	appARN := strings.TrimSpace(awsv2.ToString(summary.AppArn))
 	app := resiliencehubservice.App{
 		ARN:                appARN,
-		Name:               strings.TrimSpace(aws.ToString(summary.Name)),
-		Description:        strings.TrimSpace(aws.ToString(summary.Description)),
+		Name:               strings.TrimSpace(awsv2.ToString(summary.Name)),
+		Description:        strings.TrimSpace(awsv2.ToString(summary.Description)),
 		Status:             strings.TrimSpace(string(summary.Status)),
 		ComplianceStatus:   strings.TrimSpace(string(summary.ComplianceStatus)),
 		DriftStatus:        strings.TrimSpace(string(summary.DriftStatus)),
 		AssessmentSchedule: strings.TrimSpace(string(summary.AssessmentSchedule)),
-		AWSApplicationARN:  strings.TrimSpace(aws.ToString(summary.AwsApplicationArn)),
+		AWSApplicationARN:  strings.TrimSpace(awsv2.ToString(summary.AwsApplicationArn)),
 		ResiliencyScore:    summary.ResiliencyScore,
 		RPOInSecs:          summary.RpoInSecs,
 		RTOInSecs:          summary.RtoInSecs,
-		CreationTime:       aws.ToTime(summary.CreationTime),
+		CreationTime:       awsv2.ToTime(summary.CreationTime),
 	}
 	if appARN == "" {
 		return app, nil, nil
@@ -106,7 +106,7 @@ func (c *Client) enrichApp(
 	}
 	app.Assessments = assessments
 
-	var warnings []awscloud.WarningObservation
+	var warnings []aws.WarningObservation
 	versioned, versionWarning, err := c.listVersionedMetadata(ctx, appARN)
 	if err != nil {
 		return resiliencehubservice.App{}, nil, err
@@ -125,14 +125,14 @@ func (c *Client) describeApp(ctx context.Context, appARN string) (policyARN stri
 	err = c.recordAPICall(ctx, "DescribeApp", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.DescribeApp(callCtx, &awsresiliencehub.DescribeAppInput{
-			AppArn: aws.String(appARN),
+			AppArn: awsv2.String(appARN),
 		})
 		return callErr
 	})
 	if err != nil || output == nil || output.App == nil {
 		return "", nil, err
 	}
-	return strings.TrimSpace(aws.ToString(output.App.PolicyArn)), cloneTags(output.App.Tags), nil
+	return strings.TrimSpace(awsv2.ToString(output.App.PolicyArn)), cloneTags(output.App.Tags), nil
 }
 
 func (c *Client) listAppAssessments(ctx context.Context, appARN string) ([]resiliencehubservice.Assessment, error) {
@@ -143,7 +143,7 @@ func (c *Client) listAppAssessments(ctx context.Context, appARN string) ([]resil
 		err := c.recordAPICall(ctx, "ListAppAssessments", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListAppAssessments(callCtx, &awsresiliencehub.ListAppAssessmentsInput{
-				AppArn:    aws.String(appARN),
+				AppArn:    awsv2.String(appARN),
 				NextToken: nextToken,
 			})
 			return callErr
@@ -158,7 +158,7 @@ func (c *Client) listAppAssessments(ctx context.Context, appARN string) ([]resil
 			assessments = append(assessments, mapAssessment(summary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return assessments, nil
 		}
 	}
@@ -166,17 +166,17 @@ func (c *Client) listAppAssessments(ctx context.Context, appARN string) ([]resil
 
 func mapAssessment(summary awsresiliencehubtypes.AppAssessmentSummary) resiliencehubservice.Assessment {
 	return resiliencehubservice.Assessment{
-		ARN:              strings.TrimSpace(aws.ToString(summary.AssessmentArn)),
-		AppARN:           strings.TrimSpace(aws.ToString(summary.AppArn)),
-		Name:             strings.TrimSpace(aws.ToString(summary.AssessmentName)),
+		ARN:              strings.TrimSpace(awsv2.ToString(summary.AssessmentArn)),
+		AppARN:           strings.TrimSpace(awsv2.ToString(summary.AppArn)),
+		Name:             strings.TrimSpace(awsv2.ToString(summary.AssessmentName)),
 		Status:           strings.TrimSpace(string(summary.AssessmentStatus)),
 		ComplianceStatus: strings.TrimSpace(string(summary.ComplianceStatus)),
 		DriftStatus:      strings.TrimSpace(string(summary.DriftStatus)),
 		Invoker:          strings.TrimSpace(string(summary.Invoker)),
-		AppVersion:       strings.TrimSpace(aws.ToString(summary.AppVersion)),
+		AppVersion:       strings.TrimSpace(awsv2.ToString(summary.AppVersion)),
 		ResiliencyScore:  summary.ResiliencyScore,
-		StartTime:        aws.ToTime(summary.StartTime),
-		EndTime:          aws.ToTime(summary.EndTime),
+		StartTime:        awsv2.ToTime(summary.StartTime),
+		EndTime:          awsv2.ToTime(summary.EndTime),
 	}
 }
 
@@ -194,7 +194,7 @@ type versionedMetadata struct {
 func (c *Client) listVersionedMetadata(
 	ctx context.Context,
 	appARN string,
-) (versionedMetadata, *awscloud.WarningObservation, error) {
+) (versionedMetadata, *aws.WarningObservation, error) {
 	inputSources, err := c.listInputSources(ctx, appARN)
 	if err != nil {
 		if isResourceNotFound(err) {
@@ -223,10 +223,10 @@ func (c *Client) listVersionedMetadata(
 	}, nil, nil
 }
 
-func (c *Client) versionMissingWarning(appARN string) *awscloud.WarningObservation {
-	return &awscloud.WarningObservation{
+func (c *Client) versionMissingWarning(appARN string) *aws.WarningObservation {
+	return &aws.WarningObservation{
 		Boundary:    c.boundary,
-		WarningKind: awscloud.WarningResilienceHubAppVersionMissing,
+		WarningKind: aws.WarningResilienceHubAppVersionMissing,
 		ErrorClass:  "resource_not_found",
 		Message: fmt.Sprintf(
 			"Resilience Hub application %q has no %q version; input sources, components, and protected resources omitted for this scan",

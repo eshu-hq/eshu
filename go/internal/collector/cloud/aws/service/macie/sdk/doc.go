@@ -20,4 +20,4 @@
 // over the internal apiClient interface enforces that exclusion, and the
 // scanner-owned types it returns have no field able to hold a regex body, list
 // contents, finding detail, or criteria.
-package awssdk
+package sdk

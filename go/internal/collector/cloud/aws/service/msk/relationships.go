@@ -9,39 +9,39 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
+func clusterRelationships(boundary aws.Boundary, cluster Cluster) []aws.RelationshipObservation {
 	clusterID := firstNonEmpty(cluster.ARN, cluster.Name)
 	if clusterID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, subnetID := range clusterSubnetIDs(cluster) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKClusterUsesSubnet,
+			RelationshipType: aws.RelationshipMSKClusterUsesSubnet,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   clusterID + "#subnet#" + subnetID,
 		})
 	}
 	for _, groupID := range clusterSecurityGroupIDs(cluster) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKClusterUsesSecurityGroup,
+			RelationshipType: aws.RelationshipMSKClusterUsesSecurityGroup,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   clusterID + "#security-group#" + groupID,
 		})
 	}
 	if cluster.Provisioned != nil {
 		if kmsARN := strings.TrimSpace(cluster.Provisioned.EncryptionAtRestKMSKey); isARN(kmsARN) {
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipMSKClusterUsesKMSKey,
+				RelationshipType: aws.RelationshipMSKClusterUsesKMSKey,
 				SourceResourceID: clusterID,
 				SourceARN:        strings.TrimSpace(cluster.ARN),
 				TargetResourceID: kmsARN,
@@ -53,14 +53,14 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 		if cluster.Provisioned.CurrentConfiguration != nil {
 			configARN := strings.TrimSpace(cluster.Provisioned.CurrentConfiguration.ARN)
 			if isARN(configARN) {
-				observations = append(observations, awscloud.RelationshipObservation{
+				observations = append(observations, aws.RelationshipObservation{
 					Boundary:         boundary,
-					RelationshipType: awscloud.RelationshipMSKClusterUsesConfiguration,
+					RelationshipType: aws.RelationshipMSKClusterUsesConfiguration,
 					SourceResourceID: clusterID,
 					SourceARN:        strings.TrimSpace(cluster.ARN),
 					TargetResourceID: configARN,
 					TargetARN:        configARN,
-					TargetType:       awscloud.ResourceTypeMSKConfiguration,
+					TargetType:       aws.ResourceTypeMSKConfiguration,
 					Attributes: map[string]any{
 						"revision": cluster.Provisioned.CurrentConfiguration.Revision,
 					},
@@ -126,22 +126,22 @@ func clusterSecurityGroupIDs(cluster Cluster) []string {
 	return out
 }
 
-func replicatorRelationships(boundary awscloud.Boundary, replicator Replicator) []awscloud.RelationshipObservation {
+func replicatorRelationships(boundary aws.Boundary, replicator Replicator) []aws.RelationshipObservation {
 	replicatorID := firstNonEmpty(replicator.ARN, replicator.Name)
 	if replicatorID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	roleARN := strings.TrimSpace(replicator.ServiceExecutionRoleARN)
 	if isARN(roleARN) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKReplicatorUsesIAMRole,
+			RelationshipType: aws.RelationshipMSKReplicatorUsesIAMRole,
 			SourceResourceID: replicatorID,
 			SourceARN:        strings.TrimSpace(replicator.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       aws.ResourceTypeIAMRole,
 			SourceRecordID:   replicatorID + "#role#" + roleARN,
 		})
 	}

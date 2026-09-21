@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elasticache guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elasticache guidance
 
 ## Read First
 
@@ -39,12 +39,12 @@
 
 - Add a new ElastiCache metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Reject additions that would expose AUTH
+  `aws` envelope builders. Reject additions that would expose AUTH
   tokens, passwords, access strings, or cache data.
 - Add new relationship evidence only when the ElastiCache API reports both
   sides directly and the target identity is not sensitive.
 - Extend SDK pagination, response caching, or KMS/subnet resolution in the
-  `awssdk` adapter, not here.
+  `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

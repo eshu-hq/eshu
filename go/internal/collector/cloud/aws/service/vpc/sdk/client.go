@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -41,18 +41,18 @@ type apiClient interface {
 
 // Client adapts AWS SDK EC2 pagination into scanner-owned VPC topology
 // records. It holds no mutable cross-call state; the AWS-SDK Client is
-// constructed per claim by the runtimebind builder.
+// constructed per claim by the bind builder.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a VPC SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -68,7 +68,7 @@ func NewClient(
 // credentials.
 func (c *Client) ListRouteTables(ctx context.Context) ([]vpcservice.RouteTable, error) {
 	paginator := awsec2.NewDescribeRouteTablesPaginator(c.client, &awsec2.DescribeRouteTablesInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var routeTables []vpcservice.RouteTable
 	for paginator.HasMorePages() {
@@ -92,7 +92,7 @@ func (c *Client) ListRouteTables(ctx context.Context) ([]vpcservice.RouteTable, 
 // credentials.
 func (c *Client) ListInternetGateways(ctx context.Context) ([]vpcservice.InternetGateway, error) {
 	paginator := awsec2.NewDescribeInternetGatewaysPaginator(c.client, &awsec2.DescribeInternetGatewaysInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var gateways []vpcservice.InternetGateway
 	for paginator.HasMorePages() {
@@ -116,7 +116,7 @@ func (c *Client) ListInternetGateways(ctx context.Context) ([]vpcservice.Interne
 // credentials.
 func (c *Client) ListNATGateways(ctx context.Context) ([]vpcservice.NATGateway, error) {
 	paginator := awsec2.NewDescribeNatGatewaysPaginator(c.client, &awsec2.DescribeNatGatewaysInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var gateways []vpcservice.NATGateway
 	for paginator.HasMorePages() {
@@ -140,7 +140,7 @@ func (c *Client) ListNATGateways(ctx context.Context) ([]vpcservice.NATGateway, 
 // credentials.
 func (c *Client) ListNetworkACLs(ctx context.Context) ([]vpcservice.NetworkACL, error) {
 	paginator := awsec2.NewDescribeNetworkAclsPaginator(c.client, &awsec2.DescribeNetworkAclsInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var networkACLs []vpcservice.NetworkACL
 	for paginator.HasMorePages() {
@@ -164,7 +164,7 @@ func (c *Client) ListNetworkACLs(ctx context.Context) ([]vpcservice.NetworkACL, 
 // configured AWS credentials.
 func (c *Client) ListVPCPeeringConnections(ctx context.Context) ([]vpcservice.VPCPeeringConnection, error) {
 	paginator := awsec2.NewDescribeVpcPeeringConnectionsPaginator(c.client, &awsec2.DescribeVpcPeeringConnectionsInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var peerings []vpcservice.VPCPeeringConnection
 	for paginator.HasMorePages() {
@@ -188,7 +188,7 @@ func (c *Client) ListVPCPeeringConnections(ctx context.Context) ([]vpcservice.VP
 // credentials.
 func (c *Client) ListVPCEndpoints(ctx context.Context) ([]vpcservice.VPCEndpoint, error) {
 	paginator := awsec2.NewDescribeVpcEndpointsPaginator(c.client, &awsec2.DescribeVpcEndpointsInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var endpoints []vpcservice.VPCEndpoint
 	for paginator.HasMorePages() {
@@ -212,7 +212,7 @@ func (c *Client) ListVPCEndpoints(ctx context.Context) ([]vpcservice.VPCEndpoint
 // credentials.
 func (c *Client) ListDHCPOptions(ctx context.Context) ([]vpcservice.DHCPOptions, error) {
 	paginator := awsec2.NewDescribeDhcpOptionsPaginator(c.client, &awsec2.DescribeDhcpOptionsInput{
-		MaxResults: aws.Int32(vpcPageLimit),
+		MaxResults: awsv2.Int32(vpcPageLimit),
 	})
 	var options []vpcservice.DHCPOptions
 	for paginator.HasMorePages() {
@@ -339,7 +339,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

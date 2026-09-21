@@ -14,7 +14,7 @@ import (
 // ARN's partition so the edge joins the bucket node the S3 scanner publishes
 // (`arn:<partition>:s3:::<bucket>`). It returns nil when the registered ARN is
 // not an S3 location ARN.
-func resourceS3BucketRelationship(boundary awscloud.Boundary, resource RegisteredResource) *awscloud.RelationshipObservation {
+func resourceS3BucketRelationship(boundary aws.Boundary, resource RegisteredResource) *aws.RelationshipObservation {
 	resourceARN := strings.TrimSpace(resource.ResourceARN)
 	bucketARN, bucket, prefix, ok := bucketARNFromS3LocationARN(boundary, resourceARN)
 	if !ok {
@@ -27,22 +27,22 @@ func resourceS3BucketRelationship(boundary awscloud.Boundary, resource Registere
 	if prefix != "" {
 		attributes["object_key_prefix"] = prefix
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationResourceAtS3Bucket,
+		RelationshipType: aws.RelationshipLakeFormationResourceAtS3Bucket,
 		SourceResourceID: resourceARN,
 		SourceARN:        resourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceAtS3Bucket + ":" + bucketARN,
+		SourceRecordID:   resourceARN + "->" + aws.RelationshipLakeFormationResourceAtS3Bucket + ":" + bucketARN,
 	}
 }
 
 // resourceRoleRelationship records the IAM role that registered the location.
 // It is emitted only when AWS reports a parseable role ARN.
-func resourceRoleRelationship(boundary awscloud.Boundary, resource RegisteredResource) *awscloud.RelationshipObservation {
+func resourceRoleRelationship(boundary aws.Boundary, resource RegisteredResource) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(resource.RoleARN)
 	if !isARN(roleARN) {
 		return nil
@@ -51,15 +51,15 @@ func resourceRoleRelationship(boundary awscloud.Boundary, resource RegisteredRes
 	if resourceARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationResourceUsesIAMRole,
+		RelationshipType: aws.RelationshipLakeFormationResourceUsesIAMRole,
 		SourceResourceID: resourceARN,
 		SourceARN:        resourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   resourceARN + "->" + aws.RelationshipLakeFormationResourceUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -67,8 +67,8 @@ func resourceRoleRelationship(boundary awscloud.Boundary, resource RegisteredRes
 // resource edge to the governed Glue database or table, and a principal edge to
 // the granted IAM role when the principal identifier is a role ARN. Each edge
 // carries a non-empty declared target_type so it never dangles.
-func permissionRelationships(boundary awscloud.Boundary, permissionID string, permission Permission) []awscloud.RelationshipObservation {
-	observations := make([]awscloud.RelationshipObservation, 0, 2)
+func permissionRelationships(boundary aws.Boundary, permissionID string, permission Permission) []aws.RelationshipObservation {
+	observations := make([]aws.RelationshipObservation, 0, 2)
 	if rel := permissionResourceRelationship(boundary, permissionID, permission); rel != nil {
 		observations = append(observations, *rel)
 	}
@@ -86,7 +86,7 @@ func permissionRelationships(boundary awscloud.Boundary, permissionID string, pe
 // a database grant targets the Glue database. Grants on non-catalog resources
 // (data locations, LF-Tags, the catalog root) produce no catalog edge here; the
 // data-location ARN is already covered by the registered-resource S3 edge.
-func permissionResourceRelationship(boundary awscloud.Boundary, permissionID string, permission Permission) *awscloud.RelationshipObservation {
+func permissionResourceRelationship(boundary aws.Boundary, permissionID string, permission Permission) *aws.RelationshipObservation {
 	databaseName := strings.TrimSpace(permission.DatabaseName)
 	switch strings.TrimSpace(permission.ResourceKind) {
 	case "table":
@@ -99,40 +99,40 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 			if databaseName == "" {
 				return nil
 			}
-			return &awscloud.RelationshipObservation{
+			return &aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
+				RelationshipType: aws.RelationshipLakeFormationPermissionOnGlueDatabase,
 				SourceResourceID: permissionID,
 				TargetResourceID: databaseName,
-				TargetType:       awscloud.ResourceTypeGlueDatabase,
+				TargetType:       aws.ResourceTypeGlueDatabase,
 				Attributes:       map[string]any{"table_wildcard": true},
-				SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
+				SourceRecordID:   permissionID + "->" + aws.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 			}
 		}
 		tableID := glueTableResourceID(databaseName, permission.TableName)
 		if tableID == "" {
 			return nil
 		}
-		return &awscloud.RelationshipObservation{
+		return &aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueTable,
+			RelationshipType: aws.RelationshipLakeFormationPermissionOnGlueTable,
 			SourceResourceID: permissionID,
 			TargetResourceID: tableID,
-			TargetType:       awscloud.ResourceTypeGlueTable,
+			TargetType:       aws.ResourceTypeGlueTable,
 			Attributes:       map[string]any{"database_name": databaseName},
-			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
+			SourceRecordID:   permissionID + "->" + aws.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
 		}
 	case "database":
 		if databaseName == "" {
 			return nil
 		}
-		return &awscloud.RelationshipObservation{
+		return &aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
+			RelationshipType: aws.RelationshipLakeFormationPermissionOnGlueDatabase,
 			SourceResourceID: permissionID,
 			TargetResourceID: databaseName,
-			TargetType:       awscloud.ResourceTypeGlueDatabase,
-			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
+			TargetType:       aws.ResourceTypeGlueDatabase,
+			SourceRecordID:   permissionID + "->" + aws.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 		}
 	default:
 		return nil
@@ -143,18 +143,18 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 // It is emitted only when the principal identifier is an IAM role ARN, so a
 // special principal (IAM_ALLOWED_PRINCIPALS) or a non-role ARN does not produce
 // a dangling or mistyped edge.
-func permissionPrincipalRelationship(boundary awscloud.Boundary, permissionID string, permission Permission) *awscloud.RelationshipObservation {
+func permissionPrincipalRelationship(boundary aws.Boundary, permissionID string, permission Permission) *aws.RelationshipObservation {
 	principalID := strings.TrimSpace(permission.PrincipalID)
 	if !isRoleARN(principalID) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal,
+		RelationshipType: aws.RelationshipLakeFormationPermissionGrantedToPrincipal,
 		SourceResourceID: permissionID,
 		TargetResourceID: principalID,
 		TargetARN:        principalID,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal + ":" + principalID,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   permissionID + "->" + aws.RelationshipLakeFormationPermissionGrantedToPrincipal + ":" + principalID,
 	}
 }

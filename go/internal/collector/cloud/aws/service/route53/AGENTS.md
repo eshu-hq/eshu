@@ -1,15 +1,15 @@
-# AGENTS.md - internal/collector/awscloud/service/route53 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/route53 guidance
 
 ## Read First
 
 1. `README.md` - package purpose, flow, and invariants.
 2. `types.go` - scanner-owned Route 53 records and client contract.
 3. `scanner.go` - fact selection and hosted-zone/record envelope mapping.
-4. `awssdk/README.md` - AWS SDK pagination and response mapping.
+4. `sdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
-- Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
+- Do not call AWS APIs from this package. The `sdk` adapter owns AWS SDK
   calls and telemetry.
 - Preserve hosted-zone visibility from `HostedZone.Config.PrivateZone`.
 - Preserve alias `DNSName`, alias `HostedZoneID`, and `EvaluateTargetHealth`.
@@ -23,7 +23,7 @@
 - Add a new record attribute in `scanner.go` only when it supports DNS-to-cloud
   joining, freshness, or later correlation.
 - Add new Route 53 routing policy fields in `types.go`, `scanner.go`, and
-  `awssdk/mapper.go` together.
+  `sdk/mapper.go` together.
 - Add a focused scanner test before changing which record types are emitted.
 
 ## What Not To Change Without An ADR

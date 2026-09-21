@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsorg "github.com/aws/aws-sdk-go-v2/service/organizations"
 	awsorgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/smithy-go"
@@ -33,7 +33,7 @@ func (c *Client) listTags(ctx context.Context, resourceID string) (map[string]st
 			var err error
 			output, err = c.client.ListTagsForResource(callCtx, &awsorg.ListTagsForResourceInput{
 				NextToken:  nextToken,
-				ResourceId: aws.String(resourceID),
+				ResourceId: awsv2.String(resourceID),
 			})
 			return err
 		})
@@ -45,7 +45,7 @@ func (c *Client) listTags(ctx context.Context, resourceID string) (map[string]st
 		}
 		tags = append(tags, output.Tags...)
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tagsMap(tags), nil
 		}
 	}
@@ -71,11 +71,11 @@ func tagsMap(tags []awsorgtypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil
@@ -85,8 +85,8 @@ func tagsMap(tags []awsorgtypes.Tag) map[string]string {
 
 func (c *Client) skippedSnapshot(reason string) organizationsservice.Snapshot {
 	return organizationsservice.Snapshot{
-		Warnings: []awscloud.WarningObservation{{
-			WarningKind:    awscloud.WarningOrganizationsOrgAccessSkipped,
+		Warnings: []aws.WarningObservation{{
+			WarningKind:    aws.WarningOrganizationsOrgAccessSkipped,
 			ErrorClass:     "org_access_skipped",
 			Message:        "AWS Organizations metadata scan skipped because credentials are not management or delegated-admin credentials",
 			SourceRecordID: "organizations:org-aware-skip",
@@ -152,7 +152,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

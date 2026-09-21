@@ -89,14 +89,14 @@ func TestScannerEmitsApplicationsEnvironmentsAndVersions(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	application := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkApplication)
+	application := resourceByType(t, envelopes, aws.ResourceTypeElasticBeanstalkApplication)
 	attrs := attributesOf(t, application)
 	templates, ok := attrs["configuration_templates"].([]string)
 	if !ok || len(templates) != 2 || templates[0] != "checkout-template" {
 		t.Fatalf("configuration_templates = %#v, want [checkout-template blue-green]", attrs["configuration_templates"])
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkEnvironment)
+	environment := resourceByType(t, envelopes, aws.ResourceTypeElasticBeanstalkEnvironment)
 	envAttrs := attributesOf(t, environment)
 	for key, want := range map[string]string{
 		"status":              "Ready",
@@ -116,7 +116,7 @@ func TestScannerEmitsApplicationsEnvironmentsAndVersions(t *testing.T) {
 		t.Fatalf("environment arn = %#v, want %q", got, testEnvironmentARN)
 	}
 
-	version := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkApplicationVersion)
+	version := resourceByType(t, envelopes, aws.ResourceTypeElasticBeanstalkApplicationVersion)
 	versionAttrs := attributesOf(t, version)
 	if got, _ := versionAttrs["version_label"].(string); got != "v42" {
 		t.Fatalf("version_label = %q, want v42", got)
@@ -135,17 +135,17 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		targetType   string
 	}{
 		{
-			awscloud.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
+			aws.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
 			"arn:aws:elasticbeanstalk:us-east-1:123456789012:application/checkout",
-			awscloud.ResourceTypeElasticBeanstalkApplication,
+			aws.ResourceTypeElasticBeanstalkApplication,
 		},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", awscloud.ResourceTypeEC2VPC},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, awscloud.ResourceTypeIAMInstanceProfile},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, awscloud.ResourceTypeIAMRole},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, awscloud.ResourceTypeELBv2LoadBalancer},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", awscloud.ResourceTypeAutoScalingGroup},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", awscloud.ResourceTypeEC2LaunchTemplate},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", aws.ResourceTypeEC2VPC},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, aws.ResourceTypeIAMInstanceProfile},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, aws.ResourceTypeIAMRole},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, aws.ResourceTypeELBv2LoadBalancer},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", aws.ResourceTypeAutoScalingGroup},
+		{aws.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", aws.ResourceTypeEC2LaunchTemplate},
+		{aws.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, aws.ResourceTypeElasticBeanstalkApplicationVersion},
 	}
 	for _, tc := range cases {
 		relationship := relationshipByType(t, envelopes, tc.relationship)
@@ -186,7 +186,7 @@ func TestResourceRelationshipsTypesLoadBalancerByIdentifierShape(t *testing.T) {
 			name:           "alb arn keeps elbv2 type and sets target arn",
 			loadBalancer:   albARN,
 			wantTargetID:   albARN,
-			wantTargetType: awscloud.ResourceTypeELBv2LoadBalancer,
+			wantTargetType: aws.ResourceTypeELBv2LoadBalancer,
 			wantTargetARN:  albARN,
 		},
 		{
@@ -205,10 +205,10 @@ func TestResourceRelationshipsTypesLoadBalancerByIdentifierShape(t *testing.T) {
 				testEnvironmentARN,
 				EnvironmentResources{LoadBalancerNames: []string{tc.loadBalancer}},
 			)
-			var rel awscloud.RelationshipObservation
+			var rel aws.RelationshipObservation
 			var found bool
 			for _, obs := range observations {
-				if obs.RelationshipType == awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer {
+				if obs.RelationshipType == aws.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer {
 					rel = obs
 					found = true
 					break
@@ -241,7 +241,7 @@ func TestScannerRedactsOptionSettingValuesAndNeverPersistsClearText(t *testing.T
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkEnvironment)
+	environment := resourceByType(t, envelopes, aws.ResourceTypeElasticBeanstalkEnvironment)
 	options, ok := attributesOf(t, environment)["option_settings"].([]map[string]any)
 	if !ok {
 		t.Fatalf("option_settings = %#v, want []map[string]any", attributesOf(t, environment)["option_settings"])
@@ -297,7 +297,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = aws.ServiceECS
 	_, err := (Scanner{Client: fullClient(), RedactionKey: testKey(t)}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -313,11 +313,11 @@ func TestScannerStopsOnClientError(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceElasticBeanstalk,
+		ServiceKind:         aws.ServiceElasticBeanstalk,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elasticbeanstalk:1",
 		CollectorInstanceID: "aws-prod",

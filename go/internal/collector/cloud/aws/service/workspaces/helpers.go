@@ -14,7 +14,7 @@ import (
 // DescribeWorkspaces API does not return an ARN, so the scanner synthesizes a
 // partition-aware WorkSpaces ARN from the scan boundary and falls back to the
 // bare WorkSpace id when identity is incomplete.
-func workspaceResourceID(boundary awscloud.Boundary, workspace Workspace) string {
+func workspaceResourceID(boundary aws.Boundary, workspace Workspace) string {
 	id := strings.TrimSpace(workspace.ID)
 	if id == "" {
 		return ""
@@ -30,7 +30,7 @@ func workspaceResourceID(boundary awscloud.Boundary, workspace Workspace) string
 // synthesizes a partition-aware WorkSpaces directory ARN and falls back to the
 // bare directory id. The bare directory id is also what the Directory Service
 // scanner publishes, which the directory-to-DS edge keys on separately.
-func directoryResourceID(boundary awscloud.Boundary, directory Directory) string {
+func directoryResourceID(boundary aws.Boundary, directory Directory) string {
 	id := strings.TrimSpace(directory.ID)
 	if id == "" {
 		return ""
@@ -45,7 +45,7 @@ func directoryResourceID(boundary awscloud.Boundary, directory Directory) string
 // publishes. DescribeWorkspaceBundles returns no ARN, so the scanner
 // synthesizes a partition-aware WorkSpaces bundle ARN and falls back to the
 // bare bundle id.
-func bundleResourceID(boundary awscloud.Boundary, bundle Bundle) string {
+func bundleResourceID(boundary aws.Boundary, bundle Bundle) string {
 	id := strings.TrimSpace(bundle.ID)
 	if id == "" {
 		return ""
@@ -60,7 +60,7 @@ func bundleResourceID(boundary awscloud.Boundary, bundle Bundle) string {
 // group node publishes. DescribeIpGroups returns no ARN, so the scanner
 // synthesizes a partition-aware WorkSpaces IP-group ARN and falls back to the
 // bare group id.
-func ipGroupResourceID(boundary awscloud.Boundary, group IPGroup) string {
+func ipGroupResourceID(boundary aws.Boundary, group IPGroup) string {
 	id := strings.TrimSpace(group.ID)
 	if id == "" {
 		return ""
@@ -78,7 +78,7 @@ func ipGroupResourceID(boundary awscloud.Boundary, group IPGroup) string {
 // the published ids join in every partition. It returns "" when the account or
 // region needed to form a valid ARN is missing, so the caller falls back to the
 // bare id instead of emitting a malformed ARN.
-func workspacesARN(boundary awscloud.Boundary, resource, id string) string {
+func workspacesARN(boundary aws.Boundary, resource, id string) string {
 	account := strings.TrimSpace(boundary.AccountID)
 	region := strings.TrimSpace(boundary.Region)
 	resource = strings.TrimSpace(resource)
@@ -86,7 +86,7 @@ func workspacesARN(boundary awscloud.Boundary, resource, id string) string {
 	if account == "" || region == "" || resource == "" || id == "" {
 		return ""
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
+	partition := aws.PartitionForBoundary(boundary)
 	return strings.Join(
 		[]string{"arn", partition, "workspaces", region, account, resource + "/" + id},
 		":",

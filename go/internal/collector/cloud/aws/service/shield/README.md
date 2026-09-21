@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/shield` owns the Shield Advanced scanner
+`internal/collector/cloud/aws/service/shield` owns the Shield Advanced scanner
 contract for the AWS cloud collector. It converts protection metadata and the
 per-account subscription summary into `aws_shield_protection` and
 `aws_shield_subscription` facts and emits a protection-to-protected-resource
@@ -43,7 +43,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, Shield resource and relationship
+- `internal/collector/cloud/aws` for boundaries, Shield resource and relationship
   constants, partition-aware ARN helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -74,10 +74,10 @@ resource family is skipped: no untyped or dangling edge is emitted.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns through
 `eshu_dp_aws_resources_emitted_total{service="shield"}` and
-`eshu_dp_aws_relationships_emitted_total`. The `awssdk` adapter records Shield
+`eshu_dp_aws_relationships_emitted_total`. The `sdk` adapter records Shield
 API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -98,14 +98,14 @@ API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/shield/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/shield/...`
 covers the bounded Shield metadata path: one `NextToken`-paginated
 `ListProtections` stream, one `DescribeSubscription` point read with a single
 `GetSubscriptionState` read for the canonical state, no per-protection detail
 read, no mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/shield/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/shield/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers protection and subscription fact emission, the protected-ARN classifier
 across ELBv2, CloudFront, Elastic IP, Route 53 hosted zone, and Global
 Accelerator (each producing the correct `target_type` and `target_resource_id`),

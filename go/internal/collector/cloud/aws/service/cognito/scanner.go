@@ -30,7 +30,7 @@ type Scanner struct {
 
 // Scan observes Cognito user pools, app clients, identity providers, resource
 // servers, groups, and identity pools through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cognito scanner client is required")
 	}
@@ -38,10 +38,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cognito scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCognito:
+	case "", aws.ServiceCognito:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCognito
+		boundary.ServiceKind = aws.ServiceCognito
 	default:
 		return nil, fmt.Errorf("cognito scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -77,16 +77,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) userPoolEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pool UserPool,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(userPoolObservation(boundary, pool))
+	resource, err := aws.NewResourceEnvelope(userPoolObservation(boundary, pool))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range userPoolLambdaTriggerRelationships(boundary, pool) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -103,13 +103,13 @@ func (s Scanner) userPoolEnvelopes(
 		return nil, fmt.Errorf("list Cognito user pool clients for pool %q: %w", poolID, err)
 	}
 	for _, client := range clients {
-		resource, err := awscloud.NewResourceEnvelope(userPoolClientObservation(boundary, client))
+		resource, err := aws.NewResourceEnvelope(userPoolClientObservation(boundary, client))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if relationship := userPoolClientRelationship(boundary, client, pool.ARN); relationship != nil {
-			envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+			envelope, err := aws.NewRelationshipEnvelope(*relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -122,7 +122,7 @@ func (s Scanner) userPoolEnvelopes(
 		return nil, fmt.Errorf("list Cognito identity providers for pool %q: %w", poolID, err)
 	}
 	for _, provider := range providers {
-		resource, err := awscloud.NewResourceEnvelope(identityProviderObservation(boundary, provider))
+		resource, err := aws.NewResourceEnvelope(identityProviderObservation(boundary, provider))
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func (s Scanner) userPoolEnvelopes(
 		return nil, fmt.Errorf("list Cognito resource servers for pool %q: %w", poolID, err)
 	}
 	for _, resourceServer := range resourceServers {
-		resource, err := awscloud.NewResourceEnvelope(resourceServerObservation(boundary, resourceServer))
+		resource, err := aws.NewResourceEnvelope(resourceServerObservation(boundary, resourceServer))
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +146,7 @@ func (s Scanner) userPoolEnvelopes(
 		return nil, fmt.Errorf("list Cognito groups for pool %q: %w", poolID, err)
 	}
 	for _, group := range groups {
-		resource, err := awscloud.NewResourceEnvelope(s.groupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(s.groupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -157,16 +157,16 @@ func (s Scanner) userPoolEnvelopes(
 }
 
 func (s Scanner) identityPoolEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pool IdentityPool,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(s.identityPoolObservation(boundary, pool))
+	resource, err := aws.NewResourceEnvelope(s.identityPoolObservation(boundary, pool))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range identityPoolRelationships(boundary, pool) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -175,14 +175,14 @@ func (s Scanner) identityPoolEnvelopes(
 	return envelopes, nil
 }
 
-func userPoolObservation(boundary awscloud.Boundary, pool UserPool) awscloud.ResourceObservation {
+func userPoolObservation(boundary aws.Boundary, pool UserPool) aws.ResourceObservation {
 	poolARN := strings.TrimSpace(pool.ARN)
 	poolID := strings.TrimSpace(pool.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          poolARN,
 		ResourceID:   firstNonEmpty(poolID, poolARN),
-		ResourceType: awscloud.ResourceTypeCognitoUserPool,
+		ResourceType: aws.ResourceTypeCognitoUserPool,
 		Name:         strings.TrimSpace(pool.Name),
 		// The Cognito API deprecated the user-pool Status field and no longer
 		// populates it, so the envelope state stays empty rather than carrying a
@@ -205,12 +205,12 @@ func userPoolObservation(boundary awscloud.Boundary, pool UserPool) awscloud.Res
 	}
 }
 
-func userPoolClientObservation(boundary awscloud.Boundary, client UserPoolClient) awscloud.ResourceObservation {
+func userPoolClientObservation(boundary aws.Boundary, client UserPoolClient) aws.ResourceObservation {
 	clientID := strings.TrimSpace(client.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   clientID,
-		ResourceType: awscloud.ResourceTypeCognitoUserPoolClient,
+		ResourceType: aws.ResourceTypeCognitoUserPoolClient,
 		Name:         strings.TrimSpace(client.Name),
 		Attributes: map[string]any{
 			"client_id":                            clientID,
@@ -230,14 +230,14 @@ func userPoolClientObservation(boundary awscloud.Boundary, client UserPoolClient
 	}
 }
 
-func identityProviderObservation(boundary awscloud.Boundary, provider IdentityProvider) awscloud.ResourceObservation {
+func identityProviderObservation(boundary aws.Boundary, provider IdentityProvider) aws.ResourceObservation {
 	poolID := strings.TrimSpace(provider.UserPoolID)
 	providerName := strings.TrimSpace(provider.ProviderName)
 	resourceID := poolID + "#provider#" + providerName
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCognitoIdentityProvider,
+		ResourceType: aws.ResourceTypeCognitoIdentityProvider,
 		Name:         providerName,
 		Attributes: map[string]any{
 			"user_pool_id":     poolID,
@@ -251,14 +251,14 @@ func identityProviderObservation(boundary awscloud.Boundary, provider IdentityPr
 	}
 }
 
-func resourceServerObservation(boundary awscloud.Boundary, resourceServer ResourceServer) awscloud.ResourceObservation {
+func resourceServerObservation(boundary aws.Boundary, resourceServer ResourceServer) aws.ResourceObservation {
 	poolID := strings.TrimSpace(resourceServer.UserPoolID)
 	identifier := strings.TrimSpace(resourceServer.Identifier)
 	resourceID := poolID + "#resource-server#" + identifier
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCognitoResourceServer,
+		ResourceType: aws.ResourceTypeCognitoResourceServer,
 		Name:         strings.TrimSpace(resourceServer.Name),
 		Attributes: map[string]any{
 			"user_pool_id": poolID,
@@ -270,7 +270,7 @@ func resourceServerObservation(boundary awscloud.Boundary, resourceServer Resour
 	}
 }
 
-func (s Scanner) groupObservation(boundary awscloud.Boundary, group Group) awscloud.ResourceObservation {
+func (s Scanner) groupObservation(boundary aws.Boundary, group Group) aws.ResourceObservation {
 	poolID := strings.TrimSpace(group.UserPoolID)
 	name := strings.TrimSpace(group.Name)
 	resourceID := poolID + "#group#" + name
@@ -285,16 +285,16 @@ func (s Scanner) groupObservation(boundary awscloud.Boundary, group Group) awscl
 		attributes["precedence"] = *group.Precedence
 	}
 	if description := strings.TrimSpace(group.Description); description != "" {
-		attributes["description"] = awscloud.RedactString(
+		attributes["description"] = aws.RedactString(
 			description,
 			"aws_cognito_user_pool_group.description",
 			s.RedactionKey,
 		)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCognitoUserPoolGroup,
+		ResourceType:       aws.ResourceTypeCognitoUserPoolGroup,
 		Name:               name,
 		Attributes:         attributes,
 		CorrelationAnchors: []string{resourceID, poolID, name, strings.TrimSpace(group.RoleARN)},
@@ -302,7 +302,7 @@ func (s Scanner) groupObservation(boundary awscloud.Boundary, group Group) awscl
 	}
 }
 
-func (s Scanner) identityPoolObservation(boundary awscloud.Boundary, pool IdentityPool) awscloud.ResourceObservation {
+func (s Scanner) identityPoolObservation(boundary aws.Boundary, pool IdentityPool) aws.ResourceObservation {
 	poolARN := strings.TrimSpace(pool.ARN)
 	poolID := strings.TrimSpace(pool.ID)
 	attributes := map[string]any{
@@ -315,17 +315,17 @@ func (s Scanner) identityPoolObservation(boundary awscloud.Boundary, pool Identi
 		"roles":                            rolesSummaryMap(pool.RolesSummary),
 	}
 	if developerProviderName := strings.TrimSpace(pool.DeveloperProviderName); developerProviderName != "" {
-		attributes["developer_provider_name"] = awscloud.RedactString(
+		attributes["developer_provider_name"] = aws.RedactString(
 			developerProviderName,
 			"aws_cognito_identity_pool.developer_provider_name",
 			s.RedactionKey,
 		)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                poolARN,
 		ResourceID:         firstNonEmpty(poolARN, poolID),
-		ResourceType:       awscloud.ResourceTypeCognitoIdentityPool,
+		ResourceType:       aws.ResourceTypeCognitoIdentityPool,
 		Name:               strings.TrimSpace(pool.Name),
 		Tags:               pool.Tags,
 		Attributes:         attributes,

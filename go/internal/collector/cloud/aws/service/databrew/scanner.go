@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes DataBrew datasets, recipes, jobs, and projects plus their
 // direct S3, Glue Data Catalog, IAM, and internal dependency metadata through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("databrew scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDatabrew:
+	case "", aws.ServiceDatabrew:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDatabrew
+		boundary.ServiceKind = aws.ServiceDatabrew
 	default:
 		return nil, fmt.Errorf("databrew scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, recipe := range snapshot.Recipes {
-		envelope, err := awscloud.NewResourceEnvelope(recipeObservation(boundary, recipe))
+		envelope, err := aws.NewResourceEnvelope(recipeObservation(boundary, recipe))
 		if err != nil {
 			return nil, err
 		}
@@ -79,9 +79,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -90,8 +90,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func datasetEnvelopes(boundary awscloud.Boundary, dataset Dataset) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(datasetObservation(boundary, dataset))
+func datasetEnvelopes(boundary aws.Boundary, dataset Dataset) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(datasetObservation(boundary, dataset))
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +103,8 @@ func datasetEnvelopes(boundary awscloud.Boundary, dataset Dataset) ([]facts.Enve
 	)
 }
 
-func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(jobObservation(boundary, job))
+func jobEnvelopes(boundary aws.Boundary, job Job) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(jobObservation(boundary, job))
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 		return nil, err
 	}
 	for _, relationship := range jobWritesS3Relationships(boundary, job) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -127,8 +127,8 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 	return envelopes, nil
 }
 
-func projectEnvelopes(boundary awscloud.Boundary, project Project) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(projectObservation(boundary, project))
+func projectEnvelopes(boundary aws.Boundary, project Project) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(projectObservation(boundary, project))
 	if err != nil {
 		return nil, err
 	}
@@ -146,13 +146,13 @@ func projectEnvelopes(boundary awscloud.Boundary, project Project) ([]facts.Enve
 // endpoint identity is missing.
 func appendRelationships(
 	envelopes []facts.Envelope,
-	relationships ...*awscloud.RelationshipObservation,
+	relationships ...*aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
 	for _, relationship := range relationships {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -161,15 +161,15 @@ func appendRelationships(
 	return envelopes, nil
 }
 
-func datasetObservation(boundary awscloud.Boundary, dataset Dataset) awscloud.ResourceObservation {
+func datasetObservation(boundary aws.Boundary, dataset Dataset) aws.ResourceObservation {
 	arn := strings.TrimSpace(dataset.ARN)
 	name := strings.TrimSpace(dataset.Name)
 	resourceID := datasetResourceID(dataset)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewDataset,
+		ResourceType: aws.ResourceTypeDatabrewDataset,
 		Name:         name,
 		Tags:         cloneStringMap(dataset.Tags),
 		Attributes: map[string]any{
@@ -189,15 +189,15 @@ func datasetObservation(boundary awscloud.Boundary, dataset Dataset) awscloud.Re
 	}
 }
 
-func recipeObservation(boundary awscloud.Boundary, recipe Recipe) awscloud.ResourceObservation {
+func recipeObservation(boundary aws.Boundary, recipe Recipe) aws.ResourceObservation {
 	arn := strings.TrimSpace(recipe.ARN)
 	name := strings.TrimSpace(recipe.Name)
 	resourceID := recipeResourceID(recipe)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewRecipe,
+		ResourceType: aws.ResourceTypeDatabrewRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -213,15 +213,15 @@ func recipeObservation(boundary awscloud.Boundary, recipe Recipe) awscloud.Resou
 	}
 }
 
-func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObservation {
+func jobObservation(boundary aws.Boundary, job Job) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	name := strings.TrimSpace(job.Name)
 	resourceID := jobResourceID(job)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewJob,
+		ResourceType: aws.ResourceTypeDatabrewJob,
 		Name:         name,
 		Tags:         cloneStringMap(job.Tags),
 		Attributes: map[string]any{
@@ -240,15 +240,15 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 	}
 }
 
-func projectObservation(boundary awscloud.Boundary, project Project) awscloud.ResourceObservation {
+func projectObservation(boundary aws.Boundary, project Project) aws.ResourceObservation {
 	arn := strings.TrimSpace(project.ARN)
 	name := strings.TrimSpace(project.Name)
 	resourceID := projectResourceID(project)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewProject,
+		ResourceType: aws.ResourceTypeDatabrewProject,
 		Name:         name,
 		Tags:         cloneStringMap(project.Tags),
 		Attributes: map[string]any{

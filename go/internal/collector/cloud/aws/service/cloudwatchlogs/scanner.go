@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes CloudWatch Logs log groups and direct KMS dependency metadata
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudwatchlogs scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudWatchLogs:
+	case "", aws.ServiceCloudWatchLogs:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudWatchLogs
+		boundary.ServiceKind = aws.ServiceCloudWatchLogs
 	default:
 		return nil, fmt.Errorf("cloudwatchlogs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,14 +49,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func logGroupEnvelopes(boundary awscloud.Boundary, logGroup LogGroup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(logGroupObservation(boundary, logGroup))
+func logGroupEnvelopes(boundary aws.Boundary, logGroup LogGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(logGroupObservation(boundary, logGroup))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := kmsRelationship(boundary, logGroup); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -65,15 +65,15 @@ func logGroupEnvelopes(boundary awscloud.Boundary, logGroup LogGroup) ([]facts.E
 	return envelopes, nil
 }
 
-func logGroupObservation(boundary awscloud.Boundary, logGroup LogGroup) awscloud.ResourceObservation {
+func logGroupObservation(boundary aws.Boundary, logGroup LogGroup) aws.ResourceObservation {
 	logGroupARN := strings.TrimSpace(logGroup.ARN)
 	name := strings.TrimSpace(logGroup.Name)
 	resourceID := firstNonEmpty(logGroupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          logGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		ResourceType: aws.ResourceTypeCloudWatchLogsLogGroup,
 		Name:         name,
 		Tags:         cloneStringMap(logGroup.Tags),
 		Attributes: map[string]any{

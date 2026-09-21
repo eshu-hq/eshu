@@ -67,7 +67,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	task := resourceByType(t, envelopes, awscloud.ResourceTypeDataSyncTask)
+	task := resourceByType(t, envelopes, aws.ResourceTypeDataSyncTask)
 	if got, want := task.Payload["resource_id"], taskARN; got != want {
 		t.Fatalf("task resource_id = %#v, want %q", got, want)
 	}
@@ -82,7 +82,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("task cloudwatch_log_group_arn = %#v, want %q (trailing :* must be trimmed)", got, want)
 	}
 
-	source := resourceByID(t, envelopes, awscloud.ResourceTypeDataSyncLocation, sourceLocationARN)
+	source := resourceByID(t, envelopes, aws.ResourceTypeDataSyncLocation, sourceLocationARN)
 	sourceAttributes := attributesOf(t, source)
 	if got, want := sourceAttributes["location_type"], "S3"; got != want {
 		t.Fatalf("source location_type = %#v, want %q", got, want)
@@ -93,7 +93,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 		}
 	}
 
-	agent := resourceByType(t, envelopes, awscloud.ResourceTypeDataSyncAgent)
+	agent := resourceByType(t, envelopes, aws.ResourceTypeDataSyncAgent)
 	if got, want := agent.Payload["resource_id"], agentARN; got != want {
 		t.Fatalf("agent resource_id = %#v, want %q", got, want)
 	}
@@ -101,34 +101,34 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("agent state = %#v, want %q", got, want)
 	}
 
-	sourceEdge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncTaskSourceLocation)
+	sourceEdge := relationshipByType(t, envelopes, aws.RelationshipDataSyncTaskSourceLocation)
 	if got, want := sourceEdge.Payload["source_resource_id"], taskARN; got != want {
 		t.Fatalf("task->source source_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := sourceEdge.Payload["target_resource_id"], sourceLocationARN; got != want {
 		t.Fatalf("task->source target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := sourceEdge.Payload["target_type"], awscloud.ResourceTypeDataSyncLocation; got != want {
+	if got, want := sourceEdge.Payload["target_type"], aws.ResourceTypeDataSyncLocation; got != want {
 		t.Fatalf("task->source target_type = %#v, want %q", got, want)
 	}
 
-	destEdge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncTaskDestinationLocation)
+	destEdge := relationshipByType(t, envelopes, aws.RelationshipDataSyncTaskDestinationLocation)
 	if got, want := destEdge.Payload["target_resource_id"], destLocationARN; got != want {
 		t.Fatalf("task->dest target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := destEdge.Payload["target_type"], awscloud.ResourceTypeDataSyncLocation; got != want {
+	if got, want := destEdge.Payload["target_type"], aws.ResourceTypeDataSyncLocation; got != want {
 		t.Fatalf("task->dest target_type = %#v, want %q", got, want)
 	}
 
-	logEdge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncTaskLogsToCloudWatch)
+	logEdge := relationshipByType(t, envelopes, aws.RelationshipDataSyncTaskLogsToCloudWatch)
 	if got, want := logEdge.Payload["target_resource_id"], logGroupARN; got != want {
 		t.Fatalf("task->log target_resource_id = %#v, want %q (must match trimmed log-group ARN)", got, want)
 	}
-	if got, want := logEdge.Payload["target_type"], awscloud.ResourceTypeCloudWatchLogsLogGroup; got != want {
+	if got, want := logEdge.Payload["target_type"], aws.ResourceTypeCloudWatchLogsLogGroup; got != want {
 		t.Fatalf("task->log target_type = %#v, want %q", got, want)
 	}
 
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncLocationTargetsS3Bucket)
+	s3Edge := relationshipByType(t, envelopes, aws.RelationshipDataSyncLocationTargetsS3Bucket)
 	if got, want := s3Edge.Payload["source_resource_id"], sourceLocationARN; got != want {
 		t.Fatalf("location->s3 source_resource_id = %#v, want %q", got, want)
 	}
@@ -138,25 +138,25 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := s3Edge.Payload["target_arn"], "arn:aws:s3:::archive-source"; got != want {
 		t.Fatalf("location->s3 target_arn = %#v, want %q", got, want)
 	}
-	if got, want := s3Edge.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3Edge.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("location->s3 target_type = %#v, want %q", got, want)
 	}
 
-	efsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncLocationTargetsEFSFileSystem)
+	efsEdge := relationshipByType(t, envelopes, aws.RelationshipDataSyncLocationTargetsEFSFileSystem)
 	wantEFSARN := "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-0123456789abcdef0"
 	if got, want := efsEdge.Payload["target_resource_id"], wantEFSARN; got != want {
 		t.Fatalf("location->efs target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := efsEdge.Payload["target_type"], awscloud.ResourceTypeEFSFileSystem; got != want {
+	if got, want := efsEdge.Payload["target_type"], aws.ResourceTypeEFSFileSystem; got != want {
 		t.Fatalf("location->efs target_type = %#v, want %q", got, want)
 	}
 
-	roleEdges := relationshipsByType(envelopes, awscloud.RelationshipDataSyncLocationUsesIAMRole)
+	roleEdges := relationshipsByType(envelopes, aws.RelationshipDataSyncLocationUsesIAMRole)
 	if len(roleEdges) != 2 {
 		t.Fatalf("location->role relationship count = %d, want 2", len(roleEdges))
 	}
 	for _, edge := range roleEdges {
-		if got, want := edge.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+		if got, want := edge.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 			t.Fatalf("location->role target_type = %#v, want %q", got, want)
 		}
 		arn, _ := edge.Payload["target_arn"].(string)
@@ -181,14 +181,14 @@ func TestScannerEmitsFSxFileSystemRelationshipFromReportedARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem)
+	edge := relationshipByType(t, envelopes, aws.RelationshipDataSyncLocationTargetsFSxFileSystem)
 	if got, want := edge.Payload["target_resource_id"], fsARN; got != want {
 		t.Fatalf("location->fsx target_resource_id = %#v, want %q (API ARN used directly)", got, want)
 	}
 	if got, want := edge.Payload["target_arn"], fsARN; got != want {
 		t.Fatalf("location->fsx target_arn = %#v, want %q", got, want)
 	}
-	if got, want := edge.Payload["target_type"], awscloud.ResourceTypeFSxFileSystem; got != want {
+	if got, want := edge.Payload["target_type"], aws.ResourceTypeFSxFileSystem; got != want {
 		t.Fatalf("location->fsx target_type = %#v, want %q", got, want)
 	}
 }
@@ -206,7 +206,7 @@ func TestScannerSynthesizesFSxFileSystemARNFromIDWhenAPIOmitsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem)
+	edge := relationshipByType(t, envelopes, aws.RelationshipDataSyncLocationTargetsFSxFileSystem)
 	want := "arn:aws:fsx:us-east-1:123456789012:file-system/fs-0lustre000000000000"
 	if got := edge.Payload["target_resource_id"]; got != want {
 		t.Fatalf("location->fsx target_resource_id = %#v, want %q", got, want)
@@ -226,10 +226,10 @@ func TestScannerOmitsLocationStorageEdgesWithoutBackingIdentity(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipDataSyncLocationTargetsS3Bucket,
-		awscloud.RelationshipDataSyncLocationTargetsEFSFileSystem,
-		awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem,
-		awscloud.RelationshipDataSyncLocationUsesIAMRole,
+		aws.RelationshipDataSyncLocationTargetsS3Bucket,
+		aws.RelationshipDataSyncLocationTargetsEFSFileSystem,
+		aws.RelationshipDataSyncLocationTargetsFSxFileSystem,
+		aws.RelationshipDataSyncLocationUsesIAMRole,
 	} {
 		if got := len(relationshipsByType(envelopes, relationshipType)); got != 0 {
 			t.Fatalf("%s relationship count = %d, want 0 for an NFS location with no AWS backing identity", relationshipType, got)
@@ -250,9 +250,9 @@ func TestScannerOmitsTaskEdgesWhenARNsAreNotARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipDataSyncTaskSourceLocation,
-		awscloud.RelationshipDataSyncTaskDestinationLocation,
-		awscloud.RelationshipDataSyncTaskLogsToCloudWatch,
+		aws.RelationshipDataSyncTaskSourceLocation,
+		aws.RelationshipDataSyncTaskDestinationLocation,
+		aws.RelationshipDataSyncTaskLogsToCloudWatch,
 	} {
 		if got := len(relationshipsByType(envelopes, relationshipType)); got != 0 {
 			t.Fatalf("%s relationship count = %d, want 0 for non-ARN identities", relationshipType, got)
@@ -262,7 +262,7 @@ func TestScannerOmitsTaskEdgesWhenARNsAreNotARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -277,11 +277,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDataSync,
+		ServiceKind:         aws.ServiceDataSync,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:datasync:1",
 		CollectorInstanceID: "aws-prod",

@@ -12,13 +12,13 @@ import (
 
 // meshObservation maps one mesh into an aws_resource observation keyed by the
 // mesh ARN.
-func meshObservation(boundary awscloud.Boundary, mesh Mesh) awscloud.ResourceObservation {
+func meshObservation(boundary aws.Boundary, mesh Mesh) aws.ResourceObservation {
 	meshARN := strings.TrimSpace(mesh.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          meshARN,
 		ResourceID:   meshARN,
-		ResourceType: awscloud.ResourceTypeAppMeshMesh,
+		ResourceType: aws.ResourceTypeAppMeshMesh,
 		Name:         strings.TrimSpace(mesh.Name),
 		State:        strings.TrimSpace(mesh.Status),
 		Tags:         cloneStringMap(mesh.Tags),
@@ -39,13 +39,13 @@ func meshObservation(boundary awscloud.Boundary, mesh Mesh) awscloud.ResourceObs
 
 // virtualServiceObservation maps one virtual service into an aws_resource
 // observation keyed by its ARN.
-func virtualServiceObservation(boundary awscloud.Boundary, service VirtualService) awscloud.ResourceObservation {
+func virtualServiceObservation(boundary aws.Boundary, service VirtualService) aws.ResourceObservation {
 	arn := strings.TrimSpace(service.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualService,
+		ResourceType: aws.ResourceTypeAppMeshVirtualService,
 		Name:         strings.TrimSpace(service.Name),
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -66,13 +66,13 @@ func virtualServiceObservation(boundary awscloud.Boundary, service VirtualServic
 // virtualNodeObservation maps one virtual node into an aws_resource
 // observation. Client TLS validation is reduced to ACM Private CA certificate
 // authority ARNs; no certificate body is ever recorded.
-func virtualNodeObservation(boundary awscloud.Boundary, node VirtualNode) awscloud.ResourceObservation {
+func virtualNodeObservation(boundary aws.Boundary, node VirtualNode) aws.ResourceObservation {
 	arn := strings.TrimSpace(node.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualNode,
+		ResourceType: aws.ResourceTypeAppMeshVirtualNode,
 		Name:         strings.TrimSpace(node.Name),
 		State:        strings.TrimSpace(node.Status),
 		Tags:         cloneStringMap(node.Tags),
@@ -96,13 +96,13 @@ func virtualNodeObservation(boundary awscloud.Boundary, node VirtualNode) awsclo
 
 // virtualRouterObservation maps one virtual router into an aws_resource
 // observation keyed by its ARN.
-func virtualRouterObservation(boundary awscloud.Boundary, router VirtualRouter) awscloud.ResourceObservation {
+func virtualRouterObservation(boundary aws.Boundary, router VirtualRouter) aws.ResourceObservation {
 	arn := strings.TrimSpace(router.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualRouter,
+		ResourceType: aws.ResourceTypeAppMeshVirtualRouter,
 		Name:         strings.TrimSpace(router.Name),
 		State:        strings.TrimSpace(router.Status),
 		Tags:         cloneStringMap(router.Tags),
@@ -122,7 +122,7 @@ func virtualRouterObservation(boundary awscloud.Boundary, router VirtualRouter) 
 // routeObservation maps one route into an aws_resource observation. Sensitive
 // HTTP header match values are redacted through the shared redact library; the
 // header name and match shape are always preserved.
-func (s Scanner) routeObservation(boundary awscloud.Boundary, route Route) awscloud.ResourceObservation {
+func (s Scanner) routeObservation(boundary aws.Boundary, route Route) aws.ResourceObservation {
 	arn := strings.TrimSpace(route.ARN)
 	attributes := map[string]any{
 		"route_name":          strings.TrimSpace(route.Name),
@@ -140,11 +140,11 @@ func (s Scanner) routeObservation(boundary awscloud.Boundary, route Route) awscl
 	if route.Priority != nil {
 		attributes["priority"] = int64(*route.Priority)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         arn,
-		ResourceType:       awscloud.ResourceTypeAppMeshRoute,
+		ResourceType:       aws.ResourceTypeAppMeshRoute,
 		Name:               strings.TrimSpace(route.Name),
 		State:              strings.TrimSpace(route.Status),
 		Tags:               cloneStringMap(route.Tags),
@@ -156,13 +156,13 @@ func (s Scanner) routeObservation(boundary awscloud.Boundary, route Route) awscl
 
 // virtualGatewayObservation maps one virtual gateway into an aws_resource
 // observation keyed by its ARN.
-func virtualGatewayObservation(boundary awscloud.Boundary, gateway VirtualGateway) awscloud.ResourceObservation {
+func virtualGatewayObservation(boundary aws.Boundary, gateway VirtualGateway) aws.ResourceObservation {
 	arn := strings.TrimSpace(gateway.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualGateway,
+		ResourceType: aws.ResourceTypeAppMeshVirtualGateway,
 		Name:         strings.TrimSpace(gateway.Name),
 		State:        strings.TrimSpace(gateway.Status),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -181,13 +181,13 @@ func virtualGatewayObservation(boundary awscloud.Boundary, gateway VirtualGatewa
 
 // gatewayRouteObservation maps one gateway route into an aws_resource
 // observation keyed by its ARN.
-func gatewayRouteObservation(boundary awscloud.Boundary, route GatewayRoute) awscloud.ResourceObservation {
+func gatewayRouteObservation(boundary aws.Boundary, route GatewayRoute) aws.ResourceObservation {
 	arn := strings.TrimSpace(route.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshGatewayRoute,
+		ResourceType: aws.ResourceTypeAppMeshGatewayRoute,
 		Name:         strings.TrimSpace(route.Name),
 		State:        strings.TrimSpace(route.Status),
 		Tags:         cloneStringMap(route.Tags),

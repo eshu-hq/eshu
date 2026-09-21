@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cloudwatchlogs/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cloudwatchlogs/sdk guidance
 
 ## Read First
 
@@ -7,7 +7,7 @@
    throttle accounting.
 3. `mapper.go` - AWS SDK shape to scanner-owned metadata mapping.
 4. `../README.md` - scanner-level CloudWatch Logs fact contract.
-5. `../../../awsruntime/README.md` - runtime registry and claim contract.
+5. `../../../runtime/README.md` - runtime registry and claim contract.
 6. `docs/public/services/collector-aws-cloud.md` - AWS collector
    service coverage and runtime requirements.
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/rolesanywhere/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/rolesanywhere/sdk` adapts AWS SDK for
 Go v2 Roles Anywhere responses to the scanner-owned `Client` contract. It owns
 trust-anchor pagination, profile pagination, CRL pagination, resource-tag reads,
 throttle classification, and per-call AWS API telemetry.
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/rolesanywhere` for scanner-owned result
+- `internal/collector/cloud/aws/service/rolesanywhere` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `rolesanywhere` and Smithy error contracts.

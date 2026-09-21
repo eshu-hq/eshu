@@ -28,11 +28,11 @@ const (
 	ssmSecretARN     = "arn:aws:ssm:us-east-1:123456789012:parameter/app/key"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppRunner,
+		ServiceKind:         aws.ServiceAppRunner,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",

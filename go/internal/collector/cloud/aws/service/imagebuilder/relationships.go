@@ -15,12 +15,12 @@ import (
 // through, and the IAM execution role it assumes. Each ARN-keyed edge joins the
 // node the target scanner publishes by the same ARN. Edges with a missing
 // endpoint are skipped, never dangled.
-func pipelineRelationships(boundary awscloud.Boundary, pipeline ImagePipeline) []awscloud.RelationshipObservation {
+func pipelineRelationships(boundary aws.Boundary, pipeline ImagePipeline) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(pipeline.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	add := func(relType, targetID, targetType string) {
 		targetID = strings.TrimSpace(targetID)
 		if targetID == "" {
@@ -28,19 +28,19 @@ func pipelineRelationships(boundary awscloud.Boundary, pipeline ImagePipeline) [
 		}
 		observations = append(observations, arnEdge(boundary, sourceID, relType, targetID, targetType))
 	}
-	add(awscloud.RelationshipImageBuilderPipelineUsesImageRecipe, pipeline.ImageRecipeARN, awscloud.ResourceTypeImageBuilderImageRecipe)
-	add(awscloud.RelationshipImageBuilderPipelineUsesContainerRecipe, pipeline.ContainerRecipeARN, awscloud.ResourceTypeImageBuilderContainerRecipe)
+	add(aws.RelationshipImageBuilderPipelineUsesImageRecipe, pipeline.ImageRecipeARN, aws.ResourceTypeImageBuilderImageRecipe)
+	add(aws.RelationshipImageBuilderPipelineUsesContainerRecipe, pipeline.ContainerRecipeARN, aws.ResourceTypeImageBuilderContainerRecipe)
 	add(
-		awscloud.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration,
+		aws.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration,
 		pipeline.InfrastructureConfigurationARN,
-		awscloud.ResourceTypeImageBuilderInfrastructureConfiguration,
+		aws.ResourceTypeImageBuilderInfrastructureConfiguration,
 	)
 	add(
-		awscloud.RelationshipImageBuilderPipelineUsesDistributionConfiguration,
+		aws.RelationshipImageBuilderPipelineUsesDistributionConfiguration,
 		pipeline.DistributionConfigurationARN,
-		awscloud.ResourceTypeImageBuilderDistributionConfiguration,
+		aws.ResourceTypeImageBuilderDistributionConfiguration,
 	)
-	add(awscloud.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, awscloud.ResourceTypeIAMRole)
+	add(aws.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, aws.ResourceTypeIAMRole)
 	return observations
 }
 
@@ -50,40 +50,40 @@ func pipelineRelationships(boundary awscloud.Boundary, pipeline ImagePipeline) [
 // are synthesized into the partition-aware ARN the target scanner publishes;
 // id-keyed targets (subnet, security group) are kept bare. Edges with a missing
 // or unresolvable endpoint are skipped, never dangled.
-func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureConfiguration) []awscloud.RelationshipObservation {
+func infraConfigRelationships(boundary aws.Boundary, config InfrastructureConfiguration) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(config.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
-	partition := awscloud.PartitionForBoundary(boundary)
+	var observations []aws.RelationshipObservation
+	partition := aws.PartitionForBoundary(boundary)
 
 	if profileARN := arnForInstanceProfile(partition, boundary.AccountID, config.InstanceProfileName); profileARN != "" {
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile,
-			profileARN, awscloud.ResourceTypeIAMInstanceProfile,
+			aws.RelationshipImageBuilderInfraConfigUsesInstanceProfile,
+			profileARN, aws.ResourceTypeIAMInstanceProfile,
 		))
 	}
 	if subnetID := strings.TrimSpace(config.SubnetID); subnetID != "" {
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSubnet,
-			subnetID, awscloud.ResourceTypeEC2Subnet,
+			aws.RelationshipImageBuilderInfraConfigUsesSubnet,
+			subnetID, aws.ResourceTypeEC2Subnet,
 		))
 	}
 	for _, groupID := range cloneStrings(config.SecurityGroupIDs) {
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSecurityGroup,
-			groupID, awscloud.ResourceTypeEC2SecurityGroup,
+			aws.RelationshipImageBuilderInfraConfigUsesSecurityGroup,
+			groupID, aws.ResourceTypeEC2SecurityGroup,
 		))
 	}
 	if topicARN := strings.TrimSpace(config.SNSTopicARN); topicARN != "" {
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSNSTopic,
-			topicARN, awscloud.ResourceTypeSNSTopic,
+			aws.RelationshipImageBuilderInfraConfigUsesSNSTopic,
+			topicARN, aws.ResourceTypeSNSTopic,
 		))
 	}
 	if edge := infraConfigS3LoggingEdge(boundary, partition, sourceID, config); edge != nil {
@@ -97,10 +97,10 @@ func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureC
 // partition-aware bucket ARN the S3 scanner publishes and carries the optional
 // key prefix as an attribute. It returns nil when no logging bucket is set.
 func infraConfigS3LoggingEdge(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	partition, sourceID string,
 	config InfrastructureConfiguration,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	bucket := strings.TrimSpace(config.LoggingS3BucketName)
 	if bucket == "" {
 		return nil
@@ -115,8 +115,8 @@ func infraConfigS3LoggingEdge(
 	}
 	edge := arnEdge(
 		boundary, sourceID,
-		awscloud.RelationshipImageBuilderInfraConfigLogsToS3,
-		bucketARN, awscloud.ResourceTypeS3Bucket,
+		aws.RelationshipImageBuilderInfraConfigLogsToS3,
+		bucketARN, aws.ResourceTypeS3Bucket,
 	)
 	edge.Attributes = attributes
 	return &edge
@@ -127,12 +127,12 @@ func infraConfigS3LoggingEdge(
 // repository ARN synthesized from the reported repository NAME; the KMS target
 // is keyed by the reported key identifier with target_arn set only when
 // ARN-shaped. Edges with a missing or unresolvable endpoint are skipped.
-func containerRecipeRelationships(boundary awscloud.Boundary, recipe ContainerRecipe) []awscloud.RelationshipObservation {
+func containerRecipeRelationships(boundary aws.Boundary, recipe ContainerRecipe) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(recipe.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if edge := containerRecipeECREdge(boundary, sourceID, recipe); edge != nil {
 		observations = append(observations, *edge)
 	}
@@ -148,10 +148,10 @@ func containerRecipeRelationships(boundary awscloud.Boundary, recipe ContainerRe
 // publishes. It returns nil when the target is not ECR or the repository ARN is
 // unresolvable.
 func containerRecipeECREdge(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID string,
 	recipe ContainerRecipe,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	name := strings.TrimSpace(recipe.TargetRepositoryName)
 	if name == "" {
 		return nil
@@ -160,7 +160,7 @@ func containerRecipeECREdge(
 		return nil
 	}
 	repoARN := arnForECRRepository(
-		awscloud.PartitionForBoundary(boundary),
+		aws.PartitionForBoundary(boundary),
 		boundary.Region,
 		boundary.AccountID,
 		name,
@@ -170,8 +170,8 @@ func containerRecipeECREdge(
 	}
 	edge := arnEdge(
 		boundary, sourceID,
-		awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository,
-		repoARN, awscloud.ResourceTypeECRRepository,
+		aws.RelationshipImageBuilderContainerRecipeUsesECRRepository,
+		repoARN, aws.ResourceTypeECRRepository,
 	)
 	edge.Attributes = map[string]any{"repository_name": name}
 	return &edge
@@ -183,22 +183,22 @@ func containerRecipeECREdge(
 // set only for ARN-shaped identifiers so a bare id or alias is never given a
 // fabricated ARN. It returns nil when no key is reported.
 func containerRecipeKMSEdge(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID string,
 	recipe ContainerRecipe,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	keyID := strings.TrimSpace(recipe.KMSKeyID)
 	if keyID == "" {
 		return nil
 	}
-	edge := awscloud.RelationshipObservation{
+	edge := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey,
+		RelationshipType: aws.RelationshipImageBuilderContainerRecipeUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: keyID,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey + ":" + keyID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipImageBuilderContainerRecipeUsesKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {
 		edge.TargetARN = keyID
@@ -209,8 +209,8 @@ func containerRecipeKMSEdge(
 // arnEdge builds a relationship observation whose target is keyed by an ARN. The
 // target_arn is set to the same ARN so the runtime graph-join guard sees a
 // consistent ARN-keyed edge.
-func arnEdge(boundary awscloud.Boundary, sourceID, relType, targetID, targetType string) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+func arnEdge(boundary aws.Boundary, sourceID, relType, targetID, targetType string) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relType,
 		SourceResourceID: sourceID,
@@ -225,8 +225,8 @@ func arnEdge(boundary awscloud.Boundary, sourceID, relType, targetID, targetType
 // bareEdge builds a relationship observation whose target is keyed by a bare AWS
 // id (subnet-..., sg-...), never an ARN. target_arn is left empty so the runtime
 // graph-join guard does not flag a bare id against a populated ARN.
-func bareEdge(boundary awscloud.Boundary, sourceID, relType, targetID, targetType string) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+func bareEdge(boundary aws.Boundary, sourceID, relType, targetID, targetType string) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relType,
 		SourceResourceID: sourceID,

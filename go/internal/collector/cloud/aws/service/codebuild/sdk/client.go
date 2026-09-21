@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscodebuild "github.com/aws/aws-sdk-go-v2/service/codebuild"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -60,7 +60,7 @@ type apiClient interface {
 // and never reads buildspec bodies, build logs, or source credentials.
 type Client struct {
 	client       apiClient
-	boundary     awscloud.Boundary
+	boundary     aws.Boundary
 	tracer       trace.Tracer
 	instruments  *telemetry.Instruments
 	redactionKey redact.Key
@@ -70,8 +70,8 @@ type Client struct {
 // redaction key is required so PLAINTEXT environment-variable values never
 // persist raw; callers obtain it from the runtime scanner dependencies.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	redactionKey redact.Key,
@@ -145,7 +145,7 @@ func (c *Client) listProjectNames(ctx context.Context) ([]string, error) {
 			break
 		}
 		names = append(names, output.Projects...)
-		next := strings.TrimSpace(aws.ToString(output.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(output.NextToken))
 		if next == "" {
 			break
 		}
@@ -209,7 +209,7 @@ func (c *Client) listReportGroupARNs(ctx context.Context) ([]string, error) {
 			break
 		}
 		arns = append(arns, output.ReportGroups...)
-		next := strings.TrimSpace(aws.ToString(output.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(output.NextToken))
 		if next == "" {
 			break
 		}
@@ -301,7 +301,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

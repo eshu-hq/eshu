@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes MGN applications, source servers, launch configurations, jobs,
 // and their direct cross-service and internal dependency metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("mgn scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMGN:
+	case "", aws.ServiceMGN:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMGN
+		boundary.ServiceKind = aws.ServiceMGN
 	default:
 		return nil, fmt.Errorf("mgn scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -73,9 +73,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -84,28 +84,28 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func applicationEnvelopes(boundary awscloud.Boundary, application Application) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+func applicationEnvelopes(boundary aws.Boundary, application Application) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 	if err != nil {
 		return nil, err
 	}
 	return []facts.Envelope{resource}, nil
 }
 
-func sourceServerEnvelopes(boundary awscloud.Boundary, server SourceServer) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(sourceServerObservation(boundary, server))
+func sourceServerEnvelopes(boundary aws.Boundary, server SourceServer) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(sourceServerObservation(boundary, server))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if server.LaunchConfiguration != nil {
-		launchConfig, err := awscloud.NewResourceEnvelope(launchConfigurationObservation(boundary, server))
+		launchConfig, err := aws.NewResourceEnvelope(launchConfigurationObservation(boundary, server))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, launchConfig)
 	}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		applicationContainsSourceServerRelationship(boundary, server),
 		sourceServerLaunchedEC2Relationship(boundary, server),
 		launchConfigurationUsesLaunchTemplateRelationship(boundary, server),
@@ -113,7 +113,7 @@ func sourceServerEnvelopes(boundary awscloud.Boundary, server SourceServer) ([]f
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -122,14 +122,14 @@ func sourceServerEnvelopes(boundary awscloud.Boundary, server SourceServer) ([]f
 	return envelopes, nil
 }
 
-func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(jobObservation(boundary, job))
+func jobEnvelopes(boundary aws.Boundary, job Job) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(jobObservation(boundary, job))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range jobTargetsSourceServerRelationships(boundary, job) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -138,15 +138,15 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 	return envelopes, nil
 }
 
-func applicationObservation(boundary awscloud.Boundary, application Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, application Application) aws.ResourceObservation {
 	arn := strings.TrimSpace(application.ARN)
 	name := strings.TrimSpace(application.Name)
 	resourceID := applicationResourceID(application)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNApplication,
+		ResourceType: aws.ResourceTypeMGNApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -165,14 +165,14 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 	}
 }
 
-func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) awscloud.ResourceObservation {
+func sourceServerObservation(boundary aws.Boundary, server SourceServer) aws.ResourceObservation {
 	arn := strings.TrimSpace(server.ARN)
 	resourceID := sourceServerResourceID(server)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNSourceServer,
+		ResourceType: aws.ResourceTypeMGNSourceServer,
 		Name:         strings.TrimSpace(server.Hostname),
 		State:        strings.TrimSpace(server.LifeCycleState),
 		Tags:         cloneStringMap(server.Tags),
@@ -195,13 +195,13 @@ func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) aw
 	}
 }
 
-func launchConfigurationObservation(boundary awscloud.Boundary, server SourceServer) awscloud.ResourceObservation {
+func launchConfigurationObservation(boundary aws.Boundary, server SourceServer) aws.ResourceObservation {
 	config := server.LaunchConfiguration
 	resourceID := launchConfigurationResourceID(server.SourceServerID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNLaunchConfiguration,
+		ResourceType: aws.ResourceTypeMGNLaunchConfiguration,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         nil,
 		Attributes: map[string]any{
@@ -218,14 +218,14 @@ func launchConfigurationObservation(boundary awscloud.Boundary, server SourceSer
 	}
 }
 
-func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObservation {
+func jobObservation(boundary aws.Boundary, job Job) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	resourceID := jobResourceID(job)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNJob,
+		ResourceType: aws.ResourceTypeMGNJob,
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
 		Attributes: map[string]any{

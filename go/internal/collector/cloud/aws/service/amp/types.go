@@ -34,7 +34,7 @@ type Snapshot struct {
 	Scrapers []Scraper
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Workspace is the scanner-owned AMP workspace model. It carries control-plane

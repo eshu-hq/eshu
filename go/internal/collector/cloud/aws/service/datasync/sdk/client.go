@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdatasync "github.com/aws/aws-sdk-go-v2/service/datasync"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -46,15 +46,15 @@ type apiClient interface {
 // never reads object-storage access keys, server certificates, or passwords.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DataSync SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -87,7 +87,7 @@ func (c *Client) ListTasks(ctx context.Context) ([]datasyncservice.Task, error) 
 			return tasks, nil
 		}
 		for _, entry := range page.Tasks {
-			arn := strings.TrimSpace(aws.ToString(entry.TaskArn))
+			arn := strings.TrimSpace(awsv2.ToString(entry.TaskArn))
 			if arn == "" {
 				continue
 			}
@@ -98,7 +98,7 @@ func (c *Client) ListTasks(ctx context.Context) ([]datasyncservice.Task, error) 
 			tasks = append(tasks, task)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tasks, nil
 		}
 	}
@@ -108,7 +108,7 @@ func (c *Client) describeTask(ctx context.Context, arn string) (datasyncservice.
 	var output *awsdatasync.DescribeTaskOutput
 	err := c.recordAPICall(ctx, "DescribeTask", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeTask(callCtx, &awsdatasync.DescribeTaskInput{TaskArn: aws.String(arn)})
+		output, err = c.client.DescribeTask(callCtx, &awsdatasync.DescribeTaskInput{TaskArn: awsv2.String(arn)})
 		return err
 	})
 	if err != nil {
@@ -119,16 +119,16 @@ func (c *Client) describeTask(ctx context.Context, arn string) (datasyncservice.
 	}
 	task := datasyncservice.Task{
 		ARN:                    arn,
-		Name:                   strings.TrimSpace(aws.ToString(output.Name)),
+		Name:                   strings.TrimSpace(awsv2.ToString(output.Name)),
 		Status:                 strings.TrimSpace(string(output.Status)),
-		SourceLocationARN:      strings.TrimSpace(aws.ToString(output.SourceLocationArn)),
-		DestinationLocationARN: strings.TrimSpace(aws.ToString(output.DestinationLocationArn)),
-		CloudWatchLogGroupARN:  strings.TrimSpace(aws.ToString(output.CloudWatchLogGroupArn)),
+		SourceLocationARN:      strings.TrimSpace(awsv2.ToString(output.SourceLocationArn)),
+		DestinationLocationARN: strings.TrimSpace(awsv2.ToString(output.DestinationLocationArn)),
+		CloudWatchLogGroupARN:  strings.TrimSpace(awsv2.ToString(output.CloudWatchLogGroupArn)),
 		TaskMode:               strings.TrimSpace(string(output.TaskMode)),
-		CreationTime:           aws.ToTime(output.CreationTime),
+		CreationTime:           awsv2.ToTime(output.CreationTime),
 	}
 	if output.Schedule != nil {
-		task.ScheduleExpression = strings.TrimSpace(aws.ToString(output.Schedule.ScheduleExpression))
+		task.ScheduleExpression = strings.TrimSpace(awsv2.ToString(output.Schedule.ScheduleExpression))
 		task.ScheduleStatus = strings.TrimSpace(string(output.Schedule.Status))
 	}
 	return task, nil
@@ -156,18 +156,18 @@ func (c *Client) ListLocations(ctx context.Context) ([]datasyncservice.Location,
 			return locations, nil
 		}
 		for _, entry := range page.Locations {
-			arn := strings.TrimSpace(aws.ToString(entry.LocationArn))
+			arn := strings.TrimSpace(awsv2.ToString(entry.LocationArn))
 			if arn == "" {
 				continue
 			}
-			location, err := c.describeLocation(ctx, arn, strings.TrimSpace(aws.ToString(entry.LocationUri)))
+			location, err := c.describeLocation(ctx, arn, strings.TrimSpace(awsv2.ToString(entry.LocationUri)))
 			if err != nil {
 				return nil, err
 			}
 			locations = append(locations, location)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return locations, nil
 		}
 	}
@@ -204,7 +204,7 @@ func (c *Client) describeLocationS3(ctx context.Context, location datasyncservic
 	var output *awsdatasync.DescribeLocationS3Output
 	err := c.recordAPICall(ctx, "DescribeLocationS3", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationS3(callCtx, &awsdatasync.DescribeLocationS3Input{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationS3(callCtx, &awsdatasync.DescribeLocationS3Input{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -213,14 +213,14 @@ func (c *Client) describeLocationS3(ctx context.Context, location datasyncservic
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
 	if bucket, ok := bucketFromS3URI(location.URI); ok {
 		location.S3BucketName = bucket
 	}
 	if output.S3Config != nil {
-		location.IAMRoleARN = strings.TrimSpace(aws.ToString(output.S3Config.BucketAccessRoleArn))
+		location.IAMRoleARN = strings.TrimSpace(awsv2.ToString(output.S3Config.BucketAccessRoleArn))
 	}
 	return location, nil
 }
@@ -229,7 +229,7 @@ func (c *Client) describeLocationEFS(ctx context.Context, location datasyncservi
 	var output *awsdatasync.DescribeLocationEfsOutput
 	err := c.recordAPICall(ctx, "DescribeLocationEfs", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationEfs(callCtx, &awsdatasync.DescribeLocationEfsInput{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationEfs(callCtx, &awsdatasync.DescribeLocationEfsInput{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -238,13 +238,13 @@ func (c *Client) describeLocationEFS(ctx context.Context, location datasyncservi
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
 	if fsID, ok := efsFileSystemIDFromURI(location.URI); ok {
 		location.EFSFileSystemID = fsID
 	}
-	location.IAMRoleARN = strings.TrimSpace(aws.ToString(output.FileSystemAccessRoleArn))
+	location.IAMRoleARN = strings.TrimSpace(awsv2.ToString(output.FileSystemAccessRoleArn))
 	return location, nil
 }
 
@@ -252,7 +252,7 @@ func (c *Client) describeLocationFsxLustre(ctx context.Context, location datasyn
 	var output *awsdatasync.DescribeLocationFsxLustreOutput
 	err := c.recordAPICall(ctx, "DescribeLocationFsxLustre", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationFsxLustre(callCtx, &awsdatasync.DescribeLocationFsxLustreInput{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationFsxLustre(callCtx, &awsdatasync.DescribeLocationFsxLustreInput{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -261,7 +261,7 @@ func (c *Client) describeLocationFsxLustre(ctx context.Context, location datasyn
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
 	if fsID, ok := fsxFileSystemIDFromURI(location.URI); ok {
@@ -274,7 +274,7 @@ func (c *Client) describeLocationFsxOntap(ctx context.Context, location datasync
 	var output *awsdatasync.DescribeLocationFsxOntapOutput
 	err := c.recordAPICall(ctx, "DescribeLocationFsxOntap", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationFsxOntap(callCtx, &awsdatasync.DescribeLocationFsxOntapInput{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationFsxOntap(callCtx, &awsdatasync.DescribeLocationFsxOntapInput{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -283,10 +283,10 @@ func (c *Client) describeLocationFsxOntap(ctx context.Context, location datasync
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
-	location.FSxFileSystemARN = strings.TrimSpace(aws.ToString(output.FsxFilesystemArn))
+	location.FSxFileSystemARN = strings.TrimSpace(awsv2.ToString(output.FsxFilesystemArn))
 	if fsID, ok := fsxFileSystemIDFromURI(location.URI); ok {
 		location.FSxFileSystemID = fsID
 	}
@@ -297,7 +297,7 @@ func (c *Client) describeLocationFsxOpenZfs(ctx context.Context, location datasy
 	var output *awsdatasync.DescribeLocationFsxOpenZfsOutput
 	err := c.recordAPICall(ctx, "DescribeLocationFsxOpenZfs", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationFsxOpenZfs(callCtx, &awsdatasync.DescribeLocationFsxOpenZfsInput{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationFsxOpenZfs(callCtx, &awsdatasync.DescribeLocationFsxOpenZfsInput{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -306,7 +306,7 @@ func (c *Client) describeLocationFsxOpenZfs(ctx context.Context, location datasy
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
 	if fsID, ok := fsxFileSystemIDFromURI(location.URI); ok {
@@ -319,7 +319,7 @@ func (c *Client) describeLocationFsxWindows(ctx context.Context, location datasy
 	var output *awsdatasync.DescribeLocationFsxWindowsOutput
 	err := c.recordAPICall(ctx, "DescribeLocationFsxWindows", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeLocationFsxWindows(callCtx, &awsdatasync.DescribeLocationFsxWindowsInput{LocationArn: aws.String(location.ARN)})
+		output, err = c.client.DescribeLocationFsxWindows(callCtx, &awsdatasync.DescribeLocationFsxWindowsInput{LocationArn: awsv2.String(location.ARN)})
 		return err
 	})
 	if err != nil {
@@ -328,7 +328,7 @@ func (c *Client) describeLocationFsxWindows(ctx context.Context, location datasy
 	if output == nil {
 		return location, nil
 	}
-	if uri := strings.TrimSpace(aws.ToString(output.LocationUri)); uri != "" {
+	if uri := strings.TrimSpace(awsv2.ToString(output.LocationUri)); uri != "" {
 		location.URI = uri
 	}
 	if fsID, ok := fsxFileSystemIDFromURI(location.URI); ok {
@@ -358,18 +358,18 @@ func (c *Client) ListAgents(ctx context.Context) ([]datasyncservice.Agent, error
 			return agents, nil
 		}
 		for _, entry := range page.Agents {
-			arn := strings.TrimSpace(aws.ToString(entry.AgentArn))
+			arn := strings.TrimSpace(awsv2.ToString(entry.AgentArn))
 			if arn == "" {
 				continue
 			}
-			agent, err := c.describeAgent(ctx, arn, strings.TrimSpace(aws.ToString(entry.Name)))
+			agent, err := c.describeAgent(ctx, arn, strings.TrimSpace(awsv2.ToString(entry.Name)))
 			if err != nil {
 				return nil, err
 			}
 			agents = append(agents, agent)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return agents, nil
 		}
 	}
@@ -379,7 +379,7 @@ func (c *Client) describeAgent(ctx context.Context, arn, listName string) (datas
 	var output *awsdatasync.DescribeAgentOutput
 	err := c.recordAPICall(ctx, "DescribeAgent", func(callCtx context.Context) error {
 		var err error
-		output, err = c.client.DescribeAgent(callCtx, &awsdatasync.DescribeAgentInput{AgentArn: aws.String(arn)})
+		output, err = c.client.DescribeAgent(callCtx, &awsdatasync.DescribeAgentInput{AgentArn: awsv2.String(arn)})
 		return err
 	})
 	if err != nil {
@@ -390,13 +390,13 @@ func (c *Client) describeAgent(ctx context.Context, arn, listName string) (datas
 	}
 	agent := datasyncservice.Agent{
 		ARN:          arn,
-		Name:         firstNonEmpty(strings.TrimSpace(aws.ToString(output.Name)), listName),
+		Name:         firstNonEmpty(strings.TrimSpace(awsv2.ToString(output.Name)), listName),
 		Status:       strings.TrimSpace(string(output.Status)),
 		EndpointType: strings.TrimSpace(string(output.EndpointType)),
-		CreationTime: aws.ToTime(output.CreationTime),
+		CreationTime: awsv2.ToTime(output.CreationTime),
 	}
 	if output.Platform != nil {
-		agent.PlatformVersion = strings.TrimSpace(aws.ToString(output.Platform.Version))
+		agent.PlatformVersion = strings.TrimSpace(awsv2.ToString(output.Platform.Version))
 	}
 	return agent, nil
 }
@@ -419,7 +419,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

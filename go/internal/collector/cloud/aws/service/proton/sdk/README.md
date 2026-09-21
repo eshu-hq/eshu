@@ -1,6 +1,6 @@
 # Proton SDK adapter
 
-`package awssdk` is the AWS SDK Proton adapter behind `proton.Client`. It pages
+`package sdk` is the AWS SDK Proton adapter behind `proton.Client`. It pages
 the Proton control-plane reads and maps each SDK response into the scanner-owned
 metadata types, keeping every spec/schema/parameter body out of the snapshot.
 
@@ -42,6 +42,6 @@ not retry internally (the SDK's standard retryer owns that).
 
 ## Performance and observability
 
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/proton/...` green.
+No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/proton/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

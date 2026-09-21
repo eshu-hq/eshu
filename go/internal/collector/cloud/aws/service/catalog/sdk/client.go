@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssc "github.com/aws/aws-sdk-go-v2/service/servicecatalog"
 	awssctypes "github.com/aws/aws-sdk-go-v2/service/servicecatalog/types"
 	"github.com/aws/smithy-go"
@@ -25,7 +25,7 @@ import (
 // every provisioned product the claim can read, not just the caller's own.
 var accessLevelSelf = &awssctypes.AccessLevelFilter{
 	Key:   awssctypes.AccessLevelFilterKeyAccount,
-	Value: aws.String("self"),
+	Value: awsv2.String("self"),
 }
 
 type apiClient interface {
@@ -44,15 +44,15 @@ type apiClient interface {
 // constraint policy documents, or record output values.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Service Catalog SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -88,7 +88,7 @@ func (c *Client) ListPortfolios(ctx context.Context) ([]scservice.Portfolio, err
 			portfolios = append(portfolios, mapPortfolio(detail))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return portfolios, nil
 		}
 	}
@@ -119,7 +119,7 @@ func (c *Client) ListProducts(ctx context.Context) ([]scservice.Product, error) 
 			products = append(products, mapProduct(detail))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return products, nil
 		}
 	}
@@ -162,7 +162,7 @@ func (c *Client) ListProvisionedProducts(ctx context.Context) ([]scservice.Provi
 			provisioned = append(provisioned, item)
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return provisioned, nil
 		}
 	}
@@ -193,14 +193,14 @@ func (c *Client) provisionedProductPhysicalIDs(ctx context.Context) (map[string]
 			return index, nil
 		}
 		for _, attribute := range page.ProvisionedProducts {
-			id := strings.TrimSpace(aws.ToString(attribute.Id))
-			physicalID := strings.TrimSpace(aws.ToString(attribute.PhysicalId))
+			id := strings.TrimSpace(awsv2.ToString(attribute.Id))
+			physicalID := strings.TrimSpace(awsv2.ToString(attribute.PhysicalId))
 			if id != "" && physicalID != "" {
 				index[id] = physicalID
 			}
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return index, nil
 		}
 	}
@@ -220,7 +220,7 @@ func (c *Client) PortfoliosForProduct(ctx context.Context, productID string) ([]
 		err := c.recordAPICall(ctx, "ListPortfoliosForProduct", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListPortfoliosForProduct(callCtx, &awssc.ListPortfoliosForProductInput{
-				ProductId: aws.String(productID),
+				ProductId: awsv2.String(productID),
 				PageToken: pageToken,
 			})
 			return err
@@ -235,7 +235,7 @@ func (c *Client) PortfoliosForProduct(ctx context.Context, productID string) ([]
 			portfolios = append(portfolios, mapPortfolio(detail))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return portfolios, nil
 		}
 	}
@@ -255,7 +255,7 @@ func (c *Client) PrincipalsForPortfolio(ctx context.Context, portfolioID string)
 		err := c.recordAPICall(ctx, "ListPrincipalsForPortfolio", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListPrincipalsForPortfolio(callCtx, &awssc.ListPrincipalsForPortfolioInput{
-				PortfolioId: aws.String(portfolioID),
+				PortfolioId: awsv2.String(portfolioID),
 				PageToken:   pageToken,
 			})
 			return err
@@ -270,7 +270,7 @@ func (c *Client) PrincipalsForPortfolio(ctx context.Context, portfolioID string)
 			principals = append(principals, mapPrincipal(principal))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return principals, nil
 		}
 	}
@@ -294,7 +294,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

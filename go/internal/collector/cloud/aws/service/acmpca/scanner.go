@@ -28,15 +28,15 @@ type Scanner struct {
 // client and emits metadata-only resource facts plus ARN-driven relationship
 // evidence. The certificate authority resource_id is the CA ARN so App Mesh
 // virtual-node client TLS trust edges resolve against it.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("acmpca scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceACMPCA:
+	case "", aws.ServiceACMPCA:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceACMPCA
+		boundary.ServiceKind = aws.ServiceACMPCA
 	default:
 		return nil, fmt.Errorf("acmpca scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -54,13 +54,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if strings.TrimSpace(authority.ARN) == "" {
 			continue
 		}
-		resource, err := awscloud.NewResourceEnvelope(certificateAuthorityObservation(boundary, authority))
+		resource, err := aws.NewResourceEnvelope(certificateAuthorityObservation(boundary, authority))
 		if err != nil {
 			return nil, fmt.Errorf("build acmpca certificate authority fact: %w", err)
 		}
 		envelopes = append(envelopes, resource)
 		for _, observation := range certificateAuthorityRelationships(boundary, authority) {
-			envelope, err := awscloud.NewRelationshipEnvelope(observation)
+			envelope, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, fmt.Errorf("build acmpca relationship fact: %w", err)
 			}
@@ -70,13 +70,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func certificateAuthorityObservation(boundary awscloud.Boundary, authority CertificateAuthority) awscloud.ResourceObservation {
+func certificateAuthorityObservation(boundary aws.Boundary, authority CertificateAuthority) aws.ResourceObservation {
 	caARN := strings.TrimSpace(authority.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          caARN,
 		ResourceID:   caARN,
-		ResourceType: awscloud.ResourceTypeACMPCACertificateAuthority,
+		ResourceType: aws.ResourceTypeACMPCACertificateAuthority,
 		Name:         firstNonEmpty(authority.SubjectCommonName, caARN),
 		State:        strings.TrimSpace(authority.Status),
 		Tags:         cloneStringMap(authority.Tags),
@@ -109,12 +109,12 @@ func certificateAuthorityObservation(boundary awscloud.Boundary, authority Certi
 // scanner emits a relationship only when AWS reports a concrete join key and
 // never synthesizes an ARN. The partition is never hardcoded because every
 // target identity comes straight from a reported value.
-func certificateAuthorityRelationships(boundary awscloud.Boundary, authority CertificateAuthority) []awscloud.RelationshipObservation {
+func certificateAuthorityRelationships(boundary aws.Boundary, authority CertificateAuthority) []aws.RelationshipObservation {
 	caARN := strings.TrimSpace(authority.ARN)
 	if caARN == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if rel, ok := kmsKeyRelationship(boundary, caARN, authority); ok {
 		relationships = append(relationships, rel)
 	}
@@ -131,19 +131,19 @@ func certificateAuthorityRelationships(boundary awscloud.Boundary, authority Cer
 // ARN-shaped KMS key for the CA. The target keys on the KMS key ARN, which the
 // KMS scanner carries as a key correlation anchor, with target_type
 // aws_kms_key. target_arn is set because the value is ARN-shaped.
-func kmsKeyRelationship(boundary awscloud.Boundary, caARN string, authority CertificateAuthority) (awscloud.RelationshipObservation, bool) {
+func kmsKeyRelationship(boundary aws.Boundary, caARN string, authority CertificateAuthority) (aws.RelationshipObservation, bool) {
 	kmsKeyARN := strings.TrimSpace(authority.KMSKeyARN)
 	if !looksLikeARN(kmsKeyARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey,
+		RelationshipType: aws.RelationshipACMPCACertificateAuthorityUsesKMSKey,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: kmsKeyARN,
 		TargetARN:        kmsKeyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   caARN + "->" + kmsKeyARN,
 	}, true
 }
@@ -153,22 +153,22 @@ func kmsKeyRelationship(boundary awscloud.Boundary, caARN string, authority Cert
 // ARN, which is the parent CA's resource_id, with target_type
 // aws_acmpca_certificate_authority. A ROOT CA is self-signed and never emits
 // this edge.
-func parentRelationship(boundary awscloud.Boundary, caARN string, authority CertificateAuthority) (awscloud.RelationshipObservation, bool) {
+func parentRelationship(boundary aws.Boundary, caARN string, authority CertificateAuthority) (aws.RelationshipObservation, bool) {
 	if !strings.EqualFold(strings.TrimSpace(authority.Type), certificateAuthorityTypeSubordinate) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	parentARN := strings.TrimSpace(authority.ParentCAARN)
 	if !looksLikeARN(parentARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent,
+		RelationshipType: aws.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: parentARN,
 		TargetARN:        parentARN,
-		TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
+		TargetType:       aws.ResourceTypeACMPCACertificateAuthority,
 		SourceRecordID:   caARN + "->" + parentARN,
 	}, true
 }
@@ -177,18 +177,18 @@ func parentRelationship(boundary awscloud.Boundary, caARN string, authority Cert
 // its CRL to a named bucket. The target keys on the bucket name, which the S3
 // scanner carries as a bucket correlation anchor, with target_type
 // aws_s3_bucket. The bucket name is not an ARN, so target_arn stays empty.
-func crlBucketRelationship(boundary awscloud.Boundary, caARN string, authority CertificateAuthority) (awscloud.RelationshipObservation, bool) {
+func crlBucketRelationship(boundary aws.Boundary, caARN string, authority CertificateAuthority) (aws.RelationshipObservation, bool) {
 	bucket := strings.TrimSpace(authority.CRLS3BucketName)
 	if bucket == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket,
+		RelationshipType: aws.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: bucket,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		SourceRecordID:   caARN + "->s3:" + bucket,
 	}, true
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/datasync` owns the DataSync scanner
+`internal/collector/cloud/aws/service/datasync` owns the DataSync scanner
 contract for the AWS cloud collector. It converts transfer task metadata,
 transfer location metadata, and agent metadata into `aws_resource` facts and
 emits relationship evidence for task-to-source-location,
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records DataSync API call counts, throttles, and
+The `sdk` adapter records DataSync API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -84,7 +84,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/datasync/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/datasync/...` covers the bounded
 DataSync metadata path: one paginated ListTasks stream with one DescribeTask
 point read per task, one paginated ListLocations stream with one
 flavor-specific DescribeLocation* point read per location, one paginated
@@ -93,8 +93,8 @@ StartTaskExecution or other transfer-control calls, no mutations, and no graph
 writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/datasync/...
-./internal/collector/awscloud/internal/relguard/...
+`go test ./internal/collector/cloud/aws/service/datasync/...
+./internal/collector/cloud/aws/internal/relguard/...
 ./cmd/collector-aws-cloud/... -count=1` covers DataSync task, location, and
 agent metadata fact emission; task-to-source-location,
 task-to-destination-location, and task-to-CloudWatch-log-group relationship
@@ -109,7 +109,7 @@ new metadata-only scanner with no change to any existing scanner's hot path,
 queue behavior, or graph-write path.
 
 No-Observability-Change: DataSync uses the existing AWS collector telemetry
-contract. The `awssdk` adapter records each List/Describe call through the
+contract. The `sdk` adapter records each List/Describe call through the
 shared `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`, and
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. No new

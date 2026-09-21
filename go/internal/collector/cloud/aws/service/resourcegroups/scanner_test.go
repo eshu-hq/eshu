@@ -36,7 +36,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeResourceGroupsGroup)
+	group := resourceByType(t, envelopes, aws.ResourceTypeResourceGroupsGroup)
 	if got, want := group.Payload["resource_id"], groupARN; got != want {
 		t.Fatalf("group resource_id = %#v, want %q", got, want)
 	}
@@ -53,8 +53,8 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 
 	// S3 bucket is an ARN-keyed family: target_resource_id and target_arn are the
 	// member ARN.
-	s3Edge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, bucketARN)
-	if got, want := s3Edge.TargetType, awscloud.ResourceTypeS3Bucket; got != want {
+	s3Edge := relationshipTo(t, envelopes, aws.RelationshipResourceGroupsGroupContainsResource, bucketARN)
+	if got, want := s3Edge.TargetType, aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("s3 member target_type = %q, want %q", got, want)
 	}
 	if got, want := s3Edge.TargetARN, bucketARN; got != want {
@@ -66,7 +66,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 
 	// EC2 instance is a bare-id family: target_resource_id is i-..., target_arn
 	// is empty so the edge is not mis-keyed as ARN-keyed.
-	instanceEdge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, "i-0abc1234")
+	instanceEdge := relationshipTo(t, envelopes, aws.RelationshipResourceGroupsGroupContainsResource, "i-0abc1234")
 	if got, want := instanceEdge.TargetType, "aws_ec2_instance"; got != want {
 		t.Fatalf("ec2 member target_type = %q, want %q", got, want)
 	}
@@ -89,29 +89,29 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		wantID     string
 		wantARNKey bool
 	}{
-		{"s3 bucket", "arn:aws:s3:::example-assets", awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::example-assets", true},
-		{"lambda function", "arn:aws:lambda:us-east-1:123456789012:function:handler", awscloud.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:handler", true},
-		{"dynamodb table", "arn:aws:dynamodb:us-east-1:123456789012:table/users", awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/users", true},
-		{"sqs queue", "arn:aws:sqs:us-east-1:123456789012:orders", awscloud.ResourceTypeSQSQueue, "arn:aws:sqs:us-east-1:123456789012:orders", true},
-		{"sns topic", "arn:aws:sns:us-east-1:123456789012:alerts", awscloud.ResourceTypeSNSTopic, "arn:aws:sns:us-east-1:123456789012:alerts", true},
-		{"kinesis stream", "arn:aws:kinesis:us-east-1:123456789012:stream/events", awscloud.ResourceTypeKinesisDataStream, "arn:aws:kinesis:us-east-1:123456789012:stream/events", true},
-		{"rds instance", "arn:aws:rds:us-east-1:123456789012:db:prod-db", awscloud.ResourceTypeRDSDBInstance, "arn:aws:rds:us-east-1:123456789012:db:prod-db", true},
-		{"rds cluster", "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", true},
-		{"ecs cluster", "arn:aws:ecs:us-east-1:123456789012:cluster/main", awscloud.ResourceTypeECSCluster, "arn:aws:ecs:us-east-1:123456789012:cluster/main", true},
-		{"ecs service", "arn:aws:ecs:us-east-1:123456789012:service/main/web", awscloud.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/main/web", true},
-		{"eks cluster", "arn:aws:eks:us-east-1:123456789012:cluster/prod", awscloud.ResourceTypeEKSCluster, "arn:aws:eks:us-east-1:123456789012:cluster/prod", true},
-		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", awscloud.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
-		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", awscloud.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
-		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", awscloud.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
+		{"s3 bucket", "arn:aws:s3:::example-assets", aws.ResourceTypeS3Bucket, "arn:aws:s3:::example-assets", true},
+		{"lambda function", "arn:aws:lambda:us-east-1:123456789012:function:handler", aws.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:handler", true},
+		{"dynamodb table", "arn:aws:dynamodb:us-east-1:123456789012:table/users", aws.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/users", true},
+		{"sqs queue", "arn:aws:sqs:us-east-1:123456789012:orders", aws.ResourceTypeSQSQueue, "arn:aws:sqs:us-east-1:123456789012:orders", true},
+		{"sns topic", "arn:aws:sns:us-east-1:123456789012:alerts", aws.ResourceTypeSNSTopic, "arn:aws:sns:us-east-1:123456789012:alerts", true},
+		{"kinesis stream", "arn:aws:kinesis:us-east-1:123456789012:stream/events", aws.ResourceTypeKinesisDataStream, "arn:aws:kinesis:us-east-1:123456789012:stream/events", true},
+		{"rds instance", "arn:aws:rds:us-east-1:123456789012:db:prod-db", aws.ResourceTypeRDSDBInstance, "arn:aws:rds:us-east-1:123456789012:db:prod-db", true},
+		{"rds cluster", "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", aws.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", true},
+		{"ecs cluster", "arn:aws:ecs:us-east-1:123456789012:cluster/main", aws.ResourceTypeECSCluster, "arn:aws:ecs:us-east-1:123456789012:cluster/main", true},
+		{"ecs service", "arn:aws:ecs:us-east-1:123456789012:service/main/web", aws.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/main/web", true},
+		{"eks cluster", "arn:aws:eks:us-east-1:123456789012:cluster/prod", aws.ResourceTypeEKSCluster, "arn:aws:eks:us-east-1:123456789012:cluster/prod", true},
+		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", aws.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
+		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", aws.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
+		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", aws.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
 
 		// Non-ARN-keyed families: published id must match the target scanner.
-		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", awscloud.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
-		{"route53 hosted zone", "arn:aws:route53:::hostedzone/Z123456ABC", awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/Z123456ABC", false},
+		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", aws.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
+		{"route53 hosted zone", "arn:aws:route53:::hostedzone/Z123456ABC", aws.ResourceTypeRoute53HostedZone, "/hostedzone/Z123456ABC", false},
 		{"ec2 instance", "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc1234", "aws_ec2_instance", "i-0abc1234", false},
-		{"ec2 vpc", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-0abc1234", awscloud.ResourceTypeEC2VPC, "vpc-0abc1234", false},
-		{"ec2 subnet", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-0abc1234", awscloud.ResourceTypeEC2Subnet, "subnet-0abc1234", false},
-		{"ec2 security group", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-0abc1234", awscloud.ResourceTypeEC2SecurityGroup, "sg-0abc1234", false},
-		{"ec2 elastic ip", "arn:aws:ec2:us-east-1:123456789012:elastic-ip/eipalloc-0abc1234", awscloud.ResourceTypeVPCElasticIP, "eipalloc-0abc1234", false},
+		{"ec2 vpc", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-0abc1234", aws.ResourceTypeEC2VPC, "vpc-0abc1234", false},
+		{"ec2 subnet", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-0abc1234", aws.ResourceTypeEC2Subnet, "subnet-0abc1234", false},
+		{"ec2 security group", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-0abc1234", aws.ResourceTypeEC2SecurityGroup, "sg-0abc1234", false},
+		{"ec2 elastic ip", "arn:aws:ec2:us-east-1:123456789012:elastic-ip/eipalloc-0abc1234", aws.ResourceTypeVPCElasticIP, "eipalloc-0abc1234", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -198,8 +198,8 @@ func TestScannerEmitsCloudFormationStackEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stackEdge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupBackedByStack, stackARN)
-	if got, want := stackEdge.TargetType, awscloud.ResourceTypeCloudFormationStack; got != want {
+	stackEdge := relationshipTo(t, envelopes, aws.RelationshipResourceGroupsGroupBackedByStack, stackARN)
+	if got, want := stackEdge.TargetType, aws.ResourceTypeCloudFormationStack; got != want {
 		t.Fatalf("stack edge target_type = %q, want %q", got, want)
 	}
 	if got, want := stackEdge.TargetARN, stackARN; got != want {
@@ -222,7 +222,7 @@ func TestStackEdgeSkippedForTagFilterGroup(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, obs := range relationships(envelopes) {
-		if obs.RelationshipType == awscloud.RelationshipResourceGroupsGroupBackedByStack {
+		if obs.RelationshipType == aws.RelationshipResourceGroupsGroupBackedByStack {
 			t.Fatalf("tag-filter group emitted a stack edge: %#v", obs)
 		}
 	}
@@ -246,7 +246,7 @@ func TestScannerIsPartitionAware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, govBucketARN)
+	edge := relationshipTo(t, envelopes, aws.RelationshipResourceGroupsGroupContainsResource, govBucketARN)
 	if !strings.HasPrefix(edge.TargetARN, "arn:aws-us-gov:") {
 		t.Fatalf("gov member target_arn = %q, want aws-us-gov partition preserved", edge.TargetARN)
 	}
@@ -316,7 +316,7 @@ func TestScannerNeverPersistsQueryBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	attrs := attributesOf(t, resourceByType(t, envelopes, awscloud.ResourceTypeResourceGroupsGroup))
+	attrs := attributesOf(t, resourceByType(t, envelopes, aws.ResourceTypeResourceGroupsGroup))
 	for _, forbidden := range []string{"query", "query_body", "resource_query", "tag_filters", "tags", "search_query"} {
 		if _, exists := attrs[forbidden]; exists {
 			t.Fatalf("group attribute %q persisted; scanner must record query type only", forbidden)

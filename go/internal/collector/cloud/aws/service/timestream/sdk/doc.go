@@ -10,4 +10,4 @@
 // Delete mutation APIs, and the entire timestream-query module (which it never
 // imports), so the adapter cannot read time-series records or measures or write
 // Timestream state.
-package awssdk
+package sdk

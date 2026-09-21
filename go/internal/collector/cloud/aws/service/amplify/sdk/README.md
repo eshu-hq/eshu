@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/amplify/awssdk` adapts the AWS SDK for
+`internal/collector/cloud/aws/service/amplify/sdk` adapts the AWS SDK for
 Go v2 Amplify client into the metadata-only `amplify.Client` the scanner
 consumes. It paginates `ListApps`, `ListBranches`, and `ListDomainAssociations`
 and maps each response into scanner-owned records.
@@ -12,7 +12,7 @@ and maps each response into scanner-owned records.
 This package owns Amplify SDK pagination, response mapping, secret-field
 dropping, and per-call telemetry. It does not own scanner fact selection,
 relationship rules, fact persistence, or graph writes; those belong to the
-parent `amplify` package and the shared `awscloud` envelope contract.
+parent `amplify` package and the shared `aws` envelope contract.
 
 ## Exported surface
 
@@ -22,8 +22,8 @@ parent `amplify` package and the shared `awscloud` envelope contract.
 ## Dependencies
 
 - `github.com/aws/aws-sdk-go-v2/service/amplify` for the SDK client and types.
-- `internal/collector/awscloud` for the boundary and API-call recorder.
-- `internal/collector/awscloud/service/amplify` for the scanner-owned types.
+- `internal/collector/cloud/aws` for the boundary and API-call recorder.
+- `internal/collector/cloud/aws/service/amplify` for the scanner-owned types.
 - `internal/telemetry` for spans, counters, and bounded attributes.
 
 ## Telemetry

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdetective "github.com/aws/aws-sdk-go-v2/service/detective"
 	detectivetypes "github.com/aws/aws-sdk-go-v2/service/detective/types"
 
@@ -73,22 +73,22 @@ func TestClientReadsGraphsMembersAndTagsAndDropsEmail(t *testing.T) {
 	api := &fakeDetectiveAPI{
 		graphPages: []*awsdetective.ListGraphsOutput{{
 			GraphList: []detectivetypes.Graph{{
-				Arn:         aws.String(graphARN),
-				CreatedTime: aws.Time(created),
+				Arn:         awsv2.String(graphARN),
+				CreatedTime: awsv2.Time(created),
 			}},
 		}},
 		memberPages: map[string][]*awsdetective.ListMembersOutput{
 			graphARN: {{
 				MemberDetails: []detectivetypes.MemberDetail{{
-					AccountId:       aws.String("111122223333"),
-					AdministratorId: aws.String("123456789012"),
-					GraphArn:        aws.String(graphARN),
+					AccountId:       awsv2.String("111122223333"),
+					AdministratorId: awsv2.String("123456789012"),
+					GraphArn:        awsv2.String(graphARN),
 					Status:          detectivetypes.MemberStatusEnabled,
 					InvitationType:  detectivetypes.InvitationTypeOrganization,
-					InvitedTime:     aws.Time(created),
-					UpdatedTime:     aws.Time(created),
+					InvitedTime:     awsv2.Time(created),
+					UpdatedTime:     awsv2.Time(created),
 					// EmailAddress is personal contact data and must be dropped.
-					EmailAddress: aws.String("security@example.com"),
+					EmailAddress: awsv2.String("security@example.com"),
 					DatasourcePackageIngestStates: map[string]detectivetypes.DatasourcePackageIngestState{
 						"DETECTIVE_CORE": detectivetypes.DatasourcePackageIngestStateStarted,
 					},
@@ -101,7 +101,7 @@ func TestClientReadsGraphsMembersAndTagsAndDropsEmail(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDetective},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceDetective},
 	}
 
 	graphs, err := adapter.ListGraphs(context.Background())
@@ -155,14 +155,14 @@ func TestClientListGraphsSkipsBlankARNAndStopsOnRepeatedToken(t *testing.T) {
 	api := &fakeDetectiveAPI{
 		graphPages: []*awsdetective.ListGraphsOutput{{
 			GraphList: []detectivetypes.Graph{
-				{Arn: aws.String("   ")},
-				{Arn: aws.String("arn:aws-us-gov:detective:us-gov-west-1:123456789012:graph:gov0000000000000000000000000000")},
+				{Arn: awsv2.String("   ")},
+				{Arn: awsv2.String("arn:aws-us-gov:detective:us-gov-west-1:123456789012:graph:gov0000000000000000000000000000")},
 			},
 		}},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-gov-west-1", ServiceKind: awscloud.ServiceDetective},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-gov-west-1", ServiceKind: aws.ServiceDetective},
 	}
 
 	graphs, err := adapter.ListGraphs(context.Background())
@@ -199,7 +199,7 @@ func (f *fakeDetectiveAPI) ListGraphs(_ context.Context, _ *awsdetective.ListGra
 
 func (f *fakeDetectiveAPI) ListMembers(_ context.Context, input *awsdetective.ListMembersInput, _ ...func(*awsdetective.Options)) (*awsdetective.ListMembersOutput, error) {
 	f.calls = append(f.calls, "ListMembers")
-	graphARN := aws.ToString(input.GraphArn)
+	graphARN := awsv2.ToString(input.GraphArn)
 	if f.memberCursor == nil {
 		f.memberCursor = map[string]int{}
 	}
@@ -214,7 +214,7 @@ func (f *fakeDetectiveAPI) ListMembers(_ context.Context, input *awsdetective.Li
 
 func (f *fakeDetectiveAPI) ListTagsForResource(_ context.Context, input *awsdetective.ListTagsForResourceInput, _ ...func(*awsdetective.Options)) (*awsdetective.ListTagsForResourceOutput, error) {
 	f.calls = append(f.calls, "ListTagsForResource")
-	return &awsdetective.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(input.ResourceArn)]}, nil
+	return &awsdetective.ListTagsForResourceOutput{Tags: f.tags[awsv2.ToString(input.ResourceArn)]}, nil
 }
 
 // Compile-time assurance the fake satisfies the adapter's read surface and the

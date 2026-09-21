@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func notebookObservation(notebook NotebookInstance) awscloud.ResourceObservation {
+func notebookObservation(notebook NotebookInstance) aws.ResourceObservation {
 	arn := strings.TrimSpace(notebook.ARN)
 	id := firstNonEmpty(arn, notebook.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerNotebookInstance,
+		ResourceType: aws.ResourceTypeSageMakerNotebookInstance,
 		Name:         strings.TrimSpace(notebook.Name),
 		State:        strings.TrimSpace(notebook.Status),
 		Tags:         cloneStringMap(notebook.Tags),
@@ -34,13 +34,13 @@ func notebookObservation(notebook NotebookInstance) awscloud.ResourceObservation
 	}
 }
 
-func modelObservation(model Model) awscloud.ResourceObservation {
+func modelObservation(model Model) aws.ResourceObservation {
 	arn := strings.TrimSpace(model.ARN)
 	id := firstNonEmpty(arn, model.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerModel,
+		ResourceType: aws.ResourceTypeSageMakerModel,
 		Name:         strings.TrimSpace(model.Name),
 		Tags:         cloneStringMap(model.Tags),
 		Attributes: map[string]any{
@@ -57,13 +57,13 @@ func modelObservation(model Model) awscloud.ResourceObservation {
 	}
 }
 
-func endpointObservation(endpoint Endpoint) awscloud.ResourceObservation {
+func endpointObservation(endpoint Endpoint) aws.ResourceObservation {
 	arn := strings.TrimSpace(endpoint.ARN)
 	id := firstNonEmpty(arn, endpoint.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerEndpoint,
+		ResourceType: aws.ResourceTypeSageMakerEndpoint,
 		Name:         strings.TrimSpace(endpoint.Name),
 		State:        strings.TrimSpace(endpoint.Status),
 		Tags:         cloneStringMap(endpoint.Tags),
@@ -77,13 +77,13 @@ func endpointObservation(endpoint Endpoint) awscloud.ResourceObservation {
 	}
 }
 
-func endpointConfigObservation(config EndpointConfig) awscloud.ResourceObservation {
+func endpointConfigObservation(config EndpointConfig) aws.ResourceObservation {
 	arn := strings.TrimSpace(config.ARN)
 	id := firstNonEmpty(arn, config.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerEndpointConfig,
+		ResourceType: aws.ResourceTypeSageMakerEndpointConfig,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{
@@ -97,16 +97,16 @@ func endpointConfigObservation(config EndpointConfig) awscloud.ResourceObservati
 	}
 }
 
-func trainingJobObservation(job TrainingJob) awscloud.ResourceObservation {
+func trainingJobObservation(job TrainingJob) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	id := firstNonEmpty(arn, job.Name)
 	// HyperParameters and training input/output data references are
 	// intentionally omitted: values may be secret-like and data references can
 	// leak training-set contents.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerTrainingJob,
+		ResourceType: aws.ResourceTypeSageMakerTrainingJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -122,13 +122,13 @@ func trainingJobObservation(job TrainingJob) awscloud.ResourceObservation {
 	}
 }
 
-func processingJobObservation(job ProcessingJob) awscloud.ResourceObservation {
+func processingJobObservation(job ProcessingJob) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	id := firstNonEmpty(arn, job.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerProcessingJob,
+		ResourceType: aws.ResourceTypeSageMakerProcessingJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -142,13 +142,13 @@ func processingJobObservation(job ProcessingJob) awscloud.ResourceObservation {
 	}
 }
 
-func transformJobObservation(job TransformJob) awscloud.ResourceObservation {
+func transformJobObservation(job TransformJob) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	id := firstNonEmpty(arn, job.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerTransformJob,
+		ResourceType: aws.ResourceTypeSageMakerTransformJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -162,15 +162,15 @@ func transformJobObservation(job TransformJob) awscloud.ResourceObservation {
 	}
 }
 
-func tuningJobObservation(job HyperParameterTuningJob) awscloud.ResourceObservation {
+func tuningJobObservation(job HyperParameterTuningJob) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	id := firstNonEmpty(arn, job.Name)
 	// Tuned hyperparameter ranges and values are not persisted; only the
 	// bounded strategy label and status describe the tuning job.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerHyperParameterTuningJob,
+		ResourceType: aws.ResourceTypeSageMakerHyperParameterTuningJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -184,13 +184,13 @@ func tuningJobObservation(job HyperParameterTuningJob) awscloud.ResourceObservat
 	}
 }
 
-func projectObservation(project Project) awscloud.ResourceObservation {
+func projectObservation(project Project) aws.ResourceObservation {
 	arn := strings.TrimSpace(project.ARN)
 	id := firstNonEmpty(arn, project.ID, project.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerProject,
+		ResourceType: aws.ResourceTypeSageMakerProject,
 		Name:         strings.TrimSpace(project.Name),
 		State:        strings.TrimSpace(project.Status),
 		Tags:         cloneStringMap(project.Tags),
@@ -203,15 +203,15 @@ func projectObservation(project Project) awscloud.ResourceObservation {
 	}
 }
 
-func pipelineObservation(pipeline Pipeline) awscloud.ResourceObservation {
+func pipelineObservation(pipeline Pipeline) aws.ResourceObservation {
 	arn := strings.TrimSpace(pipeline.ARN)
 	id := firstNonEmpty(arn, pipeline.Name)
 	// The pipeline definition body is never read or persisted; its steps can
 	// carry parameters with secret-like values.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerPipeline,
+		ResourceType: aws.ResourceTypeSageMakerPipeline,
 		Name:         strings.TrimSpace(pipeline.Name),
 		Tags:         cloneStringMap(pipeline.Tags),
 		Attributes: map[string]any{
@@ -225,13 +225,13 @@ func pipelineObservation(pipeline Pipeline) awscloud.ResourceObservation {
 	}
 }
 
-func featureGroupObservation(group FeatureGroup) awscloud.ResourceObservation {
+func featureGroupObservation(group FeatureGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	id := firstNonEmpty(arn, group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerFeatureGroup,
+		ResourceType: aws.ResourceTypeSageMakerFeatureGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),

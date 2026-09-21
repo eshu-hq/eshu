@@ -8,4 +8,4 @@
 // provider lookup, per-call telemetry, and response mapping for one claimed AWS
 // boundary. It returns only stable reported control-plane metadata; callers
 // receive no credential material, Kubernetes tokens, or live workload objects.
-package awssdk
+package sdk

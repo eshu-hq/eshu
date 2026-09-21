@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/vpclattice/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/vpclattice/sdk guidance
 
 ## Read First
 

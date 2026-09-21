@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ecr` owns the ECR scanner contract for the
+`internal/collector/cloud/aws/service/ecr` owns the ECR scanner contract for the
 AWS cloud collector. It converts repositories, repository lifecycle policies,
 and image digest/tag records into AWS cloud fact envelopes.
 
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, and
+- `internal/collector/cloud/aws` for boundaries, resource constants, and
   envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -45,9 +45,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records ECR API call counts, throttles, and pagination
+The `sdk` adapter records ECR API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants

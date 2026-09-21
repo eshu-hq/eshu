@@ -13,7 +13,7 @@ import (
 // The target is keyed by the site ARN (falling back to the short site id), which
 // is the resource_id the site node publishes, so the edge joins the site node
 // instead of dangling. It returns nil when either endpoint identity is missing.
-func outpostInSiteRelationship(boundary awscloud.Boundary, outpost Outpost) *awscloud.RelationshipObservation {
+func outpostInSiteRelationship(boundary aws.Boundary, outpost Outpost) *aws.RelationshipObservation {
 	sourceID := outpostResourceID(outpost)
 	targetID := firstNonEmpty(outpost.SiteARN, outpost.SiteID)
 	if sourceID == "" || targetID == "" {
@@ -23,15 +23,15 @@ func outpostInSiteRelationship(boundary awscloud.Boundary, outpost Outpost) *aws
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOutpostsOutpostInSite,
+		RelationshipType: aws.RelationshipOutpostsOutpostInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(outpost.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOutpostsSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipOutpostsOutpostInSite + ":" + targetID,
+		TargetType:       aws.ResourceTypeOutpostsSite,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipOutpostsOutpostInSite + ":" + targetID,
 	}
 }
 
@@ -41,10 +41,10 @@ func outpostInSiteRelationship(boundary awscloud.Boundary, outpost Outpost) *aws
 // (falling back to the short outpost id) so the edge joins the outpost node. It
 // returns nil when either endpoint identity is missing.
 func assetInOutpostRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	outpost Outpost,
 	assetID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	assetID = strings.TrimSpace(assetID)
 	targetID := outpostResourceID(outpost)
 	if assetID == "" || targetID == "" {
@@ -54,13 +54,13 @@ func assetInOutpostRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOutpostsAssetInOutpost,
+		RelationshipType: aws.RelationshipOutpostsAssetInOutpost,
 		SourceResourceID: assetID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOutpostsOutpost,
-		SourceRecordID:   assetID + "->" + awscloud.RelationshipOutpostsAssetInOutpost + ":" + targetID,
+		TargetType:       aws.ResourceTypeOutpostsOutpost,
+		SourceRecordID:   assetID + "->" + aws.RelationshipOutpostsAssetInOutpost + ":" + targetID,
 	}
 }

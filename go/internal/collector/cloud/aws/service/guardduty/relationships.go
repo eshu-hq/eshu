@@ -10,18 +10,18 @@ import (
 )
 
 func memberRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	detector Detector,
 	member MemberAccount,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	detectorID := strings.TrimSpace(detector.ID)
 	memberID := detectorChildID(detectorID, "member", member.AccountID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorHasMemberAccount,
+		RelationshipType: aws.RelationshipGuardDutyDetectorHasMemberAccount,
 		SourceResourceID: detectorID,
 		TargetResourceID: memberID,
-		TargetType:       awscloud.ResourceTypeGuardDutyMemberAccount,
+		TargetType:       aws.ResourceTypeGuardDutyMemberAccount,
 		Attributes: map[string]any{
 			"account_id":          strings.TrimSpace(member.AccountID),
 			"relationship_status": strings.TrimSpace(member.RelationshipStatus),
@@ -31,19 +31,19 @@ func memberRelationship(
 }
 
 func publishingDestinationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	detector Detector,
 	destination PublishingDestination,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	detectorID := strings.TrimSpace(detector.ID)
 	destinationID := detectorChildID(detectorID, "publishing-destination", destination.ID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorPublishesToDestination,
+		RelationshipType: aws.RelationshipGuardDutyDetectorPublishesToDestination,
 		SourceResourceID: detectorID,
 		TargetResourceID: destinationID,
 		TargetARN:        strings.TrimSpace(destination.DestinationARN),
-		TargetType:       awscloud.ResourceTypeGuardDutyPublishingDestination,
+		TargetType:       aws.ResourceTypeGuardDutyPublishingDestination,
 		Attributes: map[string]any{
 			"destination_type": strings.TrimSpace(destination.DestinationType),
 			"status":           strings.TrimSpace(destination.Status),
@@ -53,18 +53,18 @@ func publishingDestinationRelationship(
 }
 
 func threatIntelSetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	detector Detector,
 	set ThreatIntelSet,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	detectorID := strings.TrimSpace(detector.ID)
 	setID := detectorChildID(detectorID, "threat-intel-set", set.ID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorUsesThreatIntelSet,
+		RelationshipType: aws.RelationshipGuardDutyDetectorUsesThreatIntelSet,
 		SourceResourceID: detectorID,
 		TargetResourceID: setID,
-		TargetType:       awscloud.ResourceTypeGuardDutyThreatIntelSet,
+		TargetType:       aws.ResourceTypeGuardDutyThreatIntelSet,
 		Attributes: map[string]any{
 			"format": strings.TrimSpace(set.Format),
 			"status": strings.TrimSpace(set.Status),
@@ -74,18 +74,18 @@ func threatIntelSetRelationship(
 }
 
 func ipSetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	detector Detector,
 	set IPSet,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	detectorID := strings.TrimSpace(detector.ID)
 	setID := detectorChildID(detectorID, "ip-set", set.ID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorUsesIPSet,
+		RelationshipType: aws.RelationshipGuardDutyDetectorUsesIPSet,
 		SourceResourceID: detectorID,
 		TargetResourceID: setID,
-		TargetType:       awscloud.ResourceTypeGuardDutyIPSet,
+		TargetType:       aws.ResourceTypeGuardDutyIPSet,
 		Attributes: map[string]any{
 			"format": strings.TrimSpace(set.Format),
 			"status": strings.TrimSpace(set.Status),

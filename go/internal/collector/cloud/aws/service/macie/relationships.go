@@ -15,23 +15,23 @@ import (
 // node the administrator account's own scan emits. It returns false when the
 // member account id is empty so a blank entry does not emit a dangling edge.
 func memberRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	member MemberAccount,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	memberID := strings.TrimSpace(member.AccountID)
 	if memberID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	adminID := firstNonEmpty(member.AdministratorID, boundary.AccountID)
 	if adminID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMacieMemberManagedByAdministrator,
+		RelationshipType: aws.RelationshipMacieMemberManagedByAdministrator,
 		SourceResourceID: memberResourceID(memberID),
 		TargetResourceID: sessionResourceID(adminID),
-		TargetType:       awscloud.ResourceTypeMacieSession,
+		TargetType:       aws.ResourceTypeMacieSession,
 		Attributes: map[string]any{
 			"account_id":          memberID,
 			"administrator_id":    adminID,

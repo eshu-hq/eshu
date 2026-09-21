@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/shield guidance
+# AGENTS.md - internal/collector/cloud/aws/service/shield guidance
 
 ## Read First
 
@@ -20,13 +20,13 @@
   start/end times, proactive engagement status, emergency contacts, or any
   other billing detail beyond the subscription state and auto-renew flag.
 - Every emitted relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its `resource_id`. Skip emission for an unrecognized
   protected ARN service; never emit an empty or guessed `target_type`.
 - The protected resource ARN comes from the API already partition-correct. Use
   it directly (or extract its bare id); never synthesize it or hardcode
   `arn:aws:`. If a protection ARN must ever be synthesized, derive the partition
-  with `awscloud.PartitionForBoundary` / `PartitionFromARN`.
+  with `aws.PartitionForBoundary` / `PartitionFromARN`.
 - For an ARN-keyed target (ELBv2, CloudFront, Global Accelerator) set both
   `target_arn` and the ARN-shaped `target_resource_id`. For a bare-id target
   (Elastic IP, hosted zone) set only the bare `target_resource_id` and leave
@@ -42,8 +42,8 @@
   new `target_type` and `target_resource_id` match the target scanner's
   published `resource_id`. Add the runtime relguard assertion for the new edge.
 - Add a new metadata field by extending the scanner-owned type and mapping it
-  through `awscloud` envelope builders. Never add a billing field.
-- Extend SDK pagination and region pinning in the `awssdk` adapter, not here.
+  through `aws` envelope builders. Never add a billing field.
+- Extend SDK pagination and region pinning in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

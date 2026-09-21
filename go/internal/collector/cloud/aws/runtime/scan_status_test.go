@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 )
 
 // TestStartScanStatusClassifiesStaleFenceAsTerminal proves that when the
-// storage layer rejects StartAWSScan with awscloud.ErrScanStatusStaleFence,
+// storage layer rejects StartAWSScan with aws.ErrScanStatusStaleFence,
 // the AWS claimed source returns an error that classifies as terminal with
 // failure class "stale_fence". The ClaimedService runner uses this to route
 // the claim through FailClaimTerminal rather than FailClaimRetryable so the
@@ -35,7 +35,7 @@ func TestStartScanStatusClassifiesStaleFenceAsTerminal(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -51,8 +51,8 @@ func TestStartScanStatusClassifiesStaleFenceAsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatalf("NextClaimed() err = nil, want stale fence error")
 	}
-	if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
-		t.Fatalf("NextClaimed() err = %v, want errors.Is awscloud.ErrScanStatusStaleFence", err)
+	if !errors.Is(err, aws.ErrScanStatusStaleFence) {
+		t.Fatalf("NextClaimed() err = %v, want errors.Is aws.ErrScanStatusStaleFence", err)
 	}
 	var classified interface{ FailureClass() string }
 	if !errors.As(err, &classified) || classified.FailureClass() != "stale_fence" {
@@ -68,16 +68,16 @@ func TestStartScanStatusClassifiesStaleFenceAsTerminal(t *testing.T) {
 	}
 }
 
-// staleFenceScanStatusStore returns awscloud.ErrScanStatusStaleFence on
+// staleFenceScanStatusStore returns aws.ErrScanStatusStaleFence on
 // StartAWSScan so tests can prove the classifier wires the typed error into
 // the workflow claim terminal-fail path.
 type staleFenceScanStatusStore struct{}
 
-func (staleFenceScanStatusStore) StartAWSScan(context.Context, awscloud.ScanStatusStart) error {
-	return fmt.Errorf("start AWS scan status: %w", awscloud.ErrScanStatusStaleFence)
+func (staleFenceScanStatusStore) StartAWSScan(context.Context, aws.ScanStatusStart) error {
+	return fmt.Errorf("start AWS scan status: %w", aws.ErrScanStatusStaleFence)
 }
 
-func (staleFenceScanStatusStore) ObserveAWSScan(context.Context, awscloud.ScanStatusObservation) error {
+func (staleFenceScanStatusStore) ObserveAWSScan(context.Context, aws.ScanStatusObservation) error {
 	return nil
 }
 
@@ -102,7 +102,7 @@ func TestStartScanStatusIncrementsStaleFenceCounter(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -124,7 +124,7 @@ func TestStartScanStatusIncrementsStaleFenceCounter(t *testing.T) {
 		t.Fatalf("Collect() err = %v", err)
 	}
 	got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_scan_status_stale_fence_total", map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceIAM,
+		telemetry.MetricDimensionService:   aws.ServiceIAM,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "start",

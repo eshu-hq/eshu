@@ -16,25 +16,25 @@ import (
 // resources, the subnet-group identifier for the DMS subnet-group node, and the
 // reported KMS key identifier for the KMS key node).
 func instanceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance ReplicationInstance,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := instanceResourceID(instance)
 	sourceARN := strings.TrimSpace(instance.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if subnetGroup := strings.TrimSpace(instance.SubnetGroupIdentifier); subnetGroup != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceInSubnetGroup,
+			aws.RelationshipDMSReplicationInstanceInSubnetGroup,
 			sourceID,
 			sourceARN,
 			subnetGroup,
 			"",
-			awscloud.ResourceTypeDMSReplicationSubnetGroup,
+			aws.ResourceTypeDMSReplicationSubnetGroup,
 			nil,
 		))
 	}
@@ -42,12 +42,12 @@ func instanceRelationships(
 	for _, subnetID := range cloneStrings(instance.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceInSubnet,
+			aws.RelationshipDMSReplicationInstanceInSubnet,
 			sourceID,
 			sourceARN,
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			aws.ResourceTypeEC2Subnet,
 			nil,
 		))
 	}
@@ -55,12 +55,12 @@ func instanceRelationships(
 	for _, securityGroupID := range cloneStrings(instance.SecurityGroupIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceUsesSecurityGroup,
+			aws.RelationshipDMSReplicationInstanceUsesSecurityGroup,
 			sourceID,
 			sourceARN,
 			securityGroupID,
 			"",
-			awscloud.ResourceTypeEC2SecurityGroup,
+			aws.ResourceTypeEC2SecurityGroup,
 			nil,
 		))
 	}
@@ -68,12 +68,12 @@ func instanceRelationships(
 	if kmsKeyID := strings.TrimSpace(instance.KMSKeyID); kmsKeyID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceUsesKMSKey,
+			aws.RelationshipDMSReplicationInstanceUsesKMSKey,
 			sourceID,
 			sourceARN,
 			kmsKeyID,
 			arnIfARN(kmsKeyID),
-			awscloud.ResourceTypeKMSKey,
+			aws.ResourceTypeKMSKey,
 			nil,
 		))
 	}
@@ -85,24 +85,24 @@ func instanceRelationships(
 // and its member subnets. The VPC and subnets are keyed by the bare AWS ids the
 // EC2 scanner publishes.
 func subnetGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ReplicationSubnetGroup,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := subnetGroupResourceID(group)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(group.VPCID); vpcID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationSubnetGroupInVPC,
+			aws.RelationshipDMSReplicationSubnetGroupInVPC,
 			sourceID,
 			"",
 			vpcID,
 			"",
-			awscloud.ResourceTypeEC2VPC,
+			aws.ResourceTypeEC2VPC,
 			nil,
 		))
 	}
@@ -110,12 +110,12 @@ func subnetGroupRelationships(
 	for _, subnetID := range cloneStrings(group.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationSubnetGroupHasSubnet,
+			aws.RelationshipDMSReplicationSubnetGroupHasSubnet,
 			sourceID,
 			"",
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			aws.ResourceTypeEC2Subnet,
 			nil,
 		))
 	}
@@ -130,40 +130,40 @@ func subnetGroupRelationships(
 // secret reference. Edges are emitted only when DMS reports a resolvable target
 // identity, so an endpoint to an unscanned data store never dangles.
 func endpointRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	endpoint Endpoint,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := endpointResourceID(endpoint)
 	sourceARN := strings.TrimSpace(endpoint.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if kmsKeyID := strings.TrimSpace(endpoint.KMSKeyID); kmsKeyID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointUsesKMSKey,
+			aws.RelationshipDMSEndpointUsesKMSKey,
 			sourceID,
 			sourceARN,
 			kmsKeyID,
 			arnIfARN(kmsKeyID),
-			awscloud.ResourceTypeKMSKey,
+			aws.ResourceTypeKMSKey,
 			nil,
 		))
 	}
 
 	if bucket := strings.TrimSpace(endpoint.S3BucketName); bucket != "" {
-		bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), bucket)
+		bucketARN := arnForBucket(aws.PartitionForBoundary(boundary), bucket)
 		if bucketARN != "" {
 			relationships = append(relationships, relationship(
 				boundary,
-				awscloud.RelationshipDMSEndpointTargetsS3Bucket,
+				aws.RelationshipDMSEndpointTargetsS3Bucket,
 				sourceID,
 				sourceARN,
 				bucketARN,
 				bucketARN,
-				awscloud.ResourceTypeS3Bucket,
+				aws.ResourceTypeS3Bucket,
 				map[string]any{"bucket": bucket},
 			))
 		}
@@ -172,12 +172,12 @@ func endpointRelationships(
 	if streamARN := strings.TrimSpace(endpoint.KinesisStreamARN); streamARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointTargetsKinesisStream,
+			aws.RelationshipDMSEndpointTargetsKinesisStream,
 			sourceID,
 			sourceARN,
 			streamARN,
 			arnIfARN(streamARN),
-			awscloud.ResourceTypeKinesisDataStream,
+			aws.ResourceTypeKinesisDataStream,
 			nil,
 		))
 	}
@@ -185,12 +185,12 @@ func endpointRelationships(
 	if secretID := strings.TrimSpace(endpoint.SecretsManagerSecretID); secretID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointUsesSecret,
+			aws.RelationshipDMSEndpointUsesSecret,
 			sourceID,
 			sourceARN,
 			secretID,
 			arnIfARN(secretID),
-			awscloud.ResourceTypeSecretsManagerSecret,
+			aws.ResourceTypeSecretsManagerSecret,
 			nil,
 		))
 	}
@@ -204,25 +204,25 @@ func endpointRelationships(
 // replication instance). Edges are emitted only when the task reports the
 // target ARN, so a task never dangles to an unreported endpoint or instance.
 func taskRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	task ReplicationTask,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := taskResourceID(task)
 	sourceARN := strings.TrimSpace(task.ARN)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if sourceEndpointARN := strings.TrimSpace(task.SourceEndpointARN); sourceEndpointARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskUsesSourceEndpoint,
+			aws.RelationshipDMSReplicationTaskUsesSourceEndpoint,
 			sourceID,
 			sourceARN,
 			sourceEndpointARN,
 			arnIfARN(sourceEndpointARN),
-			awscloud.ResourceTypeDMSEndpoint,
+			aws.ResourceTypeDMSEndpoint,
 			nil,
 		))
 	}
@@ -230,12 +230,12 @@ func taskRelationships(
 	if targetEndpointARN := strings.TrimSpace(task.TargetEndpointARN); targetEndpointARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskUsesTargetEndpoint,
+			aws.RelationshipDMSReplicationTaskUsesTargetEndpoint,
 			sourceID,
 			sourceARN,
 			targetEndpointARN,
 			arnIfARN(targetEndpointARN),
-			awscloud.ResourceTypeDMSEndpoint,
+			aws.ResourceTypeDMSEndpoint,
 			nil,
 		))
 	}
@@ -243,12 +243,12 @@ func taskRelationships(
 	if instanceARN := strings.TrimSpace(task.ReplicationInstanceARN); instanceARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskRunsOnInstance,
+			aws.RelationshipDMSReplicationTaskRunsOnInstance,
 			sourceID,
 			sourceARN,
 			instanceARN,
 			arnIfARN(instanceARN),
-			awscloud.ResourceTypeDMSReplicationInstance,
+			aws.ResourceTypeDMSReplicationInstance,
 			nil,
 		))
 	}
@@ -260,7 +260,7 @@ func taskRelationships(
 // SourceRecordID so repeated observations of the same edge in one AWS
 // generation coalesce.
 func relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
@@ -268,8 +268,8 @@ func relationship(
 	targetARN string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,

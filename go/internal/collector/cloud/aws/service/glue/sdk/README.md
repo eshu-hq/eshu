@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/glue/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/glue/sdk` adapts AWS SDK for Go v2
 Glue responses to the scanner-owned `Client` contract. It owns Data Catalog
 pagination, crawler pagination, job pagination, trigger pagination, workflow
 pagination, connection pagination, throttle classification, and per-call AWS
@@ -46,9 +46,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/glue` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/glue` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `glue` and Smithy error contracts.
 

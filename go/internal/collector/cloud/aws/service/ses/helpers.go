@@ -50,14 +50,14 @@ func dedicatedIPPoolResourceID(pool DedicatedIPPool) string {
 // scanner derives the partition from the scan boundary (aws / aws-cn /
 // aws-us-gov) instead of hardcoding it. It returns "" when the boundary lacks
 // the account id, region, or identity name needed to form a real ARN.
-func identityARN(boundary awscloud.Boundary, identity EmailIdentity) string {
+func identityARN(boundary aws.Boundary, identity EmailIdentity) string {
 	name := strings.TrimSpace(identity.Name)
 	account := strings.TrimSpace(boundary.AccountID)
 	region := strings.TrimSpace(boundary.Region)
 	if name == "" || account == "" || region == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account + ":identity/" + name
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account + ":identity/" + name
 }
 
 // configurationSetARN synthesizes the partition-aware SES configuration-set ARN
@@ -65,14 +65,14 @@ func identityARN(boundary awscloud.Boundary, identity EmailIdentity) string {
 // configuration set, so the scanner derives the partition from the scan boundary
 // (aws / aws-cn / aws-us-gov) instead of hardcoding it. It returns "" when the
 // boundary lacks the account id, region, or set name needed to form a real ARN.
-func configurationSetARN(boundary awscloud.Boundary, set ConfigurationSet) string {
+func configurationSetARN(boundary aws.Boundary, set ConfigurationSet) string {
 	name := strings.TrimSpace(set.Name)
 	account := strings.TrimSpace(boundary.AccountID)
 	region := strings.TrimSpace(boundary.Region)
 	if name == "" || account == "" || region == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account +
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account +
 		":configuration-set/" + name
 }
 
@@ -80,14 +80,14 @@ func configurationSetARN(boundary awscloud.Boundary, set ConfigurationSet) strin
 // for the resource node's arn field. SES returns only the pool name, so the
 // scanner derives the partition from the scan boundary instead of hardcoding it.
 // It returns "" when the boundary lacks the account id, region, or pool name.
-func dedicatedIPPoolARN(boundary awscloud.Boundary, pool DedicatedIPPool) string {
+func dedicatedIPPoolARN(boundary aws.Boundary, pool DedicatedIPPool) string {
 	name := strings.TrimSpace(pool.Name)
 	account := strings.TrimSpace(boundary.AccountID)
 	region := strings.TrimSpace(boundary.Region)
 	if name == "" || account == "" || region == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account +
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":ses:" + region + ":" + account +
 		":dedicated-ip-pool/" + name
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package awscloud defines AWS cloud scanner fact identity and runtime-neutral
+// Package aws defines AWS cloud scanner fact identity and runtime-neutral
 // observation contracts.
 //
 // The package owns AWS service-kind constants, shared claim boundaries,
@@ -24,4 +24,4 @@
 // classifier custom patterns, and workflow graph payloads stay outside the
 // contract. GuardDuty finding-body capture, filter criteria, threat intel set
 // list contents, and IP set list contents also stay outside the contract.
-package awscloud
+package aws

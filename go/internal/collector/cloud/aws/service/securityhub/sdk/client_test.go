@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssecurityhub "github.com/aws/aws-sdk-go-v2/service/securityhub"
 	awssecurityhubtypes "github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
@@ -28,30 +28,30 @@ func TestClientSnapshotReadsMetadataAndAggregatesFindingsWithoutLeakingPayloads(
 	insightARN := "arn:aws:securityhub:us-east-1:123456789012:insight/custom/failed-controls"
 	client := &fakeSecurityHubAPI{
 		describeHubOutput: &awssecurityhub.DescribeHubOutput{
-			AutoEnableControls:      aws.Bool(true),
+			AutoEnableControls:      awsv2.Bool(true),
 			ControlFindingGenerator: awssecurityhubtypes.ControlFindingGeneratorSecurityControl,
-			HubArn:                  aws.String(hubARN),
-			SubscribedAt:            aws.String("2026-05-27T10:00:00Z"),
+			HubArn:                  awsv2.String(hubARN),
+			SubscribedAt:            awsv2.String("2026-05-27T10:00:00Z"),
 		},
 		administratorOutput: &awssecurityhub.GetAdministratorAccountOutput{
 			Administrator: &awssecurityhubtypes.Invitation{
-				AccountId:    aws.String("999999999999"),
-				MemberStatus: aws.String("Enabled"),
+				AccountId:    awsv2.String("999999999999"),
+				MemberStatus: awsv2.String("Enabled"),
 			},
 		},
 		memberPages: []*awssecurityhub.ListMembersOutput{{
 			Members: []awssecurityhubtypes.Member{{
-				AccountId:       aws.String("111122223333"),
-				AdministratorId: aws.String("999999999999"),
-				MemberStatus:    aws.String("Enabled"),
-				InvitedAt:       aws.Time(time.Date(2026, 5, 27, 11, 0, 0, 0, time.UTC)),
-				UpdatedAt:       aws.Time(time.Date(2026, 5, 27, 11, 30, 0, 0, time.UTC)),
+				AccountId:       awsv2.String("111122223333"),
+				AdministratorId: awsv2.String("999999999999"),
+				MemberStatus:    awsv2.String("Enabled"),
+				InvitedAt:       awsv2.Time(time.Date(2026, 5, 27, 11, 0, 0, 0, time.UTC)),
+				UpdatedAt:       awsv2.Time(time.Date(2026, 5, 27, 11, 30, 0, 0, time.UTC)),
 			}},
 		}},
 		standardPages: []*awssecurityhub.GetEnabledStandardsOutput{{
 			StandardsSubscriptions: []awssecurityhubtypes.StandardsSubscription{{
-				StandardsArn:               aws.String(standardARN),
-				StandardsSubscriptionArn:   aws.String(subscriptionARN),
+				StandardsArn:               awsv2.String(standardARN),
+				StandardsSubscriptionArn:   awsv2.String(subscriptionARN),
 				StandardsStatus:            awssecurityhubtypes.StandardsStatusReady,
 				StandardsControlsUpdatable: awssecurityhubtypes.StandardsControlsUpdatableReadyForUpdates,
 				StandardsInput:             map[string]string{"regions": "us-east-1"},
@@ -63,20 +63,20 @@ func TestClientSnapshotReadsMetadataAndAggregatesFindingsWithoutLeakingPayloads(
 		controlPages: map[string][]*awssecurityhub.DescribeStandardsControlsOutput{
 			subscriptionARN: {{
 				Controls: []awssecurityhubtypes.StandardsControl{{
-					ControlId:           aws.String("S3.1"),
+					ControlId:           awsv2.String("S3.1"),
 					ControlStatus:       awssecurityhubtypes.ControlStatusEnabled,
 					RelatedRequirements: []string{"CIS 2.1.2"},
 					SeverityRating:      awssecurityhubtypes.SeverityRatingHigh,
-					StandardsControlArn: aws.String(controlARN),
-					Title:               aws.String("S3 Block Public Access setting should be enabled"),
+					StandardsControlArn: awsv2.String(controlARN),
+					Title:               awsv2.String("S3 Block Public Access setting should be enabled"),
 				}},
 			}},
 		},
 		actionTargetPages: []*awssecurityhub.DescribeActionTargetsOutput{{
 			ActionTargets: []awssecurityhubtypes.ActionTarget{{
-				ActionTargetArn: aws.String(actionARN),
-				Description:     aws.String("page https://internal.example.invalid/hook?token=custom-action-secret"),
-				Name:            aws.String("escalate"),
+				ActionTargetArn: awsv2.String(actionARN),
+				Description:     awsv2.String("page https://internal.example.invalid/hook?token=custom-action-secret"),
+				Name:            awsv2.String("escalate"),
 			}},
 		}},
 		insightPages: []*awssecurityhub.GetInsightsOutput{{
@@ -84,70 +84,70 @@ func TestClientSnapshotReadsMetadataAndAggregatesFindingsWithoutLeakingPayloads(
 				Filters: &awssecurityhubtypes.AwsSecurityFindingFilters{
 					ResourceId: []awssecurityhubtypes.StringFilter{{
 						Comparison: awssecurityhubtypes.StringFilterComparisonEquals,
-						Value:      aws.String("arn:aws:s3:::private-bucket"),
+						Value:      awsv2.String("arn:aws:s3:::private-bucket"),
 					}},
 				},
-				GroupByAttribute: aws.String("ComplianceSecurityControlId"),
-				InsightArn:       aws.String(insightARN),
-				Name:             aws.String("Failed controls"),
+				GroupByAttribute: awsv2.String("ComplianceSecurityControlId"),
+				InsightArn:       awsv2.String(insightARN),
+				Name:             awsv2.String("Failed controls"),
 			}},
 		}},
 		insightResults: map[string]*awssecurityhub.GetInsightResultsOutput{
 			insightARN: {
 				InsightResults: &awssecurityhubtypes.InsightResults{
-					GroupByAttribute: aws.String("ComplianceSecurityControlId"),
-					InsightArn:       aws.String(insightARN),
+					GroupByAttribute: awsv2.String("ComplianceSecurityControlId"),
+					InsightArn:       awsv2.String(insightARN),
 					ResultValues: []awssecurityhubtypes.InsightResultValue{{
-						Count:                 aws.Int32(7),
-						GroupByAttributeValue: aws.String("S3.1"),
+						Count:                 awsv2.Int32(7),
+						GroupByAttributeValue: awsv2.String("S3.1"),
 					}},
 				},
 			},
 		},
 		findingPages: []*awssecurityhub.GetFindingsOutput{{
 			Findings: []awssecurityhubtypes.AwsSecurityFinding{{
-				AwsAccountId:  aws.String("123456789012"),
-				CreatedAt:     aws.String("2026-05-27T12:00:00Z"),
-				Description:   aws.String("attacker reached private instance"),
-				GeneratorId:   aws.String("aws-foundational-security-best-practices/v/1.0.0/S3.1"),
-				Id:            aws.String("finding-id-that-must-not-emit"),
-				ProductArn:    aws.String("arn:aws:securityhub:us-east-1::product/aws/securityhub"),
-				SchemaVersion: aws.String("2018-10-08"),
-				Title:         aws.String("private finding title"),
-				UpdatedAt:     aws.String("2026-05-27T12:05:00Z"),
+				AwsAccountId:  awsv2.String("123456789012"),
+				CreatedAt:     awsv2.String("2026-05-27T12:00:00Z"),
+				Description:   awsv2.String("attacker reached private instance"),
+				GeneratorId:   awsv2.String("aws-foundational-security-best-practices/v/1.0.0/S3.1"),
+				Id:            awsv2.String("finding-id-that-must-not-emit"),
+				ProductArn:    awsv2.String("arn:aws:securityhub:us-east-1::product/aws/securityhub"),
+				SchemaVersion: awsv2.String("2018-10-08"),
+				Title:         awsv2.String("private finding title"),
+				UpdatedAt:     awsv2.String("2026-05-27T12:05:00Z"),
 				Compliance: &awssecurityhubtypes.Compliance{
 					AssociatedStandards: []awssecurityhubtypes.AssociatedStandard{{
-						StandardsId: aws.String("aws-foundational-security-best-practices/v/1.0.0"),
+						StandardsId: awsv2.String("aws-foundational-security-best-practices/v/1.0.0"),
 					}},
-					SecurityControlId: aws.String("S3.1"),
+					SecurityControlId: awsv2.String("S3.1"),
 					Status:            awssecurityhubtypes.ComplianceStatusFailed,
 				},
 				Network: &awssecurityhubtypes.Network{
-					DestinationIpV4: aws.String("10.0.0.5"),
-					Protocol:        aws.String("tcp"),
+					DestinationIpV4: awsv2.String("10.0.0.5"),
+					Protocol:        awsv2.String("tcp"),
 				},
 				Note: &awssecurityhubtypes.Note{
-					Text:      aws.String("do not page customer"),
-					UpdatedAt: aws.String("2026-05-27T12:10:00Z"),
-					UpdatedBy: aws.String("analyst@example.invalid"),
+					Text:      awsv2.String("do not page customer"),
+					UpdatedAt: awsv2.String("2026-05-27T12:10:00Z"),
+					UpdatedBy: awsv2.String("analyst@example.invalid"),
 				},
 				Process: &awssecurityhubtypes.ProcessDetails{
-					Name: aws.String("terminate-process"),
-					Path: aws.String("/opt/secret/agent"),
+					Name: awsv2.String("terminate-process"),
+					Path: awsv2.String("/opt/secret/agent"),
 				},
 				ProductFields: map[string]string{
 					"token": "product-field-secret",
 				},
 				Remediation: &awssecurityhubtypes.Remediation{
 					Recommendation: &awssecurityhubtypes.Recommendation{
-						Text: aws.String("rotate the leaked secret"),
-						Url:  aws.String("https://internal.example.invalid/remediate"),
+						Text: awsv2.String("rotate the leaked secret"),
+						Url:  awsv2.String("https://internal.example.invalid/remediate"),
 					},
 				},
 				Resources: []awssecurityhubtypes.Resource{{
-					Id:     aws.String("i-0abc123private"),
-					Type:   aws.String("AwsEc2Instance"),
-					Region: aws.String("us-east-1"),
+					Id:     awsv2.String("i-0abc123private"),
+					Type:   awsv2.String("AwsEc2Instance"),
+					Region: awsv2.String("us-east-1"),
 					Tags:   map[string]string{"SecretTag": "finding-resource-tag-secret"},
 				}},
 				Severity: &awssecurityhubtypes.Severity{Label: awssecurityhubtypes.SeverityLabelHigh},
@@ -247,11 +247,11 @@ func TestClientSnapshotReadsMetadataAndAggregatesFindingsWithoutLeakingPayloads(
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSecurityHub,
+		ServiceKind:         aws.ServiceSecurityHub,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:securityhub:1",
 		CollectorInstanceID: "aws-prod",
@@ -357,7 +357,7 @@ func (f *fakeSecurityHubAPI) DescribeStandardsControls(
 	input *awssecurityhub.DescribeStandardsControlsInput,
 	_ ...func(*awssecurityhub.Options),
 ) (*awssecurityhub.DescribeStandardsControlsOutput, error) {
-	subscriptionARN := aws.ToString(input.StandardsSubscriptionArn)
+	subscriptionARN := awsv2.ToString(input.StandardsSubscriptionArn)
 	if f.controlCalls == nil {
 		f.controlCalls = make(map[string]int)
 	}
@@ -401,7 +401,7 @@ func (f *fakeSecurityHubAPI) GetInsightResults(
 	input *awssecurityhub.GetInsightResultsInput,
 	_ ...func(*awssecurityhub.Options),
 ) (*awssecurityhub.GetInsightResultsOutput, error) {
-	return f.insightResults[aws.ToString(input.InsightArn)], nil
+	return f.insightResults[awsv2.ToString(input.InsightArn)], nil
 }
 
 func (f *fakeSecurityHubAPI) GetFindings(
@@ -424,7 +424,7 @@ func (f *fakeSecurityHubAPI) ListTagsForResource(
 	_ ...func(*awssecurityhub.Options),
 ) (*awssecurityhub.ListTagsForResourceOutput, error) {
 	return &awssecurityhub.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/imagebuilder` owns the EC2 Image Builder
+`internal/collector/cloud/aws/service/imagebuilder` owns the EC2 Image Builder
 scanner contract for the AWS cloud collector. It converts image pipeline, image
 recipe, container recipe, infrastructure configuration, and distribution
 configuration metadata into `aws_resource` facts and emits relationship evidence
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -50,9 +50,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Image Builder API call counts, throttles, and
+The `sdk` adapter records Image Builder API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -65,7 +65,7 @@ pagination spans.
 - AWS reports the IAM instance profile and the ECR repository by NAME, and the
   S3 logging bucket by NAME. The scanner synthesizes the partition-aware
   instance-profile, ECR repository, and S3 bucket ARNs with
-  `awscloud.PartitionForBoundary` so the edges join the real IAM, ECR, and S3
+  `aws.PartitionForBoundary` so the edges join the real IAM, ECR, and S3
   nodes in GovCloud and China, never just commercial. Never hardcode `arn:aws:`.
 - Subnet and security-group edges key on the bare AWS id (subnet-..., sg-...),
   the resource_id the VPC and EC2 scanners publish, and leave `target_arn`
@@ -85,7 +85,7 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/imagebuilder/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/imagebuilder/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

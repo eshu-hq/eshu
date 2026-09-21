@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/datazone/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/datazone/sdk` adapts AWS SDK for Go v2
 DataZone responses to the scanner-owned `Client` contract. It owns domain
 pagination, the per-domain GetDomain describe read, per-domain project
 pagination, per-project environment and data source pagination, the
@@ -40,9 +40,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/datazone` for scanner-owned result
+- `internal/collector/cloud/aws/service/datazone` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `datazone` and Smithy error contracts.

@@ -26,15 +26,15 @@ type Scanner struct {
 
 // Scan observes Pinpoint applications, their segments and channels, and the
 // email-channel SES dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("pinpoint scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServicePinpoint:
+	case "", aws.ServicePinpoint:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServicePinpoint
+		boundary.ServiceKind = aws.ServicePinpoint
 	default:
 		return nil, fmt.Errorf("pinpoint scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -57,9 +57,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -68,8 +68,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func applicationEnvelopes(boundary awscloud.Boundary, application Application) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+func applicationEnvelopes(boundary aws.Boundary, application Application) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 	if err != nil {
 		return nil, err
 	}
@@ -92,14 +92,14 @@ func applicationEnvelopes(boundary awscloud.Boundary, application Application) (
 	return envelopes, nil
 }
 
-func segmentEnvelopes(boundary awscloud.Boundary, applicationID string, segment Segment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(segmentObservation(boundary, segment))
+func segmentEnvelopes(boundary aws.Boundary, applicationID string, segment Segment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(segmentObservation(boundary, segment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := applicationHasSegmentRelationship(boundary, applicationID, segment); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -108,13 +108,13 @@ func segmentEnvelopes(boundary awscloud.Boundary, applicationID string, segment 
 	return envelopes, nil
 }
 
-func channelEnvelopes(boundary awscloud.Boundary, applicationID string, channel Channel) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(channelObservation(boundary, channel))
+func channelEnvelopes(boundary aws.Boundary, applicationID string, channel Channel) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(channelObservation(boundary, channel))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		channelInApplicationRelationship(boundary, applicationID, channel),
 		emailChannelSESIdentityRelationship(boundary, channel),
 		emailChannelSESConfigurationSetRelationship(boundary, channel),
@@ -122,7 +122,7 @@ func channelEnvelopes(boundary awscloud.Boundary, applicationID string, channel 
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -131,15 +131,15 @@ func channelEnvelopes(boundary awscloud.Boundary, applicationID string, channel 
 	return envelopes, nil
 }
 
-func applicationObservation(boundary awscloud.Boundary, application Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, application Application) aws.ResourceObservation {
 	arn := strings.TrimSpace(application.ARN)
 	name := strings.TrimSpace(application.Name)
 	resourceID := applicationResourceID(application)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypePinpointApplication,
+		ResourceType: aws.ResourceTypePinpointApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -151,15 +151,15 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 	}
 }
 
-func segmentObservation(boundary awscloud.Boundary, segment Segment) awscloud.ResourceObservation {
+func segmentObservation(boundary aws.Boundary, segment Segment) aws.ResourceObservation {
 	arn := strings.TrimSpace(segment.ARN)
 	name := strings.TrimSpace(segment.Name)
 	resourceID := segmentResourceID(segment)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypePinpointSegment,
+		ResourceType: aws.ResourceTypePinpointSegment,
 		Name:         name,
 		Tags:         cloneStringMap(segment.Tags),
 		Attributes: map[string]any{
@@ -178,7 +178,7 @@ func segmentObservation(boundary awscloud.Boundary, segment Segment) awscloud.Re
 	}
 }
 
-func channelObservation(boundary awscloud.Boundary, channel Channel) awscloud.ResourceObservation {
+func channelObservation(boundary aws.Boundary, channel Channel) aws.ResourceObservation {
 	resourceID := channelResourceID(channel)
 	kind := strings.TrimSpace(channel.ChannelType)
 	attributes := map[string]any{
@@ -196,10 +196,10 @@ func channelObservation(boundary awscloud.Boundary, channel Channel) awscloud.Re
 	if identityName := sesIdentityNameFromARN(channel.SESIdentityARN); identityName != "" {
 		attributes["ses_identity"] = identityName
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypePinpointChannel,
+		ResourceType:       aws.ResourceTypePinpointChannel,
 		Name:               kind,
 		State:              channelState(channel),
 		Attributes:         attributes,

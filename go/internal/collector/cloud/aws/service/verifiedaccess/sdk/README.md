@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/verifiedaccess/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/verifiedaccess/sdk` adapts AWS SDK for
 Go v2 EC2 Verified Access describe responses to the scanner-owned `Client`
 contract. It owns instance, group, endpoint, and trust-provider pagination,
 throttle classification, and per-call AWS API telemetry.
@@ -36,8 +36,8 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary labels.
-- `internal/collector/awscloud/service/verifiedaccess` for scanner-owned result
+- `internal/collector/cloud/aws` for account, region, and service boundary labels.
+- `internal/collector/cloud/aws/service/verifiedaccess` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `ec2` and Smithy error contracts.

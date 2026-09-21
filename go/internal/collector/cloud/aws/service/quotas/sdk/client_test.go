@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssq "github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	awssqtypes "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
 
@@ -19,26 +19,26 @@ func TestClientSnapshotsAppliedQuotasJoinedWithDefaults(t *testing.T) {
 	api := &fakeServiceQuotasAPI{
 		servicePages: []*awssq.ListServicesOutput{{
 			Services: []awssqtypes.ServiceInfo{{
-				ServiceCode: aws.String("ec2"),
-				ServiceName: aws.String("Amazon Elastic Compute Cloud (Amazon EC2)"),
+				ServiceCode: awsv2.String("ec2"),
+				ServiceName: awsv2.String("Amazon Elastic Compute Cloud (Amazon EC2)"),
 			}},
 		}},
 		appliedPages: map[string][]*awssq.ListServiceQuotasOutput{
 			"ec2": {{
 				Quotas: []awssqtypes.ServiceQuota{{
-					QuotaArn:            aws.String(quotaARN),
-					ServiceCode:         aws.String("ec2"),
-					ServiceName:         aws.String("Amazon Elastic Compute Cloud (Amazon EC2)"),
-					QuotaCode:           aws.String("L-1216C47A"),
-					QuotaName:           aws.String("Running On-Demand Standard instances"),
-					Value:               aws.Float64(256),
+					QuotaArn:            awsv2.String(quotaARN),
+					ServiceCode:         awsv2.String("ec2"),
+					ServiceName:         awsv2.String("Amazon Elastic Compute Cloud (Amazon EC2)"),
+					QuotaCode:           awsv2.String("L-1216C47A"),
+					QuotaName:           awsv2.String("Running On-Demand Standard instances"),
+					Value:               awsv2.Float64(256),
 					Adjustable:          true,
-					Unit:                aws.String("None"),
+					Unit:                awsv2.String("None"),
 					QuotaAppliedAtLevel: awssqtypes.AppliedLevelEnumAccount,
 					UsageMetric: &awssqtypes.MetricInfo{
-						MetricNamespace:               aws.String("AWS/Usage"),
-						MetricName:                    aws.String("ResourceCount"),
-						MetricStatisticRecommendation: aws.String("Maximum"),
+						MetricNamespace:               awsv2.String("AWS/Usage"),
+						MetricName:                    awsv2.String("ResourceCount"),
+						MetricStatisticRecommendation: awsv2.String("Maximum"),
 						MetricDimensions:              map[string]string{"Type": "Resource"},
 					},
 				}},
@@ -47,8 +47,8 @@ func TestClientSnapshotsAppliedQuotasJoinedWithDefaults(t *testing.T) {
 		defaultPages: map[string][]*awssq.ListAWSDefaultServiceQuotasOutput{
 			"ec2": {{
 				Quotas: []awssqtypes.ServiceQuota{{
-					QuotaCode: aws.String("L-1216C47A"),
-					Value:     aws.Float64(5),
+					QuotaCode: awsv2.String("L-1216C47A"),
+					Value:     awsv2.Float64(5),
 				}},
 			}},
 		},
@@ -87,25 +87,25 @@ func TestClientPaginatesServicesAndQuotas(t *testing.T) {
 	api := &fakeServiceQuotasAPI{
 		servicePages: []*awssq.ListServicesOutput{
 			{
-				Services:  []awssqtypes.ServiceInfo{{ServiceCode: aws.String("ec2")}},
-				NextToken: aws.String("svc-next"),
+				Services:  []awssqtypes.ServiceInfo{{ServiceCode: awsv2.String("ec2")}},
+				NextToken: awsv2.String("svc-next"),
 			},
 			{
-				Services: []awssqtypes.ServiceInfo{{ServiceCode: aws.String("lambda")}},
+				Services: []awssqtypes.ServiceInfo{{ServiceCode: awsv2.String("lambda")}},
 			},
 		},
 		appliedPages: map[string][]*awssq.ListServiceQuotasOutput{
 			"ec2": {
 				{
-					Quotas:    []awssqtypes.ServiceQuota{{QuotaCode: aws.String("L-A"), Value: aws.Float64(1)}},
-					NextToken: aws.String("q-next"),
+					Quotas:    []awssqtypes.ServiceQuota{{QuotaCode: awsv2.String("L-A"), Value: awsv2.Float64(1)}},
+					NextToken: awsv2.String("q-next"),
 				},
 				{
-					Quotas: []awssqtypes.ServiceQuota{{QuotaCode: aws.String("L-B"), Value: aws.Float64(2)}},
+					Quotas: []awssqtypes.ServiceQuota{{QuotaCode: awsv2.String("L-B"), Value: awsv2.Float64(2)}},
 				},
 			},
 			"lambda": {{
-				Quotas: []awssqtypes.ServiceQuota{{QuotaCode: aws.String("L-C"), Value: aws.Float64(3)}},
+				Quotas: []awssqtypes.ServiceQuota{{QuotaCode: awsv2.String("L-C"), Value: awsv2.Float64(3)}},
 			}},
 		},
 	}
@@ -162,7 +162,7 @@ func (f *fakeServiceQuotasAPI) ListServiceQuotas(
 	if f.appliedCalls == nil {
 		f.appliedCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ServiceCode)
+	name := awsv2.ToString(input.ServiceCode)
 	pages := f.appliedPages[name]
 	idx := f.appliedCalls[name]
 	if idx >= len(pages) {
@@ -180,7 +180,7 @@ func (f *fakeServiceQuotasAPI) ListAWSDefaultServiceQuotas(
 	if f.defaultCalls == nil {
 		f.defaultCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ServiceCode)
+	name := awsv2.ToString(input.ServiceCode)
 	pages := f.defaultPages[name]
 	idx := f.defaultCalls[name]
 	if idx >= len(pages) {
@@ -190,10 +190,10 @@ func (f *fakeServiceQuotasAPI) ListAWSDefaultServiceQuotas(
 	return pages[idx], nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceServiceQuotas,
+		ServiceKind: aws.ServiceServiceQuotas,
 	}
 }

@@ -10,10 +10,10 @@ import (
 )
 
 func workGroupResultBucketRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workGroup WorkGroup,
-) *awscloud.RelationshipObservation {
-	bucketARN := outputBucketARN(awscloud.PartitionForBoundary(boundary), workGroup.OutputLocation)
+) *aws.RelationshipObservation {
+	bucketARN := outputBucketARN(aws.PartitionForBoundary(boundary), workGroup.OutputLocation)
 	if bucketARN == "" {
 		return nil
 	}
@@ -21,25 +21,25 @@ func workGroupResultBucketRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAthenaWorkGroupUsesResultBucket,
+		RelationshipType: aws.RelationshipAthenaWorkGroupUsesResultBucket,
 		SourceResourceID: sourceID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		// Attributes intentionally omits the workgroup OutputLocation URI to
 		// keep the relationship payload bucket-only; including the raw URI
 		// would leak the result-object prefix and violate the package
 		// invariant in README.md / AGENTS.md.
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipAthenaWorkGroupUsesResultBucket + ":" + bucketARN,
+		SourceRecordID: sourceID + "->" + aws.RelationshipAthenaWorkGroupUsesResultBucket + ":" + bucketARN,
 	}
 }
 
 func workGroupKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workGroup WorkGroup,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(workGroup.KMSKey)
 	if targetID == "" {
 		return nil
@@ -52,9 +52,9 @@ func workGroupKMSRelationship(
 	if strings.HasPrefix(targetID, "arn:") {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAthenaWorkGroupUsesKMSKey,
+		RelationshipType: aws.RelationshipAthenaWorkGroupUsesKMSKey,
 		SourceResourceID: sourceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
@@ -62,25 +62,25 @@ func workGroupKMSRelationship(
 		Attributes: map[string]any{
 			"encryption_option": strings.TrimSpace(workGroup.EncryptionOption),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipAthenaWorkGroupUsesKMSKey + ":" + targetID,
+		SourceRecordID: sourceID + "->" + aws.RelationshipAthenaWorkGroupUsesKMSKey + ":" + targetID,
 	}
 }
 
 func preparedStatementWorkGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	statement PreparedStatement,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := preparedStatementResourceID(statement)
 	target := strings.TrimSpace(statement.WorkGroupName)
 	if sourceID == "" || target == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAthenaPreparedStatementInWorkGroup,
+		RelationshipType: aws.RelationshipAthenaPreparedStatementInWorkGroup,
 		SourceResourceID: sourceID,
 		TargetResourceID: target,
-		TargetType:       awscloud.ResourceTypeAthenaWorkGroup,
+		TargetType:       aws.ResourceTypeAthenaWorkGroup,
 		Attributes: map[string]any{
 			"statement_name": strings.TrimSpace(statement.StatementName),
 		},
@@ -89,20 +89,20 @@ func preparedStatementWorkGroupRelationship(
 }
 
 func namedQueryWorkGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	query NamedQuery,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := namedQueryResourceID(query)
 	target := strings.TrimSpace(query.WorkGroupName)
 	if sourceID == "" || target == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAthenaNamedQueryInWorkGroup,
+		RelationshipType: aws.RelationshipAthenaNamedQueryInWorkGroup,
 		SourceResourceID: sourceID,
 		TargetResourceID: target,
-		TargetType:       awscloud.ResourceTypeAthenaWorkGroup,
+		TargetType:       aws.ResourceTypeAthenaWorkGroup,
 		Attributes: map[string]any{
 			"named_query_id": strings.TrimSpace(query.NamedQueryID),
 			"query_name":     strings.TrimSpace(query.Name),

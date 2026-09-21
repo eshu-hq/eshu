@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappsync "github.com/aws/aws-sdk-go-v2/service/appsync"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -47,15 +47,15 @@ type appsyncAPI interface {
 // body, resolver/function mapping templates, function code, or API key values.
 type Client struct {
 	api         appsyncAPI
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AppSync SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -132,7 +132,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"testing"
@@ -40,7 +40,7 @@ func TestDeriveBucketPolicyResourcePermissionStatements(t *testing.T) {
 	if !equalStrings(allow.PrincipalARNs, []string{"arn:aws:iam::999988887777:role/partner"}) {
 		t.Fatalf("AllowPartner principal_arns = %#v", allow.PrincipalARNs)
 	}
-	if !equalStrings(allow.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeAWS}) {
+	if !equalStrings(allow.PrincipalTypes, []string{aws.ResourcePolicyPrincipalTypeAWS}) {
 		t.Fatalf("AllowPartner principal_types = %#v, want [aws]", allow.PrincipalTypes)
 	}
 	// Condition KEY only, never the value "vpc-123".
@@ -135,7 +135,7 @@ func TestDerivePrincipalFactsCanonicalAndFederatedTypes(t *testing.T) {
 	}
 
 	canon := statementBySID(t, statements, "Canon")
-	if !equalStrings(canon.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeCanonical}) {
+	if !equalStrings(canon.PrincipalTypes, []string{aws.ResourcePolicyPrincipalTypeCanonical}) {
 		t.Fatalf("Canon PrincipalTypes = %#v, want [canonical]", canon.PrincipalTypes)
 	}
 	if len(canon.PrincipalARNs) != 0 || len(canon.PrincipalAccountIDs) != 0 {
@@ -146,7 +146,7 @@ func TestDerivePrincipalFactsCanonicalAndFederatedTypes(t *testing.T) {
 	}
 
 	fed := statementBySID(t, statements, "Fed")
-	if !equalStrings(fed.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeFederated}) {
+	if !equalStrings(fed.PrincipalTypes, []string{aws.ResourcePolicyPrincipalTypeFederated}) {
 		t.Fatalf("Fed PrincipalTypes = %#v, want [federated]", fed.PrincipalTypes)
 	}
 	if len(fed.PrincipalARNs) != 0 || len(fed.PrincipalAccountIDs) != 0 {

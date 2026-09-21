@@ -89,7 +89,7 @@ func loggingConfigMap(config LoggingConfig) map[string]any {
 }
 
 // Scan observes Lambda resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("lambda scanner client is required")
 	}
@@ -97,10 +97,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("lambda scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLambda:
+	case "", aws.ServiceLambda:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLambda
+		boundary.ServiceKind = aws.ServiceLambda
 	default:
 		return nil, fmt.Errorf("lambda scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -122,16 +122,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) functionEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(s.functionObservation(boundary, function))
+	resource, err := aws.NewResourceEnvelope(s.functionObservation(boundary, function))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range functionRelationships(boundary, function) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -165,15 +165,15 @@ func (s Scanner) functionEnvelopes(
 }
 
 func (s Scanner) functionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	functionARN := strings.TrimSpace(function.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          functionARN,
 		ResourceID:   firstNonEmpty(functionARN, function.Name),
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		Name:         strings.TrimSpace(function.Name),
 		State:        strings.TrimSpace(function.State),
 		Tags:         function.Tags,
@@ -220,23 +220,23 @@ func (s Scanner) redactedEnvironment(environment map[string]string) map[string]a
 			continue
 		}
 		source := "lambda.function.environment." + name
-		output[name] = awscloud.RedactString(value, source, s.RedactionKey)
+		output[name] = aws.RedactString(value, source, s.RedactionKey)
 	}
 	return output
 }
 
 func aliasEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
 	alias Alias,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(aliasObservation(boundary, function, alias))
+	resource, err := aws.NewResourceEnvelope(aliasObservation(boundary, function, alias))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := aliasFunctionRelationship(boundary, function, alias); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -246,16 +246,16 @@ func aliasEnvelopes(
 }
 
 func aliasObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
 	alias Alias,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	aliasARN := strings.TrimSpace(alias.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          aliasARN,
 		ResourceID:   firstNonEmpty(aliasARN, strings.TrimSpace(function.ARN)+":"+strings.TrimSpace(alias.Name)),
-		ResourceType: awscloud.ResourceTypeLambdaAlias,
+		ResourceType: aws.ResourceTypeLambdaAlias,
 		Name:         strings.TrimSpace(alias.Name),
 		Attributes: map[string]any{
 			"description":      strings.TrimSpace(alias.Description),
@@ -270,17 +270,17 @@ func aliasObservation(
 }
 
 func eventSourceMappingEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
 	mapping EventSourceMapping,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(eventSourceMappingObservation(boundary, function, mapping))
+	resource, err := aws.NewResourceEnvelope(eventSourceMappingObservation(boundary, function, mapping))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := eventSourceMappingFunctionRelationship(boundary, function, mapping); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -290,16 +290,16 @@ func eventSourceMappingEnvelopes(
 }
 
 func eventSourceMappingObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	function Function,
 	mapping EventSourceMapping,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	mappingID := firstNonEmpty(mapping.ARN, mapping.UUID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(mapping.ARN),
 		ResourceID:   mappingID,
-		ResourceType: awscloud.ResourceTypeLambdaEventSourceMapping,
+		ResourceType: aws.ResourceTypeLambdaEventSourceMapping,
 		Name:         strings.TrimSpace(mapping.UUID),
 		State:        strings.TrimSpace(mapping.State),
 		Attributes: map[string]any{

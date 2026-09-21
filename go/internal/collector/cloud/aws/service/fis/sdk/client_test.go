@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfis "github.com/aws/aws-sdk-go-v2/service/fis"
 	awsfistypes "github.com/aws/aws-sdk-go-v2/service/fis/types"
 
@@ -26,29 +26,29 @@ func TestClientSnapshotsTemplateMetadataOnly(t *testing.T) {
 	api := &fakeFISAPI{
 		listPages: []*awsfis.ListExperimentTemplatesOutput{{
 			ExperimentTemplates: []awsfistypes.ExperimentTemplateSummary{{
-				Id:  aws.String("EXTabc"),
-				Arn: aws.String(templateARN),
+				Id:  awsv2.String("EXTabc"),
+				Arn: awsv2.String(templateARN),
 			}},
 		}},
 		templates: map[string]*awsfistypes.ExperimentTemplate{
 			"EXTabc": {
-				Id:           aws.String("EXTabc"),
-				Arn:          aws.String(templateARN),
-				Description:  aws.String("stop fault"),
-				RoleArn:      aws.String(roleARN),
-				CreationTime: aws.Time(createdAt),
+				Id:           awsv2.String("EXTabc"),
+				Arn:          awsv2.String(templateARN),
+				Description:  awsv2.String("stop fault"),
+				RoleArn:      awsv2.String(roleARN),
+				CreationTime: awsv2.Time(createdAt),
 				Actions: map[string]awsfistypes.ExperimentTemplateAction{
 					"stop": {
-						ActionId:    aws.String("aws:ec2:stop-instances"),
-						Description: aws.String("stop"),
+						ActionId:    awsv2.String("aws:ec2:stop-instances"),
+						Description: awsv2.String("stop"),
 						// Parameters must never surface in scanner metadata.
 						Parameters: map[string]string{"startInstancesAfterDuration": "PT5M"},
 					},
 				},
 				Targets: map[string]awsfistypes.ExperimentTemplateTarget{
 					"inst": {
-						ResourceType:  aws.String("aws:ec2:instance"),
-						SelectionMode: aws.String("ALL"),
+						ResourceType:  awsv2.String("aws:ec2:instance"),
+						SelectionMode: awsv2.String("ALL"),
 						ResourceArns:  []string{instanceARN},
 						// Filters and resource tags must never surface.
 						ResourceTags: map[string]string{"env": "prod"},
@@ -56,18 +56,18 @@ func TestClientSnapshotsTemplateMetadataOnly(t *testing.T) {
 				},
 				LogConfiguration: &awsfistypes.ExperimentTemplateLogConfiguration{
 					CloudWatchLogsConfiguration: &awsfistypes.ExperimentTemplateCloudWatchLogsLogConfiguration{
-						LogGroupArn: aws.String(logGroupARN),
+						LogGroupArn: awsv2.String(logGroupARN),
 					},
 					S3Configuration: &awsfistypes.ExperimentTemplateS3LogConfiguration{
-						BucketName: aws.String("fis-logs"),
-						Prefix:     aws.String("exp/"),
+						BucketName: awsv2.String("fis-logs"),
+						Prefix:     awsv2.String("exp/"),
 					},
 				},
 				StopConditions: []awsfistypes.ExperimentTemplateStopCondition{{
-					Source: aws.String("aws:cloudwatch:alarm"),
-					Value:  aws.String(alarmARN),
+					Source: awsv2.String("aws:cloudwatch:alarm"),
+					Value:  awsv2.String(alarmARN),
 				}, {
-					Source: aws.String("none"),
+					Source: awsv2.String("none"),
 				}},
 				Tags: map[string]string{"Name": "stop-prod"},
 			},
@@ -135,7 +135,7 @@ func (f *fakeFISAPI) GetExperimentTemplate(
 	_ ...func(*awsfis.Options),
 ) (*awsfis.GetExperimentTemplateOutput, error) {
 	return &awsfis.GetExperimentTemplateOutput{
-		ExperimentTemplate: f.templates[aws.ToString(input.Id)],
+		ExperimentTemplate: f.templates[awsv2.ToString(input.Id)],
 	}, nil
 }
 
@@ -145,14 +145,14 @@ func (f *fakeFISAPI) ListTagsForResource(
 	_ ...func(*awsfis.Options),
 ) (*awsfis.ListTagsForResourceOutput, error) {
 	return &awsfis.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceFIS,
+		ServiceKind: aws.ServiceFIS,
 	}
 }

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elb guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elb guidance
 
 ## Read First
 
@@ -7,11 +7,11 @@
 3. `scanner.go` - fact selection and resource envelope.
 4. `relationships.go` - synthesized ARN and graph-join edges.
 5. `helpers.go` - target-type constants and ARN helpers.
-6. `awssdk/README.md` - AWS SDK pagination and response mapping.
+6. `sdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
-- Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
+- Do not call AWS APIs from this package. The `sdk` adapter owns AWS SDK
   calls and telemetry.
 - Synthesize the load balancer ARN with `partition(boundary)`. Never hardcode
   `arn:aws:`; GovCloud and China must resolve. The `partitionguard` and
@@ -21,7 +21,7 @@
 - Do not read or persist certificate bodies or private keys. Only the public
   `SSLCertificateId` ARN survives.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant or a documented
+  `aws.ResourceType*` constant or a documented
   `relguard.KnownTargetTypeAllowlist` entry, and a `target_resource_id` matching
   how the target scanner publishes its `resource_id` (bare `i-`/`subnet-`/`sg-`/
   `vpc-` id, or certificate ARN).

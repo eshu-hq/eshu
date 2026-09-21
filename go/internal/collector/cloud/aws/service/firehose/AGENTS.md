@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/firehose guidance
+# AGENTS.md - internal/collector/cloud/aws/service/firehose guidance
 
 ## Read First
 
@@ -47,12 +47,12 @@
 
 - Add a new Firehose metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through the
-  `awscloud` envelope builders. If the field can carry credential or
+  `aws` envelope builders. If the field can carry credential or
   record-payload material, leave it out of the scanner contract.
 - Add new relationship evidence only when the Firehose API reports both sides
   directly and the target identity is not sensitive (an ARN, a catalog-stable
   name, or a cluster identifier that joins an existing scanner's `resource_id`).
-- Extend SDK pagination and the describe fan-out in the `awssdk` adapter, not
+- Extend SDK pagination and the describe fan-out in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

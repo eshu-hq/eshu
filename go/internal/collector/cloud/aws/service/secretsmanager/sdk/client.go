@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssecretsmanager "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -34,15 +34,15 @@ type apiClient interface {
 // ListSecretVersionIds, GetResourcePolicy, or mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Secrets Manager SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -64,8 +64,8 @@ func (c *Client) ListSecrets(ctx context.Context) ([]secretsmanagerservice.Secre
 		err := c.recordAPICall(ctx, "ListSecrets", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListSecrets(callCtx, &awssecretsmanager.ListSecretsInput{
-				IncludePlannedDeletion: aws.Bool(true),
-				MaxResults:             aws.Int32(listSecretsLimit),
+				IncludePlannedDeletion: awsv2.Bool(true),
+				MaxResults:             awsv2.Int32(listSecretsLimit),
 				NextToken:              nextToken,
 			})
 			return err
@@ -80,7 +80,7 @@ func (c *Client) ListSecrets(ctx context.Context) ([]secretsmanagerservice.Secre
 			secrets = append(secrets, mapSecret(raw))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return secrets, nil
 		}
 	}
@@ -104,7 +104,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

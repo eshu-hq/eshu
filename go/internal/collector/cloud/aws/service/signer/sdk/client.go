@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssigner "github.com/aws/aws-sdk-go-v2/service/signer"
 	awssignertypes "github.com/aws/aws-sdk-go-v2/service/signer/types"
 	"github.com/aws/smithy-go"
@@ -51,15 +51,15 @@ type apiClient interface {
 // never reads signed-object payloads.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Signer SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -113,7 +113,7 @@ func (c *Client) listProfiles(ctx context.Context) ([]signerservice.SigningProfi
 			profiles = append(profiles, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return profiles, nil
 		}
 	}
@@ -124,12 +124,12 @@ func (c *Client) mapProfile(
 	profile awssignertypes.SigningProfile,
 ) (signerservice.SigningProfile, error) {
 	mapped := signerservice.SigningProfile{
-		ARN:                   strings.TrimSpace(aws.ToString(profile.Arn)),
-		ProfileVersionARN:     strings.TrimSpace(aws.ToString(profile.ProfileVersionArn)),
-		Name:                  strings.TrimSpace(aws.ToString(profile.ProfileName)),
-		ProfileVersion:        strings.TrimSpace(aws.ToString(profile.ProfileVersion)),
-		PlatformID:            strings.TrimSpace(aws.ToString(profile.PlatformId)),
-		PlatformDisplayName:   strings.TrimSpace(aws.ToString(profile.PlatformDisplayName)),
+		ARN:                   strings.TrimSpace(awsv2.ToString(profile.Arn)),
+		ProfileVersionARN:     strings.TrimSpace(awsv2.ToString(profile.ProfileVersionArn)),
+		Name:                  strings.TrimSpace(awsv2.ToString(profile.ProfileName)),
+		ProfileVersion:        strings.TrimSpace(awsv2.ToString(profile.ProfileVersion)),
+		PlatformID:            strings.TrimSpace(awsv2.ToString(profile.PlatformId)),
+		PlatformDisplayName:   strings.TrimSpace(awsv2.ToString(profile.PlatformDisplayName)),
 		Status:                strings.TrimSpace(string(profile.Status)),
 		SigningParameterNames: parameterNames(profile.SigningParameters),
 		CertificateARN:        signingMaterialARN(profile.SigningMaterial),
@@ -154,7 +154,7 @@ func (c *Client) enrichProfile(ctx context.Context, profile *signerservice.Signi
 	err := c.recordAPICall(ctx, "GetSigningProfile", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetSigningProfile(callCtx, &awssigner.GetSigningProfileInput{
-			ProfileName: aws.String(profile.Name),
+			ProfileName: awsv2.String(profile.Name),
 		})
 		return callErr
 	})
@@ -192,7 +192,7 @@ func (c *Client) listPlatforms(ctx context.Context) ([]signerservice.SigningPlat
 			platforms = append(platforms, mapPlatform(platform))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return platforms, nil
 		}
 	}
@@ -200,11 +200,11 @@ func (c *Client) listPlatforms(ctx context.Context) ([]signerservice.SigningPlat
 
 func mapPlatform(platform awssignertypes.SigningPlatform) signerservice.SigningPlatform {
 	return signerservice.SigningPlatform{
-		PlatformID:          strings.TrimSpace(aws.ToString(platform.PlatformId)),
-		DisplayName:         strings.TrimSpace(aws.ToString(platform.DisplayName)),
+		PlatformID:          strings.TrimSpace(awsv2.ToString(platform.PlatformId)),
+		DisplayName:         strings.TrimSpace(awsv2.ToString(platform.DisplayName)),
 		Category:            strings.TrimSpace(string(platform.Category)),
-		Target:              strings.TrimSpace(aws.ToString(platform.Target)),
-		Partner:             strings.TrimSpace(aws.ToString(platform.Partner)),
+		Target:              strings.TrimSpace(awsv2.ToString(platform.Target)),
+		Partner:             strings.TrimSpace(awsv2.ToString(platform.Partner)),
 		MaxSizeInMB:         platform.MaxSizeInMB,
 		RevocationSupported: platform.RevocationSupported,
 	}
@@ -217,7 +217,7 @@ func signingMaterialARN(material *awssignertypes.SigningMaterial) string {
 	if material == nil {
 		return ""
 	}
-	return strings.TrimSpace(aws.ToString(material.CertificateArn))
+	return strings.TrimSpace(awsv2.ToString(material.CertificateArn))
 }
 
 // applyValidity copies the signature validity unit and value onto the profile,
@@ -285,7 +285,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

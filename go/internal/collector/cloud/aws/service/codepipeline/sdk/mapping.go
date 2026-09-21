@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	cptypes "github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -44,9 +44,9 @@ func mapPipelineDeclaration(decl *cptypes.PipelineDeclaration, metadata *cptypes
 		return cpservice.Pipeline{}
 	}
 	pipeline := cpservice.Pipeline{
-		Name:          aws.ToString(decl.Name),
+		Name:          awsv2.ToString(decl.Name),
 		ARN:           pipelineMetadataARN(metadata),
-		RoleARN:       aws.ToString(decl.RoleArn),
+		RoleARN:       awsv2.ToString(decl.RoleArn),
 		PipelineType:  string(decl.PipelineType),
 		ExecutionMode: string(decl.ExecutionMode),
 		ArtifactStore: mapArtifactStore(decl.ArtifactStore, decl.ArtifactStores),
@@ -72,10 +72,10 @@ func mapArtifactStore(store *cptypes.ArtifactStore, stores map[string]cptypes.Ar
 	}
 	summary := cpservice.ArtifactStoreSummary{
 		Type:     string(store.Type),
-		S3Bucket: strings.TrimSpace(aws.ToString(store.Location)),
+		S3Bucket: strings.TrimSpace(awsv2.ToString(store.Location)),
 	}
 	if store.EncryptionKey != nil {
-		summary.KMSKeyID = strings.TrimSpace(aws.ToString(store.EncryptionKey.Id))
+		summary.KMSKeyID = strings.TrimSpace(awsv2.ToString(store.EncryptionKey.Id))
 		summary.KMSKeyType = string(store.EncryptionKey.Type)
 	}
 	return summary
@@ -103,9 +103,9 @@ func mapMultiRegionArtifactStores(stores map[string]cptypes.ArtifactStore) cpser
 	// key when only cross-region stores are declared.
 	store := stores[regions[0]]
 	summary.Type = string(store.Type)
-	summary.S3Bucket = strings.TrimSpace(aws.ToString(store.Location))
+	summary.S3Bucket = strings.TrimSpace(awsv2.ToString(store.Location))
 	if store.EncryptionKey != nil {
-		summary.KMSKeyID = strings.TrimSpace(aws.ToString(store.EncryptionKey.Id))
+		summary.KMSKeyID = strings.TrimSpace(awsv2.ToString(store.EncryptionKey.Id))
 		summary.KMSKeyType = string(store.EncryptionKey.Type)
 	}
 	return summary
@@ -122,7 +122,7 @@ func mapStages(stages []cptypes.StageDeclaration) []cpservice.Stage {
 			actions = append(actions, mapAction(action))
 		}
 		out = append(out, cpservice.Stage{
-			Name:    strings.TrimSpace(aws.ToString(stage.Name)),
+			Name:    strings.TrimSpace(awsv2.ToString(stage.Name)),
 			Actions: actions,
 		})
 	}
@@ -137,9 +137,9 @@ func mapStages(stages []cptypes.StageDeclaration) []cpservice.Stage {
 // is dropped.
 func mapAction(decl cptypes.ActionDeclaration) cpservice.Action {
 	action := cpservice.Action{
-		Name:              strings.TrimSpace(aws.ToString(decl.Name)),
-		Region:            strings.TrimSpace(aws.ToString(decl.Region)),
-		RoleARN:           strings.TrimSpace(aws.ToString(decl.RoleArn)),
+		Name:              strings.TrimSpace(awsv2.ToString(decl.Name)),
+		Region:            strings.TrimSpace(awsv2.ToString(decl.Region)),
+		RoleARN:           strings.TrimSpace(awsv2.ToString(decl.RoleArn)),
 		ConfigurationKeys: configurationKeys(decl.Configuration),
 	}
 	if decl.RunOrder != nil {
@@ -148,8 +148,8 @@ func mapAction(decl cptypes.ActionDeclaration) cpservice.Action {
 	if decl.ActionTypeId != nil {
 		action.Category = string(decl.ActionTypeId.Category)
 		action.Owner = string(decl.ActionTypeId.Owner)
-		action.Provider = strings.TrimSpace(aws.ToString(decl.ActionTypeId.Provider))
-		action.Version = strings.TrimSpace(aws.ToString(decl.ActionTypeId.Version))
+		action.Provider = strings.TrimSpace(awsv2.ToString(decl.ActionTypeId.Provider))
+		action.Version = strings.TrimSpace(awsv2.ToString(decl.ActionTypeId.Version))
 	}
 
 	if strings.EqualFold(action.Category, "Source") {
@@ -224,7 +224,7 @@ func resolveTargetName(provider string, config map[string]string) string {
 func mapExecution(pipelineName string, summary cptypes.PipelineExecutionSummary, key redact.Key) cpservice.Execution {
 	execution := cpservice.Execution{
 		PipelineName:    strings.TrimSpace(pipelineName),
-		ID:              strings.TrimSpace(aws.ToString(summary.PipelineExecutionId)),
+		ID:              strings.TrimSpace(awsv2.ToString(summary.PipelineExecutionId)),
 		Status:          string(summary.Status),
 		ExecutionMode:   string(summary.ExecutionMode),
 		ExecutionType:   string(summary.ExecutionType),
@@ -251,15 +251,15 @@ func mapSourceRevisions(revisions []cptypes.SourceRevision, key redact.Key) []cp
 	}
 	out := make([]cpservice.SourceRevision, 0, len(revisions))
 	for _, revision := range revisions {
-		summary := strings.TrimSpace(aws.ToString(revision.RevisionSummary))
+		summary := strings.TrimSpace(awsv2.ToString(revision.RevisionSummary))
 		mapped := cpservice.SourceRevision{
-			ActionName:  strings.TrimSpace(aws.ToString(revision.ActionName)),
-			RevisionID:  strings.TrimSpace(aws.ToString(revision.RevisionId)),
-			RevisionURL: strings.TrimSpace(aws.ToString(revision.RevisionUrl)),
+			ActionName:  strings.TrimSpace(awsv2.ToString(revision.ActionName)),
+			RevisionID:  strings.TrimSpace(awsv2.ToString(revision.RevisionId)),
+			RevisionURL: strings.TrimSpace(awsv2.ToString(revision.RevisionUrl)),
 			HasSummary:  summary != "",
 		}
 		if mapped.HasSummary {
-			mapped.SummaryMarker = awscloud.RedactString(summary, sourceRevisionSummaryReason, key)
+			mapped.SummaryMarker = aws.RedactString(summary, sourceRevisionSummaryReason, key)
 		}
 		out = append(out, mapped)
 	}
@@ -270,16 +270,16 @@ func mapSourceRevisions(revisions []cptypes.SourceRevision, key redact.Key) []cp
 // AuthenticationConfiguration is never read into the scanner type.
 func mapWebhook(item cptypes.ListWebhookItem) cpservice.Webhook {
 	webhook := cpservice.Webhook{
-		ARN:  strings.TrimSpace(aws.ToString(item.Arn)),
+		ARN:  strings.TrimSpace(awsv2.ToString(item.Arn)),
 		Tags: mapTags(item.Tags),
 	}
 	if item.LastTriggered != nil {
 		webhook.LastTriggered = item.LastTriggered.UTC()
 	}
 	if item.Definition != nil {
-		webhook.Name = strings.TrimSpace(aws.ToString(item.Definition.Name))
-		webhook.TargetPipeline = strings.TrimSpace(aws.ToString(item.Definition.TargetPipeline))
-		webhook.TargetAction = strings.TrimSpace(aws.ToString(item.Definition.TargetAction))
+		webhook.Name = strings.TrimSpace(awsv2.ToString(item.Definition.Name))
+		webhook.TargetPipeline = strings.TrimSpace(awsv2.ToString(item.Definition.TargetPipeline))
+		webhook.TargetAction = strings.TrimSpace(awsv2.ToString(item.Definition.TargetAction))
 		webhook.AuthenticationType = string(item.Definition.Authentication)
 	}
 	return webhook
@@ -292,13 +292,13 @@ func mapActionType(actionType cptypes.ActionType) cpservice.ActionType {
 	if actionType.Id != nil {
 		mapped.Category = string(actionType.Id.Category)
 		mapped.Owner = string(actionType.Id.Owner)
-		mapped.Provider = strings.TrimSpace(aws.ToString(actionType.Id.Provider))
-		mapped.Version = strings.TrimSpace(aws.ToString(actionType.Id.Version))
+		mapped.Provider = strings.TrimSpace(awsv2.ToString(actionType.Id.Provider))
+		mapped.Version = strings.TrimSpace(awsv2.ToString(actionType.Id.Version))
 	}
 	if len(actionType.ActionConfigurationProperties) > 0 {
 		names := make([]string, 0, len(actionType.ActionConfigurationProperties))
 		for _, property := range actionType.ActionConfigurationProperties {
-			if name := strings.TrimSpace(aws.ToString(property.Name)); name != "" {
+			if name := strings.TrimSpace(awsv2.ToString(property.Name)); name != "" {
 				names = append(names, name)
 			}
 		}
@@ -314,11 +314,11 @@ func mapTags(tags []cptypes.Tag) map[string]string {
 	}
 	out := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		out[key] = aws.ToString(tag.Value)
+		out[key] = awsv2.ToString(tag.Value)
 	}
 	if len(out) == 0 {
 		return nil

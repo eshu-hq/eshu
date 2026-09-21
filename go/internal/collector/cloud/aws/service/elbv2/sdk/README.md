@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elbv2/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/elbv2/sdk` adapts AWS SDK for Go v2
 ELBv2 responses to the scanner-owned `elbv2.Client` contract. It owns ELBv2 API
 pagination, batched tag reads, response mapping, throttle classification, and
 per-call telemetry.
@@ -15,7 +15,7 @@ admission, or query behavior.
 
 ```mermaid
 flowchart LR
-  A["awsruntime.DefaultScannerFactory"] --> B["Client"]
+  A["runtime.DefaultScannerFactory"] --> B["Client"]
   B --> C["Client.ListLoadBalancers"]
   B --> D["Client.ListListeners"]
   B --> E["Client.ListRules"]
@@ -38,8 +38,8 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - AWS SDK for Go v2 `service/elasticloadbalancingv2`.
-- `internal/collector/awscloud` for claim boundary labels.
-- `internal/collector/awscloud/service/elbv2` for scanner-owned target types.
+- `internal/collector/cloud/aws` for claim boundary labels.
+- `internal/collector/cloud/aws/service/elbv2` for scanner-owned target types.
 - `internal/telemetry` for AWS API counters, throttle counters, and pagination
   spans.
 

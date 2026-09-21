@@ -10,14 +10,14 @@ import (
 )
 
 type routeRelationshipBuilder struct {
-	boundary   awscloud.Boundary
+	boundary   aws.Boundary
 	listener   Listener
 	routes     map[string][]map[string]any
 	targetARNs []string
 }
 
 func newRouteRelationshipBuilder(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listener Listener,
 ) *routeRelationshipBuilder {
 	return &routeRelationshipBuilder{
@@ -54,18 +54,18 @@ func (b *routeRelationshipBuilder) addActions(
 	}
 }
 
-func (b *routeRelationshipBuilder) observations() []awscloud.RelationshipObservation {
+func (b *routeRelationshipBuilder) observations() []aws.RelationshipObservation {
 	listenerARN := strings.TrimSpace(b.listener.ARN)
-	observations := make([]awscloud.RelationshipObservation, 0, len(b.targetARNs))
+	observations := make([]aws.RelationshipObservation, 0, len(b.targetARNs))
 	for _, targetGroupARN := range b.targetARNs {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         b.boundary,
-			RelationshipType: awscloud.RelationshipELBv2ListenerRoutesToTargetGroup,
+			RelationshipType: aws.RelationshipELBv2ListenerRoutesToTargetGroup,
 			SourceResourceID: listenerARN,
 			SourceARN:        listenerARN,
 			TargetResourceID: targetGroupARN,
 			TargetARN:        targetGroupARN,
-			TargetType:       awscloud.ResourceTypeELBv2TargetGroup,
+			TargetType:       aws.ResourceTypeELBv2TargetGroup,
 			Attributes: map[string]any{
 				"load_balancer_arn": strings.TrimSpace(b.listener.LoadBalancerARN),
 				"routes":            b.routes[targetGroupARN],

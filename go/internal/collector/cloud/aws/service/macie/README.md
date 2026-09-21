@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/macie` owns the Amazon Macie scanner
+`internal/collector/cloud/aws/service/macie` owns the Amazon Macie scanner
 contract for the AWS cloud collector. It converts the Macie account session
 status, member accounts, classification-job metadata, allow-list identities,
 custom data identifier identities, findings filter identities, and aggregate
@@ -47,7 +47,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -56,9 +56,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Macie API call counts, throttles, and pagination
+The `sdk` adapter records Macie API call counts, throttles, and pagination
 spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="macie2"}` with the existing
 bounded AWS collector labels.
@@ -90,7 +90,7 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/macie/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/macie/...`
 covers the bounded Macie metadata path: one session read, one administrator
 read, one aggregate finding-statistics read, and paginated member, job,
 allow-list, custom-data-identifier, and findings-filter list reads. Handler cost
@@ -98,7 +98,7 @@ scales with configuration cardinality (jobs, lists, identifiers, filters,
 members), not with finding volume, because the scanner issues no per-finding
 read. A disabled account stops after the session read.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Macie resource and relationship fact emission, omission of regex bodies,
 allow-list contents, finding criteria, bucket lists, and member email,
 standalone-account member suppression, disabled-account early return, runtime

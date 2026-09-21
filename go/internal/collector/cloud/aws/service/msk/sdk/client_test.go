@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskafka "github.com/aws/aws-sdk-go-v2/service/kafka"
 	awskafkatypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 
@@ -61,46 +61,46 @@ func TestClientListClustersMapsProvisionedAndServerlessMetadataSafely(t *testing
 	configARN := "arn:aws:kafka:us-east-1:123456789012:configuration/orders-config/efgh-2"
 	kmsARN := "arn:aws:kms:us-east-1:123456789012:key/22222222-3333-4444-5555-666666666666"
 	provisioned := awskafkatypes.Cluster{
-		ClusterArn:     aws.String(clusterARN),
-		ClusterName:    aws.String("orders"),
+		ClusterArn:     awsv2.String(clusterARN),
+		ClusterName:    awsv2.String("orders"),
 		ClusterType:    awskafkatypes.ClusterTypeProvisioned,
 		State:          awskafkatypes.ClusterStateActive,
-		CurrentVersion: aws.String("K3J9NPHZ4YL2T1"),
-		CreationTime:   aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+		CurrentVersion: awsv2.String("K3J9NPHZ4YL2T1"),
+		CreationTime:   awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
 		Tags:           map[string]string{"Environment": "prod"},
 		Provisioned: &awskafkatypes.Provisioned{
-			NumberOfBrokerNodes: aws.Int32(3),
+			NumberOfBrokerNodes: awsv2.Int32(3),
 			StorageMode:         awskafkatypes.StorageModeLocal,
 			EnhancedMonitoring:  awskafkatypes.EnhancedMonitoringPerTopicPerPartition,
 			CurrentBrokerSoftwareInfo: &awskafkatypes.BrokerSoftwareInfo{
-				KafkaVersion:          aws.String("3.6.0"),
-				ConfigurationArn:      aws.String(configARN),
-				ConfigurationRevision: aws.Int64(2),
+				KafkaVersion:          awsv2.String("3.6.0"),
+				ConfigurationArn:      awsv2.String(configARN),
+				ConfigurationRevision: awsv2.Int64(2),
 			},
 			BrokerNodeGroupInfo: &awskafkatypes.BrokerNodeGroupInfo{
-				InstanceType:   aws.String("kafka.m7g.large"),
+				InstanceType:   awsv2.String("kafka.m7g.large"),
 				ClientSubnets:  []string{"subnet-aaa", "subnet-bbb"},
 				SecurityGroups: []string{"sg-msk"},
 				StorageInfo: &awskafkatypes.StorageInfo{
-					EbsStorageInfo: &awskafkatypes.EBSStorageInfo{VolumeSize: aws.Int32(1000)},
+					EbsStorageInfo: &awskafkatypes.EBSStorageInfo{VolumeSize: awsv2.Int32(1000)},
 				},
 			},
 			EncryptionInfo: &awskafkatypes.EncryptionInfo{
 				EncryptionAtRest: &awskafkatypes.EncryptionAtRest{
-					DataVolumeKMSKeyId: aws.String(kmsARN),
+					DataVolumeKMSKeyId: awsv2.String(kmsARN),
 				},
 				EncryptionInTransit: &awskafkatypes.EncryptionInTransit{
 					ClientBroker: awskafkatypes.ClientBrokerTls,
-					InCluster:    aws.Bool(true),
+					InCluster:    awsv2.Bool(true),
 				},
 			},
 			ClientAuthentication: &awskafkatypes.ClientAuthentication{
 				Sasl: &awskafkatypes.Sasl{
-					Iam:   &awskafkatypes.Iam{Enabled: aws.Bool(true)},
-					Scram: &awskafkatypes.Scram{Enabled: aws.Bool(false)},
+					Iam:   &awskafkatypes.Iam{Enabled: awsv2.Bool(true)},
+					Scram: &awskafkatypes.Scram{Enabled: awsv2.Bool(false)},
 				},
 				Tls: &awskafkatypes.Tls{
-					Enabled: aws.Bool(true),
+					Enabled: awsv2.Bool(true),
 					CertificateAuthorityArnList: []string{
 						"arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/aaa",
 					},
@@ -109,8 +109,8 @@ func TestClientListClustersMapsProvisionedAndServerlessMetadataSafely(t *testing
 		},
 	}
 	serverless := awskafkatypes.Cluster{
-		ClusterArn:  aws.String("arn:aws:kafka:us-east-1:123456789012:cluster/orders-serverless/zzzz-3"),
-		ClusterName: aws.String("orders-serverless"),
+		ClusterArn:  awsv2.String("arn:aws:kafka:us-east-1:123456789012:cluster/orders-serverless/zzzz-3"),
+		ClusterName: awsv2.String("orders-serverless"),
 		ClusterType: awskafkatypes.ClusterTypeServerless,
 		State:       awskafkatypes.ClusterStateActive,
 		Serverless: &awskafkatypes.Serverless{
@@ -120,7 +120,7 @@ func TestClientListClustersMapsProvisionedAndServerlessMetadataSafely(t *testing
 			}},
 			ClientAuthentication: &awskafkatypes.ServerlessClientAuthentication{
 				Sasl: &awskafkatypes.ServerlessSasl{
-					Iam: &awskafkatypes.Iam{Enabled: aws.Bool(true)},
+					Iam: &awskafkatypes.Iam{Enabled: awsv2.Bool(true)},
 				},
 			},
 		},
@@ -133,7 +133,7 @@ func TestClientListClustersMapsProvisionedAndServerlessMetadataSafely(t *testing
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMSK},
 	}
 
 	clusters, err := adapter.ListClusters(context.Background())
@@ -185,23 +185,23 @@ func TestClientListConfigurationsCapturesIdentityNotBody(t *testing.T) {
 	api := &fakeKafkaAPI{
 		configurationPages: []*awskafka.ListConfigurationsOutput{{
 			Configurations: []awskafkatypes.Configuration{{
-				Arn:           aws.String(configARN),
-				Name:          aws.String("orders-config"),
-				Description:   aws.String("orders broker configuration"),
+				Arn:           awsv2.String(configARN),
+				Name:          awsv2.String("orders-config"),
+				Description:   awsv2.String("orders broker configuration"),
 				State:         awskafkatypes.ConfigurationStateActive,
-				CreationTime:  aws.Time(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)),
+				CreationTime:  awsv2.Time(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)),
 				KafkaVersions: []string{"3.6.0"},
 				LatestRevision: &awskafkatypes.ConfigurationRevision{
-					Revision:     aws.Int64(2),
-					CreationTime: aws.Time(time.Date(2026, 5, 14, 11, 0, 0, 0, time.UTC)),
-					Description:  aws.String("tighten retention"),
+					Revision:     awsv2.Int64(2),
+					CreationTime: awsv2.Time(time.Date(2026, 5, 14, 11, 0, 0, 0, time.UTC)),
+					Description:  awsv2.String("tighten retention"),
 				},
 			}},
 		}},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMSK},
 	}
 
 	configurations, err := adapter.ListConfigurations(context.Background())
@@ -227,32 +227,32 @@ func TestClientListReplicatorsDescribesEachForRoleClustersAndPatternCounts(t *te
 	api := &fakeKafkaAPI{
 		replicatorPages: []*awskafka.ListReplicatorsOutput{{
 			Replicators: []awskafkatypes.ReplicatorSummary{{
-				ReplicatorArn:   aws.String(replicatorARN),
-				ReplicatorName:  aws.String("cross-region"),
+				ReplicatorArn:   awsv2.String(replicatorARN),
+				ReplicatorName:  awsv2.String("cross-region"),
 				ReplicatorState: awskafkatypes.ReplicatorStateRunning,
-				CreationTime:    aws.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
-				CurrentVersion:  aws.String("REPLICATOR-1"),
+				CreationTime:    awsv2.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
+				CurrentVersion:  awsv2.String("REPLICATOR-1"),
 			}},
 		}},
 		describeReplicatorOutput: &awskafka.DescribeReplicatorOutput{
-			ReplicatorArn:           aws.String(replicatorARN),
-			ReplicatorName:          aws.String("cross-region"),
+			ReplicatorArn:           awsv2.String(replicatorARN),
+			ReplicatorName:          awsv2.String("cross-region"),
 			ReplicatorState:         awskafkatypes.ReplicatorStateRunning,
-			ServiceExecutionRoleArn: aws.String(roleARN),
-			CreationTime:            aws.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
-			CurrentVersion:          aws.String("REPLICATOR-1"),
+			ServiceExecutionRoleArn: awsv2.String(roleARN),
+			CreationTime:            awsv2.Time(time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)),
+			CurrentVersion:          awsv2.String("REPLICATOR-1"),
 			Tags:                    map[string]string{"Owner": "platform"},
 			KafkaClusters: []awskafkatypes.KafkaClusterDescription{{
-				KafkaClusterAlias: aws.String("source"),
-				AmazonMskCluster:  &awskafkatypes.AmazonMskCluster{MskClusterArn: aws.String(sourceClusterARN)},
+				KafkaClusterAlias: awsv2.String("source"),
+				AmazonMskCluster:  &awskafkatypes.AmazonMskCluster{MskClusterArn: awsv2.String(sourceClusterARN)},
 				VpcConfig: &awskafkatypes.KafkaClusterClientVpcConfig{
 					SubnetIds:        []string{"subnet-aaa", "subnet-bbb"},
 					SecurityGroupIds: []string{"sg-msk"},
 				},
 			}},
 			ReplicationInfoList: []awskafkatypes.ReplicationInfoDescription{{
-				SourceKafkaClusterAlias: aws.String("source"),
-				TargetKafkaClusterAlias: aws.String("target"),
+				SourceKafkaClusterAlias: awsv2.String("source"),
+				TargetKafkaClusterAlias: awsv2.String("target"),
 				TargetCompressionType:   awskafkatypes.TargetCompressionTypeGzip,
 				TopicReplication: &awskafkatypes.TopicReplication{
 					TopicsToReplicate: []string{"orders.*", "payments.*"},
@@ -266,7 +266,7 @@ func TestClientListReplicatorsDescribesEachForRoleClustersAndPatternCounts(t *te
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMSK},
 	}
 
 	replicators, err := adapter.ListReplicators(context.Background())

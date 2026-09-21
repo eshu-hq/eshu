@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssigner "github.com/aws/aws-sdk-go-v2/service/signer"
 	awssignertypes "github.com/aws/aws-sdk-go-v2/service/signer/types"
 
@@ -22,28 +22,28 @@ func TestClientSnapshotsSignerMetadataOnly(t *testing.T) {
 	api := &fakeSignerAPI{
 		platformPages: []*awssigner.ListSigningPlatformsOutput{{
 			Platforms: []awssignertypes.SigningPlatform{{
-				PlatformId:          aws.String("AWSLambda-SHA384-ECDSA"),
-				DisplayName:         aws.String("AWS Lambda"),
+				PlatformId:          awsv2.String("AWSLambda-SHA384-ECDSA"),
+				DisplayName:         awsv2.String("AWS Lambda"),
 				Category:            awssignertypes.CategoryAWSIoT,
-				Target:              aws.String("Lambda"),
+				Target:              awsv2.String("Lambda"),
 				MaxSizeInMB:         250,
 				RevocationSupported: true,
 			}},
 		}},
 		profilePages: []*awssigner.ListSigningProfilesOutput{{
 			Profiles: []awssignertypes.SigningProfile{{
-				Arn:                 aws.String(profileARN),
-				ProfileVersionArn:   aws.String(profileVersionARN),
-				ProfileName:         aws.String("lambda_release"),
-				ProfileVersion:      aws.String("AbCdEf123456"),
-				PlatformId:          aws.String("AWSLambda-SHA384-ECDSA"),
-				PlatformDisplayName: aws.String("AWS Lambda"),
+				Arn:                 awsv2.String(profileARN),
+				ProfileVersionArn:   awsv2.String(profileVersionARN),
+				ProfileName:         awsv2.String("lambda_release"),
+				ProfileVersion:      awsv2.String("AbCdEf123456"),
+				PlatformId:          awsv2.String("AWSLambda-SHA384-ECDSA"),
+				PlatformDisplayName: awsv2.String("AWS Lambda"),
 				Status:              awssignertypes.SigningProfileStatusActive,
 				SignatureValidityPeriod: &awssignertypes.SignatureValidityPeriod{
 					Type:  awssignertypes.ValidityTypeDays,
 					Value: 135,
 				},
-				SigningMaterial:   &awssignertypes.SigningMaterial{CertificateArn: aws.String(certificateARN)},
+				SigningMaterial:   &awssignertypes.SigningMaterial{CertificateArn: awsv2.String(certificateARN)},
 				SigningParameters: map[string]string{"release-channel": "stable-secret-value"},
 				Tags:              map[string]string{"Environment": "prod"},
 			}},
@@ -132,7 +132,7 @@ func (f *fakeSignerAPI) GetSigningProfile(
 	input *awssigner.GetSigningProfileInput,
 	_ ...func(*awssigner.Options),
 ) (*awssigner.GetSigningProfileOutput, error) {
-	if detail, ok := f.profileDetail[aws.ToString(input.ProfileName)]; ok {
+	if detail, ok := f.profileDetail[awsv2.ToString(input.ProfileName)]; ok {
 		return detail, nil
 	}
 	return &awssigner.GetSigningProfileOutput{}, nil
@@ -151,10 +151,10 @@ func (f *fakeSignerAPI) ListSigningPlatforms(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSigner,
+		ServiceKind: aws.ServiceSigner,
 	}
 }

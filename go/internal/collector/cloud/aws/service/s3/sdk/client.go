@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -45,15 +45,15 @@ type apiClient interface {
 // policy metadata and replication presence only.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an S3 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -80,9 +80,9 @@ func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
 		err := c.recordAPICall(ctx, "ListBuckets", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListBuckets(callCtx, &awss3.ListBucketsInput{
-				BucketRegion:      aws.String(region),
+				BucketRegion:      awsv2.String(region),
 				ContinuationToken: continuationToken,
-				MaxBuckets:        aws.Int32(listBucketsMaxBuckets),
+				MaxBuckets:        awsv2.Int32(listBucketsMaxBuckets),
 			})
 			return err
 		})
@@ -93,7 +93,7 @@ func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
 			return buckets, nil
 		}
 		for _, listed := range page.Buckets {
-			if aws.ToString(listed.Name) == "" {
+			if awsv2.ToString(listed.Name) == "" {
 				continue
 			}
 			bucket, err := c.bucketMetadata(ctx, listed)
@@ -102,7 +102,7 @@ func (c *Client) ListBuckets(ctx context.Context) ([]s3service.Bucket, error) {
 			}
 			buckets = append(buckets, bucket)
 		}
-		if page.ContinuationToken == nil || aws.ToString(page.ContinuationToken) == "" {
+		if page.ContinuationToken == nil || awsv2.ToString(page.ContinuationToken) == "" {
 			break
 		}
 		continuationToken = page.ContinuationToken
@@ -119,7 +119,7 @@ func s3ClaimRegion(region string) (string, error) {
 }
 
 func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (s3service.Bucket, error) {
-	name := aws.ToString(listed.Name)
+	name := awsv2.ToString(listed.Name)
 	head, err := c.headBucket(ctx, name)
 	if err != nil {
 		return s3service.Bucket{}, err
@@ -167,8 +167,8 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 	return s3service.Bucket{
 		ARN:                      bucketARN(c.boundary.Region, name),
 		Name:                     name,
-		Region:                   firstNonEmpty(aws.ToString(listed.BucketRegion), aws.ToString(head.BucketRegion), c.boundary.Region),
-		CreationTime:             aws.ToTime(listed.CreationDate),
+		Region:                   firstNonEmpty(awsv2.ToString(listed.BucketRegion), awsv2.ToString(head.BucketRegion), c.boundary.Region),
+		CreationTime:             awsv2.ToTime(listed.CreationDate),
 		Tags:                     tags,
 		Versioning:               versioning,
 		Encryption:               encryption,
@@ -191,7 +191,7 @@ func (c *Client) headBucket(ctx context.Context, name string) (*awss3.HeadBucket
 	err := c.recordAPICall(ctx, "HeadBucket", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.HeadBucket(callCtx, &awss3.HeadBucketInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		return err
@@ -210,7 +210,7 @@ func (c *Client) getBucketTagging(ctx context.Context, name string) (map[string]
 	err := c.recordAPICall(ctx, "GetBucketTagging", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBucketTagging(callCtx, &awss3.GetBucketTaggingInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		if isOptionalMissingS3Config(err, "NoSuchTagSet") {
@@ -224,11 +224,11 @@ func (c *Client) getBucketTagging(ctx context.Context, name string) (map[string]
 	}
 	tags := make(map[string]string, len(output.TagSet))
 	for _, tag := range output.TagSet {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -241,7 +241,7 @@ func (c *Client) getBucketVersioning(ctx context.Context, name string) (s3servic
 	err := c.recordAPICall(ctx, "GetBucketVersioning", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBucketVersioning(callCtx, &awss3.GetBucketVersioningInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		return err
@@ -260,7 +260,7 @@ func (c *Client) getBucketEncryption(ctx context.Context, name string) (s3servic
 	err := c.recordAPICall(ctx, "GetBucketEncryption", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBucketEncryption(callCtx, &awss3.GetBucketEncryptionInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		if isOptionalMissingS3Config(err, "ServerSideEncryptionConfigurationNotFoundError") {
@@ -280,8 +280,8 @@ func (c *Client) getBucketEncryption(ctx context.Context, name string) (s3servic
 		}
 		rules = append(rules, s3service.EncryptionRule{
 			Algorithm:      string(byDefault.SSEAlgorithm),
-			KMSMasterKeyID: aws.ToString(byDefault.KMSMasterKeyID),
-			BucketKey:      aws.ToBool(rule.BucketKeyEnabled),
+			KMSMasterKeyID: awsv2.ToString(byDefault.KMSMasterKeyID),
+			BucketKey:      awsv2.ToBool(rule.BucketKeyEnabled),
 		})
 	}
 	return s3service.Encryption{Rules: rules}, nil
@@ -292,7 +292,7 @@ func (c *Client) getPublicAccessBlock(ctx context.Context, name string) (s3servi
 	err := c.recordAPICall(ctx, "GetPublicAccessBlock", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetPublicAccessBlock(callCtx, &awss3.GetPublicAccessBlockInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		if isOptionalMissingS3Config(err, "NoSuchPublicAccessBlockConfiguration") {
@@ -318,7 +318,7 @@ func (c *Client) getBucketPolicyStatus(ctx context.Context, name string) (*bool,
 	err := c.recordAPICall(ctx, "GetBucketPolicyStatus", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBucketPolicyStatus(callCtx, &awss3.GetBucketPolicyStatusInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		if isOptionalMissingS3Config(err, "NoSuchBucketPolicy") {
@@ -338,7 +338,7 @@ func (c *Client) getBucketOwnershipControls(ctx context.Context, name string) ([
 	err := c.recordAPICall(ctx, "GetBucketOwnershipControls", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBucketOwnershipControls(callCtx, &awss3.GetBucketOwnershipControlsInput{
-			Bucket:              aws.String(name),
+			Bucket:              awsv2.String(name),
 			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
 		})
 		if isOptionalMissingS3Config(err, "OwnershipControlsNotFoundError") {
@@ -364,7 +364,7 @@ func expectedBucketOwner(accountID string) *string {
 	if accountID == "" {
 		return nil
 	}
-	return aws.String(accountID)
+	return awsv2.String(accountID)
 }
 
 func cloneBool(value *bool) *bool {
@@ -402,7 +402,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

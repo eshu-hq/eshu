@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/organizations/awssdk` adapts the AWS SDK
+`internal/collector/cloud/aws/service/organizations/sdk` adapts the AWS SDK
 for Go v2 Organizations client into the scanner-owned metadata types used by
-`internal/collector/awscloud/service/organizations`.
+`internal/collector/cloud/aws/service/organizations`.
 
 ## Ownership boundary
 
@@ -28,8 +28,8 @@ See `doc.go` for the godoc contract.
 
 - AWS SDK for Go v2 `service/organizations` for metadata-only Organizations
   reads.
-- `internal/collector/awscloud` for API-call status and warning constants.
-- `internal/collector/awscloud/service/organizations` for scanner-owned
+- `internal/collector/cloud/aws` for API-call status and warning constants.
+- `internal/collector/cloud/aws/service/organizations` for scanner-owned
   metadata types.
 - `internal/telemetry` for bounded metric attributes and span names.
 

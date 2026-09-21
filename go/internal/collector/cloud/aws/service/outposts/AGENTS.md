@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/outposts guidance
+# AGENTS.md - internal/collector/cloud/aws/service/outposts guidance
 
 ## Read First
 
@@ -38,7 +38,7 @@
   `OutpostArn`) are reverse edges owned by the VPC/EC2/ELB scanners. Do not
   invent them here.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from outpost, site, or asset
@@ -51,14 +51,14 @@
 ## Common Changes
 
 - Add a new Outposts metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry a physical address, shipping/contact
   detail, free-form note, or rack physical-property value, leave it out of the
   scanner contract.
 - Add new relationship evidence only when the Outposts API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

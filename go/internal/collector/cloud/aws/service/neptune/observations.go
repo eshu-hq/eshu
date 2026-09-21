@@ -9,15 +9,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster DBCluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	identifier := strings.TrimSpace(cluster.Identifier)
 	resourceID := firstNonEmpty(clusterARN, cluster.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneCluster,
+		ResourceType: aws.ResourceTypeNeptuneCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -53,15 +53,15 @@ func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.
 	}
 }
 
-func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) awscloud.ResourceObservation {
+func instanceObservation(boundary aws.Boundary, instance ClusterInstance) aws.ResourceObservation {
 	instanceARN := strings.TrimSpace(instance.ARN)
 	identifier := strings.TrimSpace(instance.Identifier)
 	resourceID := firstNonEmpty(instanceARN, instance.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterInstance,
+		ResourceType: aws.ResourceTypeNeptuneClusterInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -89,15 +89,15 @@ func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) a
 	}
 }
 
-func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParameterGroup) awscloud.ResourceObservation {
+func parameterGroupObservation(boundary aws.Boundary, group ClusterParameterGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterParameterGroup,
+		ResourceType: aws.ResourceTypeNeptuneClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -109,15 +109,15 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParamete
 	}
 }
 
-func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) awscloud.ResourceObservation {
+func snapshotObservation(boundary aws.Boundary, snapshot ClusterSnapshot) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	identifier := strings.TrimSpace(snapshot.Identifier)
 	resourceID := firstNonEmpty(snapshotARN, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterSnapshot,
+		ResourceType: aws.ResourceTypeNeptuneClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -135,15 +135,15 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) a
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, subnetGroup SubnetGroup) aws.ResourceObservation {
 	subnetGroupARN := strings.TrimSpace(subnetGroup.ARN)
 	name := strings.TrimSpace(subnetGroup.Name)
 	resourceID := firstNonEmpty(subnetGroupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          subnetGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneSubnetGroup,
+		ResourceType: aws.ResourceTypeNeptuneSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(subnetGroup.Status),
 		Tags:         cloneStringMap(subnetGroup.Tags),
@@ -157,15 +157,15 @@ func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup)
 	}
 }
 
-func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCluster) awscloud.ResourceObservation {
+func globalClusterObservation(boundary aws.Boundary, globalCluster GlobalCluster) aws.ResourceObservation {
 	globalARN := strings.TrimSpace(globalCluster.ARN)
 	identifier := strings.TrimSpace(globalCluster.Identifier)
 	resourceID := firstNonEmpty(globalARN, globalCluster.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          globalARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneGlobalCluster,
+		ResourceType: aws.ResourceTypeNeptuneGlobalCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(globalCluster.Status),
 		Tags:         cloneStringMap(globalCluster.Tags),
@@ -182,7 +182,7 @@ func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCl
 	}
 }
 
-func graphObservation(boundary awscloud.Boundary, graph Graph) awscloud.ResourceObservation {
+func graphObservation(boundary aws.Boundary, graph Graph) aws.ResourceObservation {
 	graphARN := strings.TrimSpace(graph.ARN)
 	id := strings.TrimSpace(graph.ID)
 	name := strings.TrimSpace(graph.Name)
@@ -200,11 +200,11 @@ func graphObservation(boundary awscloud.Boundary, graph Graph) awscloud.Resource
 	if graph.VectorSearchDimension != nil {
 		attributes["vector_search_dimension"] = *graph.VectorSearchDimension
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                graphARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeNeptuneGraph,
+		ResourceType:       aws.ResourceTypeNeptuneGraph,
 		Name:               name,
 		State:              strings.TrimSpace(graph.Status),
 		Tags:               cloneStringMap(graph.Tags),
@@ -214,16 +214,16 @@ func graphObservation(boundary awscloud.Boundary, graph Graph) awscloud.Resource
 	}
 }
 
-func graphSnapshotObservation(boundary awscloud.Boundary, snapshot GraphSnapshot) awscloud.ResourceObservation {
+func graphSnapshotObservation(boundary aws.Boundary, snapshot GraphSnapshot) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	id := strings.TrimSpace(snapshot.ID)
 	name := strings.TrimSpace(snapshot.Name)
 	resourceID := firstNonEmpty(snapshotARN, id, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneGraphSnapshot,
+		ResourceType: aws.ResourceTypeNeptuneGraphSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

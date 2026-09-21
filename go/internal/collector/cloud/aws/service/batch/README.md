@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/batch` owns the AWS Batch scanner
+`internal/collector/cloud/aws/service/batch` owns the AWS Batch scanner
 contract for the AWS cloud collector. It converts compute environments, job
 queues, job definitions, scheduling policies, and recent jobs into
 `aws_resource` facts and emits relationship evidence for job-queue-to-compute-
@@ -44,7 +44,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 - `internal/redact` for HMAC-SHA256 container-environment value markers.
@@ -54,11 +54,11 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource/relationship counts after
 `Scanner.Scan` returns. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total{service="batch"}` with the existing
-per-resource `resource_type` label. The `awssdk` adapter records Batch API call
+per-resource `resource_type` label. The `sdk` adapter records Batch API call
 counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -93,7 +93,7 @@ counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/batch/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/batch/...`
 covers the bounded Batch metadata path: one paginated
 DescribeComputeEnvironments stream, one paginated DescribeJobQueues stream, one
 paginated DescribeJobDefinitions stream filtered to ACTIVE definitions, one
@@ -102,7 +102,7 @@ DescribeSchedulingPolicies calls, and a per-queue ListJobs fan-out bounded per
 active state. No mutation or job-control API is reachable, and the collector
 performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers compute-environment, job-queue, job-definition, scheduling-policy, and
 recent-job fact emission, every relationship's non-empty target type and join
 key, redaction of container environment values, structural absence of command

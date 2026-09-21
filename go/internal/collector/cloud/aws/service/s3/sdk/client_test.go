@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -22,13 +22,13 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("orders-artifacts"),
-				BucketRegion: aws.String("us-east-1"),
-				CreationDate: aws.Time(created),
+				Name:         awsv2.String("orders-artifacts"),
+				BucketRegion: awsv2.String("us-east-1"),
+				CreationDate: awsv2.Time(created),
 			}},
 		}},
 		tagging: &awss3.GetBucketTaggingOutput{
-			TagSet: []awss3types.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			TagSet: []awss3types.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 		versioning: &awss3.GetBucketVersioningOutput{
 			Status:    awss3types.BucketVersioningStatusEnabled,
@@ -39,22 +39,22 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 				Rules: []awss3types.ServerSideEncryptionRule{{
 					ApplyServerSideEncryptionByDefault: &awss3types.ServerSideEncryptionByDefault{
 						SSEAlgorithm:   awss3types.ServerSideEncryptionAwsKms,
-						KMSMasterKeyID: aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+						KMSMasterKeyID: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
 					},
-					BucketKeyEnabled: aws.Bool(true),
+					BucketKeyEnabled: awsv2.Bool(true),
 				}},
 			},
 		},
 		publicAccessBlock: &awss3.GetPublicAccessBlockOutput{
 			PublicAccessBlockConfiguration: &awss3types.PublicAccessBlockConfiguration{
-				BlockPublicAcls:       aws.Bool(true),
-				IgnorePublicAcls:      aws.Bool(true),
-				BlockPublicPolicy:     aws.Bool(true),
-				RestrictPublicBuckets: aws.Bool(true),
+				BlockPublicAcls:       awsv2.Bool(true),
+				IgnorePublicAcls:      awsv2.Bool(true),
+				BlockPublicPolicy:     awsv2.Bool(true),
+				RestrictPublicBuckets: awsv2.Bool(true),
 			},
 		},
 		policyStatus: &awss3.GetBucketPolicyStatusOutput{
-			PolicyStatus: &awss3types.PolicyStatus{IsPublic: aws.Bool(false)},
+			PolicyStatus: &awss3types.PolicyStatus{IsPublic: awsv2.Bool(false)},
 		},
 		ownership: &awss3.GetBucketOwnershipControlsOutput{
 			OwnershipControls: &awss3types.OwnershipControls{
@@ -64,39 +64,39 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 			},
 		},
 		website: &awss3.GetBucketWebsiteOutput{
-			IndexDocument:         &awss3types.IndexDocument{Suffix: aws.String("index.html")},
-			ErrorDocument:         &awss3types.ErrorDocument{Key: aws.String("404.html")},
-			RedirectAllRequestsTo: &awss3types.RedirectAllRequestsTo{HostName: aws.String("assets.example.com")},
+			IndexDocument:         &awss3types.IndexDocument{Suffix: awsv2.String("index.html")},
+			ErrorDocument:         &awss3types.ErrorDocument{Key: awsv2.String("404.html")},
+			RedirectAllRequestsTo: &awss3types.RedirectAllRequestsTo{HostName: awsv2.String("assets.example.com")},
 			RoutingRules:          []awss3types.RoutingRule{{}},
 		},
 		logging: &awss3.GetBucketLoggingOutput{
 			LoggingEnabled: &awss3types.LoggingEnabled{
-				TargetBucket: aws.String("orders-logs"),
-				TargetPrefix: aws.String("s3/"),
+				TargetBucket: awsv2.String("orders-logs"),
+				TargetPrefix: awsv2.String("s3/"),
 				TargetGrants: []awss3types.TargetGrant{{
-					Grantee: &awss3types.Grantee{DisplayName: aws.String("log-reader")},
+					Grantee: &awss3types.Grantee{DisplayName: awsv2.String("log-reader")},
 				}},
 			},
 		},
 		replication: &awss3.GetBucketReplicationOutput{
 			ReplicationConfiguration: &awss3types.ReplicationConfiguration{
-				Role: aws.String("arn:aws:iam::123456789012:role/replication"),
+				Role: awsv2.String("arn:aws:iam::123456789012:role/replication"),
 				Rules: []awss3types.ReplicationRule{{
 					Status:      awss3types.ReplicationRuleStatusEnabled,
-					Destination: &awss3types.Destination{Bucket: aws.String("arn:aws:s3:::orders-replica")},
+					Destination: &awss3types.Destination{Bucket: awsv2.String("arn:aws:s3:::orders-replica")},
 				}},
 			},
 		},
 		policy: &awss3.GetBucketPolicyOutput{
-			Policy: aws.String(`{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::999988887777:root"},"Action":"s3:GetObject","Resource":"arn:aws:s3:::orders-artifacts/*"}]}`),
+			Policy: awsv2.String(`{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::999988887777:root"},"Action":"s3:GetObject","Resource":"arn:aws:s3:::orders-artifacts/*"}]}`),
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 
@@ -133,8 +133,8 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 		t.Fatalf("len(ExternalPrincipalGrants) = %d, want %d: %#v", got, want, bucket.ExternalPrincipalGrants)
 	}
 	grant := bucket.ExternalPrincipalGrants[0]
-	if grant.PrincipalKind != awscloud.S3ExternalPrincipalKindAWSARN {
-		t.Fatalf("ExternalPrincipalGrants[0].PrincipalKind = %q, want %q", grant.PrincipalKind, awscloud.S3ExternalPrincipalKindAWSARN)
+	if grant.PrincipalKind != aws.S3ExternalPrincipalKindAWSARN {
+		t.Fatalf("ExternalPrincipalGrants[0].PrincipalKind = %q, want %q", grant.PrincipalKind, aws.S3ExternalPrincipalKindAWSARN)
 	}
 	if grant.PrincipalValue != "arn:aws:iam::999988887777:root" {
 		t.Fatalf("ExternalPrincipalGrants[0].PrincipalValue = %q, want cross-account root ARN", grant.PrincipalValue)
@@ -142,7 +142,7 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 	if grant.PrincipalAccountID != "999988887777" || grant.PrincipalPartition != "aws" {
 		t.Fatalf("ExternalPrincipalGrants[0] account/partition = %q/%q, want 999988887777/aws", grant.PrincipalAccountID, grant.PrincipalPartition)
 	}
-	if grant.GrantOutcome != awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount || !grant.CrossAccount {
+	if grant.GrantOutcome != aws.S3ExternalPrincipalGrantOutcomeCrossAccount || !grant.CrossAccount {
 		t.Fatalf("ExternalPrincipalGrants[0] outcome = %#v, want cross-account", grant)
 	}
 	if bucket.ARN != "arn:aws:s3:::orders-artifacts" {
@@ -181,23 +181,23 @@ func TestClientListBucketsUsesMaxBucketsAndContinuationToken(t *testing.T) {
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("orders-artifacts"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("orders-artifacts"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
-			ContinuationToken: aws.String("next-page"),
+			ContinuationToken: awsv2.String("next-page"),
 		}, {
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("orders-logs"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("orders-logs"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 
@@ -220,10 +220,10 @@ func TestClientListBucketsRejectsGlobalS3Boundary(t *testing.T) {
 	api := &fakeS3API{}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "aws-global",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 
@@ -243,8 +243,8 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("orders-artifacts"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("orders-artifacts"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 		taggingErr:           apiError("NoSuchTagSet"),
@@ -258,10 +258,10 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 
@@ -356,9 +356,9 @@ func (f *fakeS3API) ListBuckets(
 	input *awss3.ListBucketsInput,
 	_ ...func(*awss3.Options),
 ) (*awss3.ListBucketsOutput, error) {
-	f.listBucketsRegion = aws.ToString(input.BucketRegion)
-	f.listBucketsMaxBuckets = append(f.listBucketsMaxBuckets, aws.ToInt32(input.MaxBuckets))
-	f.listBucketsContinuationTokens = append(f.listBucketsContinuationTokens, aws.ToString(input.ContinuationToken))
+	f.listBucketsRegion = awsv2.ToString(input.BucketRegion)
+	f.listBucketsMaxBuckets = append(f.listBucketsMaxBuckets, awsv2.ToInt32(input.MaxBuckets))
+	f.listBucketsContinuationTokens = append(f.listBucketsContinuationTokens, awsv2.ToString(input.ContinuationToken))
 	if f.listBucketsCalls >= len(f.listBucketsPages) {
 		return &awss3.ListBucketsOutput{}, nil
 	}
@@ -372,7 +372,7 @@ func (f *fakeS3API) HeadBucket(
 	*awss3.HeadBucketInput,
 	...func(*awss3.Options),
 ) (*awss3.HeadBucketOutput, error) {
-	return &awss3.HeadBucketOutput{BucketRegion: aws.String("us-east-1")}, nil
+	return &awss3.HeadBucketOutput{BucketRegion: awsv2.String("us-east-1")}, nil
 }
 
 func (f *fakeS3API) GetBucketTagging(

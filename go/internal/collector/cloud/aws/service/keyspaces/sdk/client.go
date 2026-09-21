@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskeyspaces "github.com/aws/aws-sdk-go-v2/service/keyspaces"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -62,15 +62,15 @@ type apiClient interface {
 // control-plane GetTable response and are structural metadata only.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Amazon Keyspaces SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -113,7 +113,7 @@ func (c *Client) listKeyspaces(
 		err := c.recordAPICall(ctx, "ListKeyspaces", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListKeyspaces(callCtx, &awskeyspaces.ListKeyspacesInput{
-				MaxResults: aws.Int32(listLimit),
+				MaxResults: awsv2.Int32(listLimit),
 				NextToken:  nextToken,
 			})
 			return err
@@ -125,7 +125,7 @@ func (c *Client) listKeyspaces(
 			return keyspaces, keyspaceARNByName, nil
 		}
 		for _, summary := range page.Keyspaces {
-			name := strings.TrimSpace(aws.ToString(summary.KeyspaceName))
+			name := strings.TrimSpace(awsv2.ToString(summary.KeyspaceName))
 			if name == "" {
 				continue
 			}
@@ -137,7 +137,7 @@ func (c *Client) listKeyspaces(
 			keyspaceARNByName[keyspace.Name] = keyspace.ARN
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return keyspaces, keyspaceARNByName, nil
 		}
 	}
@@ -152,7 +152,7 @@ func (c *Client) describeKeyspace(
 	err := c.recordAPICall(ctx, "GetKeyspace", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetKeyspace(callCtx, &awskeyspaces.GetKeyspaceInput{
-			KeyspaceName: aws.String(name),
+			KeyspaceName: awsv2.String(name),
 		})
 		return err
 	})
@@ -174,8 +174,8 @@ func (c *Client) listTables(
 		err := c.recordAPICall(ctx, "ListTables", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListTables(callCtx, &awskeyspaces.ListTablesInput{
-				KeyspaceName: aws.String(keyspaceName),
-				MaxResults:   aws.Int32(listLimit),
+				KeyspaceName: awsv2.String(keyspaceName),
+				MaxResults:   awsv2.Int32(listLimit),
 				NextToken:    nextToken,
 			})
 			return err
@@ -187,7 +187,7 @@ func (c *Client) listTables(
 			return tables, nil
 		}
 		for _, summary := range page.Tables {
-			tableName := tableNameFromARN(aws.ToString(summary.ResourceArn))
+			tableName := tableNameFromARN(awsv2.ToString(summary.ResourceArn))
 			if tableName == "" {
 				continue
 			}
@@ -200,7 +200,7 @@ func (c *Client) listTables(
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tables, nil
 		}
 	}
@@ -216,8 +216,8 @@ func (c *Client) describeTable(
 	err := c.recordAPICall(ctx, "GetTable", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetTable(callCtx, &awskeyspaces.GetTableInput{
-			KeyspaceName: aws.String(keyspaceName),
-			TableName:    aws.String(tableName),
+			KeyspaceName: awsv2.String(keyspaceName),
+			TableName:    awsv2.String(tableName),
 		})
 		return err
 	})
@@ -227,7 +227,7 @@ func (c *Client) describeTable(
 	if output == nil {
 		return keyspacesservice.Table{}, false, nil
 	}
-	tags, err := c.listTags(ctx, aws.ToString(output.ResourceArn))
+	tags, err := c.listTags(ctx, awsv2.ToString(output.ResourceArn))
 	if err != nil {
 		return keyspacesservice.Table{}, false, err
 	}
@@ -246,8 +246,8 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTagsForResource(callCtx, &awskeyspaces.ListTagsForResourceInput{
-				ResourceArn: aws.String(resourceARN),
-				MaxResults:  aws.Int32(listLimit),
+				ResourceArn: awsv2.String(resourceARN),
+				MaxResults:  awsv2.Int32(listLimit),
 				NextToken:   nextToken,
 			})
 			return err
@@ -265,7 +265,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 			tags[key] = value
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tags, nil
 		}
 	}
@@ -289,7 +289,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

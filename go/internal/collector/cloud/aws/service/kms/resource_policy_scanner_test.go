@@ -24,7 +24,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Resources:           []string{"*"},
 				PrincipalAccountIDs: []string{"999988887777"},
 				PrincipalARNs:       []string{"arn:aws:iam::999988887777:role/partner"},
-				PrincipalTypes:      []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes:      []string{aws.ResourcePolicyPrincipalTypeAWS},
 				IsCrossAccount:      true,
 			},
 			{
@@ -32,7 +32,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Effect:         "Allow",
 				Actions:        []string{"kms:*"},
 				Resources:      []string{"*"},
-				PrincipalTypes: []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes: []string{aws.ResourcePolicyPrincipalTypeAWS},
 			},
 		},
 	}}}
@@ -48,8 +48,8 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 
 	cross := resourcePolicyPermissionBySID(t, envelopes, "999988887777")
 	assertKMSPayloadEquals(t, cross.Payload, "resource_arn", keyARN)
-	assertKMSPayloadEquals(t, cross.Payload, "resource_type", awscloud.ResourceTypeKMSKey)
-	assertKMSPayloadEquals(t, cross.Payload, "policy_source", awscloud.ResourcePolicySourceResource)
+	assertKMSPayloadEquals(t, cross.Payload, "resource_type", aws.ResourceTypeKMSKey)
+	assertKMSPayloadEquals(t, cross.Payload, "policy_source", aws.ResourcePolicySourceResource)
 	assertKMSPayloadEquals(t, cross.Payload, "is_cross_account", true)
 	// kms:* is a service-wildcard, not the bare "*" action wildcard, so the
 	// is_wildcard_action flag stays false (matching aws_iam_permission's exact

@@ -72,24 +72,24 @@ func TestScannerEmitsEKSClusterNodegroupAddonAndOIDCEvidence(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeEKSCluster)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeEKSNodegroup)
-	addon := resourceByType(t, envelopes, awscloud.ResourceTypeEKSAddon)
-	oidc := resourceByType(t, envelopes, awscloud.ResourceTypeEKSOIDCProvider)
+	assertResourceType(t, envelopes, aws.ResourceTypeEKSCluster)
+	assertResourceType(t, envelopes, aws.ResourceTypeEKSNodegroup)
+	addon := resourceByType(t, envelopes, aws.ResourceTypeEKSAddon)
+	oidc := resourceByType(t, envelopes, aws.ResourceTypeEKSOIDCProvider)
 	assertAttribute(t, addon, "addon_version", "v1.18.3-eksbuild.1")
 	assertAttribute(t, oidc, "issuer_url", "https://oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE")
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSClusterHasOIDCProvider)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSClusterHasNodegroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSClusterHasAddon)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSNodegroupUsesIAMRole)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSAddonUsesIAMRole)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSClusterUsesSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipEKSClusterUsesSecurityGroup)
+	assertRelationship(t, envelopes, aws.RelationshipEKSClusterHasOIDCProvider)
+	assertRelationship(t, envelopes, aws.RelationshipEKSClusterHasNodegroup)
+	assertRelationship(t, envelopes, aws.RelationshipEKSClusterHasAddon)
+	assertRelationship(t, envelopes, aws.RelationshipEKSNodegroupUsesIAMRole)
+	assertRelationship(t, envelopes, aws.RelationshipEKSAddonUsesIAMRole)
+	assertRelationship(t, envelopes, aws.RelationshipEKSClusterUsesSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipEKSClusterUsesSecurityGroup)
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceLambda
+	boundary.ServiceKind = aws.ServiceLambda
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -112,16 +112,16 @@ func TestScannerDeduplicatesClusterSecurityGroupRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipEKSClusterUsesSecurityGroup); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipEKSClusterUsesSecurityGroup); got != 2 {
 		t.Fatalf("security group relationship count = %d, want 2", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceEKS,
+		ServiceKind:         aws.ServiceEKS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:eks:1",
 		CollectorInstanceID: "aws-prod",

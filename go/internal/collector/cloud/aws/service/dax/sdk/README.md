@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/dax/awssdk` implements the `dax.Client`
+`internal/collector/cloud/aws/service/dax/sdk` implements the `dax.Client`
 interface against the AWS SDK for Go v2 DAX control-plane client. It is the only
 place in the DAX scanner that imports the AWS SDK.
 
@@ -49,7 +49,7 @@ operation is reachable. `client_test.go` asserts this by reflection.
 ## Evidence
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/dax/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/dax/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

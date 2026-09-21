@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsinspector2 "github.com/aws/aws-sdk-go-v2/service/inspector2"
 	i2types "github.com/aws/aws-sdk-go-v2/service/inspector2/types"
 
@@ -57,7 +57,7 @@ func TestClientReadsMetadataAndDropsFilterCriteria(t *testing.T) {
 	api := &fakeInspector2API{
 		accountStatus: &awsinspector2.BatchGetAccountStatusOutput{
 			Accounts: []i2types.AccountState{{
-				AccountId: aws.String("123456789012"),
+				AccountId: awsv2.String("123456789012"),
 				State:     &i2types.State{Status: i2types.StatusEnabled},
 				ResourceState: &i2types.ResourceState{
 					Ec2:        &i2types.State{Status: i2types.StatusEnabled},
@@ -69,30 +69,30 @@ func TestClientReadsMetadataAndDropsFilterCriteria(t *testing.T) {
 		},
 		memberPages: []*awsinspector2.ListMembersOutput{{
 			Members: []i2types.Member{{
-				AccountId:               aws.String("111122223333"),
-				DelegatedAdminAccountId: aws.String("123456789012"),
+				AccountId:               awsv2.String("111122223333"),
+				DelegatedAdminAccountId: awsv2.String("123456789012"),
 				RelationshipStatus:      i2types.RelationshipStatusEnabled,
-				UpdatedAt:               aws.Time(mustTime()),
+				UpdatedAt:               awsv2.Time(mustTime()),
 			}},
 		}},
 		filterPages: []*awsinspector2.ListFiltersOutput{{
 			Filters: []i2types.Filter{{
-				Arn:     aws.String("arn:aws:inspector2:us-east-1:123456789012:owner/123456789012/filter/abc"),
-				Name:    aws.String("suppress-known-benign"),
+				Arn:     awsv2.String("arn:aws:inspector2:us-east-1:123456789012:owner/123456789012/filter/abc"),
+				Name:    awsv2.String("suppress-known-benign"),
 				Action:  i2types.FilterActionSuppress,
-				OwnerId: aws.String("123456789012"),
+				OwnerId: awsv2.String("123456789012"),
 				// Criteria, Description, and Reason are present on the SDK record
 				// and must be dropped by the adapter.
 				Criteria:    &i2types.FilterCriteria{},
-				Description: aws.String("hunt hypothesis: lateral movement via SSM"),
-				Reason:      aws.String("threat hunting"),
+				Description: awsv2.String("hunt hypothesis: lateral movement via SSM"),
+				Reason:      awsv2.String("threat hunting"),
 			}},
 		}},
 		cisPages: []*awsinspector2.ListCisScanConfigurationsOutput{{
 			ScanConfigurations: []i2types.CisScanConfiguration{{
-				ScanConfigurationArn: aws.String("arn:aws:inspector2:us-east-1:123456789012:owner/123456789012/cis-configuration/xyz"),
-				ScanName:             aws.String("weekly-level1"),
-				OwnerId:              aws.String("123456789012"),
+				ScanConfigurationArn: awsv2.String("arn:aws:inspector2:us-east-1:123456789012:owner/123456789012/cis-configuration/xyz"),
+				ScanName:             awsv2.String("weekly-level1"),
+				OwnerId:              awsv2.String("123456789012"),
 				SecurityLevel:        i2types.CisSecurityLevelLevel1,
 				Schedule:             &i2types.ScheduleMemberWeekly{},
 				Targets: &i2types.CisTargets{
@@ -104,7 +104,7 @@ func TestClientReadsMetadataAndDropsFilterCriteria(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceInspector2},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceInspector2},
 	}
 
 	account, err := adapter.AccountStatus(context.Background())
@@ -187,15 +187,15 @@ func TestAccountStatusSurfacesFailedAccount(t *testing.T) {
 	api := &fakeInspector2API{
 		accountStatus: &awsinspector2.BatchGetAccountStatusOutput{
 			FailedAccounts: []i2types.FailedAccount{{
-				AccountId:    aws.String("123456789012"),
+				AccountId:    awsv2.String("123456789012"),
 				ErrorCode:    i2types.ErrorCodeAccessDenied,
-				ErrorMessage: aws.String("not authorized to view Inspector status"),
+				ErrorMessage: awsv2.String("not authorized to view Inspector status"),
 			}},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceInspector2},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceInspector2},
 	}
 
 	_, err := adapter.AccountStatus(context.Background())

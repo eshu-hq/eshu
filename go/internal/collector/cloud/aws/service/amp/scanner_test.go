@@ -63,7 +63,7 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Workspace resource node, keyed by ARN.
-	workspace := resourceByType(t, envelopes, awscloud.ResourceTypeAMPWorkspace)
+	workspace := resourceByType(t, envelopes, aws.ResourceTypeAMPWorkspace)
 	if got, want := workspace.Payload["resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace resource_id = %#v, want %q", got, want)
 	}
@@ -86,7 +86,7 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Rule-groups namespace resource node (name only).
-	namespace := resourceByType(t, envelopes, awscloud.ResourceTypeAMPRuleGroupsNamespace)
+	namespace := resourceByType(t, envelopes, aws.ResourceTypeAMPRuleGroupsNamespace)
 	if got, want := namespace.Payload["resource_id"], testNamespaceARN; got != want {
 		t.Fatalf("namespace resource_id = %#v, want %q", got, want)
 	}
@@ -95,7 +95,7 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, nsAttrs, "workspace_id", testWorkspaceARN)
 
 	// Scraper resource node.
-	scraper := resourceByType(t, envelopes, awscloud.ResourceTypeAMPScraper)
+	scraper := resourceByType(t, envelopes, aws.ResourceTypeAMPScraper)
 	if got, want := scraper.Payload["resource_id"], testScraperARN; got != want {
 		t.Fatalf("scraper resource_id = %#v, want %q", got, want)
 	}
@@ -105,8 +105,8 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, scAttrs, "security_group_ids", []string{"sg-cccc3333"})
 
 	// workspace -> KMS key edge.
-	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipAMPWorkspaceUsesKMSKey)
-	assertEdgeTarget(t, wsKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	wsKMS := relationshipByType(t, envelopes, aws.RelationshipAMPWorkspaceUsesKMSKey)
+	assertEdgeTarget(t, wsKMS, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := wsKMS.Payload["source_resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace->kms source_resource_id = %#v, want %q", got, want)
 	}
@@ -115,8 +115,8 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	}
 
 	// namespace -> workspace edge, keyed by the workspace ARN the workspace node publishes.
-	nsWs := relationshipByType(t, envelopes, awscloud.RelationshipAMPRuleGroupsNamespaceInWorkspace)
-	assertEdgeTarget(t, nsWs, awscloud.ResourceTypeAMPWorkspace, testWorkspaceARN)
+	nsWs := relationshipByType(t, envelopes, aws.RelationshipAMPRuleGroupsNamespaceInWorkspace)
+	assertEdgeTarget(t, nsWs, aws.ResourceTypeAMPWorkspace, testWorkspaceARN)
 	if got, want := nsWs.Payload["source_resource_id"], testNamespaceARN; got != want {
 		t.Fatalf("namespace->workspace source_resource_id = %#v, want %q", got, want)
 	}
@@ -125,24 +125,24 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	}
 
 	// scraper -> EKS cluster edge, keyed by the cluster ARN the EKS node publishes.
-	scEKS := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperScrapesEKSCluster)
-	assertEdgeTarget(t, scEKS, awscloud.ResourceTypeEKSCluster, testClusterARN)
+	scEKS := relationshipByType(t, envelopes, aws.RelationshipAMPScraperScrapesEKSCluster)
+	assertEdgeTarget(t, scEKS, aws.ResourceTypeEKSCluster, testClusterARN)
 	if got, want := scEKS.Payload["target_arn"], testClusterARN; got != want {
 		t.Fatalf("scraper->eks target_arn = %#v, want %q", got, want)
 	}
 
 	// scraper -> workspace edge.
-	scWs := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperSendsToWorkspace)
-	assertEdgeTarget(t, scWs, awscloud.ResourceTypeAMPWorkspace, testWorkspaceARN)
+	scWs := relationshipByType(t, envelopes, aws.RelationshipAMPScraperSendsToWorkspace)
+	assertEdgeTarget(t, scWs, aws.ResourceTypeAMPWorkspace, testWorkspaceARN)
 
 	// scraper -> subnet (bare id) and -> security group (bare id) edges.
-	scSubnet := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperUsesSubnet)
-	assertEdgeTarget(t, scSubnet, awscloud.ResourceTypeEC2Subnet, "subnet-aaaa1111")
+	scSubnet := relationshipByType(t, envelopes, aws.RelationshipAMPScraperUsesSubnet)
+	assertEdgeTarget(t, scSubnet, aws.ResourceTypeEC2Subnet, "subnet-aaaa1111")
 	if got := scSubnet.Payload["target_arn"]; got != "" {
 		t.Fatalf("scraper->subnet target_arn = %#v, want empty (bare subnet id)", got)
 	}
-	scGroup := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperUsesSecurityGroup)
-	assertEdgeTarget(t, scGroup, awscloud.ResourceTypeEC2SecurityGroup, "sg-cccc3333")
+	scGroup := relationshipByType(t, envelopes, aws.RelationshipAMPScraperUsesSecurityGroup)
+	assertEdgeTarget(t, scGroup, aws.ResourceTypeEC2SecurityGroup, "sg-cccc3333")
 
 	// No data-plane leakage anywhere in the resource payloads.
 	for _, envelope := range envelopes {
@@ -192,7 +192,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipAMPWorkspaceUsesKMSKey)
+	wsKMS := relationshipByType(t, envelopes, aws.RelationshipAMPWorkspaceUsesKMSKey)
 	if got, want := wsKMS.Payload["target_resource_id"], "alias/amp-metrics"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -217,12 +217,12 @@ func TestScannerEmitsScrapersWithoutWorkspaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	scraper := resourceByType(t, envelopes, awscloud.ResourceTypeAMPScraper)
+	scraper := resourceByType(t, envelopes, aws.ResourceTypeAMPScraper)
 	if got, want := scraper.Payload["resource_id"], testScraperARN; got != want {
 		t.Fatalf("scraper resource_id = %#v, want %q", got, want)
 	}
-	relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperScrapesEKSCluster)
-	relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperSendsToWorkspace)
+	relationshipByType(t, envelopes, aws.RelationshipAMPScraperScrapesEKSCluster)
+	relationshipByType(t, envelopes, aws.RelationshipAMPScraperSendsToWorkspace)
 }
 
 func TestScannerReturnsCleanlyForEmptyAccount(t *testing.T) {
@@ -248,7 +248,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		SubnetIDs:               []string{"subnet-aaaa1111"},
 		SecurityGroupIDs:        []string{"sg-cccc3333"},
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if rel := workspaceKMSRelationship(boundary, workspace); rel != nil {
 		observations = append(observations, *rel)
 	}
@@ -264,7 +264,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -275,9 +275,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Workspaces: []Workspace{{ARN: testWorkspaceARN, WorkspaceID: testWorkspaceID}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "AMP ListRuleGroupsNamespaces throttled after SDK retries; namespace metadata omitted for this scan",
 			SourceRecordID: "amp_rule_groups_namespaces_throttled",
@@ -288,17 +288,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAMP,
+		ServiceKind:         aws.ServiceAMP,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:amp:1",
 		CollectorInstanceID: "aws-prod",

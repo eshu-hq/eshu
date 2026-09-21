@@ -13,4 +13,4 @@
 // rather than the concrete *cloudwatch.Client, the compiler ensures these
 // methods are unreachable. The companion test asserts the interface shape
 // and that no forbidden call was made during a normal scan.
-package awssdk
+package sdk

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/transfer` owns the Transfer Family scanner
+`internal/collector/cloud/aws/service/transfer` owns the Transfer Family scanner
 contract for the AWS cloud collector. It converts Transfer server metadata and
 service-managed user metadata into `aws_resource` facts and emits relationship
 evidence for server-to-VPC-endpoint, server-to-Elastic-IP, server-to-ACM-
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Transfer API call counts, throttles, and
+The `sdk` adapter records Transfer API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -88,7 +88,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/transfer/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/transfer/...` covers the bounded
 Transfer metadata path: one paginated ListServers stream, one DescribeServer
 point read per server, one paginated ListUsers stream per server, one
 DescribeUser point read per user, no CreateServer / DeleteServer / StartServer /
@@ -96,7 +96,7 @@ StopServer / ImportSshPublicKey / ImportHostKey calls, no mutations, and no
 graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Transfer server and user metadata fact emission, server-to-VPC-endpoint,
 server-to-Elastic-IP, server-to-ACM-certificate, server-to-CloudWatch-log-group,
 server-to-logging-IAM-role, user-to-IAM-role, user-home-directory-to-S3-bucket,

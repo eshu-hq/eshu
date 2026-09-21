@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/discovery/awssdk` adapts AWS SDK
+`internal/collector/cloud/aws/service/discovery/sdk` adapts AWS SDK
 for Go v2 Cloud Map responses to the scanner-owned `servicediscovery.Client`
 contract. It owns namespace list pagination, the per-namespace
 NAMESPACE_ID-filtered service list pagination, resource tag reads, throttle
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/discovery` for scanner-owned
+- `internal/collector/cloud/aws/service/discovery` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `servicediscovery` and Smithy error contracts.

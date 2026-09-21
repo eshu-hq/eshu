@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "docdbelastic".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceDocDBElastic + "  "
+	boundary.ServiceKind = "  " + aws.ServiceDocDBElastic + "  "
 	client := fakeClient{snapshot: Snapshot{Clusters: []Cluster{{
 		ARN:              testClusterARN,
 		Name:             "analytics",
@@ -34,7 +34,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDocDBElastic; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDocDBElastic; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}
@@ -53,7 +53,7 @@ func TestScannerCanonicalizesEmptyServiceKind(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDocDBElastic; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDocDBElastic; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q", got, want)
 		}
 	}

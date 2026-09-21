@@ -25,15 +25,15 @@ type Scanner struct {
 // Scan observes License Manager license configurations and their resource
 // associations through the configured client and emits resource and
 // relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("license manager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLicenseManager:
+	case "", aws.ServiceLicenseManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLicenseManager
+		boundary.ServiceKind = aws.ServiceLicenseManager
 	default:
 		return nil, fmt.Errorf("license manager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,9 +56,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -67,8 +67,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func configurationEnvelopes(boundary awscloud.Boundary, configuration Configuration) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(configurationObservation(boundary, configuration))
+func configurationEnvelopes(boundary aws.Boundary, configuration Configuration) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(configurationObservation(boundary, configuration))
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func configurationEnvelopes(boundary awscloud.Boundary, configuration Configurat
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -91,9 +91,9 @@ func configurationEnvelopes(boundary awscloud.Boundary, configuration Configurat
 }
 
 func configurationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configuration Configuration,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	configurationARN := strings.TrimSpace(configuration.ARN)
 	name := strings.TrimSpace(configuration.Name)
 	resourceID := configurationResourceID(configuration)
@@ -112,11 +112,11 @@ func configurationObservation(
 	if configuration.LicenseCountConfigured {
 		attributes["license_count"] = configuration.LicenseCount
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                configurationARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeLicenseManagerConfiguration,
+		ResourceType:       aws.ResourceTypeLicenseManagerConfiguration,
 		Name:               name,
 		State:              strings.TrimSpace(configuration.Status),
 		Tags:               cloneStringMap(configuration.Tags),

@@ -25,15 +25,15 @@ type Scanner struct {
 // script bodies, default-argument values, connection passwords, JDBC
 // credential URLs, table column sample statistics, and classifier custom
 // patterns stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("glue scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGlue:
+	case "", aws.ServiceGlue:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGlue
+		boundary.ServiceKind = aws.ServiceGlue
 	default:
 		return nil, fmt.Errorf("glue scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -93,7 +93,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Glue workflows: %w", err)
 	}
 	for _, workflow := range workflows {
-		envelope, err := awscloud.NewResourceEnvelope(workflowObservation(boundary, workflow))
+		envelope, err := aws.NewResourceEnvelope(workflowObservation(boundary, workflow))
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +105,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Glue connections: %w", err)
 	}
 	for _, connection := range connections {
-		envelope, err := awscloud.NewResourceEnvelope(connectionObservation(boundary, connection))
+		envelope, err := aws.NewResourceEnvelope(connectionObservation(boundary, connection))
 		if err != nil {
 			return nil, err
 		}
@@ -115,8 +115,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func databaseEnvelopes(boundary awscloud.Boundary, database Database) ([]facts.Envelope, error) {
-	databaseResource, err := awscloud.NewResourceEnvelope(databaseObservation(boundary, database))
+func databaseEnvelopes(boundary aws.Boundary, database Database) ([]facts.Envelope, error) {
+	databaseResource, err := aws.NewResourceEnvelope(databaseObservation(boundary, database))
 	if err != nil {
 		return nil, err
 	}
@@ -125,19 +125,19 @@ func databaseEnvelopes(boundary awscloud.Boundary, database Database) ([]facts.E
 		if strings.TrimSpace(table.DatabaseName) == "" {
 			table.DatabaseName = database.Name
 		}
-		tableResource, err := awscloud.NewResourceEnvelope(tableObservation(boundary, table))
+		tableResource, err := aws.NewResourceEnvelope(tableObservation(boundary, table))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, tableResource)
-		for _, relationship := range []*awscloud.RelationshipObservation{
+		for _, relationship := range []*aws.RelationshipObservation{
 			tableInDatabaseRelationship(boundary, table),
 			tableS3LocationRelationship(boundary, table),
 		} {
 			if relationship == nil {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+			envelope, err := aws.NewRelationshipEnvelope(*relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -147,20 +147,20 @@ func databaseEnvelopes(boundary awscloud.Boundary, database Database) ([]facts.E
 	return envelopes, nil
 }
 
-func crawlerEnvelopes(boundary awscloud.Boundary, crawler Crawler) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(crawlerObservation(boundary, crawler))
+func crawlerEnvelopes(boundary aws.Boundary, crawler Crawler) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(crawlerObservation(boundary, crawler))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		crawlerDatabaseRelationship(boundary, crawler),
 		crawlerRoleRelationship(boundary, crawler),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -169,14 +169,14 @@ func crawlerEnvelopes(boundary awscloud.Boundary, crawler Crawler) ([]facts.Enve
 	return envelopes, nil
 }
 
-func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(jobObservation(boundary, job))
+func jobEnvelopes(boundary aws.Boundary, job Job) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(jobObservation(boundary, job))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := jobRoleRelationship(boundary, job); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -185,14 +185,14 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 	return envelopes, nil
 }
 
-func triggerEnvelopes(boundary awscloud.Boundary, trigger Trigger) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(triggerObservation(boundary, trigger))
+func triggerEnvelopes(boundary aws.Boundary, trigger Trigger) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(triggerObservation(boundary, trigger))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range triggerJobRelationships(boundary, trigger) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -201,12 +201,12 @@ func triggerEnvelopes(boundary awscloud.Boundary, trigger Trigger) ([]facts.Enve
 	return envelopes, nil
 }
 
-func databaseObservation(boundary awscloud.Boundary, database Database) awscloud.ResourceObservation {
+func databaseObservation(boundary aws.Boundary, database Database) aws.ResourceObservation {
 	name := strings.TrimSpace(database.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueDatabase,
+		ResourceType: aws.ResourceTypeGlueDatabase,
 		Name:         name,
 		Attributes: map[string]any{
 			"catalog_id":   strings.TrimSpace(database.CatalogID),
@@ -221,12 +221,12 @@ func databaseObservation(boundary awscloud.Boundary, database Database) awscloud
 	}
 }
 
-func tableObservation(boundary awscloud.Boundary, table Table) awscloud.ResourceObservation {
+func tableObservation(boundary aws.Boundary, table Table) aws.ResourceObservation {
 	tableID := tableResourceID(table)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   tableID,
-		ResourceType: awscloud.ResourceTypeGlueTable,
+		ResourceType: aws.ResourceTypeGlueTable,
 		Name:         strings.TrimSpace(table.Name),
 		Attributes: map[string]any{
 			"catalog_id":         strings.TrimSpace(table.CatalogID),
@@ -254,12 +254,12 @@ func tableObservation(boundary awscloud.Boundary, table Table) awscloud.Resource
 	}
 }
 
-func crawlerObservation(boundary awscloud.Boundary, crawler Crawler) awscloud.ResourceObservation {
+func crawlerObservation(boundary aws.Boundary, crawler Crawler) aws.ResourceObservation {
 	name := strings.TrimSpace(crawler.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueCrawler,
+		ResourceType: aws.ResourceTypeGlueCrawler,
 		Name:         name,
 		State:        strings.TrimSpace(crawler.State),
 		Attributes: map[string]any{
@@ -286,14 +286,14 @@ func crawlerObservation(boundary awscloud.Boundary, crawler Crawler) awscloud.Re
 	}
 }
 
-func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObservation {
+func jobObservation(boundary aws.Boundary, job Job) aws.ResourceObservation {
 	name := strings.TrimSpace(job.Name)
 	safeDefaultArgKeys := filterSafeKeys(job.DefaultArgKeys)
 	safeNonOverridableKeys := filterSafeKeys(job.NonOverridableArgKeys)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueJob,
+		ResourceType: aws.ResourceTypeGlueJob,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":                   strings.TrimSpace(job.Description),
@@ -318,12 +318,12 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 	}
 }
 
-func triggerObservation(boundary awscloud.Boundary, trigger Trigger) awscloud.ResourceObservation {
+func triggerObservation(boundary aws.Boundary, trigger Trigger) aws.ResourceObservation {
 	name := strings.TrimSpace(trigger.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueTrigger,
+		ResourceType: aws.ResourceTypeGlueTrigger,
 		Name:         name,
 		State:        strings.TrimSpace(trigger.State),
 		Attributes: map[string]any{
@@ -338,12 +338,12 @@ func triggerObservation(boundary awscloud.Boundary, trigger Trigger) awscloud.Re
 	}
 }
 
-func workflowObservation(boundary awscloud.Boundary, workflow Workflow) awscloud.ResourceObservation {
+func workflowObservation(boundary aws.Boundary, workflow Workflow) aws.ResourceObservation {
 	name := strings.TrimSpace(workflow.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueWorkflow,
+		ResourceType: aws.ResourceTypeGlueWorkflow,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":              strings.TrimSpace(workflow.Description),
@@ -357,12 +357,12 @@ func workflowObservation(boundary awscloud.Boundary, workflow Workflow) awscloud
 	}
 }
 
-func connectionObservation(boundary awscloud.Boundary, connection Connection) awscloud.ResourceObservation {
+func connectionObservation(boundary aws.Boundary, connection Connection) aws.ResourceObservation {
 	name := strings.TrimSpace(connection.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueConnection,
+		ResourceType: aws.ResourceTypeGlueConnection,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":        strings.TrimSpace(connection.Description),

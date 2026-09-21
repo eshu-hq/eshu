@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/datasync/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/datasync/sdk guidance
 
 ## Read First
 

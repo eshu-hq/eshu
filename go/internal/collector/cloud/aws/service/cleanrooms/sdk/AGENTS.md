@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cleanrooms/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cleanrooms/sdk guidance
 
 ## Read First
 

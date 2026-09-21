@@ -1,4 +1,4 @@
-# AGENTS - awscloud/internal/partitionguard guidance
+# AGENTS - aws/internal/partitionguard guidance
 
 ## Read First
 
@@ -34,5 +34,5 @@ improve detection precision, and add a fixture-style regression test when you do
 ## Verification
 
 ```
-cd go && go test ./internal/collector/awscloud/internal/partitionguard/... -count=1
+cd go && go test ./internal/collector/cloud/aws/internal/partitionguard/... -count=1
 ```

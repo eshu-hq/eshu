@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes Image Builder pipelines, recipes, container recipes,
 // infrastructure configurations, and distribution configurations through the
 // configured client and emits their resource and relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("imagebuilder scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceImageBuilder:
+	case "", aws.ServiceImageBuilder:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceImageBuilder
+		boundary.ServiceKind = aws.ServiceImageBuilder
 	default:
 		return nil, fmt.Errorf("imagebuilder scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -66,9 +66,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -77,9 +77,9 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendPipelines(envelopes *[]facts.Envelope, boundary awscloud.Boundary, pipelines []ImagePipeline) error {
+func appendPipelines(envelopes *[]facts.Envelope, boundary aws.Boundary, pipelines []ImagePipeline) error {
 	for _, pipeline := range pipelines {
-		resource, err := awscloud.NewResourceEnvelope(pipelineObservation(boundary, pipeline))
+		resource, err := aws.NewResourceEnvelope(pipelineObservation(boundary, pipeline))
 		if err != nil {
 			return err
 		}
@@ -91,9 +91,9 @@ func appendPipelines(envelopes *[]facts.Envelope, boundary awscloud.Boundary, pi
 	return nil
 }
 
-func appendImageRecipes(envelopes *[]facts.Envelope, boundary awscloud.Boundary, recipes []ImageRecipe) error {
+func appendImageRecipes(envelopes *[]facts.Envelope, boundary aws.Boundary, recipes []ImageRecipe) error {
 	for _, recipe := range recipes {
-		resource, err := awscloud.NewResourceEnvelope(imageRecipeObservation(boundary, recipe))
+		resource, err := aws.NewResourceEnvelope(imageRecipeObservation(boundary, recipe))
 		if err != nil {
 			return err
 		}
@@ -102,9 +102,9 @@ func appendImageRecipes(envelopes *[]facts.Envelope, boundary awscloud.Boundary,
 	return nil
 }
 
-func appendContainerRecipes(envelopes *[]facts.Envelope, boundary awscloud.Boundary, recipes []ContainerRecipe) error {
+func appendContainerRecipes(envelopes *[]facts.Envelope, boundary aws.Boundary, recipes []ContainerRecipe) error {
 	for _, recipe := range recipes {
-		resource, err := awscloud.NewResourceEnvelope(containerRecipeObservation(boundary, recipe))
+		resource, err := aws.NewResourceEnvelope(containerRecipeObservation(boundary, recipe))
 		if err != nil {
 			return err
 		}
@@ -116,9 +116,9 @@ func appendContainerRecipes(envelopes *[]facts.Envelope, boundary awscloud.Bound
 	return nil
 }
 
-func appendInfraConfigs(envelopes *[]facts.Envelope, boundary awscloud.Boundary, configs []InfrastructureConfiguration) error {
+func appendInfraConfigs(envelopes *[]facts.Envelope, boundary aws.Boundary, configs []InfrastructureConfiguration) error {
 	for _, config := range configs {
-		resource, err := awscloud.NewResourceEnvelope(infraConfigObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(infraConfigObservation(boundary, config))
 		if err != nil {
 			return err
 		}
@@ -130,9 +130,9 @@ func appendInfraConfigs(envelopes *[]facts.Envelope, boundary awscloud.Boundary,
 	return nil
 }
 
-func appendDistributionConfigs(envelopes *[]facts.Envelope, boundary awscloud.Boundary, configs []DistributionConfiguration) error {
+func appendDistributionConfigs(envelopes *[]facts.Envelope, boundary aws.Boundary, configs []DistributionConfiguration) error {
 	for _, config := range configs {
-		resource, err := awscloud.NewResourceEnvelope(distributionConfigObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(distributionConfigObservation(boundary, config))
 		if err != nil {
 			return err
 		}
@@ -141,9 +141,9 @@ func appendDistributionConfigs(envelopes *[]facts.Envelope, boundary awscloud.Bo
 	return nil
 }
 
-func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.RelationshipObservation) error {
+func appendRelationships(envelopes *[]facts.Envelope, observations []aws.RelationshipObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return err
 		}

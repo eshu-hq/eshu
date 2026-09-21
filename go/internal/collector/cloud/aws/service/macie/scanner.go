@@ -29,15 +29,15 @@ type Scanner struct {
 // When Macie is not enabled for the account the scanner emits a single disabled
 // session resource and makes no further reads, so a disabled account is cheap
 // and unambiguous rather than silently empty.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("macie scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMacie:
+	case "", aws.ServiceMacie:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMacie
+		boundary.ServiceKind = aws.ServiceMacie
 	default:
 		return nil, fmt.Errorf("macie scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -53,7 +53,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	var envelopes []facts.Envelope
-	sessionEnvelope, err := awscloud.NewResourceEnvelope(sessionObservation(boundary, session, administratorID))
+	sessionEnvelope, err := aws.NewResourceEnvelope(sessionObservation(boundary, session, administratorID))
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		// counts live on the account resource rather than fanning out into
 		// synthetic finding nodes. The first session envelope above guarantees a
 		// record even when Macie reports no findings.
-		withCounts, err := awscloud.NewResourceEnvelope(sessionObservationWithFindingCounts(boundary, session, administratorID, severityCounts))
+		withCounts, err := aws.NewResourceEnvelope(sessionObservationWithFindingCounts(boundary, session, administratorID, severityCounts))
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Macie members: %w", err)
 	}
 	for _, member := range members {
-		resource, err := awscloud.NewResourceEnvelope(memberObservation(boundary, member))
+		resource, err := aws.NewResourceEnvelope(memberObservation(boundary, member))
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !ok {
 			continue
 		}
-		relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		relationshipEnvelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Macie classification jobs: %w", err)
 	}
 	for _, job := range jobs {
-		resource, err := awscloud.NewResourceEnvelope(jobObservation(boundary, job))
+		resource, err := aws.NewResourceEnvelope(jobObservation(boundary, job))
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Macie allow lists: %w", err)
 	}
 	for _, allowList := range allowLists {
-		resource, err := awscloud.NewResourceEnvelope(allowListObservation(boundary, allowList))
+		resource, err := aws.NewResourceEnvelope(allowListObservation(boundary, allowList))
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +131,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Macie custom data identifiers: %w", err)
 	}
 	for _, identifier := range identifiers {
-		resource, err := awscloud.NewResourceEnvelope(customDataIdentifierObservation(boundary, identifier))
+		resource, err := aws.NewResourceEnvelope(customDataIdentifierObservation(boundary, identifier))
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +143,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Macie findings filters: %w", err)
 	}
 	for _, filter := range filters {
-		resource, err := awscloud.NewResourceEnvelope(findingsFilterObservation(boundary, filter))
+		resource, err := aws.NewResourceEnvelope(findingsFilterObservation(boundary, filter))
 		if err != nil {
 			return nil, err
 		}
@@ -153,16 +153,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func sessionObservation(boundary awscloud.Boundary, session Session, administratorID string) awscloud.ResourceObservation {
+func sessionObservation(boundary aws.Boundary, session Session, administratorID string) aws.ResourceObservation {
 	return sessionObservationWithFindingCounts(boundary, session, administratorID, nil)
 }
 
 func sessionObservationWithFindingCounts(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	session Session,
 	administratorID string,
 	severityCounts map[string]int64,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	accountID := strings.TrimSpace(boundary.AccountID)
 	attributes := map[string]any{
 		"account_id":                   accountID,
@@ -177,10 +177,10 @@ func sessionObservationWithFindingCounts(
 	if len(severityCounts) > 0 {
 		attributes["finding_counts_by_severity"] = cloneInt64Map(severityCounts)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         sessionResourceID(accountID),
-		ResourceType:       awscloud.ResourceTypeMacieSession,
+		ResourceType:       aws.ResourceTypeMacieSession,
 		Name:               accountID,
 		State:              sessionState(session),
 		Attributes:         attributes,
@@ -189,12 +189,12 @@ func sessionObservationWithFindingCounts(
 	}
 }
 
-func memberObservation(boundary awscloud.Boundary, member MemberAccount) awscloud.ResourceObservation {
+func memberObservation(boundary aws.Boundary, member MemberAccount) aws.ResourceObservation {
 	memberID := strings.TrimSpace(member.AccountID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(memberID),
-		ResourceType: awscloud.ResourceTypeMacieMemberAccount,
+		ResourceType: aws.ResourceTypeMacieMemberAccount,
 		Name:         memberID,
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Tags:         cloneStringMap(member.Tags),
@@ -210,12 +210,12 @@ func memberObservation(boundary awscloud.Boundary, member MemberAccount) awsclou
 	}
 }
 
-func jobObservation(boundary awscloud.Boundary, job ClassificationJob) awscloud.ResourceObservation {
+func jobObservation(boundary aws.Boundary, job ClassificationJob) aws.ResourceObservation {
 	jobID := strings.TrimSpace(job.JobID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   jobResourceID(jobID),
-		ResourceType: awscloud.ResourceTypeMacieClassificationJob,
+		ResourceType: aws.ResourceTypeMacieClassificationJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.JobStatus),
 		Attributes: map[string]any{
@@ -235,12 +235,12 @@ func jobObservation(boundary awscloud.Boundary, job ClassificationJob) awscloud.
 	}
 }
 
-func allowListObservation(boundary awscloud.Boundary, allowList AllowList) awscloud.ResourceObservation {
+func allowListObservation(boundary aws.Boundary, allowList AllowList) aws.ResourceObservation {
 	listID := strings.TrimSpace(allowList.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   allowListResourceID(listID),
-		ResourceType: awscloud.ResourceTypeMacieAllowList,
+		ResourceType: aws.ResourceTypeMacieAllowList,
 		Name:         strings.TrimSpace(allowList.Name),
 		Attributes: map[string]any{
 			"allow_list_id": listID,
@@ -250,12 +250,12 @@ func allowListObservation(boundary awscloud.Boundary, allowList AllowList) awscl
 	}
 }
 
-func customDataIdentifierObservation(boundary awscloud.Boundary, identifier CustomDataIdentifier) awscloud.ResourceObservation {
+func customDataIdentifierObservation(boundary aws.Boundary, identifier CustomDataIdentifier) aws.ResourceObservation {
 	identifierID := strings.TrimSpace(identifier.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   customDataIdentifierResourceID(identifierID),
-		ResourceType: awscloud.ResourceTypeMacieCustomDataIdentifier,
+		ResourceType: aws.ResourceTypeMacieCustomDataIdentifier,
 		Name:         strings.TrimSpace(identifier.Name),
 		Attributes: map[string]any{
 			"custom_data_identifier_id": identifierID,
@@ -265,12 +265,12 @@ func customDataIdentifierObservation(boundary awscloud.Boundary, identifier Cust
 	}
 }
 
-func findingsFilterObservation(boundary awscloud.Boundary, filter FindingsFilter) awscloud.ResourceObservation {
+func findingsFilterObservation(boundary aws.Boundary, filter FindingsFilter) aws.ResourceObservation {
 	filterID := strings.TrimSpace(filter.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   findingsFilterResourceID(filterID),
-		ResourceType: awscloud.ResourceTypeMacieFindingsFilter,
+		ResourceType: aws.ResourceTypeMacieFindingsFilter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"findings_filter_id": filterID,

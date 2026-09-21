@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -17,16 +17,16 @@ import (
 // the Direct Connect scanner builder. Direct Connect does not redact, so the
 // builder must succeed with a zero redaction key.
 func TestDirectConnectRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDirectConnect)
+	build, ok := runtime.LookupBuilder(aws.ServiceDirectConnect)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDirectConnect)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceDirectConnect)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary: awscloud.Boundary{
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceDirectConnect,
+			ServiceKind: aws.ServiceDirectConnect,
 		},
 	})
 	if err != nil {
@@ -41,7 +41,7 @@ func TestDirectConnectRuntimeBindRegisters(t *testing.T) {
 // does not declare RequiresRedactionKey: Direct Connect drops the BGP auth key
 // and MACsec key material by never mapping them, so it never needs a key.
 func TestDirectConnectRuntimeBindDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceDirectConnect) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false; Direct Connect drops secrets by exclusion", awscloud.ServiceDirectConnect)
+	if runtime.ServiceRequiresRedactionKey(aws.ServiceDirectConnect) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false; Direct Connect drops secrets by exclusion", aws.ServiceDirectConnect)
 	}
 }

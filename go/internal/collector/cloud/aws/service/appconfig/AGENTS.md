@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/appconfig guidance
+# AGENTS.md - internal/collector/cloud/aws/service/appconfig guidance
 
 ## Read First
 
@@ -25,7 +25,7 @@
   any `Create*`, `Update*`, `Delete*` mutation API.
 - AppConfig list responses carry no ARN. Synthesize the partition-aware
   application/environment/profile/deployment-strategy ARN with
-  `awscloud.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
+  `aws.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
   China must resolve to the real node. Each node publishes its synthesized ARN
   as its resource_id.
 - Key the environment-in-application and profile-in-application edges on the
@@ -40,7 +40,7 @@
   ARN-shaped role identifier, matching the IAM scanner's published role
   resource_id.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from application,
@@ -53,13 +53,13 @@
 
 - Add a new AppConfig metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry configuration content,
+  `aws` envelope builders. If the field can carry configuration content,
   leave it out of the scanner contract.
 - Add new relationship evidence only when the AppConfig API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (the CloudWatch alarm ARN, the IAM role ARN, the
   synthesized application ARN for the parent application).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

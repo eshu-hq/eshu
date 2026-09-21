@@ -16,4 +16,4 @@
 // knowledge base ingested document content, or action-group API schema bodies
 // into scanner-owned types. The reflection gate in exclusion_test.go fails the
 // build if a forbidden method ever reaches the adapter-local read interfaces.
-package awssdk
+package sdk

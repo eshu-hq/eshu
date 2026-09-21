@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kms` owns the KMS scanner contract for
+`internal/collector/cloud/aws/service/kms` owns the KMS scanner contract for
 the AWS cloud collector. It converts customer master keys, AWS-managed keys
 where AWS makes them listable, aliases, and grants into reported AWS facts
 and relationship evidence.
@@ -62,7 +62,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -72,9 +72,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan`
-returns. The `awssdk` adapter records KMS API call counts, throttles, and
+returns. The `sdk` adapter records KMS API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="kms"}` with the existing
 bounded AWS collector labels.
@@ -94,7 +94,7 @@ bounded AWS collector labels.
   UpdateAlias, DeleteAlias, TagResource, UntagResource,
   RotateKeyOnDemand, UpdatePrimaryRegion.
 - It must never persist key policy Statement bodies, statement Sids, or
-  condition VALUES. The `awssdk` adapter reads the key policy with
+  condition VALUES. The `sdk` adapter reads the key policy with
   GetKeyPolicy (owner-approved, PR4b of #1134) only to derive the
   normalized, metadata-only `aws_resource_policy_permission` projection
   (effect, normalized actions/resources, condition key/operator NAMES, derived
@@ -118,13 +118,13 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/kms/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/kms/...`
 covers the bounded KMS metadata path: paginated ListKeys discovery,
 per-key DescribeKey, ListAliases roll-up, ListGrants, ListKeyPolicies,
 GetKeyRotationStatus with UnsupportedOperationException tolerance, and
 ListResourceTags without cryptographic or lifecycle calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers KMS resource and relationship fact emission, omission of policy
 Statement bodies, omission of grant encryption contexts, runtime
 registration, command configuration, and the SDK adapter's safe
@@ -140,7 +140,7 @@ already diagnoses KMS scans through the bounded shared instruments.
 
 ### Resource-policy permission fact (PR4b of #1134)
 
-No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/service/kms/... -count=1`
+No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/cloud/aws ./internal/collector/cloud/aws/service/kms/... -count=1`
 covers the new `aws_resource_policy_permission` emission, the derived
 key-policy statement normalization, the GetKeyPolicy adapter call, and the
 existing metadata path. This slice is facts-only: no Cypher, graph write,

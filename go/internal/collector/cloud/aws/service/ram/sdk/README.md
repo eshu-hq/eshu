@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ram/awssdk` adapts the AWS SDK for Go v2
+`internal/collector/cloud/aws/service/ram/sdk` adapts the AWS SDK for Go v2
 Resource Access Manager client into the scanner-owned records the RAM scanner
 consumes. It owns pagination, SDK-to-scanner mapping, and AWS API telemetry for
 the RAM read surface.
@@ -29,8 +29,8 @@ stays explicit and auditable.
 
 - `github.com/aws/aws-sdk-go-v2/service/ram` and its `types` package for the RAM
   client, paginators, and response shapes.
-- `internal/collector/awscloud` for the boundary and API-call recording.
-- `internal/collector/awscloud/service/ram` for the scanner-owned record types
+- `internal/collector/cloud/aws` for the boundary and API-call recording.
+- `internal/collector/cloud/aws/service/ram` for the scanner-owned record types
   this adapter produces.
 - `internal/telemetry` for the AWS API-call counters and pagination span name.
 
@@ -59,14 +59,14 @@ It never puts ARNs, principal ids, or tags into metric labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/ram/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/ram/...`
 covers the bounded RAM metadata path: one paginated GetResourceShares stream
 scoped to resource owner SELF, then per-share paginated ListResources,
 ListPrincipals, and ListResourceSharePermissions streams. No mutation API and no
 permission-policy-body read is reachable, and the collector performs no graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers SELF-owner metadata mapping, share pagination, and the adapter exclusion
 contract; the scanner package covers fact and relationship emission.
 
@@ -86,6 +86,6 @@ No new instrument or label was added.
 ## Related docs
 
 - `../README.md` for the RAM scanner contract.
-- `../../../awsruntime/README.md` for the runtime surface.
+- `../../../runtime/README.md` for the runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

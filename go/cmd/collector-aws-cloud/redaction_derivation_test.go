@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"runtime"
+	stdruntime "runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -16,13 +16,13 @@ import (
 	// effects so the derived redaction set reflects production registrations.
 	// main.go imports the same aggregator; this keeps the test honest even if
 	// the command's import is refactored.
-	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime/bindings"
 )
 
 // TestRedactionKeySetDerivesFromRuntimebindRegistrations proves the command
 // derives the redaction-key requirement from the registry rather than a
 // hand-maintained switch. The expected set is computed from the
-// services/<svc>/runtimebind/bind.go files that set RequiresRedactionKey:
+// services/<svc>/bind/bind.go files that set RequiresRedactionKey:
 // true, so adding a redaction scanner needs no change here or in config.go.
 // A scanner that declares the flag in its binding but is missing from the
 // registry-derived set (or vice versa) fails this test.
@@ -31,9 +31,9 @@ func TestRedactionKeySetDerivesFromRuntimebindRegistrations(t *testing.T) {
 	if len(want) == 0 {
 		t.Fatalf("redactionRequiringServiceDirs() = empty, want the live redaction scanner set")
 	}
-	got := awsruntime.ServiceKindsRequiringRedactionKey()
+	got := runtime.ServiceKindsRequiringRedactionKey()
 	if !equalStringSets(got, want) {
-		t.Fatalf("ServiceKindsRequiringRedactionKey() = %v, want %v (derived from runtimebind RequiresRedactionKey flags)", got, want)
+		t.Fatalf("ServiceKindsRequiringRedactionKey() = %v, want %v (derived from bind RequiresRedactionKey flags)", got, want)
 	}
 }
 
@@ -43,7 +43,7 @@ func TestRedactionKeySetDerivesFromRuntimebindRegistrations(t *testing.T) {
 // code builds the phrase, so the assertion stays meaningful as scanners change
 // instead of pinning a brittle literal.
 func TestRedactionKeyErrorListsDerivedServices(t *testing.T) {
-	kinds := awsruntime.ServiceKindsRequiringRedactionKey()
+	kinds := runtime.ServiceKindsRequiringRedactionKey()
 	if len(kinds) < 3 {
 		t.Fatalf("ServiceKindsRequiringRedactionKey() = %v, want at least three redaction scanners for the join check", kinds)
 	}
@@ -107,7 +107,7 @@ func expectedRedactionPhrase(kinds []string) string {
 }
 
 // redactionRequiringServiceDirs returns the sorted set of service tokens whose
-// services/<svc>/runtimebind/bind.go declares RequiresRedactionKey: true. It
+// services/<svc>/bind/bind.go declares RequiresRedactionKey: true. It
 // reads the source on disk so the expected set is not a hand-maintained list:
 // the registry-derived set must match what the bindings actually register.
 func redactionRequiringServiceDirs(t *testing.T) []string {
@@ -122,7 +122,7 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 		if !entry.IsDir() {
 			continue
 		}
-		bindFile := filepath.Join(servicesDir, entry.Name(), "runtimebind", "bind.go")
+		bindFile := filepath.Join(servicesDir, entry.Name(), "bind", "register.go")
 		data, readErr := os.ReadFile(bindFile)
 		if os.IsNotExist(readErr) {
 			continue
@@ -142,7 +142,7 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 // test file's location so the walk does not depend on the working directory.
 func awsServicesDir(t *testing.T) string {
 	t.Helper()
-	_, currentFile, _, ok := runtime.Caller(0)
+	_, currentFile, _, ok := stdruntime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
@@ -151,7 +151,7 @@ func awsServicesDir(t *testing.T) string {
 	return filepath.Join(
 		filepath.Dir(currentFile),
 		"..", "..",
-		"internal", "collector", "awscloud", "service",
+		"internal", "collector", "cloud", "aws", "service",
 	)
 }
 

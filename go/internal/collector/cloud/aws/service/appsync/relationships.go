@@ -11,13 +11,13 @@ import (
 
 // apiAuthRelationships records the Cognito user pools and OIDC issuers a GraphQL
 // API authenticates against.
-func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud.RelationshipObservation {
+func apiAuthRelationships(boundary aws.Boundary, api GraphQLAPI) []aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	apiARN := strings.TrimSpace(api.ARN)
 	if apiID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, ref := range api.UserPools {
 		// AppSync reports the bare Cognito user pool ID. The Cognito scanner
 		// publishes the user pool node with resource_id firstNonEmpty(poolID,
@@ -28,13 +28,13 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 		if poolID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncAPIUsesUserPool,
+			RelationshipType: aws.RelationshipAppSyncAPIUsesUserPool,
 			SourceResourceID: apiID,
 			SourceARN:        apiARN,
 			TargetResourceID: poolID,
-			TargetType:       awscloud.ResourceTypeCognitoUserPool,
+			TargetType:       aws.ResourceTypeCognitoUserPool,
 			Attributes: map[string]any{
 				"user_pool_region": strings.TrimSpace(ref.AwsRegion),
 			},
@@ -46,13 +46,13 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 		if issuer == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncAPIUsesOIDCIssuer,
+			RelationshipType: aws.RelationshipAppSyncAPIUsesOIDCIssuer,
 			SourceResourceID: apiID,
 			SourceARN:        apiARN,
 			TargetResourceID: issuer,
-			TargetType:       awscloud.AppSyncOIDCIssuerTargetType,
+			TargetType:       aws.AppSyncOIDCIssuerTargetType,
 			SourceRecordID:   apiID + "#oidc-issuer#" + issuer,
 		})
 	}
@@ -61,20 +61,20 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 
 // dataSourceRelationships records the API-to-data-source edge and the
 // data-source-to-backing-resource edge for one data source.
-func dataSourceRelationships(boundary awscloud.Boundary, api GraphQLAPI, ds DataSource) []awscloud.RelationshipObservation {
+func dataSourceRelationships(boundary aws.Boundary, api GraphQLAPI, ds DataSource) []aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	dsID := dataSourceResourceID(api.ID, ds.Name)
 	if apiID == "" || strings.TrimSpace(ds.Name) == "" {
 		return nil
 	}
-	relationships := []awscloud.RelationshipObservation{{
+	relationships := []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncAPIHasDataSource,
+		RelationshipType: aws.RelationshipAppSyncAPIHasDataSource,
 		SourceResourceID: apiID,
 		SourceARN:        strings.TrimSpace(api.ARN),
 		TargetResourceID: dsID,
 		TargetARN:        strings.TrimSpace(ds.ARN),
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       aws.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": strings.TrimSpace(ds.Name),
 			"type":             strings.TrimSpace(ds.Type),
@@ -82,9 +82,9 @@ func dataSourceRelationships(boundary awscloud.Boundary, api GraphQLAPI, ds Data
 		SourceRecordID: apiID + "#data-source#" + strings.TrimSpace(ds.Name),
 	}}
 	if target := dataSourceTarget(api, ds); target != nil {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncDataSourceTargetsResource,
+			RelationshipType: aws.RelationshipAppSyncDataSourceTargetsResource,
 			SourceResourceID: dsID,
 			SourceARN:        strings.TrimSpace(ds.ARN),
 			TargetResourceID: target.resourceID,
@@ -100,7 +100,7 @@ func dataSourceRelationships(boundary awscloud.Boundary, api GraphQLAPI, ds Data
 }
 
 // resolverDataSourceRelationship records the data source a resolver invokes.
-func resolverDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, resolver Resolver) *awscloud.RelationshipObservation {
+func resolverDataSourceRelationship(boundary aws.Boundary, api GraphQLAPI, resolver Resolver) *aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	dsName := strings.TrimSpace(resolver.DataSourceName)
 	resolverID := resolverResourceID(api.ID, resolver.TypeName, resolver.FieldName)
@@ -108,13 +108,13 @@ func resolverDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, 
 		return nil
 	}
 	dsID := dataSourceResourceID(api.ID, dsName)
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncResolverUsesDataSource,
+		RelationshipType: aws.RelationshipAppSyncResolverUsesDataSource,
 		SourceResourceID: resolverID,
 		SourceARN:        strings.TrimSpace(resolver.ARN),
 		TargetResourceID: dsID,
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       aws.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": dsName,
 		},
@@ -124,7 +124,7 @@ func resolverDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, 
 
 // functionDataSourceRelationship records the data source a pipeline function
 // invokes.
-func functionDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, function Function) *awscloud.RelationshipObservation {
+func functionDataSourceRelationship(boundary aws.Boundary, api GraphQLAPI, function Function) *aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	dsName := strings.TrimSpace(function.DataSourceName)
 	functionID := functionResourceID(api.ID, function.ID, function.Name)
@@ -132,13 +132,13 @@ func functionDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, 
 		return nil
 	}
 	dsID := dataSourceResourceID(api.ID, dsName)
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncFunctionUsesDataSource,
+		RelationshipType: aws.RelationshipAppSyncFunctionUsesDataSource,
 		SourceResourceID: functionID,
 		SourceARN:        strings.TrimSpace(function.ARN),
 		TargetResourceID: dsID,
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       aws.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": dsName,
 		},
@@ -161,7 +161,7 @@ type dataSourceTargetRef struct {
 func dataSourceTarget(api GraphQLAPI, ds DataSource) *dataSourceTargetRef {
 	if arn := strings.TrimSpace(ds.LambdaFunctionARN); arn != "" {
 		// The Lambda scanner publishes the function ARN as its resource_id.
-		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: awscloud.ResourceTypeLambdaFunction}
+		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: aws.ResourceTypeLambdaFunction}
 	}
 	if name := strings.TrimSpace(ds.DynamoDBTableName); name != "" {
 		// The DynamoDB scanner prefers the table ARN as resource_id and carries
@@ -174,17 +174,17 @@ func dataSourceTarget(api GraphQLAPI, ds DataSource) *dataSourceTargetRef {
 		if tableARN != "" {
 			resourceID = tableARN
 		}
-		return &dataSourceTargetRef{resourceID: resourceID, arn: tableARN, targetType: awscloud.ResourceTypeDynamoDBTable}
+		return &dataSourceTargetRef{resourceID: resourceID, arn: tableARN, targetType: aws.ResourceTypeDynamoDBTable}
 	}
 	if arn := strings.TrimSpace(ds.RDSClusterARN); arn != "" {
 		// The RDS scanner publishes the cluster ARN as its resource_id.
-		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: awscloud.ResourceTypeRDSDBCluster}
+		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: aws.ResourceTypeRDSDBCluster}
 	}
 	if endpoint := strings.TrimSpace(ds.OpenSearchEndpoint); endpoint != "" {
-		return &dataSourceTargetRef{resourceID: endpoint, targetType: awscloud.AppSyncDataSourceTargetTypeOpenSearch}
+		return &dataSourceTargetRef{resourceID: endpoint, targetType: aws.AppSyncDataSourceTargetTypeOpenSearch}
 	}
 	if endpoint := strings.TrimSpace(ds.HTTPEndpoint); endpoint != "" {
-		return &dataSourceTargetRef{resourceID: endpoint, targetType: awscloud.AppSyncDataSourceTargetTypeHTTPEndpoint}
+		return &dataSourceTargetRef{resourceID: endpoint, targetType: aws.AppSyncDataSourceTargetTypeHTTPEndpoint}
 	}
 	return nil
 }

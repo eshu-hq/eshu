@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/config/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/config/sdk` adapts AWS SDK for Go v2
 Config responses to the scanner-owned `config.Client` contract. It owns Config
 pagination, the configuration recorder and delivery channel describes, the
 config rule describe, the conformance pack describe joined with deployment
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/config` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/config` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `configservice` and Smithy error contracts.
 

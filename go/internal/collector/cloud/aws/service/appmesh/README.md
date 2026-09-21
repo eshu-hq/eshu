@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appmesh` owns the App Mesh scanner
+`internal/collector/cloud/aws/service/appmesh` owns the App Mesh scanner
 contract for the AWS cloud collector. It converts mesh, virtual service,
 virtual node, virtual router, route, virtual gateway, and gateway route metadata
 into `aws_resource` facts and emits `aws_relationship` facts for the edges App
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and the shared `RedactString` and
   `ClassifyStackOutput` redaction helpers.
 - `internal/facts` for emitted fact envelope kinds.
@@ -51,9 +51,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
-(`eshu_dp_aws_resources_emitted_total{service="appmesh"}`). The `awssdk` adapter
+(`eshu_dp_aws_resources_emitted_total{service="appmesh"}`). The `sdk` adapter
 records App Mesh API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -82,7 +82,7 @@ records App Mesh API call counts, throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/appmesh/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/appmesh/... -count=1 -race`
 covers the bounded App Mesh metadata path: one paginated `ListMeshes`, then per
 mesh one paginated list and one Describe per virtual service, virtual node,
 virtual router, virtual gateway, route, and gateway route; one tag read per
@@ -90,7 +90,7 @@ resource; no certificate-body reads; no mutations. Cardinality is bounded by
 the resource counts App Mesh returns for the claimed account and region.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers App Mesh resource and relationship emission, ACM Private CA certificate
 authority join keys, Cloud Map and DNS service-discovery edges, sensitive header value
 redaction, certificate-body exclusion, runtime registration through the derived

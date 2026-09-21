@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
@@ -27,7 +27,7 @@ type fakeEC2 struct {
 func (f *fakeEC2) token(page, total int) *string {
 	if page+1 < total {
 		next := "page" + string(rune('1'+page))
-		return aws.String(next)
+		return awsv2.String(next)
 	}
 	return nil
 }
@@ -76,36 +76,36 @@ func (f *fakeEC2) DescribeVerifiedAccessTrustProviders(_ context.Context, in *aw
 func TestSnapshotPaginatesAndMapsMetadata(t *testing.T) {
 	fake := &fakeEC2{
 		instances: [][]awsec2types.VerifiedAccessInstance{
-			{{VerifiedAccessInstanceId: aws.String("vai-1"), FipsEnabled: aws.Bool(true), VerifiedAccessTrustProviders: []awsec2types.VerifiedAccessTrustProviderCondensed{{VerifiedAccessTrustProviderId: aws.String("vatp-1")}}}},
-			{{VerifiedAccessInstanceId: aws.String("vai-2"), CreationTime: aws.String("2026-05-01T12:00:00Z")}},
+			{{VerifiedAccessInstanceId: awsv2.String("vai-1"), FipsEnabled: awsv2.Bool(true), VerifiedAccessTrustProviders: []awsec2types.VerifiedAccessTrustProviderCondensed{{VerifiedAccessTrustProviderId: awsv2.String("vatp-1")}}}},
+			{{VerifiedAccessInstanceId: awsv2.String("vai-2"), CreationTime: awsv2.String("2026-05-01T12:00:00Z")}},
 		},
 		groups: [][]awsec2types.VerifiedAccessGroup{
-			{{VerifiedAccessGroupId: aws.String("vagr-1"), VerifiedAccessGroupArn: aws.String("arn:aws:ec2:us-east-1:123456789012:verified-access-group/vagr-1"), VerifiedAccessInstanceId: aws.String("vai-1")}},
+			{{VerifiedAccessGroupId: awsv2.String("vagr-1"), VerifiedAccessGroupArn: awsv2.String("arn:aws:ec2:us-east-1:123456789012:verified-access-group/vagr-1"), VerifiedAccessInstanceId: awsv2.String("vai-1")}},
 			{},
 		},
 		endpoints: [][]awsec2types.VerifiedAccessEndpoint{
 			{{
-				VerifiedAccessEndpointId: aws.String("vae-1"),
-				VerifiedAccessGroupId:    aws.String("vagr-1"),
+				VerifiedAccessEndpointId: awsv2.String("vae-1"),
+				VerifiedAccessGroupId:    awsv2.String("vagr-1"),
 				EndpointType:             awsec2types.VerifiedAccessEndpointTypeLoadBalancer,
-				DomainCertificateArn:     aws.String("arn:aws:acm:us-east-1:123456789012:certificate/abc"),
+				DomainCertificateArn:     awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/abc"),
 				SecurityGroupIds:         []string{"sg-1"},
 				Status:                   &awsec2types.VerifiedAccessEndpointStatus{Code: awsec2types.VerifiedAccessEndpointStatusCodeActive},
-				LoadBalancerOptions:      &awsec2types.VerifiedAccessEndpointLoadBalancerOptions{SubnetIds: []string{"subnet-1"}, LoadBalancerArn: aws.String("arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc")},
+				LoadBalancerOptions:      &awsec2types.VerifiedAccessEndpointLoadBalancerOptions{SubnetIds: []string{"subnet-1"}, LoadBalancerArn: awsv2.String("arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc")},
 			}},
 			{},
 		},
 		trustProviders: [][]awsec2types.VerifiedAccessTrustProvider{
 			{{
-				VerifiedAccessTrustProviderId: aws.String("vatp-1"),
+				VerifiedAccessTrustProviderId: awsv2.String("vatp-1"),
 				TrustProviderType:             awsec2types.TrustProviderTypeUser,
 				UserTrustProviderType:         awsec2types.UserTrustProviderTypeOidc,
-				OidcOptions:                   &awsec2types.OidcOptions{Issuer: aws.String("https://issuer.example.com"), ClientSecret: aws.String("super-secret"), ClientId: aws.String("client-123")},
+				OidcOptions:                   &awsec2types.OidcOptions{Issuer: awsv2.String("https://issuer.example.com"), ClientSecret: awsv2.String("super-secret"), ClientId: awsv2.String("client-123")},
 			}},
 			{},
 		},
 	}
-	client := &Client{client: fake, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceVerifiedAccess}}
+	client := &Client{client: fake, boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceVerifiedAccess}}
 
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
@@ -141,10 +141,10 @@ func TestParseTimeHandlesEmptyAndInvalid(t *testing.T) {
 	if got := parseTime(nil); !got.IsZero() {
 		t.Fatalf("parseTime(nil) = %v, want zero", got)
 	}
-	if got := parseTime(aws.String("not-a-time")); !got.IsZero() {
+	if got := parseTime(awsv2.String("not-a-time")); !got.IsZero() {
 		t.Fatalf("parseTime(invalid) = %v, want zero", got)
 	}
-	if got := parseTime(aws.String("2026-05-01T12:00:00Z")); got.IsZero() {
+	if got := parseTime(awsv2.String("2026-05-01T12:00:00Z")); got.IsZero() {
 		t.Fatalf("parseTime(valid) = zero, want parsed")
 	}
 }

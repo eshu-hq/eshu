@@ -39,7 +39,7 @@ type Snapshot struct {
 	FleetStackAssociations []FleetStackAssociation
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // FleetStackAssociation records that a fleet is associated with a stack, keyed

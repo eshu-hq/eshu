@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsredshift "github.com/aws/aws-sdk-go-v2/service/redshift"
 	awsredshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	awsserverless "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
@@ -23,81 +23,81 @@ func TestClientMapsProvisionedRedshiftMetadataOnly(t *testing.T) {
 	provisioned := &fakeProvisionedAPI{
 		clusterPages: []*awsredshift.DescribeClustersOutput{{
 			Clusters: []awsredshifttypes.Cluster{{
-				ClusterIdentifier:                aws.String("analytics"),
-				NodeType:                         aws.String("ra3.xlplus"),
-				ClusterStatus:                    aws.String("available"),
-				ClusterAvailabilityStatus:        aws.String("Available"),
-				DBName:                           aws.String("analytics"),
-				Endpoint:                         &awsredshifttypes.Endpoint{Address: aws.String("analytics.example"), Port: aws.Int32(5439)},
-				ClusterCreateTime:                aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
-				AutomatedSnapshotRetentionPeriod: aws.Int32(7),
-				ManualSnapshotRetentionPeriod:    aws.Int32(-1),
-				VpcSecurityGroups:                []awsredshifttypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-redshift-1")}},
-				ClusterParameterGroups:           []awsredshifttypes.ClusterParameterGroupStatus{{ParameterGroupName: aws.String("analytics-params")}},
-				ClusterSubnetGroupName:           aws.String("analytics-subnets"),
-				VpcId:                            aws.String("vpc-redshift"),
-				AvailabilityZone:                 aws.String("us-east-1a"),
-				ClusterVersion:                   aws.String("1.0"),
-				AllowVersionUpgrade:              aws.Bool(true),
-				NumberOfNodes:                    aws.Int32(4),
-				PubliclyAccessible:               aws.Bool(false),
-				Encrypted:                        aws.Bool(true),
-				KmsKeyId:                         aws.String("arn:aws:kms:us-east-1:123456789012:key/analytics"),
-				EnhancedVpcRouting:               aws.Bool(true),
-				IamRoles:                         []awsredshifttypes.ClusterIamRole{{IamRoleArn: aws.String("arn:aws:iam::123456789012:role/redshift-analytics")}},
-				MultiAZ:                          aws.String("Enabled"),
-				MasterUsername:                   aws.String("do-not-copy"),
-				MasterPasswordSecretArn:          aws.String("do-not-copy"),
-				MasterPasswordSecretKmsKeyId:     aws.String("do-not-copy"),
-				Tags:                             []awsredshifttypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+				ClusterIdentifier:                awsv2.String("analytics"),
+				NodeType:                         awsv2.String("ra3.xlplus"),
+				ClusterStatus:                    awsv2.String("available"),
+				ClusterAvailabilityStatus:        awsv2.String("Available"),
+				DBName:                           awsv2.String("analytics"),
+				Endpoint:                         &awsredshifttypes.Endpoint{Address: awsv2.String("analytics.example"), Port: awsv2.Int32(5439)},
+				ClusterCreateTime:                awsv2.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
+				AutomatedSnapshotRetentionPeriod: awsv2.Int32(7),
+				ManualSnapshotRetentionPeriod:    awsv2.Int32(-1),
+				VpcSecurityGroups:                []awsredshifttypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: awsv2.String("sg-redshift-1")}},
+				ClusterParameterGroups:           []awsredshifttypes.ClusterParameterGroupStatus{{ParameterGroupName: awsv2.String("analytics-params")}},
+				ClusterSubnetGroupName:           awsv2.String("analytics-subnets"),
+				VpcId:                            awsv2.String("vpc-redshift"),
+				AvailabilityZone:                 awsv2.String("us-east-1a"),
+				ClusterVersion:                   awsv2.String("1.0"),
+				AllowVersionUpgrade:              awsv2.Bool(true),
+				NumberOfNodes:                    awsv2.Int32(4),
+				PubliclyAccessible:               awsv2.Bool(false),
+				Encrypted:                        awsv2.Bool(true),
+				KmsKeyId:                         awsv2.String("arn:aws:kms:us-east-1:123456789012:key/analytics"),
+				EnhancedVpcRouting:               awsv2.Bool(true),
+				IamRoles:                         []awsredshifttypes.ClusterIamRole{{IamRoleArn: awsv2.String("arn:aws:iam::123456789012:role/redshift-analytics")}},
+				MultiAZ:                          awsv2.String("Enabled"),
+				MasterUsername:                   awsv2.String("do-not-copy"),
+				MasterPasswordSecretArn:          awsv2.String("do-not-copy"),
+				MasterPasswordSecretKmsKeyId:     awsv2.String("do-not-copy"),
+				Tags:                             []awsredshifttypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 			}},
 		}},
 		parameterGroupPages: []*awsredshift.DescribeClusterParameterGroupsOutput{{
 			ParameterGroups: []awsredshifttypes.ClusterParameterGroup{{
-				ParameterGroupName:   aws.String("analytics-params"),
-				ParameterGroupFamily: aws.String("redshift-1.0"),
-				Description:          aws.String("analytics"),
-				Tags:                 []awsredshifttypes.Tag{{Key: aws.String("Tier"), Value: aws.String("data")}},
+				ParameterGroupName:   awsv2.String("analytics-params"),
+				ParameterGroupFamily: awsv2.String("redshift-1.0"),
+				Description:          awsv2.String("analytics"),
+				Tags:                 []awsredshifttypes.Tag{{Key: awsv2.String("Tier"), Value: awsv2.String("data")}},
 			}},
 		}},
 		subnetGroupPages: []*awsredshift.DescribeClusterSubnetGroupsOutput{{
 			ClusterSubnetGroups: []awsredshifttypes.ClusterSubnetGroup{{
-				ClusterSubnetGroupName: aws.String("analytics-subnets"),
-				VpcId:                  aws.String("vpc-redshift"),
-				Description:            aws.String("subnets"),
-				SubnetGroupStatus:      aws.String("Complete"),
-				Subnets:                []awsredshifttypes.Subnet{{SubnetIdentifier: aws.String("subnet-a")}},
+				ClusterSubnetGroupName: awsv2.String("analytics-subnets"),
+				VpcId:                  awsv2.String("vpc-redshift"),
+				Description:            awsv2.String("subnets"),
+				SubnetGroupStatus:      awsv2.String("Complete"),
+				Subnets:                []awsredshifttypes.Subnet{{SubnetIdentifier: awsv2.String("subnet-a")}},
 			}},
 		}},
 		snapshotPages: []*awsredshift.DescribeClusterSnapshotsOutput{{
 			Snapshots: []awsredshifttypes.Snapshot{{
-				SnapshotIdentifier:           aws.String("rs:analytics-2026-05-20-00"),
-				ClusterIdentifier:            aws.String("analytics"),
-				SnapshotType:                 aws.String("automated"),
-				Status:                       aws.String("available"),
-				NodeType:                     aws.String("ra3.xlplus"),
-				NumberOfNodes:                aws.Int32(4),
-				DBName:                       aws.String("analytics"),
-				VpcId:                        aws.String("vpc-redshift"),
-				Encrypted:                    aws.Bool(true),
-				KmsKeyId:                     aws.String("arn:aws:kms:us-east-1:123456789012:key/analytics"),
-				SnapshotCreateTime:           aws.Time(time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)),
-				MasterUsername:               aws.String("do-not-copy"),
-				MasterPasswordSecretArn:      aws.String("do-not-copy"),
-				MasterPasswordSecretKmsKeyId: aws.String("do-not-copy"),
-				Tags:                         []awsredshifttypes.Tag{{Key: aws.String("Backup"), Value: aws.String("true")}},
+				SnapshotIdentifier:           awsv2.String("rs:analytics-2026-05-20-00"),
+				ClusterIdentifier:            awsv2.String("analytics"),
+				SnapshotType:                 awsv2.String("automated"),
+				Status:                       awsv2.String("available"),
+				NodeType:                     awsv2.String("ra3.xlplus"),
+				NumberOfNodes:                awsv2.Int32(4),
+				DBName:                       awsv2.String("analytics"),
+				VpcId:                        awsv2.String("vpc-redshift"),
+				Encrypted:                    awsv2.Bool(true),
+				KmsKeyId:                     awsv2.String("arn:aws:kms:us-east-1:123456789012:key/analytics"),
+				SnapshotCreateTime:           awsv2.Time(time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)),
+				MasterUsername:               awsv2.String("do-not-copy"),
+				MasterPasswordSecretArn:      awsv2.String("do-not-copy"),
+				MasterPasswordSecretKmsKeyId: awsv2.String("do-not-copy"),
+				Tags:                         []awsredshifttypes.Tag{{Key: awsv2.String("Backup"), Value: awsv2.String("true")}},
 			}},
 		}},
 		scheduledActionPages: []*awsredshift.DescribeScheduledActionsOutput{{
 			ScheduledActions: []awsredshifttypes.ScheduledAction{{
-				ScheduledActionName: aws.String("pause-analytics-overnight"),
-				Schedule:            aws.String("cron(0 23 * * ? *)"),
-				IamRole:             aws.String("arn:aws:iam::123456789012:role/redshift-pauser"),
+				ScheduledActionName: awsv2.String("pause-analytics-overnight"),
+				Schedule:            awsv2.String("cron(0 23 * * ? *)"),
+				IamRole:             awsv2.String("arn:aws:iam::123456789012:role/redshift-pauser"),
 				State:               awsredshifttypes.ScheduledActionStateActive,
-				StartTime:           aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				StartTime:           awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 				NextInvocations:     []time.Time{time.Date(2026, 5, 27, 23, 0, 0, 0, time.UTC)},
 				TargetAction: &awsredshifttypes.ScheduledActionType{
-					PauseCluster: &awsredshifttypes.PauseClusterMessage{ClusterIdentifier: aws.String("analytics")},
+					PauseCluster: &awsredshifttypes.PauseClusterMessage{ClusterIdentifier: awsv2.String("analytics")},
 				},
 			}},
 		}},
@@ -175,10 +175,10 @@ func TestClientMapsProvisionedRedshiftMetadataOnly(t *testing.T) {
 func TestClientPaginatesClustersAcrossMarkers(t *testing.T) {
 	provisioned := &fakeProvisionedAPI{
 		clusterPages: []*awsredshift.DescribeClustersOutput{{
-			Clusters: []awsredshifttypes.Cluster{{ClusterIdentifier: aws.String("first")}},
-			Marker:   aws.String("next-clusters"),
+			Clusters: []awsredshifttypes.Cluster{{ClusterIdentifier: awsv2.String("first")}},
+			Marker:   awsv2.String("next-clusters"),
 		}, {
-			Clusters: []awsredshifttypes.Cluster{{ClusterIdentifier: aws.String("second")}},
+			Clusters: []awsredshifttypes.Cluster{{ClusterIdentifier: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{provisioned: provisioned, serverless: &fakeServerlessAPI{}, boundary: testBoundary()}
@@ -201,45 +201,45 @@ func TestClientMapsServerlessMetadataAndTags(t *testing.T) {
 	serverless := &fakeServerlessAPI{
 		namespacePages: []*awsserverless.ListNamespacesOutput{{
 			Namespaces: []awsserverlesstypes.Namespace{{
-				NamespaceArn:                aws.String(namespaceARN),
-				NamespaceName:               aws.String("analytics-ns"),
-				NamespaceId:                 aws.String("ns-abc"),
+				NamespaceArn:                awsv2.String(namespaceARN),
+				NamespaceName:               awsv2.String("analytics-ns"),
+				NamespaceId:                 awsv2.String("ns-abc"),
 				Status:                      awsserverlesstypes.NamespaceStatusAvailable,
-				DbName:                      aws.String("analytics"),
-				DefaultIamRoleArn:           aws.String("arn:aws:iam::123456789012:role/redshift-serverless"),
+				DbName:                      awsv2.String("analytics"),
+				DefaultIamRoleArn:           awsv2.String("arn:aws:iam::123456789012:role/redshift-serverless"),
 				IamRoles:                    []string{"arn:aws:iam::123456789012:role/redshift-serverless"},
-				KmsKeyId:                    aws.String("arn:aws:kms:us-east-1:123456789012:key/analytics-ns"),
+				KmsKeyId:                    awsv2.String("arn:aws:kms:us-east-1:123456789012:key/analytics-ns"),
 				LogExports:                  []awsserverlesstypes.LogExport{awsserverlesstypes.LogExportConnectionLog, awsserverlesstypes.LogExportUserLog},
-				CreationDate:                aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
-				AdminUsername:               aws.String("do-not-copy"),
-				AdminPasswordSecretArn:      aws.String("do-not-copy"),
-				AdminPasswordSecretKmsKeyId: aws.String("do-not-copy"),
+				CreationDate:                awsv2.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
+				AdminUsername:               awsv2.String("do-not-copy"),
+				AdminPasswordSecretArn:      awsv2.String("do-not-copy"),
+				AdminPasswordSecretKmsKeyId: awsv2.String("do-not-copy"),
 			}},
 		}},
 		workgroupPages: []*awsserverless.ListWorkgroupsOutput{{
 			Workgroups: []awsserverlesstypes.Workgroup{{
-				WorkgroupArn:       aws.String(workgroupARN),
-				WorkgroupName:      aws.String("analytics-wg"),
-				WorkgroupId:        aws.String("wg-abc"),
-				NamespaceName:      aws.String("analytics-ns"),
+				WorkgroupArn:       awsv2.String(workgroupARN),
+				WorkgroupName:      awsv2.String("analytics-wg"),
+				WorkgroupId:        awsv2.String("wg-abc"),
+				NamespaceName:      awsv2.String("analytics-ns"),
 				Status:             awsserverlesstypes.WorkgroupStatusAvailable,
-				BaseCapacity:       aws.Int32(64),
-				MaxCapacity:        aws.Int32(512),
-				EnhancedVpcRouting: aws.Bool(true),
-				PubliclyAccessible: aws.Bool(false),
+				BaseCapacity:       awsv2.Int32(64),
+				MaxCapacity:        awsv2.Int32(512),
+				EnhancedVpcRouting: awsv2.Bool(true),
+				PubliclyAccessible: awsv2.Bool(false),
 				ConfigParameters: []awsserverlesstypes.ConfigParameter{{
-					ParameterKey:   aws.String("datestyle"),
-					ParameterValue: aws.String("ISO, MDY"),
+					ParameterKey:   awsv2.String("datestyle"),
+					ParameterValue: awsv2.String("ISO, MDY"),
 				}},
 				SubnetIds:        []string{"subnet-a", "subnet-b"},
 				SecurityGroupIds: []string{"sg-redshift-wg"},
-				Endpoint:         &awsserverlesstypes.Endpoint{Address: aws.String("analytics-wg.example"), Port: aws.Int32(5439)},
-				CreationDate:     aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
+				Endpoint:         &awsserverlesstypes.Endpoint{Address: awsv2.String("analytics-wg.example"), Port: awsv2.Int32(5439)},
+				CreationDate:     awsv2.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		tags: map[string][]awsserverlesstypes.Tag{
-			namespaceARN: {{Key: aws.String("Owner"), Value: aws.String("analytics")}},
-			workgroupARN: {{Key: aws.String("Owner"), Value: aws.String("analytics")}},
+			namespaceARN: {{Key: awsv2.String("Owner"), Value: awsv2.String("analytics")}},
+			workgroupARN: {{Key: awsv2.String("Owner"), Value: awsv2.String("analytics")}},
 		},
 	}
 	adapter := &Client{provisioned: &fakeProvisionedAPI{}, serverless: serverless, boundary: testBoundary()}
@@ -278,11 +278,11 @@ func TestClientMapsServerlessMetadataAndTags(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceRedshift,
+		ServiceKind: aws.ServiceRedshift,
 	}
 }
 
@@ -306,8 +306,8 @@ func (f *fakeProvisionedAPI) DescribeClusters(
 	input *awsredshift.DescribeClustersInput,
 	_ ...func(*awsredshift.Options),
 ) (*awsredshift.DescribeClustersOutput, error) {
-	f.clusterMarkers = append(f.clusterMarkers, aws.ToString(input.Marker))
-	f.clusterMaxRecords = append(f.clusterMaxRecords, aws.ToInt32(input.MaxRecords))
+	f.clusterMarkers = append(f.clusterMarkers, awsv2.ToString(input.Marker))
+	f.clusterMaxRecords = append(f.clusterMaxRecords, awsv2.ToInt32(input.MaxRecords))
 	if f.clusterCalls >= len(f.clusterPages) {
 		return &awsredshift.DescribeClustersOutput{}, nil
 	}
@@ -408,7 +408,7 @@ func (f *fakeServerlessAPI) ListTagsForResource(
 	input *awsserverless.ListTagsForResourceInput,
 	_ ...func(*awsserverless.Options),
 ) (*awsserverless.ListTagsForResourceOutput, error) {
-	resourceARN := aws.ToString(input.ResourceArn)
+	resourceARN := awsv2.ToString(input.ResourceArn)
 	f.tagRequests = append(f.tagRequests, resourceARN)
 	if f.tags == nil {
 		return &awsserverless.ListTagsForResourceOutput{}, nil

@@ -15,13 +15,13 @@ import (
 // actions (Lambda, SSM, autoscaling, etc.) are ignored here — only the SNS
 // notification fan-out is tracked.
 func alarmSNSRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	alarmARN string,
 	alarmName string,
 	alarmActions []string,
 	okActions []string,
 	insufficientDataActions []string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	source := firstNonEmpty(strings.TrimSpace(alarmARN), strings.TrimSpace(alarmName))
 	if source == "" {
 		return nil
@@ -49,16 +49,16 @@ func alarmSNSRelationships(
 	for _, arn := range insufficientDataActions {
 		add(arn, "insufficient_data")
 	}
-	relationships := make([]awscloud.RelationshipObservation, 0, len(seen))
+	relationships := make([]aws.RelationshipObservation, 0, len(seen))
 	for topicARN, categories := range seen {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudWatchAlarmNotifiesSNSTopic,
+			RelationshipType: aws.RelationshipCloudWatchAlarmNotifiesSNSTopic,
 			SourceResourceID: source,
 			SourceARN:        strings.TrimSpace(alarmARN),
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       aws.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"alarm_name":     strings.TrimSpace(alarmName),
 				"action_classes": categories,
@@ -74,15 +74,15 @@ func alarmSNSRelationships(
 // alarm name only because the composite alarm rule names children by name,
 // not ARN; the reducer materializes the ARN later through correlation.
 func compositeChildRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	alarm CompositeAlarm,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	source := firstNonEmpty(strings.TrimSpace(alarm.ARN), strings.TrimSpace(alarm.Name))
 	if source == "" {
 		return nil
 	}
 	seen := map[string]struct{}{}
-	relationships := make([]awscloud.RelationshipObservation, 0, len(alarm.ChildAlarmNames))
+	relationships := make([]aws.RelationshipObservation, 0, len(alarm.ChildAlarmNames))
 	for _, child := range alarm.ChildAlarmNames {
 		trimmed := strings.TrimSpace(child)
 		if trimmed == "" {
@@ -92,13 +92,13 @@ func compositeChildRelationships(
 			continue
 		}
 		seen[trimmed] = struct{}{}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudWatchCompositeAlarmHasChildAlarm,
+			RelationshipType: aws.RelationshipCloudWatchCompositeAlarmHasChildAlarm,
 			SourceResourceID: source,
 			SourceARN:        strings.TrimSpace(alarm.ARN),
 			TargetResourceID: trimmed,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
+			TargetType:       aws.ResourceTypeCloudWatchAlarm,
 			Attributes: map[string]any{
 				"alarm_rule": strings.TrimSpace(alarm.AlarmRule),
 				"child_name": trimmed,
@@ -114,22 +114,22 @@ func compositeChildRelationships(
 // streams are documented to deliver only to Firehose today, but if AWS adds a
 // new destination type the scanner stays silent rather than misroute.
 func metricStreamFirehoseRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stream MetricStream,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	source := firstNonEmpty(strings.TrimSpace(stream.ARN), strings.TrimSpace(stream.Name))
 	firehoseARN := strings.TrimSpace(stream.FirehoseARN)
 	if source == "" || !strings.Contains(firehoseARN, ":firehose:") {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudWatchMetricStreamDeliversToFirehose,
+		RelationshipType: aws.RelationshipCloudWatchMetricStreamDeliversToFirehose,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(stream.ARN),
 		TargetResourceID: firehoseARN,
 		TargetARN:        firehoseARN,
-		TargetType:       awscloud.ResourceTypeKinesisFirehoseDeliveryStream,
+		TargetType:       aws.ResourceTypeKinesisFirehoseDeliveryStream,
 		Attributes: map[string]any{
 			"output_format": strings.TrimSpace(stream.OutputFormat),
 			"stream_name":   strings.TrimSpace(stream.Name),
@@ -144,23 +144,23 @@ func metricStreamFirehoseRelationship(
 // a customer tag are routed through the shared redact library so customer
 // identifiers do not land in the fact stream.
 func alarmMetricRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	alarm MetricAlarm,
 	key redact.Key,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	source := firstNonEmpty(strings.TrimSpace(alarm.ARN), strings.TrimSpace(alarm.Name))
 	namespace := strings.TrimSpace(alarm.Namespace)
 	metricName := strings.TrimSpace(alarm.MetricName)
 	if source == "" || (namespace == "" && metricName == "") {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	metricID := joinNonEmpty("/", namespace, metricName)
 	if metricID == "" {
 		metricID = firstNonEmpty(namespace, metricName)
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudWatchAlarmObservesMetric,
+		RelationshipType: aws.RelationshipCloudWatchAlarmObservesMetric,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(alarm.ARN),
 		TargetResourceID: metricID,

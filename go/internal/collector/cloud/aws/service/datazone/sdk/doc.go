@@ -13,4 +13,4 @@
 // DataZone state. From GetDataSource it copies only the backing-store names
 // (Glue database, provisioned Redshift cluster) needed to join scanned
 // resources, never the relational filter expressions or access credentials.
-package awssdk
+package sdk

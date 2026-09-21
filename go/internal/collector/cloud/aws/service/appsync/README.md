@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appsync` owns the AppSync scanner
+`internal/collector/cloud/aws/service/appsync` owns the AppSync scanner
 contract for the AWS cloud collector. It converts GraphQL APIs, data sources,
 resolvers, pipeline functions, schema metadata, and API key metadata into
 reported AWS facts and relationship evidence for one claimed account and
@@ -13,8 +13,8 @@ region.
 This package owns scanner-level AppSync fact selection, resource identity, and
 relationship shaping. It does not own AWS SDK pagination, credential
 acquisition, workflow claims, fact persistence, graph writes, reducer
-admission, or query behavior. SDK translation lives in the sibling `awssdk`
-package; registration lives in the sibling `runtimebind` package.
+admission, or query behavior. SDK translation lives in the sibling `sdk`
+package; registration lives in the sibling `bind` package.
 
 ```mermaid
 flowchart LR
@@ -48,7 +48,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource and relationship
+- `internal/collector/cloud/aws` for boundaries, resource and relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -57,9 +57,9 @@ Go v2 so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records AppSync API call counts, throttles, and pagination
+The `sdk` adapter records AppSync API call counts, throttles, and pagination
 spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="appsync"}` with the existing
 bounded AWS collector labels.
@@ -90,13 +90,13 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/appsync/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/appsync/...`
 covers the bounded AppSync metadata path: paginated ListGraphqlApis discovery,
 per-API ListDataSources, ListTypes (names only) feeding ListResolvers per type,
 ListFunctions, GetSchemaCreationStatus for schema status and type count, and
 ListApiKeys, with no mapping-template, code, schema-body, or mutation calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers AppSync resource and relationship fact emission, the partition-derived
 DynamoDB target ARN, the Cognito user pool join key, omission of SDL, mapping
 template, function code, and API key value payloads, runtime registration, and

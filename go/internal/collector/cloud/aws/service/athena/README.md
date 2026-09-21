@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/athena` owns the Athena scanner contract
+`internal/collector/cloud/aws/service/athena` owns the Athena scanner contract
 for the AWS cloud collector. It converts workgroup, data catalog,
 prepared-statement, and named-query metadata into `aws_resource` facts and
 emits relationship evidence for workgroup result buckets, workgroup KMS keys,
@@ -51,7 +51,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -60,10 +60,10 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
 through `eshu_dp_aws_resources_emitted_total{service="athena"}` and
-`eshu_dp_aws_relationships_emitted_total{service="athena"}`. The `awssdk`
+`eshu_dp_aws_relationships_emitted_total{service="athena"}`. The `sdk`
 adapter records Athena API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -95,7 +95,7 @@ adapter records Athena API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/athena/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/athena/...`
 covers the bounded Athena metadata path: one paginated ListWorkGroups stream,
 one GetWorkGroup + one ListTagsForResource per workgroup, one paginated
 ListDataCatalogs stream, one GetDataCatalog + one ListTagsForResource per
@@ -106,7 +106,7 @@ GetQueryResults / GetQueryExecution / ListQueryExecutions / GetNamedQuery /
 GetPreparedStatement calls, no mutation calls, and no graph writes in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Athena workgroup, data catalog, prepared-statement, and named-query
 metadata fact emission, workgroup-to-result-bucket relationship emission,
 workgroup-to-KMS-key relationship emission with ARN/alias differentiation,
@@ -130,7 +130,7 @@ counters, and `aws_scan_status`.
 
 ### Partition-aware result-bucket join (#860)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/athena/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/athena/... -count=1`
 covers the new `TestWorkGroupResultBucketRelationshipDerivesPartition`
 (commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
 existing commercial result-bucket assertions in `scanner_test.go`. Athena
@@ -151,13 +151,13 @@ Collector Deployment Evidence: Athena runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/athena/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/athena/... -count=1`
 covers the new `TestWorkGroupARNDerivesPartition` and
 `TestDataCatalogARNDerivesPartition` (commercial / `aws-us-gov` / `aws-cn` /
 blank-region-fallback) alongside the existing assertions. The Athena APIs return
 no workgroup or data-catalog ARN, so `workGroupARN` / `dataCatalogARN` and the
 result-bucket join now derive the partition from the scan boundary via
-`awscloud.PartitionForBoundary` (replacing the package-local `partition`
+`aws.PartitionForBoundary` (replacing the package-local `partition`
 helper) instead of hardcoding `aws`. Commercial output (`us-east-1`) is
 byte-for-byte unchanged; this is a metadata-only correctness fix with no
 graph-write, queue, or hot-path behavior change.

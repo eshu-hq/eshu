@@ -19,15 +19,15 @@ type Scanner struct {
 }
 
 // Scan observes SNS topics through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("sns scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSNS:
+	case "", aws.ServiceSNS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSNS
+		boundary.ServiceKind = aws.ServiceSNS
 	default:
 		return nil, fmt.Errorf("sns scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -38,7 +38,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, topic := range topics {
-		resource, err := awscloud.NewResourceEnvelope(topicObservation(boundary, topic))
+		resource, err := aws.NewResourceEnvelope(topicObservation(boundary, topic))
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +48,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -58,13 +58,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func topicObservation(boundary awscloud.Boundary, topic Topic) awscloud.ResourceObservation {
+func topicObservation(boundary aws.Boundary, topic Topic) aws.ResourceObservation {
 	topicARN := strings.TrimSpace(topic.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          topicARN,
 		ResourceID:   firstNonEmpty(topicARN, topic.Name),
-		ResourceType: awscloud.ResourceTypeSNSTopic,
+		ResourceType: aws.ResourceTypeSNSTopic,
 		Name:         strings.TrimSpace(topic.Name),
 		Tags:         cloneStringMap(topic.Tags),
 		Attributes: map[string]any{
@@ -87,18 +87,18 @@ func topicObservation(boundary awscloud.Boundary, topic Topic) awscloud.Resource
 }
 
 func subscriptionRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	topic Topic,
 	subscription Subscription,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	topicARN := strings.TrimSpace(topic.ARN)
 	endpointARN := strings.TrimSpace(subscription.EndpointARN)
 	if topicARN == "" || endpointARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSNSTopicDeliversToResource,
+		RelationshipType: aws.RelationshipSNSTopicDeliversToResource,
 		SourceResourceID: firstNonEmpty(topicARN, topic.Name),
 		SourceARN:        topicARN,
 		TargetResourceID: endpointARN,
@@ -116,9 +116,9 @@ func subscriptionRelationship(
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":sqs:"):
-		return awscloud.ResourceTypeSQSQueue
+		return aws.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":lambda:"):
-		return awscloud.ResourceTypeLambdaFunction
+		return aws.ResourceTypeLambdaFunction
 	default:
 		return "aws_resource"
 	}

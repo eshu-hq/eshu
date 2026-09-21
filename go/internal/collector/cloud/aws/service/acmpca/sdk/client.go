@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsacmpca "github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 	"go.opentelemetry.io/otel/trace"
@@ -38,15 +38,15 @@ type apiClient interface {
 // body.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an ACM Private CA SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -98,7 +98,7 @@ func (c *Client) listCertificateAuthorityARNs(ctx context.Context) ([]string, er
 			return arns, nil
 		}
 		for _, summary := range page.CertificateAuthorities {
-			if arn := strings.TrimSpace(aws.ToString(summary.Arn)); arn != "" {
+			if arn := strings.TrimSpace(awsv2.ToString(summary.Arn)); arn != "" {
 				arns = append(arns, arn)
 			}
 		}
@@ -126,7 +126,7 @@ func (c *Client) describeCertificateAuthority(ctx context.Context, arn string) (
 	err := c.recordAPICall(ctx, "DescribeCertificateAuthority", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeCertificateAuthority(callCtx, &awsacmpca.DescribeCertificateAuthorityInput{
-			CertificateAuthorityArn: aws.String(arn),
+			CertificateAuthorityArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -147,7 +147,7 @@ func (c *Client) listTags(ctx context.Context, arn string) ([]acmpcatypes.Tag, e
 		err := c.recordAPICall(ctx, "ListTags", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTags(callCtx, &awsacmpca.ListTagsInput{
-				CertificateAuthorityArn: aws.String(arn),
+				CertificateAuthorityArn: awsv2.String(arn),
 				NextToken:               nextToken,
 			})
 			return err
@@ -170,11 +170,11 @@ func (c *Client) listTags(ctx context.Context, arn string) ([]acmpcatypes.Tag, e
 // guarding against a service that echoes the same non-empty token forever. An
 // empty next token, or one equal to the token just sent, ends pagination.
 func hasNextPage(previous, next *string) bool {
-	token := strings.TrimSpace(aws.ToString(next))
+	token := strings.TrimSpace(awsv2.ToString(next))
 	if token == "" {
 		return false
 	}
-	return token != strings.TrimSpace(aws.ToString(previous))
+	return token != strings.TrimSpace(awsv2.ToString(previous))
 }
 
 func mapCertificateAuthority(arn string, detail *acmpcatypes.CertificateAuthority, tags []acmpcatypes.Tag) acmpcaservice.CertificateAuthority {
@@ -185,10 +185,10 @@ func mapCertificateAuthority(arn string, detail *acmpcatypes.CertificateAuthorit
 	if detail == nil {
 		return authority
 	}
-	authority.OwnerAccount = strings.TrimSpace(aws.ToString(detail.OwnerAccount))
+	authority.OwnerAccount = strings.TrimSpace(awsv2.ToString(detail.OwnerAccount))
 	authority.Type = string(detail.Type)
 	authority.Status = string(detail.Status)
-	authority.Serial = strings.TrimSpace(aws.ToString(detail.Serial))
+	authority.Serial = strings.TrimSpace(awsv2.ToString(detail.Serial))
 	authority.FailureReason = string(detail.FailureReason)
 	authority.UsageMode = string(detail.UsageMode)
 	authority.KeyStorageSecurityStandard = string(detail.KeyStorageSecurityStandard)
@@ -200,7 +200,7 @@ func mapCertificateAuthority(arn string, detail *acmpcatypes.CertificateAuthorit
 		authority.KeyAlgorithm = string(config.KeyAlgorithm)
 		authority.SigningAlgorithm = string(config.SigningAlgorithm)
 		if config.Subject != nil {
-			authority.SubjectCommonName = strings.TrimSpace(aws.ToString(config.Subject.CommonName))
+			authority.SubjectCommonName = strings.TrimSpace(awsv2.ToString(config.Subject.CommonName))
 		}
 	}
 	applyRevocationConfiguration(&authority, detail.RevocationConfiguration)
@@ -216,11 +216,11 @@ func applyRevocationConfiguration(authority *acmpcaservice.CertificateAuthority,
 		return
 	}
 	if crl := revocation.CrlConfiguration; crl != nil {
-		authority.CRLEnabled = aws.ToBool(crl.Enabled)
-		authority.CRLS3BucketName = strings.TrimSpace(aws.ToString(crl.S3BucketName))
+		authority.CRLEnabled = awsv2.ToBool(crl.Enabled)
+		authority.CRLS3BucketName = strings.TrimSpace(awsv2.ToString(crl.S3BucketName))
 	}
 	if ocsp := revocation.OcspConfiguration; ocsp != nil {
-		authority.OCSPEnabled = aws.ToBool(ocsp.Enabled)
+		authority.OCSPEnabled = awsv2.ToBool(ocsp.Enabled)
 	}
 }
 
@@ -230,11 +230,11 @@ func tagsToMap(tags []acmpcatypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil

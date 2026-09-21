@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
 	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
 	"go.opentelemetry.io/otel/trace"
@@ -36,7 +36,7 @@ type iamAPIClient interface {
 type Client struct {
 	client      apiClient
 	iamClient   iamAPIClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 
@@ -46,8 +46,8 @@ type Client struct {
 
 // NewClient builds an EKS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -84,7 +84,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]eksservice.Cluster, error)
 			err := c.recordAPICall(ctx, "DescribeCluster", func(callCtx context.Context) error {
 				var err error
 				output, err = c.client.DescribeCluster(callCtx, &awseks.DescribeClusterInput{
-					Name: aws.String(name),
+					Name: awsv2.String(name),
 				})
 				return err
 			})
@@ -114,7 +114,7 @@ func (c *Client) ListNodegroups(
 		return nil, nil
 	}
 	paginator := awseks.NewListNodegroupsPaginator(c.client, &awseks.ListNodegroupsInput{
-		ClusterName: aws.String(clusterName),
+		ClusterName: awsv2.String(clusterName),
 	})
 	var nodegroups []eksservice.Nodegroup
 	for paginator.HasMorePages() {
@@ -136,8 +136,8 @@ func (c *Client) ListNodegroups(
 			err := c.recordAPICall(ctx, "DescribeNodegroup", func(callCtx context.Context) error {
 				var err error
 				output, err = c.client.DescribeNodegroup(callCtx, &awseks.DescribeNodegroupInput{
-					ClusterName:   aws.String(clusterName),
-					NodegroupName: aws.String(name),
+					ClusterName:   awsv2.String(clusterName),
+					NodegroupName: awsv2.String(name),
 				})
 				return err
 			})
@@ -160,7 +160,7 @@ func (c *Client) ListAddons(ctx context.Context, cluster eksservice.Cluster) ([]
 		return nil, nil
 	}
 	paginator := awseks.NewListAddonsPaginator(c.client, &awseks.ListAddonsInput{
-		ClusterName: aws.String(clusterName),
+		ClusterName: awsv2.String(clusterName),
 	})
 	var addons []eksservice.Addon
 	for paginator.HasMorePages() {
@@ -182,8 +182,8 @@ func (c *Client) ListAddons(ctx context.Context, cluster eksservice.Cluster) ([]
 			err := c.recordAPICall(ctx, "DescribeAddon", func(callCtx context.Context) error {
 				var err error
 				output, err = c.client.DescribeAddon(callCtx, &awseks.DescribeAddonInput{
-					AddonName:   aws.String(name),
-					ClusterName: aws.String(clusterName),
+					AddonName:   awsv2.String(name),
+					ClusterName: awsv2.String(clusterName),
 				})
 				return err
 			})

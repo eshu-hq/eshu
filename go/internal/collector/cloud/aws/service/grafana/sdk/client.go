@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsgrafana "github.com/aws/aws-sdk-go-v2/service/grafana"
 	awsgrafanatypes "github.com/aws/aws-sdk-go-v2/service/grafana/types"
 	"github.com/aws/smithy-go"
@@ -53,15 +53,15 @@ type apiClient interface {
 // token API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Managed Grafana SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -116,12 +116,12 @@ func (c *Client) listWorkspaceIDs(ctx context.Context) ([]string, error) {
 			return ids, nil
 		}
 		for _, summary := range page.Workspaces {
-			if id := strings.TrimSpace(aws.ToString(summary.Id)); id != "" {
+			if id := strings.TrimSpace(awsv2.ToString(summary.Id)); id != "" {
 				ids = append(ids, id)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ids, nil
 		}
 	}
@@ -136,7 +136,7 @@ func (c *Client) describeWorkspace(ctx context.Context, workspaceID string) (*gr
 	err := c.recordAPICall(ctx, "DescribeWorkspace", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeWorkspace(callCtx, &awsgrafana.DescribeWorkspaceInput{
-			WorkspaceId: aws.String(workspaceID),
+			WorkspaceId: awsv2.String(workspaceID),
 		})
 		return err
 	})
@@ -162,20 +162,20 @@ func (c *Client) describeWorkspace(ctx context.Context, workspaceID string) (*gr
 
 func (c *Client) mapWorkspace(workspace awsgrafanatypes.WorkspaceDescription) grafanaservice.Workspace {
 	mapped := grafanaservice.Workspace{
-		ID:                       strings.TrimSpace(aws.ToString(workspace.Id)),
-		Name:                     strings.TrimSpace(aws.ToString(workspace.Name)),
-		Description:              strings.TrimSpace(aws.ToString(workspace.Description)),
+		ID:                       strings.TrimSpace(awsv2.ToString(workspace.Id)),
+		Name:                     strings.TrimSpace(awsv2.ToString(workspace.Name)),
+		Description:              strings.TrimSpace(awsv2.ToString(workspace.Description)),
 		Status:                   strings.TrimSpace(string(workspace.Status)),
-		GrafanaVersion:           strings.TrimSpace(aws.ToString(workspace.GrafanaVersion)),
-		Endpoint:                 strings.TrimSpace(aws.ToString(workspace.Endpoint)),
+		GrafanaVersion:           strings.TrimSpace(awsv2.ToString(workspace.GrafanaVersion)),
+		Endpoint:                 strings.TrimSpace(awsv2.ToString(workspace.Endpoint)),
 		AccountAccessType:        strings.TrimSpace(string(workspace.AccountAccessType)),
 		PermissionType:           strings.TrimSpace(string(workspace.PermissionType)),
-		WorkspaceRoleARN:         strings.TrimSpace(aws.ToString(workspace.WorkspaceRoleArn)),
+		WorkspaceRoleARN:         strings.TrimSpace(awsv2.ToString(workspace.WorkspaceRoleArn)),
 		DataSources:              dataSourceNames(workspace.DataSources),
 		NotificationDestinations: notificationDestinationNames(workspace.NotificationDestinations),
 		AuthenticationProviders:  authenticationProviders(workspace.Authentication),
-		Created:                  aws.ToTime(workspace.Created),
-		Modified:                 aws.ToTime(workspace.Modified),
+		Created:                  awsv2.ToTime(workspace.Created),
+		Modified:                 awsv2.ToTime(workspace.Modified),
 	}
 	if vpc := workspace.VpcConfiguration; vpc != nil {
 		mapped.SubnetIDs = trimmedStrings(vpc.SubnetIds)
@@ -260,7 +260,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsgrafana.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -302,7 +302,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

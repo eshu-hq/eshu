@@ -12,4 +12,4 @@
 // every Create/Update/Delete/Put mutation API, so the adapter cannot read Cedar
 // source, schema bodies, policy template bodies, or authorization payloads, and
 // cannot mutate Verified Permissions state.
-package awssdk
+package sdk

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappconfig "github.com/aws/aws-sdk-go-v2/service/appconfig"
 	awsappconfigtypes "github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 	"github.com/aws/smithy-go"
@@ -58,15 +58,15 @@ type apiClient interface {
 // and never calls a Create/Update/Delete mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AppConfig SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -129,13 +129,13 @@ func (c *Client) listApplications(ctx context.Context) ([]appconfigservice.Appli
 		}
 		for _, item := range page.Items {
 			applications = append(applications, appconfigservice.Application{
-				ID:          strings.TrimSpace(aws.ToString(item.Id)),
-				Name:        strings.TrimSpace(aws.ToString(item.Name)),
-				Description: strings.TrimSpace(aws.ToString(item.Description)),
+				ID:          strings.TrimSpace(awsv2.ToString(item.Id)),
+				Name:        strings.TrimSpace(awsv2.ToString(item.Name)),
+				Description: strings.TrimSpace(awsv2.ToString(item.Description)),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return applications, nil
 		}
 	}
@@ -153,7 +153,7 @@ func (c *Client) listEnvironments(ctx context.Context, applicationID string) ([]
 		err := c.recordAPICall(ctx, "ListEnvironments", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListEnvironments(callCtx, &awsappconfig.ListEnvironmentsInput{
-				ApplicationId: aws.String(applicationID),
+				ApplicationId: awsv2.String(applicationID),
 				NextToken:     nextToken,
 			})
 			return err
@@ -168,22 +168,22 @@ func (c *Client) listEnvironments(ctx context.Context, applicationID string) ([]
 			environments = append(environments, mapEnvironment(item, applicationID))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return environments, nil
 		}
 	}
 }
 
 func mapEnvironment(item awsappconfigtypes.Environment, applicationID string) appconfigservice.Environment {
-	owner := strings.TrimSpace(aws.ToString(item.ApplicationId))
+	owner := strings.TrimSpace(awsv2.ToString(item.ApplicationId))
 	if owner == "" {
 		owner = strings.TrimSpace(applicationID)
 	}
 	return appconfigservice.Environment{
-		ID:            strings.TrimSpace(aws.ToString(item.Id)),
+		ID:            strings.TrimSpace(awsv2.ToString(item.Id)),
 		ApplicationID: owner,
-		Name:          strings.TrimSpace(aws.ToString(item.Name)),
-		Description:   strings.TrimSpace(aws.ToString(item.Description)),
+		Name:          strings.TrimSpace(awsv2.ToString(item.Name)),
+		Description:   strings.TrimSpace(awsv2.ToString(item.Description)),
 		State:         strings.TrimSpace(string(item.State)),
 		Monitors:      mapMonitors(item.Monitors),
 	}
@@ -195,13 +195,13 @@ func mapMonitors(monitors []awsappconfigtypes.Monitor) []appconfigservice.Monito
 	}
 	mapped := make([]appconfigservice.Monitor, 0, len(monitors))
 	for _, monitor := range monitors {
-		alarmARN := strings.TrimSpace(aws.ToString(monitor.AlarmArn))
+		alarmARN := strings.TrimSpace(awsv2.ToString(monitor.AlarmArn))
 		if alarmARN == "" {
 			continue
 		}
 		mapped = append(mapped, appconfigservice.Monitor{
 			AlarmARN:     alarmARN,
-			AlarmRoleARN: strings.TrimSpace(aws.ToString(monitor.AlarmRoleArn)),
+			AlarmRoleARN: strings.TrimSpace(awsv2.ToString(monitor.AlarmRoleArn)),
 		})
 	}
 	if len(mapped) == 0 {
@@ -222,7 +222,7 @@ func (c *Client) listProfiles(ctx context.Context, applicationID string) ([]appc
 		err := c.recordAPICall(ctx, "ListConfigurationProfiles", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListConfigurationProfiles(callCtx, &awsappconfig.ListConfigurationProfilesInput{
-				ApplicationId: aws.String(applicationID),
+				ApplicationId: awsv2.String(applicationID),
 				NextToken:     nextToken,
 			})
 			return err
@@ -237,23 +237,23 @@ func (c *Client) listProfiles(ctx context.Context, applicationID string) ([]appc
 			profiles = append(profiles, mapProfile(item, applicationID))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return profiles, nil
 		}
 	}
 }
 
 func mapProfile(item awsappconfigtypes.ConfigurationProfileSummary, applicationID string) appconfigservice.ConfigurationProfile {
-	owner := strings.TrimSpace(aws.ToString(item.ApplicationId))
+	owner := strings.TrimSpace(awsv2.ToString(item.ApplicationId))
 	if owner == "" {
 		owner = strings.TrimSpace(applicationID)
 	}
 	return appconfigservice.ConfigurationProfile{
-		ID:             strings.TrimSpace(aws.ToString(item.Id)),
+		ID:             strings.TrimSpace(awsv2.ToString(item.Id)),
 		ApplicationID:  owner,
-		Name:           strings.TrimSpace(aws.ToString(item.Name)),
-		Type:           strings.TrimSpace(aws.ToString(item.Type)),
-		LocationURI:    strings.TrimSpace(aws.ToString(item.LocationUri)),
+		Name:           strings.TrimSpace(awsv2.ToString(item.Name)),
+		Type:           strings.TrimSpace(awsv2.ToString(item.Type)),
+		LocationURI:    strings.TrimSpace(awsv2.ToString(item.LocationUri)),
 		ValidatorTypes: validatorTypeNames(item.ValidatorTypes),
 	}
 }
@@ -294,18 +294,18 @@ func (c *Client) listDeploymentStrategies(ctx context.Context) ([]appconfigservi
 		}
 		for _, item := range page.Items {
 			strategies = append(strategies, appconfigservice.DeploymentStrategy{
-				ID:                          strings.TrimSpace(aws.ToString(item.Id)),
-				Name:                        strings.TrimSpace(aws.ToString(item.Name)),
-				Description:                 strings.TrimSpace(aws.ToString(item.Description)),
+				ID:                          strings.TrimSpace(awsv2.ToString(item.Id)),
+				Name:                        strings.TrimSpace(awsv2.ToString(item.Name)),
+				Description:                 strings.TrimSpace(awsv2.ToString(item.Description)),
 				DeploymentDurationInMinutes: item.DeploymentDurationInMinutes,
 				FinalBakeTimeInMinutes:      item.FinalBakeTimeInMinutes,
-				GrowthFactor:                aws.ToFloat32(item.GrowthFactor),
+				GrowthFactor:                awsv2.ToFloat32(item.GrowthFactor),
 				GrowthType:                  strings.TrimSpace(string(item.GrowthType)),
 				ReplicateTo:                 strings.TrimSpace(string(item.ReplicateTo)),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return strategies, nil
 		}
 	}
@@ -329,7 +329,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudwatchlogs/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/cloudwatchlogs/sdk` adapts AWS SDK for
 Go v2 CloudWatch Logs responses to the scanner-owned `Client` contract. It owns
 DescribeLogGroups pagination, resource tag reads, throttle classification, and
 per-call AWS API telemetry.
@@ -30,9 +30,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/cloudwatchlogs` for scanner-owned
+- `internal/collector/cloud/aws/service/cloudwatchlogs` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `cloudwatchlogs` and Smithy error contracts.

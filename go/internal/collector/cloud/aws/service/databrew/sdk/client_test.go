@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdatabrew "github.com/aws/aws-sdk-go-v2/service/databrew"
 	awsdatabrewtypes "github.com/aws/aws-sdk-go-v2/service/databrew/types"
 
@@ -20,15 +20,15 @@ func TestClientSnapshotsDatabrewMetadataOnly(t *testing.T) {
 	api := &fakeDatabrewAPI{
 		datasetPages: []*awsdatabrew.ListDatasetsOutput{{
 			Datasets: []awsdatabrewtypes.Dataset{{
-				Name:        aws.String("sales"),
-				ResourceArn: aws.String("arn:aws:databrew:us-east-1:123456789012:dataset/sales"),
+				Name:        awsv2.String("sales"),
+				ResourceArn: awsv2.String("arn:aws:databrew:us-east-1:123456789012:dataset/sales"),
 				Source:      awsdatabrewtypes.SourceS3,
 				Format:      awsdatabrewtypes.InputFormatCsv,
-				CreateDate:  aws.Time(createdAt),
+				CreateDate:  awsv2.Time(createdAt),
 				Input: &awsdatabrewtypes.Input{
 					S3InputDefinition: &awsdatabrewtypes.S3Location{
-						Bucket: aws.String("sales-input-bucket"),
-						Key:    aws.String("raw/sales/"),
+						Bucket: awsv2.String("sales-input-bucket"),
+						Key:    awsv2.String("raw/sales/"),
 					},
 				},
 				Tags: map[string]string{"Environment": "prod"},
@@ -36,40 +36,40 @@ func TestClientSnapshotsDatabrewMetadataOnly(t *testing.T) {
 		}},
 		recipePages: []*awsdatabrew.ListRecipesOutput{{
 			Recipes: []awsdatabrewtypes.Recipe{{
-				Name:          aws.String("clean-sales"),
-				ResourceArn:   aws.String("arn:aws:databrew:us-east-1:123456789012:recipe/clean-sales"),
-				RecipeVersion: aws.String("1.0"),
-				ProjectName:   aws.String("sales-prep"),
+				Name:          awsv2.String("clean-sales"),
+				ResourceArn:   awsv2.String("arn:aws:databrew:us-east-1:123456789012:recipe/clean-sales"),
+				RecipeVersion: awsv2.String("1.0"),
+				ProjectName:   awsv2.String("sales-prep"),
 				Steps: []awsdatabrewtypes.RecipeStep{
-					{Action: &awsdatabrewtypes.RecipeAction{Operation: aws.String("REMOVE_NULLS")}},
-					{Action: &awsdatabrewtypes.RecipeAction{Operation: aws.String("UPPER_CASE")}},
+					{Action: &awsdatabrewtypes.RecipeAction{Operation: awsv2.String("REMOVE_NULLS")}},
+					{Action: &awsdatabrewtypes.RecipeAction{Operation: awsv2.String("UPPER_CASE")}},
 				},
 			}},
 		}},
 		jobPages: []*awsdatabrew.ListJobsOutput{{
 			Jobs: []awsdatabrewtypes.Job{{
-				Name:           aws.String("profile-sales"),
-				ResourceArn:    aws.String("arn:aws:databrew:us-east-1:123456789012:job/profile-sales"),
+				Name:           awsv2.String("profile-sales"),
+				ResourceArn:    awsv2.String("arn:aws:databrew:us-east-1:123456789012:job/profile-sales"),
 				Type:           awsdatabrewtypes.JobTypeProfile,
-				DatasetName:    aws.String("sales"),
-				RoleArn:        aws.String("arn:aws:iam::123456789012:role/databrew-service-role"),
+				DatasetName:    awsv2.String("sales"),
+				RoleArn:        awsv2.String("arn:aws:iam::123456789012:role/databrew-service-role"),
 				EncryptionMode: awsdatabrewtypes.EncryptionModeSsekms,
 				RecipeReference: &awsdatabrewtypes.RecipeReference{
-					Name: aws.String("clean-sales"),
+					Name: awsv2.String("clean-sales"),
 				},
 				Outputs: []awsdatabrewtypes.Output{
-					{Location: &awsdatabrewtypes.S3Location{Bucket: aws.String("sales-output-bucket")}},
-					{Location: &awsdatabrewtypes.S3Location{Bucket: aws.String("sales-output-bucket")}},
+					{Location: &awsdatabrewtypes.S3Location{Bucket: awsv2.String("sales-output-bucket")}},
+					{Location: &awsdatabrewtypes.S3Location{Bucket: awsv2.String("sales-output-bucket")}},
 				},
 			}},
 		}},
 		projectPages: []*awsdatabrew.ListProjectsOutput{{
 			Projects: []awsdatabrewtypes.Project{{
-				Name:        aws.String("sales-prep"),
-				ResourceArn: aws.String("arn:aws:databrew:us-east-1:123456789012:project/sales-prep"),
-				DatasetName: aws.String("sales"),
-				RecipeName:  aws.String("clean-sales"),
-				RoleArn:     aws.String("arn:aws:iam::123456789012:role/databrew-service-role"),
+				Name:        awsv2.String("sales-prep"),
+				ResourceArn: awsv2.String("arn:aws:databrew:us-east-1:123456789012:project/sales-prep"),
+				DatasetName: awsv2.String("sales"),
+				RecipeName:  awsv2.String("clean-sales"),
+				RoleArn:     awsv2.String("arn:aws:iam::123456789012:role/databrew-service-role"),
 			}},
 		}},
 	}
@@ -128,8 +128,8 @@ func TestClientSnapshotsDatabrewMetadataOnly(t *testing.T) {
 func TestClientPaginatesEveryList(t *testing.T) {
 	api := &fakeDatabrewAPI{
 		datasetPages: []*awsdatabrew.ListDatasetsOutput{
-			{Datasets: []awsdatabrewtypes.Dataset{{Name: aws.String("a")}}, NextToken: aws.String("p2")},
-			{Datasets: []awsdatabrewtypes.Dataset{{Name: aws.String("b")}}},
+			{Datasets: []awsdatabrewtypes.Dataset{{Name: awsv2.String("a")}}, NextToken: awsv2.String("p2")},
+			{Datasets: []awsdatabrewtypes.Dataset{{Name: awsv2.String("b")}}},
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary()}
@@ -219,10 +219,10 @@ func (f *fakeDatabrewAPI) ListProjects(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDatabrew,
+		ServiceKind: aws.ServiceDatabrew,
 	}
 }

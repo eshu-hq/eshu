@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/accessanalyzer guidance
+# AGENTS.md - internal/collector/cloud/aws/service/accessanalyzer guidance
 
 ## Read First
 
@@ -6,7 +6,7 @@
 2. `types.go` - scanner-owned Access Analyzer domain types.
 3. `scanner.go` - analyzer, archive-rule, finding-count, unused-access, and
    relationship emission.
-4. `awssdk/README.md` - AWS SDK pagination, safe mapping, and telemetry.
+4. `sdk/README.md` - AWS SDK pagination, safe mapping, and telemetry.
 5. `../../README.md` - shared AWS cloud observation and envelope contract.
 6. `docs/public/services/collector-aws-cloud.md` - AWS collector service
    coverage and runtime requirements.
@@ -36,11 +36,11 @@
 
 - Add a new Access Analyzer metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when AWS reports both sides directly or
   the identity can be derived from an AWS-reported ARN without reading sensitive
   finding bodies.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -27,15 +27,15 @@ type Scanner struct {
 
 // Scan observes AWS Backup metadata for one boundary and returns
 // reported-confidence AWS facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("backup scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceBackup:
+	case "", aws.ServiceBackup:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceBackup
+		boundary.ServiceKind = aws.ServiceBackup
 	default:
 		return nil, fmt.Errorf("backup scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -83,7 +83,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) scanVaults(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 ) ([]facts.Envelope, []string, error) {
 	vaults, err := s.Client.ListBackupVaults(ctx)
 	if err != nil {
@@ -92,13 +92,13 @@ func (s Scanner) scanVaults(
 	var envelopes []facts.Envelope
 	names := make([]string, 0, len(vaults))
 	for _, vault := range vaults {
-		envelope, err := awscloud.NewResourceEnvelope(vaultObservation(boundary, vault))
+		envelope, err := aws.NewResourceEnvelope(vaultObservation(boundary, vault))
 		if err != nil {
 			return nil, nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		if rel, ok := vaultKMSRelationship(boundary, vault); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -113,7 +113,7 @@ func (s Scanner) scanVaults(
 
 func (s Scanner) scanPlansAndSelections(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 ) ([]facts.Envelope, error) {
 	plans, err := s.Client.ListBackupPlans(ctx)
 	if err != nil {
@@ -121,7 +121,7 @@ func (s Scanner) scanPlansAndSelections(
 	}
 	var envelopes []facts.Envelope
 	for _, plan := range plans {
-		envelope, err := awscloud.NewResourceEnvelope(planObservation(boundary, plan))
+		envelope, err := aws.NewResourceEnvelope(planObservation(boundary, plan))
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +137,7 @@ func (s Scanner) scanPlansAndSelections(
 
 func (s Scanner) scanSelectionsForPlan(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	plan Plan,
 ) ([]facts.Envelope, error) {
 	planID := strings.TrimSpace(plan.ID)
@@ -150,27 +150,27 @@ func (s Scanner) scanSelectionsForPlan(
 	}
 	var envelopes []facts.Envelope
 	for _, selection := range selections {
-		envelope, err := awscloud.NewResourceEnvelope(selectionObservation(boundary, selection))
+		envelope, err := aws.NewResourceEnvelope(selectionObservation(boundary, selection))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		if rel, ok := planHasSelectionRelationship(boundary, plan, selection); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, relEnvelope)
 		}
 		if rel, ok := selectionRoleRelationship(boundary, selection); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, relEnvelope)
 		}
 		for _, target := range uniqueARNs(selection.Resources) {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(
+			relEnvelope, err := aws.NewRelationshipEnvelope(
 				selectionIncludesResourceRelationship(boundary, selection, target),
 			)
 			if err != nil {
@@ -184,7 +184,7 @@ func (s Scanner) scanSelectionsForPlan(
 
 func (s Scanner) scanRecoveryPoints(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	vaultNames []string,
 ) ([]facts.Envelope, error) {
 	var envelopes []facts.Envelope
@@ -194,20 +194,20 @@ func (s Scanner) scanRecoveryPoints(
 			return nil, fmt.Errorf("list AWS Backup recovery points for vault %q: %w", name, err)
 		}
 		for _, rp := range recoveryPoints {
-			envelope, err := awscloud.NewResourceEnvelope(recoveryPointObservation(boundary, rp))
+			envelope, err := aws.NewResourceEnvelope(recoveryPointObservation(boundary, rp))
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, envelope)
 			if rel, ok := recoveryPointInVaultRelationship(boundary, rp); ok {
-				relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+				relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 				if err != nil {
 					return nil, err
 				}
 				envelopes = append(envelopes, relEnvelope)
 			}
 			if rel, ok := recoveryPointOfResourceRelationship(boundary, rp); ok {
-				relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+				relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 				if err != nil {
 					return nil, err
 				}
@@ -220,7 +220,7 @@ func (s Scanner) scanRecoveryPoints(
 
 func (s Scanner) scanReportPlans(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 ) ([]facts.Envelope, error) {
 	reportPlans, err := s.Client.ListReportPlans(ctx)
 	if err != nil {
@@ -228,7 +228,7 @@ func (s Scanner) scanReportPlans(
 	}
 	envelopes := make([]facts.Envelope, 0, len(reportPlans))
 	for _, plan := range reportPlans {
-		envelope, err := awscloud.NewResourceEnvelope(reportPlanObservation(boundary, plan))
+		envelope, err := aws.NewResourceEnvelope(reportPlanObservation(boundary, plan))
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +239,7 @@ func (s Scanner) scanReportPlans(
 
 func (s Scanner) scanRestoreTestingPlans(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 ) ([]facts.Envelope, error) {
 	plans, err := s.Client.ListRestoreTestingPlans(ctx)
 	if err != nil {
@@ -247,7 +247,7 @@ func (s Scanner) scanRestoreTestingPlans(
 	}
 	envelopes := make([]facts.Envelope, 0, len(plans))
 	for _, plan := range plans {
-		envelope, err := awscloud.NewResourceEnvelope(restoreTestingPlanObservation(boundary, plan))
+		envelope, err := aws.NewResourceEnvelope(restoreTestingPlanObservation(boundary, plan))
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +258,7 @@ func (s Scanner) scanRestoreTestingPlans(
 
 func (s Scanner) scanFrameworks(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 ) ([]facts.Envelope, error) {
 	frameworks, err := s.Client.ListFrameworks(ctx)
 	if err != nil {
@@ -266,13 +266,13 @@ func (s Scanner) scanFrameworks(
 	}
 	var envelopes []facts.Envelope
 	for _, framework := range frameworks {
-		envelope, err := awscloud.NewResourceEnvelope(frameworkObservation(boundary, framework))
+		envelope, err := aws.NewResourceEnvelope(frameworkObservation(boundary, framework))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		for _, control := range framework.Controls {
-			controlEnvelope, err := awscloud.NewResourceEnvelope(
+			controlEnvelope, err := aws.NewResourceEnvelope(
 				frameworkControlObservation(boundary, framework, control),
 			)
 			if err != nil {
@@ -280,7 +280,7 @@ func (s Scanner) scanFrameworks(
 			}
 			envelopes = append(envelopes, controlEnvelope)
 			if rel, ok := frameworkHasControlRelationship(boundary, framework, control); ok {
-				relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+				relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 				if err != nil {
 					return nil, err
 				}

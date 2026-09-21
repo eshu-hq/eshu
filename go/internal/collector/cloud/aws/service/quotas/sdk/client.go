@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssq "github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	awssqtypes "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
 	"github.com/aws/smithy-go"
@@ -50,15 +50,15 @@ type apiClient interface {
 // never requests, modifies, or deletes a quota.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Service Quotas SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -80,7 +80,7 @@ func (c *Client) Snapshot(ctx context.Context) (sqservice.Snapshot, error) {
 	}
 	var quotas []sqservice.ServiceQuota
 	for _, service := range services {
-		serviceCode := strings.TrimSpace(aws.ToString(service.ServiceCode))
+		serviceCode := strings.TrimSpace(awsv2.ToString(service.ServiceCode))
 		if serviceCode == "" {
 			continue
 		}
@@ -119,7 +119,7 @@ func (c *Client) listServices(ctx context.Context) ([]awssqtypes.ServiceInfo, er
 		}
 		services = append(services, page.Services...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return services, nil
 		}
 	}
@@ -133,7 +133,7 @@ func (c *Client) listAppliedQuotas(ctx context.Context, serviceCode string) ([]a
 		err := c.recordAPICall(ctx, "ListServiceQuotas", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListServiceQuotas(callCtx, &awssq.ListServiceQuotasInput{
-				ServiceCode: aws.String(serviceCode),
+				ServiceCode: awsv2.String(serviceCode),
 				NextToken:   nextToken,
 			})
 			return callErr
@@ -146,7 +146,7 @@ func (c *Client) listAppliedQuotas(ctx context.Context, serviceCode string) ([]a
 		}
 		quotas = append(quotas, page.Quotas...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return quotas, nil
 		}
 	}
@@ -160,7 +160,7 @@ func (c *Client) listDefaultQuotas(ctx context.Context, serviceCode string) (map
 		err := c.recordAPICall(ctx, "ListAWSDefaultServiceQuotas", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListAWSDefaultServiceQuotas(callCtx, &awssq.ListAWSDefaultServiceQuotasInput{
-				ServiceCode: aws.String(serviceCode),
+				ServiceCode: awsv2.String(serviceCode),
 				NextToken:   nextToken,
 			})
 			return callErr
@@ -172,14 +172,14 @@ func (c *Client) listDefaultQuotas(ctx context.Context, serviceCode string) (map
 			return defaults, nil
 		}
 		for _, quota := range page.Quotas {
-			code := strings.TrimSpace(aws.ToString(quota.QuotaCode))
+			code := strings.TrimSpace(awsv2.ToString(quota.QuotaCode))
 			if code == "" || quota.Value == nil {
 				continue
 			}
-			defaults[code] = aws.ToFloat64(quota.Value)
+			defaults[code] = awsv2.ToFloat64(quota.Value)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return defaults, nil
 		}
 	}
@@ -188,21 +188,21 @@ func (c *Client) listDefaultQuotas(ctx context.Context, serviceCode string) (map
 // mapQuota translates one applied SDK quota into the scanner-owned type, joining
 // the AWS-published default by quota code and computing the override flag.
 func mapQuota(quota awssqtypes.ServiceQuota, defaults map[string]float64) sqservice.ServiceQuota {
-	quotaCode := strings.TrimSpace(aws.ToString(quota.QuotaCode))
+	quotaCode := strings.TrimSpace(awsv2.ToString(quota.QuotaCode))
 	mapped := sqservice.ServiceQuota{
-		ARN:          strings.TrimSpace(aws.ToString(quota.QuotaArn)),
-		ServiceCode:  strings.TrimSpace(aws.ToString(quota.ServiceCode)),
-		ServiceName:  strings.TrimSpace(aws.ToString(quota.ServiceName)),
+		ARN:          strings.TrimSpace(awsv2.ToString(quota.QuotaArn)),
+		ServiceCode:  strings.TrimSpace(awsv2.ToString(quota.ServiceCode)),
+		ServiceName:  strings.TrimSpace(awsv2.ToString(quota.ServiceName)),
 		QuotaCode:    quotaCode,
-		QuotaName:    strings.TrimSpace(aws.ToString(quota.QuotaName)),
-		Description:  strings.TrimSpace(aws.ToString(quota.Description)),
+		QuotaName:    strings.TrimSpace(awsv2.ToString(quota.QuotaName)),
+		Description:  strings.TrimSpace(awsv2.ToString(quota.Description)),
 		Adjustable:   quota.Adjustable,
 		GlobalQuota:  quota.GlobalQuota,
-		Unit:         strings.TrimSpace(aws.ToString(quota.Unit)),
+		Unit:         strings.TrimSpace(awsv2.ToString(quota.Unit)),
 		AppliedLevel: strings.TrimSpace(string(quota.QuotaAppliedAtLevel)),
 	}
 	if quota.Value != nil {
-		applied := aws.ToFloat64(quota.Value)
+		applied := awsv2.ToFloat64(quota.Value)
 		mapped.AppliedValue = &applied
 	}
 	if defaultValue, ok := defaults[quotaCode]; ok {
@@ -224,7 +224,7 @@ func applyPeriod(quota *sqservice.ServiceQuota, period *awssqtypes.QuotaPeriod) 
 	}
 	quota.PeriodUnit = strings.TrimSpace(string(period.PeriodUnit))
 	if period.PeriodValue != nil {
-		value := aws.ToInt32(period.PeriodValue)
+		value := awsv2.ToInt32(period.PeriodValue)
 		quota.PeriodValue = &value
 	}
 }
@@ -233,9 +233,9 @@ func mapQuotaContext(context *awssqtypes.QuotaContextInfo) *sqservice.QuotaConte
 	if context == nil {
 		return nil
 	}
-	id := strings.TrimSpace(aws.ToString(context.ContextId))
+	id := strings.TrimSpace(awsv2.ToString(context.ContextId))
 	scope := strings.TrimSpace(string(context.ContextScope))
-	scopeType := strings.TrimSpace(aws.ToString(context.ContextScopeType))
+	scopeType := strings.TrimSpace(awsv2.ToString(context.ContextScopeType))
 	if id == "" && scope == "" && scopeType == "" {
 		return nil
 	}
@@ -250,9 +250,9 @@ func mapUsageMetric(metric *awssqtypes.MetricInfo) *sqservice.UsageMetric {
 	if metric == nil {
 		return nil
 	}
-	namespace := strings.TrimSpace(aws.ToString(metric.MetricNamespace))
-	name := strings.TrimSpace(aws.ToString(metric.MetricName))
-	statistic := strings.TrimSpace(aws.ToString(metric.MetricStatisticRecommendation))
+	namespace := strings.TrimSpace(awsv2.ToString(metric.MetricNamespace))
+	name := strings.TrimSpace(awsv2.ToString(metric.MetricName))
+	statistic := strings.TrimSpace(awsv2.ToString(metric.MetricStatisticRecommendation))
 	dimensions := cloneStringMap(metric.MetricDimensions)
 	if namespace == "" && name == "" && statistic == "" && dimensions == nil {
 		return nil
@@ -301,7 +301,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

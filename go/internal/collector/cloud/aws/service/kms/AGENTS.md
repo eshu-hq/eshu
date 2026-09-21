@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/kms guidance
+# AGENTS.md - internal/collector/cloud/aws/service/kms guidance
 
 ## Read First
 
@@ -29,7 +29,7 @@
   DeleteImportedKeyMaterial, UpdateKeyDescription, CreateAlias,
   UpdateAlias, DeleteAlias, TagResource, UntagResource,
   RotateKeyOnDemand, UpdatePrimaryRegion.
-- The scanner MAY read the key policy (the `awssdk` adapter calls
+- The scanner MAY read the key policy (the `sdk` adapter calls
   GetKeyPolicy, owner-approved reversal, PR4b of #1134) to emit the
   normalized, derived `aws_resource_policy_permission` fact: per
   statement, the effect, normalized action/resource patterns,
@@ -61,7 +61,7 @@
 
 - Add a new safe KMS metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it
-  through `awscloud` envelope builders.
+  through `aws` envelope builders.
 - Add new relationship evidence only when KMS directly reports both
   sides as identity (not as policy Statement principals; principals
   inferred from policy text are out of scope as graph edges — the
@@ -69,12 +69,12 @@
   derived policy-statement principal facts, and it emits no graph edge).
 - Extend `aws_resource_policy_permission` only with normalized/derived
   statement metadata already derived on `Key.ResourcePolicyStatements`.
-  The derivation lives in the `awssdk` adapter
+  The derivation lives in the `sdk` adapter
   (`deriveKeyPolicyResourcePermissionStatements`); never add raw statement
   bodies or condition values to the statement or the fact. This fact is
   the facts foundation for resource-policy-aware CAN_PERFORM (a later
   reducer follow-up); do not add a graph edge or reducer projection here.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

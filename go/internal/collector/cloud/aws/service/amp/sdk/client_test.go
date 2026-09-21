@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsamp "github.com/aws/aws-sdk-go-v2/service/amp"
 	awsamptypes "github.com/aws/aws-sdk-go-v2/service/amp/types"
 
@@ -29,11 +29,11 @@ func TestClientSnapshotsAMPMetadataOnly(t *testing.T) {
 	api := &fakeAMPAPI{
 		workspacePages: []*awsamp.ListWorkspacesOutput{{
 			Workspaces: []awsamptypes.WorkspaceSummary{{
-				Arn:         aws.String(workspaceARN),
-				WorkspaceId: aws.String(workspaceID),
-				Alias:       aws.String("platform-metrics"),
-				KmsKeyArn:   aws.String(kmsARN),
-				CreatedAt:   aws.Time(createdAt),
+				Arn:         awsv2.String(workspaceARN),
+				WorkspaceId: awsv2.String(workspaceID),
+				Alias:       awsv2.String("platform-metrics"),
+				KmsKeyArn:   awsv2.String(kmsARN),
+				CreatedAt:   awsv2.Time(createdAt),
 				Status:      &awsamptypes.WorkspaceStatus{StatusCode: awsamptypes.WorkspaceStatusCodeActive},
 				Tags:        map[string]string{"Environment": "prod"},
 			}},
@@ -41,29 +41,29 @@ func TestClientSnapshotsAMPMetadataOnly(t *testing.T) {
 		namespacePages: map[string][]*awsamp.ListRuleGroupsNamespacesOutput{
 			workspaceID: {{
 				RuleGroupsNamespaces: []awsamptypes.RuleGroupsNamespaceSummary{{
-					Arn:        aws.String(namespaceARN),
-					Name:       aws.String("alerts"),
-					CreatedAt:  aws.Time(createdAt),
-					ModifiedAt: aws.Time(createdAt),
+					Arn:        awsv2.String(namespaceARN),
+					Name:       awsv2.String("alerts"),
+					CreatedAt:  awsv2.Time(createdAt),
+					ModifiedAt: awsv2.Time(createdAt),
 					Status:     &awsamptypes.RuleGroupsNamespaceStatus{StatusCode: awsamptypes.RuleGroupsNamespaceStatusCodeActive},
 				}},
 			}},
 		},
 		scraperPages: []*awsamp.ListScrapersOutput{{
 			Scrapers: []awsamptypes.ScraperSummary{{
-				Arn:       aws.String(scraperARN),
-				ScraperId: aws.String("s-5678"),
-				Alias:     aws.String("prod-collector"),
-				RoleArn:   aws.String("arn:aws:iam::123456789012:role/aps-scraper"),
-				CreatedAt: aws.Time(createdAt),
+				Arn:       awsv2.String(scraperARN),
+				ScraperId: awsv2.String("s-5678"),
+				Alias:     awsv2.String("prod-collector"),
+				RoleArn:   awsv2.String("arn:aws:iam::123456789012:role/aps-scraper"),
+				CreatedAt: awsv2.Time(createdAt),
 				Status:    &awsamptypes.ScraperStatus{StatusCode: awsamptypes.ScraperStatusCodeActive},
 				Source: &awsamptypes.SourceMemberEksConfiguration{Value: awsamptypes.EksConfiguration{
-					ClusterArn:       aws.String(clusterARN),
+					ClusterArn:       awsv2.String(clusterARN),
 					SubnetIds:        []string{"subnet-aaaa1111", "subnet-bbbb2222"},
 					SecurityGroupIds: []string{"sg-cccc3333"},
 				}},
 				Destination: &awsamptypes.DestinationMemberAmpConfiguration{Value: awsamptypes.AmpConfiguration{
-					WorkspaceArn: aws.String(workspaceARN),
+					WorkspaceArn: awsv2.String(workspaceARN),
 				}},
 			}},
 		}},
@@ -129,15 +129,15 @@ func TestClientSnapshotsScraperWithoutEKSSource(t *testing.T) {
 	api := &fakeAMPAPI{
 		scraperPages: []*awsamp.ListScrapersOutput{{
 			Scrapers: []awsamptypes.ScraperSummary{{
-				Arn:       aws.String("arn:aws:aps:us-east-1:123456789012:scraper/s-msk"),
-				ScraperId: aws.String("s-msk"),
+				Arn:       awsv2.String("arn:aws:aps:us-east-1:123456789012:scraper/s-msk"),
+				ScraperId: awsv2.String("s-msk"),
 				Status:    &awsamptypes.ScraperStatus{StatusCode: awsamptypes.ScraperStatusCodeActive},
 				Source: &awsamptypes.SourceMemberVpcConfiguration{Value: awsamptypes.VpcConfiguration{
 					SubnetIds:        []string{"subnet-zzzz"},
 					SecurityGroupIds: []string{"sg-zzzz"},
 				}},
 				Destination: &awsamptypes.DestinationMemberAmpConfiguration{Value: awsamptypes.AmpConfiguration{
-					WorkspaceArn: aws.String("arn:aws:aps:us-east-1:123456789012:workspace/ws-1234"),
+					WorkspaceArn: awsv2.String("arn:aws:aps:us-east-1:123456789012:workspace/ws-1234"),
 				}},
 			}},
 		}},
@@ -194,8 +194,8 @@ func TestSnapshotWrapsEachListErrorWithItsOperation(t *testing.T) {
 			api: &fakeAMPAPI{
 				workspacePages: []*awsamp.ListWorkspacesOutput{{
 					Workspaces: []awsamptypes.WorkspaceSummary{{
-						Arn:         aws.String(workspaceARN),
-						WorkspaceId: aws.String(workspaceID),
+						Arn:         awsv2.String(workspaceARN),
+						WorkspaceId: awsv2.String(workspaceID),
 					}},
 				}},
 				namespaceErr: boom,
@@ -264,7 +264,7 @@ func (f *fakeAMPAPI) ListRuleGroupsNamespaces(
 	if f.namespaceCalls == nil {
 		f.namespaceCalls = map[string]int{}
 	}
-	id := aws.ToString(input.WorkspaceId)
+	id := awsv2.ToString(input.WorkspaceId)
 	pages := f.namespacePages[id]
 	idx := f.namespaceCalls[id]
 	if idx >= len(pages) {
@@ -290,10 +290,10 @@ func (f *fakeAMPAPI) ListScrapers(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAMP,
+		ServiceKind: aws.ServiceAMP,
 	}
 }

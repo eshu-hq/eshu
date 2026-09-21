@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	cbtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -25,14 +25,14 @@ const plaintextEnvValueReason = "codebuild_environment_variable_value"
 // field. PLAINTEXT environment-variable values are redacted through the key.
 func mapProject(project cbtypes.Project, key redact.Key) cbservice.Project {
 	mapped := cbservice.Project{
-		Name:               aws.ToString(project.Name),
-		ARN:                aws.ToString(project.Arn),
-		Description:        aws.ToString(project.Description),
-		ServiceRoleARN:     aws.ToString(project.ServiceRole),
-		EncryptionKeyID:    aws.ToString(project.EncryptionKey),
-		TimeoutInMinutes:   aws.ToInt32(project.TimeoutInMinutes),
-		QueuedTimeout:      aws.ToInt32(project.QueuedTimeoutInMinutes),
-		ConcurrentBuilds:   aws.ToInt32(project.ConcurrentBuildLimit),
+		Name:               awsv2.ToString(project.Name),
+		ARN:                awsv2.ToString(project.Arn),
+		Description:        awsv2.ToString(project.Description),
+		ServiceRoleARN:     awsv2.ToString(project.ServiceRole),
+		EncryptionKeyID:    awsv2.ToString(project.EncryptionKey),
+		TimeoutInMinutes:   awsv2.ToInt32(project.TimeoutInMinutes),
+		QueuedTimeout:      awsv2.ToInt32(project.QueuedTimeoutInMinutes),
+		ConcurrentBuilds:   awsv2.ToInt32(project.ConcurrentBuildLimit),
 		Source:             mapSource(project.Source),
 		SecondarySources:   mapSources(project.SecondarySources),
 		Environment:        mapEnvironment(project.Environment, key),
@@ -59,9 +59,9 @@ func mapSource(source *cbtypes.ProjectSource) cbservice.ProjectSource {
 	}
 	return cbservice.ProjectSource{
 		Type:              string(source.Type),
-		Location:          strings.TrimSpace(aws.ToString(source.Location)),
-		SourceIdentifier:  strings.TrimSpace(aws.ToString(source.SourceIdentifier)),
-		ReportBuildStatus: aws.ToBool(source.ReportBuildStatus),
+		Location:          strings.TrimSpace(awsv2.ToString(source.Location)),
+		SourceIdentifier:  strings.TrimSpace(awsv2.ToString(source.SourceIdentifier)),
+		ReportBuildStatus: awsv2.ToBool(source.ReportBuildStatus),
 	}
 }
 
@@ -82,9 +82,9 @@ func mapEnvironment(environment *cbtypes.ProjectEnvironment, key redact.Key) cbs
 	}
 	return cbservice.ProjectEnvironment{
 		Type:                 string(environment.Type),
-		Image:                strings.TrimSpace(aws.ToString(environment.Image)),
+		Image:                strings.TrimSpace(awsv2.ToString(environment.Image)),
 		ComputeType:          string(environment.ComputeType),
-		PrivilegedMode:       aws.ToBool(environment.PrivilegedMode),
+		PrivilegedMode:       awsv2.ToBool(environment.PrivilegedMode),
 		ImagePullCredentials: string(environment.ImagePullCredentialsType),
 		EnvironmentVariables: mapEnvironmentVariables(environment.EnvironmentVariables, key),
 	}
@@ -103,14 +103,14 @@ func mapEnvironmentVariables(variables []cbtypes.EnvironmentVariable, key redact
 	out := make([]cbservice.EnvironmentVariable, 0, len(variables))
 	for _, variable := range variables {
 		entry := cbservice.EnvironmentVariable{
-			Name: strings.TrimSpace(aws.ToString(variable.Name)),
+			Name: strings.TrimSpace(awsv2.ToString(variable.Name)),
 			Type: string(variable.Type),
 		}
-		value := aws.ToString(variable.Value)
+		value := awsv2.ToString(variable.Value)
 		switch variable.Type {
 		case cbtypes.EnvironmentVariableTypePlaintext:
 			if value != "" {
-				entry.ValueMarker = awscloud.RedactString(value, plaintextEnvValueReason, key)
+				entry.ValueMarker = aws.RedactString(value, plaintextEnvValueReason, key)
 			}
 		case cbtypes.EnvironmentVariableTypeParameterStore, cbtypes.EnvironmentVariableTypeSecretsManager:
 			entry.Reference = strings.TrimSpace(value)
@@ -118,7 +118,7 @@ func mapEnvironmentVariables(variables []cbtypes.EnvironmentVariable, key redact
 			// Unknown future type: redact the value to stay fail-safe so an
 			// unmapped type can never persist a raw value.
 			if value != "" {
-				entry.ValueMarker = awscloud.RedactString(value, plaintextEnvValueReason, key)
+				entry.ValueMarker = aws.RedactString(value, plaintextEnvValueReason, key)
 			}
 		}
 		out = append(out, entry)
@@ -132,9 +132,9 @@ func mapArtifacts(artifacts *cbtypes.ProjectArtifacts) cbservice.ProjectArtifact
 	}
 	return cbservice.ProjectArtifacts{
 		Type:               string(artifacts.Type),
-		Location:           strings.TrimSpace(aws.ToString(artifacts.Location)),
-		ArtifactIdentifier: strings.TrimSpace(aws.ToString(artifacts.ArtifactIdentifier)),
-		EncryptionDisabled: aws.ToBool(artifacts.EncryptionDisabled),
+		Location:           strings.TrimSpace(awsv2.ToString(artifacts.Location)),
+		ArtifactIdentifier: strings.TrimSpace(awsv2.ToString(artifacts.ArtifactIdentifier)),
+		EncryptionDisabled: awsv2.ToBool(artifacts.EncryptionDisabled),
 	}
 }
 
@@ -154,7 +154,7 @@ func mapVPCConfig(config *cbtypes.VpcConfig) cbservice.VPCConfig {
 		return cbservice.VPCConfig{}
 	}
 	return cbservice.VPCConfig{
-		VPCID:            strings.TrimSpace(aws.ToString(config.VpcId)),
+		VPCID:            strings.TrimSpace(awsv2.ToString(config.VpcId)),
 		SubnetIDs:        trimStrings(config.Subnets),
 		SecurityGroupIDs: trimStrings(config.SecurityGroupIds),
 	}
@@ -162,8 +162,8 @@ func mapVPCConfig(config *cbtypes.VpcConfig) cbservice.VPCConfig {
 
 func mapReportGroup(group cbtypes.ReportGroup) cbservice.ReportGroup {
 	mapped := cbservice.ReportGroup{
-		Name:   aws.ToString(group.Name),
-		ARN:    aws.ToString(group.Arn),
+		Name:   awsv2.ToString(group.Name),
+		ARN:    awsv2.ToString(group.Arn),
 		Type:   string(group.Type),
 		Status: string(group.Status),
 		Tags:   mapTags(group.Tags),
@@ -171,7 +171,7 @@ func mapReportGroup(group cbtypes.ReportGroup) cbservice.ReportGroup {
 	if group.ExportConfig != nil {
 		mapped.ExportType = string(group.ExportConfig.ExportConfigType)
 		if group.ExportConfig.S3Destination != nil {
-			mapped.ExportS3Bucket = strings.TrimSpace(aws.ToString(group.ExportConfig.S3Destination.Bucket))
+			mapped.ExportS3Bucket = strings.TrimSpace(awsv2.ToString(group.ExportConfig.S3Destination.Bucket))
 		}
 	}
 	if group.Created != nil {
@@ -188,15 +188,15 @@ func mapReportGroup(group cbtypes.ReportGroup) cbservice.ReportGroup {
 // scanner-owned Build record has no field for logs.
 func mapBuild(build cbtypes.Build) cbservice.Build {
 	mapped := cbservice.Build{
-		ID:                    aws.ToString(build.Id),
-		ARN:                   aws.ToString(build.Arn),
-		ProjectName:           aws.ToString(build.ProjectName),
-		BuildNumber:           aws.ToInt64(build.BuildNumber),
+		ID:                    awsv2.ToString(build.Id),
+		ARN:                   awsv2.ToString(build.Arn),
+		ProjectName:           awsv2.ToString(build.ProjectName),
+		BuildNumber:           awsv2.ToInt64(build.BuildNumber),
 		Status:                string(build.BuildStatus),
-		CurrentPhase:          strings.TrimSpace(aws.ToString(build.CurrentPhase)),
-		Initiator:             strings.TrimSpace(aws.ToString(build.Initiator)),
+		CurrentPhase:          strings.TrimSpace(awsv2.ToString(build.CurrentPhase)),
+		Initiator:             strings.TrimSpace(awsv2.ToString(build.Initiator)),
 		BuildComplete:         build.BuildComplete,
-		ResolvedSourceVersion: strings.TrimSpace(aws.ToString(build.ResolvedSourceVersion)),
+		ResolvedSourceVersion: strings.TrimSpace(awsv2.ToString(build.ResolvedSourceVersion)),
 	}
 	if build.StartTime != nil {
 		mapped.StartTime = build.StartTime.UTC()
@@ -213,11 +213,11 @@ func mapTags(tags []cbtypes.Tag) map[string]string {
 	}
 	out := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		out[key] = aws.ToString(tag.Value)
+		out[key] = awsv2.ToString(tag.Value)
 	}
 	if len(out) == 0 {
 		return nil

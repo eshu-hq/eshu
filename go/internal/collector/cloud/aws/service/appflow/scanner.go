@@ -27,15 +27,15 @@ type Scanner struct {
 // flow-to-connector-profile, flow-to-KMS-key, and connector-profile-to-secret
 // edges. Field mappings, flow run records, connector credentials, and OAuth
 // tokens stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("appflow scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppFlow:
+	case "", aws.ServiceAppFlow:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppFlow
+		boundary.ServiceKind = aws.ServiceAppFlow
 	default:
 		return nil, fmt.Errorf("appflow scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -69,14 +69,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(flowObservation(boundary, flow))
+func flowEnvelopes(boundary aws.Boundary, flow Flow) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(flowObservation(boundary, flow))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
-	scalarRelationships := []*awscloud.RelationshipObservation{
+	scalarRelationships := []*aws.RelationshipObservation{
 		flowS3SourceRelationship(boundary, flow),
 		flowKMSKeyRelationship(boundary, flow),
 	}
@@ -84,7 +84,7 @@ func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, err
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, err
 	listRelationships := flowS3DestinationRelationships(boundary, flow)
 	listRelationships = append(listRelationships, flowConnectorProfileRelationships(boundary, flow)...)
 	for _, relationship := range listRelationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -102,14 +102,14 @@ func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, err
 	return envelopes, nil
 }
 
-func connectorProfileEnvelopes(boundary awscloud.Boundary, profile ConnectorProfile) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(connectorProfileObservation(boundary, profile))
+func connectorProfileEnvelopes(boundary aws.Boundary, profile ConnectorProfile) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(connectorProfileObservation(boundary, profile))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := connectorProfileSecretRelationship(boundary, profile); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func connectorProfileEnvelopes(boundary awscloud.Boundary, profile ConnectorProf
 	return envelopes, nil
 }
 
-func flowObservation(boundary awscloud.Boundary, flow Flow) awscloud.ResourceObservation {
+func flowObservation(boundary aws.Boundary, flow Flow) aws.ResourceObservation {
 	flowID := flowResourceID(flow)
 	name := strings.TrimSpace(flow.Name)
 	arn := strings.TrimSpace(flow.ARN)
@@ -126,11 +126,11 @@ func flowObservation(boundary awscloud.Boundary, flow Flow) awscloud.ResourceObs
 	if name != "" && name != flowID {
 		anchors = append(anchors, name)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   flowID,
-		ResourceType: awscloud.ResourceTypeAppFlowFlow,
+		ResourceType: aws.ResourceTypeAppFlowFlow,
 		Name:         name,
 		State:        strings.TrimSpace(flow.Status),
 		Attributes: map[string]any{
@@ -148,18 +148,18 @@ func flowObservation(boundary awscloud.Boundary, flow Flow) awscloud.ResourceObs
 	}
 }
 
-func connectorProfileObservation(boundary awscloud.Boundary, profile ConnectorProfile) awscloud.ResourceObservation {
+func connectorProfileObservation(boundary aws.Boundary, profile ConnectorProfile) aws.ResourceObservation {
 	name := strings.TrimSpace(profile.Name)
 	arn := strings.TrimSpace(profile.ARN)
 	anchors := []string{name}
 	if arn != "" {
 		anchors = append(anchors, arn)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAppFlowConnectorProfile,
+		ResourceType: aws.ResourceTypeAppFlowConnectorProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.ConnectionMode),
 		Attributes: map[string]any{

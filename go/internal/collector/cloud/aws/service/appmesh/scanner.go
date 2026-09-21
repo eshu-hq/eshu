@@ -32,7 +32,7 @@ type Scanner struct {
 // metadata-only resource facts plus the relationships App Mesh reports
 // directly. Errors from the client are wrapped so partial failures surface
 // rather than producing a silently truncated inventory.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("appmesh scanner client is required")
 	}
@@ -40,10 +40,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appmesh scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppMesh:
+	case "", aws.ServiceAppMesh:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppMesh
+		boundary.ServiceKind = aws.ServiceAppMesh
 	default:
 		return nil, fmt.Errorf("appmesh scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -66,7 +66,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // meshEnvelopes emits the mesh resource and every child resource and
 // relationship the mesh reports.
-func (s Scanner) meshEnvelopes(boundary awscloud.Boundary, mesh Mesh) ([]facts.Envelope, error) {
+func (s Scanner) meshEnvelopes(boundary aws.Boundary, mesh Mesh) ([]facts.Envelope, error) {
 	var envelopes []facts.Envelope
 	if err := appendResource(&envelopes, meshObservation(boundary, mesh)); err != nil {
 		return nil, err
@@ -121,8 +121,8 @@ func (s Scanner) meshEnvelopes(boundary awscloud.Boundary, mesh Mesh) ([]facts.E
 	return envelopes, nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -130,9 +130,9 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.RelationshipObservation) error {
+func appendRelationships(envelopes *[]facts.Envelope, observations []aws.RelationshipObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return err
 		}

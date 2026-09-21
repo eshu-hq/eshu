@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elasticache/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elasticache/sdk guidance
 
 ## Read First
 

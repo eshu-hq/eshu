@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/verifiedaccess` owns the Amazon Verified
+`internal/collector/cloud/aws/service/verifiedaccess` owns the Amazon Verified
 Access scanner contract for the AWS cloud collector. It converts Verified Access
 instance, group, endpoint, and trust-provider metadata into `aws_resource` facts
 and emits relationship evidence for group-in-instance and endpoint-in-group
@@ -41,7 +41,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -50,9 +50,9 @@ v2 so tests can use fake clients and the runtime adapter can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Verified Access API call counts, throttles, and
+`sdk` adapter records Verified Access API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -63,7 +63,7 @@ pagination spans.
 - Verified Access instances, endpoints, and trust providers carry no ARN in the
   EC2 describe responses, so the scanner synthesizes the partition-aware ARN
   (`arn:<partition>:ec2:<region>:<account>:<kind>/<id>`) via
-  `awscloud.PartitionForBoundary` and never hardcodes `arn:aws:`; GovCloud and
+  `aws.PartitionForBoundary` and never hardcodes `arn:aws:`; GovCloud and
   China resolve to the real node identity. Groups carry an API ARN and use it
   directly.
 - The group-in-instance edge keys the instance by the resource_id the instance
@@ -87,7 +87,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/verifiedaccess/...` covers the
+`go test ./internal/collector/cloud/aws/service/verifiedaccess/...` covers the
 bounded Verified Access metadata path: one paginated
 DescribeVerifiedAccessInstances stream, one DescribeVerifiedAccessTrustProviders
 stream, one DescribeVerifiedAccessGroups stream, and one
@@ -95,7 +95,7 @@ DescribeVerifiedAccessEndpoints stream, no policy reads, no mutations, and no
 graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/verifiedaccess/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/verifiedaccess/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

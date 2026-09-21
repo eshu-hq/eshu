@@ -14,7 +14,7 @@ import (
 // CloudWatch Logs structured-log destinations, and the CloudWatch logging IAM
 // role. Each edge is emitted only when AWS reports the join key in the shape the
 // target scanner publishes.
-func serverRelationships(boundary awscloud.Boundary, server Server) []awscloud.RelationshipObservation {
+func serverRelationships(boundary aws.Boundary, server Server) []aws.RelationshipObservation {
 	// Source the edges on the identity the server resource node publishes as its
 	// resource_id (ARN-preferred, matching serverObservation). Using the bare
 	// ServerID here would dangle every server->* edge whenever the server ARN is
@@ -24,7 +24,7 @@ func serverRelationships(boundary awscloud.Boundary, server Server) []awscloud.R
 	if serverID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if endpoint := serverVPCEndpointRelationship(boundary, serverID, server); endpoint != nil {
 		observations = append(observations, *endpoint)
@@ -43,19 +43,19 @@ func serverRelationships(boundary awscloud.Boundary, server Server) []awscloud.R
 // serverVPCEndpointRelationship records the interface VPC endpoint a VPC-hosted
 // server publishes. The VPC scanner keys a VPC endpoint by its bare ID
 // (vpce-...), so the edge is keyed by the bare ID and carries no target ARN.
-func serverVPCEndpointRelationship(boundary awscloud.Boundary, serverID string, server Server) *awscloud.RelationshipObservation {
+func serverVPCEndpointRelationship(boundary aws.Boundary, serverID string, server Server) *aws.RelationshipObservation {
 	endpointID := strings.TrimSpace(server.VPCEndpointID)
 	if endpointID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesVPCEndpoint,
+		RelationshipType: aws.RelationshipTransferServerUsesVPCEndpoint,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: endpointID,
-		TargetType:       awscloud.ResourceTypeVPCEndpoint,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesVPCEndpoint + ":" + endpointID,
+		TargetType:       aws.ResourceTypeVPCEndpoint,
+		SourceRecordID:   serverID + "->" + aws.RelationshipTransferServerUsesVPCEndpoint + ":" + endpointID,
 	}
 }
 
@@ -63,11 +63,11 @@ func serverVPCEndpointRelationship(boundary awscloud.Boundary, serverID string, 
 // VPC endpoint server. The VPC scanner keys an Elastic IP by its bare
 // allocation ID (eipalloc-...), so each edge is keyed by the bare ID and
 // carries no target ARN.
-func serverElasticIPRelationships(boundary awscloud.Boundary, serverID string, server Server) []awscloud.RelationshipObservation {
+func serverElasticIPRelationships(boundary aws.Boundary, serverID string, server Server) []aws.RelationshipObservation {
 	if len(server.AddressAllocationIDs) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(server.AddressAllocationIDs))
+	observations := make([]aws.RelationshipObservation, 0, len(server.AddressAllocationIDs))
 	seen := make(map[string]struct{}, len(server.AddressAllocationIDs))
 	for _, allocation := range server.AddressAllocationIDs {
 		allocationID := strings.TrimSpace(allocation)
@@ -78,14 +78,14 @@ func serverElasticIPRelationships(boundary awscloud.Boundary, serverID string, s
 			continue
 		}
 		seen[allocationID] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransferServerUsesElasticIP,
+			RelationshipType: aws.RelationshipTransferServerUsesElasticIP,
 			SourceResourceID: serverID,
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: allocationID,
-			TargetType:       awscloud.ResourceTypeVPCElasticIP,
-			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesElasticIP + ":" + allocationID,
+			TargetType:       aws.ResourceTypeVPCElasticIP,
+			SourceRecordID:   serverID + "->" + aws.RelationshipTransferServerUsesElasticIP + ":" + allocationID,
 		})
 	}
 	if len(observations) == 0 {
@@ -97,40 +97,40 @@ func serverElasticIPRelationships(boundary awscloud.Boundary, serverID string, s
 // serverACMCertificateRelationship records the ACM certificate backing FTPS.
 // ACM publishes a certificate's resource_id as its ARN, and Transfer reports
 // the certificate as an ARN, so the edge is ARN-keyed on both sides.
-func serverACMCertificateRelationship(boundary awscloud.Boundary, serverID string, server Server) *awscloud.RelationshipObservation {
+func serverACMCertificateRelationship(boundary aws.Boundary, serverID string, server Server) *aws.RelationshipObservation {
 	certificateARN := strings.TrimSpace(server.CertificateARN)
 	if !isARN(certificateARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesACMCertificate,
+		RelationshipType: aws.RelationshipTransferServerUsesACMCertificate,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: certificateARN,
 		TargetARN:        certificateARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesACMCertificate + ":" + certificateARN,
+		TargetType:       aws.ResourceTypeACMCertificate,
+		SourceRecordID:   serverID + "->" + aws.RelationshipTransferServerUsesACMCertificate + ":" + certificateARN,
 	}
 }
 
 // serverLoggingRoleRelationship records the IAM role Transfer assumes to deliver
 // CloudWatch logs. IAM publishes a role's resource_id as its ARN, so the edge is
 // ARN-keyed when AWS reports an ARN-shaped role.
-func serverLoggingRoleRelationship(boundary awscloud.Boundary, serverID string, server Server) *awscloud.RelationshipObservation {
+func serverLoggingRoleRelationship(boundary aws.Boundary, serverID string, server Server) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(server.LoggingRoleARN)
 	if !isARN(roleARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesLoggingRole,
+		RelationshipType: aws.RelationshipTransferServerUsesLoggingRole,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesLoggingRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   serverID + "->" + aws.RelationshipTransferServerUsesLoggingRole + ":" + roleARN,
 	}
 }
 
@@ -138,11 +138,11 @@ func serverLoggingRoleRelationship(boundary awscloud.Boundary, serverID string, 
 // the server's structured logs. The CloudWatch Logs scanner keys a log group by
 // its ARN, and Transfer reports structured-log destinations as ARNs, so each
 // edge is ARN-keyed.
-func serverLogGroupRelationships(boundary awscloud.Boundary, serverID string, server Server) []awscloud.RelationshipObservation {
+func serverLogGroupRelationships(boundary aws.Boundary, serverID string, server Server) []aws.RelationshipObservation {
 	if len(server.StructuredLogDestinations) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(server.StructuredLogDestinations))
+	observations := make([]aws.RelationshipObservation, 0, len(server.StructuredLogDestinations))
 	seen := make(map[string]struct{}, len(server.StructuredLogDestinations))
 	for _, destination := range server.StructuredLogDestinations {
 		logGroupARN := strings.TrimSpace(destination)
@@ -153,15 +153,15 @@ func serverLogGroupRelationships(boundary awscloud.Boundary, serverID string, se
 			continue
 		}
 		seen[logGroupARN] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransferServerLogsToLogGroup,
+			RelationshipType: aws.RelationshipTransferServerLogsToLogGroup,
 			SourceResourceID: serverID,
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
-			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerLogsToLogGroup + ":" + logGroupARN,
+			TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
+			SourceRecordID:   serverID + "->" + aws.RelationshipTransferServerLogsToLogGroup + ":" + logGroupARN,
 		})
 	}
 	if len(observations) == 0 {
@@ -174,12 +174,12 @@ func serverLogGroupRelationships(boundary awscloud.Boundary, serverID string, se
 // the IAM access role and the S3 bucket or EFS file system backing the home
 // directory. Home-directory edges carry only the path; object and file contents
 // are never read.
-func userRelationships(boundary awscloud.Boundary, user User) []awscloud.RelationshipObservation {
+func userRelationships(boundary aws.Boundary, user User) []aws.RelationshipObservation {
 	userID := userResourceID(user)
 	if userID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if role := userRoleRelationship(boundary, userID, user); role != nil {
 		observations = append(observations, *role)
 	}
@@ -192,20 +192,20 @@ func userRelationships(boundary awscloud.Boundary, user User) []awscloud.Relatio
 // userRoleRelationship records the IAM access role a user assumes. IAM publishes
 // a role's resource_id as its ARN, so the edge is ARN-keyed when AWS reports an
 // ARN-shaped role.
-func userRoleRelationship(boundary awscloud.Boundary, userID string, user User) *awscloud.RelationshipObservation {
+func userRoleRelationship(boundary aws.Boundary, userID string, user User) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(user.RoleARN)
 	if !isARN(roleARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserUsesIAMRole,
+		RelationshipType: aws.RelationshipTransferUserUsesIAMRole,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   userID + "->" + aws.RelationshipTransferUserUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -215,7 +215,7 @@ func userRoleRelationship(boundary awscloud.Boundary, userID string, user User) 
 // leading path segment and synthesizes the partition-aware target ARN the S3 or
 // EFS scanner publishes. Only the path is recorded; the scanner never reads
 // object or file contents.
-func userHomeDirectoryRelationship(boundary awscloud.Boundary, userID string, user User) *awscloud.RelationshipObservation {
+func userHomeDirectoryRelationship(boundary aws.Boundary, userID string, user User) *aws.RelationshipObservation {
 	segment, remainder, ok := firstPathSegment(user.HomeDirectory)
 	if !ok {
 		return nil
@@ -229,12 +229,12 @@ func userHomeDirectoryRelationship(boundary awscloud.Boundary, userID string, us
 // userS3HomeDirectoryRelationship synthesizes the S3 bucket ARN the S3 scanner
 // publishes (`arn:<partition>:s3:::<bucket>`) and keys the edge by it.
 func userS3HomeDirectoryRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	userID string,
 	user User,
 	bucket string,
 	prefix string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	bucketARN := "arn:" + partition(boundary) + ":s3:::" + bucket
 	attributes := map[string]any{
 		"home_directory": strings.TrimSpace(user.HomeDirectory),
@@ -243,16 +243,16 @@ func userS3HomeDirectoryRelationship(
 	if prefix != "" {
 		attributes["object_key_prefix"] = prefix
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket,
+		RelationshipType: aws.RelationshipTransferUserHomeDirectoryInS3Bucket,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket + ":" + bucketARN,
+		SourceRecordID:   userID + "->" + aws.RelationshipTransferUserHomeDirectoryInS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -261,12 +261,12 @@ func userS3HomeDirectoryRelationship(
 // (`arn:<partition>:elasticfilesystem:<region>:<account>:file-system/<fs-id>`)
 // and keys the edge by it.
 func userEFSHomeDirectoryRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	userID string,
 	user User,
 	fileSystemID string,
 	path string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	region := strings.TrimSpace(boundary.Region)
 	account := strings.TrimSpace(boundary.AccountID)
 	if region == "" || account == "" {
@@ -283,16 +283,16 @@ func userEFSHomeDirectoryRelationship(
 	if path != "" {
 		attributes["path_prefix"] = path
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
+		RelationshipType: aws.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
-		TargetType:       awscloud.ResourceTypeEFSFileSystem,
+		TargetType:       aws.ResourceTypeEFSFileSystem,
 		Attributes:       attributes,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem + ":" + fileSystemARN,
+		SourceRecordID:   userID + "->" + aws.RelationshipTransferUserHomeDirectoryInEFSFileSystem + ":" + fileSystemARN,
 	}
 }
 

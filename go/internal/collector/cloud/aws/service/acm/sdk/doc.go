@@ -15,4 +15,4 @@
 // DeleteCertificate, RenewCertificate, RequestCertificate,
 // UpdateCertificateOptions, ResendValidationEmail, RemoveTagsFromCertificate).
 // ACM Private CA (acm-pca) is out of scope.
-package awssdk
+package sdk

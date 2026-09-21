@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsapprunner "github.com/aws/aws-sdk-go-v2/service/apprunner"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -41,15 +41,15 @@ type apiClient interface {
 // records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an App Runner SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -79,7 +79,7 @@ func (c *Client) ListServices(ctx context.Context) ([]apprunnerservice.Service, 
 			return nil, err
 		}
 		for _, summary := range page.ServiceSummaryList {
-			serviceARN := strings.TrimSpace(aws.ToString(summary.ServiceArn))
+			serviceARN := strings.TrimSpace(awsv2.ToString(summary.ServiceArn))
 			if serviceARN == "" {
 				continue
 			}
@@ -102,7 +102,7 @@ func (c *Client) describeService(ctx context.Context, serviceARN string) (apprun
 	err := c.recordAPICall(ctx, "DescribeService", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeService(callCtx, &awsapprunner.DescribeServiceInput{
-			ServiceArn: aws.String(serviceARN),
+			ServiceArn: awsv2.String(serviceARN),
 		})
 		return err
 	})
@@ -124,7 +124,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsapprunner.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -180,7 +180,7 @@ func (c *Client) ListAutoScalingConfigurations(ctx context.Context) ([]apprunner
 			return nil, err
 		}
 		for _, summary := range page.AutoScalingConfigurationSummaryList {
-			arn := strings.TrimSpace(aws.ToString(summary.AutoScalingConfigurationArn))
+			arn := strings.TrimSpace(awsv2.ToString(summary.AutoScalingConfigurationArn))
 			if arn == "" {
 				continue
 			}
@@ -203,7 +203,7 @@ func (c *Client) describeAutoScalingConfiguration(ctx context.Context, arn strin
 	err := c.recordAPICall(ctx, "DescribeAutoScalingConfiguration", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeAutoScalingConfiguration(callCtx, &awsapprunner.DescribeAutoScalingConfigurationInput{
-			AutoScalingConfigurationArn: aws.String(arn),
+			AutoScalingConfigurationArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -233,7 +233,7 @@ func (c *Client) ListObservabilityConfigurations(ctx context.Context) ([]apprunn
 			return nil, err
 		}
 		for _, summary := range page.ObservabilityConfigurationSummaryList {
-			arn := strings.TrimSpace(aws.ToString(summary.ObservabilityConfigurationArn))
+			arn := strings.TrimSpace(awsv2.ToString(summary.ObservabilityConfigurationArn))
 			if arn == "" {
 				continue
 			}
@@ -256,7 +256,7 @@ func (c *Client) describeObservabilityConfiguration(ctx context.Context, arn str
 	err := c.recordAPICall(ctx, "DescribeObservabilityConfiguration", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeObservabilityConfiguration(callCtx, &awsapprunner.DescribeObservabilityConfigurationInput{
-			ObservabilityConfigurationArn: aws.String(arn),
+			ObservabilityConfigurationArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -312,7 +312,7 @@ func (c *Client) ListVpcIngressConnections(ctx context.Context) ([]apprunnerserv
 			return nil, err
 		}
 		for _, summary := range page.VpcIngressConnectionSummaryList {
-			arn := strings.TrimSpace(aws.ToString(summary.VpcIngressConnectionArn))
+			arn := strings.TrimSpace(awsv2.ToString(summary.VpcIngressConnectionArn))
 			if arn == "" {
 				continue
 			}
@@ -335,7 +335,7 @@ func (c *Client) describeVpcIngressConnection(ctx context.Context, arn string) (
 	err := c.recordAPICall(ctx, "DescribeVpcIngressConnection", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeVpcIngressConnection(callCtx, &awsapprunner.DescribeVpcIngressConnectionInput{
-			VpcIngressConnectionArn: aws.String(arn),
+			VpcIngressConnectionArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -366,7 +366,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -12,4 +12,4 @@
 // CreateStorediSCSIVolume, DeleteVolume, and every other mutation, cache, tape,
 // or credential API. Object contents, NFS client allow lists, and SMB
 // admin/user lists never leave the adapter.
-package awssdk
+package sdk

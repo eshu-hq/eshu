@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsds "github.com/aws/aws-sdk-go-v2/service/directoryservice"
 	awsdstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
 
@@ -83,34 +83,34 @@ func TestClientListDirectoriesMapsTypesAndPlacement(t *testing.T) {
 	fake := &fakeDSAPI{
 		directories: []awsdstypes.DirectoryDescription{
 			{
-				DirectoryId: aws.String("d-1234567890"),
-				Name:        aws.String("corp.example.com"),
-				ShortName:   aws.String("CORP"),
+				DirectoryId: awsv2.String("d-1234567890"),
+				Name:        awsv2.String("corp.example.com"),
+				ShortName:   awsv2.String("CORP"),
 				Type:        awsdstypes.DirectoryTypeMicrosoftAd,
 				Edition:     awsdstypes.DirectoryEditionEnterprise,
 				Size:        awsdstypes.DirectorySizeLarge,
 				Stage:       awsdstypes.DirectoryStageActive,
 				SsoEnabled:  true,
 				VpcSettings: &awsdstypes.DirectoryVpcSettingsDescription{
-					VpcId:             aws.String("vpc-aaa"),
+					VpcId:             awsv2.String("vpc-aaa"),
 					SubnetIds:         []string{"subnet-1", "subnet-2"},
-					SecurityGroupId:   aws.String("sg-123"),
+					SecurityGroupId:   awsv2.String("sg-123"),
 					AvailabilityZones: []string{"us-east-1a", "us-east-1b"},
 				},
 			},
 			{
-				DirectoryId: aws.String("d-0987654321"),
-				Name:        aws.String("connector.example.com"),
+				DirectoryId: awsv2.String("d-0987654321"),
+				Name:        awsv2.String("connector.example.com"),
 				Type:        awsdstypes.DirectoryTypeAdConnector,
 				Size:        awsdstypes.DirectorySizeSmall,
 				Stage:       awsdstypes.DirectoryStageActive,
 				// AD Connector reports placement under ConnectSettings, and the
 				// CustomerUserName service-account field must never be read.
 				ConnectSettings: &awsdstypes.DirectoryConnectSettingsDescription{
-					VpcId:            aws.String("vpc-bbb"),
+					VpcId:            awsv2.String("vpc-bbb"),
 					SubnetIds:        []string{"subnet-9"},
-					SecurityGroupId:  aws.String("sg-999"),
-					CustomerUserName: aws.String("svc-connector"),
+					SecurityGroupId:  awsv2.String("sg-999"),
+					CustomerUserName: awsv2.String("svc-connector"),
 				},
 			},
 		},
@@ -118,7 +118,7 @@ func TestClientListDirectoriesMapsTypesAndPlacement(t *testing.T) {
 			"d-1234567890": {{LDAPSStatus: awsdstypes.LDAPSStatusEnabled}},
 		},
 		tags: map[string][]awsdstypes.Tag{
-			"d-1234567890": {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			"d-1234567890": {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{client: fake, boundary: testBoundary()}
@@ -173,8 +173,8 @@ func TestClientListDirectoriesMapsTypesAndPlacement(t *testing.T) {
 func TestClientDoesNotCallLDAPSForUnsupportedTypes(t *testing.T) {
 	fake := &fakeDSAPI{
 		directories: []awsdstypes.DirectoryDescription{
-			{DirectoryId: aws.String("d-simple0001"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive},
-			{DirectoryId: aws.String("d-connector1"), Type: awsdstypes.DirectoryTypeAdConnector, Stage: awsdstypes.DirectoryStageActive},
+			{DirectoryId: awsv2.String("d-simple0001"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive},
+			{DirectoryId: awsv2.String("d-connector1"), Type: awsdstypes.DirectoryTypeAdConnector, Stage: awsdstypes.DirectoryStageActive},
 		},
 	}
 	adapter := &Client{client: fake, boundary: testBoundary()}
@@ -189,8 +189,8 @@ func TestClientDoesNotCallLDAPSForUnsupportedTypes(t *testing.T) {
 func TestClientListDirectoriesPaginates(t *testing.T) {
 	fake := &fakeDSAPI{
 		directoryPages: [][]awsdstypes.DirectoryDescription{
-			{{DirectoryId: aws.String("d-page0001a"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive}},
-			{{DirectoryId: aws.String("d-page0002b"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive}},
+			{{DirectoryId: awsv2.String("d-page0001a"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive}},
+			{{DirectoryId: awsv2.String("d-page0002b"), Type: awsdstypes.DirectoryTypeSimpleAd, Stage: awsdstypes.DirectoryStageActive}},
 		},
 	}
 	adapter := &Client{client: fake, boundary: testBoundary()}
@@ -210,9 +210,9 @@ func TestClientListTrustsAndSharedDirectories(t *testing.T) {
 	fake := &fakeDSAPI{
 		trusts: map[string][]awsdstypes.Trust{
 			"d-1234567890": {{
-				TrustId:          aws.String("t-aaaa111122"),
-				DirectoryId:      aws.String("d-1234567890"),
-				RemoteDomainName: aws.String("remote.example.com"),
+				TrustId:          awsv2.String("t-aaaa111122"),
+				DirectoryId:      awsv2.String("d-1234567890"),
+				RemoteDomainName: awsv2.String("remote.example.com"),
 				TrustDirection:   awsdstypes.TrustDirectionTwoWay,
 				TrustType:        awsdstypes.TrustTypeForest,
 				TrustState:       awsdstypes.TrustStateVerified,
@@ -220,10 +220,10 @@ func TestClientListTrustsAndSharedDirectories(t *testing.T) {
 		},
 		shares: map[string][]awsdstypes.SharedDirectory{
 			"d-1234567890": {{
-				OwnerAccountId:    aws.String("123456789012"),
-				OwnerDirectoryId:  aws.String("d-1234567890"),
-				SharedAccountId:   aws.String("210987654321"),
-				SharedDirectoryId: aws.String("d-shared00001"),
+				OwnerAccountId:    awsv2.String("123456789012"),
+				OwnerDirectoryId:  awsv2.String("d-1234567890"),
+				SharedAccountId:   awsv2.String("210987654321"),
+				SharedDirectoryId: awsv2.String("d-shared00001"),
 				ShareMethod:       awsdstypes.ShareMethodHandshake,
 				ShareStatus:       awsdstypes.ShareStatusShared,
 			}},
@@ -254,8 +254,8 @@ func TestClientListTrustsAndSharedDirectories(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDirectoryService}
+func testBoundary() aws.Boundary {
+	return aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceDirectoryService}
 }
 
 type fakeDSAPI struct {
@@ -278,13 +278,13 @@ func (f *fakeDSAPI) DescribeDirectories(
 	f.directoryCalls++
 	if len(f.directoryPages) > 0 {
 		idx := 0
-		if token := aws.ToString(input.NextToken); token != "" {
+		if token := awsv2.ToString(input.NextToken); token != "" {
 			idx = int(token[0] - '0')
 		}
 		page := f.directoryPages[idx]
 		var next *string
 		if idx+1 < len(f.directoryPages) {
-			next = aws.String(string(rune('0' + idx + 1)))
+			next = awsv2.String(string(rune('0' + idx + 1)))
 		}
 		return &awsds.DescribeDirectoriesOutput{DirectoryDescriptions: page, NextToken: next}, nil
 	}
@@ -296,7 +296,7 @@ func (f *fakeDSAPI) DescribeTrusts(
 	input *awsds.DescribeTrustsInput,
 	_ ...func(*awsds.Options),
 ) (*awsds.DescribeTrustsOutput, error) {
-	return &awsds.DescribeTrustsOutput{Trusts: f.trusts[aws.ToString(input.DirectoryId)]}, nil
+	return &awsds.DescribeTrustsOutput{Trusts: f.trusts[awsv2.ToString(input.DirectoryId)]}, nil
 }
 
 func (f *fakeDSAPI) DescribeSharedDirectories(
@@ -304,7 +304,7 @@ func (f *fakeDSAPI) DescribeSharedDirectories(
 	input *awsds.DescribeSharedDirectoriesInput,
 	_ ...func(*awsds.Options),
 ) (*awsds.DescribeSharedDirectoriesOutput, error) {
-	return &awsds.DescribeSharedDirectoriesOutput{SharedDirectories: f.shares[aws.ToString(input.OwnerDirectoryId)]}, nil
+	return &awsds.DescribeSharedDirectoriesOutput{SharedDirectories: f.shares[awsv2.ToString(input.OwnerDirectoryId)]}, nil
 }
 
 func (f *fakeDSAPI) DescribeLDAPSSettings(
@@ -313,7 +313,7 @@ func (f *fakeDSAPI) DescribeLDAPSSettings(
 	_ ...func(*awsds.Options),
 ) (*awsds.DescribeLDAPSSettingsOutput, error) {
 	f.ldapsCalls++
-	return &awsds.DescribeLDAPSSettingsOutput{LDAPSSettingsInfo: f.ldaps[aws.ToString(input.DirectoryId)]}, nil
+	return &awsds.DescribeLDAPSSettingsOutput{LDAPSSettingsInfo: f.ldaps[awsv2.ToString(input.DirectoryId)]}, nil
 }
 
 func (f *fakeDSAPI) ListTagsForResource(
@@ -321,7 +321,7 @@ func (f *fakeDSAPI) ListTagsForResource(
 	input *awsds.ListTagsForResourceInput,
 	_ ...func(*awsds.Options),
 ) (*awsds.ListTagsForResourceOutput, error) {
-	return &awsds.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(input.ResourceId)]}, nil
+	return &awsds.ListTagsForResourceOutput{Tags: f.tags[awsv2.ToString(input.ResourceId)]}, nil
 }
 
 var _ apiClient = (*fakeDSAPI)(nil)

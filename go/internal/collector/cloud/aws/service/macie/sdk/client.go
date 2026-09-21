@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmacie2 "github.com/aws/aws-sdk-go-v2/service/macie2"
 	macietypes "github.com/aws/aws-sdk-go-v2/service/macie2/types"
 	"github.com/aws/smithy-go"
@@ -50,15 +50,15 @@ type apiClient interface {
 // scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Amazon Macie SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -95,7 +95,7 @@ func (c *Client) Session(ctx context.Context) (macieservice.Session, error) {
 		Enabled:                    true,
 		Status:                     string(output.Status),
 		FindingPublishingFrequency: string(output.FindingPublishingFrequency),
-		ServiceRoleARN:             strings.TrimSpace(aws.ToString(output.ServiceRole)),
+		ServiceRoleARN:             strings.TrimSpace(awsv2.ToString(output.ServiceRole)),
 		CreatedAt:                  formatTime(output.CreatedAt),
 		UpdatedAt:                  formatTime(output.UpdatedAt),
 	}, nil
@@ -121,7 +121,7 @@ func (c *Client) AdministratorAccountID(ctx context.Context) (string, error) {
 	if output == nil || output.Administrator == nil {
 		return "", nil
 	}
-	return strings.TrimSpace(aws.ToString(output.Administrator.AccountId)), nil
+	return strings.TrimSpace(awsv2.ToString(output.Administrator.AccountId)), nil
 }
 
 // ListMembers returns the Macie member accounts visible to the claimed account.
@@ -210,8 +210,8 @@ func (c *Client) ListAllowLists(ctx context.Context) ([]macieservice.AllowList, 
 		}
 		for _, allowList := range page.AllowLists {
 			allowLists = append(allowLists, macieservice.AllowList{
-				ID:   strings.TrimSpace(aws.ToString(allowList.Id)),
-				Name: strings.TrimSpace(aws.ToString(allowList.Name)),
+				ID:   strings.TrimSpace(awsv2.ToString(allowList.Id)),
+				Name: strings.TrimSpace(awsv2.ToString(allowList.Name)),
 			})
 		}
 		if !hasNextPage(nextToken, page.NextToken) {
@@ -245,8 +245,8 @@ func (c *Client) ListCustomDataIdentifiers(ctx context.Context) ([]macieservice.
 		}
 		for _, identifier := range page.Items {
 			identifiers = append(identifiers, macieservice.CustomDataIdentifier{
-				ID:   strings.TrimSpace(aws.ToString(identifier.Id)),
-				Name: strings.TrimSpace(aws.ToString(identifier.Name)),
+				ID:   strings.TrimSpace(awsv2.ToString(identifier.Id)),
+				Name: strings.TrimSpace(awsv2.ToString(identifier.Name)),
 			})
 		}
 		if !hasNextPage(nextToken, page.NextToken) {
@@ -278,8 +278,8 @@ func (c *Client) ListFindingsFilters(ctx context.Context) ([]macieservice.Findin
 		}
 		for _, filter := range page.FindingsFilterListItems {
 			filters = append(filters, macieservice.FindingsFilter{
-				ID:     strings.TrimSpace(aws.ToString(filter.Id)),
-				Name:   strings.TrimSpace(aws.ToString(filter.Name)),
+				ID:     strings.TrimSpace(awsv2.ToString(filter.Id)),
+				Name:   strings.TrimSpace(awsv2.ToString(filter.Name)),
 				Action: string(filter.Action),
 			})
 		}
@@ -311,11 +311,11 @@ func (c *Client) FindingCountsBySeverity(ctx context.Context) (map[string]int64,
 	}
 	counts := make(map[string]int64, len(output.CountsByGroup))
 	for _, group := range output.CountsByGroup {
-		key := strings.TrimSpace(aws.ToString(group.GroupKey))
+		key := strings.TrimSpace(awsv2.ToString(group.GroupKey))
 		if key == "" {
 			continue
 		}
-		counts[key] = aws.ToInt64(group.Count)
+		counts[key] = awsv2.ToInt64(group.Count)
 	}
 	if len(counts) == 0 {
 		return nil, nil
@@ -325,8 +325,8 @@ func (c *Client) FindingCountsBySeverity(ctx context.Context) (map[string]int64,
 
 func mapMember(member macietypes.Member) macieservice.MemberAccount {
 	return macieservice.MemberAccount{
-		AccountID:          strings.TrimSpace(aws.ToString(member.AccountId)),
-		AdministratorID:    strings.TrimSpace(aws.ToString(member.AdministratorAccountId)),
+		AccountID:          strings.TrimSpace(awsv2.ToString(member.AccountId)),
+		AdministratorID:    strings.TrimSpace(awsv2.ToString(member.AdministratorAccountId)),
 		RelationshipStatus: string(member.RelationshipStatus),
 		InvitedAt:          formatTime(member.InvitedAt),
 		UpdatedAt:          formatTime(member.UpdatedAt),
@@ -343,8 +343,8 @@ func mapJob(job macietypes.JobSummary) macieservice.ClassificationJob {
 		bucketCount += len(definition.Buckets)
 	}
 	return macieservice.ClassificationJob{
-		JobID:             strings.TrimSpace(aws.ToString(job.JobId)),
-		Name:              strings.TrimSpace(aws.ToString(job.Name)),
+		JobID:             strings.TrimSpace(awsv2.ToString(job.JobId)),
+		Name:              strings.TrimSpace(awsv2.ToString(job.Name)),
 		JobType:           string(job.JobType),
 		JobStatus:         string(job.JobStatus),
 		CreatedAt:         formatTime(job.CreatedAt),
@@ -378,11 +378,11 @@ func isMacieNoAdministrator(err error) bool {
 // hasNextPage reports whether a paginated response advanced to a new token,
 // guarding against a server that echoes the same non-empty token forever.
 func hasNextPage(previous, next *string) bool {
-	token := strings.TrimSpace(aws.ToString(next))
+	token := strings.TrimSpace(awsv2.ToString(next))
 	if token == "" {
 		return false
 	}
-	return token != strings.TrimSpace(aws.ToString(previous))
+	return token != strings.TrimSpace(awsv2.ToString(previous))
 }
 
 func formatTime(value *time.Time) string {

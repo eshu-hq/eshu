@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -16,16 +16,16 @@ import (
 // TestSyntheticsRuntimeBindRegisters confirms importing the binding installs the
 // Synthetics scanner builder.
 func TestSyntheticsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSynthetics)
+	build, ok := runtime.LookupBuilder(aws.ServiceSynthetics)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSynthetics)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceSynthetics)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary: awscloud.Boundary{
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceSynthetics,
+			ServiceKind: aws.ServiceSynthetics,
 		},
 	})
 	if err != nil {

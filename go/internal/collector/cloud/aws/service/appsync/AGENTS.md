@@ -8,7 +8,7 @@ Read these files before editing this package:
 4. `scanner.go`
 5. `relationships.go`
 6. `helpers.go`
-7. `awssdk/README.md`
+7. `sdk/README.md`
 
 Keep the scanner metadata-only. The schema SDL body, resolver request/response
 mapping templates (VTL or JS), pipeline function code bodies, and API key values
@@ -16,7 +16,7 @@ are forbidden payloads. Do not add a field for any of them to the scanner-owned
 types, and do not add an attribute key that could carry one. A struct-reflection
 test and an attribute-key test enforce this; do not weaken them.
 
-The scanner boundary must remain `awscloud.ServiceAppSync`.
+The scanner boundary must remain `aws.ServiceAppSync`.
 
 Every relationship must set a non-empty `target_type` and a `target_resource_id`
 that matches how the target scanner publishes its resource_id:

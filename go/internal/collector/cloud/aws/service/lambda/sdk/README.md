@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lambda/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/lambda/sdk` adapts AWS SDK for Go v2
 Lambda responses into scanner-owned records. It handles pagination, `GetFunction`
 enrichment, telemetry, and response normalization for one claimed account and
 region.
@@ -16,7 +16,7 @@ live outside this package.
 
 ```mermaid
 flowchart LR
-  A["AWS SDK Lambda client"] --> B["awssdk.Client"]
+  A["AWS SDK Lambda client"] --> B["sdk.Client"]
   B --> C["lambda.Function"]
   B --> D["lambda.Alias"]
   B --> E["lambda.EventSourceMapping"]
@@ -35,8 +35,8 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - AWS SDK for Go v2 Lambda client and Lambda types.
-- `internal/collector/awscloud` for the claimed boundary.
-- `internal/collector/awscloud/service/lambda` for scanner-owned records.
+- `internal/collector/cloud/aws` for the claimed boundary.
+- `internal/collector/cloud/aws/service/lambda` for scanner-owned records.
 - `internal/telemetry` for AWS API call counters, throttle counters, and
   pagination spans.
 

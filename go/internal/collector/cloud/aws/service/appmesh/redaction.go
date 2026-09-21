@@ -58,9 +58,9 @@ func (s Scanner) headerMatchAttributes(matches []HeaderMatch) []map[string]any {
 func (s Scanner) headerMatchValue(headerName, value string) any {
 	source := "appmesh.route.header." + strings.ToLower(headerName)
 	if headerNameIsSensitive(headerName) {
-		return awscloud.RedactString(value, source, s.RedactionKey)
+		return aws.RedactString(value, source, s.RedactionKey)
 	}
-	redacted, marker := awscloud.ClassifyStackOutput(headerName, value, s.RedactionKey)
+	redacted, marker := aws.ClassifyStackOutput(headerName, value, s.RedactionKey)
 	if redacted {
 		return marker
 	}

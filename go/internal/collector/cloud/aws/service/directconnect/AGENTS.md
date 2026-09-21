@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/directconnect guidance
+# AGENTS.md - internal/collector/cloud/aws/service/directconnect guidance
 
 ## Read First
 
@@ -44,12 +44,12 @@
 
 - Add a new Direct Connect metadata field by extending the relevant type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Never add an auth-key- or MACsec-key-shaped
+  `aws` envelope builders. Never add an auth-key- or MACsec-key-shaped
   field.
 - Add new relationship evidence only when Direct Connect reports both sides
   directly, and always set a non-empty `target_type` with a join key that
   matches the target scanner resource_id.
-- Extend SDK pagination and Describe fan-out in the `awssdk` adapter, not here.
+- Extend SDK pagination and Describe fan-out in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

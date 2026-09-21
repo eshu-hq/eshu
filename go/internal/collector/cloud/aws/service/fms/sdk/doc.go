@@ -11,4 +11,4 @@
 // inclusion/exclusion maps. ListPolicies already returns every policy metadata
 // field the scanner records, so the rule payload is unreachable by
 // construction.
-package awssdk
+package sdk

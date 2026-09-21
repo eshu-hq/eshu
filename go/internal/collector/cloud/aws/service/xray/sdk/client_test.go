@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsxray "github.com/aws/aws-sdk-go-v2/service/xray"
 	awsxraytypes "github.com/aws/aws-sdk-go-v2/service/xray/types"
 
@@ -69,30 +69,30 @@ func TestClientMapsGroupsRulesAndConfig(t *testing.T) {
 	fake := &fakeAPI{
 		groupsPages: [][]awsxraytypes.GroupSummary{
 			{{
-				GroupARN:         aws.String("arn:aws:xray:us-east-1:123456789012:group/orders/abc"),
-				GroupName:        aws.String("orders"),
-				FilterExpression: aws.String(`service("orders-api")`),
+				GroupARN:         awsv2.String("arn:aws:xray:us-east-1:123456789012:group/orders/abc"),
+				GroupName:        awsv2.String("orders"),
+				FilterExpression: awsv2.String(`service("orders-api")`),
 				InsightsConfiguration: &awsxraytypes.InsightsConfiguration{
 					InsightsEnabled: &insightsOn,
 				},
 			}},
 			{{
-				GroupARN:  aws.String("arn:aws:xray:us-east-1:123456789012:group/Default/def"),
-				GroupName: aws.String("Default"),
+				GroupARN:  awsv2.String("arn:aws:xray:us-east-1:123456789012:group/Default/def"),
+				GroupName: awsv2.String("Default"),
 			}},
 		},
 		rulesPages: [][]awsxraytypes.SamplingRuleRecord{
 			{{SamplingRule: &awsxraytypes.SamplingRule{
-				RuleARN:       aws.String("arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule"),
-				RuleName:      aws.String("orders-rule"),
+				RuleARN:       awsv2.String("arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule"),
+				RuleName:      awsv2.String("orders-rule"),
 				Priority:      &priority,
 				ReservoirSize: 5,
 				FixedRate:     0.1,
-				ServiceName:   aws.String("orders-api"),
-				ServiceType:   aws.String("AWS::ECS::Container"),
-				Host:          aws.String("*"),
-				HTTPMethod:    aws.String("*"),
-				URLPath:       aws.String("*"),
+				ServiceName:   awsv2.String("orders-api"),
+				ServiceType:   awsv2.String("AWS::ECS::Container"),
+				Host:          awsv2.String("*"),
+				HTTPMethod:    awsv2.String("*"),
+				URLPath:       awsv2.String("*"),
 				Version:       &version,
 			}}},
 			// A record with no embedded rule must be skipped, not mapped empty.
@@ -101,7 +101,7 @@ func TestClientMapsGroupsRulesAndConfig(t *testing.T) {
 		config: &awsxraytypes.EncryptionConfig{
 			Type:   awsxraytypes.EncryptionTypeKms,
 			Status: awsxraytypes.EncryptionStatusActive,
-			KeyId:  aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+			KeyId:  awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 		},
 	}
 	client := &Client{client: fake, boundary: testBoundary()}
@@ -158,11 +158,11 @@ func TestClientHandlesNilEncryptionConfig(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceXRay,
+		ServiceKind: aws.ServiceXRay,
 	}
 }
 
@@ -172,7 +172,7 @@ func tokenIndex(token *string) int {
 	if token == nil {
 		return 0
 	}
-	switch aws.ToString(token) {
+	switch awsv2.ToString(token) {
 	case "page-1":
 		return 1
 	case "page-2":
@@ -204,7 +204,7 @@ func (f *fakeAPI) GetGroups(_ context.Context, in *awsxray.GetGroupsInput, _ ...
 	idx := tokenIndex(in.NextToken)
 	out := &awsxray.GetGroupsOutput{Groups: f.groupsPages[idx]}
 	if idx+1 < len(f.groupsPages) {
-		out.NextToken = aws.String(nextToken(idx))
+		out.NextToken = awsv2.String(nextToken(idx))
 	}
 	return out, nil
 }
@@ -213,7 +213,7 @@ func (f *fakeAPI) GetSamplingRules(_ context.Context, in *awsxray.GetSamplingRul
 	idx := tokenIndex(in.NextToken)
 	out := &awsxray.GetSamplingRulesOutput{SamplingRuleRecords: f.rulesPages[idx]}
 	if idx+1 < len(f.rulesPages) {
-		out.NextToken = aws.String(nextToken(idx))
+		out.NextToken = awsv2.String(nextToken(idx))
 	}
 	return out, nil
 }

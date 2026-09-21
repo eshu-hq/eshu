@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elasticbeanstalk/awssdk` adapts the AWS
+`internal/collector/cloud/aws/service/elasticbeanstalk/sdk` adapts the AWS
 SDK for Go v2 Elastic Beanstalk client to the Elastic Beanstalk scanner
 `Client` contract. It translates SDK describe responses into scanner-owned
 records and records AWS API telemetry.
@@ -26,9 +26,9 @@ See `doc.go` for the godoc contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk` for the SDK client and
   types.
-- `internal/collector/awscloud` for API-call telemetry recording and the
+- `internal/collector/cloud/aws` for API-call telemetry recording and the
   boundary type.
-- `internal/collector/awscloud/service/elasticbeanstalk` for the scanner-owned
+- `internal/collector/cloud/aws/service/elasticbeanstalk` for the scanner-owned
   record types.
 - `internal/telemetry` for instruments, span names, and metric attributes.
 

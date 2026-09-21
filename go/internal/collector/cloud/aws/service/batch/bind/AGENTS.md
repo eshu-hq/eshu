@@ -1,24 +1,24 @@
-# AGENTS.md - services/batch/runtimebind guidance
+# AGENTS.md - services/batch/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - Batch scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceBatch`.
+- Register exactly once from `init()` with `aws.ServiceBatch`.
 - Keep the redaction-key guard: the builder must return a typed error when
   `ScannerDeps.RedactionKey` is zero, because Batch container environment
   values route through the shared redact library.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
-- Do not validate or transform claims here. Validation belongs to awsruntime
+- Do not validate or transform claims here. Validation belongs to runtime
   and the scanner. The builder body stays a constructor call plus the key
   guard.
-- Do not import anything else from `internal/collector/awscloud/service`.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes Synthetics canaries and their reported S3, IAM role, and VPC
 // dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("synthetics scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSynthetics:
+	case "", aws.ServiceSynthetics:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSynthetics
+		boundary.ServiceKind = aws.ServiceSynthetics
 	default:
 		return nil, fmt.Errorf("synthetics scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,9 +58,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -69,8 +69,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -78,9 +78,9 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.RelationshipObservation) error {
+func appendRelationships(envelopes *[]facts.Envelope, observations []aws.RelationshipObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.Re
 // records only control-plane metadata: identity, runtime version, status,
 // schedule, retention, run resource limits, artifact encryption mode, and
 // timeline. Canary script source code and run artifacts are never recorded.
-func canaryObservation(boundary awscloud.Boundary, canary Canary) awscloud.ResourceObservation {
+func canaryObservation(boundary aws.Boundary, canary Canary) aws.ResourceObservation {
 	arn := strings.TrimSpace(canary.ARN)
 	name := strings.TrimSpace(canary.Name)
 	resourceID := canaryResourceID(canary)
@@ -115,11 +115,11 @@ func canaryObservation(boundary awscloud.Boundary, canary Canary) awscloud.Resou
 		"created":                          timeOrNil(canary.Created),
 		"last_modified":                    timeOrNil(canary.LastModified),
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeSyntheticsCanary,
+		ResourceType:       aws.ResourceTypeSyntheticsCanary,
 		Name:               name,
 		State:              strings.TrimSpace(canary.State),
 		Tags:               cloneStringMap(canary.Tags),

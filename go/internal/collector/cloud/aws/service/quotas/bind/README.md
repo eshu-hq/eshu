@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/quotas/runtimebind` registers the
-Service Quotas scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/quotas/bind` registers the
+Service Quotas scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime brings
 the Service Quotas scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceServiceQuotas` to the Service Quotas scanner builder. It does
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceServiceQuotas` to the Service Quotas scanner builder. It does
 not own AWS API calls, Service Quotas domain types, redaction policy, or fact
-emission. Those belong to `internal/collector/awscloud/service/quotas`
-and its `awssdk` adapter.
+emission. Those belong to `internal/collector/cloud/aws/service/quotas`
+and its `sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceServiceQuotas` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceServiceQuotas` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/quotas` for the scanner struct.
-- `internal/collector/awscloud/service/quotas/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/quotas` for the scanner struct.
+- `internal/collector/cloud/aws/service/quotas/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Service Quotas scanner and its
 SDK adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ and the awsruntime README.
 ## Related docs
 
 - `../README.md` for the Service Quotas scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

@@ -15,42 +15,42 @@ import (
 // derived from subnet membership downstream; this function emits the subnet,
 // security group, IAM role, instance profile, security configuration, and KMS
 // edges that AWS does report.
-func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
+func clusterRelationships(boundary aws.Boundary, cluster Cluster) []aws.RelationshipObservation {
 	clusterID := firstNonEmpty(cluster.ARN, cluster.ID)
 	if clusterID == "" {
 		return nil
 	}
 	clusterARN := strings.TrimSpace(cluster.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	for _, subnetID := range dedupe(append([]string{cluster.SubnetID}, cluster.RequestedSubnetIDs...)) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSubnet,
+			RelationshipType: aws.RelationshipEMRClusterUsesSubnet,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSubnet, subnetID),
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe(cluster.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSecurityGroup,
+			RelationshipType: aws.RelationshipEMRClusterUsesSecurityGroup,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSecurityGroup, groupID),
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterUsesSecurityGroup, groupID),
 		})
 	}
 
 	for _, role := range dedupe([]string{cluster.ServiceRole, cluster.AutoScalingRole}) {
 		observations = append(observations, iamRoleRelationship(
 			boundary,
-			awscloud.RelationshipEMRClusterUsesIAMRole,
+			aws.RelationshipEMRClusterUsesIAMRole,
 			clusterID,
 			clusterARN,
 			role,
@@ -58,34 +58,34 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	}
 
 	if profile := strings.TrimSpace(cluster.InstanceProfile); profile != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesInstanceProfile,
+			RelationshipType: aws.RelationshipEMRClusterUsesInstanceProfile,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: profile,
 			TargetARN:        arnOrEmpty(profile),
-			TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesInstanceProfile, profile),
+			TargetType:       aws.ResourceTypeIAMInstanceProfile,
+			SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterUsesInstanceProfile, profile),
 		})
 	}
 
 	if config := strings.TrimSpace(cluster.SecurityConfigName); config != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSecurityConfiguration,
+			RelationshipType: aws.RelationshipEMRClusterUsesSecurityConfiguration,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: config,
-			TargetType:       awscloud.ResourceTypeEMRSecurityConfiguration,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSecurityConfiguration, config),
+			TargetType:       aws.ResourceTypeEMRSecurityConfiguration,
+			SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterUsesSecurityConfiguration, config),
 		})
 	}
 
 	if kmsKey := strings.TrimSpace(cluster.LogEncryptionKMSKey); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRClusterUsesKMSKey,
+			aws.RelationshipEMRClusterUsesKMSKey,
 			clusterID,
 			clusterARN,
 			kmsKey,
@@ -96,44 +96,44 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 }
 
 func clusterInstanceGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	group InstanceGroup,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	clusterID := firstNonEmpty(cluster.ARN, cluster.ID)
 	groupID := scopedID(cluster, group.ID)
 	if clusterID == "" || strings.TrimSpace(group.ID) == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRClusterHasInstanceGroup,
+		RelationshipType: aws.RelationshipEMRClusterHasInstanceGroup,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEMRInstanceGroup,
-		SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterHasInstanceGroup, groupID),
+		TargetType:       aws.ResourceTypeEMRInstanceGroup,
+		SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterHasInstanceGroup, groupID),
 	}, true
 }
 
 func clusterInstanceFleetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	fleet InstanceFleet,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	clusterID := firstNonEmpty(cluster.ARN, cluster.ID)
 	fleetID := scopedID(cluster, fleet.ID)
 	if clusterID == "" || strings.TrimSpace(fleet.ID) == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRClusterHasInstanceFleet,
+		RelationshipType: aws.RelationshipEMRClusterHasInstanceFleet,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: fleetID,
-		TargetType:       awscloud.ResourceTypeEMRInstanceFleet,
-		SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterHasInstanceFleet, fleetID),
+		TargetType:       aws.ResourceTypeEMRInstanceFleet,
+		SourceRecordID:   relationshipRecordID(clusterID, aws.RelationshipEMRClusterHasInstanceFleet, fleetID),
 	}, true
 }
 
@@ -142,44 +142,44 @@ func clusterInstanceFleetRelationship(
 // a VPC id directly, so the application-to-VPC join is derived from subnet
 // membership downstream.
 func serverlessApplicationRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application ServerlessApplication,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	applicationID := firstNonEmpty(application.ARN, application.ID)
 	if applicationID == "" {
 		return nil
 	}
 	applicationARN := strings.TrimSpace(application.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	for _, subnetID := range dedupe(application.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRServerlessApplicationUsesSubnet,
+			RelationshipType: aws.RelationshipEMRServerlessApplicationUsesSubnet,
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSubnet, subnetID),
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   relationshipRecordID(applicationID, aws.RelationshipEMRServerlessApplicationUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe(application.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup,
+			RelationshipType: aws.RelationshipEMRServerlessApplicationUsesSecurityGroup,
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup, groupID),
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   relationshipRecordID(applicationID, aws.RelationshipEMRServerlessApplicationUsesSecurityGroup, groupID),
 		})
 	}
 
 	if kmsKey := strings.TrimSpace(application.DiskEncryptKMS); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRServerlessApplicationUsesKMSKey,
+			aws.RelationshipEMRServerlessApplicationUsesKMSKey,
 			applicationID,
 			applicationARN,
 			kmsKey,
@@ -189,54 +189,54 @@ func serverlessApplicationRelationships(
 	return observations
 }
 
-func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.RelationshipObservation {
+func studioRelationships(boundary aws.Boundary, studio Studio) []aws.RelationshipObservation {
 	studioID := firstNonEmpty(studio.ARN, studio.ID)
 	if studioID == "" {
 		return nil
 	}
 	studioARN := strings.TrimSpace(studio.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(studio.VPCID); vpcID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioInVPC,
+			RelationshipType: aws.RelationshipEMRStudioInVPC,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioInVPC, vpcID),
+			TargetType:       aws.ResourceTypeEC2VPC,
+			SourceRecordID:   relationshipRecordID(studioID, aws.RelationshipEMRStudioInVPC, vpcID),
 		})
 	}
 
 	for _, subnetID := range dedupe(studio.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioUsesSubnet,
+			RelationshipType: aws.RelationshipEMRStudioUsesSubnet,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSubnet, subnetID),
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   relationshipRecordID(studioID, aws.RelationshipEMRStudioUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe([]string{studio.EngineSecGroupID, studio.WorkspaceSecGroup}) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioUsesSecurityGroup,
+			RelationshipType: aws.RelationshipEMRStudioUsesSecurityGroup,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSecurityGroup, groupID),
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   relationshipRecordID(studioID, aws.RelationshipEMRStudioUsesSecurityGroup, groupID),
 		})
 	}
 
 	for _, role := range dedupe([]string{studio.ServiceRole, studio.UserRole}) {
 		observations = append(observations, iamRoleRelationship(
 			boundary,
-			awscloud.RelationshipEMRStudioUsesIAMRole,
+			aws.RelationshipEMRStudioUsesIAMRole,
 			studioID,
 			studioARN,
 			role,
@@ -246,7 +246,7 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 	if kmsKey := strings.TrimSpace(studio.EncryptionKeyARN); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRStudioUsesKMSKey,
+			aws.RelationshipEMRStudioUsesKMSKey,
 			studioID,
 			studioARN,
 			kmsKey,
@@ -257,60 +257,60 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 }
 
 func studioSessionMappingRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	studio Studio,
 	mapping StudioSessionMapping,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	studioID := firstNonEmpty(studio.ARN, studio.ID)
 	mappingID := sessionMappingID(studio, mapping)
 	if studioID == "" || mappingID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRStudioHasSessionMapping,
+		RelationshipType: aws.RelationshipEMRStudioHasSessionMapping,
 		SourceResourceID: studioID,
 		SourceARN:        strings.TrimSpace(studio.ARN),
 		TargetResourceID: mappingID,
-		TargetType:       awscloud.ResourceTypeEMRStudioSessionMapping,
-		SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioHasSessionMapping, mappingID),
+		TargetType:       aws.ResourceTypeEMRStudioSessionMapping,
+		SourceRecordID:   relationshipRecordID(studioID, aws.RelationshipEMRStudioHasSessionMapping, mappingID),
 	}, true
 }
 
 func iamRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	role string,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: role,
 		TargetARN:        arnOrEmpty(role),
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, role),
 	}
 }
 
 func kmsKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	kmsKey string,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        arnOrEmpty(kmsKey),
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, kmsKey),
 	}
 }
@@ -387,7 +387,7 @@ func dedupe(values []string) []string {
 	return output
 }
 
-// timeOrNil mirrors the awscloud envelope helper so attribute maps carry a
+// timeOrNil mirrors the aws envelope helper so attribute maps carry a
 // nil for zero times instead of the Go zero instant.
 func timeOrNil(input time.Time) any {
 	if input.IsZero() {

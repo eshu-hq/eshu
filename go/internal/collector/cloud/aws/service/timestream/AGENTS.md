@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/timestream guidance
+# AGENTS.md - internal/collector/cloud/aws/service/timestream guidance
 
 ## Read First
 
@@ -30,10 +30,10 @@
   scanner's published key resource_id.
 - Emit the table-to-S3 edge only when a magnetic-store rejected-data bucket is
   configured. Timestream reports a bucket NAME, so synthesize the bucket ARN
-  with `awscloud.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud
+  with `aws.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud
   and China must resolve to the real bucket node.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from database, table, or
@@ -47,13 +47,13 @@
 
 - Add a new Timestream metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry record or measure
+  `aws` envelope builders. If the field can carry record or measure
   values, leave it out of the scanner contract.
 - Add new relationship evidence only when the Timestream API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for KMS keys and S3 buckets, the database ARN
   for the parent database).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

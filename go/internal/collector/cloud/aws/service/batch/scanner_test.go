@@ -15,11 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceBatch,
+		ServiceKind:         aws.ServiceBatch,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -203,11 +203,11 @@ func TestScannerEmitsAllResourceKinds(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	for _, resourceType := range []string{
-		awscloud.ResourceTypeBatchComputeEnvironment,
-		awscloud.ResourceTypeBatchJobQueue,
-		awscloud.ResourceTypeBatchJobDefinition,
-		awscloud.ResourceTypeBatchSchedulingPolicy,
-		awscloud.ResourceTypeBatchJob,
+		aws.ResourceTypeBatchComputeEnvironment,
+		aws.ResourceTypeBatchJobQueue,
+		aws.ResourceTypeBatchJobDefinition,
+		aws.ResourceTypeBatchSchedulingPolicy,
+		aws.ResourceTypeBatchJob,
 	} {
 		if got := resourcesByType(t, envelopes, resourceType); len(got) != 1 {
 			t.Fatalf("resource %q count = %d, want 1", resourceType, len(got))
@@ -228,38 +228,38 @@ func TestComputeEnvironmentRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) 
 		targetResourceID string
 	}{
 		{
-			relationshipType: awscloud.RelationshipBatchJobQueueUsesComputeEnvironment,
-			targetType:       awscloud.ResourceTypeBatchComputeEnvironment,
+			relationshipType: aws.RelationshipBatchJobQueueUsesComputeEnvironment,
+			targetType:       aws.ResourceTypeBatchComputeEnvironment,
 			targetResourceID: "arn:aws:batch:us-east-1:123456789012:compute-environment/ec2-ce",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesSubnet,
-			targetType:       awscloud.ResourceTypeEC2Subnet,
+			relationshipType: aws.RelationshipBatchComputeEnvironmentUsesSubnet,
+			targetType:       aws.ResourceTypeEC2Subnet,
 			targetResourceID: "subnet-aaa",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
-			targetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			relationshipType: aws.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
+			targetType:       aws.ResourceTypeEC2LaunchTemplate,
 			targetResourceID: "lt-0abc123",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			relationshipType: aws.RelationshipBatchComputeEnvironmentUsesIAMRole,
+			targetType:       aws.ResourceTypeIAMRole,
 			targetResourceID: "arn:aws:iam::123456789012:role/batch-service",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchJobDefinitionUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			relationshipType: aws.RelationshipBatchJobDefinitionUsesIAMRole,
+			targetType:       aws.ResourceTypeIAMRole,
 			targetResourceID: "arn:aws:iam::123456789012:role/etl-job",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchJobDefinitionUsesImage,
+			relationshipType: aws.RelationshipBatchJobDefinitionUsesImage,
 			targetType:       "container_image",
 			targetResourceID: "123456789012.dkr.ecr.us-east-1.amazonaws.com/etl:prod",
 		},
 		{
-			relationshipType: awscloud.RelationshipBatchJobDefinitionReferencesSecret,
-			targetType:       awscloud.ResourceTypeSecretsManagerSecret,
+			relationshipType: aws.RelationshipBatchJobDefinitionReferencesSecret,
+			targetType:       aws.ResourceTypeSecretsManagerSecret,
 			targetResourceID: "arn:aws:secretsmanager:us-east-1:123456789012:secret:api-token",
 		},
 	}
@@ -292,12 +292,12 @@ func TestComputeEnvironmentUsesIAMRoleCoversInstanceProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	relationships := relationshipsByType(t, envelopes, awscloud.RelationshipBatchComputeEnvironmentUsesIAMRole)
+	relationships := relationshipsByType(t, envelopes, aws.RelationshipBatchComputeEnvironmentUsesIAMRole)
 	var sawInstanceProfile bool
 	for _, relationship := range relationships {
 		if relationship["target_resource_id"] == "arn:aws:iam::123456789012:instance-profile/ecsInstanceRole" {
-			if relationship["target_type"] != awscloud.ResourceTypeIAMInstanceProfile {
-				t.Fatalf("instance-profile target_type = %q, want %q", relationship["target_type"], awscloud.ResourceTypeIAMInstanceProfile)
+			if relationship["target_type"] != aws.ResourceTypeIAMInstanceProfile {
+				t.Fatalf("instance-profile target_type = %q, want %q", relationship["target_type"], aws.ResourceTypeIAMInstanceProfile)
 			}
 			sawInstanceProfile = true
 		}
@@ -317,7 +317,7 @@ func TestJobDefinitionRedactsEnvironmentValuesAndOmitsCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	jobDefinitions := resourcesByType(t, envelopes, awscloud.ResourceTypeBatchJobDefinition)
+	jobDefinitions := resourcesByType(t, envelopes, aws.ResourceTypeBatchJobDefinition)
 	if len(jobDefinitions) != 1 {
 		t.Fatalf("job definition count = %d, want 1", len(jobDefinitions))
 	}
@@ -366,7 +366,7 @@ func TestSchedulingPolicyNeverCarriesFairShareState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	policies := resourcesByType(t, envelopes, awscloud.ResourceTypeBatchSchedulingPolicy)
+	policies := resourcesByType(t, envelopes, aws.ResourceTypeBatchSchedulingPolicy)
 	if len(policies) != 1 {
 		t.Fatalf("scheduling policy count = %d, want 1", len(policies))
 	}
@@ -391,7 +391,7 @@ func TestRecentJobOmitsParametersAndOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	jobs := resourcesByType(t, envelopes, awscloud.ResourceTypeBatchJob)
+	jobs := resourcesByType(t, envelopes, aws.ResourceTypeBatchJob)
 	if len(jobs) != 1 {
 		t.Fatalf("job count = %d, want 1", len(jobs))
 	}

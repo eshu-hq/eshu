@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/efs` owns the EFS scanner contract for the
+`internal/collector/cloud/aws/service/efs` owns the EFS scanner contract for the
 AWS cloud collector. It converts file system, access point, mount target, and
 replication configuration metadata into `aws_resource` facts and emits the
 reported subnet, security group, KMS-key, access-point, and replication
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records EFS API call counts, throttles, and pagination
+The `sdk` adapter records EFS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -64,14 +64,14 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/efs/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/efs/...`
 covers the bounded EFS metadata path: one paginated file system listing, one
 access point and mount target listing per file system, one security group read
 per mount target, one lifecycle configuration read per file system, and one
 account-wide replication configuration listing, with no file reads and no
 mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers EFS file system, access point, mount target, and replication
 configuration fact emission, the five EFS relationships, omission of NFS file
 system policy bodies, runtime registration, command configuration, and the SDK
@@ -89,7 +89,7 @@ labels stay bounded to service, account, region, operation, result, and status.
 No-Observability-Change: the existing AWS collector telemetry contract already
 diagnoses EFS scans through `aws.service.scan`, `aws.service.pagination.page`,
 API/throttle counters, the centrally recorded resource/relationship counters in
-`awsruntime/source.go`, and `aws_scan_status`. The EFS scanner adds no new
+`runtime/source.go`, and `aws_scan_status`. The EFS scanner adds no new
 counter, span, log scope, or metric label.
 
 Collector Deployment Evidence: EFS runs inside the existing hosted

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/quicksight/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/quicksight/sdk guidance
 
 ## Read First
 

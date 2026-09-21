@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codebuild` owns the CodeBuild scanner
+`internal/collector/cloud/aws/service/codebuild` owns the CodeBuild scanner
 contract for the AWS cloud collector. It converts build-project, report-group,
 and recent-build metadata into `aws_resource` facts and emits `aws_relationship`
 facts for the project edges CodeBuild reports directly.
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and the shared `RedactString`
   redaction helper.
 - `internal/facts` for emitted fact envelope kinds.
@@ -50,9 +50,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
-(`eshu_dp_aws_resources_emitted_total{service="codebuild"}`). The `awssdk`
+(`eshu_dp_aws_resources_emitted_total{service="codebuild"}`). The `sdk`
 adapter records CodeBuild API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -88,14 +88,14 @@ adapter records CodeBuild API call counts, throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codebuild/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/codebuild/... -count=1 -race`
 covers the bounded CodeBuild metadata path: paginated project and report-group
 listings; one batch resolve per ≤100-item group; recent builds bounded to one
 ListBuilds page and the `BatchGetBuilds` cap; no buildspec-body reads; no log
 reads; no source-credential reads; no mutations.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers CodeBuild resource and relationship emission, PLAINTEXT env-value
 redaction, buildspec-body exclusion, runtime registration through the derived
 service guard, and command configuration requiring a redaction key.
@@ -121,12 +121,12 @@ Collector Deployment Evidence: CodeBuild runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/codebuild/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/codebuild/... -count=1`
 covers the new `TestS3BucketARNFromLocationDerivesPartition` and
 `TestS3BucketARNFromLocationPreservesObjectARNPartition` (commercial /
 `aws-us-gov` / `aws-cn`) alongside the existing assertions. A bare S3
 source/artifact location now derives its bucket-ARN partition from the scan
-boundary via `awscloud.PartitionForBoundary`, and an already-ARN location
+boundary via `aws.PartitionForBoundary`, and an already-ARN location
 preserves any partition's `:s3:::` segment, instead of hardcoding `aws`.
 Commercial output is byte-for-byte unchanged; this is a metadata-only
 correctness fix with no graph-write, queue, or hot-path behavior change.

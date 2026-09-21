@@ -13,4 +13,4 @@
 // session credentials, and cannot write Roles Anywhere state. It also drops the
 // PEM x509 certificate data carried on certificate-bundle trust anchors and the
 // inline session policy document carried on profiles.
-package awssdk
+package sdk

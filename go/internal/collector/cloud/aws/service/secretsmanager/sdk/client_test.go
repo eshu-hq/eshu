@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssecretsmanager "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	awssecretsmanagertypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
@@ -24,42 +24,42 @@ func TestClientListsSecretsManagerMetadataOnly(t *testing.T) {
 	api := &fakeSecretsManagerAPI{
 		pages: []*awssecretsmanager.ListSecretsOutput{{
 			SecretList: []awssecretsmanagertypes.SecretListEntry{{
-				ARN:               aws.String(secretARN),
-				Name:              aws.String("orders/db"),
-				Description:       aws.String("database password"),
-				KmsKeyId:          aws.String(kmsARN),
-				RotationEnabled:   aws.Bool(true),
-				RotationLambdaARN: aws.String(rotationARN),
-				CreatedDate:       aws.Time(createdAt),
-				LastChangedDate:   aws.Time(createdAt.Add(time.Hour)),
-				LastRotatedDate:   aws.Time(createdAt.Add(2 * time.Hour)),
-				NextRotationDate:  aws.Time(createdAt.Add(30 * 24 * time.Hour)),
-				PrimaryRegion:     aws.String("us-east-1"),
-				OwningService:     aws.String("rds"),
-				Type:              aws.String("aws"),
+				ARN:               awsv2.String(secretARN),
+				Name:              awsv2.String("orders/db"),
+				Description:       awsv2.String("database password"),
+				KmsKeyId:          awsv2.String(kmsARN),
+				RotationEnabled:   awsv2.Bool(true),
+				RotationLambdaARN: awsv2.String(rotationARN),
+				CreatedDate:       awsv2.Time(createdAt),
+				LastChangedDate:   awsv2.Time(createdAt.Add(time.Hour)),
+				LastRotatedDate:   awsv2.Time(createdAt.Add(2 * time.Hour)),
+				NextRotationDate:  awsv2.Time(createdAt.Add(30 * 24 * time.Hour)),
+				PrimaryRegion:     awsv2.String("us-east-1"),
+				OwningService:     awsv2.String("rds"),
+				Type:              awsv2.String("aws"),
 				RotationRules: &awssecretsmanagertypes.RotationRulesType{
-					AutomaticallyAfterDays: aws.Int64(30),
-					Duration:               aws.String("2h"),
-					ScheduleExpression:     aws.String("rate(30 days)"),
+					AutomaticallyAfterDays: awsv2.Int64(30),
+					Duration:               awsv2.String("2h"),
+					ScheduleExpression:     awsv2.String("rate(30 days)"),
 				},
 				SecretVersionsToStages: map[string][]string{
 					"version-id": {"AWSCURRENT"},
 				},
 				ExternalSecretRotationMetadata: []awssecretsmanagertypes.ExternalSecretRotationMetadataItem{{
-					Key:   aws.String("partner"),
-					Value: aws.String("payload"),
+					Key:   awsv2.String("partner"),
+					Value: awsv2.String("payload"),
 				}},
-				ExternalSecretRotationRoleArn: aws.String("arn:aws:iam::123456789012:role/external-rotation"),
+				ExternalSecretRotationRoleArn: awsv2.String("arn:aws:iam::123456789012:role/external-rotation"),
 				Tags: []awssecretsmanagertypes.Tag{{
-					Key:   aws.String("Environment"),
-					Value: aws.String("prod"),
+					Key:   awsv2.String("Environment"),
+					Value: awsv2.String("prod"),
 				}},
 			}},
-			NextToken: aws.String("secrets-next"),
+			NextToken: awsv2.String("secrets-next"),
 		}, {
 			SecretList: []awssecretsmanagertypes.SecretListEntry{{
-				ARN:  aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:payments-db-d4e5f6"),
-				Name: aws.String("payments/db"),
+				ARN:  awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:payments-db-d4e5f6"),
+				Name: awsv2.String("payments/db"),
 			}},
 		}},
 	}
@@ -110,9 +110,9 @@ func TestMapSecretNilRotationRulesProducesZeroRotationFields(t *testing.T) {
 	api := &fakeSecretsManagerAPI{
 		pages: []*awssecretsmanager.ListSecretsOutput{{
 			SecretList: []awssecretsmanagertypes.SecretListEntry{{
-				ARN:             aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:no-rotation-a1b2c3"),
-				Name:            aws.String("no-rotation"),
-				RotationEnabled: aws.Bool(false),
+				ARN:             awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:no-rotation-a1b2c3"),
+				Name:            awsv2.String("no-rotation"),
+				RotationEnabled: awsv2.Bool(false),
 				// RotationRules intentionally absent.
 			}},
 		}},
@@ -149,13 +149,13 @@ func TestMapSecretTagsWithBlankKeySkipsEntry(t *testing.T) {
 	api := &fakeSecretsManagerAPI{
 		pages: []*awssecretsmanager.ListSecretsOutput{{
 			SecretList: []awssecretsmanagertypes.SecretListEntry{{
-				ARN:  aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:tags-test-a1b2c3"),
-				Name: aws.String("tags-test"),
+				ARN:  awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:tags-test-a1b2c3"),
+				Name: awsv2.String("tags-test"),
 				Tags: []awssecretsmanagertypes.Tag{
-					{Key: aws.String(""), Value: aws.String("should-be-dropped")},
-					{Key: aws.String("  "), Value: aws.String("whitespace-key-dropped")},
-					{Key: nil, Value: aws.String("nil-key-dropped")},
-					{Key: aws.String("Environment"), Value: aws.String("staging")},
+					{Key: awsv2.String(""), Value: awsv2.String("should-be-dropped")},
+					{Key: awsv2.String("  "), Value: awsv2.String("whitespace-key-dropped")},
+					{Key: nil, Value: awsv2.String("nil-key-dropped")},
+					{Key: awsv2.String("Environment"), Value: awsv2.String("staging")},
 				},
 			}},
 		}},
@@ -181,11 +181,11 @@ func TestMapSecretTagsWithBlankKeySkipsEntry(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecretsManager,
+		ServiceKind: aws.ServiceSecretsManager,
 	}
 }
 
@@ -202,9 +202,9 @@ func (f *fakeSecretsManagerAPI) ListSecrets(
 	input *awssecretsmanager.ListSecretsInput,
 	_ ...func(*awssecretsmanager.Options),
 ) (*awssecretsmanager.ListSecretsOutput, error) {
-	f.maxResults = append(f.maxResults, aws.ToInt32(input.MaxResults))
-	f.nextTokens = append(f.nextTokens, aws.ToString(input.NextToken))
-	f.includePlannedDeletion = append(f.includePlannedDeletion, aws.ToBool(input.IncludePlannedDeletion))
+	f.maxResults = append(f.maxResults, awsv2.ToInt32(input.MaxResults))
+	f.nextTokens = append(f.nextTokens, awsv2.ToString(input.NextToken))
+	f.includePlannedDeletion = append(f.includePlannedDeletion, awsv2.ToBool(input.IncludePlannedDeletion))
 	if f.calls >= len(f.pages) {
 		return &awssecretsmanager.ListSecretsOutput{}, nil
 	}

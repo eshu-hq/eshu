@@ -10,4 +10,4 @@
 // Delete/Start/Stop mutation and run-control API, so the adapter cannot read run
 // artifacts, run results, or canary script source code, and cannot mutate
 // Synthetics state.
-package awssdk
+package sdk

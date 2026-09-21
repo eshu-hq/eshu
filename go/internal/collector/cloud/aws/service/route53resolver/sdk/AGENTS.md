@@ -1,4 +1,4 @@
-# AGENTS.md - services/route53resolver/awssdk guidance
+# AGENTS.md - services/route53resolver/sdk guidance
 
 ## Read First
 

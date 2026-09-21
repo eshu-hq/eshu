@@ -13,4 +13,4 @@
 // operation by construction, proven by a reflective guard test. Launch
 // configuration and launch template UserData and lifecycle-hook notification
 // metadata never cross the adapter boundary.
-package awssdk
+package sdk

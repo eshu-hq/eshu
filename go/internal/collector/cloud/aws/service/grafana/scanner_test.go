@@ -50,7 +50,7 @@ func TestScannerEmitsGrafanaMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Workspace resource node.
-	workspace := resourceByType(t, envelopes, awscloud.ResourceTypeGrafanaWorkspace)
+	workspace := resourceByType(t, envelopes, aws.ResourceTypeGrafanaWorkspace)
 	if got, want := workspace.Payload["resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace resource_id = %#v, want %q", got, want)
 	}
@@ -68,8 +68,8 @@ func TestScannerEmitsGrafanaMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "authentication_providers", []string{"AWS_SSO"})
 
 	// workspace -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
-	iamEdge := relationshipByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesIAMRole)
-	assertEdgeTarget(t, iamEdge, awscloud.ResourceTypeIAMRole, testRoleARN)
+	iamEdge := relationshipByType(t, envelopes, aws.RelationshipGrafanaWorkspaceUsesIAMRole)
+	assertEdgeTarget(t, iamEdge, aws.ResourceTypeIAMRole, testRoleARN)
 	if got, want := iamEdge.Payload["source_resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace->iam source_resource_id = %#v, want %q", got, want)
 	}
@@ -78,15 +78,15 @@ func TestScannerEmitsGrafanaMetadataAndRelationships(t *testing.T) {
 	}
 
 	// workspace -> subnet edges, keyed by the bare subnet ids the EC2 scanner publishes.
-	subnetEdges := relationshipsByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceInSubnet)
+	subnetEdges := relationshipsByType(t, envelopes, aws.RelationshipGrafanaWorkspaceInSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("got %d subnet edges, want 2", len(subnetEdges))
 	}
-	assertEdgeTargets(t, subnetEdges, awscloud.ResourceTypeEC2Subnet, testSubnetA, testSubnetB)
+	assertEdgeTargets(t, subnetEdges, aws.ResourceTypeEC2Subnet, testSubnetA, testSubnetB)
 
 	// workspace -> security group edge, keyed by the bare sg id the EC2 scanner publishes.
-	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, testSecurityGrp)
+	sgEdge := relationshipByType(t, envelopes, aws.RelationshipGrafanaWorkspaceUsesSecurityGroup)
+	assertEdgeTarget(t, sgEdge, aws.ResourceTypeEC2SecurityGroup, testSecurityGrp)
 	if got := sgEdge.Payload["target_arn"]; got != "" && got != nil {
 		t.Fatalf("workspace->sg target_arn = %#v, want empty (bare id target)", got)
 	}
@@ -126,11 +126,11 @@ func TestScannerSynthesizesGovCloudWorkspaceARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	workspace := resourceByType(t, envelopes, awscloud.ResourceTypeGrafanaWorkspace)
+	workspace := resourceByType(t, envelopes, aws.ResourceTypeGrafanaWorkspace)
 	if got := workspace.Payload["resource_id"]; got != govARN {
 		t.Fatalf("GovCloud workspace resource_id = %#v, want %q", got, govARN)
 	}
-	iamEdge := relationshipByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesIAMRole)
+	iamEdge := relationshipByType(t, envelopes, aws.RelationshipGrafanaWorkspaceUsesIAMRole)
 	if got := iamEdge.Payload["source_resource_id"]; got != govARN {
 		t.Fatalf("GovCloud workspace->iam source_resource_id = %#v, want %q", got, govARN)
 	}
@@ -172,7 +172,7 @@ func TestScannerOmitsIAMRoleEdgeForNonARNRole(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipGrafanaWorkspaceUsesIAMRole {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipGrafanaWorkspaceUsesIAMRole {
 			t.Fatalf("emitted IAM role edge for a non-ARN role identifier; the edge would dangle")
 		}
 	}
@@ -191,10 +191,10 @@ func TestScannerDeduplicatesVPCEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := len(relationshipsByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceInSubnet)); got != 1 {
+	if got := len(relationshipsByType(t, envelopes, aws.RelationshipGrafanaWorkspaceInSubnet)); got != 1 {
 		t.Fatalf("subnet edges = %d, want 1 after de-dup", got)
 	}
-	if got := len(relationshipsByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup)); got != 1 {
+	if got := len(relationshipsByType(t, envelopes, aws.RelationshipGrafanaWorkspaceUsesSecurityGroup)); got != 1 {
 		t.Fatalf("security group edges = %d, want 1 after de-dup", got)
 	}
 }
@@ -217,7 +217,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -228,9 +228,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Workspaces: []Workspace{{ID: testWorkspaceID, ARN: testWorkspaceARN, Name: "observability"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Grafana DescribeWorkspace throttled after SDK retries; workspace metadata omitted for this scan",
 			SourceRecordID: "grafana_workspaces_throttled",
@@ -241,7 +241,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -254,11 +254,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceGrafana,
+		ServiceKind:         aws.ServiceGrafana,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:grafana:1",
 		CollectorInstanceID: "aws-prod",

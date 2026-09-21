@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"encoding/json"
@@ -120,13 +120,13 @@ func normalizeStatementEffect(value string) string {
 func principalTypeForKey(key string) string {
 	switch strings.TrimSpace(key) {
 	case "AWS":
-		return awscloud.ResourcePolicyPrincipalTypeAWS
+		return aws.ResourcePolicyPrincipalTypeAWS
 	case "Service":
-		return awscloud.ResourcePolicyPrincipalTypeService
+		return aws.ResourcePolicyPrincipalTypeService
 	case "Federated":
-		return awscloud.ResourcePolicyPrincipalTypeFederated
+		return aws.ResourcePolicyPrincipalTypeFederated
 	case "CanonicalUser":
-		return awscloud.ResourcePolicyPrincipalTypeCanonical
+		return aws.ResourcePolicyPrincipalTypeCanonical
 	default:
 		return ""
 	}

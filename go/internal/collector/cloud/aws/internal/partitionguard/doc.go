@@ -22,8 +22,8 @@
 //
 // The repo-level guard test (TestLiveScannerTreeHasNoHardcodedPartitions) feeds
 // the live tree through it. Scanners derive the partition instead of hardcoding
-// it with awscloud.PartitionForRegion, awscloud.PartitionForBoundary, or
-// awscloud.PartitionFromARN.
+// it with aws.PartitionForRegion, aws.PartitionForBoundary, or
+// aws.PartitionFromARN.
 //
 // What the guard does NOT catch: a partition baked into a value that is not a
 // literal beginning with `arn:aws:` (for example, a partition fetched from a

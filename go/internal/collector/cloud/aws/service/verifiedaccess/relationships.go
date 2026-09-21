@@ -14,7 +14,7 @@ import (
 // node publishes (its synthesized partition-aware ARN, falling back to the bare
 // id), so the edge joins the instance node exactly. It returns nil when either
 // endpoint identity is missing.
-func groupInInstanceRelationship(boundary awscloud.Boundary, group Group) *awscloud.RelationshipObservation {
+func groupInInstanceRelationship(boundary aws.Boundary, group Group) *aws.RelationshipObservation {
 	sourceID := groupResourceID(boundary, group)
 	instanceID := strings.TrimSpace(group.InstanceID)
 	if sourceID == "" || instanceID == "" {
@@ -24,22 +24,22 @@ func groupInInstanceRelationship(boundary awscloud.Boundary, group Group) *awscl
 	if targetID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessGroupInInstance,
+		RelationshipType: aws.RelationshipVerifiedAccessGroupInInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeVerifiedAccessInstance,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessGroupInInstance + ":" + targetID,
+		TargetType:       aws.ResourceTypeVerifiedAccessInstance,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessGroupInInstance + ":" + targetID,
 	}
 }
 
 // endpointInGroupRelationship records a Verified Access endpoint's membership in
 // its parent group. The group is keyed by the resource_id the group node
 // publishes (its ARN). It returns nil when either endpoint identity is missing.
-func endpointInGroupRelationship(boundary awscloud.Boundary, endpoint Endpoint) *awscloud.RelationshipObservation {
+func endpointInGroupRelationship(boundary aws.Boundary, endpoint Endpoint) *aws.RelationshipObservation {
 	sourceID := endpointResourceID(boundary, endpoint)
 	groupID := strings.TrimSpace(endpoint.GroupID)
 	if sourceID == "" || groupID == "" {
@@ -49,15 +49,15 @@ func endpointInGroupRelationship(boundary awscloud.Boundary, endpoint Endpoint) 
 	if targetID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessEndpointInGroup,
+		RelationshipType: aws.RelationshipVerifiedAccessEndpointInGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeVerifiedAccessGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointInGroup + ":" + targetID,
+		TargetType:       aws.ResourceTypeVerifiedAccessGroup,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessEndpointInGroup + ":" + targetID,
 	}
 }
 
@@ -65,26 +65,26 @@ func endpointInGroupRelationship(boundary awscloud.Boundary, endpoint Endpoint) 
 // attachment to a trust provider, keyed by the resource_id the trust-provider
 // node publishes. It returns nil entries skipped, so the result holds only the
 // relationships with both endpoints present.
-func instanceTrustProviderRelationships(boundary awscloud.Boundary, instance Instance) []awscloud.RelationshipObservation {
+func instanceTrustProviderRelationships(boundary aws.Boundary, instance Instance) []aws.RelationshipObservation {
 	sourceID := instanceResourceID(boundary, instance.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, trustProviderID := range instance.TrustProviderIDs {
 		targetID := trustProviderResourceID(boundary, trustProviderID)
 		if targetID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessInstanceUsesTrustProvider,
+			RelationshipType: aws.RelationshipVerifiedAccessInstanceUsesTrustProvider,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: targetID,
 			TargetARN:        arnOrEmpty(targetID),
-			TargetType:       awscloud.ResourceTypeVerifiedAccessTrustProvider,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessInstanceUsesTrustProvider + ":" + targetID,
+			TargetType:       aws.ResourceTypeVerifiedAccessTrustProvider,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessInstanceUsesTrustProvider + ":" + targetID,
 		})
 	}
 	return relationships
@@ -94,25 +94,25 @@ func instanceTrustProviderRelationships(boundary awscloud.Boundary, instance Ins
 // subnet placements. AWS reports bare subnet ids, which match how the EC2
 // scanner publishes its aws_ec2_subnet resource_id, so the edge keys the bare
 // id and never dangles. Each id is skipped when empty.
-func endpointSubnetRelationships(boundary awscloud.Boundary, endpoint Endpoint) []awscloud.RelationshipObservation {
+func endpointSubnetRelationships(boundary aws.Boundary, endpoint Endpoint) []aws.RelationshipObservation {
 	sourceID := endpointResourceID(boundary, endpoint)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, subnetID := range endpoint.SubnetIDs {
 		subnetID = strings.TrimSpace(subnetID)
 		if subnetID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesSubnet,
+			RelationshipType: aws.RelationshipVerifiedAccessEndpointUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSubnet + ":" + subnetID,
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessEndpointUsesSubnet + ":" + subnetID,
 		})
 	}
 	return relationships
@@ -123,25 +123,25 @@ func endpointSubnetRelationships(boundary awscloud.Boundary, endpoint Endpoint) 
 // which match how the EC2 scanner publishes its aws_ec2_security_group
 // resource_id, so the edge keys the bare id and never dangles. Each id is
 // skipped when empty.
-func endpointSecurityGroupRelationships(boundary awscloud.Boundary, endpoint Endpoint) []awscloud.RelationshipObservation {
+func endpointSecurityGroupRelationships(boundary aws.Boundary, endpoint Endpoint) []aws.RelationshipObservation {
 	sourceID := endpointResourceID(boundary, endpoint)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, groupID := range endpoint.SecurityGroupIDs {
 		groupID = strings.TrimSpace(groupID)
 		if groupID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup,
+			RelationshipType: aws.RelationshipVerifiedAccessEndpointUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup + ":" + groupID,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessEndpointUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return relationships
@@ -152,7 +152,7 @@ func endpointSecurityGroupRelationships(boundary awscloud.Boundary, endpoint End
 // matches how the ACM scanner publishes its aws_acm_certificate resource_id, so
 // the edge keys the ARN and never dangles. It returns nil when no certificate is
 // reported or the reported value is not an ARN.
-func endpointACMCertificateRelationship(boundary awscloud.Boundary, endpoint Endpoint) *awscloud.RelationshipObservation {
+func endpointACMCertificateRelationship(boundary aws.Boundary, endpoint Endpoint) *aws.RelationshipObservation {
 	certARN := strings.TrimSpace(endpoint.DomainCertificateARN)
 	if certARN == "" || !isARN(certARN) {
 		return nil
@@ -161,15 +161,15 @@ func endpointACMCertificateRelationship(boundary awscloud.Boundary, endpoint End
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate,
+		RelationshipType: aws.RelationshipVerifiedAccessEndpointUsesACMCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: certARN,
 		TargetARN:        certARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate + ":" + certARN,
+		TargetType:       aws.ResourceTypeACMCertificate,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedAccessEndpointUsesACMCertificate + ":" + certARN,
 	}
 }
 

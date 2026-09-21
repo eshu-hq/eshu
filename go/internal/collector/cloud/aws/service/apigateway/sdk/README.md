@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`awssdk` owns the AWS SDK for Go v2 adapter for API Gateway metadata. It
+`sdk` owns the AWS SDK for Go v2 adapter for API Gateway metadata. It
 implements the scanner-owned `Client` port in the parent package.
 
 ## Ownership boundary
@@ -15,7 +15,7 @@ deployable-unit truth.
 
 ```mermaid
 flowchart LR
-    Client[awssdk.Client] --> Rest[REST API Gateway reads]
+    Client[sdk.Client] --> Rest[REST API Gateway reads]
     Client --> V2[HTTP and WebSocket API reads]
     Rest --> Mapper[metadata mapper]
     V2 --> Mapper
@@ -39,8 +39,8 @@ See `doc.go` for the godoc-rendered package contract.
 ## Dependencies
 
 - AWS SDK for Go v2 API Gateway REST and API Gateway v2 clients.
-- `internal/collector/awscloud` for boundaries and API-call status events.
-- `internal/collector/awscloud/service/apigateway` for scanner-owned models.
+- `internal/collector/cloud/aws` for boundaries and API-call status events.
+- `internal/collector/cloud/aws/service/apigateway` for scanner-owned models.
 - `internal/telemetry` for shared AWS collector API-call metrics and spans.
 
 ## Telemetry

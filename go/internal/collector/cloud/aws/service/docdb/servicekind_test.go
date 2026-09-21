@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "docdb".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceDocDB + "  "
+	boundary.ServiceKind = "  " + aws.ServiceDocDB + "  "
 	client := fakeClient{clusters: []DBCluster{{
 		ARN:        "arn:aws:rds:us-east-1:123456789012:cluster:padded",
 		Identifier: "padded",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDocDB; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDocDB; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ec2/runtimebind` registers the
-EC2 scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/ec2/bind` registers the
+EC2 scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the EC2 scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceEC2` to the EC2 scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceEC2` to the EC2 scanner builder. It does not own
 AWS API calls, EC2 domain types, redaction policy, or fact emission.
-Those belong to `internal/collector/awscloud/service/ec2` and its
-`awssdk` adapter.
+Those belong to `internal/collector/cloud/aws/service/ec2` and its
+`sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceEC2` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceEC2` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/ec2` for the scanner struct.
-- `internal/collector/awscloud/service/ec2/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/ec2` for the scanner struct.
+- `internal/collector/cloud/aws/service/ec2/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The EC2 scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the EC2 scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

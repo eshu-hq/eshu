@@ -28,7 +28,7 @@ type Analyzer struct {
 	ArchiveRules           []ArchiveRule
 	FindingCounts          []FindingCount
 	UnusedAccessSummaries  []UnusedAccessSummary
-	Warnings               []awscloud.WarningObservation
+	Warnings               []aws.WarningObservation
 }
 
 // ArchiveRule is safe archive-rule metadata. Filter criteria are intentionally

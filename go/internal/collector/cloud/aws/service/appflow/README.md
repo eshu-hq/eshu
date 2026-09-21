@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appflow` owns the Amazon AppFlow scanner
+`internal/collector/cloud/aws/service/appflow` owns the Amazon AppFlow scanner
 contract for the AWS cloud collector. It converts flow metadata and connector
 profile metadata into `aws_resource` facts and emits relationship evidence for
 flow-to-S3-source-bucket, flow-to-S3-destination-bucket, flow-to-connector-profile,
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -45,9 +45,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records AppFlow API call counts, throttles, and pagination
+`sdk` adapter records AppFlow API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -87,14 +87,14 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/appflow/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/appflow/...` covers the bounded
 AppFlow metadata path: one paginated ListFlows stream, one DescribeFlow point
 read per flow (Tasks/field-mappings and run records never read), one paginated
 DescribeConnectorProfiles stream, no StartFlow or StopFlow calls, no mutations,
 and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 AppFlow flow and connector profile metadata fact emission, flow-to-S3-source,
 flow-to-S3-destination, flow-to-connector-profile, flow-to-KMS-key, and
 connector-profile-to-secret relationship emission, the no-field-mappings and

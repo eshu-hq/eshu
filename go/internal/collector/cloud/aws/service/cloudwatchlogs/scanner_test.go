@@ -36,7 +36,7 @@ func TestScannerEmitsCloudWatchLogsMetadataOnlyFactsAndKMSRelationship(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeCloudWatchLogsLogGroup)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeCloudWatchLogsLogGroup)
 	if got, want := resource.Payload["arn"], logGroupARN; got != want {
 		t.Fatalf("log group arn = %#v, want %q", got, want)
 	}
@@ -68,7 +68,7 @@ func TestScannerEmitsCloudWatchLogsMetadataOnlyFactsAndKMSRelationship(t *testin
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipCloudWatchLogsLogGroupUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipCloudWatchLogsLogGroupUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -88,7 +88,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipCloudWatchLogsLogGroupUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipCloudWatchLogsLogGroupUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/logs"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -99,7 +99,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -107,11 +107,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCloudWatchLogs,
+		ServiceKind:         aws.ServiceCloudWatchLogs,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cloudwatchlogs:1",
 		CollectorInstanceID: "aws-prod",

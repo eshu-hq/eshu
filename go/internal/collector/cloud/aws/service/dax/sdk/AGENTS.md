@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/dax/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/dax/sdk guidance
 
 ## Read First
 

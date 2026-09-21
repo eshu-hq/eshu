@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsco "github.com/aws/aws-sdk-go-v2/service/computeoptimizer"
 	awscotypes "github.com/aws/aws-sdk-go-v2/service/computeoptimizer/types"
 
@@ -56,10 +56,10 @@ func (f *fakeAPI) GetLambdaFunctionRecommendations(context.Context, *awsco.GetLa
 func testClient(api apiClient) *Client {
 	return &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceComputeOptimizer,
+			ServiceKind: aws.ServiceComputeOptimizer,
 		},
 	}
 }
@@ -70,60 +70,60 @@ func TestSnapshotPaginatesAndMaps(t *testing.T) {
 			{
 				RecommendationSummaries: []awscotypes.RecommendationSummary{{
 					RecommendationResourceType: awscotypes.RecommendationSourceTypeEc2Instance,
-					AccountId:                  aws.String("123456789012"),
+					AccountId:                  awsv2.String("123456789012"),
 					Summaries: []awscotypes.Summary{
 						{Name: awscotypes.FindingOptimized, Value: 3},
 						{Name: awscotypes.FindingOverProvisioned, Value: 1},
 					},
 					SavingsOpportunity: &awscotypes.SavingsOpportunity{SavingsOpportunityPercentage: 12.5},
 				}},
-				NextToken: aws.String("page2"),
+				NextToken: awsv2.String("page2"),
 			},
 			{RecommendationSummaries: nil, NextToken: nil},
 		},
 		instancePages: []*awsco.GetEC2InstanceRecommendationsOutput{
 			{
 				InstanceRecommendations: []awscotypes.InstanceRecommendation{{
-					InstanceArn:         aws.String("arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"),
-					InstanceName:        aws.String("checkout-1"),
-					CurrentInstanceType: aws.String("m5.2xlarge"),
+					InstanceArn:         awsv2.String("arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"),
+					InstanceName:        awsv2.String("checkout-1"),
+					CurrentInstanceType: awsv2.String("m5.2xlarge"),
 					Finding:             awscotypes.FindingOverProvisioned,
 					RecommendationOptions: []awscotypes.InstanceRecommendationOption{
-						{InstanceType: aws.String("m5.4xlarge"), Rank: 2},
-						{InstanceType: aws.String("m5.xlarge"), Rank: 1, SavingsOpportunity: &awscotypes.SavingsOpportunity{SavingsOpportunityPercentage: 30}},
+						{InstanceType: awsv2.String("m5.4xlarge"), Rank: 2},
+						{InstanceType: awsv2.String("m5.xlarge"), Rank: 1, SavingsOpportunity: &awscotypes.SavingsOpportunity{SavingsOpportunityPercentage: 30}},
 					},
-					Tags: []awscotypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+					Tags: []awscotypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 				}},
 				NextToken: nil,
 			},
 		},
 		asgPages: []*awsco.GetAutoScalingGroupRecommendationsOutput{{
 			AutoScalingGroupRecommendations: []awscotypes.AutoScalingGroupRecommendation{{
-				AutoScalingGroupArn:  aws.String("arn:aws:autoscaling:us-east-1:123456789012:autoScalingGroup:uuid:autoScalingGroupName/web-asg"),
-				AutoScalingGroupName: aws.String("web-asg"),
+				AutoScalingGroupArn:  awsv2.String("arn:aws:autoscaling:us-east-1:123456789012:autoScalingGroup:uuid:autoScalingGroupName/web-asg"),
+				AutoScalingGroupName: awsv2.String("web-asg"),
 				Finding:              awscotypes.FindingNotOptimized,
-				CurrentConfiguration: &awscotypes.AutoScalingGroupConfiguration{InstanceType: aws.String("c5.large")},
+				CurrentConfiguration: &awscotypes.AutoScalingGroupConfiguration{InstanceType: awsv2.String("c5.large")},
 				RecommendationOptions: []awscotypes.AutoScalingGroupRecommendationOption{{
-					Configuration: &awscotypes.AutoScalingGroupConfiguration{InstanceType: aws.String("c6g.large")},
+					Configuration: &awscotypes.AutoScalingGroupConfiguration{InstanceType: awsv2.String("c6g.large")},
 					Rank:          1,
 				}},
 			}},
 		}},
 		volumePages: []*awsco.GetEBSVolumeRecommendationsOutput{{
 			VolumeRecommendations: []awscotypes.VolumeRecommendation{{
-				VolumeArn:            aws.String("arn:aws:ec2:us-east-1:123456789012:volume/vol-0abc"),
+				VolumeArn:            awsv2.String("arn:aws:ec2:us-east-1:123456789012:volume/vol-0abc"),
 				Finding:              awscotypes.EBSFindingNotOptimized,
-				CurrentConfiguration: &awscotypes.VolumeConfiguration{VolumeType: aws.String("gp2")},
+				CurrentConfiguration: &awscotypes.VolumeConfiguration{VolumeType: awsv2.String("gp2")},
 				VolumeRecommendationOptions: []awscotypes.VolumeRecommendationOption{{
-					Configuration: &awscotypes.VolumeConfiguration{VolumeType: aws.String("gp3")},
+					Configuration: &awscotypes.VolumeConfiguration{VolumeType: awsv2.String("gp3")},
 					Rank:          1,
 				}},
 			}},
 		}},
 		lambdaPages: []*awsco.GetLambdaFunctionRecommendationsOutput{{
 			LambdaFunctionRecommendations: []awscotypes.LambdaFunctionRecommendation{{
-				FunctionArn:       aws.String("arn:aws:lambda:us-east-1:123456789012:function:checkout"),
-				FunctionVersion:   aws.String("$LATEST"),
+				FunctionArn:       awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:checkout"),
+				FunctionVersion:   awsv2.String("$LATEST"),
 				CurrentMemorySize: 512,
 				Finding:           awscotypes.LambdaFunctionRecommendationFindingNotOptimized,
 				MemorySizeRecommendationOptions: []awscotypes.LambdaFunctionMemoryRecommendationOption{{
@@ -167,7 +167,7 @@ func TestSnapshotPaginatesAndMaps(t *testing.T) {
 }
 
 func TestSnapshotReturnsEmptyWhenNotEnrolled(t *testing.T) {
-	api := &fakeAPI{summaryErr: &awscotypes.OptInRequiredException{Message: aws.String("This account must opt in")}}
+	api := &fakeAPI{summaryErr: &awscotypes.OptInRequiredException{Message: awsv2.String("This account must opt in")}}
 	snapshot, err := testClient(api).Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v, want nil for not-enrolled account", err)
@@ -180,7 +180,7 @@ func TestSnapshotReturnsEmptyWhenNotEnrolled(t *testing.T) {
 func TestMapSummaryDropsCostDataPoints(t *testing.T) {
 	mapped := mapSummary(awscotypes.RecommendationSummary{
 		RecommendationResourceType: awscotypes.RecommendationSourceTypeLambdaFunction,
-		AccountId:                  aws.String("123456789012"),
+		AccountId:                  awsv2.String("123456789012"),
 		SavingsOpportunity: &awscotypes.SavingsOpportunity{
 			SavingsOpportunityPercentage: 9.9,
 			EstimatedMonthlySavings:      &awscotypes.EstimatedMonthlySavings{Currency: awscotypes.CurrencyUsd, Value: 1234.56},

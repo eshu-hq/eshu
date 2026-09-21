@@ -27,15 +27,15 @@ type Scanner struct {
 // through the configured client and returns reported-confidence AWS facts. The
 // scan only reaches read-only list-and-describe paths and never reaches
 // provisioning, association, constraint-mutation, or template-read surfaces.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("servicecatalog scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceServiceCatalog:
+	case "", aws.ServiceServiceCatalog:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceServiceCatalog
+		boundary.ServiceKind = aws.ServiceServiceCatalog
 	default:
 		return nil, fmt.Errorf("servicecatalog scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -81,10 +81,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 func (s Scanner) appendPortfolio(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	portfolio Portfolio,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(portfolioObservation(boundary, portfolio))
+	resource, err := aws.NewResourceEnvelope(portfolioObservation(boundary, portfolio))
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s Scanner) appendPortfolio(
 		return nil, fmt.Errorf("list principals for portfolio %q: %w", portfolioID, err)
 	}
 	for _, relationship := range portfolioPrincipalRelationships(boundary, portfolio, principals) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -111,10 +111,10 @@ func (s Scanner) appendPortfolio(
 func (s Scanner) appendProduct(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	product Product,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(productObservation(boundary, product))
+	resource, err := aws.NewResourceEnvelope(productObservation(boundary, product))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s Scanner) appendProduct(
 		return nil, fmt.Errorf("list portfolios for product %q: %w", productID, err)
 	}
 	for _, relationship := range productInPortfolioRelationships(boundary, product, portfolios) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -140,17 +140,17 @@ func (s Scanner) appendProduct(
 
 func appendProvisionedProduct(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	provisioned ProvisionedProduct,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(provisionedProductObservation(boundary, provisioned))
+	resource, err := aws.NewResourceEnvelope(provisionedProductObservation(boundary, provisioned))
 	if err != nil {
 		return nil, err
 	}
 	envelopes = append(envelopes, resource)
 
 	if relationship := provisionedProductStackRelationship(boundary, provisioned); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -159,14 +159,14 @@ func appendProvisionedProduct(
 	return envelopes, nil
 }
 
-func portfolioObservation(boundary awscloud.Boundary, portfolio Portfolio) awscloud.ResourceObservation {
+func portfolioObservation(boundary aws.Boundary, portfolio Portfolio) aws.ResourceObservation {
 	arn := strings.TrimSpace(portfolio.ARN)
 	resourceID := firstNonEmpty(arn, portfolio.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogPortfolio,
+		ResourceType: aws.ResourceTypeServiceCatalogPortfolio,
 		Name:         strings.TrimSpace(portfolio.DisplayName),
 		Attributes: map[string]any{
 			"portfolio_id":  strings.TrimSpace(portfolio.ID),
@@ -180,14 +180,14 @@ func portfolioObservation(boundary awscloud.Boundary, portfolio Portfolio) awscl
 	}
 }
 
-func productObservation(boundary awscloud.Boundary, product Product) awscloud.ResourceObservation {
+func productObservation(boundary aws.Boundary, product Product) aws.ResourceObservation {
 	arn := strings.TrimSpace(product.ARN)
 	resourceID := firstNonEmpty(arn, product.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogProduct,
+		ResourceType: aws.ResourceTypeServiceCatalogProduct,
 		Name:         strings.TrimSpace(product.Name),
 		State:        strings.TrimSpace(product.Status),
 		Attributes: map[string]any{
@@ -204,16 +204,16 @@ func productObservation(boundary awscloud.Boundary, product Product) awscloud.Re
 }
 
 func provisionedProductObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	provisioned ProvisionedProduct,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(provisioned.ARN)
 	resourceID := firstNonEmpty(arn, provisioned.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogProvisionedProduct,
+		ResourceType: aws.ResourceTypeServiceCatalogProvisionedProduct,
 		Name:         strings.TrimSpace(provisioned.Name),
 		State:        strings.TrimSpace(provisioned.Status),
 		Attributes: map[string]any{

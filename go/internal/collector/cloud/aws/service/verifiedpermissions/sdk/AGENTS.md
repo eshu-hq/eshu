@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/verifiedpermissions/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/verifiedpermissions/sdk guidance
 
 ## Read First
 

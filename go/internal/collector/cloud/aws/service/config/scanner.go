@@ -27,15 +27,15 @@ type Scanner struct {
 // aggregator-to-source-account relationship facts. The rule resource-type scope
 // is carried as an attribute on the rule resource rather than as a relationship
 // to a synthetic resource-type node that no scanner emits.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("config scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceConfig:
+	case "", aws.ServiceConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceConfig
+		boundary.ServiceKind = aws.ServiceConfig
 	default:
 		return nil, fmt.Errorf("config scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,7 +47,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config configuration recorders: %w", err)
 	}
 	for _, recorder := range recorders {
-		envelope, err := awscloud.NewResourceEnvelope(recorderObservation(boundary, recorder))
+		envelope, err := aws.NewResourceEnvelope(recorderObservation(boundary, recorder))
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +59,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config delivery channels: %w", err)
 	}
 	for _, channel := range channels {
-		envelope, err := awscloud.NewResourceEnvelope(deliveryChannelObservation(boundary, channel))
+		envelope, err := aws.NewResourceEnvelope(deliveryChannelObservation(boundary, channel))
 		if err != nil {
 			return nil, err
 		}
@@ -71,13 +71,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config rules: %w", err)
 	}
 	for _, rule := range rules {
-		envelope, err := awscloud.NewResourceEnvelope(ruleObservation(boundary, rule))
+		envelope, err := aws.NewResourceEnvelope(ruleObservation(boundary, rule))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		if rel, ok := ruleLambdaRelationship(boundary, rule); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -90,7 +90,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config conformance packs: %w", err)
 	}
 	for _, pack := range packs {
-		envelope, err := awscloud.NewResourceEnvelope(conformancePackObservation(boundary, pack))
+		envelope, err := aws.NewResourceEnvelope(conformancePackObservation(boundary, pack))
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -113,7 +113,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config configuration aggregators: %w", err)
 	}
 	for _, aggregator := range aggregators {
-		envelope, err := awscloud.NewResourceEnvelope(aggregatorObservation(boundary, aggregator))
+		envelope, err := aws.NewResourceEnvelope(aggregatorObservation(boundary, aggregator))
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +123,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -136,7 +136,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("describe Config retention configurations: %w", err)
 	}
 	for _, retention := range retentions {
-		envelope, err := awscloud.NewResourceEnvelope(retentionObservation(boundary, retention))
+		envelope, err := aws.NewResourceEnvelope(retentionObservation(boundary, retention))
 		if err != nil {
 			return nil, err
 		}
@@ -146,12 +146,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func recorderObservation(boundary awscloud.Boundary, recorder ConfigurationRecorder) awscloud.ResourceObservation {
+func recorderObservation(boundary aws.Boundary, recorder ConfigurationRecorder) aws.ResourceObservation {
 	name := strings.TrimSpace(recorder.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   recorderResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigConfigurationRecorder,
+		ResourceType: aws.ResourceTypeConfigConfigurationRecorder,
 		Name:         name,
 		Attributes: map[string]any{
 			"all_supported":                 recorder.AllSupported,
@@ -165,12 +165,12 @@ func recorderObservation(boundary awscloud.Boundary, recorder ConfigurationRecor
 	}
 }
 
-func deliveryChannelObservation(boundary awscloud.Boundary, channel DeliveryChannel) awscloud.ResourceObservation {
+func deliveryChannelObservation(boundary aws.Boundary, channel DeliveryChannel) aws.ResourceObservation {
 	name := strings.TrimSpace(channel.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   deliveryChannelResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigDeliveryChannel,
+		ResourceType: aws.ResourceTypeConfigDeliveryChannel,
 		Name:         name,
 		Attributes: map[string]any{
 			"s3_bucket_name":             strings.TrimSpace(channel.S3BucketName),
@@ -184,14 +184,14 @@ func deliveryChannelObservation(boundary awscloud.Boundary, channel DeliveryChan
 	}
 }
 
-func ruleObservation(boundary awscloud.Boundary, rule ConfigRule) awscloud.ResourceObservation {
+func ruleObservation(boundary aws.Boundary, rule ConfigRule) aws.ResourceObservation {
 	ruleARN := strings.TrimSpace(rule.ARN)
 	name := strings.TrimSpace(rule.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   ruleResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigRule,
+		ResourceType: aws.ResourceTypeConfigRule,
 		Name:         name,
 		State:        strings.TrimSpace(rule.State),
 		Attributes: map[string]any{
@@ -206,14 +206,14 @@ func ruleObservation(boundary awscloud.Boundary, rule ConfigRule) awscloud.Resou
 	}
 }
 
-func conformancePackObservation(boundary awscloud.Boundary, pack ConformancePack) awscloud.ResourceObservation {
+func conformancePackObservation(boundary aws.Boundary, pack ConformancePack) aws.ResourceObservation {
 	packARN := strings.TrimSpace(pack.ARN)
 	name := strings.TrimSpace(pack.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          packARN,
 		ResourceID:   firstNonEmpty(packARN, conformancePackResourceID(name)),
-		ResourceType: awscloud.ResourceTypeConfigConformancePack,
+		ResourceType: aws.ResourceTypeConfigConformancePack,
 		Name:         name,
 		State:        strings.TrimSpace(pack.Status),
 		Attributes: map[string]any{
@@ -227,14 +227,14 @@ func conformancePackObservation(boundary awscloud.Boundary, pack ConformancePack
 	}
 }
 
-func aggregatorObservation(boundary awscloud.Boundary, aggregator ConfigurationAggregator) awscloud.ResourceObservation {
+func aggregatorObservation(boundary aws.Boundary, aggregator ConfigurationAggregator) aws.ResourceObservation {
 	aggregatorARN := strings.TrimSpace(aggregator.ARN)
 	name := strings.TrimSpace(aggregator.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          aggregatorARN,
 		ResourceID:   firstNonEmpty(aggregatorARN, aggregatorResourceID(name)),
-		ResourceType: awscloud.ResourceTypeConfigConfigurationAggregator,
+		ResourceType: aws.ResourceTypeConfigConfigurationAggregator,
 		Name:         name,
 		Attributes: map[string]any{
 			"created_by":                   strings.TrimSpace(aggregator.CreatedBy),
@@ -250,12 +250,12 @@ func aggregatorObservation(boundary awscloud.Boundary, aggregator ConfigurationA
 	}
 }
 
-func retentionObservation(boundary awscloud.Boundary, retention RetentionConfiguration) awscloud.ResourceObservation {
+func retentionObservation(boundary aws.Boundary, retention RetentionConfiguration) aws.ResourceObservation {
 	name := strings.TrimSpace(retention.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   retentionResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigRetentionConfiguration,
+		ResourceType: aws.ResourceTypeConfigRetentionConfiguration,
 		Name:         name,
 		Attributes: map[string]any{
 			"retention_period_in_days": retention.RetentionPeriodInDays,

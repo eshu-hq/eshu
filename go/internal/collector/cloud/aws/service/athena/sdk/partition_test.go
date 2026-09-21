@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"testing"
@@ -27,7 +27,7 @@ func TestWorkGroupARNDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region, AccountID: "123456789012"}
+			boundary := aws.Boundary{Region: tc.region, AccountID: "123456789012"}
 			if got := workGroupARN(boundary, "primary"); got != tc.want {
 				t.Fatalf("workGroupARN(%q) = %q, want %q", tc.region, got, tc.want)
 			}
@@ -49,7 +49,7 @@ func TestDataCatalogARNDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region, AccountID: "123456789012"}
+			boundary := aws.Boundary{Region: tc.region, AccountID: "123456789012"}
 			if got := dataCatalogARN(boundary, "AwsDataCatalog"); got != tc.want {
 				t.Fatalf("dataCatalogARN(%q) = %q, want %q", tc.region, got, tc.want)
 			}

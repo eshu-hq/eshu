@@ -103,11 +103,11 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 
 	// All five resource types must appear.
 	for _, kind := range []string{
-		awscloud.ResourceTypeCloudWatchAlarm,
-		awscloud.ResourceTypeCloudWatchCompositeAlarm,
-		awscloud.ResourceTypeCloudWatchDashboard,
-		awscloud.ResourceTypeCloudWatchInsightRule,
-		awscloud.ResourceTypeCloudWatchMetricStream,
+		aws.ResourceTypeCloudWatchAlarm,
+		aws.ResourceTypeCloudWatchCompositeAlarm,
+		aws.ResourceTypeCloudWatchDashboard,
+		aws.ResourceTypeCloudWatchInsightRule,
+		aws.ResourceTypeCloudWatchMetricStream,
 	} {
 		if envelope, ok := firstResource(envelopes, kind); !ok {
 			t.Fatalf("missing resource_type %q in envelopes", kind)
@@ -117,7 +117,7 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	}
 
 	// Dashboard must not carry a body field.
-	dashboard, _ := firstResource(envelopes, awscloud.ResourceTypeCloudWatchDashboard)
+	dashboard, _ := firstResource(envelopes, aws.ResourceTypeCloudWatchDashboard)
 	dashAttrs := attributesOf(t, dashboard)
 	for _, forbidden := range []string{"body", "dashboard_body", "widgets", "definition"} {
 		if _, exists := dashAttrs[forbidden]; exists {
@@ -129,7 +129,7 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	}
 
 	// Insight rule must not carry a definition field.
-	rule, _ := firstResource(envelopes, awscloud.ResourceTypeCloudWatchInsightRule)
+	rule, _ := firstResource(envelopes, aws.ResourceTypeCloudWatchInsightRule)
 	ruleAttrs := attributesOf(t, rule)
 	for _, forbidden := range []string{"definition", "rule_definition", "body"} {
 		if _, exists := ruleAttrs[forbidden]; exists {
@@ -141,7 +141,7 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	}
 
 	// Metric alarm: thresholds, action ARNs preserved.
-	metricAlarm, _ := firstResource(envelopes, awscloud.ResourceTypeCloudWatchAlarm)
+	metricAlarm, _ := firstResource(envelopes, aws.ResourceTypeCloudWatchAlarm)
 	alarmAttrs := attributesOf(t, metricAlarm)
 	if got, want := alarmAttrs["namespace"], "AWS/EC2"; got != want {
 		t.Fatalf("alarm namespace = %#v, want %q", got, want)
@@ -151,13 +151,13 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	}
 
 	// Composite alarm relationship for each child.
-	compositeChildRels := relationshipsOfType(envelopes, awscloud.RelationshipCloudWatchCompositeAlarmHasChildAlarm)
+	compositeChildRels := relationshipsOfType(envelopes, aws.RelationshipCloudWatchCompositeAlarmHasChildAlarm)
 	if got, want := len(compositeChildRels), 2; got != want {
 		t.Fatalf("composite child alarm relationships = %d, want %d", got, want)
 	}
 
 	// SNS notify relationship for the alarm — three actions on the same topic dedupe to one edge.
-	snsRels := relationshipsOfType(envelopes, awscloud.RelationshipCloudWatchAlarmNotifiesSNSTopic)
+	snsRels := relationshipsOfType(envelopes, aws.RelationshipCloudWatchAlarmNotifiesSNSTopic)
 	if got, want := len(snsRels), 2; got != want {
 		// 1 for the metric alarm (deduped) + 1 for the composite alarm = 2
 		t.Fatalf("alarm notifies SNS topic relationships = %d, want %d", got, want)
@@ -169,7 +169,7 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	}
 
 	// Metric stream relationship to Firehose.
-	firehoseRels := relationshipsOfType(envelopes, awscloud.RelationshipCloudWatchMetricStreamDeliversToFirehose)
+	firehoseRels := relationshipsOfType(envelopes, aws.RelationshipCloudWatchMetricStreamDeliversToFirehose)
 	if got, want := len(firehoseRels), 1; got != want {
 		t.Fatalf("metric stream firehose relationships = %d, want %d", got, want)
 	}
@@ -179,12 +179,12 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	// The target_type must match the resource_type the kinesis scanner publishes
 	// for Firehose delivery streams, or the edge dangles and never joins the
 	// Firehose node. Regression for the #804 graph-join defect class.
-	if got, want := firehoseRels[0].Payload["target_type"], awscloud.ResourceTypeKinesisFirehoseDeliveryStream; got != want {
+	if got, want := firehoseRels[0].Payload["target_type"], aws.ResourceTypeKinesisFirehoseDeliveryStream; got != want {
 		t.Fatalf("firehose target_type = %#v, want %q (the type kinesis publishes for Firehose)", got, want)
 	}
 
 	// Alarm observes metric relationship: dimensions present, customer-tag-named one redacted.
-	metricRels := relationshipsOfType(envelopes, awscloud.RelationshipCloudWatchAlarmObservesMetric)
+	metricRels := relationshipsOfType(envelopes, aws.RelationshipCloudWatchAlarmObservesMetric)
 	if got, want := len(metricRels), 2; got != want { // one per metric alarm
 		t.Fatalf("alarm observes metric relationships = %d, want %d", got, want)
 	}
@@ -236,7 +236,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceCloudWatchLogs
+	boundary.ServiceKind = aws.ServiceCloudWatchLogs
 	_, err = (Scanner{Client: fakeClient{}, RedactionKey: key}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -251,11 +251,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCloudWatch,
+		ServiceKind:         aws.ServiceCloudWatch,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cloudwatch:1",
 		CollectorInstanceID: "aws-prod",

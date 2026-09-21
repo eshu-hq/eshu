@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/iam/runtimebind` registers the
-IAM scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/iam/bind` registers the
+IAM scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the IAM scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceIAM` to the IAM scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceIAM` to the IAM scanner builder. It does not own
 AWS API calls, IAM domain types, redaction policy, or fact emission.
-Those belong to `internal/collector/awscloud/service/iam` and its
-`awssdk` adapter.
+Those belong to `internal/collector/cloud/aws/service/iam` and its
+`sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceIAM` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceIAM` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/iam` for the scanner struct.
-- `internal/collector/awscloud/service/iam/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/iam` for the scanner struct.
+- `internal/collector/cloud/aws/service/iam/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The IAM scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the IAM scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

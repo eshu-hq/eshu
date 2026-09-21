@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lambda` owns scanner-side Lambda fact
+`internal/collector/cloud/aws/service/lambda` owns scanner-side Lambda fact
 selection for the AWS cloud collector. It converts functions, aliases, event
 source mappings, image references, VPC placement, and execution-role evidence
 into `aws_resource` and `aws_relationship` facts.
@@ -29,21 +29,21 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Scanner` - emits Lambda facts for one claimed AWS boundary.
-- `Client` - scanner-owned read surface implemented by `awssdk.Client`.
+- `Client` - scanner-owned read surface implemented by `sdk.Client`.
 - `Function`, `Alias`, and `EventSourceMapping` - scanner-owned Lambda records.
 - `VPCConfig` and `LoggingConfig` - non-secret Lambda configuration blocks used
   as fact attributes.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 - `internal/redact` for keyed HMAC-SHA256 markers for function environment
   values before persistence.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
+This package emits no metrics or spans directly. The `sdk` adapter emits AWS
 API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants
@@ -74,7 +74,7 @@ API call counters, throttle counters, and pagination spans.
     `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
     graph edge — since a Lambda function is single-image by AWS's own model,
     there is no multi-container-style ambiguity to resolve
-    (`go/internal/reducer/awscloud/aws_cloud_image_join.go`'s
+    (`go/internal/reducer/aws/aws_cloud_image_join.go`'s
     `containerImageNodeUIDFromDigestRef`). That function lowercases the
     registry, repository, and digest before computing the target uid, matching
     the OCI registry collector's own normalization

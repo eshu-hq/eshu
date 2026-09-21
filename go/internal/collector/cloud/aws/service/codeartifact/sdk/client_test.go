@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsca "github.com/aws/aws-sdk-go-v2/service/codeartifact"
 	awscatypes "github.com/aws/aws-sdk-go-v2/service/codeartifact/types"
 
@@ -21,26 +21,26 @@ func TestClientListDomainsReadsSafeDomainMetadata(t *testing.T) {
 	client := &fakeCodeArtifactAPI{
 		domainPages: []*awsca.ListDomainsOutput{{
 			Domains: []awscatypes.DomainSummary{{
-				Name:          aws.String("acme"),
-				Arn:           aws.String("arn:aws:codeartifact:us-east-1:123456789012:domain/acme"),
-				Owner:         aws.String("123456789012"),
-				EncryptionKey: aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+				Name:          awsv2.String("acme"),
+				Arn:           awsv2.String("arn:aws:codeartifact:us-east-1:123456789012:domain/acme"),
+				Owner:         awsv2.String("123456789012"),
+				EncryptionKey: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 				Status:        awscatypes.DomainStatusActive,
-				CreatedTime:   aws.Time(time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)),
+				CreatedTime:   awsv2.Time(time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		domainDescribe: map[string]*awsca.DescribeDomainOutput{
 			"acme": {
 				Domain: &awscatypes.DomainDescription{
-					Name:            aws.String("acme"),
-					Arn:             aws.String("arn:aws:codeartifact:us-east-1:123456789012:domain/acme"),
-					Owner:           aws.String("123456789012"),
-					EncryptionKey:   aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
-					S3BucketArn:     aws.String("arn:aws:s3:::assets-acme"),
+					Name:            awsv2.String("acme"),
+					Arn:             awsv2.String("arn:aws:codeartifact:us-east-1:123456789012:domain/acme"),
+					Owner:           awsv2.String("123456789012"),
+					EncryptionKey:   awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+					S3BucketArn:     awsv2.String("arn:aws:s3:::assets-acme"),
 					RepositoryCount: 3,
 					AssetSizeBytes:  8192,
 					Status:          awscatypes.DomainStatusActive,
-					CreatedTime:     aws.Time(time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)),
+					CreatedTime:     awsv2.Time(time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)),
 				},
 			},
 		},
@@ -76,28 +76,28 @@ func TestClientListRepositoriesReadsExternalConnectionsAndUpstreams(t *testing.T
 	client := &fakeCodeArtifactAPI{
 		repositoryPages: []*awsca.ListRepositoriesOutput{{
 			Repositories: []awscatypes.RepositorySummary{{
-				Name:        aws.String("team-npm"),
-				Arn:         aws.String("arn:aws:codeartifact:us-east-1:123456789012:repository/acme/team-npm"),
-				DomainName:  aws.String("acme"),
-				DomainOwner: aws.String("123456789012"),
-				Description: aws.String("team npm proxy"),
-				CreatedTime: aws.Time(time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)),
+				Name:        awsv2.String("team-npm"),
+				Arn:         awsv2.String("arn:aws:codeartifact:us-east-1:123456789012:repository/acme/team-npm"),
+				DomainName:  awsv2.String("acme"),
+				DomainOwner: awsv2.String("123456789012"),
+				Description: awsv2.String("team npm proxy"),
+				CreatedTime: awsv2.Time(time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		repositoryDescribe: map[string]*awsca.DescribeRepositoryOutput{
 			"acme/team-npm": {
 				Repository: &awscatypes.RepositoryDescription{
-					Name:       aws.String("team-npm"),
-					Arn:        aws.String("arn:aws:codeartifact:us-east-1:123456789012:repository/acme/team-npm"),
-					DomainName: aws.String("acme"),
+					Name:       awsv2.String("team-npm"),
+					Arn:        awsv2.String("arn:aws:codeartifact:us-east-1:123456789012:repository/acme/team-npm"),
+					DomainName: awsv2.String("acme"),
 					ExternalConnections: []awscatypes.RepositoryExternalConnectionInfo{{
-						ExternalConnectionName: aws.String("public:npmjs"),
+						ExternalConnectionName: awsv2.String("public:npmjs"),
 						PackageFormat:          awscatypes.PackageFormatNpm,
 						Status:                 awscatypes.ExternalConnectionStatusAvailable,
 					}},
 					Upstreams: []awscatypes.UpstreamRepositoryInfo{
-						{RepositoryName: aws.String("shared-npm")},
-						{RepositoryName: aws.String("vendor-npm")},
+						{RepositoryName: awsv2.String("shared-npm")},
+						{RepositoryName: awsv2.String("vendor-npm")},
 					},
 				},
 			},
@@ -167,11 +167,11 @@ func TestAdapterAPIClientForbidsPackagePayloadAndMutation(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeArtifact,
+		ServiceKind:         aws.ServiceCodeArtifact,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:codeartifact:1",
 		CollectorInstanceID: "aws-prod",
@@ -222,7 +222,7 @@ func (f *fakeCodeArtifactAPI) DescribeDomain(
 	if f.domainDescribe == nil {
 		return &awsca.DescribeDomainOutput{}, nil
 	}
-	if output, ok := f.domainDescribe[aws.ToString(input.Domain)]; ok {
+	if output, ok := f.domainDescribe[awsv2.ToString(input.Domain)]; ok {
 		return output, nil
 	}
 	return &awsca.DescribeDomainOutput{}, nil
@@ -249,7 +249,7 @@ func (f *fakeCodeArtifactAPI) DescribeRepository(
 	if f.repositoryDescribe == nil {
 		return &awsca.DescribeRepositoryOutput{}, nil
 	}
-	key := aws.ToString(input.Domain) + "/" + aws.ToString(input.Repository)
+	key := awsv2.ToString(input.Domain) + "/" + awsv2.ToString(input.Repository)
 	if output, ok := f.repositoryDescribe[key]; ok {
 		return output, nil
 	}

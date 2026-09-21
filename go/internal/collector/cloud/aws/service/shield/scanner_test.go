@@ -31,11 +31,11 @@ const (
 	testQueueARN            = "arn:aws:sqs:us-east-1:123456789012:not-protectable"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceShield,
+		ServiceKind:         aws.ServiceShield,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-1",
@@ -62,7 +62,7 @@ func TestScannerEmitsProtectionResources(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	protections := allResources(envelopes, awscloud.ResourceTypeShieldProtection)
+	protections := allResources(envelopes, aws.ResourceTypeShieldProtection)
 	if got, want := len(protections), 6; got != want {
 		t.Fatalf("protection resource count = %d, want %d", got, want)
 	}
@@ -94,7 +94,7 @@ func TestScannerClassifiesProtectedResourceTargets(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource)
+	edges := allRelationships(envelopes, aws.RelationshipShieldProtectionProtectsResource)
 	// Five recognized families emit an edge; the SQS protection is skipped.
 	if got, want := len(edges), 5; got != want {
 		t.Fatalf("protection edge count = %d, want %d", got, want)
@@ -112,11 +112,11 @@ func TestScannerClassifiesProtectedResourceTargets(t *testing.T) {
 		wantTargetID   string
 		wantTargetARN  string
 	}{
-		{"elbv2", testProtectionELBARN, awscloud.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN, testLoadBalancerARN},
-		{"cloudfront", testProtectionCFARN, awscloud.ResourceTypeCloudFrontDistribution, testDistributionARN, testDistributionARN},
-		{"eip", testProtectionEIPARN, awscloud.ResourceTypeVPCElasticIP, testElasticIPAllocation, ""},
-		{"route53", testProtectionZoneARN, awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/" + testHostedZoneID, ""},
-		{"globalaccelerator", testProtectionGAARN, awscloud.ResourceTypeGlobalAcceleratorAccelerator, testAcceleratorARN, testAcceleratorARN},
+		{"elbv2", testProtectionELBARN, aws.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN, testLoadBalancerARN},
+		{"cloudfront", testProtectionCFARN, aws.ResourceTypeCloudFrontDistribution, testDistributionARN, testDistributionARN},
+		{"eip", testProtectionEIPARN, aws.ResourceTypeVPCElasticIP, testElasticIPAllocation, ""},
+		{"route53", testProtectionZoneARN, aws.ResourceTypeRoute53HostedZone, "/hostedzone/" + testHostedZoneID, ""},
+		{"globalaccelerator", testProtectionGAARN, aws.ResourceTypeGlobalAcceleratorAccelerator, testAcceleratorARN, testAcceleratorARN},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -145,10 +145,10 @@ func TestScannerSkipsUnrecognizedProtectedResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := len(allResources(envelopes, awscloud.ResourceTypeShieldProtection)); got != 1 {
+	if got := len(allResources(envelopes, aws.ResourceTypeShieldProtection)); got != 1 {
 		t.Fatalf("protection resource count = %d, want 1", got)
 	}
-	if edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
+	if edges := allRelationships(envelopes, aws.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
 		t.Fatalf("unrecognized protected ARN emitted %d edges, want 0", len(edges))
 	}
 }
@@ -161,7 +161,7 @@ func TestScannerSkipsProtectionWithoutProtectedARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
+	if edges := allRelationships(envelopes, aws.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
 		t.Fatalf("protection with empty protected ARN emitted %d edges, want 0", len(edges))
 	}
 }
@@ -175,7 +175,7 @@ func TestScannerEmitsSubscriptionResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	subscription := assertResource(t, envelopes, awscloud.ResourceTypeShieldSubscription)
+	subscription := assertResource(t, envelopes, aws.ResourceTypeShieldSubscription)
 	if got := subscription.Payload["state"]; got != "ACTIVE" {
 		t.Fatalf("subscription state = %v, want ACTIVE", got)
 	}
@@ -196,7 +196,7 @@ func TestScannerEmitsSubscriptionResourceWithoutARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	subscription := assertResource(t, envelopes, awscloud.ResourceTypeShieldSubscription)
+	subscription := assertResource(t, envelopes, aws.ResourceTypeShieldSubscription)
 	if got := subscription.Payload["resource_id"]; got != "shield-subscription/123456789012" {
 		t.Fatalf("subscription resource_id = %v, want shield-subscription/123456789012", got)
 	}
@@ -208,13 +208,13 @@ func TestScannerOmitsSubscriptionWhenAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := len(allResources(envelopes, awscloud.ResourceTypeShieldSubscription)); got != 0 {
+	if got := len(allResources(envelopes, aws.ResourceTypeShieldSubscription)); got != 0 {
 		t.Fatalf("subscription resource count = %d, want 0", got)
 	}
 }
 
 func TestScannerAllRelationshipsSatisfyGraphJoinContract(t *testing.T) {
-	observations := make([]awscloud.RelationshipObservation, 0)
+	observations := make([]aws.RelationshipObservation, 0)
 	for _, protection := range allProtections() {
 		if rel := protectionRelationship(testBoundary(), protection); rel != nil {
 			observations = append(observations, *rel)
@@ -234,9 +234,9 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resource := assertResource(t, envelopes, awscloud.ResourceTypeShieldProtection)
-	if got := resource.Payload["service_kind"]; got != awscloud.ServiceShield {
-		t.Fatalf("service_kind = %v, want %v", got, awscloud.ServiceShield)
+	resource := assertResource(t, envelopes, aws.ResourceTypeShieldProtection)
+	if got := resource.Payload["service_kind"]; got != aws.ServiceShield {
+		t.Fatalf("service_kind = %v, want %v", got, aws.ServiceShield)
 	}
 }
 

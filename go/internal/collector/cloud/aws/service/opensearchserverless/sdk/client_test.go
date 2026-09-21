@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/opensearchserverless/document"
 	awsaosstypes "github.com/aws/aws-sdk-go-v2/service/opensearchserverless/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOpenSearchServerless,
+		ServiceKind: aws.ServiceOpenSearchServerless,
 	}
 }
 
@@ -28,28 +28,28 @@ func TestClientSnapshotsMetadataAndParsesEncryptionKey(t *testing.T) {
 
 	api := &fakeAPI{
 		collectionSummaries: []awsaosstypes.CollectionSummary{{
-			Id:   aws.String("abc123"),
-			Name: aws.String("orders"),
+			Id:   awsv2.String("abc123"),
+			Name: awsv2.String("orders"),
 		}},
 		collectionDetails: map[string]awsaosstypes.CollectionDetail{
 			"abc123": {
-				Arn:             aws.String(collectionARN),
-				Id:              aws.String("abc123"),
-				Name:            aws.String("orders"),
+				Arn:             awsv2.String(collectionARN),
+				Id:              awsv2.String("abc123"),
+				Name:            awsv2.String("orders"),
 				Type:            awsaosstypes.CollectionTypeSearch,
 				Status:          awsaosstypes.CollectionStatusActive,
 				StandbyReplicas: awsaosstypes.StandbyReplicasEnabled,
-				KmsKeyArn:       aws.String(kmsARN),
-				CreatedDate:     aws.Int64(1747224000000),
+				KmsKeyArn:       awsv2.String(kmsARN),
+				CreatedDate:     awsv2.Int64(1747224000000),
 			},
 		},
 		encryptionPolicies: []awsaosstypes.SecurityPolicySummary{{
-			Name:        aws.String("orders-encryption"),
-			Description: aws.String("orders policy"),
+			Name:        awsv2.String("orders-encryption"),
+			Description: awsv2.String("orders policy"),
 		}},
 		encryptionDetail: map[string]awsaosstypes.SecurityPolicyDetail{
 			"orders-encryption": {
-				Name: aws.String("orders-encryption"),
+				Name: awsv2.String("orders-encryption"),
 				Type: awsaosstypes.SecurityPolicyTypeEncryption,
 				Policy: document.NewLazyDocument(map[string]any{
 					"Rules": []any{map[string]any{
@@ -62,21 +62,21 @@ func TestClientSnapshotsMetadataAndParsesEncryptionKey(t *testing.T) {
 			},
 		},
 		vpcEndpointSummaries: []awsaosstypes.VpcEndpointSummary{{
-			Id:   aws.String("vpce-aoss-123"),
-			Name: aws.String("orders-endpoint"),
+			Id:   awsv2.String("vpce-aoss-123"),
+			Name: awsv2.String("orders-endpoint"),
 		}},
 		vpcEndpointDetails: map[string]awsaosstypes.VpcEndpointDetail{
 			"vpce-aoss-123": {
-				Id:               aws.String("vpce-aoss-123"),
-				Name:             aws.String("orders-endpoint"),
+				Id:               awsv2.String("vpce-aoss-123"),
+				Name:             awsv2.String("orders-endpoint"),
 				Status:           awsaosstypes.VpcEndpointStatusActive,
-				VpcId:            aws.String("vpc-0a1b2c3d"),
+				VpcId:            awsv2.String("vpc-0a1b2c3d"),
 				SubnetIds:        []string{"subnet-1111", "subnet-2222"},
 				SecurityGroupIds: []string{"sg-aaaa"},
 			},
 		},
 		tags: map[string][]awsaosstypes.Tag{
-			collectionARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			collectionARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 
@@ -149,10 +149,10 @@ func TestClientSnapshotEmptyAccount(t *testing.T) {
 
 func TestClientSkipsAWSOwnedKeyBinding(t *testing.T) {
 	api := &fakeAPI{
-		encryptionPolicies: []awsaosstypes.SecurityPolicySummary{{Name: aws.String("owned")}},
+		encryptionPolicies: []awsaosstypes.SecurityPolicySummary{{Name: awsv2.String("owned")}},
 		encryptionDetail: map[string]awsaosstypes.SecurityPolicyDetail{
 			"owned": {
-				Name: aws.String("owned"),
+				Name: awsv2.String("owned"),
 				Type: awsaosstypes.SecurityPolicyTypeEncryption,
 				Policy: document.NewLazyDocument(map[string]any{
 					"Rules": []any{map[string]any{

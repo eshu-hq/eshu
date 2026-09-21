@@ -13,4 +13,4 @@
 // DeletePreparedStatement, and GetPreparedStatement so query result rows,
 // named-query SQL bodies, prepared-statement query strings, and query history
 // strings can never enter the scanner contract.
-package awssdk
+package sdk

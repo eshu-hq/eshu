@@ -19,15 +19,15 @@ type Scanner struct {
 }
 
 // Scan observes EKS resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("eks scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEKS:
+	case "", aws.ServiceEKS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEKS
+		boundary.ServiceKind = aws.ServiceEKS
 	default:
 		return nil, fmt.Errorf("eks scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,10 +49,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) clusterEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s Scanner) clusterEnvelopes(
 		envelopes = append(envelopes, oidcEnvelopes...)
 	}
 	for _, observation := range clusterRelationships(boundary, cluster) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -98,13 +98,13 @@ func (s Scanner) clusterEnvelopes(
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   firstNonEmpty(clusterARN, cluster.Name),
-		ResourceType: awscloud.ResourceTypeEKSCluster,
+		ResourceType: aws.ResourceTypeEKSCluster,
 		Name:         strings.TrimSpace(cluster.Name),
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cluster.Tags,
@@ -135,17 +135,17 @@ func oidcProviderMap(provider *OIDCProvider) map[string]any {
 }
 
 func oidcProviderEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	provider OIDCProvider,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(oidcProviderObservation(boundary, cluster, provider))
+	resource, err := aws.NewResourceEnvelope(oidcProviderObservation(boundary, cluster, provider))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := clusterOIDCProviderRelationship(boundary, cluster, provider); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -155,16 +155,16 @@ func oidcProviderEnvelopes(
 }
 
 func oidcProviderObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	provider OIDCProvider,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	providerID := firstNonEmpty(provider.ARN, provider.IssuerURL)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(provider.ARN),
 		ResourceID:   providerID,
-		ResourceType: awscloud.ResourceTypeEKSOIDCProvider,
+		ResourceType: aws.ResourceTypeEKSOIDCProvider,
 		Name:         strings.TrimSpace(provider.IssuerURL),
 		Attributes: map[string]any{
 			"cluster_arn":  strings.TrimSpace(cluster.ARN),

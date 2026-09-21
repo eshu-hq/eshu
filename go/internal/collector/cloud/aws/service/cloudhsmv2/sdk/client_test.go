@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudhsmv2 "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2"
 	awscloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 
@@ -22,54 +22,54 @@ func TestClientSnapshotsCloudHSMMetadataOnly(t *testing.T) {
 	api := &fakeCloudHSMAPI{
 		clusterPages: []*awscloudhsmv2.DescribeClustersOutput{{
 			Clusters: []awscloudhsmv2types.Cluster{{
-				ClusterId:     aws.String("cluster-test1234567"),
+				ClusterId:     awsv2.String("cluster-test1234567"),
 				State:         awscloudhsmv2types.ClusterStateActive,
-				StateMessage:  aws.String("Cluster is active."),
-				HsmType:       aws.String("hsm1.medium"),
+				StateMessage:  awsv2.String("Cluster is active."),
+				HsmType:       awsv2.String("hsm1.medium"),
 				Mode:          awscloudhsmv2types.ClusterModeFips,
 				NetworkType:   awscloudhsmv2types.NetworkTypeIpv4,
-				VpcId:         aws.String("vpc-0123456789abcdef0"),
-				SecurityGroup: aws.String("sg-0123456789abcdef0"),
+				VpcId:         awsv2.String("vpc-0123456789abcdef0"),
+				SecurityGroup: awsv2.String("sg-0123456789abcdef0"),
 				BackupPolicy:  awscloudhsmv2types.BackupPolicyDefault,
 				BackupRetentionPolicy: &awscloudhsmv2types.BackupRetentionPolicy{
 					Type:  awscloudhsmv2types.BackupRetentionTypeDays,
-					Value: aws.String("90"),
+					Value: awsv2.String("90"),
 				},
 				SubnetMapping: map[string]string{
 					"us-east-1a": "subnet-0aaa1111bbbb2222a",
 				},
 				Hsms: []awscloudhsmv2types.Hsm{{
-					HsmId:            aws.String("hsm-aaaa1111bbbb2222"),
+					HsmId:            awsv2.String("hsm-aaaa1111bbbb2222"),
 					State:            awscloudhsmv2types.HsmStateActive,
-					AvailabilityZone: aws.String("us-east-1a"),
-					SubnetId:         aws.String("subnet-0aaa1111bbbb2222a"),
-					EniId:            aws.String("eni-0123456789abcdef0"),
-					EniIp:            aws.String("10.0.1.10"),
+					AvailabilityZone: awsv2.String("us-east-1a"),
+					SubnetId:         awsv2.String("subnet-0aaa1111bbbb2222a"),
+					EniId:            awsv2.String("eni-0123456789abcdef0"),
+					EniIp:            awsv2.String("10.0.1.10"),
 				}},
 				Certificates: &awscloudhsmv2types.Certificates{
-					ClusterCertificate:     aws.String("-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----"),
-					HsmCertificate:         aws.String("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
-					AwsHardwareCertificate: aws.String("-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----"),
+					ClusterCertificate:     awsv2.String("-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----"),
+					HsmCertificate:         awsv2.String("-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"),
+					AwsHardwareCertificate: awsv2.String("-----BEGIN CERTIFICATE-----\nMIID...\n-----END CERTIFICATE-----"),
 				},
-				CreateTimestamp: aws.Time(createdAt),
+				CreateTimestamp: awsv2.Time(createdAt),
 				TagList: []awscloudhsmv2types.Tag{
-					{Key: aws.String("Environment"), Value: aws.String("prod")},
+					{Key: awsv2.String("Environment"), Value: awsv2.String("prod")},
 				},
-				PreCoPassword: aws.String("super-secret-preco-password"),
+				PreCoPassword: awsv2.String("super-secret-preco-password"),
 			}},
 		}},
 		backupPages: []*awscloudhsmv2.DescribeBackupsOutput{{
 			Backups: []awscloudhsmv2types.Backup{{
-				BackupId:        aws.String("backup-test1234567"),
-				BackupArn:       aws.String(backupARN),
+				BackupId:        awsv2.String("backup-test1234567"),
+				BackupArn:       awsv2.String(backupARN),
 				BackupState:     awscloudhsmv2types.BackupStateReady,
-				ClusterId:       aws.String("cluster-test1234567"),
-				HsmType:         aws.String("hsm1.medium"),
+				ClusterId:       awsv2.String("cluster-test1234567"),
+				HsmType:         awsv2.String("hsm1.medium"),
 				Mode:            awscloudhsmv2types.ClusterModeFips,
-				NeverExpires:    aws.Bool(true),
-				CreateTimestamp: aws.Time(createdAt),
+				NeverExpires:    awsv2.Bool(true),
+				CreateTimestamp: awsv2.Time(createdAt),
 				TagList: []awscloudhsmv2types.Tag{
-					{Key: aws.String("Team"), Value: aws.String("security")},
+					{Key: awsv2.String("Team"), Value: awsv2.String("security")},
 				},
 			}},
 		}},
@@ -140,17 +140,17 @@ func TestClientPaginatesClustersAndBackups(t *testing.T) {
 	api := &fakeCloudHSMAPI{
 		clusterPages: []*awscloudhsmv2.DescribeClustersOutput{
 			{
-				Clusters:  []awscloudhsmv2types.Cluster{{ClusterId: aws.String("cluster-page1aaaaaaa")}},
-				NextToken: aws.String("c2"),
+				Clusters:  []awscloudhsmv2types.Cluster{{ClusterId: awsv2.String("cluster-page1aaaaaaa")}},
+				NextToken: awsv2.String("c2"),
 			},
-			{Clusters: []awscloudhsmv2types.Cluster{{ClusterId: aws.String("cluster-page2bbbbbbb")}}},
+			{Clusters: []awscloudhsmv2types.Cluster{{ClusterId: awsv2.String("cluster-page2bbbbbbb")}}},
 		},
 		backupPages: []*awscloudhsmv2.DescribeBackupsOutput{
 			{
-				Backups:   []awscloudhsmv2types.Backup{{BackupId: aws.String("backup-page1aaaaaaa")}},
-				NextToken: aws.String("b2"),
+				Backups:   []awscloudhsmv2types.Backup{{BackupId: awsv2.String("backup-page1aaaaaaa")}},
+				NextToken: awsv2.String("b2"),
 			},
-			{Backups: []awscloudhsmv2types.Backup{{BackupId: aws.String("backup-page2bbbbbbb")}}},
+			{Backups: []awscloudhsmv2types.Backup{{BackupId: awsv2.String("backup-page2bbbbbbb")}}},
 		},
 	}
 
@@ -200,10 +200,10 @@ func (f *fakeCloudHSMAPI) DescribeBackups(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCloudHSMV2,
+		ServiceKind: aws.ServiceCloudHSMV2,
 	}
 }

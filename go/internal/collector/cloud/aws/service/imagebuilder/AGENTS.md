@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/imagebuilder guidance
+# AGENTS.md - internal/collector/cloud/aws/service/imagebuilder guidance
 
 ## Read First
 
@@ -24,7 +24,7 @@
   target the pipeline/recipe/config edges on those exact ARNs.
 - AWS reports the IAM instance profile and ECR repository by NAME and the S3
   logging bucket by NAME. Synthesize the partition-aware ARN the IAM, ECR, and
-  S3 scanners publish with `awscloud.PartitionForBoundary`; never hardcode
+  S3 scanners publish with `aws.PartitionForBoundary`; never hardcode
   `arn:aws:`. GovCloud and China must resolve to the real node.
 - Key subnet and security-group edges on the bare AWS id (subnet-..., sg-...)
   and leave `target_arn` empty.
@@ -33,7 +33,7 @@
 - Record the parent AMI of a recipe as an attribute, not an edge; Eshu has no
   EC2 AMI resource type.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from resource names or AWS
@@ -45,13 +45,13 @@
 
 - Add a new Image Builder metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a component body,
+  `aws` envelope builders. If the field can carry a component body,
   Dockerfile body, user data, or a build artifact, leave it out of the contract.
 - Add new relationship evidence only when the Image Builder API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality, the partition-aware synthesized ARN, or the
   bare id for subnets and security groups).
-- Extend SDK pagination and per-resource get reads in the `awssdk` adapter, not
+- Extend SDK pagination and per-resource get reads in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

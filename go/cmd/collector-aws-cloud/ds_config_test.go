@@ -13,7 +13,7 @@ import (
 // Service-only target loads without a redaction key. The Directory Service
 // scanner never persists the directory admin password, the RADIUS shared secret,
 // or AD Connector service-account credentials, so it has no redaction-key
-// dependency. The requirement is derived from the runtimebind registration's
+// dependency. The requirement is derived from the bind registration's
 // RequiresRedactionKey flag, which the Directory Service binding leaves unset.
 func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDS(t *testing.T) {
 	getenv := mapEnv(map[string]string{
@@ -41,7 +41,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceDirectoryService; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceDirectoryService; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

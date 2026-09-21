@@ -56,7 +56,7 @@ var ecrImageHostPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.
 // therefore silently never resolve. See the ECS README "Gotchas /
 // invariants" for the tracked follow-up (threading the registry partition
 // through the fact contract and the reducer).
-func runningContainerImageReferences(boundary awscloud.Boundary, task Task) ([]facts.Envelope, error) {
+func runningContainerImageReferences(boundary aws.Boundary, task Task) ([]facts.Envelope, error) {
 	if strings.TrimSpace(task.LastStatus) != "RUNNING" {
 		return nil, nil
 	}
@@ -70,7 +70,7 @@ func runningContainerImageReferences(boundary awscloud.Boundary, task Task) ([]f
 		if !ok {
 			continue
 		}
-		envelope, err := awscloud.NewImageReferenceEnvelope(awscloud.ImageReferenceObservation{
+		envelope, err := aws.NewImageReferenceEnvelope(aws.ImageReferenceObservation{
 			Boundary:       boundary,
 			RepositoryName: repositoryName,
 			RegistryID:     registryID,

@@ -15,4 +15,4 @@
 // graph-utilization fields are dropped. Behavior graph ARNs are passed through
 // unchanged, so synthesized identities inherit the graph's partition rather than
 // hardcoding one.
-package awssdk
+package sdk

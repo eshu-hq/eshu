@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes API Gateway v2 API, stage, route, integration, authorizer,
 // custom-domain, and VPC link metadata through the configured client and emits
 // resource and relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("apigatewayv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAPIGatewayV2:
+	case "", aws.ServiceAPIGatewayV2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAPIGatewayV2
+		boundary.ServiceKind = aws.ServiceAPIGatewayV2
 	default:
 		return nil, fmt.Errorf("apigatewayv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -64,7 +64,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendAPI(envelopes *[]facts.Envelope, boundary awscloud.Boundary, api API) error {
+func appendAPI(envelopes *[]facts.Envelope, boundary aws.Boundary, api API) error {
 	apiID := strings.TrimSpace(api.ID)
 	if apiID == "" {
 		return nil
@@ -131,7 +131,7 @@ func appendAPI(envelopes *[]facts.Envelope, boundary awscloud.Boundary, api API)
 	return nil
 }
 
-func appendVPCLink(envelopes *[]facts.Envelope, boundary awscloud.Boundary, link VPCLink) error {
+func appendVPCLink(envelopes *[]facts.Envelope, boundary aws.Boundary, link VPCLink) error {
 	if strings.TrimSpace(link.ID) == "" {
 		return nil
 	}
@@ -146,7 +146,7 @@ func appendVPCLink(envelopes *[]facts.Envelope, boundary awscloud.Boundary, link
 	return nil
 }
 
-func appendDomain(envelopes *[]facts.Envelope, boundary awscloud.Boundary, domain DomainName) error {
+func appendDomain(envelopes *[]facts.Envelope, boundary aws.Boundary, domain DomainName) error {
 	if domainResourceID(domain) == "" {
 		return nil
 	}
@@ -161,9 +161,9 @@ func appendDomain(envelopes *[]facts.Envelope, boundary awscloud.Boundary, domai
 	return nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -172,8 +172,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -181,8 +181,8 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.RelationshipObservation) error {
-	envelope, err := awscloud.NewRelationshipEnvelope(observation)
+func appendRelationship(envelopes *[]facts.Envelope, observation aws.RelationshipObservation) error {
+	envelope, err := aws.NewRelationshipEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -190,13 +190,13 @@ func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.Relati
 	return nil
 }
 
-func apiObservation(boundary awscloud.Boundary, api API) awscloud.ResourceObservation {
+func apiObservation(boundary aws.Boundary, api API) aws.ResourceObservation {
 	apiID := strings.TrimSpace(api.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          apiARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2API,
+		ResourceType: aws.ResourceTypeAPIGatewayV2API,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.ProtocolType),
 		Tags:         cloneStringMap(api.Tags),
@@ -216,13 +216,13 @@ func apiObservation(boundary awscloud.Boundary, api API) awscloud.ResourceObserv
 	}
 }
 
-func stageObservation(boundary awscloud.Boundary, stage Stage) awscloud.ResourceObservation {
+func stageObservation(boundary aws.Boundary, stage Stage) aws.ResourceObservation {
 	resourceID := stageResourceID(stage.APIID, stage.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          stageARN(boundary.Region, stage.APIID, stage.Name),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayStage,
+		ResourceType: aws.ResourceTypeAPIGatewayStage,
 		Name:         strings.TrimSpace(stage.Name),
 		Tags:         cloneStringMap(stage.Tags),
 		Attributes: map[string]any{
@@ -243,12 +243,12 @@ func stageObservation(boundary awscloud.Boundary, stage Stage) awscloud.Resource
 	}
 }
 
-func routeObservation(boundary awscloud.Boundary, route Route) awscloud.ResourceObservation {
+func routeObservation(boundary aws.Boundary, route Route) aws.ResourceObservation {
 	resourceID := routeResourceID(route.APIID, route.RouteID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Route,
+		ResourceType: aws.ResourceTypeAPIGatewayV2Route,
 		Name:         firstNonEmpty(route.RouteKey, route.RouteID),
 		Attributes: map[string]any{
 			"api_id":              strings.TrimSpace(route.APIID),
@@ -266,12 +266,12 @@ func routeObservation(boundary awscloud.Boundary, route Route) awscloud.Resource
 	}
 }
 
-func integrationObservation(boundary awscloud.Boundary, integration Integration) awscloud.ResourceObservation {
+func integrationObservation(boundary aws.Boundary, integration Integration) aws.ResourceObservation {
 	resourceID := integrationResourceID(integration.APIID, integration.IntegrationID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Integration,
+		ResourceType: aws.ResourceTypeAPIGatewayV2Integration,
 		Name:         firstNonEmpty(integration.IntegrationID, resourceID),
 		State:        strings.TrimSpace(integration.Type),
 		Attributes: map[string]any{
@@ -293,12 +293,12 @@ func integrationObservation(boundary awscloud.Boundary, integration Integration)
 	}
 }
 
-func authorizerObservation(boundary awscloud.Boundary, authorizer Authorizer) awscloud.ResourceObservation {
+func authorizerObservation(boundary aws.Boundary, authorizer Authorizer) aws.ResourceObservation {
 	resourceID := authorizerResourceID(authorizer.APIID, authorizer.AuthorizerID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Authorizer,
+		ResourceType: aws.ResourceTypeAPIGatewayV2Authorizer,
 		Name:         firstNonEmpty(authorizer.Name, authorizer.AuthorizerID),
 		State:        strings.TrimSpace(authorizer.Type),
 		Attributes: map[string]any{
@@ -314,12 +314,12 @@ func authorizerObservation(boundary awscloud.Boundary, authorizer Authorizer) aw
 	}
 }
 
-func vpcLinkObservation(boundary awscloud.Boundary, link VPCLink) awscloud.ResourceObservation {
+func vpcLinkObservation(boundary aws.Boundary, link VPCLink) aws.ResourceObservation {
 	linkID := strings.TrimSpace(link.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   linkID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2VPCLink,
+		ResourceType: aws.ResourceTypeAPIGatewayV2VPCLink,
 		Name:         firstNonEmpty(link.Name, linkID),
 		State:        strings.TrimSpace(link.Status),
 		Tags:         cloneStringMap(link.Tags),
@@ -337,13 +337,13 @@ func vpcLinkObservation(boundary awscloud.Boundary, link VPCLink) awscloud.Resou
 	}
 }
 
-func domainObservation(boundary awscloud.Boundary, domain DomainName) awscloud.ResourceObservation {
+func domainObservation(boundary aws.Boundary, domain DomainName) aws.ResourceObservation {
 	resourceID := domainResourceID(domain)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(domain.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayDomainName,
+		ResourceType: aws.ResourceTypeAPIGatewayDomainName,
 		Name:         firstNonEmpty(domain.Name, resourceID),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),

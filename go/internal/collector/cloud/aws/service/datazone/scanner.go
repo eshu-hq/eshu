@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes DataZone domains, their projects, environments, and data
 // sources, plus the direct KMS, IAM, and backing-store dependency metadata
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("datazone scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDatazone:
+	case "", aws.ServiceDatazone:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDatazone
+		boundary.ServiceKind = aws.ServiceDatazone
 	default:
 		return nil, fmt.Errorf("datazone scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,9 +58,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -69,8 +69,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func domainEnvelopes(boundary awscloud.Boundary, domain Domain) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(domainObservation(boundary, domain))
+func domainEnvelopes(boundary aws.Boundary, domain Domain) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(domainObservation(boundary, domain))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func domainEnvelopes(boundary awscloud.Boundary, domain Domain) ([]facts.Envelop
 
 	domainID := domainResourceID(domain)
 	for _, relationship := range domainRelationships(boundary, domain) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -111,9 +111,9 @@ func domainEnvelopes(boundary awscloud.Boundary, domain Domain) ([]facts.Envelop
 
 // domainRelationships builds the KMS-key and IAM-role dependency edges a domain
 // reports. Each edge resolves to a scanned target node or is omitted.
-func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
-	candidates := []*awscloud.RelationshipObservation{
+func domainRelationships(boundary aws.Boundary, domain Domain) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
+	candidates := []*aws.RelationshipObservation{
 		domainKMSRelationship(boundary, domain),
 		domainIAMRoleRelationship(boundary, domain, domain.DomainExecutionRole, "domain_execution_role"),
 		domainIAMRoleRelationship(boundary, domain, domain.ServiceRole, "service_role"),
@@ -126,20 +126,20 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 	return observations
 }
 
-func projectEnvelopes(boundary awscloud.Boundary, domainID string, project Project) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(projectObservation(boundary, project))
+func projectEnvelopes(boundary aws.Boundary, domainID string, project Project) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(projectObservation(boundary, project))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneProjectInDomain,
+		aws.RelationshipDatazoneProjectInDomain,
 		strings.TrimSpace(project.ID),
 		"",
 		domainID,
 	); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -148,20 +148,20 @@ func projectEnvelopes(boundary awscloud.Boundary, domainID string, project Proje
 	return envelopes, nil
 }
 
-func environmentEnvelopes(boundary awscloud.Boundary, domainID string, environment Environment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(environmentObservation(boundary, environment))
+func environmentEnvelopes(boundary aws.Boundary, domainID string, environment Environment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(environmentObservation(boundary, environment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneEnvironmentInDomain,
+		aws.RelationshipDatazoneEnvironmentInDomain,
 		strings.TrimSpace(environment.ID),
 		"",
 		domainID,
 	); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -170,17 +170,17 @@ func environmentEnvelopes(boundary awscloud.Boundary, domainID string, environme
 	return envelopes, nil
 }
 
-func dataSourceEnvelopes(boundary awscloud.Boundary, domainID string, dataSource DataSource) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(dataSourceObservation(boundary, dataSource))
+func dataSourceEnvelopes(boundary aws.Boundary, domainID string, dataSource DataSource) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(dataSourceObservation(boundary, dataSource))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneDataSourceInDomain,
+		aws.RelationshipDatazoneDataSourceInDomain,
 		strings.TrimSpace(dataSource.ID),
 		"",
 		domainID,
@@ -192,7 +192,7 @@ func dataSourceEnvelopes(boundary awscloud.Boundary, domainID string, dataSource
 		relationships = append(relationships, *relationship)
 	}
 	for _, relationship := range relationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}

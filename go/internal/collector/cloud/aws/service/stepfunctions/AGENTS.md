@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/stepfunctions guidance
+# AGENTS.md - internal/collector/cloud/aws/service/stepfunctions guidance
 
 ## Read First
 
@@ -38,12 +38,12 @@
 
 - Add a new Step Functions metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it
-  through `awscloud` envelope builders.
+  through `aws` envelope builders.
 - Add new relationship evidence only when the Step Functions API reports both
   sides directly and the target identity is an ARN.
 - Extend the safe state graph projection only for structural fields that do
   not reveal payload contents, secrets, or business logic literals.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

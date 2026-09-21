@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -16,16 +16,16 @@ import (
 // TestAMPRuntimeBindRegisters confirms importing the binding installs the AMP
 // scanner builder.
 func TestAMPRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAMP)
+	build, ok := runtime.LookupBuilder(aws.ServiceAMP)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAMP)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceAMP)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary: awscloud.Boundary{
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAMP,
+			ServiceKind: aws.ServiceAMP,
 		},
 	})
 	if err != nil {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
 	awssqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
@@ -33,15 +33,15 @@ type apiClient interface {
 // Client adapts AWS SDK SQS pagination into scanner-owned queue metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an SQS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -109,7 +109,7 @@ func (c *Client) requestQueueAttributes(
 	err := c.recordAPICall(ctx, "GetQueueAttributes", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetQueueAttributes(callCtx, &awssqs.GetQueueAttributesInput{
-			QueueUrl:       aws.String(queueURL),
+			QueueUrl:       awsv2.String(queueURL),
 			AttributeNames: attributeNames,
 		})
 		return err
@@ -128,7 +128,7 @@ func (c *Client) listQueueTags(ctx context.Context, queueURL string) (map[string
 	err := c.recordAPICall(ctx, "ListQueueTags", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListQueueTags(callCtx, &awssqs.ListQueueTagsInput{
-			QueueUrl: aws.String(queueURL),
+			QueueUrl: awsv2.String(queueURL),
 		})
 		return err
 	})
@@ -335,7 +335,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

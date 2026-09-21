@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lakeformation/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/lakeformation/sdk` adapts AWS SDK for
 Go v2 Lake Formation responses to the scanner-owned `Client` contract. It owns
 the data-lake settings point read, registered-resource pagination, permission
 pagination, throttle classification, and per-call AWS API telemetry.
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/lakeformation` for scanner-owned result
+- `internal/collector/cloud/aws/service/lakeformation` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `lakeformation` and Smithy error contracts.

@@ -12,4 +12,4 @@
 // a reflective guard test fails the build if a mutation call becomes reachable.
 // Callers receive errors from AWS pagination and tag reads with the original
 // cause preserved.
-package awssdk
+package sdk

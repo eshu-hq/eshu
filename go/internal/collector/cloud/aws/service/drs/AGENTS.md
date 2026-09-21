@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/drs guidance
+# AGENTS.md - internal/collector/cloud/aws/service/drs guidance
 
 ## Read First
 
@@ -44,13 +44,13 @@
 ## Common Changes
 
 - Add a new DRS metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry an agent secret, replicated disk
   data, or snapshot content, leave it out of the scanner contract.
 - Add new relationship evidence only when the DRS API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (or a documented forward-reference anchor).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

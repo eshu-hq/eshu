@@ -16,7 +16,7 @@ import (
 // padded string leaks into each fact's service_kind and breaks graph
 // joins/filters that key on the canonical "cloudformation".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
-	boundary := boundaryFor("  " + awscloud.ServiceCloudFormation + "  ")
+	boundary := boundaryFor("  " + aws.ServiceCloudFormation + "  ")
 	client := &fakeClient{
 		stacks: []Stack{{
 			ID:     "arn:aws:cloudformation:us-east-1:123456789012:stack/padded/abc-123",
@@ -34,7 +34,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceCloudFormation; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceCloudFormation; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

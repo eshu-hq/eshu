@@ -72,17 +72,17 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaFunction)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaAlias)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaEventSourceMapping)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaAliasTargetsFunction)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaEventSourceMappingTargetsFunction)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesImage)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesExecutionRole)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesSecurityGroup)
+	assertResourceType(t, envelopes, aws.ResourceTypeLambdaFunction)
+	assertResourceType(t, envelopes, aws.ResourceTypeLambdaAlias)
+	assertResourceType(t, envelopes, aws.ResourceTypeLambdaEventSourceMapping)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaAliasTargetsFunction)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaEventSourceMappingTargetsFunction)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaFunctionUsesImage)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaFunctionUsesExecutionRole)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaFunctionUsesSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipLambdaFunctionUsesSecurityGroup)
 
-	function := resourceByType(t, envelopes, awscloud.ResourceTypeLambdaFunction)
+	function := resourceByType(t, envelopes, aws.ResourceTypeLambdaFunction)
 	attributes := attributesOf(t, function)
 	env, ok := attributes["environment"].(map[string]any)
 	if !ok {
@@ -102,8 +102,8 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 	if strings.Contains(marker, "postgres://") {
 		t.Fatalf("redacted env marker leaked raw value: %q", marker)
 	}
-	if got := redacted["ruleset_version"]; got != awscloud.RedactionPolicyVersion {
-		t.Fatalf("redacted env ruleset_version = %q, want %q", got, awscloud.RedactionPolicyVersion)
+	if got := redacted["ruleset_version"]; got != aws.RedactionPolicyVersion {
+		t.Fatalf("redacted env ruleset_version = %q, want %q", got, aws.RedactionPolicyVersion)
 	}
 	if got := redacted["reason"]; got != redact.ReasonKnownSensitiveKey {
 		t.Fatalf("redacted env reason = %q, want %q", got, redact.ReasonKnownSensitiveKey)
@@ -115,8 +115,8 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 	if got := logLevel["reason"]; got != redact.ReasonUnknownProviderSchema {
 		t.Fatalf("LOG_LEVEL reason = %q, want %q", got, redact.ReasonUnknownProviderSchema)
 	}
-	if got := logLevel["ruleset_version"]; got != awscloud.RedactionPolicyVersion {
-		t.Fatalf("LOG_LEVEL ruleset_version = %q, want %q", got, awscloud.RedactionPolicyVersion)
+	if got := logLevel["ruleset_version"]; got != aws.RedactionPolicyVersion {
+		t.Fatalf("LOG_LEVEL ruleset_version = %q, want %q", got, aws.RedactionPolicyVersion)
 	}
 	if got := attributes["image_uri"]; got != imageURI {
 		t.Fatalf("image_uri = %#v, want %q", got, imageURI)
@@ -136,18 +136,18 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = aws.ServiceECS
 	_, err = Scanner{Client: fakeClient{}, RedactionKey: key}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLambda,
+		ServiceKind:         aws.ServiceLambda,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lambda:1",
 		CollectorInstanceID: "aws-prod",

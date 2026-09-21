@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/secretsmanager/runtimebind` registers the
-Secrets Manager scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/secretsmanager/bind` registers the
+Secrets Manager scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the Secrets Manager scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceSecretsManager` to the Secrets Manager scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceSecretsManager` to the Secrets Manager scanner builder. It does not own
 AWS API calls, Secrets Manager domain types, redaction policy, or fact emission.
-Those belong to `internal/collector/awscloud/service/secretsmanager` and its
-`awssdk` adapter.
+Those belong to `internal/collector/cloud/aws/service/secretsmanager` and its
+`sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceSecretsManager` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceSecretsManager` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/secretsmanager` for the scanner struct.
-- `internal/collector/awscloud/service/secretsmanager/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/secretsmanager` for the scanner struct.
+- `internal/collector/cloud/aws/service/secretsmanager/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Secrets Manager scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the Secrets Manager scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

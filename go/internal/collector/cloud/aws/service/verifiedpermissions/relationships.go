@@ -14,10 +14,10 @@ import (
 // when available), so the edge joins the store node exactly. It returns nil
 // when either endpoint identity is missing.
 func policyInStoreRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	storeID string,
 	policy Policy,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := policyResourceID(policy)
 	storeID = strings.TrimSpace(storeID)
 	if sourceID == "" || storeID == "" {
@@ -27,14 +27,14 @@ func policyInStoreRelationship(
 	if isARN(storeID) {
 		targetARN = storeID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsPolicyInStore,
+		RelationshipType: aws.RelationshipVerifiedPermissionsPolicyInStore,
 		SourceResourceID: sourceID,
 		TargetResourceID: storeID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsPolicyInStore + ":" + storeID,
+		TargetType:       aws.ResourceTypeVerifiedPermissionsPolicyStore,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedPermissionsPolicyInStore + ":" + storeID,
 	}
 }
 
@@ -42,10 +42,10 @@ func policyInStoreRelationship(
 // its parent policy store. storeID is the resource_id the policy store node
 // publishes. It returns nil when either endpoint identity is missing.
 func identitySourceInStoreRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	storeID string,
 	source IdentitySource,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := identitySourceResourceID(source)
 	storeID = strings.TrimSpace(storeID)
 	if sourceID == "" || storeID == "" {
@@ -55,14 +55,14 @@ func identitySourceInStoreRelationship(
 	if isARN(storeID) {
 		targetARN = storeID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore,
+		RelationshipType: aws.RelationshipVerifiedPermissionsIdentitySourceInStore,
 		SourceResourceID: sourceID,
 		TargetResourceID: storeID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore + ":" + storeID,
+		TargetType:       aws.ResourceTypeVerifiedPermissionsPolicyStore,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedPermissionsIdentitySourceInStore + ":" + storeID,
 	}
 }
 
@@ -74,9 +74,9 @@ func identitySourceInStoreRelationship(
 // is configured or the ARN cannot be parsed, skipping the edge rather than
 // dangling it.
 func identitySourceCognitoRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	source IdentitySource,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	poolARN := strings.TrimSpace(source.CognitoUserPoolARN)
 	if poolARN == "" {
 		return nil
@@ -93,13 +93,13 @@ func identitySourceCognitoRelationship(
 	// user pool id, so the edge keys the target on poolID and leaves target_arn
 	// empty: relguard rejects a bare target_resource_id paired with an ARN-shaped
 	// target_arn, and a bare id is exactly what joins the user pool node.
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool,
+		RelationshipType: aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool,
 		SourceResourceID: sourceID,
 		TargetResourceID: poolID,
-		TargetType:       awscloud.ResourceTypeCognitoUserPool,
+		TargetType:       aws.ResourceTypeCognitoUserPool,
 		Attributes:       map[string]any{"user_pool_arn": poolARN},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool + ":" + poolID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool + ":" + poolID,
 	}
 }

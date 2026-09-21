@@ -37,7 +37,7 @@ type Snapshot struct {
 	EnabledBaselines []EnabledBaseline
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // LandingZone is the scanner-owned Control Tower landing-zone model. It carries

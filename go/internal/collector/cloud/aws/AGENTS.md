@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud guidance
+# AGENTS.md - internal/collector/cloud/aws guidance
 
 ## Read First
 
@@ -120,11 +120,11 @@ naming alongside it lands exactly here.
 
 | Measure | Value | How |
 | --- | ---: | --- |
-| Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/awscloud` |
-| `constants_<service>.go` files | 133 | `ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
-| Lines across those | 7,283 | `wc -l $(ls go/internal/collector/awscloud/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
+| Non-test `.go` files | 154 | `scripts/verify-dirgate.sh --digest internal/collector/cloud/aws` |
+| `constants_<service>.go` files | 133 | `ls go/internal/collector/cloud/aws/constants_*.go \| rg -v '_test\.go$' \| wc -l` |
+| Lines across those | 7,283 | `wc -l $(ls go/internal/collector/cloud/aws/constants_*.go \| rg -v '_test\.go$') \| tail -1` |
 | Non-test root files not matching `constants_*.go` (**not** all non-constants — see row 4 above) | 21 | 154 − 133 |
-| Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/awscloud"' go/ \| wc -l` |
+| Files importing this package | 1,312 | `rg -l --type go '"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"' go/ \| wc -l` |
 
 That 1,312 is not 1,312 external dependents, and the difference decides the
 restructure risk: **1,243 (94.7%) are inside this package's own subtree**, 69
@@ -142,42 +142,42 @@ Three properties of that import surface matter for planning a move:
   (`sort | uniq -c` over the extracted lines gives one form, 1312×). So the
   import set *is* the dependent set.
 - **There is one package-level re-export, and it IS consumed — in-package.**
-  `awsruntime/types.go:27-36` re-exports `WarningAssumeRoleFailed`,
+  `runtime/types.go:27-36` re-exports `WarningAssumeRoleFailed`,
   `WarningBudgetExhausted`, `WarningThrottleSustained`, and
   `WarningOrganizationsOrgAccessSkipped` in a `const` block. No code outside
-  `awsruntime` uses the re-exported names — `rg -n 'awsruntime\.Warning[A-Z]' .`
-  exits 1 repo-wide — but `awsruntime/source.go:89` uses
+  `runtime` uses the re-exported names — `rg -n 'runtime\.Warning[A-Z]' .`
+  exits 1 repo-wide — but `runtime/source.go:89` uses
   `WarningAssumeRoleFailed` unqualified in production, with four more uses in
   that package's tests. Find those with
-  `rg -n '\bWarning(AssumeRoleFailed|BudgetExhausted|ThrottleSustained|OrganizationsOrgAccessSkipped)\b' go/internal/collector/awscloud/awsruntime/`.
+  `rg -n '\bWarning(AssumeRoleFailed|BudgetExhausted|ThrottleSustained|OrganizationsOrgAccessSkipped)\b' go/internal/collector/cloud/aws/runtime/`.
   That returns eighteen lines, not five: eight are the `const` block and its
-  doc comments, and five are `awscloud.`-qualified references in
+  doc comments, and five are `aws.`-qualified references in
   `scan_status.go` and one test — the leading `\b` sits between the `.` and the
   `W`, so it matches the qualified form too. **The re-export uses are the five
   unqualified ones.**
 
   The qualified-selector search alone is not evidence of non-use, and reaching
-  for it is the trap here: by Go scoping, `awsruntime.Warning*` can never appear
-  inside package `awsruntime`, which is the one package where these names live
+  for it is the trap here: by Go scoping, `runtime.Warning*` can never appear
+  inside package `runtime`, which is the one package where these names live
   and are used, so that search exits 1 whether or not they are consumed. Do not
   delete `types.go:27-36` as dead. The blast-radius count above is unaffected —
   those uses are already among the 1,243 — but a move of the `Warning*`
   constants has to carry that file.
 - **Cross-service references are common**, because these are cross-resource
   relationship constants. `services/ec2/volume.go` references
-  `awscloud.ResourceTypeEC2Volume` (:42) and `awscloud.ResourceTypeKMSKey` (:88)
+  `aws.ResourceTypeEC2Volume` (:42) and `aws.ResourceTypeKMSKey` (:88)
   in the same file. A service-aligned move therefore is not a uniform rewrite:
   same-service references become local, cross-service ones still need an import.
   Plan for uneven churn.
 
 Count imports, not symbol references. `rg
-'awscloud\.(ResourceType|Service|Relationship)[A-Z]'` looks like the more direct
+'aws\.(ResourceType|Service|Relationship)[A-Z]'` looks like the more direct
 measure and is wrong in both directions at once: without `--type go` it also
 matches ~280 package `README.md`/`AGENTS.md` files; restricted to Go it still
 counts **12** files under `go/` whose only mention is a comment or a string
 literal (seven under `go/internal/reducer/`, one under
 `go/internal/storage/postgres/`, and four inside this package's own subtree — of
-which `go/internal/collector/awscloud/internal/relguard/relguard.go:42` is a map
+which `go/internal/collector/cloud/aws/internal/relguard/relguard.go:42` is a map
 value rather than a comment, and just as non-dependent), or 13 counting
 `sdk/go/factschema/aws/v1/resource_types.go`, which the command reaches when run
 from the repository root; and it *undercounts*, because it misses the
@@ -313,8 +313,8 @@ rather than clean, and #6053 carries no design for this directory yet.
 - Add a new AWS service by creating a new `constants_<service>.go` sibling
   (one file holds the `Service<X>`, `ResourceType<X>...`, and
   `Relationship<X>...` constants for that slice), a service package under
-  `services/`, scanner tests, a service `awssdk` adapter, package docs, and a
-  branch in `awsruntime.DefaultScannerFactory`. Do not grow `types.go` with
+  `services/`, scanner tests, a service `sdk` adapter, package docs, and a
+  branch in `runtime.DefaultScannerFactory`. Do not grow `types.go` with
   new service-specific constants; it stays at the shared observation
   contracts only.
 - For that new service package, include `doc.go`, `README.md`, and `AGENTS.md`

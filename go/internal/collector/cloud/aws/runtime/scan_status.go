@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func (e terminalServiceScanError) FailureClass() string { return e.failureClass 
 
 func (e terminalServiceScanError) TerminalFailure() bool { return true }
 
-// ClassifyScanStatusStaleFence inspects err for awscloud.ErrScanStatusStaleFence
+// ClassifyScanStatusStaleFence inspects err for aws.ErrScanStatusStaleFence
 // and, when found, records eshu_dp_aws_scan_status_stale_fence_total and
 // returns a typed terminal failure so the ClaimedService runner routes the
 // claim to FailClaimTerminal. err is returned unchanged when it is nil or not
@@ -86,13 +86,13 @@ func ClassifyScanStatusStaleFence(
 	ctx context.Context,
 	err error,
 	instruments *telemetry.Instruments,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	phase string,
 ) error {
 	if err == nil {
 		return nil
 	}
-	if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
+	if !errors.Is(err, aws.ErrScanStatusStaleFence) {
 		return err
 	}
 	recordScanStatusStaleFence(ctx, instruments, boundary, phase)
@@ -102,7 +102,7 @@ func ClassifyScanStatusStaleFence(
 func recordScanStatusStaleFence(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	phase string,
 ) {
 	if instruments == nil || instruments.AWSScanStatusStaleFence == nil {
@@ -116,11 +116,11 @@ func recordScanStatusStaleFence(
 	))
 }
 
-func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Boundary) error {
+func (s ClaimedSource) startScanStatus(ctx context.Context, boundary aws.Boundary) error {
 	if s.ScanStatus == nil {
 		return nil
 	}
-	if err := s.ScanStatus.StartAWSScan(ctx, awscloud.ScanStatusStart{
+	if err := s.ScanStatus.StartAWSScan(ctx, aws.ScanStatusStart{
 		Boundary:  boundary,
 		StartedAt: s.now(),
 	}); err != nil {
@@ -165,8 +165,8 @@ func terminalServiceScanFailureClass(err error) string {
 
 func (s ClaimedSource) observeScanStatus(
 	ctx context.Context,
-	boundary awscloud.Boundary,
-	apiStats awscloud.APICallStats,
+	boundary aws.Boundary,
+	apiStats aws.APICallStats,
 	envelopes []facts.Envelope,
 	scanErr error,
 ) error {
@@ -174,25 +174,25 @@ func (s ClaimedSource) observeScanStatus(
 		return nil
 	}
 	factStats := awsFactStats(envelopes)
-	statusValue := awscloud.ScanStatusSucceeded
+	statusValue := aws.ScanStatusSucceeded
 	failureClass := ""
 	failureMessage := ""
 	if factStats.CredentialFailed {
-		statusValue = awscloud.ScanStatusCredentialFailed
+		statusValue = aws.ScanStatusCredentialFailed
 		failureClass = "creds_broken"
 	} else if factStats.BudgetExhausted {
-		statusValue = awscloud.ScanStatusPartial
+		statusValue = aws.ScanStatusPartial
 		failureClass = "budget_exhausted"
 	} else if factStats.Throttled {
-		statusValue = awscloud.ScanStatusPartial
+		statusValue = aws.ScanStatusPartial
 		failureClass = "throttled"
 	} else if factStats.OrgAccessSkipped {
-		statusValue = awscloud.ScanStatusPartial
+		statusValue = aws.ScanStatusPartial
 		failureClass = "org_access_skipped"
 	} else if scanErr != nil {
-		statusValue = awscloud.ScanStatusFailed
+		statusValue = aws.ScanStatusFailed
 		failureClass = awsScanFailureClass(apiStats, scanErr)
-		failureMessage = awscloud.SanitizeScanStatusMessage(scanErr.Error())
+		failureMessage = aws.SanitizeScanStatusMessage(scanErr.Error())
 	}
 	if factStats.BudgetExhausted && s.Instruments != nil && s.Instruments.AWSBudgetExhausted != nil {
 		s.Instruments.AWSBudgetExhausted.Add(ctx, 1, metric.WithAttributes(
@@ -209,7 +209,7 @@ func (s ClaimedSource) observeScanStatus(
 			telemetry.AttrReason(firstNonEmpty(factStats.OrgAccessSkipReason, "unknown")),
 		))
 	}
-	if err := s.ScanStatus.ObserveAWSScan(ctx, awscloud.ScanStatusObservation{
+	if err := s.ScanStatus.ObserveAWSScan(ctx, aws.ScanStatusObservation{
 		Boundary:            boundary,
 		Status:              statusValue,
 		FailureClass:        failureClass,
@@ -261,13 +261,13 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 			stats.WarningCount++
 			warningKind, _ := envelope.Payload["warning_kind"].(string)
 			switch strings.TrimSpace(warningKind) {
-			case awscloud.WarningBudgetExhausted:
+			case aws.WarningBudgetExhausted:
 				stats.BudgetExhausted = true
-			case awscloud.WarningAssumeRoleFailed:
+			case aws.WarningAssumeRoleFailed:
 				stats.CredentialFailed = true
-			case awscloud.WarningThrottleSustained:
+			case aws.WarningThrottleSustained:
 				stats.Throttled = true
-			case awscloud.WarningOrganizationsOrgAccessSkipped:
+			case aws.WarningOrganizationsOrgAccessSkipped:
 				stats.OrgAccessSkipped = true
 				stats.OrgAccessSkipReason = warningSkipReason(envelope)
 			}
@@ -294,7 +294,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func awsScanFailureClass(stats awscloud.APICallStats, err error) string {
+func awsScanFailureClass(stats aws.APICallStats, err error) string {
 	var classified interface{ FailureClass() string }
 	if errors.As(err, &classified) {
 		if value := strings.TrimSpace(classified.FailureClass()); value != "" {

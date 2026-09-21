@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/iam guidance
+# AGENTS.md - internal/collector/cloud/aws/service/iam guidance
 
 ## Read First
 
@@ -34,12 +34,12 @@
 ## Common Changes
 
 - Add a new IAM resource by extending the scanner-owned type, writing a focused
-  scanner test first, then mapping it through `awscloud` envelope builders.
+  scanner test first, then mapping it through `aws` envelope builders.
 - Add a new IAM relationship by defining the relationship constant in
-  `awscloud`, adding scanner coverage, and keeping source and target identity
+  `aws`, adding scanner coverage, and keeping source and target identity
   explicit.
 - Add a new derived permission attribute by extending `PolicyStatement` and the
-  `awscloud.IAMPermissionObservation` builder, keeping it metadata-only.
+  `aws.IAMPermissionObservation` builder, keeping it metadata-only.
 - Extend SDK pagination and policy-document fan-out (with a per-principal bound)
   in the runtime adapter, not here.
 

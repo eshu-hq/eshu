@@ -25,24 +25,24 @@ import (
 // target is never keyed by a bare id/name and a bare-id/name reference is never
 // given a fabricated ARN.
 func encryptionConfigKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	config EncryptionConfig,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	if !strings.EqualFold(strings.TrimSpace(config.Type), encryptionTypeKMS) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	keyRef := strings.TrimSpace(config.KeyID)
 	if keyRef == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	targetType := awscloud.ResourceTypeKMSKey
+	targetType := aws.ResourceTypeKMSKey
 	if isKMSAliasReference(keyRef) {
-		targetType = awscloud.ResourceTypeKMSAlias
+		targetType = aws.ResourceTypeKMSAlias
 	}
 	source := encryptionConfigResourceID(boundary)
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipXRayEncryptionConfigUsesKMSKey,
+		RelationshipType: aws.RelationshipXRayEncryptionConfigUsesKMSKey,
 		SourceResourceID: source,
 		TargetResourceID: keyRef,
 		TargetType:       targetType,
@@ -66,29 +66,29 @@ func encryptionConfigKMSRelationship(
 // the real service node by name during materialization; the scanner never
 // fabricates an ARN for the matched service.
 func samplingRuleServiceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rule SamplingRule,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	source := firstNonEmpty(rule.ARN, rule.Name)
 	if source == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	serviceName := strings.TrimSpace(rule.ServiceName)
 	serviceType := strings.TrimSpace(rule.ServiceType)
 	if isWildcard(serviceName) && isWildcard(serviceType) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	anchor := serviceCorrelationID(serviceName, serviceType)
 	if anchor == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipXRaySamplingRuleMatchesService,
+		RelationshipType: aws.RelationshipXRaySamplingRuleMatchesService,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: anchor,
-		TargetType:       awscloud.ResourceTypeXRayServiceCorrelation,
+		TargetType:       aws.ResourceTypeXRayServiceCorrelation,
 		Attributes: map[string]any{
 			"service_name": serviceName,
 			"service_type": serviceType,

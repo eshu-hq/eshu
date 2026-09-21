@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmq "github.com/aws/aws-sdk-go-v2/service/mq"
 	awsmqtypes "github.com/aws/aws-sdk-go-v2/service/mq/types"
 
@@ -57,56 +57,56 @@ func TestClientListBrokersDescribesEachForMetadataAndUsernames(t *testing.T) {
 	api := &fakeMQAPI{
 		listBrokersPages: []*awsmq.ListBrokersOutput{{
 			BrokerSummaries: []awsmqtypes.BrokerSummary{{
-				BrokerArn:      aws.String(brokerARN),
-				BrokerId:       aws.String("b-1111"),
-				BrokerName:     aws.String("orders"),
+				BrokerArn:      awsv2.String(brokerARN),
+				BrokerId:       awsv2.String("b-1111"),
+				BrokerName:     awsv2.String("orders"),
 				BrokerState:    awsmqtypes.BrokerStateRunning,
 				EngineType:     awsmqtypes.EngineTypeActivemq,
 				DeploymentMode: awsmqtypes.DeploymentModeActiveStandbyMultiAz,
 			}},
 		}},
 		describeBroker: &awsmq.DescribeBrokerOutput{
-			BrokerArn:               aws.String(brokerARN),
-			BrokerId:                aws.String("b-1111"),
-			BrokerName:              aws.String("orders"),
+			BrokerArn:               awsv2.String(brokerARN),
+			BrokerId:                awsv2.String("b-1111"),
+			BrokerName:              awsv2.String("orders"),
 			BrokerState:             awsmqtypes.BrokerStateRunning,
 			EngineType:              awsmqtypes.EngineTypeActivemq,
-			EngineVersion:           aws.String("5.18.4"),
+			EngineVersion:           awsv2.String("5.18.4"),
 			DeploymentMode:          awsmqtypes.DeploymentModeActiveStandbyMultiAz,
-			HostInstanceType:        aws.String("mq.m5.large"),
+			HostInstanceType:        awsv2.String("mq.m5.large"),
 			StorageType:             awsmqtypes.BrokerStorageTypeEbs,
 			AuthenticationStrategy:  awsmqtypes.AuthenticationStrategySimple,
-			PubliclyAccessible:      aws.Bool(false),
-			AutoMinorVersionUpgrade: aws.Bool(true),
-			Created:                 aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+			PubliclyAccessible:      awsv2.Bool(false),
+			AutoMinorVersionUpgrade: awsv2.Bool(true),
+			Created:                 awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
 			Tags:                    map[string]string{"Environment": "prod"},
 			SubnetIds:               []string{"subnet-aaa", "subnet-bbb"},
 			SecurityGroups:          []string{"sg-mq"},
 			EncryptionOptions: &awsmqtypes.EncryptionOptions{
-				UseAwsOwnedKey: aws.Bool(false),
-				KmsKeyId:       aws.String(kmsARN),
+				UseAwsOwnedKey: awsv2.Bool(false),
+				KmsKeyId:       awsv2.String(kmsARN),
 			},
 			Configurations: &awsmqtypes.Configurations{
 				Current: &awsmqtypes.ConfigurationId{
-					Id:       aws.String("c-2222"),
-					Revision: aws.Int32(3),
+					Id:       awsv2.String("c-2222"),
+					Revision: awsv2.Int32(3),
 				},
 			},
 			Logs: &awsmqtypes.LogsSummary{
-				General:         aws.Bool(true),
-				GeneralLogGroup: aws.String("/aws/amazonmq/broker/b-1111/general"),
-				Audit:           aws.Bool(true),
-				AuditLogGroup:   aws.String("/aws/amazonmq/broker/b-1111/audit"),
+				General:         awsv2.Bool(true),
+				GeneralLogGroup: awsv2.String("/aws/amazonmq/broker/b-1111/general"),
+				Audit:           awsv2.Bool(true),
+				AuditLogGroup:   awsv2.String("/aws/amazonmq/broker/b-1111/audit"),
 			},
 			Users: []awsmqtypes.UserSummary{
-				{Username: aws.String("admin")},
-				{Username: aws.String("publisher")},
+				{Username: awsv2.String("admin")},
+				{Username: awsv2.String("publisher")},
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMQ},
 	}
 
 	brokers, err := adapter.ListBrokers(context.Background())
@@ -154,26 +154,26 @@ func TestClientListConfigurationsCapturesIdentityNotBody(t *testing.T) {
 	api := &fakeMQAPI{
 		listConfigurationsPages: []*awsmq.ListConfigurationsOutput{{
 			Configurations: []awsmqtypes.Configuration{{
-				Arn:                    aws.String(configARN),
-				Id:                     aws.String("c-2222"),
-				Name:                   aws.String("orders-config"),
-				Description:            aws.String("orders broker configuration"),
+				Arn:                    awsv2.String(configARN),
+				Id:                     awsv2.String("c-2222"),
+				Name:                   awsv2.String("orders-config"),
+				Description:            awsv2.String("orders broker configuration"),
 				EngineType:             awsmqtypes.EngineTypeActivemq,
-				EngineVersion:          aws.String("5.18.4"),
+				EngineVersion:          awsv2.String("5.18.4"),
 				AuthenticationStrategy: awsmqtypes.AuthenticationStrategySimple,
-				Created:                aws.Time(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)),
+				Created:                awsv2.Time(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)),
 				Tags:                   map[string]string{"Owner": "platform"},
 				LatestRevision: &awsmqtypes.ConfigurationRevision{
-					Revision:    aws.Int32(3),
-					Created:     aws.Time(time.Date(2026, 5, 14, 11, 0, 0, 0, time.UTC)),
-					Description: aws.String("tighten ACLs"),
+					Revision:    awsv2.Int32(3),
+					Created:     awsv2.Time(time.Date(2026, 5, 14, 11, 0, 0, 0, time.UTC)),
+					Description: awsv2.String("tighten ACLs"),
 				},
 			}},
 		}},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMQ},
 	}
 
 	configurations, err := adapter.ListConfigurations(context.Background())
@@ -200,26 +200,26 @@ func TestClientListBrokersPaginates(t *testing.T) {
 		listBrokersPages: []*awsmq.ListBrokersOutput{
 			{
 				BrokerSummaries: []awsmqtypes.BrokerSummary{{
-					BrokerArn: aws.String("arn:aws:mq:us-east-1:123456789012:broker:a:b-1"),
-					BrokerId:  aws.String("b-1"),
+					BrokerArn: awsv2.String("arn:aws:mq:us-east-1:123456789012:broker:a:b-1"),
+					BrokerId:  awsv2.String("b-1"),
 				}},
-				NextToken: aws.String("page-2"),
+				NextToken: awsv2.String("page-2"),
 			},
 			{
 				BrokerSummaries: []awsmqtypes.BrokerSummary{{
-					BrokerArn: aws.String("arn:aws:mq:us-east-1:123456789012:broker:b:b-2"),
-					BrokerId:  aws.String("b-2"),
+					BrokerArn: awsv2.String("arn:aws:mq:us-east-1:123456789012:broker:b:b-2"),
+					BrokerId:  awsv2.String("b-2"),
 				}},
 			},
 		},
 		describeBroker: &awsmq.DescribeBrokerOutput{
-			BrokerArn: aws.String("arn:aws:mq:us-east-1:123456789012:broker:a:b-1"),
-			BrokerId:  aws.String("b-1"),
+			BrokerArn: awsv2.String("arn:aws:mq:us-east-1:123456789012:broker:a:b-1"),
+			BrokerId:  awsv2.String("b-1"),
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMQ},
 	}
 
 	brokers, err := adapter.ListBrokers(context.Background())

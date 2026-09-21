@@ -29,15 +29,15 @@ type Scanner struct {
 // their backing-store, VPC-connection, and internal read relationships through
 // the configured client. A not-subscribed account yields an empty result, not a
 // failed scan.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("quicksight scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceQuickSight:
+	case "", aws.ServiceQuickSight:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceQuickSight
+		boundary.ServiceKind = aws.ServiceQuickSight
 	default:
 		return nil, fmt.Errorf("quicksight scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -83,9 +83,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -96,10 +96,10 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 
 func appendRelationships(
 	envelopes *[]facts.Envelope,
-	relationships []awscloud.RelationshipObservation,
+	relationships []aws.RelationshipObservation,
 ) error {
 	for i := range relationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationships[i])
+		envelope, err := aws.NewRelationshipEnvelope(relationships[i])
 		if err != nil {
 			return err
 		}
@@ -109,17 +109,17 @@ func appendRelationships(
 }
 
 func dataSourceEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	dataSource DataSource,
 	connections map[string]VPCConnection,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(dataSourceObservation(boundary, dataSource))
+	resource, err := aws.NewResourceEnvelope(dataSourceObservation(boundary, dataSource))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := dataSourceBackingRelationship(boundary, dataSource); relationship != nil {
-		if err := appendRelationships(&envelopes, []awscloud.RelationshipObservation{*relationship}); err != nil {
+		if err := appendRelationships(&envelopes, []aws.RelationshipObservation{*relationship}); err != nil {
 			return nil, err
 		}
 	}
@@ -129,8 +129,8 @@ func dataSourceEnvelopes(
 	return envelopes, nil
 }
 
-func dataSetEnvelopes(boundary awscloud.Boundary, dataSet DataSet) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(dataSetObservation(boundary, dataSet))
+func dataSetEnvelopes(boundary aws.Boundary, dataSet DataSet) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(dataSetObservation(boundary, dataSet))
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +141,8 @@ func dataSetEnvelopes(boundary awscloud.Boundary, dataSet DataSet) ([]facts.Enve
 	return envelopes, nil
 }
 
-func dashboardEnvelopes(boundary awscloud.Boundary, dashboard Dashboard) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
+func dashboardEnvelopes(boundary aws.Boundary, dashboard Dashboard) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +153,8 @@ func dashboardEnvelopes(boundary awscloud.Boundary, dashboard Dashboard) ([]fact
 	return envelopes, nil
 }
 
-func analysisEnvelopes(boundary awscloud.Boundary, analysis Analysis) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(analysisObservation(boundary, analysis))
+func analysisEnvelopes(boundary aws.Boundary, analysis Analysis) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(analysisObservation(boundary, analysis))
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func analysisEnvelopes(boundary awscloud.Boundary, analysis Analysis) ([]facts.E
 	return envelopes, nil
 }
 
-func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) awscloud.ResourceObservation {
+func dataSourceObservation(boundary aws.Boundary, dataSource DataSource) aws.ResourceObservation {
 	arn := strings.TrimSpace(dataSource.ARN)
 	name := strings.TrimSpace(dataSource.Name)
 	resourceID := dataSourceResourceID(dataSource)
@@ -183,11 +183,11 @@ func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) aw
 		attributes["backing_store_kind"] = string(kind)
 		attributes["backing_store_identifier"] = strings.TrimSpace(dataSource.Backing.Identifier)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeQuickSightDataSource,
+		ResourceType:       aws.ResourceTypeQuickSightDataSource,
 		Name:               name,
 		State:              strings.TrimSpace(dataSource.Status),
 		Tags:               cloneStringMap(dataSource.Tags),
@@ -197,15 +197,15 @@ func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) aw
 	}
 }
 
-func dataSetObservation(boundary awscloud.Boundary, dataSet DataSet) awscloud.ResourceObservation {
+func dataSetObservation(boundary aws.Boundary, dataSet DataSet) aws.ResourceObservation {
 	arn := strings.TrimSpace(dataSet.ARN)
 	name := strings.TrimSpace(dataSet.Name)
 	resourceID := dataSetResourceID(dataSet)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeQuickSightDataSet,
+		ResourceType: aws.ResourceTypeQuickSightDataSet,
 		Name:         name,
 		Tags:         cloneStringMap(dataSet.Tags),
 		Attributes: map[string]any{
@@ -220,7 +220,7 @@ func dataSetObservation(boundary awscloud.Boundary, dataSet DataSet) awscloud.Re
 	}
 }
 
-func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscloud.ResourceObservation {
+func dashboardObservation(boundary aws.Boundary, dashboard Dashboard) aws.ResourceObservation {
 	arn := strings.TrimSpace(dashboard.ARN)
 	name := strings.TrimSpace(dashboard.Name)
 	resourceID := dashboardResourceID(dashboard)
@@ -233,11 +233,11 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 	if dashboard.PublishedVersionNumber > 0 {
 		attributes["published_version_number"] = dashboard.PublishedVersionNumber
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeQuickSightDashboard,
+		ResourceType:       aws.ResourceTypeQuickSightDashboard,
 		Name:               name,
 		Tags:               cloneStringMap(dashboard.Tags),
 		Attributes:         attributes,
@@ -246,15 +246,15 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 	}
 }
 
-func analysisObservation(boundary awscloud.Boundary, analysis Analysis) awscloud.ResourceObservation {
+func analysisObservation(boundary aws.Boundary, analysis Analysis) aws.ResourceObservation {
 	arn := strings.TrimSpace(analysis.ARN)
 	name := strings.TrimSpace(analysis.Name)
 	resourceID := analysisResourceID(analysis)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeQuickSightAnalysis,
+		ResourceType: aws.ResourceTypeQuickSightAnalysis,
 		Name:         name,
 		State:        strings.TrimSpace(analysis.Status),
 		Tags:         cloneStringMap(analysis.Tags),

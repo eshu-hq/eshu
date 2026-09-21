@@ -16,4 +16,4 @@
 // PutEncryptionConfig). Because the adapter holds an apiClient interface value
 // rather than the concrete *xray.Client, the compiler ensures these methods are
 // unreachable. The companion test asserts the interface shape by reflection.
-package awssdk
+package sdk

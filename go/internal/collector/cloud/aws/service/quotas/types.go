@@ -28,7 +28,7 @@ type Snapshot struct {
 	Quotas []ServiceQuota
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ServiceQuota is the scanner-owned model of one applied AWS Service Quotas

@@ -32,7 +32,7 @@ type Snapshot struct {
 	DedicatedIPPools []DedicatedIPPool
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // EmailIdentity is the scanner-owned SES email identity model. It carries

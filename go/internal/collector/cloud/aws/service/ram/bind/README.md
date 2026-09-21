@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ram/runtimebind` registers the RAM scanner
-with the awsruntime registry from a package `init()`. Importing this package for
+`internal/collector/cloud/aws/service/ram/bind` registers the RAM scanner
+with the runtime registry from a package `init()`. Importing this package for
 its blank side effect is the only way a runtime brings the RAM scanner into the
 production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceRAM` to the RAM scanner builder. It does not own AWS API calls,
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceRAM` to the RAM scanner builder. It does not own AWS API calls,
 RAM domain types, or fact emission. Those belong to
-`internal/collector/awscloud/service/ram` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/ram` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceRAM` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceRAM` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/ram` for the scanner struct.
-- `internal/collector/awscloud/service/ram/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/ram` for the scanner struct.
+- `internal/collector/cloud/aws/service/ram/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The RAM scanner and its SDK adapter
 emit the per-service counters and spans documented in `../README.md` and the
-awsruntime README.
+runtime README.
 
 ## Gotchas / invariants
 
@@ -49,6 +49,6 @@ awsruntime README.
 ## Related docs
 
 - `../README.md` for the RAM scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

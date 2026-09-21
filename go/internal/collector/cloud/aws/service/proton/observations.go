@@ -14,15 +14,15 @@ import (
 // version, provisioning mode, deployment status, the Proton service-role ARN,
 // and the provisioning account id only. The environment spec manifest body and
 // any deployment input parameter values are intentionally excluded.
-func environmentObservation(boundary awscloud.Boundary, environment Environment) awscloud.ResourceObservation {
+func environmentObservation(boundary aws.Boundary, environment Environment) aws.ResourceObservation {
 	arn := strings.TrimSpace(environment.ARN)
 	name := strings.TrimSpace(environment.Name)
 	resourceID := environmentResourceID(environment)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeProtonEnvironment,
+		ResourceType: aws.ResourceTypeProtonEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.DeploymentStatus),
 		Tags:         cloneStringMap(environment.Tags),
@@ -48,15 +48,15 @@ func environmentObservation(boundary awscloud.Boundary, environment Environment)
 // observation. It records identity, the service template name, status, and the
 // source repository linkage by reference only. The service spec manifest body
 // and pipeline spec body are intentionally excluded.
-func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.ResourceObservation {
+func serviceObservation(boundary aws.Boundary, service Service) aws.ResourceObservation {
 	arn := strings.TrimSpace(service.ARN)
 	name := strings.TrimSpace(service.Name)
 	resourceID := serviceResourceID(service)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeProtonService,
+		ResourceType: aws.ResourceTypeProtonService,
 		Name:         name,
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -80,11 +80,11 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 // reported-confidence resource observation under resourceType. It records
 // identity, display name, provisioning mode, and the recommended version only;
 // every template version schema body is intentionally excluded.
-func templateObservation(boundary awscloud.Boundary, template Template, resourceType string) awscloud.ResourceObservation {
+func templateObservation(boundary aws.Boundary, template Template, resourceType string) aws.ResourceObservation {
 	arn := strings.TrimSpace(template.ARN)
 	name := strings.TrimSpace(template.Name)
 	resourceID := templateResourceID(template)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,

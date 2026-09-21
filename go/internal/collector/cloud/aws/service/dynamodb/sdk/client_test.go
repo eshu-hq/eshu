@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdynamodb "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awsdynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
@@ -24,21 +24,21 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 	api := &fakeDynamoDBAPI{
 		tablePages: []*awsdynamodb.ListTablesOutput{{
 			TableNames:             []string{"orders"},
-			LastEvaluatedTableName: aws.String("orders"),
+			LastEvaluatedTableName: awsv2.String("orders"),
 		}, {
 			TableNames: []string{"customers"},
 		}},
 		tables: map[string]*awsdynamodb.DescribeTableOutput{
 			"orders": {
 				Table: &awsdynamodbtypes.TableDescription{
-					TableArn:                  aws.String(tableARN),
-					TableName:                 aws.String("orders"),
-					TableId:                   aws.String("table-123"),
+					TableArn:                  awsv2.String(tableARN),
+					TableName:                 awsv2.String("orders"),
+					TableId:                   awsv2.String("table-123"),
 					TableStatus:               awsdynamodbtypes.TableStatusActive,
-					CreationDateTime:          aws.Time(createdAt),
-					ItemCount:                 aws.Int64(42),
-					TableSizeBytes:            aws.Int64(1024),
-					DeletionProtectionEnabled: aws.Bool(true),
+					CreationDateTime:          awsv2.Time(createdAt),
+					ItemCount:                 awsv2.Int64(42),
+					TableSizeBytes:            awsv2.Int64(1024),
+					DeletionProtectionEnabled: awsv2.Bool(true),
 					BillingModeSummary: &awsdynamodbtypes.BillingModeSummary{
 						BillingMode: awsdynamodbtypes.BillingModePayPerRequest,
 					},
@@ -46,37 +46,37 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 						TableClass: awsdynamodbtypes.TableClassStandard,
 					},
 					KeySchema: []awsdynamodbtypes.KeySchemaElement{{
-						AttributeName: aws.String("tenant_id"),
+						AttributeName: awsv2.String("tenant_id"),
 						KeyType:       awsdynamodbtypes.KeyTypeHash,
 					}},
 					AttributeDefinitions: []awsdynamodbtypes.AttributeDefinition{{
-						AttributeName: aws.String("tenant_id"),
+						AttributeName: awsv2.String("tenant_id"),
 						AttributeType: awsdynamodbtypes.ScalarAttributeTypeS,
 					}},
 					ProvisionedThroughput: &awsdynamodbtypes.ProvisionedThroughputDescription{
-						ReadCapacityUnits:      aws.Int64(5),
-						WriteCapacityUnits:     aws.Int64(10),
-						NumberOfDecreasesToday: aws.Int64(1),
+						ReadCapacityUnits:      awsv2.Int64(5),
+						WriteCapacityUnits:     awsv2.Int64(10),
+						NumberOfDecreasesToday: awsv2.Int64(1),
 					},
 					SSEDescription: &awsdynamodbtypes.SSEDescription{
 						Status:          awsdynamodbtypes.SSEStatusEnabled,
 						SSEType:         awsdynamodbtypes.SSETypeKms,
-						KMSMasterKeyArn: aws.String(kmsARN),
+						KMSMasterKeyArn: awsv2.String(kmsARN),
 					},
 					StreamSpecification: &awsdynamodbtypes.StreamSpecification{
-						StreamEnabled:  aws.Bool(true),
+						StreamEnabled:  awsv2.Bool(true),
 						StreamViewType: awsdynamodbtypes.StreamViewTypeNewAndOldImages,
 					},
-					LatestStreamArn:   aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders/stream/2026-05-14T12:00:00.000"),
-					LatestStreamLabel: aws.String("2026-05-14T12:00:00.000"),
+					LatestStreamArn:   awsv2.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders/stream/2026-05-14T12:00:00.000"),
+					LatestStreamLabel: awsv2.String("2026-05-14T12:00:00.000"),
 					GlobalSecondaryIndexes: []awsdynamodbtypes.GlobalSecondaryIndexDescription{{
-						IndexName:      aws.String("by_status"),
-						IndexArn:       aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders/index/by_status"),
+						IndexName:      awsv2.String("by_status"),
+						IndexArn:       awsv2.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders/index/by_status"),
 						IndexStatus:    awsdynamodbtypes.IndexStatusActive,
-						ItemCount:      aws.Int64(10),
-						IndexSizeBytes: aws.Int64(256),
+						ItemCount:      awsv2.Int64(10),
+						IndexSizeBytes: awsv2.Int64(256),
 						KeySchema: []awsdynamodbtypes.KeySchemaElement{{
-							AttributeName: aws.String("status"),
+							AttributeName: awsv2.String("status"),
 							KeyType:       awsdynamodbtypes.KeyTypeHash,
 						}},
 						Projection: &awsdynamodbtypes.Projection{
@@ -84,11 +84,11 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 						},
 					}},
 					LocalSecondaryIndexes: []awsdynamodbtypes.LocalSecondaryIndexDescription{{
-						IndexName:      aws.String("by_created_at"),
-						ItemCount:      aws.Int64(4),
-						IndexSizeBytes: aws.Int64(128),
+						IndexName:      awsv2.String("by_created_at"),
+						ItemCount:      awsv2.Int64(4),
+						IndexSizeBytes: awsv2.Int64(128),
 						KeySchema: []awsdynamodbtypes.KeySchemaElement{{
-							AttributeName: aws.String("tenant_id"),
+							AttributeName: awsv2.String("tenant_id"),
 							KeyType:       awsdynamodbtypes.KeyTypeHash,
 						}},
 						Projection: &awsdynamodbtypes.Projection{
@@ -96,9 +96,9 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 						},
 					}},
 					Replicas: []awsdynamodbtypes.ReplicaDescription{{
-						RegionName:     aws.String("us-west-2"),
+						RegionName:     awsv2.String("us-west-2"),
 						ReplicaStatus:  awsdynamodbtypes.ReplicaStatusActive,
-						KMSMasterKeyId: aws.String("alias/orders-replica"),
+						KMSMasterKeyId: awsv2.String("alias/orders-replica"),
 						ReplicaTableClassSummary: &awsdynamodbtypes.TableClassSummary{
 							TableClass: awsdynamodbtypes.TableClassStandard,
 						},
@@ -107,25 +107,25 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 			},
 			"customers": {
 				Table: &awsdynamodbtypes.TableDescription{
-					TableArn:    aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/customers"),
-					TableName:   aws.String("customers"),
+					TableArn:    awsv2.String("arn:aws:dynamodb:us-east-1:123456789012:table/customers"),
+					TableName:   awsv2.String("customers"),
 					TableStatus: awsdynamodbtypes.TableStatusActive,
 				},
 			},
 		},
 		tags: map[string][]*awsdynamodb.ListTagsOfResourceOutput{
 			tableARN: {{
-				Tags:      []awsdynamodbtypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
-				NextToken: aws.String("tags-next"),
+				Tags:      []awsdynamodbtypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+				NextToken: awsv2.String("tags-next"),
 			}, {
-				Tags: []awsdynamodbtypes.Tag{{Key: aws.String("Team"), Value: aws.String("orders")}},
+				Tags: []awsdynamodbtypes.Tag{{Key: awsv2.String("Team"), Value: awsv2.String("orders")}},
 			}},
 		},
 		ttl: map[string]*awsdynamodb.DescribeTimeToLiveOutput{
 			"orders": {
 				TimeToLiveDescription: &awsdynamodbtypes.TimeToLiveDescription{
 					TimeToLiveStatus: awsdynamodbtypes.TimeToLiveStatusEnabled,
-					AttributeName:    aws.String("expires_at"),
+					AttributeName:    awsv2.String("expires_at"),
 				},
 			},
 		},
@@ -135,7 +135,7 @@ func TestClientListsDynamoDBMetadataOnly(t *testing.T) {
 					ContinuousBackupsStatus: awsdynamodbtypes.ContinuousBackupsStatusEnabled,
 					PointInTimeRecoveryDescription: &awsdynamodbtypes.PointInTimeRecoveryDescription{
 						PointInTimeRecoveryStatus: awsdynamodbtypes.PointInTimeRecoveryStatusEnabled,
-						RecoveryPeriodInDays:      aws.Int32(35),
+						RecoveryPeriodInDays:      awsv2.Int32(35),
 					},
 				},
 			},
@@ -191,8 +191,8 @@ func TestClientSnapshotRecordsWarningWhenDescribeTimeToLiveThrottles(t *testing.
 		tables: map[string]*awsdynamodb.DescribeTableOutput{
 			"orders": {
 				Table: &awsdynamodbtypes.TableDescription{
-					TableArn:    aws.String(tableARN),
-					TableName:   aws.String("orders"),
+					TableArn:    awsv2.String(tableARN),
+					TableName:   awsv2.String("orders"),
 					TableStatus: awsdynamodbtypes.TableStatusActive,
 				},
 			},
@@ -205,8 +205,8 @@ func TestClientSnapshotRecordsWarningWhenDescribeTimeToLiveThrottles(t *testing.
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
-	recorder := awscloud.NewAPICallStatsRecorder(adapter.boundary)
-	ctx := awscloud.ContextWithAPICallRecorder(context.Background(), recorder)
+	recorder := aws.NewAPICallStatsRecorder(adapter.boundary)
+	ctx := aws.ContextWithAPICallRecorder(context.Background(), recorder)
 
 	snapshot, err := adapter.Snapshot(ctx)
 	if err != nil {
@@ -222,8 +222,8 @@ func TestClientSnapshotRecordsWarningWhenDescribeTimeToLiveThrottles(t *testing.
 		t.Fatalf("len(Warnings) = %d, want %d", got, want)
 	}
 	warning := snapshot.Warnings[0]
-	if warning.WarningKind != awscloud.WarningThrottleSustained {
-		t.Fatalf("warning kind = %q, want %q", warning.WarningKind, awscloud.WarningThrottleSustained)
+	if warning.WarningKind != aws.WarningThrottleSustained {
+		t.Fatalf("warning kind = %q, want %q", warning.WarningKind, aws.WarningThrottleSustained)
 	}
 	if got := warning.Attributes["operation"]; got != "DescribeTimeToLive" {
 		t.Fatalf("warning operation = %#v, want DescribeTimeToLive", got)
@@ -245,15 +245,15 @@ func TestClientSnapshotSkipsTTLAfterFirstThrottle(t *testing.T) {
 		tables: map[string]*awsdynamodb.DescribeTableOutput{
 			"orders": {
 				Table: &awsdynamodbtypes.TableDescription{
-					TableArn:    aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders"),
-					TableName:   aws.String("orders"),
+					TableArn:    awsv2.String("arn:aws:dynamodb:us-east-1:123456789012:table/orders"),
+					TableName:   awsv2.String("orders"),
 					TableStatus: awsdynamodbtypes.TableStatusActive,
 				},
 			},
 			"customers": {
 				Table: &awsdynamodbtypes.TableDescription{
-					TableArn:    aws.String("arn:aws:dynamodb:us-east-1:123456789012:table/customers"),
-					TableName:   aws.String("customers"),
+					TableArn:    awsv2.String("arn:aws:dynamodb:us-east-1:123456789012:table/customers"),
+					TableName:   awsv2.String("customers"),
 					TableStatus: awsdynamodbtypes.TableStatusActive,
 				},
 			},
@@ -265,7 +265,7 @@ func TestClientSnapshotSkipsTTLAfterFirstThrottle(t *testing.T) {
 			"customers": {
 				TimeToLiveDescription: &awsdynamodbtypes.TimeToLiveDescription{
 					TimeToLiveStatus: awsdynamodbtypes.TimeToLiveStatusEnabled,
-					AttributeName:    aws.String("expires_at"),
+					AttributeName:    awsv2.String("expires_at"),
 				},
 			},
 		},
@@ -294,11 +294,11 @@ func TestClientSnapshotSkipsTTLAfterFirstThrottle(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDynamoDB,
+		ServiceKind: aws.ServiceDynamoDB,
 	}
 }
 
@@ -323,8 +323,8 @@ func (f *fakeDynamoDBAPI) ListTables(
 	input *awsdynamodb.ListTablesInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.ListTablesOutput, error) {
-	f.tableLimits = append(f.tableLimits, aws.ToInt32(input.Limit))
-	f.tableStartNames = append(f.tableStartNames, aws.ToString(input.ExclusiveStartTableName))
+	f.tableLimits = append(f.tableLimits, awsv2.ToInt32(input.Limit))
+	f.tableStartNames = append(f.tableStartNames, awsv2.ToString(input.ExclusiveStartTableName))
 	if f.tableCalls >= len(f.tablePages) {
 		return &awsdynamodb.ListTablesOutput{}, nil
 	}
@@ -338,7 +338,7 @@ func (f *fakeDynamoDBAPI) DescribeTable(
 	input *awsdynamodb.DescribeTableInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.DescribeTableOutput, error) {
-	tableName := aws.ToString(input.TableName)
+	tableName := awsv2.ToString(input.TableName)
 	f.describeNames = append(f.describeNames, tableName)
 	if output := f.tables[tableName]; output != nil {
 		return output, nil
@@ -351,14 +351,14 @@ func (f *fakeDynamoDBAPI) ListTagsOfResource(
 	input *awsdynamodb.ListTagsOfResourceInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.ListTagsOfResourceOutput, error) {
-	resourceARN := aws.ToString(input.ResourceArn)
+	resourceARN := awsv2.ToString(input.ResourceArn)
 	if f.tagCalls == nil {
 		f.tagCalls = map[string]int{}
 	}
 	if f.tagTokens == nil {
 		f.tagTokens = map[string][]string{}
 	}
-	f.tagTokens[resourceARN] = append(f.tagTokens[resourceARN], aws.ToString(input.NextToken))
+	f.tagTokens[resourceARN] = append(f.tagTokens[resourceARN], awsv2.ToString(input.NextToken))
 	pages := f.tags[resourceARN]
 	if f.tagCalls[resourceARN] >= len(pages) {
 		return &awsdynamodb.ListTagsOfResourceOutput{}, nil
@@ -373,7 +373,7 @@ func (f *fakeDynamoDBAPI) DescribeTimeToLive(
 	input *awsdynamodb.DescribeTimeToLiveInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.DescribeTimeToLiveOutput, error) {
-	tableName := aws.ToString(input.TableName)
+	tableName := awsv2.ToString(input.TableName)
 	f.ttlNames = append(f.ttlNames, tableName)
 	if err := f.ttlErrors[tableName]; err != nil {
 		return nil, err
@@ -389,7 +389,7 @@ func (f *fakeDynamoDBAPI) DescribeContinuousBackups(
 	input *awsdynamodb.DescribeContinuousBackupsInput,
 	_ ...func(*awsdynamodb.Options),
 ) (*awsdynamodb.DescribeContinuousBackupsOutput, error) {
-	if output := f.backups[aws.ToString(input.TableName)]; output != nil {
+	if output := f.backups[awsv2.ToString(input.TableName)]; output != nil {
 		return output, nil
 	}
 	return &awsdynamodb.DescribeContinuousBackupsOutput{}, nil

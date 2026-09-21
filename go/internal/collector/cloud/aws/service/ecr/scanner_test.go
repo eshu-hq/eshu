@@ -61,8 +61,8 @@ func TestScannerEmitsECRRepositoriesImagesAndLifecyclePolicies(t *testing.T) {
 	if counts[facts.AWSImageReferenceFactKind] != 2 {
 		t.Fatalf("aws_image_reference count = %d, want 2", counts[facts.AWSImageReferenceFactKind])
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECRRepository)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECRLifecyclePolicy)
+	assertResourceType(t, envelopes, aws.ResourceTypeECRRepository)
+	assertResourceType(t, envelopes, aws.ResourceTypeECRLifecyclePolicy)
 	assertImageReference(t, envelopes, "team/api", "sha256:image", "latest")
 	assertImageReference(t, envelopes, "team/api", "sha256:image", "v1")
 }
@@ -96,18 +96,18 @@ func TestScannerEmitsUntaggedImageReference(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = aws.ServiceIAM
 	_, err := Scanner{Client: fakeClient{}}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         aws.ServiceECR,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ecr:1",
 		CollectorInstanceID: "aws-prod",

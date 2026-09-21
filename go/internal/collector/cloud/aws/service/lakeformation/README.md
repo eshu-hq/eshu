@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lakeformation` owns the Lake Formation
+`internal/collector/cloud/aws/service/lakeformation` owns the Lake Formation
 scanner contract for the AWS cloud collector. It converts data-lake settings
 (administrator principal identifiers), registered data-location metadata, and
 principal/resource permission grants into `aws_resource` facts and emits the
@@ -44,7 +44,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -53,9 +53,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Lake Formation API call counts, throttles, and
+The `sdk` adapter records Lake Formation API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -70,7 +70,7 @@ pagination spans.
   AWS privilege enum recorded as grant identity, not a policy body.
 - Registered-location ARNs and registering-role ARNs come from the API and are
   used directly. The S3 bucket ARN is derived from the registered location ARN
-  and inherits that ARN's partition via `awscloud.PartitionFromARN`, so the
+  and inherits that ARN's partition via `aws.PartitionFromARN`, so the
   edge joins the bucket node the S3 scanner publishes
   (`arn:<partition>:s3:::<bucket>`) in GovCloud and China without dangling. The
   package-local `partition(boundary)` helper is the region-derived fallback.
@@ -91,14 +91,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/lakeformation/...` covers the
+`go test ./internal/collector/cloud/aws/service/lakeformation/...` covers the
 bounded Lake Formation metadata path: one `GetDataLakeSettings` point read, one
 paginated `ListResources` stream, and one paginated `ListPermissions` stream,
 with no grant/revoke, register/deregister, settings-put, LF-Tag mutation, or
 credential-vending read, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/lakeformation/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/lakeformation/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers data-lake settings, registered-resource, and permission metadata fact
 emission; registered-resource-to-S3-bucket and registered-resource-to-IAM-role
 relationship emission; permission-to-Glue-database, permission-to-Glue-table,

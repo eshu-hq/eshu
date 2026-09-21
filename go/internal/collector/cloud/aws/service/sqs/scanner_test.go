@@ -41,7 +41,7 @@ func TestScannerEmitsQueueFactsMetadataOnlyAndDLQRelationship(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	queue := resourceByType(t, envelopes, awscloud.ResourceTypeSQSQueue)
+	queue := resourceByType(t, envelopes, aws.ResourceTypeSQSQueue)
 	attributes := attributesOf(t, queue)
 	if got, want := attributes["queue_url"], "https://sqs.us-east-1.amazonaws.com/123456789012/orders"; got != want {
 		t.Fatalf("queue_url = %#v, want %q", got, want)
@@ -67,12 +67,12 @@ func TestScannerEmitsQueueFactsMetadataOnlyAndDLQRelationship(t *testing.T) {
 	if got, want := queue.Payload["arn"], queueARN; got != want {
 		t.Fatalf("resource ARN = %#v, want %q", got, want)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipSQSQueueUsesDeadLetterQueue)
+	assertRelationship(t, envelopes, aws.RelationshipSQSQueueUsesDeadLetterQueue)
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -80,11 +80,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSQS,
+		ServiceKind:         aws.ServiceSQS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:sqs:1",
 		CollectorInstanceID: "aws-prod",

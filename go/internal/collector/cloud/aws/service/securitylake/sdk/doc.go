@@ -11,4 +11,4 @@
 // reads ingested security log records, object contents, subscriber credentials
 // (external id, endpoint), and never calls a mutation API; the apiClient
 // interface and the exclusion test enforce that contract by construction.
-package awssdk
+package sdk

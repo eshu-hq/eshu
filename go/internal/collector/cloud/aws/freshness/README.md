@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/freshness` defines the normalized AWS freshness
+`internal/collector/cloud/aws/freshness` defines the normalized AWS freshness
 trigger contract for EventBridge and AWS Config wake-up signals. It maps an
 event to an existing AWS collector claim target: account, region, and
 service-kind.

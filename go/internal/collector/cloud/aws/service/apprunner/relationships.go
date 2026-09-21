@@ -16,19 +16,19 @@ const containerImageTargetType = "container_image"
 // App Runner service. Every edge sets a non-empty target_type matching the
 // target scanner's resource_id form, and the source resource_id is the service
 // ARN so it matches the ACM/WAFv2 edge target join key.
-func serviceRelationships(boundary awscloud.Boundary, service Service) []awscloud.RelationshipObservation {
+func serviceRelationships(boundary aws.Boundary, service Service) []aws.RelationshipObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
 	if serviceARN == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	add := func(relationshipType, targetID, targetType, recordSuffix string) {
 		targetID = strings.TrimSpace(targetID)
 		if targetID == "" {
 			return
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: relationshipType,
 			SourceResourceID: serviceARN,
@@ -41,9 +41,9 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 	}
 
 	if image := strings.TrimSpace(service.ImageIdentifier); image != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerServiceUsesImage,
+			RelationshipType: aws.RelationshipAppRunnerServiceUsesImage,
 			SourceResourceID: serviceARN,
 			SourceARN:        serviceARN,
 			TargetResourceID: image,
@@ -52,22 +52,22 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 		})
 	}
 
-	add(awscloud.RelationshipAppRunnerServiceUsesConnection, service.ConnectionARN, awscloud.ResourceTypeAppRunnerConnection, "connection")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, awscloud.ResourceTypeIAMRole, "access-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, awscloud.ResourceTypeIAMRole, "instance-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, awscloud.ResourceTypeKMSKey, "kms-key")
-	add(awscloud.RelationshipAppRunnerServiceUsesVpcConnector, service.VpcConnectorARN, awscloud.ResourceTypeAppRunnerVpcConnector, "vpc-connector")
-	add(awscloud.RelationshipAppRunnerServiceUsesAutoScalingConfiguration, service.AutoScalingConfigurationARN, awscloud.ResourceTypeAppRunnerAutoScalingConfiguration, "autoscaling")
-	add(awscloud.RelationshipAppRunnerServiceUsesObservabilityConfiguration, service.ObservabilityConfigurationARN, awscloud.ResourceTypeAppRunnerObservabilityConfiguration, "observability")
+	add(aws.RelationshipAppRunnerServiceUsesConnection, service.ConnectionARN, aws.ResourceTypeAppRunnerConnection, "connection")
+	add(aws.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, aws.ResourceTypeIAMRole, "access-role")
+	add(aws.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, aws.ResourceTypeIAMRole, "instance-role")
+	add(aws.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, aws.ResourceTypeKMSKey, "kms-key")
+	add(aws.RelationshipAppRunnerServiceUsesVpcConnector, service.VpcConnectorARN, aws.ResourceTypeAppRunnerVpcConnector, "vpc-connector")
+	add(aws.RelationshipAppRunnerServiceUsesAutoScalingConfiguration, service.AutoScalingConfigurationARN, aws.ResourceTypeAppRunnerAutoScalingConfiguration, "autoscaling")
+	add(aws.RelationshipAppRunnerServiceUsesObservabilityConfiguration, service.ObservabilityConfigurationARN, aws.ResourceTypeAppRunnerObservabilityConfiguration, "observability")
 
 	for _, secret := range service.SecretReferences {
 		valueFrom := strings.TrimSpace(secret.ValueFrom)
 		if valueFrom == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerServiceReferencesSecret,
+			RelationshipType: aws.RelationshipAppRunnerServiceReferencesSecret,
 			SourceResourceID: serviceARN,
 			SourceARN:        serviceARN,
 			TargetResourceID: valueFrom,
@@ -84,31 +84,31 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 // vpcConnectorRelationships records the subnet and security-group joins of one
 // App Runner VPC connector. Subnets and security groups key on the bare AWS IDs
 // so the EC2-owned subnet/security-group resources resolve.
-func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnector) []awscloud.RelationshipObservation {
+func vpcConnectorRelationships(boundary aws.Boundary, connector VpcConnector) []aws.RelationshipObservation {
 	connectorARN := strings.TrimSpace(connector.ARN)
 	if connectorARN == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, subnetID := range dedupeStrings(connector.Subnets) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSubnet,
+			RelationshipType: aws.RelationshipAppRunnerVpcConnectorUsesSubnet,
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   connectorARN + "#subnet#" + subnetID,
 		})
 	}
 	for _, securityGroupID := range dedupeStrings(connector.SecurityGroups) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
+			RelationshipType: aws.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   connectorARN + "#security-group#" + securityGroupID,
 		})
 	}
@@ -118,22 +118,22 @@ func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnecto
 // vpcIngressConnectionRelationships records the service a VPC ingress
 // connection routes inbound traffic to. The target keys on the service ARN.
 func vpcIngressConnectionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	ingress VpcIngressConnection,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	ingressARN := strings.TrimSpace(ingress.ARN)
 	serviceARN := strings.TrimSpace(ingress.ServiceARN)
 	if ingressARN == "" || serviceARN == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppRunnerVpcIngressConnectionTargetsService,
+		RelationshipType: aws.RelationshipAppRunnerVpcIngressConnectionTargetsService,
 		SourceResourceID: ingressARN,
 		SourceARN:        ingressARN,
 		TargetResourceID: serviceARN,
 		TargetARN:        serviceARN,
-		TargetType:       awscloud.ResourceTypeAppRunnerService,
+		TargetType:       aws.ResourceTypeAppRunnerService,
 		SourceRecordID:   ingressARN + "#service#" + serviceARN,
 	}}
 }
@@ -143,9 +143,9 @@ func vpcIngressConnectionRelationships(
 // secret.
 func secretReferenceTargetType(valueFrom string) string {
 	if strings.HasPrefix(strings.TrimSpace(valueFrom), "arn:") && strings.Contains(valueFrom, ":ssm:") {
-		return awscloud.ResourceTypeSSMParameter
+		return aws.ResourceTypeSSMParameter
 	}
-	return awscloud.ResourceTypeSecretsManagerSecret
+	return aws.ResourceTypeSecretsManagerSecret
 }
 
 // arnOrEmpty returns the candidate when it is an ARN, so relationship target

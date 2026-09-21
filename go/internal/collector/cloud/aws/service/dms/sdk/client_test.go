@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdms "github.com/aws/aws-sdk-go-v2/service/databasemigrationservice"
 	awsdmstypes "github.com/aws/aws-sdk-go-v2/service/databasemigrationservice/types"
 
@@ -26,73 +26,73 @@ func TestClientSnapshotsDMSMetadataOnly(t *testing.T) {
 
 	api := &fakeDMSAPI{
 		subnetGroupPages: pagedSubnetGroups([]awsdmstypes.ReplicationSubnetGroup{{
-			ReplicationSubnetGroupIdentifier: aws.String("dms-subnet-group"),
-			SubnetGroupStatus:                aws.String("Complete"),
-			VpcId:                            aws.String("vpc-0abc1234"),
+			ReplicationSubnetGroupIdentifier: awsv2.String("dms-subnet-group"),
+			SubnetGroupStatus:                awsv2.String("Complete"),
+			VpcId:                            awsv2.String("vpc-0abc1234"),
 			Subnets: []awsdmstypes.Subnet{
-				{SubnetIdentifier: aws.String("subnet-0a1b2c3d")},
-				{SubnetIdentifier: aws.String("subnet-0e5f6a7b")},
+				{SubnetIdentifier: awsv2.String("subnet-0a1b2c3d")},
+				{SubnetIdentifier: awsv2.String("subnet-0e5f6a7b")},
 			},
 		}}),
 		instancePages: pagedInstances([]awsdmstypes.ReplicationInstance{{
-			ReplicationInstanceArn:        aws.String(instanceARN),
-			ReplicationInstanceIdentifier: aws.String("dms-prod"),
-			ReplicationInstanceClass:      aws.String("dms.r5.large"),
-			EngineVersion:                 aws.String("3.5.2"),
-			ReplicationInstanceStatus:     aws.String("available"),
+			ReplicationInstanceArn:        awsv2.String(instanceARN),
+			ReplicationInstanceIdentifier: awsv2.String("dms-prod"),
+			ReplicationInstanceClass:      awsv2.String("dms.r5.large"),
+			EngineVersion:                 awsv2.String("3.5.2"),
+			ReplicationInstanceStatus:     awsv2.String("available"),
 			AllocatedStorage:              100,
 			MultiAZ:                       true,
-			KmsKeyId:                      aws.String(kmsARN),
-			InstanceCreateTime:            aws.Time(createdAt),
+			KmsKeyId:                      awsv2.String(kmsARN),
+			InstanceCreateTime:            awsv2.Time(createdAt),
 			VpcSecurityGroups: []awsdmstypes.VpcSecurityGroupMembership{
-				{VpcSecurityGroupId: aws.String("sg-0aabbccdd")},
+				{VpcSecurityGroupId: awsv2.String("sg-0aabbccdd")},
 			},
 			ReplicationSubnetGroup: &awsdmstypes.ReplicationSubnetGroup{
-				ReplicationSubnetGroupIdentifier: aws.String("dms-subnet-group"),
-				VpcId:                            aws.String("vpc-0abc1234"),
+				ReplicationSubnetGroupIdentifier: awsv2.String("dms-subnet-group"),
+				VpcId:                            awsv2.String("vpc-0abc1234"),
 				Subnets: []awsdmstypes.Subnet{
-					{SubnetIdentifier: aws.String("subnet-0a1b2c3d")},
+					{SubnetIdentifier: awsv2.String("subnet-0a1b2c3d")},
 				},
 			},
 		}}),
 		endpointPages: pagedEndpoints([]awsdmstypes.Endpoint{
 			{
-				EndpointArn:        aws.String(endpointARN),
-				EndpointIdentifier: aws.String("source-postgres"),
+				EndpointArn:        awsv2.String(endpointARN),
+				EndpointIdentifier: awsv2.String("source-postgres"),
 				EndpointType:       awsdmstypes.ReplicationEndpointTypeValueSource,
-				EngineName:         aws.String("postgres"),
+				EngineName:         awsv2.String("postgres"),
 				SslMode:            awsdmstypes.DmsSslModeValueRequire,
-				Status:             aws.String("active"),
-				DatabaseName:       aws.String("appdb"),
-				Port:               aws.Int32(5432),
-				KmsKeyId:           aws.String(kmsARN),
+				Status:             awsv2.String("active"),
+				DatabaseName:       awsv2.String("appdb"),
+				Port:               awsv2.Int32(5432),
+				KmsKeyId:           awsv2.String(kmsARN),
 				PostgreSQLSettings: &awsdmstypes.PostgreSQLSettings{
-					SecretsManagerSecretId: aws.String(secretARN),
+					SecretsManagerSecretId: awsv2.String(secretARN),
 				},
 			},
 			{
-				EndpointArn:        aws.String("arn:aws:dms:us-east-1:123456789012:endpoint:TARGETENDPOINTBBB"),
-				EndpointIdentifier: aws.String("target-stream"),
+				EndpointArn:        awsv2.String("arn:aws:dms:us-east-1:123456789012:endpoint:TARGETENDPOINTBBB"),
+				EndpointIdentifier: awsv2.String("target-stream"),
 				EndpointType:       awsdmstypes.ReplicationEndpointTypeValueTarget,
-				EngineName:         aws.String("kinesis"),
-				Status:             aws.String("active"),
-				KinesisSettings:    &awsdmstypes.KinesisSettings{StreamArn: aws.String(streamARN)},
-				S3Settings:         &awsdmstypes.S3Settings{BucketName: aws.String("dms-cdc-bucket")},
+				EngineName:         awsv2.String("kinesis"),
+				Status:             awsv2.String("active"),
+				KinesisSettings:    &awsdmstypes.KinesisSettings{StreamArn: awsv2.String(streamARN)},
+				S3Settings:         &awsdmstypes.S3Settings{BucketName: awsv2.String("dms-cdc-bucket")},
 			},
 		}),
 		taskPages: pagedTasks([]awsdmstypes.ReplicationTask{{
-			ReplicationTaskArn:          aws.String(taskARN),
-			ReplicationTaskIdentifier:   aws.String("prod-migration"),
+			ReplicationTaskArn:          awsv2.String(taskARN),
+			ReplicationTaskIdentifier:   awsv2.String("prod-migration"),
 			MigrationType:               awsdmstypes.MigrationTypeValueFullLoadAndCdc,
-			Status:                      aws.String("running"),
-			SourceEndpointArn:           aws.String(endpointARN),
-			TargetEndpointArn:           aws.String("arn:aws:dms:us-east-1:123456789012:endpoint:TARGETENDPOINTBBB"),
-			ReplicationInstanceArn:      aws.String(instanceARN),
-			ReplicationTaskCreationDate: aws.Time(createdAt),
+			Status:                      awsv2.String("running"),
+			SourceEndpointArn:           awsv2.String(endpointARN),
+			TargetEndpointArn:           awsv2.String("arn:aws:dms:us-east-1:123456789012:endpoint:TARGETENDPOINTBBB"),
+			ReplicationInstanceArn:      awsv2.String(instanceARN),
+			ReplicationTaskCreationDate: awsv2.Time(createdAt),
 		}}),
 		tags: map[string][]awsdmstypes.Tag{
-			instanceARN: {{Key: aws.String("Team"), Value: aws.String("data")}},
-			taskARN:     {{Key: aws.String("Pipeline"), Value: aws.String("cdc")}},
+			instanceARN: {{Key: awsv2.String("Team"), Value: awsv2.String("data")}},
+			taskARN:     {{Key: awsv2.String("Pipeline"), Value: awsv2.String("cdc")}},
 		},
 	}
 
@@ -167,13 +167,13 @@ func TestClientPaginatesInstancesByMarker(t *testing.T) {
 		instancePages: []*awsdms.DescribeReplicationInstancesOutput{
 			{
 				ReplicationInstances: []awsdmstypes.ReplicationInstance{{
-					ReplicationInstanceArn: aws.String("arn:aws:dms:us-east-1:123456789012:rep:PAGEONEINSTANCEAA"),
+					ReplicationInstanceArn: awsv2.String("arn:aws:dms:us-east-1:123456789012:rep:PAGEONEINSTANCEAA"),
 				}},
-				Marker: aws.String("next"),
+				Marker: awsv2.String("next"),
 			},
 			{
 				ReplicationInstances: []awsdmstypes.ReplicationInstance{{
-					ReplicationInstanceArn: aws.String("arn:aws:dms:us-east-1:123456789012:rep:PAGETWOINSTANCEBB"),
+					ReplicationInstanceArn: awsv2.String("arn:aws:dms:us-east-1:123456789012:rep:PAGETWOINSTANCEBB"),
 				}},
 			},
 		},
@@ -274,14 +274,14 @@ func (f *fakeDMSAPI) ListTagsForResource(
 	_ ...func(*awsdms.Options),
 ) (*awsdms.ListTagsForResourceOutput, error) {
 	return &awsdms.ListTagsForResourceOutput{
-		TagList: f.tags[aws.ToString(input.ResourceArn)],
+		TagList: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDMS,
+		ServiceKind: aws.ServiceDMS,
 	}
 }

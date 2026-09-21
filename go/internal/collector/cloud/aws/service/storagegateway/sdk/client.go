@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssg "github.com/aws/aws-sdk-go-v2/service/storagegateway"
 	sgtypes "github.com/aws/aws-sdk-go-v2/service/storagegateway/types"
 	"github.com/aws/smithy-go"
@@ -38,15 +38,15 @@ type apiClient interface {
 // file-share cache, and never creates or deletes volumes or shares.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Storage Gateway SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -69,16 +69,16 @@ func (c *Client) ListGateways(ctx context.Context) ([]sgservice.Gateway, error) 
 	}
 	gateways := make([]sgservice.Gateway, 0, len(infos))
 	for _, info := range infos {
-		arn := strings.TrimSpace(aws.ToString(info.GatewayARN))
+		arn := strings.TrimSpace(awsv2.ToString(info.GatewayARN))
 		gateway := sgservice.Gateway{
 			ARN:               arn,
-			ID:                strings.TrimSpace(aws.ToString(info.GatewayId)),
-			Name:              strings.TrimSpace(aws.ToString(info.GatewayName)),
-			Type:              strings.TrimSpace(aws.ToString(info.GatewayType)),
-			State:             strings.TrimSpace(aws.ToString(info.GatewayOperationalState)),
-			OperationalState:  strings.TrimSpace(aws.ToString(info.GatewayOperationalState)),
-			EC2InstanceID:     strings.TrimSpace(aws.ToString(info.Ec2InstanceId)),
-			EC2InstanceRegion: strings.TrimSpace(aws.ToString(info.Ec2InstanceRegion)),
+			ID:                strings.TrimSpace(awsv2.ToString(info.GatewayId)),
+			Name:              strings.TrimSpace(awsv2.ToString(info.GatewayName)),
+			Type:              strings.TrimSpace(awsv2.ToString(info.GatewayType)),
+			State:             strings.TrimSpace(awsv2.ToString(info.GatewayOperationalState)),
+			OperationalState:  strings.TrimSpace(awsv2.ToString(info.GatewayOperationalState)),
+			EC2InstanceID:     strings.TrimSpace(awsv2.ToString(info.Ec2InstanceId)),
+			EC2InstanceRegion: strings.TrimSpace(awsv2.ToString(info.Ec2InstanceRegion)),
 		}
 		if arn != "" {
 			detail, err := c.describeGateway(ctx, arn)
@@ -110,7 +110,7 @@ func (c *Client) listGatewayInfos(ctx context.Context) ([]sgtypes.GatewayInfo, e
 		}
 		infos = append(infos, page.Gateways...)
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return infos, nil
 		}
 	}
@@ -121,7 +121,7 @@ func (c *Client) describeGateway(ctx context.Context, gatewayARN string) (*awssg
 	err := c.recordAPICall(ctx, "DescribeGatewayInformation", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeGatewayInformation(callCtx, &awssg.DescribeGatewayInformationInput{
-			GatewayARN: aws.String(gatewayARN),
+			GatewayARN: awsv2.String(gatewayARN),
 		})
 		return err
 	})
@@ -140,7 +140,7 @@ func (c *Client) ListVolumes(ctx context.Context) ([]sgservice.Volume, error) {
 	}
 	var volumes []sgservice.Volume
 	for _, info := range infos {
-		arn := strings.TrimSpace(aws.ToString(info.GatewayARN))
+		arn := strings.TrimSpace(awsv2.ToString(info.GatewayARN))
 		if arn == "" {
 			continue
 		}
@@ -161,7 +161,7 @@ func (c *Client) listGatewayVolumes(ctx context.Context, gatewayARN string) ([]s
 		err := c.recordAPICall(ctx, "ListVolumes", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListVolumes(callCtx, &awssg.ListVolumesInput{
-				GatewayARN: aws.String(gatewayARN),
+				GatewayARN: awsv2.String(gatewayARN),
 				Marker:     marker,
 			})
 			return err
@@ -176,7 +176,7 @@ func (c *Client) listGatewayVolumes(ctx context.Context, gatewayARN string) ([]s
 			volumes = append(volumes, mapVolume(info))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return volumes, nil
 		}
 	}
@@ -222,7 +222,7 @@ func (c *Client) listFileShareARNs(ctx context.Context) (nfs, smb []string, err 
 			return nfs, smb, nil
 		}
 		for _, info := range page.FileShareInfoList {
-			arn := strings.TrimSpace(aws.ToString(info.FileShareARN))
+			arn := strings.TrimSpace(awsv2.ToString(info.FileShareARN))
 			if arn == "" {
 				continue
 			}
@@ -234,7 +234,7 @@ func (c *Client) listFileShareARNs(ctx context.Context) (nfs, smb []string, err 
 			}
 		}
 		marker = page.NextMarker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return nfs, smb, nil
 		}
 	}
@@ -306,7 +306,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes DRS source servers, recovery instances, replication
 // configuration templates, and the direct recovery-instance and EC2-instance
 // dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("drs scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDRS:
+	case "", aws.ServiceDRS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDRS
+		boundary.ServiceKind = aws.ServiceDRS
 	default:
 		return nil, fmt.Errorf("drs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -63,7 +63,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, template := range snapshot.ReplicationConfigurationTemplates {
-		envelope, err := awscloud.NewResourceEnvelope(templateObservation(boundary, template))
+		envelope, err := aws.NewResourceEnvelope(templateObservation(boundary, template))
 		if err != nil {
 			return nil, err
 		}
@@ -72,9 +72,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -83,14 +83,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func sourceServerEnvelopes(boundary awscloud.Boundary, server SourceServer) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(sourceServerObservation(boundary, server))
+func sourceServerEnvelopes(boundary aws.Boundary, server SourceServer) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(sourceServerObservation(boundary, server))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := sourceServerRecoversToInstanceRelationship(boundary, server); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -99,14 +99,14 @@ func sourceServerEnvelopes(boundary awscloud.Boundary, server SourceServer) ([]f
 	return envelopes, nil
 }
 
-func recoveryInstanceEnvelopes(boundary awscloud.Boundary, instance RecoveryInstance) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(recoveryInstanceObservation(boundary, instance))
+func recoveryInstanceEnvelopes(boundary aws.Boundary, instance RecoveryInstance) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(recoveryInstanceObservation(boundary, instance))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := recoveryInstanceRunsOnEC2InstanceRelationship(boundary, instance); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -115,15 +115,15 @@ func recoveryInstanceEnvelopes(boundary awscloud.Boundary, instance RecoveryInst
 	return envelopes, nil
 }
 
-func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) awscloud.ResourceObservation {
+func sourceServerObservation(boundary aws.Boundary, server SourceServer) aws.ResourceObservation {
 	arn := strings.TrimSpace(server.ARN)
 	resourceID := sourceServerResourceID(server)
 	name := firstNonEmpty(server.Hostname, server.FQDN, resourceID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSSourceServer,
+		ResourceType: aws.ResourceTypeDRSSourceServer,
 		Name:         name,
 		State:        strings.TrimSpace(server.DataReplicationState),
 		Tags:         cloneStringMap(server.Tags),
@@ -146,14 +146,14 @@ func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) aw
 	}
 }
 
-func recoveryInstanceObservation(boundary awscloud.Boundary, instance RecoveryInstance) awscloud.ResourceObservation {
+func recoveryInstanceObservation(boundary aws.Boundary, instance RecoveryInstance) aws.ResourceObservation {
 	arn := strings.TrimSpace(instance.ARN)
 	resourceID := recoveryInstanceResourceID(instance)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSRecoveryInstance,
+		ResourceType: aws.ResourceTypeDRSRecoveryInstance,
 		Name:         resourceID,
 		State:        strings.TrimSpace(instance.EC2InstanceState),
 		Tags:         cloneStringMap(instance.Tags),
@@ -170,14 +170,14 @@ func recoveryInstanceObservation(boundary awscloud.Boundary, instance RecoveryIn
 	}
 }
 
-func templateObservation(boundary awscloud.Boundary, template ReplicationConfigurationTemplate) awscloud.ResourceObservation {
+func templateObservation(boundary aws.Boundary, template ReplicationConfigurationTemplate) aws.ResourceObservation {
 	arn := strings.TrimSpace(template.ARN)
 	resourceID := templateResourceID(template)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSReplicationConfigurationTemplate,
+		ResourceType: aws.ResourceTypeDRSReplicationConfigurationTemplate,
 		Name:         resourceID,
 		Tags:         cloneStringMap(template.Tags),
 		Attributes: map[string]any{

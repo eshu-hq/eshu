@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/catalogappregistry/awssdk` adapts
+`internal/collector/cloud/aws/service/catalogappregistry/sdk` adapts
 the AWS SDK for Go v2 Service Catalog AppRegistry client into the metadata-only
 `servicecatalogappregistry.Client` interface. It reads application and
 attribute-group metadata, an application's associated attribute groups and

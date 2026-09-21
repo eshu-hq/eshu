@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/sagemaker/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/sagemaker/sdk guidance
 
 ## Read First
 

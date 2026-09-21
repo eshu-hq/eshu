@@ -33,14 +33,14 @@ func profilingGroupResourceID(group ProfilingGroup) string {
 // aws-us-gov) so the edge joins the real repository node in every partition. It
 // returns "" when the repository name, owning account, or region is missing,
 // which keeps the edge from dangling.
-func codeCommitRepositoryARN(boundary awscloud.Boundary, owner, name string) string {
+func codeCommitRepositoryARN(boundary aws.Boundary, owner, name string) string {
 	owner = strings.TrimSpace(owner)
 	name = strings.TrimSpace(name)
 	region := strings.TrimSpace(boundary.Region)
 	if owner == "" || name == "" || region == "" {
 		return ""
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
+	partition := aws.PartitionForBoundary(boundary)
 	return "arn:" + partition + ":codecommit:" + region + ":" + owner + ":" + name
 }
 

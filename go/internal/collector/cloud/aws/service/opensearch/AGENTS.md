@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/opensearch guidance
+# AGENTS.md - internal/collector/cloud/aws/service/opensearch guidance
 
 ## Read First
 
@@ -42,13 +42,13 @@
 
 - Add a new OpenSearch metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Reject additions that would expose master
+  `aws` envelope builders. Reject additions that would expose master
   passwords, endpoint contents, access policy bodies, package bodies, or
   saved-object bodies.
 - Add new relationship evidence only when the OpenSearch API reports both
   sides directly and the target identity is not sensitive.
 - Extend SDK pagination, batching, and access-policy role-ARN resolution in the
-  `awssdk` adapter, not here.
+  `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

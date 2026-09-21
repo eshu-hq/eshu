@@ -32,7 +32,7 @@ type Snapshot struct {
 	// Subscribers is the metadata-only set of Security Lake subscribers.
 	Subscribers []Subscriber
 	// Warnings carries non-fatal partial-scan observations.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // DataLake is the scanner-owned Security Lake data lake model. It carries

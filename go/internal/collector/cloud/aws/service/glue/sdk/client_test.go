@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsglue "github.com/aws/aws-sdk-go-v2/service/glue"
 	awsgluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 
@@ -19,39 +19,39 @@ func TestClientListDatabasesReadsSafeDatabaseAndTableMetadata(t *testing.T) {
 	client := &fakeGlueAPI{
 		databasePages: []*awsglue.GetDatabasesOutput{{
 			DatabaseList: []awsgluetypes.Database{{
-				Name:        aws.String("analytics"),
-				CatalogId:   aws.String("123456789012"),
-				Description: aws.String("analytics db"),
-				LocationUri: aws.String("s3://analytics-warehouse/"),
-				CreateTime:  aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
+				Name:        awsv2.String("analytics"),
+				CatalogId:   awsv2.String("123456789012"),
+				Description: awsv2.String("analytics db"),
+				LocationUri: awsv2.String("s3://analytics-warehouse/"),
+				CreateTime:  awsv2.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
 				Parameters:  map[string]string{"classification": "warehouse"},
 			}},
 		}},
 		tablePages: []*awsglue.GetTablesOutput{{
 			TableList: []awsgluetypes.Table{{
-				Name:         aws.String("orders"),
-				CatalogId:    aws.String("123456789012"),
-				DatabaseName: aws.String("analytics"),
-				Owner:        aws.String("analytics"),
-				TableType:    aws.String("EXTERNAL_TABLE"),
-				CreateTime:   aws.Time(time.Date(2026, 5, 20, 16, 5, 0, 0, time.UTC)),
-				UpdateTime:   aws.Time(time.Date(2026, 5, 20, 16, 10, 0, 0, time.UTC)),
+				Name:         awsv2.String("orders"),
+				CatalogId:    awsv2.String("123456789012"),
+				DatabaseName: awsv2.String("analytics"),
+				Owner:        awsv2.String("analytics"),
+				TableType:    awsv2.String("EXTERNAL_TABLE"),
+				CreateTime:   awsv2.Time(time.Date(2026, 5, 20, 16, 5, 0, 0, time.UTC)),
+				UpdateTime:   awsv2.Time(time.Date(2026, 5, 20, 16, 10, 0, 0, time.UTC)),
 				Retention:    7,
 				StorageDescriptor: &awsgluetypes.StorageDescriptor{
-					Location:     aws.String("s3://analytics-warehouse/orders/"),
-					InputFormat:  aws.String("ParquetInputFormat"),
-					OutputFormat: aws.String("ParquetOutputFormat"),
+					Location:     awsv2.String("s3://analytics-warehouse/orders/"),
+					InputFormat:  awsv2.String("ParquetInputFormat"),
+					OutputFormat: awsv2.String("ParquetOutputFormat"),
 					Compressed:   true,
 					Columns: []awsgluetypes.Column{
-						{Name: aws.String("order_id")},
-						{Name: aws.String("customer_id")},
+						{Name: awsv2.String("order_id")},
+						{Name: awsv2.String("customer_id")},
 					},
 					SerdeInfo: &awsgluetypes.SerDeInfo{
-						Name:                 aws.String("ParquetHiveSerDe"),
-						SerializationLibrary: aws.String("org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"),
+						Name:                 awsv2.String("ParquetHiveSerDe"),
+						SerializationLibrary: awsv2.String("org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"),
 					},
 				},
-				PartitionKeys: []awsgluetypes.Column{{Name: aws.String("event_date")}},
+				PartitionKeys: []awsgluetypes.Column{{Name: awsv2.String("event_date")}},
 				Parameters:    map[string]string{"classification": "parquet"},
 			}},
 		}},
@@ -94,7 +94,7 @@ func TestClientListConnectionsRequiresHidePasswordTrue(t *testing.T) {
 	client := &fakeGlueAPI{
 		connectionPages: []*awsglue.GetConnectionsOutput{{
 			ConnectionList: []awsgluetypes.Connection{{
-				Name:           aws.String("warehouse"),
+				Name:           awsv2.String("warehouse"),
 				ConnectionType: awsgluetypes.ConnectionTypeJdbc,
 				ConnectionProperties: map[string]string{
 					"JDBC_CONNECTION_URL": "jdbc:postgresql://db/",
@@ -132,11 +132,11 @@ func TestClientListWorkflowsCallsGetWorkflowWithoutGraph(t *testing.T) {
 		workflowDescribe: map[string]*awsglue.GetWorkflowOutput{
 			"orders-pipeline": {
 				Workflow: &awsgluetypes.Workflow{
-					Name:              aws.String("orders-pipeline"),
-					Description:       aws.String("orders pipeline"),
-					CreatedOn:         aws.Time(time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC)),
-					LastModifiedOn:    aws.Time(time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)),
-					MaxConcurrentRuns: aws.Int32(1),
+					Name:              awsv2.String("orders-pipeline"),
+					Description:       awsv2.String("orders pipeline"),
+					CreatedOn:         awsv2.Time(time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC)),
+					LastModifiedOn:    awsv2.Time(time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)),
+					MaxConcurrentRuns: awsv2.Int32(1),
 					DefaultRunProperties: map[string]string{
 						"region": "us-east-1",
 					},
@@ -165,16 +165,16 @@ func TestClientListJobsAndTriggersMapSafeMetadata(t *testing.T) {
 	client := &fakeGlueAPI{
 		jobPages: []*awsglue.GetJobsOutput{{
 			Jobs: []awsgluetypes.Job{{
-				Name:            aws.String("orders-etl"),
-				Description:     aws.String("orders ETL"),
-				Role:            aws.String("arn:aws:iam::123456789012:role/glue-orders-etl"),
-				GlueVersion:     aws.String("4.0"),
+				Name:            awsv2.String("orders-etl"),
+				Description:     awsv2.String("orders ETL"),
+				Role:            awsv2.String("arn:aws:iam::123456789012:role/glue-orders-etl"),
+				GlueVersion:     awsv2.String("4.0"),
 				WorkerType:      awsgluetypes.WorkerTypeG1x,
-				NumberOfWorkers: aws.Int32(10),
+				NumberOfWorkers: awsv2.Int32(10),
 				Command: &awsgluetypes.JobCommand{
-					Name:           aws.String("glueetl"),
-					ScriptLocation: aws.String("s3://analytics-scripts/orders.py"),
-					PythonVersion:  aws.String("3"),
+					Name:           awsv2.String("glueetl"),
+					ScriptLocation: awsv2.String("s3://analytics-scripts/orders.py"),
+					PythonVersion:  awsv2.String("3"),
 				},
 				DefaultArguments: map[string]string{
 					"--TempDir":             "s3://temp/",
@@ -184,13 +184,13 @@ func TestClientListJobsAndTriggersMapSafeMetadata(t *testing.T) {
 		}},
 		triggerPages: []*awsglue.GetTriggersOutput{{
 			Triggers: []awsgluetypes.Trigger{{
-				Name:         aws.String("orders-nightly"),
+				Name:         awsv2.String("orders-nightly"),
 				Type:         awsgluetypes.TriggerTypeScheduled,
 				State:        awsgluetypes.TriggerStateActivated,
-				Schedule:     aws.String("cron(0 4 * * ? *)"),
-				WorkflowName: aws.String("orders-pipeline"),
+				Schedule:     awsv2.String("cron(0 4 * * ? *)"),
+				WorkflowName: awsv2.String("orders-pipeline"),
 				Actions: []awsgluetypes.Action{{
-					JobName: aws.String("orders-etl"),
+					JobName: awsv2.String("orders-etl"),
 				}},
 			}},
 		}},
@@ -238,23 +238,23 @@ func TestClientListCrawlersMapsTargetCountsAndScheduleWithoutTargetPayloads(t *t
 	client := &fakeGlueAPI{
 		crawlerPages: []*awsglue.GetCrawlersOutput{{
 			Crawlers: []awsgluetypes.Crawler{{
-				Name:         aws.String("orders-crawler"),
-				Role:         aws.String("arn:aws:iam::123456789012:role/glue-crawler"),
-				DatabaseName: aws.String("analytics"),
+				Name:         awsv2.String("orders-crawler"),
+				Role:         awsv2.String("arn:aws:iam::123456789012:role/glue-crawler"),
+				DatabaseName: awsv2.String("analytics"),
 				State:        awsgluetypes.CrawlerStateReady,
 				Schedule: &awsgluetypes.Schedule{
-					ScheduleExpression: aws.String("cron(0 1 * * ? *)"),
+					ScheduleExpression: awsv2.String("cron(0 1 * * ? *)"),
 				},
 				RecrawlPolicy: &awsgluetypes.RecrawlPolicy{
 					RecrawlBehavior: awsgluetypes.RecrawlBehaviorCrawlEverything,
 				},
 				Targets: &awsgluetypes.CrawlerTargets{
 					S3Targets: []awsgluetypes.S3Target{
-						{Path: aws.String("s3://analytics-warehouse/orders/")},
+						{Path: awsv2.String("s3://analytics-warehouse/orders/")},
 					},
 					JdbcTargets: []awsgluetypes.JdbcTarget{{
-						ConnectionName: aws.String("warehouse"),
-						Path:           aws.String("postgresql://db/orders"),
+						ConnectionName: awsv2.String("warehouse"),
+						Path:           awsv2.String("postgresql://db/orders"),
 					}},
 				},
 			}},
@@ -289,7 +289,7 @@ func TestClientMapDerivedKeysAreSortedDeterministically(t *testing.T) {
 	client := &fakeGlueAPI{
 		jobPages: []*awsglue.GetJobsOutput{{
 			Jobs: []awsgluetypes.Job{{
-				Name: aws.String("orders-etl"),
+				Name: awsv2.String("orders-etl"),
 				DefaultArguments: map[string]string{
 					"--zeta":     "z",
 					"--alpha":    "a",
@@ -312,7 +312,7 @@ func TestClientMapDerivedKeysAreSortedDeterministically(t *testing.T) {
 		workflowDescribe: map[string]*awsglue.GetWorkflowOutput{
 			"orders-pipeline": {
 				Workflow: &awsgluetypes.Workflow{
-					Name: aws.String("orders-pipeline"),
+					Name: awsv2.String("orders-pipeline"),
 					DefaultRunProperties: map[string]string{
 						"zone":   "us-east-1a",
 						"region": "us-east-1",
@@ -325,7 +325,7 @@ func TestClientMapDerivedKeysAreSortedDeterministically(t *testing.T) {
 		},
 		connectionPages: []*awsglue.GetConnectionsOutput{{
 			ConnectionList: []awsgluetypes.Connection{{
-				Name: aws.String("warehouse"),
+				Name: awsv2.String("warehouse"),
 				ConnectionProperties: map[string]string{
 					"USERNAME":            "u",
 					"JDBC_CONNECTION_URL": "j",
@@ -378,11 +378,11 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceGlue,
+		ServiceKind:         aws.ServiceGlue,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:glue:1",
 		CollectorInstanceID: "aws-prod",
@@ -429,7 +429,7 @@ func (f *fakeGlueAPI) GetTables(
 	input *awsglue.GetTablesInput,
 	_ ...func(*awsglue.Options),
 ) (*awsglue.GetTablesOutput, error) {
-	if aws.ToString(input.DatabaseName) == "" {
+	if awsv2.ToString(input.DatabaseName) == "" {
 		return nil, nil
 	}
 	if f.tableCalls >= len(f.tablePages) {
@@ -497,13 +497,13 @@ func (f *fakeGlueAPI) GetWorkflow(
 	input *awsglue.GetWorkflowInput,
 	_ ...func(*awsglue.Options),
 ) (*awsglue.GetWorkflowOutput, error) {
-	if aws.ToBool(input.IncludeGraph) {
+	if awsv2.ToBool(input.IncludeGraph) {
 		f.workflowDescribeIncludesGraph = true
 	}
 	if f.workflowDescribe == nil {
 		return &awsglue.GetWorkflowOutput{}, nil
 	}
-	if output, ok := f.workflowDescribe[aws.ToString(input.Name)]; ok {
+	if output, ok := f.workflowDescribe[awsv2.ToString(input.Name)]; ok {
 		return output, nil
 	}
 	return &awsglue.GetWorkflowOutput{}, nil

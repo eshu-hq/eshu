@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/msk/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/msk/sdk` adapts AWS SDK for Go v2
 Kafka (MSK) responses to the scanner-owned `Client` contract. It owns cluster
 pagination, configuration pagination, replicator pagination, the per-replicator
 `DescribeReplicator` enrichment used to capture the service execution role,
@@ -40,9 +40,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/msk` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/msk` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `kafka` and Smithy error contracts.
 

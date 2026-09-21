@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscw "github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	awscwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/aws/smithy-go"
@@ -66,15 +66,15 @@ type apiClient interface {
 // mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CloudWatch SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -108,13 +108,13 @@ func (c *Client) ListMetricAlarms(ctx context.Context) ([]cwservice.MetricAlarm,
 			return alarms, nil
 		}
 		for _, raw := range page.MetricAlarms {
-			tags, err := c.listTags(ctx, aws.ToString(raw.AlarmArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.AlarmArn))
 			if err != nil {
 				return nil, err
 			}
 			alarms = append(alarms, mapMetricAlarm(raw, tags))
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return alarms, nil
 		}
 		nextToken = page.NextToken
@@ -143,13 +143,13 @@ func (c *Client) ListCompositeAlarms(ctx context.Context) ([]cwservice.Composite
 			return alarms, nil
 		}
 		for _, raw := range page.CompositeAlarms {
-			tags, err := c.listTags(ctx, aws.ToString(raw.AlarmArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.AlarmArn))
 			if err != nil {
 				return nil, err
 			}
 			alarms = append(alarms, mapCompositeAlarm(raw, tags))
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return alarms, nil
 		}
 		nextToken = page.NextToken
@@ -181,7 +181,7 @@ func (c *Client) ListDashboards(ctx context.Context) ([]cwservice.Dashboard, err
 		for _, raw := range page.DashboardEntries {
 			dashboards = append(dashboards, mapDashboard(raw))
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return dashboards, nil
 		}
 		nextToken = page.NextToken
@@ -212,7 +212,7 @@ func (c *Client) ListInsightRules(ctx context.Context) ([]cwservice.InsightRule,
 		for _, raw := range page.InsightRules {
 			rules = append(rules, mapInsightRule(raw))
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return rules, nil
 		}
 		nextToken = page.NextToken
@@ -240,17 +240,17 @@ func (c *Client) ListMetricStreams(ctx context.Context) ([]cwservice.MetricStrea
 			return streams, nil
 		}
 		for _, entry := range page.Entries {
-			details, err := c.getMetricStream(ctx, aws.ToString(entry.Name))
+			details, err := c.getMetricStream(ctx, awsv2.ToString(entry.Name))
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(entry.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(entry.Arn))
 			if err != nil {
 				return nil, err
 			}
 			streams = append(streams, mapMetricStream(entry, details, tags))
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return streams, nil
 		}
 		nextToken = page.NextToken
@@ -266,7 +266,7 @@ func (c *Client) getMetricStream(ctx context.Context, name string) (*awscw.GetMe
 	err := c.recordAPICall(ctx, "GetMetricStream", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetMetricStream(callCtx, &awscw.GetMetricStreamInput{
-			Name: aws.String(name),
+			Name: awsv2.String(name),
 		})
 		return err
 	})
@@ -288,7 +288,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awscw.ListTagsForResourceInput{
-			ResourceARN: aws.String(resourceARN),
+			ResourceARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -319,7 +319,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -361,11 +361,11 @@ func cloneTags(tags []awscwtypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil

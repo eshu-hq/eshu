@@ -18,7 +18,7 @@ deployable-unit truth.
 
 ```mermaid
 flowchart LR
-    Runtime[awsruntime target] --> Scanner[apigateway.Scanner]
+    Runtime[runtime target] --> Scanner[apigateway.Scanner]
     Scanner --> Client[API Gateway client port]
     Client --> Snapshot[metadata snapshot]
     Scanner --> Facts[AWS resource and relationship facts]
@@ -42,7 +42,7 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, service constants, resource
+- `internal/collector/cloud/aws` for boundaries, service constants, resource
   observation contracts, and relationship observation contracts.
 - `internal/facts` for the fact envelopes returned by `Scanner`.
 
@@ -60,7 +60,7 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
 
 ## Gotchas / invariants
 
-- The scanner boundary must remain `awscloud.ServiceAPIGateway`.
+- The scanner boundary must remain `aws.ServiceAPIGateway`.
 - The collector may record that an API has a Lambda, listener, Cloud Map,
   certificate, or log destination dependency. Reducers own later canonical
   ownership or workload inference.
@@ -77,12 +77,12 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/apigateway/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/apigateway/... -count=1`
 covers the new `TestRestAPIARNDerivesPartition` and `TestV2APIARNDerivesPartition`
 (commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
 existing commercial assertions. API Gateway control-plane ids carry no ARN, so
 `restAPIARN` and `v2APIARN` now derive the partition from the region via
-`awscloud.PartitionForRegion` instead of hardcoding `aws`. Commercial output
+`aws.PartitionForRegion` instead of hardcoding `aws`. Commercial output
 (`us-east-1`) is byte-for-byte unchanged; this is a metadata-only correctness
 fix with no graph-write, queue, or hot-path behavior change.
 

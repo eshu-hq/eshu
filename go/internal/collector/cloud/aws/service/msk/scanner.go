@@ -23,15 +23,15 @@ type Scanner struct {
 
 // Scan observes MSK clusters, broker configurations, and replicators through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("msk scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMSK:
+	case "", aws.ServiceMSK:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMSK
+		boundary.ServiceKind = aws.ServiceMSK
 	default:
 		return nil, fmt.Errorf("msk scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -51,13 +51,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, observation := range clusterRelationships(boundary, cluster) {
-			relationship, err := awscloud.NewRelationshipEnvelope(observation)
+			relationship, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -65,20 +65,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, configuration := range configurations {
-		resource, err := awscloud.NewResourceEnvelope(configurationObservation(boundary, configuration))
+		resource, err := aws.NewResourceEnvelope(configurationObservation(boundary, configuration))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, replicator := range replicators {
-		resource, err := awscloud.NewResourceEnvelope(replicatorObservation(boundary, replicator))
+		resource, err := aws.NewResourceEnvelope(replicatorObservation(boundary, replicator))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, observation := range replicatorRelationships(boundary, replicator) {
-			relationship, err := awscloud.NewRelationshipEnvelope(observation)
+			relationship, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -88,7 +88,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	attributes := map[string]any{
 		"cluster_type":    strings.TrimSpace(cluster.Type),
@@ -115,11 +115,11 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		attributes["serverless_vpc_configs"] = serverlessVPCConfigMaps(cluster.Serverless.VPCConfigs)
 		attributes["client_authentication"] = clientAuthenticationMap(cluster.Serverless.ClientAuthentication)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                clusterARN,
 		ResourceID:         firstNonEmpty(clusterARN, cluster.Name),
-		ResourceType:       awscloud.ResourceTypeMSKCluster,
+		ResourceType:       aws.ResourceTypeMSKCluster,
 		Name:               strings.TrimSpace(cluster.Name),
 		State:              strings.TrimSpace(cluster.State),
 		Tags:               cloneStringMap(cluster.Tags),
@@ -129,13 +129,13 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 	}
 }
 
-func configurationObservation(boundary awscloud.Boundary, configuration Configuration) awscloud.ResourceObservation {
+func configurationObservation(boundary aws.Boundary, configuration Configuration) aws.ResourceObservation {
 	configurationARN := strings.TrimSpace(configuration.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   firstNonEmpty(configurationARN, configuration.Name),
-		ResourceType: awscloud.ResourceTypeMSKConfiguration,
+		ResourceType: aws.ResourceTypeMSKConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.State),
 		Attributes: map[string]any{
@@ -149,13 +149,13 @@ func configurationObservation(boundary awscloud.Boundary, configuration Configur
 	}
 }
 
-func replicatorObservation(boundary awscloud.Boundary, replicator Replicator) awscloud.ResourceObservation {
+func replicatorObservation(boundary aws.Boundary, replicator Replicator) aws.ResourceObservation {
 	replicatorARN := strings.TrimSpace(replicator.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          replicatorARN,
 		ResourceID:   firstNonEmpty(replicatorARN, replicator.Name),
-		ResourceType: awscloud.ResourceTypeMSKReplicator,
+		ResourceType: aws.ResourceTypeMSKReplicator,
 		Name:         strings.TrimSpace(replicator.Name),
 		State:        strings.TrimSpace(replicator.State),
 		Tags:         cloneStringMap(replicator.Tags),

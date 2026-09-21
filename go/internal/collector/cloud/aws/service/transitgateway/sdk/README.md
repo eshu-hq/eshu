@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/transitgateway/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/transitgateway/sdk` adapts AWS SDK for
 Go v2 EC2 read responses into the scanner-owned Transit Gateway records. It owns
 paginator wiring, API-call telemetry, and the narrow `apiClient` interface that
 the production AWS SDK Client satisfies.
@@ -44,7 +44,7 @@ Every `recordAPICall` wraps a single AWS call with:
 
 - `github.com/aws/aws-sdk-go-v2/service/ec2` — the AWS EC2 SDK serves the
   Transit Gateway APIs.
-- `internal/collector/awscloud/service/transitgateway` — the scanner-owned
+- `internal/collector/cloud/aws/service/transitgateway` — the scanner-owned
   record types this adapter maps into.
 
 ## Gotchas / invariants
@@ -64,5 +64,5 @@ Every `recordAPICall` wraps a single AWS call with:
 ## Related docs
 
 - `../README.md` — Transit Gateway scanner contract and VPC pairing.
-- `../../../awsruntime/README.md` — awsruntime registry and runtime surface.
+- `../../../runtime/README.md` — runtime registry and runtime surface.
 - `docs/public/guides/collector-authoring.md` — AWS scanner authoring.

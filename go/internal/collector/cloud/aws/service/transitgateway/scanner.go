@@ -25,15 +25,15 @@ type Scanner struct {
 }
 
 // Scan observes transit gateway metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("transit gateway scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceTransitGateway:
+	case "", aws.ServiceTransitGateway:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceTransitGateway
+		boundary.ServiceKind = aws.ServiceTransitGateway
 	default:
 		return nil, fmt.Errorf("transit gateway scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -45,7 +45,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list transit gateways: %w", err)
 	}
 	for _, gateway := range gateways {
-		resource, err := awscloud.NewResourceEnvelope(transitGatewayObservation(boundary, gateway))
+		resource, err := aws.NewResourceEnvelope(transitGatewayObservation(boundary, gateway))
 		if err != nil {
 			return nil, err
 		}
@@ -115,14 +115,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func routeTableEnvelopes(boundary awscloud.Boundary, rt RouteTable) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(routeTableObservation(boundary, rt))
+func routeTableEnvelopes(boundary aws.Boundary, rt RouteTable) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(routeTableObservation(boundary, rt))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range routeTableRelationships(boundary, rt) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -131,14 +131,14 @@ func routeTableEnvelopes(boundary awscloud.Boundary, rt RouteTable) ([]facts.Env
 	return envelopes, nil
 }
 
-func attachmentEnvelopes(boundary awscloud.Boundary, attachment Attachment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(attachmentObservation(boundary, attachment))
+func attachmentEnvelopes(boundary aws.Boundary, attachment Attachment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(attachmentObservation(boundary, attachment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range attachmentRelationships(boundary, attachment) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -147,14 +147,14 @@ func attachmentEnvelopes(boundary awscloud.Boundary, attachment Attachment) ([]f
 	return envelopes, nil
 }
 
-func peeringAttachmentEnvelopes(boundary awscloud.Boundary, peering PeeringAttachment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(peeringAttachmentObservation(boundary, peering))
+func peeringAttachmentEnvelopes(boundary aws.Boundary, peering PeeringAttachment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(peeringAttachmentObservation(boundary, peering))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range peeringAttachmentRelationships(boundary, peering) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -163,14 +163,14 @@ func peeringAttachmentEnvelopes(boundary awscloud.Boundary, peering PeeringAttac
 	return envelopes, nil
 }
 
-func multicastDomainEnvelopes(boundary awscloud.Boundary, domain MulticastDomain) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(multicastDomainObservation(boundary, domain))
+func multicastDomainEnvelopes(boundary aws.Boundary, domain MulticastDomain) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(multicastDomainObservation(boundary, domain))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range multicastDomainRelationships(boundary, domain) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -179,14 +179,14 @@ func multicastDomainEnvelopes(boundary awscloud.Boundary, domain MulticastDomain
 	return envelopes, nil
 }
 
-func policyTableEnvelopes(boundary awscloud.Boundary, policyTable PolicyTable) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(policyTableObservation(boundary, policyTable))
+func policyTableEnvelopes(boundary aws.Boundary, policyTable PolicyTable) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(policyTableObservation(boundary, policyTable))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range policyTableRelationships(boundary, policyTable) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslicensemanager "github.com/aws/aws-sdk-go-v2/service/licensemanager"
 	awslicensemanagertypes "github.com/aws/aws-sdk-go-v2/service/licensemanager/types"
 	"github.com/aws/smithy-go"
@@ -51,15 +51,15 @@ type apiClient interface {
 // entitlement token, and never calls a checkout or mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a License Manager SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -115,7 +115,7 @@ func (c *Client) listConfigurations(ctx context.Context) ([]licensemanagerservic
 			configurations = append(configurations, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return configurations, nil
 		}
 	}
@@ -125,30 +125,30 @@ func (c *Client) mapConfiguration(
 	ctx context.Context,
 	configuration awslicensemanagertypes.LicenseConfiguration,
 ) (licensemanagerservice.Configuration, error) {
-	arn := strings.TrimSpace(aws.ToString(configuration.LicenseConfigurationArn))
+	arn := strings.TrimSpace(awsv2.ToString(configuration.LicenseConfigurationArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return licensemanagerservice.Configuration{}, err
 	}
 	mapped := licensemanagerservice.Configuration{
 		ARN:                     arn,
-		ID:                      strings.TrimSpace(aws.ToString(configuration.LicenseConfigurationId)),
-		Name:                    strings.TrimSpace(aws.ToString(configuration.Name)),
-		Description:             strings.TrimSpace(aws.ToString(configuration.Description)),
-		Status:                  strings.TrimSpace(aws.ToString(configuration.Status)),
+		ID:                      strings.TrimSpace(awsv2.ToString(configuration.LicenseConfigurationId)),
+		Name:                    strings.TrimSpace(awsv2.ToString(configuration.Name)),
+		Description:             strings.TrimSpace(awsv2.ToString(configuration.Description)),
+		Status:                  strings.TrimSpace(awsv2.ToString(configuration.Status)),
 		LicenseCountingType:     strings.TrimSpace(string(configuration.LicenseCountingType)),
-		LicenseCountHardLimit:   aws.ToBool(configuration.LicenseCountHardLimit),
-		ConsumedLicenses:        aws.ToInt64(configuration.ConsumedLicenses),
+		LicenseCountHardLimit:   awsv2.ToBool(configuration.LicenseCountHardLimit),
+		ConsumedLicenses:        awsv2.ToInt64(configuration.ConsumedLicenses),
 		LicenseRuleCount:        len(configuration.LicenseRules),
 		ProductInformationCount: len(configuration.ProductInformationList),
-		OwnerAccountID:          strings.TrimSpace(aws.ToString(configuration.OwnerAccountId)),
+		OwnerAccountID:          strings.TrimSpace(awsv2.ToString(configuration.OwnerAccountId)),
 		Tags:                    tags,
 	}
 	if configuration.LicenseCount != nil {
-		mapped.LicenseCount = aws.ToInt64(configuration.LicenseCount)
+		mapped.LicenseCount = awsv2.ToInt64(configuration.LicenseCount)
 		mapped.LicenseCountConfigured = true
 	}
-	if expiry := aws.ToInt64(configuration.LicenseExpiry); expiry > 0 {
+	if expiry := awsv2.ToInt64(configuration.LicenseExpiry); expiry > 0 {
 		mapped.LicenseExpiry = unixSeconds(expiry)
 	}
 	return mapped, nil
@@ -171,7 +171,7 @@ func (c *Client) listAssociations(
 			page, err = c.client.ListAssociationsForLicenseConfiguration(
 				callCtx,
 				&awslicensemanager.ListAssociationsForLicenseConfigurationInput{
-					LicenseConfigurationArn: aws.String(configurationARN),
+					LicenseConfigurationArn: awsv2.String(configurationARN),
 					NextToken:               nextToken,
 				},
 			)
@@ -187,7 +187,7 @@ func (c *Client) listAssociations(
 			associations = append(associations, mapAssociation(association))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return associations, nil
 		}
 	}
@@ -197,10 +197,10 @@ func mapAssociation(
 	association awslicensemanagertypes.LicenseConfigurationAssociation,
 ) licensemanagerservice.Association {
 	return licensemanagerservice.Association{
-		ResourceARN:     strings.TrimSpace(aws.ToString(association.ResourceArn)),
+		ResourceARN:     strings.TrimSpace(awsv2.ToString(association.ResourceArn)),
 		ResourceType:    strings.TrimSpace(string(association.ResourceType)),
-		ResourceOwnerID: strings.TrimSpace(aws.ToString(association.ResourceOwnerId)),
-		AssociationTime: aws.ToTime(association.AssociationTime),
+		ResourceOwnerID: strings.TrimSpace(awsv2.ToString(association.ResourceOwnerId)),
+		AssociationTime: awsv2.ToTime(association.AssociationTime),
 	}
 }
 
@@ -213,7 +213,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awslicensemanager.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -225,11 +225,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := make(map[string]string, len(output.Tags))
 	for _, tag := range output.Tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -255,7 +255,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

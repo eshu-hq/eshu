@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/detective` owns the Amazon Detective
+`internal/collector/cloud/aws/service/detective` owns the Amazon Detective
 scanner contract for the AWS cloud collector. It converts behavior graph
 metadata and graph member-account metadata into `aws_resource` facts and emits
 relationship evidence for graph membership and the GuardDuty data source.
@@ -41,7 +41,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,9 +51,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Detective API call counts, throttles, and
+The `sdk` adapter records Detective API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -64,7 +64,7 @@ pagination spans.
   no tag mutation, no invitation or organization-admin mutation).
 - A member account's contact email (`MemberDetail.EmailAddress`) is personal
   data and is never read into the scanner-owned `MemberAccount` type; the
-  reflection gate in `awssdk/client_test.go` proves the type cannot carry it.
+  reflection gate in `sdk/client_test.go` proves the type cannot carry it.
 - The behavior graph ARN is both the graph node's ARN and its `resource_id`.
   Every outgoing edge is sourced on that same ARN, so the graph's edges join
   the graph node it publishes rather than dangling.
@@ -89,14 +89,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/detective/...` covers the
+`go test ./internal/collector/cloud/aws/service/detective/...` covers the
 bounded Detective metadata path: one paginated `ListGraphs` stream, one
 paginated `ListMembers` stream per graph, one `ListTagsForResource` point read
 per graph, no investigation/indicator reads, no mutations, and no graph writes
 in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/detective/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/detective/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers behavior graph and member-account metadata fact emission, the
 graph-to-member-account edge (targets `aws_organizations_account` by bare
 account id), the graph-to-GuardDuty-detector edge (targets

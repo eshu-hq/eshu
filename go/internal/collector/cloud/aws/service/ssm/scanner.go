@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes Parameter Store metadata and direct KMS dependency metadata
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ssm scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSSM:
+	case "", aws.ServiceSSM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSSM
+		boundary.ServiceKind = aws.ServiceSSM
 	default:
 		return nil, fmt.Errorf("ssm scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,14 +49,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func parameterEnvelopes(boundary awscloud.Boundary, parameter Parameter) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(parameterObservation(boundary, parameter))
+func parameterEnvelopes(boundary aws.Boundary, parameter Parameter) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(parameterObservation(boundary, parameter))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := kmsRelationship(boundary, parameter); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -65,15 +65,15 @@ func parameterEnvelopes(boundary awscloud.Boundary, parameter Parameter) ([]fact
 	return envelopes, nil
 }
 
-func parameterObservation(boundary awscloud.Boundary, parameter Parameter) awscloud.ResourceObservation {
+func parameterObservation(boundary aws.Boundary, parameter Parameter) aws.ResourceObservation {
 	parameterARN := strings.TrimSpace(parameter.ARN)
 	name := strings.TrimSpace(parameter.Name)
 	resourceID := parameterResourceID(parameter)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          parameterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSSMParameter,
+		ResourceType: aws.ResourceTypeSSMParameter,
 		Name:         name,
 		Tags:         cloneStringMap(parameter.Tags),
 		Attributes: map[string]any{

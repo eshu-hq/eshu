@@ -29,7 +29,7 @@ func TestSecurityGroupARNDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region, AccountID: "123456789012"}
+			boundary := aws.Boundary{Region: tc.region, AccountID: "123456789012"}
 			if got := securityGroupARN(boundary, tc.groupID); got != tc.want {
 				t.Fatalf("securityGroupARN(%q, %q) = %q, want %q", tc.region, tc.groupID, got, tc.want)
 			}

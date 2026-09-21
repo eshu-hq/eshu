@@ -20,15 +20,15 @@ type Scanner struct {
 }
 
 // Scan observes KMS keys, aliases, and grants through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("kms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKMS:
+	case "", aws.ServiceKMS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKMS
+		boundary.ServiceKind = aws.ServiceKMS
 	default:
 		return nil, fmt.Errorf("kms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,14 +48,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func keyEnvelopes(boundary awscloud.Boundary, key Key) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(keyObservation(boundary, key))
+func keyEnvelopes(boundary aws.Boundary, key Key) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(keyObservation(boundary, key))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range resourcePolicyPermissionObservations(boundary, key) {
-		permission, err := awscloud.NewResourcePolicyPermissionEnvelope(observation)
+		permission, err := aws.NewResourcePolicyPermissionEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func keyEnvelopes(boundary awscloud.Boundary, key Key) ([]facts.Envelope, error)
 			return nil, err
 		}
 		if granteeRel, ok := grantGranteeRelationship(boundary, key, grant); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(granteeRel)
+			envelope, err := aws.NewRelationshipEnvelope(granteeRel)
 			if err != nil {
 				return nil, err
 			}
@@ -93,14 +93,14 @@ func keyEnvelopes(boundary awscloud.Boundary, key Key) ([]facts.Envelope, error)
 
 func appendResourceAndRelationship(
 	envelopes []facts.Envelope,
-	resource awscloud.ResourceObservation,
-	relationship awscloud.RelationshipObservation,
+	resource aws.ResourceObservation,
+	relationship aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
-	resourceEnvelope, err := awscloud.NewResourceEnvelope(resource)
+	resourceEnvelope, err := aws.NewResourceEnvelope(resource)
 	if err != nil {
 		return nil, err
 	}
-	relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+	relationshipEnvelope, err := aws.NewRelationshipEnvelope(relationship)
 	if err != nil {
 		return nil, err
 	}
@@ -113,21 +113,21 @@ func appendResourceAndRelationship(
 // this package never sees the raw policy document. A key with no readable policy
 // carries no statements, so it emits no fact.
 func resourcePolicyPermissionObservations(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	key Key,
-) []awscloud.ResourcePolicyPermissionObservation {
+) []aws.ResourcePolicyPermissionObservation {
 	if len(key.ResourcePolicyStatements) == 0 {
 		return nil
 	}
 	keyARN := strings.TrimSpace(key.ARN)
 	keyID := strings.TrimSpace(key.ID)
 	resourceARN := firstNonEmpty(keyARN, keyID)
-	observations := make([]awscloud.ResourcePolicyPermissionObservation, 0, len(key.ResourcePolicyStatements))
+	observations := make([]aws.ResourcePolicyPermissionObservation, 0, len(key.ResourcePolicyStatements))
 	for _, statement := range key.ResourcePolicyStatements {
-		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
+		observations = append(observations, aws.ResourcePolicyPermissionObservation{
 			Boundary:            boundary,
 			ResourceARN:         resourceARN,
-			ResourceType:        awscloud.ResourceTypeKMSKey,
+			ResourceType:        aws.ResourceTypeKMSKey,
 			StatementSID:        statement.StatementSID,
 			Effect:              statement.Effect,
 			Actions:             statement.Actions,
@@ -147,7 +147,7 @@ func resourcePolicyPermissionObservations(
 	return observations
 }
 
-func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObservation {
+func keyObservation(boundary aws.Boundary, key Key) aws.ResourceObservation {
 	keyARN := strings.TrimSpace(key.ARN)
 	keyID := strings.TrimSpace(key.ID)
 	attributes := map[string]any{
@@ -176,11 +176,11 @@ func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObserv
 	if key.RotationStatusKnown {
 		attributes["rotation_enabled"] = key.RotationEnabled
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                keyARN,
 		ResourceID:         firstNonEmpty(keyID, keyARN),
-		ResourceType:       awscloud.ResourceTypeKMSKey,
+		ResourceType:       aws.ResourceTypeKMSKey,
 		Name:               firstNonEmpty(keyID, keyARN),
 		State:              strings.TrimSpace(key.KeyState),
 		Tags:               cloneStringMap(key.Tags),
@@ -190,14 +190,14 @@ func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObserv
 	}
 }
 
-func aliasObservation(boundary awscloud.Boundary, alias Alias) awscloud.ResourceObservation {
+func aliasObservation(boundary aws.Boundary, alias Alias) aws.ResourceObservation {
 	aliasARN := strings.TrimSpace(alias.ARN)
 	aliasName := strings.TrimSpace(alias.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          aliasARN,
 		ResourceID:   firstNonEmpty(aliasARN, aliasName),
-		ResourceType: awscloud.ResourceTypeKMSAlias,
+		ResourceType: aws.ResourceTypeKMSAlias,
 		Name:         aliasName,
 		Attributes: map[string]any{
 			"alias_name":    aliasName,
@@ -209,14 +209,14 @@ func aliasObservation(boundary awscloud.Boundary, alias Alias) awscloud.Resource
 	}
 }
 
-func grantObservation(boundary awscloud.Boundary, key Key, grant Grant) awscloud.ResourceObservation {
+func grantObservation(boundary aws.Boundary, key Key, grant Grant) aws.ResourceObservation {
 	grantID := strings.TrimSpace(grant.ID)
 	keyID := strings.TrimSpace(key.ID)
 	resourceID := grantResourceID(keyID, grantID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKMSGrant,
+		ResourceType: aws.ResourceTypeKMSGrant,
 		Name:         firstNonEmpty(strings.TrimSpace(grant.Name), grantID),
 		Attributes: map[string]any{
 			"grant_id":           grantID,
@@ -233,19 +233,19 @@ func grantObservation(boundary awscloud.Boundary, key Key, grant Grant) awscloud
 	}
 }
 
-func aliasRelationship(boundary awscloud.Boundary, key Key, alias Alias) awscloud.RelationshipObservation {
+func aliasRelationship(boundary aws.Boundary, key Key, alias Alias) aws.RelationshipObservation {
 	aliasARN := strings.TrimSpace(alias.ARN)
 	aliasName := strings.TrimSpace(alias.Name)
 	keyARN := strings.TrimSpace(key.ARN)
 	keyID := strings.TrimSpace(key.ID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSAliasTargetsKey,
+		RelationshipType: aws.RelationshipKMSAliasTargetsKey,
 		SourceResourceID: firstNonEmpty(aliasARN, aliasName),
 		SourceARN:        aliasARN,
 		TargetResourceID: firstNonEmpty(keyID, keyARN),
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"alias_name": aliasName,
 		},
@@ -253,18 +253,18 @@ func aliasRelationship(boundary awscloud.Boundary, key Key, alias Alias) awsclou
 	}
 }
 
-func grantOnKeyRelationship(boundary awscloud.Boundary, key Key, grant Grant) awscloud.RelationshipObservation {
+func grantOnKeyRelationship(boundary aws.Boundary, key Key, grant Grant) aws.RelationshipObservation {
 	grantID := strings.TrimSpace(grant.ID)
 	keyID := strings.TrimSpace(key.ID)
 	keyARN := strings.TrimSpace(key.ARN)
 	resourceID := grantResourceID(keyID, grantID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSGrantOnKey,
+		RelationshipType: aws.RelationshipKMSGrantOnKey,
 		SourceResourceID: resourceID,
 		TargetResourceID: firstNonEmpty(keyID, keyARN),
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"grant_id": grantID,
 		},
@@ -272,10 +272,10 @@ func grantOnKeyRelationship(boundary awscloud.Boundary, key Key, grant Grant) aw
 	}
 }
 
-func grantGranteeRelationship(boundary awscloud.Boundary, key Key, grant Grant) (awscloud.RelationshipObservation, bool) {
+func grantGranteeRelationship(boundary aws.Boundary, key Key, grant Grant) (aws.RelationshipObservation, bool) {
 	grantee := strings.TrimSpace(grant.GranteePrincipal)
 	if grantee == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	// A KMS grantee is either an IAM ARN or an AWS service principal (for
 	// example "s3.amazonaws.com"). Mirror the IAM scanner's principal scheme:
@@ -287,12 +287,12 @@ func grantGranteeRelationship(boundary awscloud.Boundary, key Key, grant Grant) 
 	keyID := strings.TrimSpace(key.ID)
 	resourceID := grantResourceID(keyID, grantID)
 	principalID := principalType + ":" + grantee
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSGrantForGrantee,
+		RelationshipType: aws.RelationshipKMSGrantForGrantee,
 		SourceResourceID: resourceID,
 		TargetResourceID: principalID,
-		TargetType:       awscloud.ResourceTypeIAMPrincipal,
+		TargetType:       aws.ResourceTypeIAMPrincipal,
 		Attributes: map[string]any{
 			"grant_id":           grantID,
 			"principal_type":     principalType,

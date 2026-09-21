@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskav2 "github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2"
 	awskav2types "github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2/types"
 	"github.com/aws/smithy-go"
@@ -58,15 +58,15 @@ type apiClient interface {
 // record payloads, and never mutates application state.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Managed Flink SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -91,7 +91,7 @@ func (c *Client) ListApplications(ctx context.Context) ([]kav2service.Applicatio
 	}
 	applications := make([]kav2service.Application, 0, len(summaries))
 	for _, summary := range summaries {
-		name := strings.TrimSpace(aws.ToString(summary.ApplicationName))
+		name := strings.TrimSpace(awsv2.ToString(summary.ApplicationName))
 		if name == "" {
 			continue
 		}
@@ -138,7 +138,7 @@ func (c *Client) listApplicationSummaries(ctx context.Context) ([]awskav2types.A
 		}
 		summaries = append(summaries, page.ApplicationSummaries...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -149,7 +149,7 @@ func (c *Client) describeApplication(ctx context.Context, name string) (*awskav2
 	err := c.recordAPICall(ctx, "DescribeApplication", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeApplication(callCtx, &awskav2.DescribeApplicationInput{
-			ApplicationName: aws.String(name),
+			ApplicationName: awsv2.String(name),
 		})
 		return err
 	})
@@ -170,7 +170,7 @@ func (c *Client) listSnapshots(ctx context.Context, name string) ([]kav2service.
 		err := c.recordAPICall(ctx, "ListApplicationSnapshots", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListApplicationSnapshots(callCtx, &awskav2.ListApplicationSnapshotsInput{
-				ApplicationName: aws.String(name),
+				ApplicationName: awsv2.String(name),
 				NextToken:       nextToken,
 			})
 			return err
@@ -182,18 +182,18 @@ func (c *Client) listSnapshots(ctx context.Context, name string) ([]kav2service.
 			return snapshots, nil
 		}
 		for _, summary := range page.SnapshotSummaries {
-			snapshotName := strings.TrimSpace(aws.ToString(summary.SnapshotName))
+			snapshotName := strings.TrimSpace(awsv2.ToString(summary.SnapshotName))
 			if snapshotName == "" {
 				continue
 			}
 			snapshots = append(snapshots, kav2service.Snapshot{
 				Name:                 snapshotName,
 				Status:               strings.TrimSpace(string(summary.SnapshotStatus)),
-				ApplicationVersionID: aws.ToInt64(summary.ApplicationVersionId),
+				ApplicationVersionID: awsv2.ToInt64(summary.ApplicationVersionId),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return snapshots, nil
 		}
 	}
@@ -208,7 +208,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awskav2.ListTagsForResourceInput{
-			ResourceARN: aws.String(resourceARN),
+			ResourceARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -220,11 +220,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := make(map[string]string, len(output.Tags))
 	for _, tag := range output.Tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -250,7 +250,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

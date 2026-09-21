@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/synthetics/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/synthetics/sdk` adapts AWS SDK for Go
 v2 CloudWatch Synthetics responses to the scanner-owned `Client` contract. It
 owns canary pagination, partition-aware canary ARN synthesis, throttle
 classification, and per-call AWS API telemetry.
@@ -30,9 +30,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels, and the partition helper used to synthesize the canary ARN.
-- `internal/collector/awscloud/service/synthetics` for scanner-owned result
+- `internal/collector/cloud/aws/service/synthetics` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `synthetics` and Smithy error contracts.
@@ -55,7 +55,7 @@ metric labels.
   separate tag read. It returns no canary `Arn` field, so the adapter
   synthesizes the partition-aware ARN
   (`arn:<partition>:synthetics:<region>:<account>:canary:<name>`) from the scan
-  boundary via `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  boundary via `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - The adapter reads metadata only. It must never call `GetCanaryRuns`,
   `DescribeCanariesLastRun`, `GetCanary` (which returns the canary code
   location), or any `CreateCanary`, `UpdateCanary`, `DeleteCanary`,

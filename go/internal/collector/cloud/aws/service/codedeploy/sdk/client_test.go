@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	cdtypes "github.com/aws/aws-sdk-go-v2/service/codedeploy/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -79,11 +79,11 @@ func testKey(t *testing.T) redact.Key {
 	return key
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodeDeploy,
+		ServiceKind: aws.ServiceCodeDeploy,
 	}
 }
 
@@ -92,10 +92,10 @@ func TestClientListApplicationsMapsMetadataAndTags(t *testing.T) {
 		applications: []string{"checkout"},
 		applicationInfo: map[string]cdtypes.ApplicationInfo{
 			"checkout": {
-				ApplicationName: aws.String("checkout"),
-				ApplicationId:   aws.String("app-123"),
+				ApplicationName: awsv2.String("checkout"),
+				ApplicationId:   awsv2.String("app-123"),
 				ComputePlatform: cdtypes.ComputePlatformServer,
-				CreateTime:      aws.Time(testTime),
+				CreateTime:      awsv2.Time(testTime),
 			},
 		},
 		tags: map[string]map[string]string{
@@ -124,10 +124,10 @@ func TestClientListDeploymentGroupsRedactsOnPremisesTagValues(t *testing.T) {
 		deploymentGroupsByApp: map[string][]string{"checkout": {"checkout-prod"}},
 		deploymentGroupInfo: map[string]cdtypes.DeploymentGroupInfo{
 			"checkout-prod": {
-				DeploymentGroupName: aws.String("checkout-prod"),
-				ApplicationName:     aws.String("checkout"),
+				DeploymentGroupName: awsv2.String("checkout-prod"),
+				ApplicationName:     awsv2.String("checkout"),
 				ComputePlatform:     cdtypes.ComputePlatformServer,
-				ServiceRoleArn:      aws.String("arn:aws:iam::123456789012:role/CodeDeployServiceRole"),
+				ServiceRoleArn:      awsv2.String("arn:aws:iam::123456789012:role/CodeDeployServiceRole"),
 				DeploymentStyle: &cdtypes.DeploymentStyle{
 					DeploymentType:   cdtypes.DeploymentTypeBlueGreen,
 					DeploymentOption: cdtypes.DeploymentOptionWithTrafficControl,
@@ -136,14 +136,14 @@ func TestClientListDeploymentGroupsRedactsOnPremisesTagValues(t *testing.T) {
 					Enabled: true,
 					Events:  []cdtypes.AutoRollbackEvent{cdtypes.AutoRollbackEventDeploymentFailure},
 				},
-				AutoScalingGroups: []cdtypes.AutoScalingGroup{{Name: aws.String("checkout-asg")}},
+				AutoScalingGroups: []cdtypes.AutoScalingGroup{{Name: awsv2.String("checkout-asg")}},
 				TriggerConfigurations: []cdtypes.TriggerConfig{{
-					TriggerName:      aws.String("prod-alerts"),
-					TriggerTargetArn: aws.String("arn:aws:sns:us-east-1:123456789012:codedeploy-alerts"),
+					TriggerName:      awsv2.String("prod-alerts"),
+					TriggerTargetArn: awsv2.String("arn:aws:sns:us-east-1:123456789012:codedeploy-alerts"),
 				}},
 				OnPremisesInstanceTagFilters: []cdtypes.TagFilter{{
-					Key:   aws.String("owner-email"),
-					Value: aws.String("john.doe@example.com"),
+					Key:   awsv2.String("owner-email"),
+					Value: awsv2.String("john.doe@example.com"),
 					Type:  cdtypes.TagFilterTypeKeyAndValue,
 				}},
 			},
@@ -189,8 +189,8 @@ func TestClientListDeploymentGroupsChunksBatchGetByAWSLimit(t *testing.T) {
 		name := fmt.Sprintf("group-%03d", i)
 		names = append(names, name)
 		info[name] = cdtypes.DeploymentGroupInfo{
-			DeploymentGroupName: aws.String(name),
-			ApplicationName:     aws.String("checkout"),
+			DeploymentGroupName: awsv2.String(name),
+			ApplicationName:     awsv2.String("checkout"),
 			ComputePlatform:     cdtypes.ComputePlatformServer,
 		}
 	}
@@ -214,27 +214,27 @@ func TestClientListRecentDeploymentsKeepsSafeRevisionRefsAndDropsAppSpec(t *test
 		deploymentIDs: []string{"d-ABCDE1234"},
 		deploymentInfo: map[string]cdtypes.DeploymentInfo{
 			"d-ABCDE1234": {
-				DeploymentId:        aws.String("d-ABCDE1234"),
-				ApplicationName:     aws.String("checkout"),
-				DeploymentGroupName: aws.String("checkout-prod"),
+				DeploymentId:        awsv2.String("d-ABCDE1234"),
+				ApplicationName:     awsv2.String("checkout"),
+				DeploymentGroupName: awsv2.String("checkout-prod"),
 				Status:              cdtypes.DeploymentStatusSucceeded,
 				ComputePlatform:     cdtypes.ComputePlatformServer,
 				Revision: &cdtypes.RevisionLocation{
 					RevisionType: cdtypes.RevisionLocationTypeS3,
 					S3Location: &cdtypes.S3Location{
-						Bucket:     aws.String("checkout-artifacts"),
-						Key:        aws.String("releases/checkout-1.2.3.zip"),
-						Version:    aws.String("v42"),
+						Bucket:     awsv2.String("checkout-artifacts"),
+						Key:        awsv2.String("releases/checkout-1.2.3.zip"),
+						Version:    awsv2.String("v42"),
 						BundleType: cdtypes.BundleTypeZip,
 					},
 					// AppSpecContent and String_ carry lifecycle-hook bodies and
 					// must never reach the scanner-owned RevisionSummary.
 					AppSpecContent: &cdtypes.AppSpecContent{
-						Content: aws.String("hooks:\n  BeforeInstall:\n    - location: scripts/rm-rf.sh"),
-						Sha256:  aws.String("abc123"),
+						Content: awsv2.String("hooks:\n  BeforeInstall:\n    - location: scripts/rm-rf.sh"),
+						Sha256:  awsv2.String("abc123"),
 					},
 					String_: &cdtypes.RawString{
-						Content: aws.String("version: 0.0\nhooks: {BeforeAllowTraffic: [{location: validate.sh}]}"),
+						Content: awsv2.String("version: 0.0\nhooks: {BeforeAllowTraffic: [{location: validate.sh}]}"),
 					},
 				},
 			},

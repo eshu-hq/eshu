@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsneptune "github.com/aws/aws-sdk-go-v2/service/neptune"
 	awsneptunegraph "github.com/aws/aws-sdk-go-v2/service/neptunegraph"
 	"github.com/aws/smithy-go"
@@ -99,7 +99,7 @@ type neptuneGraphAPI interface {
 type Client struct {
 	neptune     neptuneAPI
 	graph       neptuneGraphAPI
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -108,8 +108,8 @@ type Client struct {
 // constructs both the Neptune (provisioned) and Neptune Analytics SDK clients
 // from the shared config.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -133,7 +133,7 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]neptuneservice.DBCluster
 			var err error
 			page, err = c.neptune.DescribeDBClusters(callCtx, &awsneptune.DescribeDBClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -144,14 +144,14 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]neptuneservice.DBCluster
 			return clusters, nil
 		}
 		for _, raw := range page.DBClusters {
-			tags, err := c.listNeptuneTags(ctx, aws.ToString(raw.DBClusterArn))
+			tags, err := c.listNeptuneTags(ctx, awsv2.ToString(raw.DBClusterArn))
 			if err != nil {
 				return nil, err
 			}
 			clusters = append(clusters, mapDBCluster(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return clusters, nil
 		}
 	}
@@ -168,7 +168,7 @@ func (c *Client) ListClusterInstances(ctx context.Context) ([]neptuneservice.Clu
 			var err error
 			page, err = c.neptune.DescribeDBInstances(callCtx, &awsneptune.DescribeDBInstancesInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -179,14 +179,14 @@ func (c *Client) ListClusterInstances(ctx context.Context) ([]neptuneservice.Clu
 			return instances, nil
 		}
 		for _, raw := range page.DBInstances {
-			tags, err := c.listNeptuneTags(ctx, aws.ToString(raw.DBInstanceArn))
+			tags, err := c.listNeptuneTags(ctx, awsv2.ToString(raw.DBInstanceArn))
 			if err != nil {
 				return nil, err
 			}
 			instances = append(instances, mapClusterInstance(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return instances, nil
 		}
 	}
@@ -204,7 +204,7 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]neptuneservi
 			var err error
 			page, err = c.neptune.DescribeDBClusterParameterGroups(callCtx, &awsneptune.DescribeDBClusterParameterGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -215,14 +215,14 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]neptuneservi
 			return groups, nil
 		}
 		for _, raw := range page.DBClusterParameterGroups {
-			tags, err := c.listNeptuneTags(ctx, aws.ToString(raw.DBClusterParameterGroupArn))
+			tags, err := c.listNeptuneTags(ctx, awsv2.ToString(raw.DBClusterParameterGroupArn))
 			if err != nil {
 				return nil, err
 			}
 			groups = append(groups, mapClusterParameterGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -239,7 +239,7 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]neptuneservice.Clu
 			var err error
 			page, err = c.neptune.DescribeDBClusterSnapshots(callCtx, &awsneptune.DescribeDBClusterSnapshotsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -250,14 +250,14 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]neptuneservice.Clu
 			return snapshots, nil
 		}
 		for _, raw := range page.DBClusterSnapshots {
-			tags, err := c.listNeptuneTags(ctx, aws.ToString(raw.DBClusterSnapshotArn))
+			tags, err := c.listNeptuneTags(ctx, awsv2.ToString(raw.DBClusterSnapshotArn))
 			if err != nil {
 				return nil, err
 			}
 			snapshots = append(snapshots, mapClusterSnapshot(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return snapshots, nil
 		}
 	}
@@ -274,7 +274,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]neptuneservice.SubnetG
 			var err error
 			page, err = c.neptune.DescribeDBSubnetGroups(callCtx, &awsneptune.DescribeDBSubnetGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -285,14 +285,14 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]neptuneservice.SubnetG
 			return subnetGroups, nil
 		}
 		for _, raw := range page.DBSubnetGroups {
-			tags, err := c.listNeptuneTags(ctx, aws.ToString(raw.DBSubnetGroupArn))
+			tags, err := c.listNeptuneTags(ctx, awsv2.ToString(raw.DBSubnetGroupArn))
 			if err != nil {
 				return nil, err
 			}
 			subnetGroups = append(subnetGroups, mapSubnetGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return subnetGroups, nil
 		}
 	}
@@ -309,7 +309,7 @@ func (c *Client) ListGlobalClusters(ctx context.Context) ([]neptuneservice.Globa
 			var err error
 			page, err = c.neptune.DescribeGlobalClusters(callCtx, &awsneptune.DescribeGlobalClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -323,7 +323,7 @@ func (c *Client) ListGlobalClusters(ctx context.Context) ([]neptuneservice.Globa
 			globalClusters = append(globalClusters, mapGlobalCluster(raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return globalClusters, nil
 		}
 	}
@@ -338,7 +338,7 @@ func (c *Client) listNeptuneTags(ctx context.Context, resourceARN string) (map[s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.neptune.ListTagsForResource(callCtx, &awsneptune.ListTagsForResourceInput{
-			ResourceName: aws.String(resourceARN),
+			ResourceName: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -366,7 +366,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

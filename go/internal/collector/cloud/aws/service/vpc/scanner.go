@@ -25,15 +25,15 @@ type Scanner struct {
 }
 
 // Scan observes VPC topology metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("vpc scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVPC:
+	case "", aws.ServiceVPC:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVPC
+		boundary.ServiceKind = aws.ServiceVPC
 	default:
 		return nil, fmt.Errorf("vpc scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -129,7 +129,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list VPC DHCP options: %w", err)
 	}
 	for _, options := range dhcpOptions {
-		envelope, err := awscloud.NewResourceEnvelope(dhcpOptionsObservation(boundary, options))
+		envelope, err := aws.NewResourceEnvelope(dhcpOptionsObservation(boundary, options))
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +141,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list VPC customer gateways: %w", err)
 	}
 	for _, gateway := range customerGateways {
-		envelope, err := awscloud.NewResourceEnvelope(customerGatewayObservation(boundary, gateway))
+		envelope, err := aws.NewResourceEnvelope(customerGatewayObservation(boundary, gateway))
 		if err != nil {
 			return nil, err
 		}
@@ -175,14 +175,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func routeTableEnvelopes(boundary awscloud.Boundary, rt RouteTable) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(routeTableObservation(boundary, rt))
+func routeTableEnvelopes(boundary aws.Boundary, rt RouteTable) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(routeTableObservation(boundary, rt))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range routeTableRelationships(boundary, rt) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -191,14 +191,14 @@ func routeTableEnvelopes(boundary awscloud.Boundary, rt RouteTable) ([]facts.Env
 	return envelopes, nil
 }
 
-func internetGatewayEnvelopes(boundary awscloud.Boundary, gateway InternetGateway) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(internetGatewayObservation(boundary, gateway))
+func internetGatewayEnvelopes(boundary aws.Boundary, gateway InternetGateway) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(internetGatewayObservation(boundary, gateway))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range internetGatewayRelationships(boundary, gateway) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -207,14 +207,14 @@ func internetGatewayEnvelopes(boundary awscloud.Boundary, gateway InternetGatewa
 	return envelopes, nil
 }
 
-func natGatewayEnvelopes(boundary awscloud.Boundary, gateway NATGateway) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(natGatewayObservation(boundary, gateway))
+func natGatewayEnvelopes(boundary aws.Boundary, gateway NATGateway) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(natGatewayObservation(boundary, gateway))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range natGatewayRelationships(boundary, gateway) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -223,14 +223,14 @@ func natGatewayEnvelopes(boundary awscloud.Boundary, gateway NATGateway) ([]fact
 	return envelopes, nil
 }
 
-func networkACLEnvelopes(boundary awscloud.Boundary, networkACL NetworkACL) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(networkACLObservation(boundary, networkACL))
+func networkACLEnvelopes(boundary aws.Boundary, networkACL NetworkACL) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(networkACLObservation(boundary, networkACL))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range networkACLRelationships(boundary, networkACL) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -239,14 +239,14 @@ func networkACLEnvelopes(boundary awscloud.Boundary, networkACL NetworkACL) ([]f
 	return envelopes, nil
 }
 
-func vpcPeeringEnvelopes(boundary awscloud.Boundary, peering VPCPeeringConnection) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpcPeeringObservation(boundary, peering))
+func vpcPeeringEnvelopes(boundary aws.Boundary, peering VPCPeeringConnection) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpcPeeringObservation(boundary, peering))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpcPeeringRelationships(boundary, peering) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -255,14 +255,14 @@ func vpcPeeringEnvelopes(boundary awscloud.Boundary, peering VPCPeeringConnectio
 	return envelopes, nil
 }
 
-func vpcEndpointEnvelopes(boundary awscloud.Boundary, endpoint VPCEndpoint) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
+func vpcEndpointEnvelopes(boundary aws.Boundary, endpoint VPCEndpoint) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpcEndpointRelationships(boundary, endpoint) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -271,14 +271,14 @@ func vpcEndpointEnvelopes(boundary awscloud.Boundary, endpoint VPCEndpoint) ([]f
 	return envelopes, nil
 }
 
-func elasticIPEnvelopes(boundary awscloud.Boundary, elasticIP ElasticIP) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(elasticIPObservation(boundary, elasticIP))
+func elasticIPEnvelopes(boundary aws.Boundary, elasticIP ElasticIP) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(elasticIPObservation(boundary, elasticIP))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range elasticIPRelationships(boundary, elasticIP) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -287,14 +287,14 @@ func elasticIPEnvelopes(boundary awscloud.Boundary, elasticIP ElasticIP) ([]fact
 	return envelopes, nil
 }
 
-func vpnGatewayEnvelopes(boundary awscloud.Boundary, gateway VPNGateway) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpnGatewayObservation(boundary, gateway))
+func vpnGatewayEnvelopes(boundary aws.Boundary, gateway VPNGateway) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpnGatewayObservation(boundary, gateway))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpnGatewayRelationships(boundary, gateway) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -303,14 +303,14 @@ func vpnGatewayEnvelopes(boundary awscloud.Boundary, gateway VPNGateway) ([]fact
 	return envelopes, nil
 }
 
-func vpnConnectionEnvelopes(boundary awscloud.Boundary, connection VPNConnection) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpnConnectionObservation(boundary, connection))
+func vpnConnectionEnvelopes(boundary aws.Boundary, connection VPNConnection) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpnConnectionObservation(boundary, connection))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpnConnectionRelationships(boundary, connection) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}

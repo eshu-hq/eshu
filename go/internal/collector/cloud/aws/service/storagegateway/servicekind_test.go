@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "storagegateway".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceStorageGateway + "  "
+	boundary.ServiceKind = "  " + aws.ServiceStorageGateway + "  "
 	client := fakeClient{
 		gateways: []Gateway{{
 			ARN:  "arn:aws:storagegateway:us-east-1:123456789012:gateway/sgw-padded",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceStorageGateway; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceStorageGateway; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

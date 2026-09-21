@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes Verified Access instances, groups, endpoints, and trust
 // providers plus their direct subnet, security-group, and ACM-certificate
 // dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("verifiedaccess scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVerifiedAccess:
+	case "", aws.ServiceVerifiedAccess:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVerifiedAccess
+		boundary.ServiceKind = aws.ServiceVerifiedAccess
 	default:
 		return nil, fmt.Errorf("verifiedaccess scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, trustProvider := range snapshot.TrustProviders {
-		envelope, err := awscloud.NewResourceEnvelope(trustProviderObservation(boundary, trustProvider))
+		envelope, err := aws.NewResourceEnvelope(trustProviderObservation(boundary, trustProvider))
 		if err != nil {
 			return nil, err
 		}
@@ -79,9 +79,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -90,8 +90,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func instanceEnvelopes(boundary awscloud.Boundary, instance Instance) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
+func instanceEnvelopes(boundary aws.Boundary, instance Instance) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(instanceObservation(boundary, instance))
 	if err != nil {
 		return nil, err
 	}
@@ -103,14 +103,14 @@ func instanceEnvelopes(boundary awscloud.Boundary, instance Instance) ([]facts.E
 	return append(envelopes, next...), nil
 }
 
-func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(groupObservation(boundary, group))
+func groupEnvelopes(boundary aws.Boundary, group Group) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(groupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := groupInInstanceRelationship(boundary, group); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -119,13 +119,13 @@ func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, 
 	return envelopes, nil
 }
 
-func endpointEnvelopes(boundary awscloud.Boundary, endpoint Endpoint) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(endpointObservation(boundary, endpoint))
+func endpointEnvelopes(boundary aws.Boundary, endpoint Endpoint) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(endpointObservation(boundary, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if relationship := endpointInGroupRelationship(boundary, endpoint); relationship != nil {
 		relationships = append(relationships, *relationship)
 	}
@@ -141,10 +141,10 @@ func endpointEnvelopes(boundary awscloud.Boundary, endpoint Endpoint) ([]facts.E
 	return append(envelopes, next...), nil
 }
 
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	var envelopes []facts.Envelope
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -156,21 +156,21 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 // endpointResourceID returns the resource_id the endpoint node publishes: the
 // synthesized partition-aware endpoint ARN, falling back to the bare endpoint
 // id, so the endpoint's own edges are sourced on the same id the node publishes.
-func endpointResourceID(boundary awscloud.Boundary, endpoint Endpoint) string {
+func endpointResourceID(boundary aws.Boundary, endpoint Endpoint) string {
 	if arn := resourceARN(boundary, "verified-access-endpoint", endpoint.ID); arn != "" && hasIdentity(boundary) {
 		return arn
 	}
 	return strings.TrimSpace(endpoint.ID)
 }
 
-func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud.ResourceObservation {
+func instanceObservation(boundary aws.Boundary, instance Instance) aws.ResourceObservation {
 	resourceID := instanceResourceID(boundary, instance.ID)
 	bareID := strings.TrimSpace(instance.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedAccessInstance,
+		ResourceType: aws.ResourceTypeVerifiedAccessInstance,
 		Name:         bareID,
 		Tags:         cloneStringMap(instance.Tags),
 		Attributes: map[string]any{
@@ -187,14 +187,14 @@ func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud
 	}
 }
 
-func groupObservation(boundary awscloud.Boundary, group Group) awscloud.ResourceObservation {
+func groupObservation(boundary aws.Boundary, group Group) aws.ResourceObservation {
 	resourceID := groupResourceID(boundary, group)
 	bareID := strings.TrimSpace(group.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedAccessGroup,
+		ResourceType: aws.ResourceTypeVerifiedAccessGroup,
 		Name:         bareID,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -211,14 +211,14 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 	}
 }
 
-func endpointObservation(boundary awscloud.Boundary, endpoint Endpoint) awscloud.ResourceObservation {
+func endpointObservation(boundary aws.Boundary, endpoint Endpoint) aws.ResourceObservation {
 	resourceID := endpointResourceID(boundary, endpoint)
 	bareID := strings.TrimSpace(endpoint.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedAccessEndpoint,
+		ResourceType: aws.ResourceTypeVerifiedAccessEndpoint,
 		Name:         bareID,
 		State:        strings.TrimSpace(endpoint.Status),
 		Tags:         cloneStringMap(endpoint.Tags),
@@ -244,14 +244,14 @@ func endpointObservation(boundary awscloud.Boundary, endpoint Endpoint) awscloud
 	}
 }
 
-func trustProviderObservation(boundary awscloud.Boundary, trustProvider TrustProvider) awscloud.ResourceObservation {
+func trustProviderObservation(boundary aws.Boundary, trustProvider TrustProvider) aws.ResourceObservation {
 	resourceID := trustProviderResourceID(boundary, trustProvider.ID)
 	bareID := strings.TrimSpace(trustProvider.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedAccessTrustProvider,
+		ResourceType: aws.ResourceTypeVerifiedAccessTrustProvider,
 		Name:         bareID,
 		Tags:         cloneStringMap(trustProvider.Tags),
 		Attributes: map[string]any{

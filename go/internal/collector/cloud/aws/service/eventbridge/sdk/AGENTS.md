@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/eventbridge/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/eventbridge/sdk guidance
 
 ## Read First
 

@@ -18,36 +18,36 @@ func TestScannerEmitsResourcesAndRelationshipsMetadataOnly(t *testing.T) {
 
 	// One resource per in-scope SageMaker resource type.
 	for _, resourceType := range []string{
-		awscloud.ResourceTypeSageMakerNotebookInstance,
-		awscloud.ResourceTypeSageMakerModel,
-		awscloud.ResourceTypeSageMakerEndpoint,
-		awscloud.ResourceTypeSageMakerEndpointConfig,
-		awscloud.ResourceTypeSageMakerTrainingJob,
-		awscloud.ResourceTypeSageMakerProcessingJob,
-		awscloud.ResourceTypeSageMakerTransformJob,
-		awscloud.ResourceTypeSageMakerHyperParameterTuningJob,
-		awscloud.ResourceTypeSageMakerProject,
-		awscloud.ResourceTypeSageMakerPipeline,
-		awscloud.ResourceTypeSageMakerFeatureGroup,
-		awscloud.ResourceTypeSageMakerDomain,
-		awscloud.ResourceTypeSageMakerUserProfile,
-		awscloud.ResourceTypeSageMakerApp,
-		awscloud.ResourceTypeSageMakerInferenceComponent,
+		aws.ResourceTypeSageMakerNotebookInstance,
+		aws.ResourceTypeSageMakerModel,
+		aws.ResourceTypeSageMakerEndpoint,
+		aws.ResourceTypeSageMakerEndpointConfig,
+		aws.ResourceTypeSageMakerTrainingJob,
+		aws.ResourceTypeSageMakerProcessingJob,
+		aws.ResourceTypeSageMakerTransformJob,
+		aws.ResourceTypeSageMakerHyperParameterTuningJob,
+		aws.ResourceTypeSageMakerProject,
+		aws.ResourceTypeSageMakerPipeline,
+		aws.ResourceTypeSageMakerFeatureGroup,
+		aws.ResourceTypeSageMakerDomain,
+		aws.ResourceTypeSageMakerUserProfile,
+		aws.ResourceTypeSageMakerApp,
+		aws.ResourceTypeSageMakerInferenceComponent,
 	} {
 		resourceByType(t, envelopes, resourceType)
 	}
 
 	// All required relationships are emitted.
 	for _, relationshipType := range []string{
-		awscloud.RelationshipSageMakerModelUsesS3Artifact,
-		awscloud.RelationshipSageMakerModelUsesContainerImage,
-		awscloud.RelationshipSageMakerModelUsesIAMRole,
-		awscloud.RelationshipSageMakerEndpointUsesEndpointConfig,
-		awscloud.RelationshipSageMakerEndpointConfigUsesModel,
-		awscloud.RelationshipSageMakerTrainingJobUsesIAMRole,
-		awscloud.RelationshipSageMakerNotebookInstanceUsesSubnet,
-		awscloud.RelationshipSageMakerDomainUsesVPC,
-		awscloud.RelationshipSageMakerUserProfileInDomain,
+		aws.RelationshipSageMakerModelUsesS3Artifact,
+		aws.RelationshipSageMakerModelUsesContainerImage,
+		aws.RelationshipSageMakerModelUsesIAMRole,
+		aws.RelationshipSageMakerEndpointUsesEndpointConfig,
+		aws.RelationshipSageMakerEndpointConfigUsesModel,
+		aws.RelationshipSageMakerTrainingJobUsesIAMRole,
+		aws.RelationshipSageMakerNotebookInstanceUsesSubnet,
+		aws.RelationshipSageMakerDomainUsesVPC,
+		aws.RelationshipSageMakerUserProfileInDomain,
 	} {
 		assertRelationship(t, envelopes, relationshipType)
 	}
@@ -76,7 +76,7 @@ func TestScannerNeverPersistsSensitivePayloads(t *testing.T) {
 
 func TestScannerTrainingJobOmitsHyperParameterAttribute(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeSageMakerTrainingJob)
+	job := resourceByType(t, envelopes, aws.ResourceTypeSageMakerTrainingJob)
 	attributes := attributesOf(t, job)
 	for key := range attributes {
 		if strings.Contains(strings.ToLower(key), "hyperparameter") {
@@ -90,26 +90,26 @@ func TestScannerTrainingJobOmitsHyperParameterAttribute(t *testing.T) {
 
 func TestScannerModelRelationshipsTargetTypes(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
-	artifact := relationshipByType(t, envelopes, awscloud.RelationshipSageMakerModelUsesS3Artifact)
+	artifact := relationshipByType(t, envelopes, aws.RelationshipSageMakerModelUsesS3Artifact)
 	if got, want := artifact.Payload["target_resource_id"], "arn:aws:s3:::artifacts"; got != want {
 		t.Fatalf("model artifact target = %#v, want %q", got, want)
 	}
-	if got, want := artifact.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := artifact.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("model artifact target_type = %#v, want %q", got, want)
 	}
-	image := relationshipByType(t, envelopes, awscloud.RelationshipSageMakerModelUsesContainerImage)
+	image := relationshipByType(t, envelopes, aws.RelationshipSageMakerModelUsesContainerImage)
 	if got, want := image.Payload["target_resource_id"], "123456789012.dkr.ecr.us-east-1.amazonaws.com/infer:latest"; got != want {
 		t.Fatalf("model image target = %#v, want %q", got, want)
 	}
-	role := relationshipByType(t, envelopes, awscloud.RelationshipSageMakerModelUsesIAMRole)
-	if got, want := role.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	role := relationshipByType(t, envelopes, aws.RelationshipSageMakerModelUsesIAMRole)
+	if got, want := role.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("model role target_type = %#v, want %q", got, want)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 	if _, err := (Scanner{Client: richClient()}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
@@ -237,11 +237,11 @@ func richClient() *fakeClient {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSageMaker,
+		ServiceKind:         aws.ServiceSageMaker,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:sagemaker:1",
 		CollectorInstanceID: "aws-prod",

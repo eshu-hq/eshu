@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/directconnect/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/directconnect/sdk` adapts AWS SDK for
 Go v2 Direct Connect read responses into the scanner-owned Direct Connect
 records. It owns NextToken pagination wiring, API-call telemetry, and the narrow
 `apiClient` interface that the production AWS SDK Client satisfies.
@@ -49,7 +49,7 @@ Every `recordAPICall` wraps a single AWS call with:
 
 - `github.com/aws/aws-sdk-go-v2/service/directconnect` — the AWS Direct Connect
   SDK.
-- `internal/collector/awscloud/service/directconnect` — the scanner-owned
+- `internal/collector/cloud/aws/service/directconnect` — the scanner-owned
   record types this adapter maps into.
 
 ## Gotchas / invariants
@@ -70,5 +70,5 @@ Every `recordAPICall` wraps a single AWS call with:
 ## Related docs
 
 - `../README.md` — Direct Connect scanner contract and join keys.
-- `../../../awsruntime/README.md` — awsruntime registry and runtime surface.
+- `../../../runtime/README.md` — runtime registry and runtime surface.
 - `docs/public/guides/collector-authoring.md` — AWS scanner authoring.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53recoverycontrolconfig` owns the
+`internal/collector/cloud/aws/service/route53recoverycontrolconfig` owns the
 Amazon Route 53 Application Recovery Controller recovery-control configuration
 scanner contract for the AWS cloud collector. It converts cluster, control
 panel, routing control, and safety rule metadata into `aws_resource` facts and
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records recovery-control API call counts, throttles, and
+The `sdk` adapter records recovery-control API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -77,14 +77,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/route53recoverycontrolconfig/...`
+`go test ./internal/collector/cloud/aws/service/route53recoverycontrolconfig/...`
 covers the bounded recovery-control metadata path: one paginated ListClusters
 stream, one paginated ListControlPanels stream per cluster, one paginated
 ListRoutingControls and one paginated ListSafetyRules stream per control panel,
 one ListTagsForResource point read per resource, no routing control state reads,
 and no graph writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/route53recoverycontrolconfig/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/route53recoverycontrolconfig/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

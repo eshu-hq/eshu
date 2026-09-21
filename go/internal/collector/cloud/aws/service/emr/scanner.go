@@ -23,15 +23,15 @@ type Scanner struct {
 }
 
 // Scan observes EMR resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("emr scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEMR:
+	case "", aws.ServiceEMR:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEMR
+		boundary.ServiceKind = aws.ServiceEMR
 	default:
 		return nil, fmt.Errorf("emr scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -55,7 +55,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list EMR security configurations: %w", err)
 	}
 	for _, config := range configs {
-		resource, err := awscloud.NewResourceEnvelope(securityConfigurationObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(securityConfigurationObservation(boundary, config))
 		if err != nil {
 			return nil, err
 		}
@@ -89,21 +89,21 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+func clusterEnvelopes(boundary aws.Boundary, cluster Cluster) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	for _, group := range cluster.InstanceGroups {
-		groupResource, err := awscloud.NewResourceEnvelope(instanceGroupObservation(boundary, cluster, group))
+		groupResource, err := aws.NewResourceEnvelope(instanceGroupObservation(boundary, cluster, group))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, groupResource)
 		if relationship, ok := clusterInstanceGroupRelationship(boundary, cluster, group); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -112,13 +112,13 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	}
 
 	for _, fleet := range cluster.InstanceFleets {
-		fleetResource, err := awscloud.NewResourceEnvelope(instanceFleetObservation(boundary, cluster, fleet))
+		fleetResource, err := aws.NewResourceEnvelope(instanceFleetObservation(boundary, cluster, fleet))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, fleetResource)
 		if relationship, ok := clusterInstanceFleetRelationship(boundary, cluster, fleet); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -127,7 +127,7 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	}
 
 	for _, observation := range clusterRelationships(boundary, cluster) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -136,14 +136,14 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	clusterID := firstNonEmpty(clusterARN, cluster.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   clusterID,
-		ResourceType: awscloud.ResourceTypeEMRCluster,
+		ResourceType: aws.ResourceTypeEMRCluster,
 		Name:         strings.TrimSpace(cluster.Name),
 		State:        strings.TrimSpace(cluster.State),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -176,15 +176,15 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 }
 
 func instanceGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	group InstanceGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	groupID := scopedID(cluster, group.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   groupID,
-		ResourceType: awscloud.ResourceTypeEMRInstanceGroup,
+		ResourceType: aws.ResourceTypeEMRInstanceGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.State),
 		Attributes: map[string]any{
@@ -203,15 +203,15 @@ func instanceGroupObservation(
 }
 
 func instanceFleetObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	fleet InstanceFleet,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	fleetID := scopedID(cluster, fleet.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   fleetID,
-		ResourceType: awscloud.ResourceTypeEMRInstanceFleet,
+		ResourceType: aws.ResourceTypeEMRInstanceFleet,
 		Name:         strings.TrimSpace(fleet.Name),
 		State:        strings.TrimSpace(fleet.State),
 		Attributes: map[string]any{
@@ -231,14 +231,14 @@ func instanceFleetObservation(
 }
 
 func securityConfigurationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	config SecurityConfiguration,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	name := strings.TrimSpace(config.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeEMRSecurityConfiguration,
+		ResourceType: aws.ResourceTypeEMRSecurityConfiguration,
 		Name:         name,
 		Attributes: map[string]any{
 			"created_at": timeOrNil(config.CreatedAt),
@@ -249,16 +249,16 @@ func securityConfigurationObservation(
 }
 
 func serverlessApplicationEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application ServerlessApplication,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serverlessApplicationObservation(boundary, application))
+	resource, err := aws.NewResourceEnvelope(serverlessApplicationObservation(boundary, application))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range serverlessApplicationRelationships(boundary, application) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -268,16 +268,16 @@ func serverlessApplicationEnvelopes(
 }
 
 func serverlessApplicationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application ServerlessApplication,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	applicationARN := strings.TrimSpace(application.ARN)
 	applicationID := firstNonEmpty(applicationARN, application.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          applicationARN,
 		ResourceID:   applicationID,
-		ResourceType: awscloud.ResourceTypeEMRServerlessApplication,
+		ResourceType: aws.ResourceTypeEMRServerlessApplication,
 		Name:         strings.TrimSpace(application.Name),
 		State:        strings.TrimSpace(application.State),
 		Tags:         cloneStringMap(application.Tags),
@@ -298,21 +298,21 @@ func serverlessApplicationObservation(
 	}
 }
 
-func studioEnvelopes(boundary awscloud.Boundary, studio Studio) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(studioObservation(boundary, studio))
+func studioEnvelopes(boundary aws.Boundary, studio Studio) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(studioObservation(boundary, studio))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	for _, mapping := range studio.SessionMappings {
-		mappingResource, err := awscloud.NewResourceEnvelope(sessionMappingObservation(boundary, studio, mapping))
+		mappingResource, err := aws.NewResourceEnvelope(sessionMappingObservation(boundary, studio, mapping))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, mappingResource)
 		if relationship, ok := studioSessionMappingRelationship(boundary, studio, mapping); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -321,7 +321,7 @@ func studioEnvelopes(boundary awscloud.Boundary, studio Studio) ([]facts.Envelop
 	}
 
 	for _, observation := range studioRelationships(boundary, studio) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -330,14 +330,14 @@ func studioEnvelopes(boundary awscloud.Boundary, studio Studio) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func studioObservation(boundary awscloud.Boundary, studio Studio) awscloud.ResourceObservation {
+func studioObservation(boundary aws.Boundary, studio Studio) aws.ResourceObservation {
 	studioARN := strings.TrimSpace(studio.ARN)
 	studioID := firstNonEmpty(studioARN, studio.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          studioARN,
 		ResourceID:   studioID,
-		ResourceType: awscloud.ResourceTypeEMRStudio,
+		ResourceType: aws.ResourceTypeEMRStudio,
 		Name:         strings.TrimSpace(studio.Name),
 		Tags:         cloneStringMap(studio.Tags),
 		Attributes: map[string]any{
@@ -360,15 +360,15 @@ func studioObservation(boundary awscloud.Boundary, studio Studio) awscloud.Resou
 }
 
 func sessionMappingObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	studio Studio,
 	mapping StudioSessionMapping,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	mappingID := sessionMappingID(studio, mapping)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   mappingID,
-		ResourceType: awscloud.ResourceTypeEMRStudioSessionMapping,
+		ResourceType: aws.ResourceTypeEMRStudioSessionMapping,
 		Name:         strings.TrimSpace(mapping.IdentityName),
 		Attributes: map[string]any{
 			"studio_id":          strings.TrimSpace(studio.ID),

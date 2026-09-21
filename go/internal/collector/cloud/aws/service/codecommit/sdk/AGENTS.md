@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codecommit/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codecommit/sdk guidance
 
 ## Read First
 

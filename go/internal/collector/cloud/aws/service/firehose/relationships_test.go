@@ -68,7 +68,7 @@ func TestDeliveryStreamRelationshipsArePartitionFaithfulAcrossRegions(t *testing
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region, ServiceKind: awscloud.ServiceFirehose}
+			boundary := aws.Boundary{Region: tc.region, ServiceKind: aws.ServiceFirehose}
 			stream := DeliveryStream{
 				Name:                   "orders",
 				ARN:                    tc.streamARN,
@@ -90,12 +90,12 @@ func TestDeliveryStreamRelationshipsArePartitionFaithfulAcrossRegions(t *testing
 			relguard.AssertObservations(t, observations...)
 
 			want := map[string]string{
-				awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream:   tc.sourceARN,
-				awscloud.RelationshipFirehoseStreamUsesKMSKey:                 tc.kmsKeyARN,
-				awscloud.RelationshipFirehoseStreamUsesIAMRole:                tc.roleARN,
-				awscloud.RelationshipFirehoseStreamUsesLambdaTransform:        tc.lambdaARN,
-				awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain: tc.domainARN,
-				awscloud.RelationshipFirehoseStreamDeliversToS3Bucket:         tc.bucketARN,
+				aws.RelationshipFirehoseStreamSourcedFromKinesisStream:   tc.sourceARN,
+				aws.RelationshipFirehoseStreamUsesKMSKey:                 tc.kmsKeyARN,
+				aws.RelationshipFirehoseStreamUsesIAMRole:                tc.roleARN,
+				aws.RelationshipFirehoseStreamUsesLambdaTransform:        tc.lambdaARN,
+				aws.RelationshipFirehoseStreamDeliversToOpenSearchDomain: tc.domainARN,
+				aws.RelationshipFirehoseStreamDeliversToS3Bucket:         tc.bucketARN,
 			}
 			seen := make(map[string]string, len(observations))
 			for _, obs := range observations {
@@ -120,7 +120,7 @@ func TestDeliveryStreamRelationshipsArePartitionFaithfulAcrossRegions(t *testing
 // of the same stream collapses to one edge, so the graph does not carry
 // redundant parallel edges for one logical dependency.
 func TestDeliveryStreamRelationshipsCollapseDuplicateTargets(t *testing.T) {
-	boundary := awscloud.Boundary{Region: "us-east-1", ServiceKind: awscloud.ServiceFirehose}
+	boundary := aws.Boundary{Region: "us-east-1", ServiceKind: aws.ServiceFirehose}
 	roleARN := "arn:aws:iam::123456789012:role/firehose"
 	lambdaARN := "arn:aws:lambda:us-east-1:123456789012:function:t"
 	logGroupName := "/aws/kinesisfirehose/dup"
@@ -138,16 +138,16 @@ func TestDeliveryStreamRelationshipsCollapseDuplicateTargets(t *testing.T) {
 	for _, obs := range observations {
 		counts[obs.RelationshipType]++
 	}
-	if got := counts[awscloud.RelationshipFirehoseStreamUsesIAMRole]; got != 1 {
+	if got := counts[aws.RelationshipFirehoseStreamUsesIAMRole]; got != 1 {
 		t.Fatalf("role edge count = %d, want 1", got)
 	}
-	if got := counts[awscloud.RelationshipFirehoseStreamUsesLambdaTransform]; got != 1 {
+	if got := counts[aws.RelationshipFirehoseStreamUsesLambdaTransform]; got != 1 {
 		t.Fatalf("lambda edge count = %d, want 1", got)
 	}
-	if got := counts[awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup]; got != 1 {
+	if got := counts[aws.RelationshipFirehoseStreamLogsToCloudWatchLogGroup]; got != 1 {
 		t.Fatalf("log-group edge count = %d, want 1", got)
 	}
-	if got := counts[awscloud.RelationshipFirehoseStreamDeliversToS3Bucket]; got != 2 {
+	if got := counts[aws.RelationshipFirehoseStreamDeliversToS3Bucket]; got != 2 {
 		t.Fatalf("s3 edge count = %d, want 2 (distinct buckets stay distinct)", got)
 	}
 }

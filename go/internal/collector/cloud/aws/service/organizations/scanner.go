@@ -24,7 +24,7 @@ type Scanner struct {
 
 // Scan observes Organizations roots, OUs, accounts, policy summaries, policy
 // targets, and delegated administrators through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("organizations scanner client is required")
 	}
@@ -32,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("organizations scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOrganizations:
+	case "", aws.ServiceOrganizations:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOrganizations
+		boundary.ServiceKind = aws.ServiceOrganizations
 	default:
 		return nil, fmt.Errorf("organizations scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -50,20 +50,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, root := range snapshot.Roots {
-		resource, err := awscloud.NewResourceEnvelope(rootObservation(boundary, snapshot.Organization, root))
+		resource, err := aws.NewResourceEnvelope(rootObservation(boundary, snapshot.Organization, root))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, ou := range snapshot.OrganizationalUnits {
-		resource, err := awscloud.NewResourceEnvelope(ouObservation(boundary, ou))
+		resource, err := aws.NewResourceEnvelope(ouObservation(boundary, ou))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if rel, ok := ouParentRelationship(boundary, ou); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(rel)
+			envelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -71,13 +71,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, account := range snapshot.Accounts {
-		resource, err := awscloud.NewResourceEnvelope(s.accountObservation(boundary, account))
+		resource, err := aws.NewResourceEnvelope(s.accountObservation(boundary, account))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if rel, ok := accountParentRelationship(boundary, account); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(rel)
+			envelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -85,7 +85,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, policy := range snapshot.Policies {
-		resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
+		resource, err := aws.NewResourceEnvelope(policyObservation(boundary, policy))
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, admin := range snapshot.DelegatedAdministrators {
-		resource, err := awscloud.NewResourceEnvelope(s.delegatedAdminObservation(boundary, admin))
+		resource, err := aws.NewResourceEnvelope(s.delegatedAdminObservation(boundary, admin))
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +112,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !ok {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -123,12 +123,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func appendWarnings(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
-	warnings []awscloud.WarningObservation,
+	boundary aws.Boundary,
+	warnings []aws.WarningObservation,
 ) error {
 	for _, warning := range warnings {
 		warning.Boundary = boundary
-		envelope, err := awscloud.NewWarningEnvelope(warning)
+		envelope, err := aws.NewWarningEnvelope(warning)
 		if err != nil {
 			return err
 		}
@@ -138,10 +138,10 @@ func appendWarnings(
 }
 
 func rootObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	organization Organization,
 	root Root,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	rootID := strings.TrimSpace(root.ID)
 	attrs := map[string]any{
 		"organization_arn":        strings.TrimSpace(organization.ARN),
@@ -150,11 +150,11 @@ func rootObservation(
 		"organization_features":   strings.TrimSpace(organization.FeatureSet),
 		"enabled_policy_families": policyTypeMaps(root.PolicyTypes),
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                strings.TrimSpace(root.ARN),
 		ResourceID:         firstNonEmpty(rootID, root.ARN),
-		ResourceType:       awscloud.ResourceTypeOrganizationsRoot,
+		ResourceType:       aws.ResourceTypeOrganizationsRoot,
 		Name:               strings.TrimSpace(root.Name),
 		Tags:               cloneStringMap(root.Tags),
 		Attributes:         attrs,
@@ -163,13 +163,13 @@ func rootObservation(
 	}
 }
 
-func ouObservation(boundary awscloud.Boundary, ou OrganizationalUnit) awscloud.ResourceObservation {
+func ouObservation(boundary aws.Boundary, ou OrganizationalUnit) aws.ResourceObservation {
 	ouID := strings.TrimSpace(ou.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(ou.ARN),
 		ResourceID:   firstNonEmpty(ouID, ou.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+		ResourceType: aws.ResourceTypeOrganizationsOrganizationalUnit,
 		Name:         strings.TrimSpace(ou.Name),
 		Tags:         cloneStringMap(ou.Tags),
 		Attributes: map[string]any{
@@ -180,21 +180,21 @@ func ouObservation(boundary awscloud.Boundary, ou OrganizationalUnit) awscloud.R
 	}
 }
 
-func (s Scanner) accountObservation(boundary awscloud.Boundary, account Account) awscloud.ResourceObservation {
+func (s Scanner) accountObservation(boundary aws.Boundary, account Account) aws.ResourceObservation {
 	accountID := strings.TrimSpace(account.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(account.ARN),
 		ResourceID:   firstNonEmpty(accountID, account.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsAccount,
+		ResourceType: aws.ResourceTypeOrganizationsAccount,
 		State:        firstNonEmpty(account.State, account.Status),
 		Tags:         cloneStringMap(account.Tags),
 		Attributes: map[string]any{
 			"account_id":       accountID,
-			"email":            awscloud.RedactString(account.Email, "aws_organizations_account.email", s.RedactionKey),
+			"email":            aws.RedactString(account.Email, "aws_organizations_account.email", s.RedactionKey),
 			"joined_method":    strings.TrimSpace(account.JoinedVia),
 			"joined_timestamp": timeOrNil(account.JoinedAt),
-			"name":             awscloud.RedactString(account.Name, "aws_organizations_account.name", s.RedactionKey),
+			"name":             aws.RedactString(account.Name, "aws_organizations_account.name", s.RedactionKey),
 			"parent_id":        strings.TrimSpace(account.ParentID),
 		},
 		CorrelationAnchors: []string{accountID, account.ARN},
@@ -202,13 +202,13 @@ func (s Scanner) accountObservation(boundary awscloud.Boundary, account Account)
 	}
 }
 
-func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.ResourceObservation {
+func policyObservation(boundary aws.Boundary, policy Policy) aws.ResourceObservation {
 	policyID := strings.TrimSpace(policy.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(policy.ARN),
 		ResourceID:   firstNonEmpty(policyID, policy.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsPolicy,
+		ResourceType: aws.ResourceTypeOrganizationsPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		Tags:         cloneStringMap(policy.Tags),
 		Attributes: map[string]any{
@@ -224,20 +224,20 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 }
 
 func (s Scanner) delegatedAdminObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	admin DelegatedAdministrator,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	adminID := delegatedAdminID(admin)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   adminID,
-		ResourceType: awscloud.ResourceTypeOrganizationsDelegatedAdministrator,
+		ResourceType: aws.ResourceTypeOrganizationsDelegatedAdministrator,
 		Name:         strings.TrimSpace(admin.ServicePrincipal),
 		Attributes: map[string]any{
 			"account_arn":           strings.TrimSpace(admin.AccountARN),
-			"account_email":         awscloud.RedactString(admin.AccountEmail, "aws_organizations_delegated_administrator.email", s.RedactionKey),
+			"account_email":         aws.RedactString(admin.AccountEmail, "aws_organizations_delegated_administrator.email", s.RedactionKey),
 			"account_id":            strings.TrimSpace(admin.AccountID),
-			"account_name":          awscloud.RedactString(admin.AccountName, "aws_organizations_delegated_administrator.name", s.RedactionKey),
+			"account_name":          aws.RedactString(admin.AccountName, "aws_organizations_delegated_administrator.name", s.RedactionKey),
 			"delegation_enabled_at": timeOrNil(admin.DelegationEnabledAt),
 			"joined_method":         strings.TrimSpace(admin.JoinedVia),
 			"joined_timestamp":      timeOrNil(admin.JoinedAt),
@@ -251,21 +251,21 @@ func (s Scanner) delegatedAdminObservation(
 }
 
 func accountParentRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	account Account,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	accountID := strings.TrimSpace(account.ID)
 	parentID := strings.TrimSpace(account.ParentID)
 	if accountID == "" || parentID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	relationshipType := awscloud.RelationshipOrganizationsAccountInOU
-	targetType := awscloud.ResourceTypeOrganizationsOrganizationalUnit
+	relationshipType := aws.RelationshipOrganizationsAccountInOU
+	targetType := aws.ResourceTypeOrganizationsOrganizationalUnit
 	if strings.HasPrefix(parentID, "r-") {
-		relationshipType = awscloud.RelationshipOrganizationsAccountInRoot
-		targetType = awscloud.ResourceTypeOrganizationsRoot
+		relationshipType = aws.RelationshipOrganizationsAccountInRoot
+		targetType = aws.ResourceTypeOrganizationsRoot
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: accountID,
@@ -280,21 +280,21 @@ func accountParentRelationship(
 }
 
 func ouParentRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	ou OrganizationalUnit,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	ouID := strings.TrimSpace(ou.ID)
 	parentID := strings.TrimSpace(ou.ParentID)
 	if ouID == "" || !strings.HasPrefix(parentID, "ou-") {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsOUInOU,
+		RelationshipType: aws.RelationshipOrganizationsOUInOU,
 		SourceResourceID: ouID,
 		SourceARN:        strings.TrimSpace(ou.ARN),
 		TargetResourceID: parentID,
-		TargetType:       awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+		TargetType:       aws.ResourceTypeOrganizationsOrganizationalUnit,
 		Attributes: map[string]any{
 			"parent_id": parentID,
 		},
@@ -303,18 +303,18 @@ func ouParentRelationship(
 }
 
 func policyTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	policy Policy,
 	target PolicyTarget,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	policyID := strings.TrimSpace(policy.ID)
 	targetID := strings.TrimSpace(target.ID)
 	if policyID == "" || targetID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsPolicyTargetsResource,
+		RelationshipType: aws.RelationshipOrganizationsPolicyTargetsResource,
 		SourceResourceID: policyID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: targetID,
@@ -329,21 +329,21 @@ func policyTargetRelationship(
 }
 
 func delegatedAdminRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	admin DelegatedAdministrator,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	adminID := delegatedAdminID(admin)
 	accountID := strings.TrimSpace(admin.AccountID)
 	if adminID == "" || accountID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
+		RelationshipType: aws.RelationshipOrganizationsDelegatedAdminForAccount,
 		SourceResourceID: adminID,
 		TargetResourceID: accountID,
 		TargetARN:        strings.TrimSpace(admin.AccountARN),
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       aws.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"service_principal": strings.TrimSpace(admin.ServicePrincipal),
 		},
@@ -366,11 +366,11 @@ func delegatedAdminID(admin DelegatedAdministrator) string {
 func targetResourceType(targetType string) string {
 	switch strings.TrimSpace(targetType) {
 	case "ACCOUNT":
-		return awscloud.ResourceTypeOrganizationsAccount
+		return aws.ResourceTypeOrganizationsAccount
 	case "ORGANIZATIONAL_UNIT":
-		return awscloud.ResourceTypeOrganizationsOrganizationalUnit
+		return aws.ResourceTypeOrganizationsOrganizationalUnit
 	case "ROOT":
-		return awscloud.ResourceTypeOrganizationsRoot
+		return aws.ResourceTypeOrganizationsRoot
 	default:
 		return "aws_resource"
 	}

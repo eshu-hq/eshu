@@ -24,7 +24,7 @@ type Scanner struct {
 
 // Scan observes Security Hub configuration, standards, controls, member
 // accounts, action targets, insight summaries, and aggregate finding posture.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("securityhub scanner client is required")
 	}
@@ -32,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("securityhub scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSecurityHub:
+	case "", aws.ServiceSecurityHub:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSecurityHub
+		boundary.ServiceKind = aws.ServiceSecurityHub
 	default:
 		return nil, fmt.Errorf("securityhub scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,14 +47,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	controlResourceIDs := controlIDsByResourceID(snapshot.Standards)
 	var envelopes []facts.Envelope
 	for _, observation := range s.resourceObservations(boundary, snapshot) {
-		envelope, err := awscloud.NewResourceEnvelope(observation)
+		envelope, err := aws.NewResourceEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, observation := range relationshipObservations(boundary, snapshot, controlResourceIDs) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -64,10 +64,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func (s Scanner) resourceObservations(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot Snapshot,
-) []awscloud.ResourceObservation {
-	observations := []awscloud.ResourceObservation{hubObservation(boundary, snapshot.Hub)}
+) []aws.ResourceObservation {
+	observations := []aws.ResourceObservation{hubObservation(boundary, snapshot.Hub)}
 	for _, member := range snapshot.Members {
 		if strings.TrimSpace(member.AccountID) == "" {
 			continue
@@ -92,14 +92,14 @@ func (s Scanner) resourceObservations(
 	return observations
 }
 
-func hubObservation(boundary awscloud.Boundary, hub Hub) awscloud.ResourceObservation {
+func hubObservation(boundary aws.Boundary, hub Hub) aws.ResourceObservation {
 	hubARN := strings.TrimSpace(hub.ARN)
 	resourceID := firstNonEmpty(hubARN, "securityhub:"+boundary.AccountID+":"+boundary.Region+":hub")
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          hubARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubHub,
+		ResourceType: aws.ResourceTypeSecurityHubHub,
 		Name:         "default",
 		State:        "enabled",
 		Tags:         cloneStringMap(hub.Tags),
@@ -116,13 +116,13 @@ func hubObservation(boundary awscloud.Boundary, hub Hub) awscloud.ResourceObserv
 	}
 }
 
-func memberObservation(boundary awscloud.Boundary, member Member) awscloud.ResourceObservation {
+func memberObservation(boundary aws.Boundary, member Member) aws.ResourceObservation {
 	accountID := strings.TrimSpace(member.AccountID)
 	resourceID := "securityhub_member:" + accountID
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubMemberAccount,
+		ResourceType: aws.ResourceTypeSecurityHubMemberAccount,
 		Name:         accountID,
 		State:        strings.TrimSpace(member.Status),
 		Attributes: map[string]any{
@@ -135,13 +135,13 @@ func memberObservation(boundary awscloud.Boundary, member Member) awscloud.Resou
 	}
 }
 
-func standardObservation(boundary awscloud.Boundary, standard Standard) awscloud.ResourceObservation {
+func standardObservation(boundary aws.Boundary, standard Standard) aws.ResourceObservation {
 	resourceID := standardResourceID(standard)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(standard.SubscriptionARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubStandard,
+		ResourceType: aws.ResourceTypeSecurityHubStandard,
 		Name:         lastPathElement(firstNonEmpty(standard.ARN, standard.SubscriptionARN)),
 		State:        strings.TrimSpace(standard.Status),
 		Tags:         cloneStringMap(standard.Tags),
@@ -157,14 +157,14 @@ func standardObservation(boundary awscloud.Boundary, standard Standard) awscloud
 	}
 }
 
-func controlObservation(boundary awscloud.Boundary, standard Standard, control Control) awscloud.ResourceObservation {
+func controlObservation(boundary aws.Boundary, standard Standard, control Control) aws.ResourceObservation {
 	controlARN := strings.TrimSpace(control.ARN)
 	resourceID := controlResourceID(standard, control)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          controlARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubControl,
+		ResourceType: aws.ResourceTypeSecurityHubControl,
 		Name:         strings.TrimSpace(control.ID),
 		State:        strings.TrimSpace(control.ControlStatus),
 		Attributes: map[string]any{
@@ -182,17 +182,17 @@ func controlObservation(boundary awscloud.Boundary, standard Standard, control C
 }
 
 func (s Scanner) actionTargetObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	target ActionTarget,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	actionARN := strings.TrimSpace(target.ARN)
 	name := strings.TrimSpace(target.Name)
 	resourceID := firstNonEmpty(actionARN, "securityhub_action:"+name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          actionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubActionTarget,
+		ResourceType: aws.ResourceTypeSecurityHubActionTarget,
 		Name:         name,
 		Attributes: map[string]any{
 			"description": s.redactedDescription(target),
@@ -202,15 +202,15 @@ func (s Scanner) actionTargetObservation(
 	}
 }
 
-func insightObservation(boundary awscloud.Boundary, insight Insight) awscloud.ResourceObservation {
+func insightObservation(boundary aws.Boundary, insight Insight) aws.ResourceObservation {
 	insightARN := strings.TrimSpace(insight.ARN)
 	name := strings.TrimSpace(insight.Name)
 	resourceID := firstNonEmpty(insightARN, "securityhub_insight:"+name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          insightARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubInsight,
+		ResourceType: aws.ResourceTypeSecurityHubInsight,
 		Name:         name,
 		Attributes: map[string]any{
 			"group_by_attribute": strings.TrimSpace(insight.GroupByAttribute),
@@ -220,7 +220,7 @@ func insightObservation(boundary awscloud.Boundary, insight Insight) awscloud.Re
 	}
 }
 
-func findingCountObservation(boundary awscloud.Boundary, count FindingCount) awscloud.ResourceObservation {
+func findingCountObservation(boundary aws.Boundary, count FindingCount) aws.ResourceObservation {
 	resourceID := strings.Join([]string{
 		"securityhub_finding_aggregate",
 		strings.TrimSpace(count.StandardID),
@@ -229,10 +229,10 @@ func findingCountObservation(boundary awscloud.Boundary, count FindingCount) aws
 		strings.TrimSpace(count.SeverityLabel),
 		strings.TrimSpace(count.WorkflowStatus),
 	}, ":")
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityHubFindingAggregate,
+		ResourceType: aws.ResourceTypeSecurityHubFindingAggregate,
 		Name:         strings.TrimSpace(count.ControlID),
 		Attributes: map[string]any{
 			"compliance_status": strings.TrimSpace(count.ComplianceStatus),
@@ -248,24 +248,24 @@ func findingCountObservation(boundary awscloud.Boundary, count FindingCount) aws
 }
 
 func relationshipObservations(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot Snapshot,
 	controlResourceIDs map[string]string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	hubID := hubResourceID(boundary, snapshot.Hub)
 	for _, member := range snapshot.Members {
 		memberID := "securityhub_member:" + strings.TrimSpace(member.AccountID)
 		if memberID == "securityhub_member:" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipSecurityHubHubHasMember,
+			RelationshipType: aws.RelationshipSecurityHubHubHasMember,
 			SourceResourceID: hubID,
 			SourceARN:        strings.TrimSpace(snapshot.Hub.ARN),
 			TargetResourceID: memberID,
-			TargetType:       awscloud.ResourceTypeSecurityHubMemberAccount,
+			TargetType:       aws.ResourceTypeSecurityHubMemberAccount,
 			Attributes: map[string]any{
 				"administrator_id": strings.TrimSpace(member.AdministratorID),
 				"member_status":    strings.TrimSpace(member.Status),
@@ -280,14 +280,14 @@ func relationshipObservations(
 			if standardID == "" || controlID == "" {
 				continue
 			}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipSecurityHubStandardHasControl,
+				RelationshipType: aws.RelationshipSecurityHubStandardHasControl,
 				SourceResourceID: standardID,
 				SourceARN:        strings.TrimSpace(standard.SubscriptionARN),
 				TargetResourceID: controlID,
 				TargetARN:        strings.TrimSpace(control.ARN),
-				TargetType:       awscloud.ResourceTypeSecurityHubControl,
+				TargetType:       aws.ResourceTypeSecurityHubControl,
 				Attributes: map[string]any{
 					"control_id": strings.TrimSpace(control.ID),
 				},
@@ -306,13 +306,13 @@ func relationshipObservations(
 			if targetID == "" {
 				continue
 			}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipSecurityHubInsightGroupsControl,
+				RelationshipType: aws.RelationshipSecurityHubInsightGroupsControl,
 				SourceResourceID: insightID,
 				SourceARN:        strings.TrimSpace(insight.ARN),
 				TargetResourceID: targetID,
-				TargetType:       awscloud.ResourceTypeSecurityHubControl,
+				TargetType:       aws.ResourceTypeSecurityHubControl,
 				Attributes: map[string]any{
 					"group_by_attribute": strings.TrimSpace(insight.GroupByAttribute),
 				},
@@ -329,7 +329,7 @@ func (s Scanner) redactedDescription(target ActionTarget) map[string]any {
 		return nil
 	}
 	source := "securityhub.action_target.description." + strings.TrimSpace(target.Name)
-	return awscloud.RedactString(description, source, s.RedactionKey)
+	return aws.RedactString(description, source, s.RedactionKey)
 }
 
 func controlIDsByResourceID(standards []Standard) map[string]string {
@@ -346,7 +346,7 @@ func controlIDsByResourceID(standards []Standard) map[string]string {
 	return output
 }
 
-func hubResourceID(boundary awscloud.Boundary, hub Hub) string {
+func hubResourceID(boundary aws.Boundary, hub Hub) string {
 	return firstNonEmpty(hub.ARN, "securityhub:"+boundary.AccountID+":"+boundary.Region+":hub")
 }
 

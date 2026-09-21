@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codedeploy/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/codedeploy/sdk` adapts AWS SDK for Go
 v2 CodeDeploy responses to the scanner-owned `codedeploy.Client` contract. It
 owns CodeDeploy pagination, batch metadata resolution, tag reads, on-premises
 tag value redaction, throttle classification, and per-call AWS API telemetry.
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels and the shared `RedactString` redaction helper.
-- `internal/collector/awscloud/service/codedeploy` for scanner-owned result
+- `internal/collector/cloud/aws/service/codedeploy` for scanner-owned result
   types.
 - `internal/redact` for the redaction key applied to on-premises tag values.
 - `internal/telemetry` for AWS API call and throttle instruments.
@@ -66,7 +66,7 @@ labels.
   references. It must never copy `AppSpecContent.Content` or `String_.Content`
   because those carry appspec.yml lifecycle-hook bodies.
 - `mapOnPremisesTagFilters` routes every on-premises tag value through
-  `awscloud.RedactString`. EC2 tag filters are summarized as key/type only.
+  `aws.RedactString`. EC2 tag filters are summarized as key/type only.
 - Recent deployments are bounded to `recentDeploymentLimit` (25), the
   `BatchGetDeployments` cap, so the scan stays metadata-sized.
 - CodeDeploy list/batch APIs return no ARNs; the adapter derives the documented

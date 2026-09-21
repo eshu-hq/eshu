@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/timestream` owns the Amazon Timestream
+`internal/collector/cloud/aws/service/timestream` owns the Amazon Timestream
 for LiveAnalytics scanner contract for the AWS cloud collector. It converts
 Timestream database and table metadata into `aws_resource` facts and emits
 relationship evidence for table-in-database membership, the database KMS
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Timestream API call counts, throttles, and
+The `sdk` adapter records Timestream API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -69,7 +69,7 @@ pagination spans.
 - The table-to-S3 edge is emitted only when a magnetic-store rejected-data
   bucket is configured. Timestream reports a bucket NAME, so the scanner
   synthesizes the partition-aware bucket ARN (`arn:<partition>:s3:::<bucket>`)
-  via `awscloud.PartitionForBoundary` to match the S3 scanner's published
+  via `aws.PartitionForBoundary` to match the S3 scanner's published
   bucket node identity in GovCloud and China, not just commercial.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from database, table, or
@@ -78,14 +78,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/timestream/...` covers the
+`go test ./internal/collector/cloud/aws/service/timestream/...` covers the
 bounded Timestream metadata path: one paginated ListDatabases stream, one
 paginated ListTables stream per database, one ListTagsForResource point read
 per database and per table, no record reads, no queries, no WriteRecords, no
 mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Timestream database and table metadata fact emission, table-in-database,
 database-to-KMS-key, and table-to-S3 relationship emission with the target
 type and target resource id each downstream join needs, the no-records

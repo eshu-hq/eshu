@@ -59,7 +59,7 @@ func TestScannerEmitsControlTowerMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Landing zone resource node, keyed by its ARN.
-	lz := resourceByType(t, envelopes, awscloud.ResourceTypeControlTowerLandingZone)
+	lz := resourceByType(t, envelopes, aws.ResourceTypeControlTowerLandingZone)
 	if got, want := lz.Payload["resource_id"], testLandingZoneARN; got != want {
 		t.Fatalf("landing zone resource_id = %#v, want %q", got, want)
 	}
@@ -71,7 +71,7 @@ func TestScannerEmitsControlTowerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, lzAttrs, "drift_status", "IN_SYNC")
 
 	// Enabled control resource node, keyed by its ARN.
-	control := resourceByType(t, envelopes, awscloud.ResourceTypeControlTowerEnabledControl)
+	control := resourceByType(t, envelopes, aws.ResourceTypeControlTowerEnabledControl)
 	if got, want := control.Payload["resource_id"], testEnabledControlARN; got != want {
 		t.Fatalf("control resource_id = %#v, want %q", got, want)
 	}
@@ -80,7 +80,7 @@ func TestScannerEmitsControlTowerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, controlAttrs, "target_identifier", testOUARN)
 
 	// Enabled baseline resource node, keyed by its ARN.
-	baseline := resourceByType(t, envelopes, awscloud.ResourceTypeControlTowerEnabledBaseline)
+	baseline := resourceByType(t, envelopes, aws.ResourceTypeControlTowerEnabledBaseline)
 	if got, want := baseline.Payload["resource_id"], testEnabledBaseARN; got != want {
 		t.Fatalf("baseline resource_id = %#v, want %q", got, want)
 	}
@@ -90,8 +90,8 @@ func TestScannerEmitsControlTowerMetadataAndRelationships(t *testing.T) {
 
 	// control -> Organizations OU edge, keyed by the bare ou-… id the
 	// organizations scanner publishes, NOT the ARN.
-	controlEdge := relationshipByType(t, envelopes, awscloud.RelationshipControlTowerControlGovernsTarget)
-	assertEdgeTarget(t, controlEdge, awscloud.ResourceTypeOrganizationsOrganizationalUnit, testOUBareID)
+	controlEdge := relationshipByType(t, envelopes, aws.RelationshipControlTowerControlGovernsTarget)
+	assertEdgeTarget(t, controlEdge, aws.ResourceTypeOrganizationsOrganizationalUnit, testOUBareID)
 	if got, want := controlEdge.Payload["source_resource_id"], testEnabledControlARN; got != want {
 		t.Fatalf("control->ou source_resource_id = %#v, want %q", got, want)
 	}
@@ -104,15 +104,15 @@ func TestScannerEmitsControlTowerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, controlEdgeAttrs, "target_arn", testOUARN)
 
 	// baseline -> Organizations OU edge, keyed by the bare ou-… id.
-	baselineEdge := relationshipByType(t, envelopes, awscloud.RelationshipControlTowerBaselineGovernsTarget)
-	assertEdgeTarget(t, baselineEdge, awscloud.ResourceTypeOrganizationsOrganizationalUnit, testOUBareID)
+	baselineEdge := relationshipByType(t, envelopes, aws.RelationshipControlTowerBaselineGovernsTarget)
+	assertEdgeTarget(t, baselineEdge, aws.ResourceTypeOrganizationsOrganizationalUnit, testOUBareID)
 	if got, want := baselineEdge.Payload["source_resource_id"], testEnabledBaseARN; got != want {
 		t.Fatalf("baseline->ou source_resource_id = %#v, want %q", got, want)
 	}
 
 	// baseline -> landing zone internal edge, keyed by the landing-zone ARN.
-	lzEdge := relationshipByType(t, envelopes, awscloud.RelationshipControlTowerBaselineForLandingZone)
-	assertEdgeTarget(t, lzEdge, awscloud.ResourceTypeControlTowerLandingZone, testLandingZoneARN)
+	lzEdge := relationshipByType(t, envelopes, aws.RelationshipControlTowerBaselineForLandingZone)
+	assertEdgeTarget(t, lzEdge, aws.ResourceTypeControlTowerLandingZone, testLandingZoneARN)
 	if got, want := lzEdge.Payload["source_resource_id"], testEnabledBaseARN; got != want {
 		t.Fatalf("baseline->landing-zone source_resource_id = %#v, want %q", got, want)
 	}
@@ -138,19 +138,19 @@ func TestScannerResolvesAccountAndRootTargets(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] != awscloud.RelationshipControlTowerBaselineGovernsTarget {
+		if envelope.Payload["relationship_type"] != aws.RelationshipControlTowerBaselineGovernsTarget {
 			continue
 		}
 		switch envelope.Payload["target_resource_id"] {
 		case testAccountBareID:
 			sawAccount = true
-			if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeOrganizationsAccount {
-				t.Fatalf("account target_type = %#v, want %q", got, awscloud.ResourceTypeOrganizationsAccount)
+			if got := envelope.Payload["target_type"]; got != aws.ResourceTypeOrganizationsAccount {
+				t.Fatalf("account target_type = %#v, want %q", got, aws.ResourceTypeOrganizationsAccount)
 			}
 		case testRootBareID:
 			sawRoot = true
-			if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeOrganizationsRoot {
-				t.Fatalf("root target_type = %#v, want %q", got, awscloud.ResourceTypeOrganizationsRoot)
+			if got := envelope.Payload["target_type"]; got != aws.ResourceTypeOrganizationsRoot {
+				t.Fatalf("root target_type = %#v, want %q", got, aws.ResourceTypeOrganizationsRoot)
 			}
 		}
 	}
@@ -185,7 +185,7 @@ func TestScannerResolvesGovCloudAndChinaTargets(t *testing.T) {
 		if target, ok := envelope.Payload["target_resource_id"].(string); ok {
 			if _, want := wantTargets[target]; want {
 				wantTargets[target] = true
-				if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeOrganizationsOrganizationalUnit {
+				if got := envelope.Payload["target_type"]; got != aws.ResourceTypeOrganizationsOrganizationalUnit {
 					t.Fatalf("target %q type = %#v, want OU", target, got)
 				}
 			}
@@ -213,7 +213,7 @@ func TestScannerSkipsEdgeForUnresolvableTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if _, ok := findResource(envelopes, awscloud.ResourceTypeControlTowerEnabledControl); !ok {
+	if _, ok := findResource(envelopes, aws.ResourceTypeControlTowerEnabledControl); !ok {
 		t.Fatalf("control resource node missing; only the edge should be skipped")
 	}
 	for _, envelope := range envelopes {
@@ -240,7 +240,7 @@ func TestScannerOmitsLandingZoneEdgeWhenNoLandingZone(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipControlTowerBaselineForLandingZone {
+		if envelope.Payload["relationship_type"] == aws.RelationshipControlTowerBaselineForLandingZone {
 			t.Fatalf("baseline->landing-zone edge emitted with no landing zone present")
 		}
 	}
@@ -260,8 +260,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
 	control := EnabledControl{ARN: testEnabledControlARN, ControlIdentifier: testControlID, TargetIdentifier: testOUARN}
 	baseline := EnabledBaseline{ARN: testEnabledBaseARN, BaselineIdentifier: testBaselineID, TargetIdentifier: testAccountARN}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		controlGovernsTargetRelationship(boundary, control),
 		baselineGovernsTargetRelationship(boundary, baseline),
 		baselineForLandingZoneRelationship(boundary, baseline, testLandingZoneARN),
@@ -276,7 +276,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -286,8 +286,8 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
-		Warnings: []awscloud.WarningObservation{{
-			WarningKind:    awscloud.WarningThrottleSustained,
+		Warnings: []aws.WarningObservation{{
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Control Tower ListEnabledControls throttled after SDK retries; enabled-control metadata omitted for this scan",
 			SourceRecordID: "controltower_enabled_controls_throttled",
@@ -298,7 +298,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -322,11 +322,11 @@ func assertNoGovernancePayload(t *testing.T, envelopes []facts.Envelope) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceControlTower,
+		ServiceKind:         aws.ServiceControlTower,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:controltower:1",
 		CollectorInstanceID: "aws-prod",

@@ -16,13 +16,13 @@ import (
 // only when AWS reports a non-empty, well-shaped target identifier that matches
 // how the target scanner publishes its resource_id, otherwise the edge is
 // skipped rather than dangled.
-func workspaceRelationships(boundary awscloud.Boundary, workspace Workspace) []awscloud.RelationshipObservation {
+func workspaceRelationships(boundary aws.Boundary, workspace Workspace) []aws.RelationshipObservation {
 	sourceID := workspaceResourceID(workspace)
 	if sourceID == "" {
 		return nil
 	}
 	sourceARN := strings.TrimSpace(workspace.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := workspaceIAMRoleRelationship(boundary, workspace, sourceID, sourceARN); ok {
 		observations = append(observations, rel)
@@ -38,24 +38,24 @@ func workspaceRelationships(boundary awscloud.Boundary, workspace Workspace) []a
 // the IAM scanner publishes its role resource_id, so the edge joins exactly. It
 // returns false when no role ARN is reported.
 func workspaceIAMRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspace Workspace,
 	sourceID string,
 	sourceARN string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(workspace.WorkspaceRoleARN)
 	if !isARN(roleARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGrafanaWorkspaceUsesIAMRole,
+		RelationshipType: aws.RelationshipGrafanaWorkspaceUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipGrafanaWorkspaceUsesIAMRole + ":" + roleARN,
 	}, true
 }
 
@@ -65,22 +65,22 @@ func workspaceIAMRoleRelationship(
 // id list is de-duplicated so a repeated subnet id does not create duplicate
 // edges.
 func workspaceSubnetRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspace Workspace,
 	sourceID string,
 	sourceARN string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	subnetIDs := dedupeStrings(workspace.SubnetIDs)
-	observations := make([]awscloud.RelationshipObservation, 0, len(subnetIDs))
+	observations := make([]aws.RelationshipObservation, 0, len(subnetIDs))
 	for _, subnetID := range subnetIDs {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGrafanaWorkspaceInSubnet,
+			RelationshipType: aws.RelationshipGrafanaWorkspaceInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceInSubnet + ":" + subnetID,
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipGrafanaWorkspaceInSubnet + ":" + subnetID,
 		})
 	}
 	return observations
@@ -92,22 +92,22 @@ func workspaceSubnetRelationships(
 // the bare id directly. The id list is de-duplicated so a repeated group id does
 // not create duplicate edges.
 func workspaceSecurityGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspace Workspace,
 	sourceID string,
 	sourceARN string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	groupIDs := dedupeStrings(workspace.SecurityGroupIDs)
-	observations := make([]awscloud.RelationshipObservation, 0, len(groupIDs))
+	observations := make([]aws.RelationshipObservation, 0, len(groupIDs))
 	for _, groupID := range groupIDs {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup,
+			RelationshipType: aws.RelationshipGrafanaWorkspaceUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup + ":" + groupID,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipGrafanaWorkspaceUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return observations

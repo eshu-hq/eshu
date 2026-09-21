@@ -1,4 +1,4 @@
-# AGENTS.md - services/transitgateway/awssdk guidance
+# AGENTS.md - services/transitgateway/sdk guidance
 
 ## Read First
 
@@ -7,7 +7,7 @@
 3. `mapper.go` - SDK type to scanner-owned record conversion.
 4. `client_test.go` - the forbidden-method reflection test and mapper tests.
 5. `../README.md` - Transit Gateway scanner contract and VPC pairing.
-6. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+6. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awselb "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	awselbtypes "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing/types"
 	"github.com/aws/smithy-go"
@@ -37,15 +37,15 @@ type apiClient interface {
 // Client adapts AWS SDK Classic ELB pagination into scanner-owned ELB records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Classic ELB SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -78,7 +78,7 @@ func (c *Client) ListLoadBalancers(ctx context.Context) ([]elbservice.LoadBalanc
 		}
 		for _, description := range page.LoadBalancerDescriptions {
 			raw = append(raw, description)
-			names = append(names, aws.ToString(description.LoadBalancerName))
+			names = append(names, awsv2.ToString(description.LoadBalancerName))
 		}
 	}
 	tagSets, err := c.describeTags(ctx, names)
@@ -87,7 +87,7 @@ func (c *Client) ListLoadBalancers(ctx context.Context) ([]elbservice.LoadBalanc
 	}
 	loadBalancers := make([]elbservice.LoadBalancer, 0, len(raw))
 	for _, description := range raw {
-		loadBalancers = append(loadBalancers, mapLoadBalancer(description, tagSets[aws.ToString(description.LoadBalancerName)]))
+		loadBalancers = append(loadBalancers, mapLoadBalancer(description, tagSets[awsv2.ToString(description.LoadBalancerName)]))
 	}
 	return loadBalancers, nil
 }
@@ -109,7 +109,7 @@ func (c *Client) describeTags(ctx context.Context, names []string) (map[string]m
 			return nil, err
 		}
 		for _, description := range page.TagDescriptions {
-			output[aws.ToString(description.LoadBalancerName)] = mapTags(description.Tags)
+			output[awsv2.ToString(description.LoadBalancerName)] = mapTags(description.Tags)
 		}
 	}
 	return output, nil
@@ -135,7 +135,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

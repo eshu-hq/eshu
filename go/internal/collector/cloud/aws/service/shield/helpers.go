@@ -10,7 +10,7 @@ import (
 )
 
 // protectedTarget is the classified join target for a protection's protected
-// resource ARN. TargetType names a declared awscloud.ResourceType* constant,
+// resource ARN. TargetType names a declared aws.ResourceType* constant,
 // TargetResourceID is the join key that matches how the target scanner
 // publishes its resource_id, and ARNKeyed reports whether that key is the ARN
 // itself (so the relationship may also carry target_arn) or a bare id (so it
@@ -56,19 +56,19 @@ func classifyProtectedARN(arn string) (protectedTarget, bool) {
 	switch {
 	case strings.Contains(trimmed, ":elasticloadbalancing:"):
 		return protectedTarget{
-			TargetType:       awscloud.ResourceTypeELBv2LoadBalancer,
+			TargetType:       aws.ResourceTypeELBv2LoadBalancer,
 			TargetResourceID: trimmed,
 			ARNKeyed:         true,
 		}, true
 	case strings.Contains(trimmed, ":cloudfront:"):
 		return protectedTarget{
-			TargetType:       awscloud.ResourceTypeCloudFrontDistribution,
+			TargetType:       aws.ResourceTypeCloudFrontDistribution,
 			TargetResourceID: trimmed,
 			ARNKeyed:         true,
 		}, true
 	case strings.Contains(trimmed, ":globalaccelerator:"):
 		return protectedTarget{
-			TargetType:       awscloud.ResourceTypeGlobalAcceleratorAccelerator,
+			TargetType:       aws.ResourceTypeGlobalAcceleratorAccelerator,
 			TargetResourceID: trimmed,
 			ARNKeyed:         true,
 		}, true
@@ -78,7 +78,7 @@ func classifyProtectedARN(arn string) (protectedTarget, bool) {
 			return protectedTarget{}, false
 		}
 		return protectedTarget{
-			TargetType:       awscloud.ResourceTypeVPCElasticIP,
+			TargetType:       aws.ResourceTypeVPCElasticIP,
 			TargetResourceID: allocationID,
 			ARNKeyed:         false,
 		}, true
@@ -88,7 +88,7 @@ func classifyProtectedARN(arn string) (protectedTarget, bool) {
 			return protectedTarget{}, false
 		}
 		return protectedTarget{
-			TargetType: awscloud.ResourceTypeRoute53HostedZone,
+			TargetType: aws.ResourceTypeRoute53HostedZone,
 			// The route53 scanner publishes the hosted zone resource_id with the
 			// "/hostedzone/" prefix (it does not strip the API-reported ID), so
 			// the edge must carry the same prefixed form to join the node.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cleanrooms` owns the AWS Clean Rooms
+`internal/collector/cloud/aws/service/cleanrooms` owns the AWS Clean Rooms
 scanner contract for the AWS cloud collector. It converts Clean Rooms
 collaboration, configured-table, and membership metadata into `aws_resource`
 facts and emits relationship evidence for a configured table's backing AWS Glue
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Clean Rooms API call counts, throttles, and
+The `sdk` adapter records Clean Rooms API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -77,7 +77,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/cleanrooms/...` covers the
+`go test ./internal/collector/cloud/aws/service/cleanrooms/...` covers the
 bounded Clean Rooms metadata path: one paginated ListCollaborations stream, one
 paginated ListConfiguredTables stream with one GetConfiguredTable detail read
 per configured table (needed only to resolve the Glue backing-table reference),
@@ -85,7 +85,7 @@ one paginated ListMemberships stream, one ListTagsForResource point read per
 resource, no protected-query runs, no result reads, no mutations, and no graph
 writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/cleanrooms/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/cleanrooms/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

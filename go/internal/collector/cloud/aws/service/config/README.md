@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/config` owns the AWS Config scanner
+`internal/collector/cloud/aws/service/config` owns the AWS Config scanner
 contract for the AWS cloud collector. It converts configuration recorders,
 delivery channels, config rules, conformance packs, configuration aggregators,
 and retention configurations into reported AWS facts and relationship evidence.
@@ -48,7 +48,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -57,9 +57,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Config API call counts, throttles, and pagination
+The `sdk` adapter records Config API call counts, throttles, and pagination
 spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="config"}` with the existing
 bounded AWS collector labels.
@@ -92,7 +92,7 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/config/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/config/...`
 covers the bounded AWS Config metadata path: two single-shot describes
 (recorders, delivery channels), four paginated describes (rules, conformance
 packs, aggregators, retention), and one paginated per-pack compliance describe
@@ -102,7 +102,7 @@ source-account set. The scanner issues no per-resource configuration-history or
 compliance-detail read, so handler cost scales with Config object cardinality,
 not with the number of recorded resources in the account.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Config resource and relationship fact emission, omission of recorded
 configuration item bodies, partition derivation for cross-partition account
 edges, custom-rule-to-Lambda edge gating, runtime registration, command

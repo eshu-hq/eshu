@@ -15,4 +15,4 @@
 // function code bodies, or API key values. Callers must handle AWS
 // authorization, throttling, and partial service failures as normal scanner
 // errors.
-package awssdk
+package sdk

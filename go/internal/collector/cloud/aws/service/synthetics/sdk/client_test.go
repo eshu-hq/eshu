@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssynthetics "github.com/aws/aws-sdk-go-v2/service/synthetics"
 	awssyntheticstypes "github.com/aws/aws-sdk-go-v2/service/synthetics/types"
 
@@ -21,37 +21,37 @@ func TestClientSnapshotsCanaryMetadataOnly(t *testing.T) {
 	api := &fakeSyntheticsAPI{pages: []*awssynthetics.DescribeCanariesOutput{
 		{
 			Canaries: []awssyntheticstypes.Canary{{
-				Id:                 aws.String("abcd-1234"),
-				Name:               aws.String("checkout-probe"),
-				RuntimeVersion:     aws.String("syn-nodejs-puppeteer-7.0"),
-				ExecutionRoleArn:   aws.String(roleARN),
-				ArtifactS3Location: aws.String("checkout-artifacts/canary"),
+				Id:                 awsv2.String("abcd-1234"),
+				Name:               awsv2.String("checkout-probe"),
+				RuntimeVersion:     awsv2.String("syn-nodejs-puppeteer-7.0"),
+				ExecutionRoleArn:   awsv2.String(roleARN),
+				ArtifactS3Location: awsv2.String("checkout-artifacts/canary"),
 				Status: &awssyntheticstypes.CanaryStatus{
 					State: awssyntheticstypes.CanaryStateRunning,
 				},
 				Schedule: &awssyntheticstypes.CanaryScheduleOutput{
-					Expression:        aws.String("rate(5 minutes)"),
-					DurationInSeconds: aws.Int64(0),
+					Expression:        awsv2.String("rate(5 minutes)"),
+					DurationInSeconds: awsv2.Int64(0),
 				},
 				RunConfig: &awssyntheticstypes.CanaryRunConfigOutput{
-					TimeoutInSeconds: aws.Int32(60),
-					MemoryInMB:       aws.Int32(1024),
-					ActiveTracing:    aws.Bool(true),
+					TimeoutInSeconds: awsv2.Int32(60),
+					MemoryInMB:       awsv2.Int32(1024),
+					ActiveTracing:    awsv2.Bool(true),
 				},
 				ArtifactConfig: &awssyntheticstypes.ArtifactConfigOutput{
 					S3Encryption: &awssyntheticstypes.S3EncryptionConfig{
 						EncryptionMode: awssyntheticstypes.EncryptionModeSseKms,
-						KmsKeyArn:      aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+						KmsKeyArn:      awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 					},
 				},
 				VpcConfig: &awssyntheticstypes.VpcConfigOutput{
-					VpcId:            aws.String("vpc-0a1b2c3d"),
+					VpcId:            awsv2.String("vpc-0a1b2c3d"),
 					SubnetIds:        []string{"subnet-1111", "subnet-2222"},
 					SecurityGroupIds: []string{"sg-9999"},
 				},
 				Timeline: &awssyntheticstypes.CanaryTimeline{
-					Created:      aws.Time(createdAt),
-					LastModified: aws.Time(createdAt),
+					Created:      awsv2.Time(createdAt),
+					LastModified: awsv2.Time(createdAt),
 				},
 				Tags: map[string]string{"Environment": "prod"},
 			}},
@@ -98,13 +98,13 @@ func TestClientSnapshotsCanaryMetadataOnly(t *testing.T) {
 }
 
 func TestClientCanaryARNPartitionAware(t *testing.T) {
-	client := &Client{boundary: awscloud.Boundary{AccountID: "123456789012", Region: "cn-north-1"}}
+	client := &Client{boundary: aws.Boundary{AccountID: "123456789012", Region: "cn-north-1"}}
 	got := client.canaryARN("cn-probe")
 	want := "arn:aws-cn:synthetics:cn-north-1:123456789012:canary:cn-probe"
 	if got != want {
 		t.Fatalf("canaryARN(China) = %q, want %q", got, want)
 	}
-	if got := (&Client{boundary: awscloud.Boundary{Region: "us-east-1"}}).canaryARN(""); got != "" {
+	if got := (&Client{boundary: aws.Boundary{Region: "us-east-1"}}).canaryARN(""); got != "" {
 		t.Fatalf("canaryARN(empty name) = %q, want empty", got)
 	}
 }
@@ -112,11 +112,11 @@ func TestClientCanaryARNPartitionAware(t *testing.T) {
 func TestClientPaginatesCanaries(t *testing.T) {
 	api := &fakeSyntheticsAPI{pages: []*awssynthetics.DescribeCanariesOutput{
 		{
-			Canaries:  []awssyntheticstypes.Canary{{Name: aws.String("one")}},
-			NextToken: aws.String("more"),
+			Canaries:  []awssyntheticstypes.Canary{{Name: awsv2.String("one")}},
+			NextToken: awsv2.String("more"),
 		},
 		{
-			Canaries: []awssyntheticstypes.Canary{{Name: aws.String("two")}},
+			Canaries: []awssyntheticstypes.Canary{{Name: awsv2.String("two")}},
 		},
 	}}
 	client := &Client{client: api, boundary: testBoundary()}
@@ -150,10 +150,10 @@ func (f *fakeSyntheticsAPI) DescribeCanaries(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSynthetics,
+		ServiceKind: aws.ServiceSynthetics,
 	}
 }

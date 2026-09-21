@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appstream/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/appstream/sdk` adapts AWS SDK for Go
 v2 AppStream 2.0 responses to the scanner-owned `Client` contract. It owns fleet,
 stack, image builder, and image pagination, per-fleet fleet-to-stack association
 reads, resource-tag reads, throttle classification, and per-call AWS API
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/appstream` for scanner-owned result
+- `internal/collector/cloud/aws/service/appstream` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `appstream` and Smithy error contracts.

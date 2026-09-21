@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsr53r "github.com/aws/aws-sdk-go-v2/service/route53resolver"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -55,7 +55,7 @@ type apiClient interface {
 // records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -63,8 +63,8 @@ type Client struct {
 // NewClient builds a Route 53 Resolver SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -93,12 +93,12 @@ func (c *Client) ListResolverEndpoints(ctx context.Context) ([]r53rservice.Resol
 			return nil, err
 		}
 		for _, endpoint := range page.ResolverEndpoints {
-			id := aws.ToString(endpoint.Id)
+			id := awsv2.ToString(endpoint.Id)
 			subnetIDs, err := c.listEndpointSubnets(ctx, id)
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(endpoint.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(endpoint.Arn))
 			if err != nil {
 				return nil, err
 			}
@@ -114,7 +114,7 @@ func (c *Client) listEndpointSubnets(ctx context.Context, endpointID string) ([]
 	}
 	paginator := awsr53r.NewListResolverEndpointIpAddressesPaginator(
 		c.client,
-		&awsr53r.ListResolverEndpointIpAddressesInput{ResolverEndpointId: aws.String(endpointID)},
+		&awsr53r.ListResolverEndpointIpAddressesInput{ResolverEndpointId: awsv2.String(endpointID)},
 	)
 	var subnetIDs []string
 	for paginator.HasMorePages() {
@@ -128,7 +128,7 @@ func (c *Client) listEndpointSubnets(ctx context.Context, endpointID string) ([]
 			return nil, err
 		}
 		for _, address := range page.IpAddresses {
-			if subnetID := strings.TrimSpace(aws.ToString(address.SubnetId)); subnetID != "" {
+			if subnetID := strings.TrimSpace(awsv2.ToString(address.SubnetId)); subnetID != "" {
 				subnetIDs = append(subnetIDs, subnetID)
 			}
 		}
@@ -151,7 +151,7 @@ func (c *Client) ListResolverRules(ctx context.Context) ([]r53rservice.ResolverR
 			return nil, err
 		}
 		for _, rule := range page.ResolverRules {
-			tags, err := c.listTags(ctx, aws.ToString(rule.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(rule.Arn))
 			if err != nil {
 				return nil, err
 			}
@@ -201,11 +201,11 @@ func (c *Client) ListFirewallRuleGroups(ctx context.Context) ([]r53rservice.Fire
 			return nil, err
 		}
 		for _, metadata := range page.FirewallRuleGroups {
-			group, err := c.firewallRuleGroup(ctx, aws.ToString(metadata.Id))
+			group, err := c.firewallRuleGroup(ctx, awsv2.ToString(metadata.Id))
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(metadata.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(metadata.Arn))
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +221,7 @@ func (c *Client) firewallRuleGroup(ctx context.Context, id string) (r53rservice.
 	err := c.recordAPICall(ctx, "GetFirewallRuleGroup", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetFirewallRuleGroup(callCtx, &awsr53r.GetFirewallRuleGroupInput{
-			FirewallRuleGroupId: aws.String(id),
+			FirewallRuleGroupId: awsv2.String(id),
 		})
 		return err
 	})
@@ -250,11 +250,11 @@ func (c *Client) ListFirewallDomainLists(ctx context.Context) ([]r53rservice.Fir
 			return nil, err
 		}
 		for _, metadata := range page.FirewallDomainLists {
-			list, err := c.firewallDomainList(ctx, aws.ToString(metadata.Id))
+			list, err := c.firewallDomainList(ctx, awsv2.ToString(metadata.Id))
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(metadata.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(metadata.Arn))
 			if err != nil {
 				return nil, err
 			}
@@ -270,7 +270,7 @@ func (c *Client) firewallDomainList(ctx context.Context, id string) (r53rservice
 	err := c.recordAPICall(ctx, "GetFirewallDomainList", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetFirewallDomainList(callCtx, &awsr53r.GetFirewallDomainListInput{
-			FirewallDomainListId: aws.String(id),
+			FirewallDomainListId: awsv2.String(id),
 		})
 		return err
 	})
@@ -329,7 +329,7 @@ func (c *Client) ListQueryLogConfigs(ctx context.Context) ([]r53rservice.QueryLo
 			return nil, err
 		}
 		for _, config := range page.ResolverQueryLogConfigs {
-			tags, err := c.listTags(ctx, aws.ToString(config.Arn))
+			tags, err := c.listTags(ctx, awsv2.ToString(config.Arn))
 			if err != nil {
 				return nil, err
 			}
@@ -345,7 +345,7 @@ func (c *Client) listTags(ctx context.Context, arn string) (map[string]string, e
 	}
 	paginator := awsr53r.NewListTagsForResourcePaginator(
 		c.client,
-		&awsr53r.ListTagsForResourceInput{ResourceArn: aws.String(arn)},
+		&awsr53r.ListTagsForResourceInput{ResourceArn: awsv2.String(arn)},
 	)
 	tags := map[string]string{}
 	for paginator.HasMorePages() {
@@ -386,7 +386,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -14,7 +14,7 @@ import (
 // publishes. It prefers the API-reported ARN (Network Manager always returns
 // one) and synthesizes the partition-aware ARN from the boundary account when a
 // fixture omits it, so child parent edges key the same value the node publishes.
-func globalNetworkResourceID(boundary awscloud.Boundary, network GlobalNetwork) string {
+func globalNetworkResourceID(boundary aws.Boundary, network GlobalNetwork) string {
 	if arn := strings.TrimSpace(network.ARN); arn != "" {
 		return arn
 	}
@@ -25,7 +25,7 @@ func globalNetworkResourceID(boundary awscloud.Boundary, network GlobalNetwork) 
 // matching the region-less Network Manager ARN shape AWS publishes
 // (arn:<partition>:networkmanager::<account>:global-network/<id>). It returns ""
 // when the id is empty.
-func globalNetworkARN(boundary awscloud.Boundary, globalNetworkID string) string {
+func globalNetworkARN(boundary aws.Boundary, globalNetworkID string) string {
 	id := strings.TrimSpace(globalNetworkID)
 	if id == "" {
 		return ""
@@ -37,7 +37,7 @@ func globalNetworkARN(boundary awscloud.Boundary, globalNetworkID string) string
 // network, matching the Network Manager ARN shape
 // (arn:<partition>:networkmanager::<account>:site/<global-network-id>/<site-id>).
 // It returns "" when either id is empty.
-func siteARN(boundary awscloud.Boundary, globalNetworkID, siteID string) string {
+func siteARN(boundary aws.Boundary, globalNetworkID, siteID string) string {
 	gnID := strings.TrimSpace(globalNetworkID)
 	id := strings.TrimSpace(siteID)
 	if gnID == "" || id == "" {
@@ -49,7 +49,7 @@ func siteARN(boundary awscloud.Boundary, globalNetworkID, siteID string) string 
 // deviceARN synthesizes the partition-aware ARN for a device id within a global
 // network, matching the Network Manager ARN shape. It returns "" when either id
 // is empty.
-func deviceARN(boundary awscloud.Boundary, globalNetworkID, deviceID string) string {
+func deviceARN(boundary aws.Boundary, globalNetworkID, deviceID string) string {
 	gnID := strings.TrimSpace(globalNetworkID)
 	id := strings.TrimSpace(deviceID)
 	if gnID == "" || id == "" {
@@ -61,7 +61,7 @@ func deviceARN(boundary awscloud.Boundary, globalNetworkID, deviceID string) str
 // linkARN synthesizes the partition-aware ARN for a link id within a global
 // network, matching the Network Manager ARN shape. It returns "" when either id
 // is empty.
-func linkARN(boundary awscloud.Boundary, globalNetworkID, linkID string) string {
+func linkARN(boundary aws.Boundary, globalNetworkID, linkID string) string {
 	gnID := strings.TrimSpace(globalNetworkID)
 	id := strings.TrimSpace(linkID)
 	if gnID == "" || id == "" {
@@ -76,12 +76,12 @@ func linkARN(boundary awscloud.Boundary, globalNetworkID, linkID string) string 
 // GovCloud and China edges resolve instead of dangling. It returns "" when the
 // account id is missing, since a parent edge keyed to an account-less ARN would
 // never join the real node.
-func networkManagerARN(boundary awscloud.Boundary, resourcePath string) string {
+func networkManagerARN(boundary aws.Boundary, resourcePath string) string {
 	account := strings.TrimSpace(boundary.AccountID)
 	if account == "" {
 		return ""
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
+	partition := aws.PartitionForBoundary(boundary)
 	return "arn:" + partition + ":networkmanager::" + account + ":" + resourcePath
 }
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/quotas/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/quotas/sdk` adapts AWS SDK for
 Go v2 Service Quotas responses to the scanner-owned `Client` contract. It owns
 service-list pagination, per-service applied-quota pagination, per-service
 default-quota pagination, the applied-vs-default join by quota code, throttle
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/quotas` for scanner-owned result
+- `internal/collector/cloud/aws/service/quotas` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `servicequotas` and Smithy error contracts.

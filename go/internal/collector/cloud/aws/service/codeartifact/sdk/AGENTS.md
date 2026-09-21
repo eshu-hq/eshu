@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codeartifact/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codeartifact/sdk guidance
 
 ## Read First
 

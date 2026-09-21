@@ -13,4 +13,4 @@
 // intentionally excludes every Create/Update/Delete mutation, every
 // Register/Deregister and Associate/Disassociate call, route-analysis starts,
 // and tag writes, so it cannot mutate Network Manager state.
-package awssdk
+package sdk

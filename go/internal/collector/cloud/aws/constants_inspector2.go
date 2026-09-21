@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 const (
 	// ServiceInspector2 identifies the regional Amazon Inspector v2 metadata

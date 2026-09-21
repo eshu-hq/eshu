@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsguardduty "github.com/aws/aws-sdk-go-v2/service/guardduty"
 	gdtypes "github.com/aws/aws-sdk-go-v2/service/guardduty/types"
 
@@ -30,17 +30,17 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 			detectorID: {
 				Status:                     gdtypes.DetectorStatusEnabled,
 				FindingPublishingFrequency: gdtypes.FindingPublishingFrequencyFifteenMinutes,
-				CreatedAt:                  aws.String("2026-05-27T12:00:00Z"),
-				UpdatedAt:                  aws.String("2026-05-27T12:05:00Z"),
+				CreatedAt:                  awsv2.String("2026-05-27T12:00:00Z"),
+				UpdatedAt:                  awsv2.String("2026-05-27T12:05:00Z"),
 				Tags:                       map[string]string{"Environment": "prod"},
 				Features: []gdtypes.DetectorFeatureConfigurationResult{{
 					Name:      gdtypes.DetectorFeatureResult("S3_DATA_EVENTS"),
 					Status:    gdtypes.FeatureStatusEnabled,
-					UpdatedAt: aws.Time(featureUpdatedAt),
+					UpdatedAt: awsv2.Time(featureUpdatedAt),
 					AdditionalConfiguration: []gdtypes.DetectorAdditionalConfigurationResult{{
 						Name:      gdtypes.FeatureAdditionalConfiguration("EKS_ADDON_MANAGEMENT"),
 						Status:    gdtypes.FeatureStatusDisabled,
-						UpdatedAt: aws.Time(featureUpdatedAt.Add(time.Minute)),
+						UpdatedAt: awsv2.Time(featureUpdatedAt.Add(time.Minute)),
 					}},
 				}},
 			},
@@ -48,12 +48,12 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 		members: map[string][]*awsguardduty.ListMembersOutput{
 			detectorID: {{
 				Members: []gdtypes.Member{{
-					AccountId:          aws.String("111122223333"),
-					AdministratorId:    aws.String("123456789012"),
-					DetectorId:         aws.String("member-detector-id"),
-					Email:              aws.String("security@example.com"),
-					RelationshipStatus: aws.String("Enabled"),
-					UpdatedAt:          aws.String("2026-05-27T12:10:00Z"),
+					AccountId:          awsv2.String("111122223333"),
+					AdministratorId:    awsv2.String("123456789012"),
+					DetectorId:         awsv2.String("member-detector-id"),
+					Email:              awsv2.String("security@example.com"),
+					RelationshipStatus: awsv2.String("Enabled"),
+					UpdatedAt:          awsv2.String("2026-05-27T12:10:00Z"),
 				}},
 			}},
 		},
@@ -65,7 +65,7 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 		publishing: map[string][]*awsguardduty.ListPublishingDestinationsOutput{
 			detectorID: {{
 				Destinations: []gdtypes.Destination{{
-					DestinationId:   aws.String("dest-1"),
+					DestinationId:   awsv2.String("dest-1"),
 					DestinationType: gdtypes.DestinationTypeS3,
 					Status:          gdtypes.PublishingStatusPublishing,
 				}},
@@ -73,11 +73,11 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 		},
 		publishingDetails: map[string]*awsguardduty.DescribePublishingDestinationOutput{
 			detectorID + "/dest-1": {
-				DestinationId:   aws.String("dest-1"),
+				DestinationId:   awsv2.String("dest-1"),
 				DestinationType: gdtypes.DestinationTypeS3,
 				Status:          gdtypes.PublishingStatusPublishing,
 				DestinationProperties: &gdtypes.DestinationProperties{
-					DestinationArn: aws.String(destinationARN),
+					DestinationArn: awsv2.String(destinationARN),
 				},
 				Tags: map[string]string{"Pipeline": "security"},
 			},
@@ -89,10 +89,10 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 		},
 		threatSetDetails: map[string]*awsguardduty.GetThreatIntelSetOutput{
 			detectorID + "/threat-1": {
-				Name:     aws.String("known-threats"),
+				Name:     awsv2.String("known-threats"),
 				Format:   gdtypes.ThreatIntelSetFormatTxt,
 				Status:   gdtypes.ThreatIntelSetStatusActive,
-				Location: aws.String(threatListLocation),
+				Location: awsv2.String(threatListLocation),
 				Tags:     map[string]string{"Source": "security"},
 			},
 		},
@@ -103,10 +103,10 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 		},
 		ipSetDetails: map[string]*awsguardduty.GetIPSetOutput{
 			detectorID + "/ipset-1": {
-				Name:     aws.String("trusted-egress"),
+				Name:     awsv2.String("trusted-egress"),
 				Format:   gdtypes.IpSetFormatTxt,
 				Status:   gdtypes.IpSetStatusActive,
-				Location: aws.String(ipSetLocation),
+				Location: awsv2.String(ipSetLocation),
 				Tags:     map[string]string{"Source": "network"},
 			},
 		},
@@ -114,16 +114,16 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 			gdtypes.GroupByTypeSeverity: {
 				FindingStatistics: &gdtypes.FindingStatistics{
 					GroupedBySeverity: []gdtypes.SeverityStatistics{{
-						Severity:      aws.Float64(7),
-						TotalFindings: aws.Int32(3),
+						Severity:      awsv2.Float64(7),
+						TotalFindings: awsv2.Int32(3),
 					}},
 				},
 			},
 			gdtypes.GroupByTypeFindingType: {
 				FindingStatistics: &gdtypes.FindingStatistics{
 					GroupedByFindingType: []gdtypes.FindingTypeStatistics{{
-						FindingType:   aws.String("UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration"),
-						TotalFindings: aws.Int32(2),
+						FindingType:   awsv2.String("UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration"),
+						TotalFindings: awsv2.Int32(2),
 					}},
 				},
 			},
@@ -131,7 +131,7 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceGuardDuty},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceGuardDuty},
 	}
 
 	detectors, err := adapter.ListDetectors(context.Background())
@@ -205,7 +205,7 @@ func (f *fakeGuardDutyAPI) GetDetector(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.GetDetectorOutput, error) {
 	f.calls = append(f.calls, "GetDetector")
-	return f.detectors[aws.ToString(input.DetectorId)], nil
+	return f.detectors[awsv2.ToString(input.DetectorId)], nil
 }
 
 func (f *fakeGuardDutyAPI) ListMembers(
@@ -214,7 +214,7 @@ func (f *fakeGuardDutyAPI) ListMembers(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.ListMembersOutput, error) {
 	f.calls = append(f.calls, "ListMembers")
-	return f.nextMemberPage(aws.ToString(input.DetectorId)), nil
+	return f.nextMemberPage(awsv2.ToString(input.DetectorId)), nil
 }
 
 func (f *fakeGuardDutyAPI) ListFilters(
@@ -223,7 +223,7 @@ func (f *fakeGuardDutyAPI) ListFilters(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.ListFiltersOutput, error) {
 	f.calls = append(f.calls, "ListFilters")
-	return f.nextFilterPage(aws.ToString(input.DetectorId)), nil
+	return f.nextFilterPage(awsv2.ToString(input.DetectorId)), nil
 }
 
 func (f *fakeGuardDutyAPI) ListPublishingDestinations(
@@ -232,7 +232,7 @@ func (f *fakeGuardDutyAPI) ListPublishingDestinations(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.ListPublishingDestinationsOutput, error) {
 	f.calls = append(f.calls, "ListPublishingDestinations")
-	return f.nextPublishingPage(aws.ToString(input.DetectorId)), nil
+	return f.nextPublishingPage(awsv2.ToString(input.DetectorId)), nil
 }
 
 func (f *fakeGuardDutyAPI) DescribePublishingDestination(
@@ -241,7 +241,7 @@ func (f *fakeGuardDutyAPI) DescribePublishingDestination(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.DescribePublishingDestinationOutput, error) {
 	f.calls = append(f.calls, "DescribePublishingDestination")
-	return f.publishingDetails[aws.ToString(input.DetectorId)+"/"+aws.ToString(input.DestinationId)], nil
+	return f.publishingDetails[awsv2.ToString(input.DetectorId)+"/"+awsv2.ToString(input.DestinationId)], nil
 }
 
 func (f *fakeGuardDutyAPI) ListThreatIntelSets(
@@ -250,7 +250,7 @@ func (f *fakeGuardDutyAPI) ListThreatIntelSets(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.ListThreatIntelSetsOutput, error) {
 	f.calls = append(f.calls, "ListThreatIntelSets")
-	return f.nextThreatSetPage(aws.ToString(input.DetectorId)), nil
+	return f.nextThreatSetPage(awsv2.ToString(input.DetectorId)), nil
 }
 
 func (f *fakeGuardDutyAPI) GetThreatIntelSet(
@@ -259,7 +259,7 @@ func (f *fakeGuardDutyAPI) GetThreatIntelSet(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.GetThreatIntelSetOutput, error) {
 	f.calls = append(f.calls, "GetThreatIntelSet")
-	return f.threatSetDetails[aws.ToString(input.DetectorId)+"/"+aws.ToString(input.ThreatIntelSetId)], nil
+	return f.threatSetDetails[awsv2.ToString(input.DetectorId)+"/"+awsv2.ToString(input.ThreatIntelSetId)], nil
 }
 
 func (f *fakeGuardDutyAPI) ListIPSets(
@@ -268,7 +268,7 @@ func (f *fakeGuardDutyAPI) ListIPSets(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.ListIPSetsOutput, error) {
 	f.calls = append(f.calls, "ListIPSets")
-	return f.nextIPSetPage(aws.ToString(input.DetectorId)), nil
+	return f.nextIPSetPage(awsv2.ToString(input.DetectorId)), nil
 }
 
 func (f *fakeGuardDutyAPI) GetIPSet(
@@ -277,7 +277,7 @@ func (f *fakeGuardDutyAPI) GetIPSet(
 	_ ...func(*awsguardduty.Options),
 ) (*awsguardduty.GetIPSetOutput, error) {
 	f.calls = append(f.calls, "GetIPSet")
-	return f.ipSetDetails[aws.ToString(input.DetectorId)+"/"+aws.ToString(input.IpSetId)], nil
+	return f.ipSetDetails[awsv2.ToString(input.DetectorId)+"/"+awsv2.ToString(input.IpSetId)], nil
 }
 
 func (f *fakeGuardDutyAPI) GetFindingsStatistics(

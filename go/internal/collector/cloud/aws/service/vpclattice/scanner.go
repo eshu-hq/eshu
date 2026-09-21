@@ -28,15 +28,15 @@ type Scanner struct {
 // Scan observes VPC Lattice service networks, services, target groups, and
 // listeners plus the direct association and dependency edges through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("vpclattice scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVPCLattice:
+	case "", aws.ServiceVPCLattice:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVPCLattice
+		boundary.ServiceKind = aws.ServiceVPCLattice
 	default:
 		return nil, fmt.Errorf("vpclattice scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -73,9 +73,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -84,8 +84,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func serviceNetworkEnvelopes(boundary awscloud.Boundary, network ServiceNetwork) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serviceNetworkObservation(boundary, network))
+func serviceNetworkEnvelopes(boundary aws.Boundary, network ServiceNetwork) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(serviceNetworkObservation(boundary, network))
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +105,8 @@ func serviceNetworkEnvelopes(boundary awscloud.Boundary, network ServiceNetwork)
 	return envelopes, nil
 }
 
-func serviceEnvelopes(boundary awscloud.Boundary, service Service) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serviceObservation(boundary, service))
+func serviceEnvelopes(boundary aws.Boundary, service Service) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(serviceObservation(boundary, service))
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func serviceEnvelopes(boundary awscloud.Boundary, service Service) ([]facts.Enve
 		return nil, err
 	}
 	for _, listener := range service.Listeners {
-		listenerResource, err := awscloud.NewResourceEnvelope(listenerObservation(boundary, service, listener))
+		listenerResource, err := aws.NewResourceEnvelope(listenerObservation(boundary, service, listener))
 		if err != nil {
 			return nil, err
 		}
@@ -127,8 +127,8 @@ func serviceEnvelopes(boundary awscloud.Boundary, service Service) ([]facts.Enve
 	return envelopes, nil
 }
 
-func targetGroupEnvelopes(boundary awscloud.Boundary, group TargetGroup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(targetGroupObservation(boundary, group))
+func targetGroupEnvelopes(boundary aws.Boundary, group TargetGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(targetGroupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
@@ -149,11 +149,11 @@ func targetGroupEnvelopes(boundary awscloud.Boundary, group TargetGroup) ([]fact
 	return envelopes, nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.RelationshipObservation) error {
+func appendRelationship(envelopes *[]facts.Envelope, relationship *aws.RelationshipObservation) error {
 	if relationship == nil {
 		return nil
 	}
-	envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+	envelope, err := aws.NewRelationshipEnvelope(*relationship)
 	if err != nil {
 		return err
 	}
@@ -161,15 +161,15 @@ func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.Rela
 	return nil
 }
 
-func serviceNetworkObservation(boundary awscloud.Boundary, network ServiceNetwork) awscloud.ResourceObservation {
+func serviceNetworkObservation(boundary aws.Boundary, network ServiceNetwork) aws.ResourceObservation {
 	arn := strings.TrimSpace(network.ARN)
 	name := strings.TrimSpace(network.Name)
 	resourceID := serviceNetworkResourceID(network)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVPCLatticeServiceNetwork,
+		ResourceType: aws.ResourceTypeVPCLatticeServiceNetwork,
 		Name:         name,
 		Tags:         cloneStringMap(network.Tags),
 		Attributes: map[string]any{
@@ -185,15 +185,15 @@ func serviceNetworkObservation(boundary awscloud.Boundary, network ServiceNetwor
 	}
 }
 
-func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.ResourceObservation {
+func serviceObservation(boundary aws.Boundary, service Service) aws.ResourceObservation {
 	arn := strings.TrimSpace(service.ARN)
 	name := strings.TrimSpace(service.Name)
 	resourceID := serviceResourceID(service)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVPCLatticeService,
+		ResourceType: aws.ResourceTypeVPCLatticeService,
 		Name:         name,
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -211,7 +211,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 	}
 }
 
-func listenerObservation(boundary awscloud.Boundary, service Service, listener Listener) awscloud.ResourceObservation {
+func listenerObservation(boundary aws.Boundary, service Service, listener Listener) aws.ResourceObservation {
 	arn := strings.TrimSpace(listener.ARN)
 	name := strings.TrimSpace(listener.Name)
 	resourceID := listenerResourceID(listener)
@@ -225,11 +225,11 @@ func listenerObservation(boundary awscloud.Boundary, service Service, listener L
 	if listener.Port != 0 {
 		attributes["port"] = listener.Port
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeVPCLatticeListener,
+		ResourceType:       aws.ResourceTypeVPCLatticeListener,
 		Name:               name,
 		Tags:               nil,
 		Attributes:         attributes,
@@ -238,7 +238,7 @@ func listenerObservation(boundary awscloud.Boundary, service Service, listener L
 	}
 }
 
-func targetGroupObservation(boundary awscloud.Boundary, group TargetGroup) awscloud.ResourceObservation {
+func targetGroupObservation(boundary aws.Boundary, group TargetGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := targetGroupResourceID(group)
@@ -256,11 +256,11 @@ func targetGroupObservation(boundary awscloud.Boundary, group TargetGroup) awscl
 	if group.Port != 0 {
 		attributes["port"] = group.Port
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeVPCLatticeTargetGroup,
+		ResourceType:       aws.ResourceTypeVPCLatticeTargetGroup,
 		Name:               name,
 		State:              strings.TrimSpace(group.Status),
 		Tags:               cloneStringMap(group.Tags),

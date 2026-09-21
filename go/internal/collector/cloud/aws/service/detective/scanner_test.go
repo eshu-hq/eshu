@@ -48,7 +48,7 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	graph := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveGraph)
+	graph := resourceByType(t, envelopes, aws.ResourceTypeDetectiveGraph)
 	if got, want := graph.Payload["resource_id"], testGraphARN; got != want {
 		t.Fatalf("graph resource_id = %#v, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("graph sources_guardduty_data = %#v, want true (DETECTIVE_CORE present)", got)
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveMemberAccount)
+	member := resourceByType(t, envelopes, aws.ResourceTypeDetectiveMemberAccount)
 	wantMemberID := testGraphARN + "/member/" + testMemberAcct
 	if got := member.Payload["resource_id"]; got != wantMemberID {
 		t.Fatalf("member resource_id = %#v, want %q", got, wantMemberID)
@@ -76,15 +76,15 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("member account_id = %#v, want %q", got, want)
 	}
 
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipDetectiveGraphHasMemberAccount)
+	rel := relationshipByType(t, envelopes, aws.RelationshipDetectiveGraphHasMemberAccount)
 	if got := rel.Payload["source_resource_id"]; got != testGraphARN {
 		t.Fatalf("member edge source_resource_id = %#v, want graph ARN %q", got, testGraphARN)
 	}
 	if got := rel.Payload["target_resource_id"]; got != testMemberAcct {
 		t.Fatalf("member edge target_resource_id = %#v, want bare account id %q", got, testMemberAcct)
 	}
-	if got := rel.Payload["target_type"]; got != awscloud.ResourceTypeOrganizationsAccount {
-		t.Fatalf("member edge target_type = %#v, want %q", got, awscloud.ResourceTypeOrganizationsAccount)
+	if got := rel.Payload["target_type"]; got != aws.ResourceTypeOrganizationsAccount {
+		t.Fatalf("member edge target_type = %#v, want %q", got, aws.ResourceTypeOrganizationsAccount)
 	}
 }
 
@@ -100,15 +100,15 @@ func TestScannerEmitsGuardDutyDetectorEdgeWhenResolvable(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector)
+	rel := relationshipByType(t, envelopes, aws.RelationshipDetectiveGraphSourcesGuardDutyDetector)
 	if got := rel.Payload["source_resource_id"]; got != testGraphARN {
 		t.Fatalf("detector edge source_resource_id = %#v, want graph ARN %q", got, testGraphARN)
 	}
 	if got := rel.Payload["target_resource_id"]; got != testDetectorID {
 		t.Fatalf("detector edge target_resource_id = %#v, want bare detector id %q", got, testDetectorID)
 	}
-	if got := rel.Payload["target_type"]; got != awscloud.ResourceTypeGuardDutyDetector {
-		t.Fatalf("detector edge target_type = %#v, want %q", got, awscloud.ResourceTypeGuardDutyDetector)
+	if got := rel.Payload["target_type"]; got != aws.ResourceTypeGuardDutyDetector {
+		t.Fatalf("detector edge target_type = %#v, want %q", got, aws.ResourceTypeGuardDutyDetector)
 	}
 }
 
@@ -125,7 +125,7 @@ func TestScannerOmitsGuardDutyDetectorEdgeWhenUnresolvable(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector {
+		if envelope.Payload["relationship_type"] == aws.RelationshipDetectiveGraphSourcesGuardDutyDetector {
 			t.Fatalf("unexpected GuardDuty detector edge with no resolvable detector id: %s", mustJSON(t, envelope))
 		}
 	}
@@ -166,7 +166,7 @@ func TestScannerMemberResourceIDIsStableAcrossOrder(t *testing.T) {
 			if envelope.FactKind != facts.AWSResourceFactKind {
 				continue
 			}
-			if envelope.Payload["resource_type"] != awscloud.ResourceTypeDetectiveMemberAccount {
+			if envelope.Payload["resource_type"] != aws.ResourceTypeDetectiveMemberAccount {
 				continue
 			}
 			attrs := attributesOf(t, envelope)
@@ -189,7 +189,7 @@ func TestScannerNeverEmitsInvestigationOrEmailData(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveMemberAccount)
+	member := resourceByType(t, envelopes, aws.ResourceTypeDetectiveMemberAccount)
 	memberAttrs := attributesOf(t, member)
 	for _, forbidden := range []string{
 		"email", "email_address", "emailaddress",
@@ -253,7 +253,7 @@ func TestScannerClientInterfaceExcludesInvestigationAndMutationAPIs(t *testing.T
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGuardDuty
+	boundary.ServiceKind = aws.ServiceGuardDuty
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -268,11 +268,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           testAdminAcct,
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDetective,
+		ServiceKind:         aws.ServiceDetective,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:detective:1",
 		CollectorInstanceID: "aws-prod",
@@ -341,14 +341,14 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 // relationship envelopes so relguard.AssertObservations can enforce the runtime
 // graph-join contract on the exact target_type / target_resource_id pairs the
 // scanner published.
-func observationsFromEnvelopes(t *testing.T, envelopes []facts.Envelope) []awscloud.RelationshipObservation {
+func observationsFromEnvelopes(t *testing.T, envelopes []facts.Envelope) []aws.RelationshipObservation {
 	t.Helper()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		observation := awscloud.RelationshipObservation{
+		observation := aws.RelationshipObservation{
 			RelationshipType: stringField(envelope.Payload, "relationship_type"),
 			SourceResourceID: stringField(envelope.Payload, "source_resource_id"),
 			SourceARN:        stringField(envelope.Payload, "source_arn"),

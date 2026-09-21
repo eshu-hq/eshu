@@ -25,15 +25,15 @@ type Scanner struct {
 // relationship evidence for task-to-source/destination-location,
 // task-to-CloudWatch-log-group, location-to-S3/EFS/FSx storage, and
 // location-to-IAM-role joins.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("datasync scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDataSync:
+	case "", aws.ServiceDataSync:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDataSync
+		boundary.ServiceKind = aws.ServiceDataSync
 	default:
 		return nil, fmt.Errorf("datasync scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -69,7 +69,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list DataSync agents: %w", err)
 	}
 	for _, agent := range agents {
-		envelope, err := awscloud.NewResourceEnvelope(agentObservation(boundary, agent))
+		envelope, err := aws.NewResourceEnvelope(agentObservation(boundary, agent))
 		if err != nil {
 			return nil, err
 		}
@@ -79,13 +79,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(taskObservation(boundary, task))
+func taskEnvelopes(boundary aws.Boundary, task Task) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(taskObservation(boundary, task))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		taskSourceLocationRelationship(boundary, task),
 		taskDestinationLocationRelationship(boundary, task),
 		taskLogGroupRelationship(boundary, task),
@@ -93,7 +93,7 @@ func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, err
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -102,13 +102,13 @@ func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, err
 	return envelopes, nil
 }
 
-func locationEnvelopes(boundary awscloud.Boundary, location Location) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(locationObservation(boundary, location))
+func locationEnvelopes(boundary aws.Boundary, location Location) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(locationObservation(boundary, location))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		locationS3Relationship(boundary, location),
 		locationEFSRelationship(boundary, location),
 		locationFSxRelationship(boundary, location),
@@ -117,7 +117,7 @@ func locationEnvelopes(boundary awscloud.Boundary, location Location) ([]facts.E
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -126,14 +126,14 @@ func locationEnvelopes(boundary awscloud.Boundary, location Location) ([]facts.E
 	return envelopes, nil
 }
 
-func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObservation {
+func taskObservation(boundary aws.Boundary, task Task) aws.ResourceObservation {
 	arn := strings.TrimSpace(task.ARN)
 	name := strings.TrimSpace(task.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncTask,
+		ResourceType: aws.ResourceTypeDataSyncTask,
 		Name:         name,
 		State:        strings.TrimSpace(task.Status),
 		Attributes: map[string]any{
@@ -150,14 +150,14 @@ func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObs
 	}
 }
 
-func locationObservation(boundary awscloud.Boundary, location Location) awscloud.ResourceObservation {
+func locationObservation(boundary aws.Boundary, location Location) aws.ResourceObservation {
 	arn := strings.TrimSpace(location.ARN)
 	uri := strings.TrimSpace(location.URI)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncLocation,
+		ResourceType: aws.ResourceTypeDataSyncLocation,
 		Name:         uri,
 		Attributes: map[string]any{
 			"location_type":      strings.TrimSpace(location.Type),
@@ -173,14 +173,14 @@ func locationObservation(boundary awscloud.Boundary, location Location) awscloud
 	}
 }
 
-func agentObservation(boundary awscloud.Boundary, agent Agent) awscloud.ResourceObservation {
+func agentObservation(boundary aws.Boundary, agent Agent) aws.ResourceObservation {
 	arn := strings.TrimSpace(agent.ARN)
 	name := strings.TrimSpace(agent.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncAgent,
+		ResourceType: aws.ResourceTypeDataSyncAgent,
 		Name:         name,
 		State:        strings.TrimSpace(agent.Status),
 		Attributes: map[string]any{

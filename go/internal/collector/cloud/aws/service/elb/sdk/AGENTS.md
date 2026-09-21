@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elb/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elb/sdk guidance
 
 ## Read First
 

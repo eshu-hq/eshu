@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "cleanrooms".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceCleanRooms + "  "
+	boundary.ServiceKind = "  " + aws.ServiceCleanRooms + "  "
 	client := fakeClient{snapshot: Snapshot{Collaborations: []Collaboration{{
 		ARN:  testCollaborationARN,
 		ID:   "c1d2e3f4",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceCleanRooms; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceCleanRooms; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

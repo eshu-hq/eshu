@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -21,8 +21,8 @@ func TestGetBucketEncryptionSSES3AlgorithmProducesNoKMSKey(t *testing.T) {
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("aes-bucket"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("aes-bucket"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 		encryption: &awss3.GetBucketEncryptionOutput{
@@ -32,17 +32,17 @@ func TestGetBucketEncryptionSSES3AlgorithmProducesNoKMSKey(t *testing.T) {
 						SSEAlgorithm: awss3types.ServerSideEncryptionAes256,
 						// KMSMasterKeyID intentionally absent for SSE-S3.
 					},
-					BucketKeyEnabled: aws.Bool(false),
+					BucketKeyEnabled: awsv2.Bool(false),
 				}},
 			},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())
@@ -75,8 +75,8 @@ func TestGetBucketEncryptionKMSAliasKeyIDPassedThrough(t *testing.T) {
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("alias-bucket"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("alias-bucket"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 		encryption: &awss3.GetBucketEncryptionOutput{
@@ -84,19 +84,19 @@ func TestGetBucketEncryptionKMSAliasKeyIDPassedThrough(t *testing.T) {
 				Rules: []awss3types.ServerSideEncryptionRule{{
 					ApplyServerSideEncryptionByDefault: &awss3types.ServerSideEncryptionByDefault{
 						SSEAlgorithm:   awss3types.ServerSideEncryptionAwsKms,
-						KMSMasterKeyID: aws.String("alias/my-bucket-key"),
+						KMSMasterKeyID: awsv2.String("alias/my-bucket-key"),
 					},
-					BucketKeyEnabled: aws.Bool(true),
+					BucketKeyEnabled: awsv2.Bool(true),
 				}},
 			},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())
@@ -123,8 +123,8 @@ func TestGetBucketEncryptionMultipleRulesAllMapped(t *testing.T) {
 	api := &fakeS3API{
 		listBucketsPages: []*awss3.ListBucketsOutput{{
 			Buckets: []awss3types.Bucket{{
-				Name:         aws.String("multi-rule-bucket"),
-				BucketRegion: aws.String("us-east-1"),
+				Name:         awsv2.String("multi-rule-bucket"),
+				BucketRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 		encryption: &awss3.GetBucketEncryptionOutput{
@@ -138,14 +138,14 @@ func TestGetBucketEncryptionMultipleRulesAllMapped(t *testing.T) {
 						ApplyServerSideEncryptionByDefault: &awss3types.ServerSideEncryptionByDefault{
 							SSEAlgorithm: awss3types.ServerSideEncryptionAes256,
 						},
-						BucketKeyEnabled: aws.Bool(false),
+						BucketKeyEnabled: awsv2.Bool(false),
 					},
 					{
 						ApplyServerSideEncryptionByDefault: &awss3types.ServerSideEncryptionByDefault{
 							SSEAlgorithm:   awss3types.ServerSideEncryptionAwsKms,
-							KMSMasterKeyID: aws.String("arn:aws:kms:us-east-1:123456789012:key/secondary"),
+							KMSMasterKeyID: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/secondary"),
 						},
-						BucketKeyEnabled: aws.Bool(true),
+						BucketKeyEnabled: awsv2.Bool(true),
 					},
 				},
 			},
@@ -153,10 +153,10 @@ func TestGetBucketEncryptionMultipleRulesAllMapped(t *testing.T) {
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: aws.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/grafana` owns the Amazon Managed Grafana
+`internal/collector/cloud/aws/service/grafana` owns the Amazon Managed Grafana
 scanner contract for the AWS cloud collector. It converts Managed Grafana
 workspace metadata into `aws_resource` facts and emits relationship evidence for
 the workspace IAM role and, when a `vpcConfiguration` is present, the
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ v2 so tests can use fake clients and the runtime adapter can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Managed Grafana API call counts, throttles, and
+`sdk` adapter records Managed Grafana API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -58,9 +58,9 @@ pagination spans.
   Center authentication configuration, and must never persist a workspace API
   key, service-account token, or any credential.
 - Managed Grafana does not report an ARN on the workspace description, so the
-  `awssdk` adapter synthesizes a partition-aware workspace ARN
+  `sdk` adapter synthesizes a partition-aware workspace ARN
   (`arn:<partition>:grafana:<region>:<account>:/workspaces/<id>`) via
-  `awscloud.PartitionForBoundary`. The workspace node publishes that ARN as its
+  `aws.PartitionForBoundary`. The workspace node publishes that ARN as its
   resource_id, and every outgoing edge is sourced on it.
 - The workspace-to-IAM-role edge is emitted only when AWS reports an ARN-shaped
   `workspaceRoleArn`. The IAM scanner publishes a role's resource_id as the role
@@ -77,12 +77,12 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/grafana/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/grafana/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/grafana/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/grafana/...` covers the bounded
 Grafana metadata path: one paginated ListWorkspaces stream, one
 DescribeWorkspace point read per workspace, one ListTagsForResource point read
 per workspace, no dashboard reads, no authentication reads, no API-key or token

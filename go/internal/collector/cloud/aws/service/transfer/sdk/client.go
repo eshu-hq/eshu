@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awstransfer "github.com/aws/aws-sdk-go-v2/service/transfer"
 	awstransfertypes "github.com/aws/aws-sdk-go-v2/service/transfer/types"
 	"github.com/aws/smithy-go"
@@ -40,7 +40,7 @@ type apiClient interface {
 // or user policy JSON into scanner-owned types.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 
@@ -54,8 +54,8 @@ type Client struct {
 
 // NewClient builds a Transfer Family SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -120,12 +120,12 @@ func (c *Client) fetchServerIDs(ctx context.Context) ([]string, error) {
 			return ids, nil
 		}
 		for _, server := range page.Servers {
-			if id := strings.TrimSpace(aws.ToString(server.ServerId)); id != "" {
+			if id := strings.TrimSpace(awsv2.ToString(server.ServerId)); id != "" {
 				ids = append(ids, id)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ids, nil
 		}
 	}
@@ -140,7 +140,7 @@ func (c *Client) describeServer(ctx context.Context, serverID string) (*transfer
 	err := c.recordAPICall(ctx, "DescribeServer", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.DescribeServer(callCtx, &awstransfer.DescribeServerInput{
-			ServerId: aws.String(trimmed),
+			ServerId: awsv2.String(trimmed),
 		})
 		return callErr
 	})
@@ -199,7 +199,7 @@ func (c *Client) listUserNames(ctx context.Context, serverID string) ([]string, 
 		err := c.recordAPICall(ctx, "ListUsers", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListUsers(callCtx, &awstransfer.ListUsersInput{
-				ServerId:  aws.String(trimmed),
+				ServerId:  awsv2.String(trimmed),
 				NextToken: nextToken,
 			})
 			return callErr
@@ -211,12 +211,12 @@ func (c *Client) listUserNames(ctx context.Context, serverID string) ([]string, 
 			return names, nil
 		}
 		for _, user := range page.Users {
-			if name := strings.TrimSpace(aws.ToString(user.UserName)); name != "" {
+			if name := strings.TrimSpace(awsv2.ToString(user.UserName)); name != "" {
 				names = append(names, name)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return names, nil
 		}
 	}
@@ -232,8 +232,8 @@ func (c *Client) describeUser(ctx context.Context, serverID, userName string) (*
 	err := c.recordAPICall(ctx, "DescribeUser", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.DescribeUser(callCtx, &awstransfer.DescribeUserInput{
-			ServerId: aws.String(trimmedServer),
-			UserName: aws.String(trimmedUser),
+			ServerId: awsv2.String(trimmedServer),
+			UserName: awsv2.String(trimmedUser),
 		})
 		return callErr
 	})
@@ -255,17 +255,17 @@ func (c *Client) describeUser(ctx context.Context, serverID, userName string) (*
 
 func mapServer(server awstransfertypes.DescribedServer) transferservice.Server {
 	mapped := transferservice.Server{
-		ARN:                       strings.TrimSpace(aws.ToString(server.Arn)),
-		ServerID:                  strings.TrimSpace(aws.ToString(server.ServerId)),
+		ARN:                       strings.TrimSpace(awsv2.ToString(server.Arn)),
+		ServerID:                  strings.TrimSpace(awsv2.ToString(server.ServerId)),
 		Domain:                    strings.TrimSpace(string(server.Domain)),
 		EndpointType:              strings.TrimSpace(string(server.EndpointType)),
 		IdentityProviderType:      strings.TrimSpace(string(server.IdentityProviderType)),
 		State:                     strings.TrimSpace(string(server.State)),
-		UserCount:                 aws.ToInt32(server.UserCount),
-		SecurityPolicyName:        strings.TrimSpace(aws.ToString(server.SecurityPolicyName)),
+		UserCount:                 awsv2.ToInt32(server.UserCount),
+		SecurityPolicyName:        strings.TrimSpace(awsv2.ToString(server.SecurityPolicyName)),
 		IPAddressType:             strings.TrimSpace(string(server.IpAddressType)),
-		CertificateARN:            strings.TrimSpace(aws.ToString(server.Certificate)),
-		LoggingRoleARN:            strings.TrimSpace(aws.ToString(server.LoggingRole)),
+		CertificateARN:            strings.TrimSpace(awsv2.ToString(server.Certificate)),
+		LoggingRoleARN:            strings.TrimSpace(awsv2.ToString(server.LoggingRole)),
 		StructuredLogDestinations: cloneStrings(server.StructuredLogDestinations),
 	}
 	for _, protocol := range server.Protocols {
@@ -274,8 +274,8 @@ func mapServer(server awstransfertypes.DescribedServer) transferservice.Server {
 		}
 	}
 	if server.EndpointDetails != nil {
-		mapped.VPCEndpointID = strings.TrimSpace(aws.ToString(server.EndpointDetails.VpcEndpointId))
-		mapped.VPCID = strings.TrimSpace(aws.ToString(server.EndpointDetails.VpcId))
+		mapped.VPCEndpointID = strings.TrimSpace(awsv2.ToString(server.EndpointDetails.VpcEndpointId))
+		mapped.VPCID = strings.TrimSpace(awsv2.ToString(server.EndpointDetails.VpcId))
 		mapped.AddressAllocationIDs = cloneStrings(server.EndpointDetails.AddressAllocationIds)
 		mapped.SubnetIDs = cloneStrings(server.EndpointDetails.SubnetIds)
 		mapped.SecurityGroupIDs = cloneStrings(server.EndpointDetails.SecurityGroupIds)
@@ -290,15 +290,15 @@ func mapServer(server awstransfertypes.DescribedServer) transferservice.Server {
 func mapUser(serverID string, user awstransfertypes.DescribedUser) transferservice.User {
 	mapped := transferservice.User{
 		ServerID:          strings.TrimSpace(serverID),
-		ARN:               strings.TrimSpace(aws.ToString(user.Arn)),
-		UserName:          strings.TrimSpace(aws.ToString(user.UserName)),
-		HomeDirectory:     strings.TrimSpace(aws.ToString(user.HomeDirectory)),
+		ARN:               strings.TrimSpace(awsv2.ToString(user.Arn)),
+		UserName:          strings.TrimSpace(awsv2.ToString(user.UserName)),
+		HomeDirectory:     strings.TrimSpace(awsv2.ToString(user.HomeDirectory)),
 		HomeDirectoryType: strings.TrimSpace(string(user.HomeDirectoryType)),
-		RoleARN:           strings.TrimSpace(aws.ToString(user.Role)),
+		RoleARN:           strings.TrimSpace(awsv2.ToString(user.Role)),
 	}
 	for _, mapping := range user.HomeDirectoryMappings {
-		entry := strings.TrimSpace(aws.ToString(mapping.Entry))
-		target := strings.TrimSpace(aws.ToString(mapping.Target))
+		entry := strings.TrimSpace(awsv2.ToString(mapping.Entry))
+		target := strings.TrimSpace(awsv2.ToString(mapping.Target))
 		if entry == "" && target == "" {
 			continue
 		}
@@ -347,7 +347,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

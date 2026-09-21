@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdatabrew "github.com/aws/aws-sdk-go-v2/service/databrew"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -55,15 +55,15 @@ type apiClient interface {
 // mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DataBrew SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -125,7 +125,7 @@ func (c *Client) listDatasets(ctx context.Context) ([]databrewservice.Dataset, e
 			datasets = append(datasets, mapDataset(dataset))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return datasets, nil
 		}
 	}
@@ -153,7 +153,7 @@ func (c *Client) listRecipes(ctx context.Context) ([]databrewservice.Recipe, err
 			recipes = append(recipes, mapRecipe(recipe))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return recipes, nil
 		}
 	}
@@ -181,7 +181,7 @@ func (c *Client) listJobs(ctx context.Context) ([]databrewservice.Job, error) {
 			jobs = append(jobs, mapJob(job))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return jobs, nil
 		}
 	}
@@ -209,7 +209,7 @@ func (c *Client) listProjects(ctx context.Context) ([]databrewservice.Project, e
 			projects = append(projects, mapProject(project))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return projects, nil
 		}
 	}
@@ -233,7 +233,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

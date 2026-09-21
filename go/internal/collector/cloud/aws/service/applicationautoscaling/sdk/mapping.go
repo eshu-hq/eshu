@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaastypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -16,14 +16,14 @@ import (
 // mapScalableTarget maps one SDK scalable target into the scanner-owned model.
 func mapScalableTarget(target awsaastypes.ScalableTarget) aasservice.ScalableTarget {
 	mapped := aasservice.ScalableTarget{
-		ARN:               strings.TrimSpace(aws.ToString(target.ScalableTargetARN)),
+		ARN:               strings.TrimSpace(awsv2.ToString(target.ScalableTargetARN)),
 		ServiceNamespace:  strings.TrimSpace(string(target.ServiceNamespace)),
-		ResourceID:        strings.TrimSpace(aws.ToString(target.ResourceId)),
+		ResourceID:        strings.TrimSpace(awsv2.ToString(target.ResourceId)),
 		ScalableDimension: strings.TrimSpace(string(target.ScalableDimension)),
-		RoleARN:           strings.TrimSpace(aws.ToString(target.RoleARN)),
+		RoleARN:           strings.TrimSpace(awsv2.ToString(target.RoleARN)),
 		MinCapacity:       target.MinCapacity,
 		MaxCapacity:       target.MaxCapacity,
-		CreationTime:      aws.ToTime(target.CreationTime),
+		CreationTime:      awsv2.ToTime(target.CreationTime),
 	}
 	if state := target.SuspendedState; state != nil {
 		mapped.SuspendedDynamicScalingInSuspended = state.DynamicScalingInSuspended
@@ -38,30 +38,30 @@ func mapScalableTarget(target awsaastypes.ScalableTarget) aasservice.ScalableTar
 // dropped; only the bound CloudWatch alarm ARNs are kept.
 func mapScalingPolicy(policy awsaastypes.ScalingPolicy) aasservice.ScalingPolicy {
 	return aasservice.ScalingPolicy{
-		ARN:               strings.TrimSpace(aws.ToString(policy.PolicyARN)),
-		Name:              strings.TrimSpace(aws.ToString(policy.PolicyName)),
+		ARN:               strings.TrimSpace(awsv2.ToString(policy.PolicyARN)),
+		Name:              strings.TrimSpace(awsv2.ToString(policy.PolicyName)),
 		PolicyType:        strings.TrimSpace(string(policy.PolicyType)),
 		ServiceNamespace:  strings.TrimSpace(string(policy.ServiceNamespace)),
-		ResourceID:        strings.TrimSpace(aws.ToString(policy.ResourceId)),
+		ResourceID:        strings.TrimSpace(awsv2.ToString(policy.ResourceId)),
 		ScalableDimension: strings.TrimSpace(string(policy.ScalableDimension)),
 		AlarmARNs:         alarmARNs(policy.Alarms),
-		CreationTime:      aws.ToTime(policy.CreationTime),
+		CreationTime:      awsv2.ToTime(policy.CreationTime),
 	}
 }
 
 // mapScheduledAction maps one SDK scheduled action into the scanner-owned model.
 func mapScheduledAction(action awsaastypes.ScheduledAction) aasservice.ScheduledAction {
 	mapped := aasservice.ScheduledAction{
-		ARN:               strings.TrimSpace(aws.ToString(action.ScheduledActionARN)),
-		Name:              strings.TrimSpace(aws.ToString(action.ScheduledActionName)),
+		ARN:               strings.TrimSpace(awsv2.ToString(action.ScheduledActionARN)),
+		Name:              strings.TrimSpace(awsv2.ToString(action.ScheduledActionName)),
 		ServiceNamespace:  strings.TrimSpace(string(action.ServiceNamespace)),
-		ResourceID:        strings.TrimSpace(aws.ToString(action.ResourceId)),
+		ResourceID:        strings.TrimSpace(awsv2.ToString(action.ResourceId)),
 		ScalableDimension: strings.TrimSpace(string(action.ScalableDimension)),
-		Schedule:          strings.TrimSpace(aws.ToString(action.Schedule)),
-		Timezone:          strings.TrimSpace(aws.ToString(action.Timezone)),
-		StartTime:         aws.ToTime(action.StartTime),
-		EndTime:           aws.ToTime(action.EndTime),
-		CreationTime:      aws.ToTime(action.CreationTime),
+		Schedule:          strings.TrimSpace(awsv2.ToString(action.Schedule)),
+		Timezone:          strings.TrimSpace(awsv2.ToString(action.Timezone)),
+		StartTime:         awsv2.ToTime(action.StartTime),
+		EndTime:           awsv2.ToTime(action.EndTime),
+		CreationTime:      awsv2.ToTime(action.CreationTime),
 	}
 	if act := action.ScalableTargetAction; act != nil {
 		mapped.MinCapacity = act.MinCapacity
@@ -77,7 +77,7 @@ func alarmARNs(alarms []awsaastypes.Alarm) []string {
 	}
 	arns := make([]string, 0, len(alarms))
 	for _, alarm := range alarms {
-		if arn := strings.TrimSpace(aws.ToString(alarm.AlarmARN)); arn != "" {
+		if arn := strings.TrimSpace(awsv2.ToString(alarm.AlarmARN)); arn != "" {
 			arns = append(arns, arn)
 		}
 	}
@@ -93,10 +93,10 @@ func alarmARNs(alarms []awsaastypes.Alarm) []string {
 func (c *Client) throttleWarning(
 	namespace awsaastypes.ServiceNamespace,
 	operation, component string,
-) *awscloud.WarningObservation {
-	return &awscloud.WarningObservation{
+) *aws.WarningObservation {
+	return &aws.WarningObservation{
 		Boundary:    c.boundary,
-		WarningKind: awscloud.WarningThrottleSustained,
+		WarningKind: aws.WarningThrottleSustained,
 		ErrorClass:  "throttled",
 		Message: "Application Auto Scaling " + operation +
 			" throttled after SDK retries; " + component + " metadata omitted for namespace " +
@@ -117,9 +117,9 @@ func (c *Client) throttleWarning(
 // was dropped. A nil warning (the namespace succeeded) leaves the stream
 // unchanged.
 func appendThrottleWarning(
-	warnings []awscloud.WarningObservation,
-	warning *awscloud.WarningObservation,
-) []awscloud.WarningObservation {
+	warnings []aws.WarningObservation,
+	warning *aws.WarningObservation,
+) []aws.WarningObservation {
 	if warning == nil {
 		return warnings
 	}

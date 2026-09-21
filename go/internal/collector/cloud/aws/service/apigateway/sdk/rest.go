@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsapigateway "github.com/aws/aws-sdk-go-v2/service/apigateway"
 	awsapigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 
@@ -24,16 +24,16 @@ type restAPIClient interface {
 
 func (c *Client) listRESTAPIs(
 	ctx context.Context,
-) ([]apigatewayservice.RESTAPI, []awscloud.WarningObservation, error) {
+) ([]apigatewayservice.RESTAPI, []aws.WarningObservation, error) {
 	var apis []apigatewayservice.RESTAPI
-	var warnings []awscloud.WarningObservation
+	var warnings []aws.WarningObservation
 	var position *string
 	for {
 		var page *awsapigateway.GetRestApisOutput
 		err := c.recordAPICall(ctx, "GetRestApis", func(callCtx context.Context) error {
 			var err error
 			page, err = c.rest.GetRestApis(callCtx, &awsapigateway.GetRestApisInput{
-				Limit:    aws.Int32(restPageLimit),
+				Limit:    awsv2.Int32(restPageLimit),
 				Position: position,
 			})
 			return err
@@ -53,7 +53,7 @@ func (c *Client) listRESTAPIs(
 			apis = append(apis, api)
 		}
 		position = page.Position
-		if aws.ToString(position) == "" {
+		if awsv2.ToString(position) == "" {
 			return apis, warnings, nil
 		}
 	}
@@ -62,14 +62,14 @@ func (c *Client) listRESTAPIs(
 func (c *Client) restAPIMetadata(
 	ctx context.Context,
 	item awsapigatewaytypes.RestApi,
-) (apigatewayservice.RESTAPI, []awscloud.WarningObservation, error) {
+) (apigatewayservice.RESTAPI, []aws.WarningObservation, error) {
 	api := mapRESTAPI(item)
 	var err error
 	api.Stages, err = c.listRESTStages(ctx, api.ID)
 	if err != nil {
 		return apigatewayservice.RESTAPI{}, nil, err
 	}
-	var warnings []awscloud.WarningObservation
+	var warnings []aws.WarningObservation
 	api.Integrations, warnings, err = c.listRESTIntegrations(ctx, api.ID)
 	if err != nil {
 		return apigatewayservice.RESTAPI{}, nil, err
@@ -81,7 +81,7 @@ func (c *Client) listRESTStages(ctx context.Context, apiID string) ([]apigateway
 	var page *awsapigateway.GetStagesOutput
 	err := c.recordAPICall(ctx, "GetStages", func(callCtx context.Context) error {
 		var err error
-		page, err = c.rest.GetStages(callCtx, &awsapigateway.GetStagesInput{RestApiId: aws.String(apiID)})
+		page, err = c.rest.GetStages(callCtx, &awsapigateway.GetStagesInput{RestApiId: awsv2.String(apiID)})
 		return err
 	})
 	if err != nil || page == nil {
@@ -97,7 +97,7 @@ func (c *Client) listRESTStages(ctx context.Context, apiID string) ([]apigateway
 func (c *Client) listRESTIntegrations(
 	ctx context.Context,
 	apiID string,
-) ([]apigatewayservice.Integration, []awscloud.WarningObservation, error) {
+) ([]apigatewayservice.Integration, []aws.WarningObservation, error) {
 	var integrations []apigatewayservice.Integration
 	var position *string
 	for {
@@ -105,15 +105,15 @@ func (c *Client) listRESTIntegrations(
 		err := c.recordAPICall(ctx, "GetResources", func(callCtx context.Context) error {
 			var err error
 			page, err = c.rest.GetResources(callCtx, &awsapigateway.GetResourcesInput{
-				RestApiId: aws.String(apiID),
+				RestApiId: awsv2.String(apiID),
 				Embed:     []string{"methods"},
-				Limit:     aws.Int32(restPageLimit),
+				Limit:     awsv2.Int32(restPageLimit),
 				Position:  position,
 			})
 			return err
 		})
 		if isThrottleError(err) {
-			return nil, []awscloud.WarningObservation{c.restResourcesThrottleWarning()}, nil
+			return nil, []aws.WarningObservation{c.restResourcesThrottleWarning()}, nil
 		}
 		if err != nil {
 			return nil, nil, err
@@ -125,24 +125,24 @@ func (c *Client) listRESTIntegrations(
 			integrations = append(integrations, mapRESTResourceIntegrations(apiID, resource)...)
 		}
 		position = page.Position
-		if aws.ToString(position) == "" {
+		if awsv2.ToString(position) == "" {
 			return integrations, nil, nil
 		}
 	}
 }
 
 func appendRESTWarningOnce(
-	warnings []awscloud.WarningObservation,
-	candidates ...awscloud.WarningObservation,
-) []awscloud.WarningObservation {
+	warnings []aws.WarningObservation,
+	candidates ...aws.WarningObservation,
+) []aws.WarningObservation {
 	for _, candidate := range candidates {
-		if candidate.WarningKind != awscloud.WarningThrottleSustained {
+		if candidate.WarningKind != aws.WarningThrottleSustained {
 			warnings = append(warnings, candidate)
 			continue
 		}
 		seen := false
 		for _, warning := range warnings {
-			if warning.WarningKind == awscloud.WarningThrottleSustained &&
+			if warning.WarningKind == aws.WarningThrottleSustained &&
 				warning.ErrorClass == candidate.ErrorClass {
 				seen = true
 				break
@@ -155,10 +155,10 @@ func appendRESTWarningOnce(
 	return warnings
 }
 
-func (c *Client) restResourcesThrottleWarning() awscloud.WarningObservation {
-	return awscloud.WarningObservation{
+func (c *Client) restResourcesThrottleWarning() aws.WarningObservation {
+	return aws.WarningObservation{
 		Boundary:    c.boundary,
-		WarningKind: awscloud.WarningThrottleSustained,
+		WarningKind: aws.WarningThrottleSustained,
 		ErrorClass:  "throttled",
 		Message:     "API Gateway GetResources throttled after SDK retries; REST integration metadata omitted for this scan",
 		Attributes: map[string]any{
@@ -178,7 +178,7 @@ func (c *Client) listRESTDomains(ctx context.Context) ([]apigatewayservice.Domai
 		err := c.recordAPICall(ctx, "GetDomainNames", func(callCtx context.Context) error {
 			var err error
 			page, err = c.rest.GetDomainNames(callCtx, &awsapigateway.GetDomainNamesInput{
-				Limit:    aws.Int32(restPageLimit),
+				Limit:    awsv2.Int32(restPageLimit),
 				Position: position,
 			})
 			return err
@@ -199,7 +199,7 @@ func (c *Client) listRESTDomains(ctx context.Context) ([]apigatewayservice.Domai
 			domains = append(domains, domain)
 		}
 		position = page.Position
-		if aws.ToString(position) == "" {
+		if awsv2.ToString(position) == "" {
 			return domains, nil
 		}
 	}
@@ -213,8 +213,8 @@ func (c *Client) listRESTMappings(ctx context.Context, domainName string) ([]api
 		err := c.recordAPICall(ctx, "GetBasePathMappings", func(callCtx context.Context) error {
 			var err error
 			page, err = c.rest.GetBasePathMappings(callCtx, &awsapigateway.GetBasePathMappingsInput{
-				DomainName: aws.String(domainName),
-				Limit:      aws.Int32(restPageLimit),
+				DomainName: awsv2.String(domainName),
+				Limit:      awsv2.Int32(restPageLimit),
 				Position:   position,
 			})
 			return err
@@ -229,7 +229,7 @@ func (c *Client) listRESTMappings(ctx context.Context, domainName string) ([]api
 			mappings = append(mappings, mapRESTMapping(domainName, item))
 		}
 		position = page.Position
-		if aws.ToString(position) == "" {
+		if awsv2.ToString(position) == "" {
 			return mappings, nil
 		}
 	}

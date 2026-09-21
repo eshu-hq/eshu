@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/grafana/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/grafana/sdk guidance
 
 ## Read First
 
@@ -26,7 +26,7 @@
 - Persist only safe workspace metadata plus resource tags. Never read or persist
   SAML / IAM Identity Center authentication configuration, workspace API keys,
   service-account tokens, dashboards, alert rules, or query results.
-- Synthesize the workspace ARN with `awscloud.PartitionForBoundary`; never
+- Synthesize the workspace ARN with `aws.PartitionForBoundary`; never
   hardcode `arn:aws:`.
 - Map data sources, notification destinations, and authentication providers as
   enum names only.

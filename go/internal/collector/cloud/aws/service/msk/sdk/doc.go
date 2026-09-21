@@ -13,4 +13,4 @@
 // BatchDisassociateScramSecret, DescribeConfigurationRevision (which would
 // expose raw server.properties bodies), and GetBootstrapBrokers (which would
 // expose broker endpoints).
-package awssdk
+package sdk

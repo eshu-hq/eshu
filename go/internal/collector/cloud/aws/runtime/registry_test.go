@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime_test
+package runtime_test
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
-	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // TestDefaultScannerFactoryBuildsIAMScanner is the sanity check that a basic
 // plain-builder service resolves through the registry-backed factory. The
 // exhaustive per-service coverage lives in
-// registry_supported_services_test.go and in each service's runtimebind tests.
+// registry_supported_services_test.go and in each service's bind tests.
 func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceIAM,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: aws.ServiceIAM,
 	}, lease)
 	if err != nil {
 		t.Fatalf("Scanner() error = %v", err)
@@ -43,16 +43,16 @@ func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
 // TestDefaultScannerFactoryRequiresRedactionKeyForECS guards the ECS builder
 // redaction-key precondition through the runtime entry point.
 func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceECS,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+		ServiceKind: aws.ServiceECS,
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing ECS redaction key")
 	}
@@ -64,16 +64,16 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 // TestDefaultScannerFactoryRequiresRedactionKeyForLambda guards the Lambda
 // builder redaction-key precondition through the runtime entry point.
 func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceLambda,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+		ServiceKind: aws.ServiceLambda,
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Lambda redaction key")
 	}
@@ -85,16 +85,16 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
 // TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations guards the
 // Organizations builder redaction-key precondition.
 func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceOrganizations,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+		ServiceKind: aws.ServiceOrganizations,
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Organizations redaction key")
 	}
@@ -106,16 +106,16 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T)
 // TestDefaultScannerFactoryRequiresRedactionKeyForSecurityHub guards the
 // SecurityHub builder redaction-key precondition.
 func TestDefaultScannerFactoryRequiresRedactionKeyForSecurityHub(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecurityHub,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceSecurityHub,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecurityHub,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+		ServiceKind: aws.ServiceSecurityHub,
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Security Hub redaction key")
 	}
@@ -131,16 +131,16 @@ func TestDefaultScannerFactoryBuildsECSWithRedactionKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewKey() error = %v", err)
 	}
-	factory := awsruntime.DefaultScannerFactory{RedactionKey: key}
-	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{RedactionKey: key}
+	scanner, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceECS,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+		ServiceKind: aws.ServiceECS,
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err != nil {
 		t.Fatalf("Scanner() error = %v", err)
 	}
@@ -152,16 +152,16 @@ func TestDefaultScannerFactoryBuildsECSWithRedactionKey(t *testing.T) {
 // TestDefaultScannerFactoryRejectsUnsupportedService confirms the registry
 // miss case still surfaces the documented error.
 func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: "unknown-service",
-	}, awscloud.Boundary{
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: "unknown-service",
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	}, staticAWSConfigLease{config: awsv2.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want unsupported service error")
 	}
@@ -174,15 +174,15 @@ func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
 // guard runs before registry lookup, so a wrong lease type cannot reach a
 // builder.
 func TestDefaultScannerFactoryRequiresAWSConfigLease(t *testing.T) {
-	factory := awsruntime.DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+	factory := runtime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), runtime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
-	}, awscloud.Boundary{
+		ServiceKind: aws.ServiceIAM,
+	}, aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: aws.ServiceIAM,
 	}, releaseOnlyLease{})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want unsupported lease error")

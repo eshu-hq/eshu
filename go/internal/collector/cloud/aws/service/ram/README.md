@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ram` owns the AWS Resource Access Manager
+`internal/collector/cloud/aws/service/ram` owns the AWS Resource Access Manager
 scanner contract for the AWS cloud collector. It converts the resource shares
 an account owns into `aws_resource` facts, emits each share's managed
 permissions as `aws_resource` facts, and emits relationship evidence for
@@ -17,7 +17,7 @@ This package owns scanner-level RAM fact selection and relationship target-type
 and join-key construction. It does not own AWS SDK pagination, STS credentials,
 workflow claims, fact persistence, graph writes, reducer admission, or query
 behavior. The shared observation and envelope contract lives in the parent
-`awscloud` package.
+`aws` package.
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders. It also reuses the
   organizations resource constants (`aws_organizations_account`,
   `aws_organizations_organizational_unit`, `aws_organizations_root`) as
@@ -57,11 +57,11 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource/relationship counts after
 `Scanner.Scan` returns. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total{service="ram"}` with the existing
-per-resource `resource_type` label. The `awssdk` adapter records RAM API call
+per-resource `resource_type` label. The `sdk` adapter records RAM API call
 counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -107,14 +107,14 @@ counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/ram/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/ram/...`
 covers the bounded RAM metadata path: one paginated GetResourceShares stream
 scoped to resource owner SELF, then per-share paginated ListResources,
 ListPrincipals, and ListResourceSharePermissions streams. No mutation API and no
 permission-policy-body read is reachable, and the collector performs no graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers resource-share and permission fact emission, every relationship's
 non-empty target type and join key, principal classification for account/OU/
 organization forms, permission deduplication across shares, blank-join-key

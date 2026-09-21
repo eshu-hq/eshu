@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 const (
 	// ServiceDatazone identifies the regional Amazon DataZone metadata-only scan

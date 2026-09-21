@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/vpc` owns the AWS VPC network-fabric
+`internal/collector/cloud/aws/service/vpc` owns the AWS VPC network-fabric
 scanner contract for the AWS cloud collector. It converts VPC topology metadata
 into `aws_resource` facts and emits relationship evidence between fabric
 resources and the EC2-owned VPC/subnet/security-group/ENI surface.
@@ -70,7 +70,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -80,9 +80,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records VPC API call counts, throttles, and pagination
+The `sdk` adapter records VPC API call counts, throttles, and pagination
 spans. The collector-wide
 `eshu_dp_aws_resources_emitted_total{service="vpc"}` and
 `eshu_dp_aws_relationships_emitted_total{service="vpc"}` counters surface
@@ -134,7 +134,7 @@ operations:
 - `CreateDhcpOptions`, `DeleteDhcpOptions`, `AssociateDhcpOptions`
 - `CreateTags`, `DeleteTags`
 
-`TestAPIClientNeverIncludesForbiddenMethods` in `awssdk/client_test.go` proves
+`TestAPIClientNeverIncludesForbiddenMethods` in `sdk/client_test.go` proves
 none of these are reachable through the adapter's narrow `apiClient`
 interface, and `TestAPIClientOnlyReadsListsAndDescribes` rejects any future
 method that is not a `Describe*` / `Get*` / `List*` read.
@@ -143,14 +143,14 @@ boundary at the scanner-owned `Client` interface level.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/vpc/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/vpc/...`
 covers the bounded VPC topology metadata path: one paginated read per
 DescribeXxx (or a single one-shot read for the non-paginated APIs:
 DescribeAddresses, DescribeCustomerGateways, DescribeVpnGateways,
 DescribeVpnConnections), no mutation calls, and no graph writes in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers VPC fabric resource emission, route/network-ACL/peering/endpoint
 relationship emission, the EC2/VPC ownership boundary
 (`TestVPCResourceTypesDisjointFromEC2`), runtime registration, command

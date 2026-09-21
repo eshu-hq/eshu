@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscontroltower "github.com/aws/aws-sdk-go-v2/service/controltower"
 	awscontroltowertypes "github.com/aws/aws-sdk-go-v2/service/controltower/types"
 	"github.com/aws/smithy-go"
@@ -61,15 +61,15 @@ type apiClient interface {
 // enable, disable, reset, create, update, or delete API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Control Tower SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -126,7 +126,7 @@ func (c *Client) landingZone(ctx context.Context) (*controltowerservice.LandingZ
 	err = c.recordAPICall(ctx, "GetLandingZone", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetLandingZone(callCtx, &awscontroltower.GetLandingZoneInput{
-			LandingZoneIdentifier: aws.String(arn),
+			LandingZoneIdentifier: awsv2.String(arn),
 		})
 		return callErr
 	})
@@ -162,12 +162,12 @@ func (c *Client) listLandingZoneARNs(ctx context.Context) ([]string, error) {
 			return arns, nil
 		}
 		for _, summary := range page.LandingZones {
-			if arn := strings.TrimSpace(aws.ToString(summary.Arn)); arn != "" {
+			if arn := strings.TrimSpace(awsv2.ToString(summary.Arn)); arn != "" {
 				arns = append(arns, arn)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return arns, nil
 		}
 	}
@@ -195,7 +195,7 @@ func (c *Client) listEnabledBaselines(ctx context.Context) ([]controltowerservic
 			baselines = append(baselines, mapEnabledBaseline(summary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return baselines, nil
 		}
 	}
@@ -247,7 +247,7 @@ func (c *Client) listEnabledControlsForTarget(
 		err := c.recordAPICall(ctx, "ListEnabledControls", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListEnabledControls(callCtx, &awscontroltower.ListEnabledControlsInput{
-				TargetIdentifier: aws.String(target),
+				TargetIdentifier: awsv2.String(target),
 				NextToken:        nextToken,
 			})
 			return callErr
@@ -262,7 +262,7 @@ func (c *Client) listEnabledControlsForTarget(
 			controls = append(controls, mapEnabledControl(summary, target))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return controls, nil
 		}
 	}
@@ -277,7 +277,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awscontroltower.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return callErr
 	})
@@ -328,13 +328,13 @@ func mapLandingZone(
 ) *controltowerservice.LandingZone {
 	landingZone := &controltowerservice.LandingZone{
 		ARN:                    strings.TrimSpace(arn),
-		Version:                strings.TrimSpace(aws.ToString(detail.Version)),
-		LatestAvailableVersion: strings.TrimSpace(aws.ToString(detail.LatestAvailableVersion)),
+		Version:                strings.TrimSpace(awsv2.ToString(detail.Version)),
+		LatestAvailableVersion: strings.TrimSpace(awsv2.ToString(detail.LatestAvailableVersion)),
 		Status:                 strings.TrimSpace(string(detail.Status)),
 		Tags:                   tags,
 	}
 	if detail.Arn != nil {
-		if detailARN := strings.TrimSpace(aws.ToString(detail.Arn)); detailARN != "" {
+		if detailARN := strings.TrimSpace(awsv2.ToString(detail.Arn)); detailARN != "" {
 			landingZone.ARN = detailARN
 		}
 	}
@@ -349,10 +349,10 @@ func mapEnabledControl(
 	target string,
 ) controltowerservice.EnabledControl {
 	control := controltowerservice.EnabledControl{
-		ARN:               strings.TrimSpace(aws.ToString(summary.Arn)),
-		ControlIdentifier: strings.TrimSpace(aws.ToString(summary.ControlIdentifier)),
-		TargetIdentifier:  strings.TrimSpace(aws.ToString(summary.TargetIdentifier)),
-		ParentIdentifier:  strings.TrimSpace(aws.ToString(summary.ParentIdentifier)),
+		ARN:               strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		ControlIdentifier: strings.TrimSpace(awsv2.ToString(summary.ControlIdentifier)),
+		TargetIdentifier:  strings.TrimSpace(awsv2.ToString(summary.TargetIdentifier)),
+		ParentIdentifier:  strings.TrimSpace(awsv2.ToString(summary.ParentIdentifier)),
 	}
 	if control.TargetIdentifier == "" {
 		control.TargetIdentifier = strings.TrimSpace(target)
@@ -368,11 +368,11 @@ func mapEnabledControl(
 
 func mapEnabledBaseline(summary awscontroltowertypes.EnabledBaselineSummary) controltowerservice.EnabledBaseline {
 	baseline := controltowerservice.EnabledBaseline{
-		ARN:                strings.TrimSpace(aws.ToString(summary.Arn)),
-		BaselineIdentifier: strings.TrimSpace(aws.ToString(summary.BaselineIdentifier)),
-		BaselineVersion:    strings.TrimSpace(aws.ToString(summary.BaselineVersion)),
-		TargetIdentifier:   strings.TrimSpace(aws.ToString(summary.TargetIdentifier)),
-		ParentIdentifier:   strings.TrimSpace(aws.ToString(summary.ParentIdentifier)),
+		ARN:                strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		BaselineIdentifier: strings.TrimSpace(awsv2.ToString(summary.BaselineIdentifier)),
+		BaselineVersion:    strings.TrimSpace(awsv2.ToString(summary.BaselineVersion)),
+		TargetIdentifier:   strings.TrimSpace(awsv2.ToString(summary.TargetIdentifier)),
+		ParentIdentifier:   strings.TrimSpace(awsv2.ToString(summary.ParentIdentifier)),
 	}
 	if summary.StatusSummary != nil {
 		baseline.Status = strings.TrimSpace(string(summary.StatusSummary.Status))
@@ -398,7 +398,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsrds "github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -49,15 +49,15 @@ type apiClient interface {
 // Performance Insights samples, reads schemas or tables, or calls mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an RDS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -80,7 +80,7 @@ func (c *Client) ListDBInstances(ctx context.Context) ([]rdsservice.DBInstance, 
 			var err error
 			page, err = c.client.DescribeDBInstances(callCtx, &awsrds.DescribeDBInstancesInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -91,14 +91,14 @@ func (c *Client) ListDBInstances(ctx context.Context) ([]rdsservice.DBInstance, 
 			return instances, nil
 		}
 		for _, raw := range page.DBInstances {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBInstanceArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBInstanceArn))
 			if err != nil {
 				return nil, err
 			}
 			instances = append(instances, mapDBInstance(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return instances, nil
 		}
 	}
@@ -115,7 +115,7 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]rdsservice.DBCluster, er
 			var err error
 			page, err = c.client.DescribeDBClusters(callCtx, &awsrds.DescribeDBClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -126,14 +126,14 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]rdsservice.DBCluster, er
 			return clusters, nil
 		}
 		for _, raw := range page.DBClusters {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBClusterArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBClusterArn))
 			if err != nil {
 				return nil, err
 			}
 			clusters = append(clusters, mapDBCluster(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return clusters, nil
 		}
 	}
@@ -150,7 +150,7 @@ func (c *Client) ListDBSubnetGroups(ctx context.Context) ([]rdsservice.DBSubnetG
 			var err error
 			page, err = c.client.DescribeDBSubnetGroups(callCtx, &awsrds.DescribeDBSubnetGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -161,14 +161,14 @@ func (c *Client) ListDBSubnetGroups(ctx context.Context) ([]rdsservice.DBSubnetG
 			return subnetGroups, nil
 		}
 		for _, raw := range page.DBSubnetGroups {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBSubnetGroupArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBSubnetGroupArn))
 			if err != nil {
 				return nil, err
 			}
 			subnetGroups = append(subnetGroups, mapDBSubnetGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return subnetGroups, nil
 		}
 	}
@@ -183,7 +183,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsrds.ListTagsForResourceInput{
-			ResourceName: aws.String(resourceARN),
+			ResourceName: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -211,7 +211,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

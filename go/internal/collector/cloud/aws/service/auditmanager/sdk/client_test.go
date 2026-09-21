@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsauditmanager "github.com/aws/aws-sdk-go-v2/service/auditmanager"
 	awsauditmanagertypes "github.com/aws/aws-sdk-go-v2/service/auditmanager/types"
 
@@ -25,39 +25,39 @@ func TestClientSnapshotsAuditManagerMetadataOnly(t *testing.T) {
 	api := &fakeAuditManagerAPI{
 		status: awsauditmanagertypes.AccountStatusActive,
 		assessmentPages: []*awsauditmanager.ListAssessmentsOutput{{
-			AssessmentMetadata: []awsauditmanagertypes.AssessmentMetadataItem{{Id: aws.String("a1")}},
+			AssessmentMetadata: []awsauditmanagertypes.AssessmentMetadataItem{{Id: awsv2.String("a1")}},
 		}},
 		assessments: map[string]*awsauditmanager.GetAssessmentOutput{
 			"a1": {Assessment: &awsauditmanagertypes.Assessment{
-				Arn:  aws.String(assessmentARN),
+				Arn:  awsv2.String(assessmentARN),
 				Tags: map[string]string{"Environment": "prod"},
 				Metadata: &awsauditmanagertypes.AssessmentMetadata{
-					Id:             aws.String("a1"),
-					Name:           aws.String("soc2"),
-					ComplianceType: aws.String("SOC 2"),
+					Id:             awsv2.String("a1"),
+					Name:           awsv2.String("soc2"),
+					ComplianceType: awsv2.String("SOC 2"),
 					Status:         awsauditmanagertypes.AssessmentStatusActive,
-					CreationTime:   aws.Time(createdAt),
-					LastUpdated:    aws.Time(createdAt),
+					CreationTime:   awsv2.Time(createdAt),
+					LastUpdated:    awsv2.Time(createdAt),
 					AssessmentReportsDestination: &awsauditmanagertypes.AssessmentReportsDestination{
-						Destination:     aws.String("s3://reports-bucket/exports"),
+						Destination:     awsv2.String("s3://reports-bucket/exports"),
 						DestinationType: awsauditmanagertypes.AssessmentReportDestinationTypeS3,
 					},
 					Scope: &awsauditmanagertypes.Scope{
-						AwsAccounts: []awsauditmanagertypes.AWSAccount{{Id: aws.String("123456789012")}},
+						AwsAccounts: []awsauditmanagertypes.AWSAccount{{Id: awsv2.String("123456789012")}},
 					},
 				},
 				Framework: &awsauditmanagertypes.AssessmentFramework{
-					Arn: aws.String(frameworkARN),
-					Id:  aws.String("f1"),
+					Arn: awsv2.String(frameworkARN),
+					Id:  awsv2.String("f1"),
 				},
 			}},
 		},
 		frameworkPages: map[awsauditmanagertypes.FrameworkType][]*awsauditmanager.ListAssessmentFrameworksOutput{
 			awsauditmanagertypes.FrameworkTypeStandard: {{
 				FrameworkMetadataList: []awsauditmanagertypes.AssessmentFrameworkMetadata{{
-					Arn:           aws.String(frameworkARN),
-					Id:            aws.String("f1"),
-					Name:          aws.String("SOC 2"),
+					Arn:           awsv2.String(frameworkARN),
+					Id:            awsv2.String("f1"),
+					Name:          awsv2.String("SOC 2"),
 					Type:          awsauditmanagertypes.FrameworkTypeStandard,
 					ControlsCount: 61,
 				}},
@@ -66,14 +66,14 @@ func TestClientSnapshotsAuditManagerMetadataOnly(t *testing.T) {
 		controlPages: map[awsauditmanagertypes.ControlType][]*awsauditmanager.ListControlsOutput{
 			awsauditmanagertypes.ControlTypeStandard: {{
 				ControlMetadataList: []awsauditmanagertypes.ControlMetadata{{
-					Arn:            aws.String(controlARN),
-					Id:             aws.String("c1"),
-					Name:           aws.String("Logging enabled"),
-					ControlSources: aws.String("AWS Config"),
+					Arn:            awsv2.String(controlARN),
+					Id:             awsv2.String("c1"),
+					Name:           awsv2.String("Logging enabled"),
+					ControlSources: awsv2.String("AWS Config"),
 				}},
 			}},
 		},
-		settings: &awsauditmanagertypes.Settings{KmsKey: aws.String(kmsARN)},
+		settings: &awsauditmanagertypes.Settings{KmsKey: awsv2.String(kmsARN)},
 	}
 
 	client := &Client{client: api, boundary: testBoundary(), accountID: "123456789012"}
@@ -164,7 +164,7 @@ func (f *fakeAuditManagerAPI) GetAssessment(
 	input *awsauditmanager.GetAssessmentInput,
 	_ ...func(*awsauditmanager.Options),
 ) (*awsauditmanager.GetAssessmentOutput, error) {
-	return f.assessments[aws.ToString(input.AssessmentId)], nil
+	return f.assessments[awsv2.ToString(input.AssessmentId)], nil
 }
 
 func (f *fakeAuditManagerAPI) ListAssessmentFrameworks(
@@ -217,10 +217,10 @@ func (f *fakeAuditManagerAPI) ListTagsForResource(
 	return &awsauditmanager.ListTagsForResourceOutput{}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAuditManager,
+		ServiceKind: aws.ServiceAuditManager,
 	}
 }

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslocation "github.com/aws/aws-sdk-go-v2/service/location"
 	awslocationtypes "github.com/aws/aws-sdk-go-v2/service/location/types"
 
@@ -27,13 +27,13 @@ func TestClientSnapshotsLocationMetadataOnly(t *testing.T) {
 	api := &fakeLocationAPI{
 		maps: map[string]*awslocation.DescribeMapOutput{
 			"store-map": {
-				MapArn:     aws.String(mapARN),
-				MapName:    aws.String("store-map"),
-				DataSource: aws.String("Esri"),
-				CreateTime: aws.Time(createdAt),
+				MapArn:     awsv2.String(mapARN),
+				MapName:    awsv2.String("store-map"),
+				DataSource: awsv2.String("Esri"),
+				CreateTime: awsv2.Time(createdAt),
 				Configuration: &awslocationtypes.MapConfiguration{
-					Style:         aws.String("VectorEsriStreets"),
-					PoliticalView: aws.String("FRA"),
+					Style:         awsv2.String("VectorEsriStreets"),
+					PoliticalView: awsv2.String("FRA"),
 					CustomLayers:  []string{"POI"},
 				},
 				Tags: map[string]string{"Environment": "prod"},
@@ -41,9 +41,9 @@ func TestClientSnapshotsLocationMetadataOnly(t *testing.T) {
 		},
 		indexes: map[string]*awslocation.DescribePlaceIndexOutput{
 			"store-index": {
-				IndexArn:   aws.String(indexARN),
-				IndexName:  aws.String("store-index"),
-				DataSource: aws.String("Here"),
+				IndexArn:   awsv2.String(indexARN),
+				IndexName:  awsv2.String("store-index"),
+				DataSource: awsv2.String("Here"),
 				DataSourceConfiguration: &awslocationtypes.DataSourceConfiguration{
 					IntendedUse: awslocationtypes.IntendedUse("SingleUse"),
 				},
@@ -51,28 +51,28 @@ func TestClientSnapshotsLocationMetadataOnly(t *testing.T) {
 		},
 		trackers: map[string]*awslocation.DescribeTrackerOutput{
 			"fleet-tracker": {
-				TrackerArn:                    aws.String(trackerARN),
-				TrackerName:                   aws.String("fleet-tracker"),
-				KmsKeyId:                      aws.String(kmsARN),
-				KmsKeyEnableGeospatialQueries: aws.Bool(true),
-				EventBridgeEnabled:            aws.Bool(true),
+				TrackerArn:                    awsv2.String(trackerARN),
+				TrackerName:                   awsv2.String("fleet-tracker"),
+				KmsKeyId:                      awsv2.String(kmsARN),
+				KmsKeyEnableGeospatialQueries: awsv2.Bool(true),
+				EventBridgeEnabled:            awsv2.Bool(true),
 				PositionFiltering:             awslocationtypes.PositionFiltering("TimeBased"),
 			},
 		},
 		trackerConsumers: map[string][]string{"fleet-tracker": {collectionARN}},
 		collections: map[string]*awslocation.DescribeGeofenceCollectionOutput{
 			"zones": {
-				CollectionArn:  aws.String(collectionARN),
-				CollectionName: aws.String("zones"),
-				KmsKeyId:       aws.String(kmsARN),
-				GeofenceCount:  aws.Int32(7),
+				CollectionArn:  awsv2.String(collectionARN),
+				CollectionName: awsv2.String("zones"),
+				KmsKeyId:       awsv2.String(kmsARN),
+				GeofenceCount:  awsv2.Int32(7),
 			},
 		},
 		calculators: map[string]*awslocation.DescribeRouteCalculatorOutput{
 			"routes": {
-				CalculatorArn:  aws.String(routeARN),
-				CalculatorName: aws.String("routes"),
-				DataSource:     aws.String("Esri"),
+				CalculatorArn:  awsv2.String(routeARN),
+				CalculatorName: awsv2.String("routes"),
+				DataSource:     awsv2.String("Esri"),
 			},
 		},
 	}
@@ -139,7 +139,7 @@ func (f *fakeLocationAPI) ListMaps(
 ) (*awslocation.ListMapsOutput, error) {
 	var entries []awslocationtypes.ListMapsResponseEntry
 	for name := range f.maps {
-		entries = append(entries, awslocationtypes.ListMapsResponseEntry{MapName: aws.String(name)})
+		entries = append(entries, awslocationtypes.ListMapsResponseEntry{MapName: awsv2.String(name)})
 	}
 	return &awslocation.ListMapsOutput{Entries: entries}, nil
 }
@@ -147,7 +147,7 @@ func (f *fakeLocationAPI) ListMaps(
 func (f *fakeLocationAPI) DescribeMap(
 	_ context.Context, in *awslocation.DescribeMapInput, _ ...func(*awslocation.Options),
 ) (*awslocation.DescribeMapOutput, error) {
-	return f.maps[aws.ToString(in.MapName)], nil
+	return f.maps[awsv2.ToString(in.MapName)], nil
 }
 
 func (f *fakeLocationAPI) ListPlaceIndexes(
@@ -155,7 +155,7 @@ func (f *fakeLocationAPI) ListPlaceIndexes(
 ) (*awslocation.ListPlaceIndexesOutput, error) {
 	var entries []awslocationtypes.ListPlaceIndexesResponseEntry
 	for name := range f.indexes {
-		entries = append(entries, awslocationtypes.ListPlaceIndexesResponseEntry{IndexName: aws.String(name)})
+		entries = append(entries, awslocationtypes.ListPlaceIndexesResponseEntry{IndexName: awsv2.String(name)})
 	}
 	return &awslocation.ListPlaceIndexesOutput{Entries: entries}, nil
 }
@@ -163,7 +163,7 @@ func (f *fakeLocationAPI) ListPlaceIndexes(
 func (f *fakeLocationAPI) DescribePlaceIndex(
 	_ context.Context, in *awslocation.DescribePlaceIndexInput, _ ...func(*awslocation.Options),
 ) (*awslocation.DescribePlaceIndexOutput, error) {
-	return f.indexes[aws.ToString(in.IndexName)], nil
+	return f.indexes[awsv2.ToString(in.IndexName)], nil
 }
 
 func (f *fakeLocationAPI) ListTrackers(
@@ -171,7 +171,7 @@ func (f *fakeLocationAPI) ListTrackers(
 ) (*awslocation.ListTrackersOutput, error) {
 	var entries []awslocationtypes.ListTrackersResponseEntry
 	for name := range f.trackers {
-		entries = append(entries, awslocationtypes.ListTrackersResponseEntry{TrackerName: aws.String(name)})
+		entries = append(entries, awslocationtypes.ListTrackersResponseEntry{TrackerName: awsv2.String(name)})
 	}
 	return &awslocation.ListTrackersOutput{Entries: entries}, nil
 }
@@ -179,14 +179,14 @@ func (f *fakeLocationAPI) ListTrackers(
 func (f *fakeLocationAPI) DescribeTracker(
 	_ context.Context, in *awslocation.DescribeTrackerInput, _ ...func(*awslocation.Options),
 ) (*awslocation.DescribeTrackerOutput, error) {
-	return f.trackers[aws.ToString(in.TrackerName)], nil
+	return f.trackers[awsv2.ToString(in.TrackerName)], nil
 }
 
 func (f *fakeLocationAPI) ListTrackerConsumers(
 	_ context.Context, in *awslocation.ListTrackerConsumersInput, _ ...func(*awslocation.Options),
 ) (*awslocation.ListTrackerConsumersOutput, error) {
 	return &awslocation.ListTrackerConsumersOutput{
-		ConsumerArns: f.trackerConsumers[aws.ToString(in.TrackerName)],
+		ConsumerArns: f.trackerConsumers[awsv2.ToString(in.TrackerName)],
 	}, nil
 }
 
@@ -195,7 +195,7 @@ func (f *fakeLocationAPI) ListGeofenceCollections(
 ) (*awslocation.ListGeofenceCollectionsOutput, error) {
 	var entries []awslocationtypes.ListGeofenceCollectionsResponseEntry
 	for name := range f.collections {
-		entries = append(entries, awslocationtypes.ListGeofenceCollectionsResponseEntry{CollectionName: aws.String(name)})
+		entries = append(entries, awslocationtypes.ListGeofenceCollectionsResponseEntry{CollectionName: awsv2.String(name)})
 	}
 	return &awslocation.ListGeofenceCollectionsOutput{Entries: entries}, nil
 }
@@ -203,7 +203,7 @@ func (f *fakeLocationAPI) ListGeofenceCollections(
 func (f *fakeLocationAPI) DescribeGeofenceCollection(
 	_ context.Context, in *awslocation.DescribeGeofenceCollectionInput, _ ...func(*awslocation.Options),
 ) (*awslocation.DescribeGeofenceCollectionOutput, error) {
-	return f.collections[aws.ToString(in.CollectionName)], nil
+	return f.collections[awsv2.ToString(in.CollectionName)], nil
 }
 
 func (f *fakeLocationAPI) ListRouteCalculators(
@@ -211,7 +211,7 @@ func (f *fakeLocationAPI) ListRouteCalculators(
 ) (*awslocation.ListRouteCalculatorsOutput, error) {
 	var entries []awslocationtypes.ListRouteCalculatorsResponseEntry
 	for name := range f.calculators {
-		entries = append(entries, awslocationtypes.ListRouteCalculatorsResponseEntry{CalculatorName: aws.String(name)})
+		entries = append(entries, awslocationtypes.ListRouteCalculatorsResponseEntry{CalculatorName: awsv2.String(name)})
 	}
 	return &awslocation.ListRouteCalculatorsOutput{Entries: entries}, nil
 }
@@ -219,13 +219,13 @@ func (f *fakeLocationAPI) ListRouteCalculators(
 func (f *fakeLocationAPI) DescribeRouteCalculator(
 	_ context.Context, in *awslocation.DescribeRouteCalculatorInput, _ ...func(*awslocation.Options),
 ) (*awslocation.DescribeRouteCalculatorOutput, error) {
-	return f.calculators[aws.ToString(in.CalculatorName)], nil
+	return f.calculators[awsv2.ToString(in.CalculatorName)], nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLocation,
+		ServiceKind: aws.ServiceLocation,
 	}
 }

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/docdbelastic guidance
+# AGENTS.md - internal/collector/cloud/aws/service/docdbelastic guidance
 
 ## Read First
 
@@ -33,7 +33,7 @@
   scanner's published secret resource_id. Never read the secret value. Drop the
   admin user name entirely under `PLAIN_TEXT` auth.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from cluster names or AWS
@@ -46,13 +46,13 @@
 
 - Add a new DocumentDB Elastic metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry document, credential,
+  `aws` envelope builders. If the field can carry document, credential,
   endpoint, or password content, leave it out of the scanner contract.
 - Add new relationship evidence only when the DocumentDB Elastic API reports
   both sides directly and the target identity matches an existing scanner's
   published resource_id shape (bare id for subnet/security-group, key id/ARN for
   KMS, secret ARN for Secrets Manager).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

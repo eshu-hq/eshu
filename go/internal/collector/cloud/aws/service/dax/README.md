@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/dax` owns the Amazon DynamoDB Accelerator
+`internal/collector/cloud/aws/service/dax` owns the Amazon DynamoDB Accelerator
 (DAX) scanner contract for the AWS cloud collector. It converts cluster, subnet
 group, and parameter group metadata into `aws_resource` facts and emits
 relationship evidence for cluster-to-subnet-group, cluster-to-security-group,
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,10 +48,10 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns;
 `eshu_dp_aws_resources_emitted_total{service="dax"}` covers each new resource
-type. The `awssdk` adapter records DAX API call counts, throttles, and
+type. The `sdk` adapter records DAX API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -82,14 +82,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/dax/...` covers the bounded DAX
+`go test ./internal/collector/cloud/aws/service/dax/...` covers the bounded DAX
 metadata path: one paginated DescribeClusters stream, one paginated
 DescribeSubnetGroups stream, one paginated DescribeParameterGroups stream, one
 ListTags read per cluster ARN, no mutation calls, and no graph writes in the
 collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/dax/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/dax/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

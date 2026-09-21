@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/computeoptimizer` owns the AWS Compute
+`internal/collector/cloud/aws/service/computeoptimizer` owns the AWS Compute
 Optimizer scanner contract for the AWS cloud collector. It converts Compute
 Optimizer recommendation metadata into `aws_resource` facts and emits
 relationship evidence connecting each recommendation to the analyzed EC2
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -67,9 +67,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Compute Optimizer API call counts, throttles, and
+The `sdk` adapter records Compute Optimizer API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -80,7 +80,7 @@ pagination spans.
 - An account not enrolled in Compute Optimizer is not an error. The adapter
   returns an empty snapshot and the scan completes cleanly with no facts.
 - Every relationship sets a `target_type` naming a declared
-  `awscloud.ResourceType*` constant (or the documented `aws_ec2_instance`
+  `aws.ResourceType*` constant (or the documented `aws_ec2_instance`
   forward-reference anchor) and a `target_resource_id` matching how the target
   scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -90,14 +90,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/computeoptimizer/...` covers the
+`go test ./internal/collector/cloud/aws/service/computeoptimizer/...` covers the
 bounded Compute Optimizer metadata path: one paginated GetRecommendationSummaries
 stream and one paginated stream each for GetEC2InstanceRecommendations,
 GetAutoScalingGroupRecommendations, GetEBSVolumeRecommendations, and
 GetLambdaFunctionRecommendations, no metric-data reads, no enrollment mutation,
 and no graph writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/computeoptimizer/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/computeoptimizer/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

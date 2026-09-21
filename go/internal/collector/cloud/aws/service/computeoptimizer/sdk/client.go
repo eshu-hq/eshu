@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsco "github.com/aws/aws-sdk-go-v2/service/computeoptimizer"
 	awscotypes "github.com/aws/aws-sdk-go-v2/service/computeoptimizer/types"
 	"github.com/aws/smithy-go"
@@ -64,15 +64,15 @@ type apiClient interface {
 // points.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Compute Optimizer SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -140,7 +140,7 @@ func (c *Client) getSummaries(ctx context.Context) ([]coservice.RecommendationSu
 		for _, summary := range page.RecommendationSummaries {
 			summaries = append(summaries, mapSummary(summary))
 		}
-		if nextToken = page.NextToken; aws.ToString(nextToken) == "" {
+		if nextToken = page.NextToken; awsv2.ToString(nextToken) == "" {
 			return summaries, false, nil
 		}
 	}
@@ -170,7 +170,7 @@ func (c *Client) getInstanceRecommendations(ctx context.Context) ([]coservice.In
 		for _, rec := range page.InstanceRecommendations {
 			recs = append(recs, mapInstanceRecommendation(rec))
 		}
-		if nextToken = page.NextToken; aws.ToString(nextToken) == "" {
+		if nextToken = page.NextToken; awsv2.ToString(nextToken) == "" {
 			return recs, nil
 		}
 	}
@@ -200,7 +200,7 @@ func (c *Client) getAutoScalingGroupRecommendations(ctx context.Context) ([]cose
 		for _, rec := range page.AutoScalingGroupRecommendations {
 			recs = append(recs, mapAutoScalingGroupRecommendation(rec))
 		}
-		if nextToken = page.NextToken; aws.ToString(nextToken) == "" {
+		if nextToken = page.NextToken; awsv2.ToString(nextToken) == "" {
 			return recs, nil
 		}
 	}
@@ -230,7 +230,7 @@ func (c *Client) getVolumeRecommendations(ctx context.Context) ([]coservice.Volu
 		for _, rec := range page.VolumeRecommendations {
 			recs = append(recs, mapVolumeRecommendation(rec))
 		}
-		if nextToken = page.NextToken; aws.ToString(nextToken) == "" {
+		if nextToken = page.NextToken; awsv2.ToString(nextToken) == "" {
 			return recs, nil
 		}
 	}
@@ -260,7 +260,7 @@ func (c *Client) getLambdaFunctionRecommendations(ctx context.Context) ([]coserv
 		for _, rec := range page.LambdaFunctionRecommendations {
 			recs = append(recs, mapLambdaFunctionRecommendation(rec))
 		}
-		if nextToken = page.NextToken; aws.ToString(nextToken) == "" {
+		if nextToken = page.NextToken; awsv2.ToString(nextToken) == "" {
 			return recs, nil
 		}
 	}
@@ -284,7 +284,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

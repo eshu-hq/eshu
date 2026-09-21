@@ -41,7 +41,7 @@ func TestScannerEmitsSecretsManagerMetadataOnlyFactsAndRelationships(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeSecretsManagerSecret)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeSecretsManagerSecret)
 	if got, want := resource.Payload["arn"], secretARN; got != want {
 		t.Fatalf("secret arn = %#v, want %q", got, want)
 	}
@@ -78,7 +78,7 @@ func TestScannerEmitsSecretsManagerMetadataOnlyFactsAndRelationships(t *testing.
 		}
 	}
 
-	kmsRelationship := relationshipByType(t, envelopes, awscloud.RelationshipSecretsManagerSecretUsesKMSKey)
+	kmsRelationship := relationshipByType(t, envelopes, aws.RelationshipSecretsManagerSecretUsesKMSKey)
 	if got, want := kmsRelationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -86,7 +86,7 @@ func TestScannerEmitsSecretsManagerMetadataOnlyFactsAndRelationships(t *testing.
 		t.Fatalf("kms target_arn = %#v, want %q", got, want)
 	}
 
-	rotationRelationship := relationshipByType(t, envelopes, awscloud.RelationshipSecretsManagerSecretUsesRotationLambda)
+	rotationRelationship := relationshipByType(t, envelopes, aws.RelationshipSecretsManagerSecretUsesRotationLambda)
 	if got, want := rotationRelationship.Payload["target_resource_id"], rotationARN; got != want {
 		t.Fatalf("rotation target_resource_id = %#v, want %q", got, want)
 	}
@@ -106,7 +106,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipSecretsManagerSecretUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipSecretsManagerSecretUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/secrets"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -117,7 +117,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -125,11 +125,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSecretsManager,
+		ServiceKind:         aws.ServiceSecretsManager,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:secretsmanager:1",
 		CollectorInstanceID: "aws-prod",

@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes AppStream fleets, stacks, image builders, images, and their
 // reported dependency and association metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("appstream scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppStream:
+	case "", aws.ServiceAppStream:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppStream
+		boundary.ServiceKind = aws.ServiceAppStream
 	default:
 		return nil, fmt.Errorf("appstream scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -85,7 +85,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !ok {
 			continue
 		}
-		if err := appendRelationships(&envelopes, []awscloud.RelationshipObservation{relationship}); err != nil {
+		if err := appendRelationships(&envelopes, []aws.RelationshipObservation{relationship}); err != nil {
 			return nil, err
 		}
 	}
@@ -122,9 +122,9 @@ func stackIndex(stacks []Stack) map[string]string {
 	return idByName
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -133,8 +133,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -142,9 +142,9 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.RelationshipObservation) error {
+func appendRelationships(envelopes *[]facts.Envelope, observations []aws.RelationshipObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -153,15 +153,15 @@ func appendRelationships(envelopes *[]facts.Envelope, observations []awscloud.Re
 	return nil
 }
 
-func fleetObservation(boundary awscloud.Boundary, fleet Fleet) awscloud.ResourceObservation {
+func fleetObservation(boundary aws.Boundary, fleet Fleet) aws.ResourceObservation {
 	arn := strings.TrimSpace(fleet.ARN)
 	name := strings.TrimSpace(fleet.Name)
 	resourceID := fleetResourceID(fleet)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamFleet,
+		ResourceType: aws.ResourceTypeAppStreamFleet,
 		Name:         name,
 		State:        strings.TrimSpace(fleet.State),
 		Tags:         cloneStringMap(fleet.Tags),
@@ -187,15 +187,15 @@ func fleetObservation(boundary awscloud.Boundary, fleet Fleet) awscloud.Resource
 	}
 }
 
-func stackObservation(boundary awscloud.Boundary, stack Stack) awscloud.ResourceObservation {
+func stackObservation(boundary aws.Boundary, stack Stack) aws.ResourceObservation {
 	arn := strings.TrimSpace(stack.ARN)
 	name := strings.TrimSpace(stack.Name)
 	resourceID := stackResourceID(stack)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamStack,
+		ResourceType: aws.ResourceTypeAppStreamStack,
 		Name:         name,
 		Tags:         cloneStringMap(stack.Tags),
 		Attributes: map[string]any{
@@ -211,15 +211,15 @@ func stackObservation(boundary awscloud.Boundary, stack Stack) awscloud.Resource
 	}
 }
 
-func imageBuilderObservation(boundary awscloud.Boundary, builder ImageBuilder) awscloud.ResourceObservation {
+func imageBuilderObservation(boundary aws.Boundary, builder ImageBuilder) aws.ResourceObservation {
 	arn := strings.TrimSpace(builder.ARN)
 	name := strings.TrimSpace(builder.Name)
 	resourceID := imageBuilderResourceID(builder)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamImageBuilder,
+		ResourceType: aws.ResourceTypeAppStreamImageBuilder,
 		Name:         name,
 		State:        strings.TrimSpace(builder.State),
 		Tags:         cloneStringMap(builder.Tags),
@@ -240,15 +240,15 @@ func imageBuilderObservation(boundary awscloud.Boundary, builder ImageBuilder) a
 	}
 }
 
-func imageObservation(boundary awscloud.Boundary, image Image) awscloud.ResourceObservation {
+func imageObservation(boundary aws.Boundary, image Image) aws.ResourceObservation {
 	arn := strings.TrimSpace(image.ARN)
 	name := strings.TrimSpace(image.Name)
 	resourceID := imageResourceID(image)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamImage,
+		ResourceType: aws.ResourceTypeAppStreamImage,
 		Name:         name,
 		State:        strings.TrimSpace(image.State),
 		Tags:         cloneStringMap(image.Tags),

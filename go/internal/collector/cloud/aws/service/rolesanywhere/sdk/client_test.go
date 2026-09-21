@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsrolesanywhere "github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	awsrolesanywheretypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 
@@ -26,11 +26,11 @@ func TestClientSnapshotsRolesAnywhereMetadataOnly(t *testing.T) {
 	api := &fakeRolesAnywhereAPI{
 		trustAnchorPages: []*awsrolesanywhere.ListTrustAnchorsOutput{{
 			TrustAnchors: []awsrolesanywheretypes.TrustAnchorDetail{{
-				TrustAnchorArn: aws.String(trustAnchorARN),
-				TrustAnchorId:  aws.String("anchor1"),
-				Name:           aws.String("corp-pca"),
-				Enabled:        aws.Bool(true),
-				CreatedAt:      aws.Time(createdAt),
+				TrustAnchorArn: awsv2.String(trustAnchorARN),
+				TrustAnchorId:  awsv2.String("anchor1"),
+				Name:           awsv2.String("corp-pca"),
+				Enabled:        awsv2.Bool(true),
+				CreatedAt:      awsv2.Time(createdAt),
 				Source: &awsrolesanywheretypes.Source{
 					SourceType: awsrolesanywheretypes.TrustAnchorTypeAwsAcmPca,
 					SourceData: &awsrolesanywheretypes.SourceDataMemberAcmPcaArn{Value: caARN},
@@ -39,35 +39,35 @@ func TestClientSnapshotsRolesAnywhereMetadataOnly(t *testing.T) {
 		}},
 		profilePages: []*awsrolesanywhere.ListProfilesOutput{{
 			Profiles: []awsrolesanywheretypes.ProfileDetail{{
-				ProfileArn:            aws.String(profileARN),
-				ProfileId:             aws.String("profile1"),
-				Name:                  aws.String("ci-profile"),
-				Enabled:               aws.Bool(true),
-				DurationSeconds:       aws.Int32(3600),
-				AcceptRoleSessionName: aws.Bool(true),
+				ProfileArn:            awsv2.String(profileARN),
+				ProfileId:             awsv2.String("profile1"),
+				Name:                  awsv2.String("ci-profile"),
+				Enabled:               awsv2.Bool(true),
+				DurationSeconds:       awsv2.Int32(3600),
+				AcceptRoleSessionName: awsv2.Bool(true),
 				RoleArns:              []string{roleARN},
 				ManagedPolicyArns:     []string{"arn:aws:iam::aws:policy/ReadOnlyAccess"},
-				SessionPolicy:         aws.String("{\"Version\":\"2012-10-17\"}"),
+				SessionPolicy:         awsv2.String("{\"Version\":\"2012-10-17\"}"),
 				AttributeMappings: []awsrolesanywheretypes.AttributeMapping{{
 					CertificateField: awsrolesanywheretypes.CertificateFieldX509Subject,
 				}},
-				CreatedAt: aws.Time(createdAt),
+				CreatedAt: awsv2.Time(createdAt),
 			}},
 		}},
 		crlPages: []*awsrolesanywhere.ListCrlsOutput{{
 			Crls: []awsrolesanywheretypes.CrlDetail{{
-				CrlArn:         aws.String(crlARN),
-				CrlId:          aws.String("crl1"),
-				Name:           aws.String("corp-crl"),
-				Enabled:        aws.Bool(true),
-				TrustAnchorArn: aws.String(trustAnchorARN),
+				CrlArn:         awsv2.String(crlARN),
+				CrlId:          awsv2.String("crl1"),
+				Name:           awsv2.String("corp-crl"),
+				Enabled:        awsv2.Bool(true),
+				TrustAnchorArn: awsv2.String(trustAnchorARN),
 				CrlData:        []byte("SHOULD-NEVER-BE-PERSISTED"),
-				CreatedAt:      aws.Time(createdAt),
+				CreatedAt:      awsv2.Time(createdAt),
 			}},
 		}},
 		tags: map[string][]awsrolesanywheretypes.Tag{
-			trustAnchorARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			profileARN:     {{Key: aws.String("Team"), Value: aws.String("platform")}},
+			trustAnchorARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			profileARN:     {{Key: awsv2.String("Team"), Value: awsv2.String("platform")}},
 		},
 	}
 
@@ -197,14 +197,14 @@ func (f *fakeRolesAnywhereAPI) ListTagsForResource(
 	_ ...func(*awsrolesanywhere.Options),
 ) (*awsrolesanywhere.ListTagsForResourceOutput, error) {
 	return &awsrolesanywhere.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceRolesAnywhere,
+		ServiceKind: aws.ServiceRolesAnywhere,
 	}
 }

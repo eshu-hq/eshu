@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssecuritylake "github.com/aws/aws-sdk-go-v2/service/securitylake"
 	awssecuritylaketypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
 	"github.com/aws/smithy-go"
@@ -51,15 +51,15 @@ type apiClient interface {
 // API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Security Lake SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -115,20 +115,20 @@ func (c *Client) listDataLakes(ctx context.Context) ([]securitylakeservice.DataL
 
 func mapDataLake(lake awssecuritylaketypes.DataLakeResource) securitylakeservice.DataLake {
 	mapped := securitylakeservice.DataLake{
-		ARN:          strings.TrimSpace(aws.ToString(lake.DataLakeArn)),
-		Region:       strings.TrimSpace(aws.ToString(lake.Region)),
-		S3BucketARN:  strings.TrimSpace(aws.ToString(lake.S3BucketArn)),
+		ARN:          strings.TrimSpace(awsv2.ToString(lake.DataLakeArn)),
+		Region:       strings.TrimSpace(awsv2.ToString(lake.Region)),
+		S3BucketARN:  strings.TrimSpace(awsv2.ToString(lake.S3BucketArn)),
 		CreateStatus: strings.TrimSpace(string(lake.CreateStatus)),
 	}
 	if lake.EncryptionConfiguration != nil {
-		mapped.KMSKeyID = strings.TrimSpace(aws.ToString(lake.EncryptionConfiguration.KmsKeyId))
+		mapped.KMSKeyID = strings.TrimSpace(awsv2.ToString(lake.EncryptionConfiguration.KmsKeyId))
 	}
 	if lake.UpdateStatus != nil {
 		mapped.UpdateStatus = strings.TrimSpace(string(lake.UpdateStatus.Status))
 	}
 	if lifecycle := lake.LifecycleConfiguration; lifecycle != nil {
 		if lifecycle.Expiration != nil {
-			mapped.ExpirationDays = aws.ToInt32(lifecycle.Expiration.Days)
+			mapped.ExpirationDays = awsv2.ToInt32(lifecycle.Expiration.Days)
 		}
 		mapped.TransitionCount = len(lifecycle.Transitions)
 	}
@@ -161,7 +161,7 @@ func (c *Client) listLogSources(ctx context.Context) ([]securitylakeservice.LogS
 			sources = append(sources, mapLogSources(logSource)...)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return sources, nil
 		}
 	}
@@ -170,8 +170,8 @@ func (c *Client) listLogSources(ctx context.Context) ([]securitylakeservice.LogS
 // mapLogSources expands one AWS LogSource (an account/region scope carrying a
 // set of source resources) into one scanner LogSource per source resource.
 func mapLogSources(logSource awssecuritylaketypes.LogSource) []securitylakeservice.LogSource {
-	account := strings.TrimSpace(aws.ToString(logSource.Account))
-	region := strings.TrimSpace(aws.ToString(logSource.Region))
+	account := strings.TrimSpace(awsv2.ToString(logSource.Account))
+	region := strings.TrimSpace(awsv2.ToString(logSource.Region))
 	out := make([]securitylakeservice.LogSource, 0, len(logSource.Sources))
 	for _, resource := range logSource.Sources {
 		if mapped, ok := mapLogSourceResource(account, region, resource); ok {
@@ -191,18 +191,18 @@ func mapLogSourceResource(
 			Account:       account,
 			Region:        region,
 			SourceName:    strings.TrimSpace(string(typed.Value.SourceName)),
-			SourceVersion: strings.TrimSpace(aws.ToString(typed.Value.SourceVersion)),
+			SourceVersion: strings.TrimSpace(awsv2.ToString(typed.Value.SourceVersion)),
 		}, true
 	case *awssecuritylaketypes.LogSourceResourceMemberCustomLogSource:
 		mapped := securitylakeservice.LogSource{
 			Account:       account,
 			Region:        region,
-			SourceName:    strings.TrimSpace(aws.ToString(typed.Value.SourceName)),
-			SourceVersion: strings.TrimSpace(aws.ToString(typed.Value.SourceVersion)),
+			SourceName:    strings.TrimSpace(awsv2.ToString(typed.Value.SourceName)),
+			SourceVersion: strings.TrimSpace(awsv2.ToString(typed.Value.SourceVersion)),
 			Custom:        true,
 		}
 		if provider := typed.Value.Provider; provider != nil {
-			mapped.ProviderRoleARN = strings.TrimSpace(aws.ToString(provider.RoleArn))
+			mapped.ProviderRoleARN = strings.TrimSpace(awsv2.ToString(provider.RoleArn))
 		}
 		return mapped, true
 	default:
@@ -232,7 +232,7 @@ func (c *Client) listSubscribers(ctx context.Context) ([]securitylakeservice.Sub
 			subscribers = append(subscribers, mapSubscriber(subscriber))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return subscribers, nil
 		}
 	}
@@ -243,19 +243,19 @@ func (c *Client) listSubscribers(ctx context.Context) ([]securitylakeservice.Sub
 // credential) or the subscriber endpoint (a private notification destination).
 func mapSubscriber(subscriber awssecuritylaketypes.SubscriberResource) securitylakeservice.Subscriber {
 	mapped := securitylakeservice.Subscriber{
-		ARN:         strings.TrimSpace(aws.ToString(subscriber.SubscriberArn)),
-		ID:          strings.TrimSpace(aws.ToString(subscriber.SubscriberId)),
-		Name:        strings.TrimSpace(aws.ToString(subscriber.SubscriberName)),
+		ARN:         strings.TrimSpace(awsv2.ToString(subscriber.SubscriberArn)),
+		ID:          strings.TrimSpace(awsv2.ToString(subscriber.SubscriberId)),
+		Name:        strings.TrimSpace(awsv2.ToString(subscriber.SubscriberName)),
 		Status:      strings.TrimSpace(string(subscriber.SubscriberStatus)),
 		AccessTypes: accessTypeStrings(subscriber.AccessTypes),
-		RoleARN:     strings.TrimSpace(aws.ToString(subscriber.RoleArn)),
-		S3BucketARN: strings.TrimSpace(aws.ToString(subscriber.S3BucketArn)),
+		RoleARN:     strings.TrimSpace(awsv2.ToString(subscriber.RoleArn)),
+		S3BucketARN: strings.TrimSpace(awsv2.ToString(subscriber.S3BucketArn)),
 		SourceNames: subscriberSourceNames(subscriber.Sources),
-		CreatedAt:   aws.ToTime(subscriber.CreatedAt),
-		UpdatedAt:   aws.ToTime(subscriber.UpdatedAt),
+		CreatedAt:   awsv2.ToTime(subscriber.CreatedAt),
+		UpdatedAt:   awsv2.ToTime(subscriber.UpdatedAt),
 	}
 	if subscriber.SubscriberIdentity != nil {
-		mapped.PrincipalAccount = strings.TrimSpace(aws.ToString(subscriber.SubscriberIdentity.Principal))
+		mapped.PrincipalAccount = strings.TrimSpace(awsv2.ToString(subscriber.SubscriberIdentity.Principal))
 	}
 	return mapped
 }
@@ -323,7 +323,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -16,7 +16,7 @@ import (
 // "/table/<name>" segment. Deriving from the table ARN inherits the table ARN's
 // partition (aws / aws-cn / aws-us-gov), so the edge never dangles in GovCloud or
 // China the way a hardcoded commercial partition would.
-func tableKeyspaceRelationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
+func tableKeyspaceRelationship(boundary aws.Boundary, table Table) *aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(table.ARN)
 	if sourceID == "" {
 		return nil
@@ -25,18 +25,18 @@ func tableKeyspaceRelationship(boundary awscloud.Boundary, table Table) *awsclou
 	if keyspaceARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKeyspacesTableInKeyspace,
+		RelationshipType: aws.RelationshipKeyspacesTableInKeyspace,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: keyspaceARN,
 		TargetARN:        keyspaceARN,
-		TargetType:       awscloud.ResourceTypeKeyspacesKeyspace,
+		TargetType:       aws.ResourceTypeKeyspacesKeyspace,
 		Attributes: map[string]any{
 			"keyspace_name": strings.TrimSpace(table.KeyspaceName),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipKeyspacesTableInKeyspace + ":" + keyspaceARN,
+		SourceRecordID: sourceID + "->" + aws.RelationshipKeyspacesTableInKeyspace + ":" + keyspaceARN,
 	}
 }
 
@@ -45,7 +45,7 @@ func tableKeyspaceRelationship(boundary awscloud.Boundary, table Table) *awsclou
 // is emitted for them. The KMS key scanner publishes its key node keyed by ARN,
 // so the target is keyed by the reported KMS key ARN. target_arn is set only when
 // the identifier is ARN-shaped, mirroring the DynamoDB scanner.
-func tableKMSRelationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
+func tableKMSRelationship(boundary aws.Boundary, table Table) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(table.Encryption.KMSKeyIdentifier)
 	if targetID == "" {
 		return nil
@@ -58,18 +58,18 @@ func tableKMSRelationship(boundary awscloud.Boundary, table Table) *awscloud.Rel
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKeyspacesTableUsesKMSKey,
+		RelationshipType: aws.RelationshipKeyspacesTableUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"encryption_type": strings.TrimSpace(table.Encryption.Type),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipKeyspacesTableUsesKMSKey + ":" + targetID,
+		SourceRecordID: sourceID + "->" + aws.RelationshipKeyspacesTableUsesKMSKey + ":" + targetID,
 	}
 }
 

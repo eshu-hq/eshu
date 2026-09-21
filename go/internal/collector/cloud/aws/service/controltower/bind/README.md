@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/controltower/runtimebind` registers the
-Control Tower scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/controltower/bind` registers the
+Control Tower scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the Control Tower scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceControlTower` to the Control Tower scanner builder. It does not
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceControlTower` to the Control Tower scanner builder. It does not
 own AWS API calls, Control Tower domain types, or fact emission. Those belong to
-`internal/collector/awscloud/service/controltower` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/controltower` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceControlTower` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceControlTower` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/controltower` for the scanner struct.
-- `internal/collector/awscloud/service/controltower/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/controltower` for the scanner struct.
+- `internal/collector/cloud/aws/service/controltower/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Control Tower scanner and its
 SDK adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -46,6 +46,6 @@ and the awsruntime README.
 ## Related docs
 
 - `../README.md` for the Control Tower scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

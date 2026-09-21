@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codepipeline` owns the CodePipeline
+`internal/collector/cloud/aws/service/codepipeline` owns the CodePipeline
 scanner contract for the AWS cloud collector. It converts pipeline,
 recent-execution, webhook, and custom-action-type metadata into `aws_resource`
 facts and emits `aws_relationship` facts for the pipeline, stage, and action
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and the shared `RedactString`
   redaction helper.
 - `internal/facts` for emitted fact envelope kinds.
@@ -53,9 +53,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
-(`eshu_dp_aws_resources_emitted_total{service="codepipeline"}`). The `awssdk`
+(`eshu_dp_aws_resources_emitted_total{service="codepipeline"}`). The `sdk`
 adapter records CodePipeline API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -100,7 +100,7 @@ adapter records CodePipeline API call counts, throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codepipeline/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/codepipeline/... -count=1 -race`
 covers the bounded CodePipeline metadata path: paginated pipeline, webhook, and
 action-type listings; one GetPipeline plus one tag read per pipeline; recent
 executions bounded to the `ListPipelineExecutions` cap of 25 per pipeline; no
@@ -109,7 +109,7 @@ ListPipelineExecutions calls plus O(pages) list calls, with no per-action API
 fan-out.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers CodePipeline resource and relationship emission, action-configuration
 value exclusion, webhook secret-token exclusion, source-revision summary
 redaction, runtime registration through the derived service guard, and command
@@ -136,10 +136,10 @@ Collector Deployment Evidence: CodePipeline runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/codepipeline/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/codepipeline/... -count=1`
 covers the existing partition assertions, now backed by the shared helper. The
 synthesized S3, CodeBuild, CodeDeploy, Lambda, and ECS target ARNs now derive
-the partition from the scan boundary via `awscloud.PartitionForBoundary`
+the partition from the scan boundary via `aws.PartitionForBoundary`
 (replacing the package-local `partition` helper) instead of hardcoding `aws`.
 Commercial output is byte-for-byte unchanged; this is a metadata-only
 correctness fix with no graph-write, queue, or hot-path behavior change.

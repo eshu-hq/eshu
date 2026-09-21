@@ -18,12 +18,12 @@ import (
 
 // ec2UsesProfileResourceTypeInstanceProfile is the aws_resource resource_type the
 // IAM scanner emits for an instance-profile node. It mirrors
-// awscloud.ResourceTypeIAMInstanceProfile; the duplication is intentional so the
+// aws.ResourceTypeIAMInstanceProfile; the duplication is intentional so the
 // reducer does not import the collector package for one string constant.
 const ec2UsesProfileResourceTypeInstanceProfile = awsv1.ResourceTypeIAMInstanceProfile
 
 // ec2UsesProfileResourceTypeInstance is the canonical resource-type token an EC2
-// instance CloudResource node carries. It mirrors awscloud.ResourceTypeEC2Instance
+// instance CloudResource node carries. It mirrors aws.ResourceTypeEC2Instance
 // and the PR-A node materialization (ec2_instance_node_rows.go), so the edge's
 // source uid is byte-identical to the node uid PR-A committed.
 const ec2UsesProfileResourceTypeInstance = awsv1.ResourceTypeEC2Instance

@@ -30,15 +30,15 @@ type Scanner struct {
 // registered-resource resource per location with S3-bucket and IAM-role edges,
 // and one permission resource per grant with Glue database/table and IAM-role
 // principal edges.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("lakeformation scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLakeFormation:
+	case "", aws.ServiceLakeFormation:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLakeFormation
+		boundary.ServiceKind = aws.ServiceLakeFormation
 	default:
 		return nil, fmt.Errorf("lakeformation scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,7 +49,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("get Lake Formation data-lake settings: %w", err)
 	}
-	settingsEnvelope, err := awscloud.NewResourceEnvelope(settingsObservation(boundary, settings))
+	settingsEnvelope, err := aws.NewResourceEnvelope(settingsObservation(boundary, settings))
 	if err != nil {
 		return nil, err
 	}
@@ -82,20 +82,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func registeredResourceEnvelopes(boundary awscloud.Boundary, resource RegisteredResource) ([]facts.Envelope, error) {
-	resourceEnvelope, err := awscloud.NewResourceEnvelope(registeredResourceObservation(boundary, resource))
+func registeredResourceEnvelopes(boundary aws.Boundary, resource RegisteredResource) ([]facts.Envelope, error) {
+	resourceEnvelope, err := aws.NewResourceEnvelope(registeredResourceObservation(boundary, resource))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resourceEnvelope}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		resourceS3BucketRelationship(boundary, resource),
 		resourceRoleRelationship(boundary, resource),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -104,15 +104,15 @@ func registeredResourceEnvelopes(boundary awscloud.Boundary, resource Registered
 	return envelopes, nil
 }
 
-func permissionEnvelopes(boundary awscloud.Boundary, permission Permission) ([]facts.Envelope, error) {
+func permissionEnvelopes(boundary aws.Boundary, permission Permission) ([]facts.Envelope, error) {
 	permissionID := permissionResourceID(boundary, permission)
-	resourceEnvelope, err := awscloud.NewResourceEnvelope(permissionObservation(boundary, permissionID, permission))
+	resourceEnvelope, err := aws.NewResourceEnvelope(permissionObservation(boundary, permissionID, permission))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resourceEnvelope}
 	for _, relationship := range permissionRelationships(boundary, permissionID, permission) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -121,12 +121,12 @@ func permissionEnvelopes(boundary awscloud.Boundary, permission Permission) ([]f
 	return envelopes, nil
 }
 
-func settingsObservation(boundary awscloud.Boundary, settings Settings) awscloud.ResourceObservation {
+func settingsObservation(boundary aws.Boundary, settings Settings) aws.ResourceObservation {
 	resourceID := "lakeformation-settings:" + strings.TrimSpace(boundary.AccountID) + ":" + strings.TrimSpace(boundary.Region)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLakeFormationSettings,
+		ResourceType: aws.ResourceTypeLakeFormationSettings,
 		Name:         resourceID,
 		Attributes: map[string]any{
 			"data_lake_admins":      cloneStringSlice(settings.Admins),
@@ -139,13 +139,13 @@ func settingsObservation(boundary awscloud.Boundary, settings Settings) awscloud
 	}
 }
 
-func registeredResourceObservation(boundary awscloud.Boundary, resource RegisteredResource) awscloud.ResourceObservation {
+func registeredResourceObservation(boundary aws.Boundary, resource RegisteredResource) aws.ResourceObservation {
 	resourceARN := strings.TrimSpace(resource.ResourceARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          resourceARN,
 		ResourceID:   resourceARN,
-		ResourceType: awscloud.ResourceTypeLakeFormationResource,
+		ResourceType: aws.ResourceTypeLakeFormationResource,
 		Name:         resourceARN,
 		State:        strings.TrimSpace(resource.VerificationStatus),
 		Attributes: map[string]any{
@@ -162,11 +162,11 @@ func registeredResourceObservation(boundary awscloud.Boundary, resource Register
 	}
 }
 
-func permissionObservation(boundary awscloud.Boundary, permissionID string, permission Permission) awscloud.ResourceObservation {
-	return awscloud.ResourceObservation{
+func permissionObservation(boundary aws.Boundary, permissionID string, permission Permission) aws.ResourceObservation {
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   permissionID,
-		ResourceType: awscloud.ResourceTypeLakeFormationPermission,
+		ResourceType: aws.ResourceTypeLakeFormationPermission,
 		Name:         permissionID,
 		Attributes: map[string]any{
 			"principal_id":         strings.TrimSpace(permission.PrincipalID),
@@ -191,7 +191,7 @@ func permissionObservation(boundary awscloud.Boundary, permissionID string, perm
 // identifier (never an ARN) keyed on the grant's natural identity, with the
 // grant's (order-independent) privileges as a final disambiguator for grants
 // that would otherwise collide, so the identity does not depend on API order.
-func permissionResourceID(boundary awscloud.Boundary, permission Permission) string {
+func permissionResourceID(boundary aws.Boundary, permission Permission) string {
 	var resourceRef string
 	switch strings.TrimSpace(permission.ResourceKind) {
 	case "table":

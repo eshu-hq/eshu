@@ -9,14 +9,14 @@ import (
 
 // pipelineObservation maps an image pipeline into its resource node. The
 // resource_id is the pipeline ARN, which is the value pipeline edges source on.
-func pipelineObservation(boundary awscloud.Boundary, pipeline ImagePipeline) awscloud.ResourceObservation {
+func pipelineObservation(boundary aws.Boundary, pipeline ImagePipeline) aws.ResourceObservation {
 	arn := trimSpace(pipeline.ARN)
 	name := trimSpace(pipeline.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderImagePipeline,
+		ResourceType: aws.ResourceTypeImageBuilderImagePipeline,
 		Name:         name,
 		State:        trimSpace(pipeline.Status),
 		Tags:         cloneStringMap(pipeline.Tags),
@@ -41,14 +41,14 @@ func pipelineObservation(boundary awscloud.Boundary, pipeline ImagePipeline) aws
 // imageRecipeObservation maps an image recipe into its resource node. The parent
 // image is recorded as an attribute because there is no EC2 AMI resource type to
 // key an edge to; component ARNs are recorded as references only, never bodies.
-func imageRecipeObservation(boundary awscloud.Boundary, recipe ImageRecipe) awscloud.ResourceObservation {
+func imageRecipeObservation(boundary aws.Boundary, recipe ImageRecipe) aws.ResourceObservation {
 	arn := trimSpace(recipe.ARN)
 	name := trimSpace(recipe.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderImageRecipe,
+		ResourceType: aws.ResourceTypeImageBuilderImageRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -70,14 +70,14 @@ func imageRecipeObservation(boundary awscloud.Boundary, recipe ImageRecipe) awsc
 // containerRecipeObservation maps a container recipe into its resource node. The
 // Dockerfile template body is never read; the target ECR repository name and KMS
 // key reference are kept for edges, and the parent image is an attribute.
-func containerRecipeObservation(boundary awscloud.Boundary, recipe ContainerRecipe) awscloud.ResourceObservation {
+func containerRecipeObservation(boundary aws.Boundary, recipe ContainerRecipe) aws.ResourceObservation {
 	arn := trimSpace(recipe.ARN)
 	name := trimSpace(recipe.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderContainerRecipe,
+		ResourceType: aws.ResourceTypeImageBuilderContainerRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -104,14 +104,14 @@ func containerRecipeObservation(boundary awscloud.Boundary, recipe ContainerReci
 // infraConfigObservation maps an infrastructure configuration into its resource
 // node. The instance profile name, networking references, SNS topic, and S3
 // logging location are kept for edges; no instance user data is read.
-func infraConfigObservation(boundary awscloud.Boundary, config InfrastructureConfiguration) awscloud.ResourceObservation {
+func infraConfigObservation(boundary aws.Boundary, config InfrastructureConfiguration) aws.ResourceObservation {
 	arn := trimSpace(config.ARN)
 	name := trimSpace(config.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderInfrastructureConfiguration,
+		ResourceType: aws.ResourceTypeImageBuilderInfrastructureConfiguration,
 		Name:         name,
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{
@@ -137,14 +137,14 @@ func infraConfigObservation(boundary awscloud.Boundary, config InfrastructureCon
 // resource node. Only the distribution target regions and lifecycle metadata are
 // recorded; per-region AMI and container distribution settings stay out of the
 // fact payload.
-func distributionConfigObservation(boundary awscloud.Boundary, config DistributionConfiguration) awscloud.ResourceObservation {
+func distributionConfigObservation(boundary aws.Boundary, config DistributionConfiguration) aws.ResourceObservation {
 	arn := trimSpace(config.ARN)
 	name := trimSpace(config.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderDistributionConfiguration,
+		ResourceType: aws.ResourceTypeImageBuilderDistributionConfiguration,
 		Name:         name,
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{

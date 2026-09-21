@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdetective "github.com/aws/aws-sdk-go-v2/service/detective"
 	detectivetypes "github.com/aws/aws-sdk-go-v2/service/detective/types"
 	"go.opentelemetry.io/otel/trace"
@@ -38,7 +38,7 @@ type apiClient interface {
 // metadata-only scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -46,8 +46,8 @@ type Client struct {
 // NewClient builds an Amazon Detective SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -80,7 +80,7 @@ func (c *Client) ListGraphs(ctx context.Context) ([]detectiveservice.Graph, erro
 			return graphs, nil
 		}
 		for _, graph := range page.GraphList {
-			arn := strings.TrimSpace(aws.ToString(graph.Arn))
+			arn := strings.TrimSpace(awsv2.ToString(graph.Arn))
 			if arn == "" {
 				continue
 			}
@@ -112,7 +112,7 @@ func (c *Client) ListMembers(ctx context.Context, graphARN string) ([]detectives
 		err := c.recordAPICall(ctx, "ListMembers", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListMembers(callCtx, &awsdetective.ListMembersInput{
-				GraphArn:  aws.String(graphARN),
+				GraphArn:  awsv2.String(graphARN),
 				NextToken: nextToken,
 			})
 			return callErr
@@ -143,7 +143,7 @@ func (c *Client) ListTags(ctx context.Context, graphARN string) (map[string]stri
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awsdetective.ListTagsForResourceInput{
-			ResourceArn: aws.String(graphARN),
+			ResourceArn: awsv2.String(graphARN),
 		})
 		return callErr
 	})
@@ -161,9 +161,9 @@ func (c *Client) ListTags(ctx context.Context, graphARN string) (map[string]stri
 // deprecated master-id and graph-utilization fields are intentionally dropped.
 func mapMember(member detectivetypes.MemberDetail) detectiveservice.MemberAccount {
 	return detectiveservice.MemberAccount{
-		AccountID:          strings.TrimSpace(aws.ToString(member.AccountId)),
-		AdministratorID:    strings.TrimSpace(aws.ToString(member.AdministratorId)),
-		GraphARN:           strings.TrimSpace(aws.ToString(member.GraphArn)),
+		AccountID:          strings.TrimSpace(awsv2.ToString(member.AccountId)),
+		AdministratorID:    strings.TrimSpace(awsv2.ToString(member.AdministratorId)),
+		GraphARN:           strings.TrimSpace(awsv2.ToString(member.GraphArn)),
 		Status:             string(member.Status),
 		InvitationType:     string(member.InvitationType),
 		InvitedAt:          formatTime(member.InvitedTime),
@@ -197,11 +197,11 @@ func ingestStatePackages(states map[string]detectivetypes.DatasourcePackageInges
 // hasNextPage reports whether a paginated response advanced to a new token,
 // guarding against a server that echoes the same non-empty token forever.
 func hasNextPage(previous, next *string) bool {
-	token := strings.TrimSpace(aws.ToString(next))
+	token := strings.TrimSpace(awsv2.ToString(next))
 	if token == "" {
 		return false
 	}
-	return token != strings.TrimSpace(aws.ToString(previous))
+	return token != strings.TrimSpace(awsv2.ToString(previous))
 }
 
 func formatTime(value *time.Time) string {

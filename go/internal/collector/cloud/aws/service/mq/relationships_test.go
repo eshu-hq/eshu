@@ -63,7 +63,7 @@ func TestBrokerConfigurationRelationshipTargetsConfigurationARN(t *testing.T) {
 	}
 
 	observations := brokerRelationships(boundary, broker, map[string]string{"c-2222": configARN})
-	config := relationshipByTypeObs(t, observations, awscloud.RelationshipMQBrokerUsesConfiguration)
+	config := relationshipByTypeObs(t, observations, aws.RelationshipMQBrokerUsesConfiguration)
 	if got := config.TargetResourceID; got != configARN {
 		t.Fatalf("configuration TargetResourceID = %q, want %q", got, configARN)
 	}
@@ -87,7 +87,7 @@ func TestBrokerConfigurationRelationshipFallsBackToIDWhenARNUnknown(t *testing.T
 	}
 
 	observations := brokerRelationships(boundary, broker, map[string]string{"c-2222": "arn:aws:mq:us-east-1:123456789012:configuration:c-2222"})
-	config := relationshipByTypeObs(t, observations, awscloud.RelationshipMQBrokerUsesConfiguration)
+	config := relationshipByTypeObs(t, observations, aws.RelationshipMQBrokerUsesConfiguration)
 	if got, want := config.TargetResourceID, "c-9999"; got != want {
 		t.Fatalf("configuration TargetResourceID = %q, want %q", got, want)
 	}
@@ -126,10 +126,10 @@ func TestBrokerLogsRelationshipTargetsLogGroupARNInNonAWSPartition(t *testing.T)
 	}
 }
 
-func logRelationshipByKind(t *testing.T, observations []awscloud.RelationshipObservation, kind string) awscloud.RelationshipObservation {
+func logRelationshipByKind(t *testing.T, observations []aws.RelationshipObservation, kind string) aws.RelationshipObservation {
 	t.Helper()
 	for _, observation := range observations {
-		if observation.RelationshipType != awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup {
+		if observation.RelationshipType != aws.RelationshipMQBrokerLogsToCloudWatchLogGroup {
 			continue
 		}
 		if got, _ := observation.Attributes["log_kind"].(string); got == kind {
@@ -137,10 +137,10 @@ func logRelationshipByKind(t *testing.T, observations []awscloud.RelationshipObs
 		}
 	}
 	t.Fatalf("missing %q log group relationship in %#v", kind, observations)
-	return awscloud.RelationshipObservation{}
+	return aws.RelationshipObservation{}
 }
 
-func relationshipByTypeObs(t *testing.T, observations []awscloud.RelationshipObservation, relationshipType string) awscloud.RelationshipObservation {
+func relationshipByTypeObs(t *testing.T, observations []aws.RelationshipObservation, relationshipType string) aws.RelationshipObservation {
 	t.Helper()
 	for _, observation := range observations {
 		if observation.RelationshipType == relationshipType {
@@ -148,7 +148,7 @@ func relationshipByTypeObs(t *testing.T, observations []awscloud.RelationshipObs
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, observations)
-	return awscloud.RelationshipObservation{}
+	return aws.RelationshipObservation{}
 }
 
 // assertRelationshipTargetARN locates the relationship of relationshipType in the

@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssc "github.com/aws/aws-sdk-go-v2/service/servicecatalog"
 	awssctypes "github.com/aws/aws-sdk-go-v2/service/servicecatalog/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceServiceCatalog,
+		ServiceKind:         aws.ServiceServiceCatalog,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -68,12 +68,12 @@ func TestClientListPortfoliosMapsSafeMetadata(t *testing.T) {
 	adapter := &Client{
 		client: &fakeServiceCatalogAPI{portfolios: &awssc.ListPortfoliosOutput{
 			PortfolioDetails: []awssctypes.PortfolioDetail{{
-				Id:           aws.String("port-abc123"),
-				ARN:          aws.String("arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"),
-				DisplayName:  aws.String("Platform Portfolio"),
-				ProviderName: aws.String("Platform Team"),
-				Description:  aws.String("Shared products"),
-				CreatedTime:  aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				Id:           awsv2.String("port-abc123"),
+				ARN:          awsv2.String("arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"),
+				DisplayName:  awsv2.String("Platform Portfolio"),
+				ProviderName: awsv2.String("Platform Team"),
+				Description:  awsv2.String("Shared products"),
+				CreatedTime:  awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		boundary: testBoundary(),
@@ -97,12 +97,12 @@ func TestClientListProductsReadsSummary(t *testing.T) {
 	adapter := &Client{
 		client: &fakeServiceCatalogAPI{products: &awssc.SearchProductsAsAdminOutput{
 			ProductViewDetails: []awssctypes.ProductViewDetail{{
-				ProductARN: aws.String("arn:aws:catalog:us-east-1:123456789012:product/prod-xyz789"),
+				ProductARN: awsv2.String("arn:aws:catalog:us-east-1:123456789012:product/prod-xyz789"),
 				Status:     awssctypes.StatusAvailable,
 				ProductViewSummary: &awssctypes.ProductViewSummary{
-					ProductId: aws.String("prod-xyz789"),
-					Name:      aws.String("Bucket Product"),
-					Owner:     aws.String("Platform Team"),
+					ProductId: awsv2.String("prod-xyz789"),
+					Name:      awsv2.String("Bucket Product"),
+					Owner:     awsv2.String("Platform Team"),
 					Type:      awssctypes.ProductTypeCloudFormationTemplate,
 				},
 			}},
@@ -136,19 +136,19 @@ func TestClientListProvisionedProductsStampsPhysicalID(t *testing.T) {
 		client: &fakeServiceCatalogAPI{
 			scanned: &awssc.ScanProvisionedProductsOutput{
 				ProvisionedProducts: []awssctypes.ProvisionedProductDetail{{
-					Id:        aws.String("pp-stack001"),
-					Arn:       aws.String("arn:aws:servicecatalog:us-east-1:123456789012:stack/team/pp-stack001"),
-					Name:      aws.String("team-bucket"),
+					Id:        awsv2.String("pp-stack001"),
+					Arn:       awsv2.String("arn:aws:servicecatalog:us-east-1:123456789012:stack/team/pp-stack001"),
+					Name:      awsv2.String("team-bucket"),
 					Status:    awssctypes.ProvisionedProductStatusAvailable,
-					Type:      aws.String("CFN_STACK"),
-					ProductId: aws.String("prod-xyz789"),
+					Type:      awsv2.String("CFN_STACK"),
+					ProductId: awsv2.String("prod-xyz789"),
 				}},
 			},
 			searched: &awssc.SearchProvisionedProductsOutput{
 				ProvisionedProducts: []awssctypes.ProvisionedProductAttribute{{
-					Id:         aws.String("pp-stack001"),
-					PhysicalId: aws.String("arn:aws:cloudformation:us-east-1:123456789012:stack/SC-team/abcd-1234"),
-					Type:       aws.String("CFN_STACK"),
+					Id:         awsv2.String("pp-stack001"),
+					PhysicalId: awsv2.String("arn:aws:cloudformation:us-east-1:123456789012:stack/SC-team/abcd-1234"),
+					Type:       awsv2.String("CFN_STACK"),
 				}},
 			},
 		},
@@ -174,7 +174,7 @@ func TestClientPrincipalsForPortfolioMapsARNAndType(t *testing.T) {
 	adapter := &Client{
 		client: &fakeServiceCatalogAPI{principals: &awssc.ListPrincipalsForPortfolioOutput{
 			Principals: []awssctypes.Principal{{
-				PrincipalARN:  aws.String("arn:aws:iam::123456789012:role/LaunchRole"),
+				PrincipalARN:  awsv2.String("arn:aws:iam::123456789012:role/LaunchRole"),
 				PrincipalType: awssctypes.PrincipalTypeIam,
 			}},
 		}},

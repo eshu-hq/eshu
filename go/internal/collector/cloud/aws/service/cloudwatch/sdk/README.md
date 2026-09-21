@@ -1,4 +1,4 @@
-# services/cloudwatch/awssdk
+# services/cloudwatch/sdk
 
 AWS SDK v2 adapter that satisfies `cloudwatch.Client`. The adapter is built
 around a narrow `apiClient` interface so the compiler enforces the

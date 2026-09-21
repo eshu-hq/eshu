@@ -148,7 +148,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 
 		// role_arns is a service-specific field on the instance-profile
 		// aws_resource fact. The awscloud IAM scanner emitter
-		// (awscloud.NewResourceEnvelope -> awsPayloadAttributes) nests every
+		// (aws.NewResourceEnvelope -> awsPayloadAttributes) nests every
 		// scanner-provided attribute, including role_arns, one level deeper
 		// under the decoded resource's Attributes["attributes"] map rather
 		// than at Attributes' own top level (see #4633). Read through the typed

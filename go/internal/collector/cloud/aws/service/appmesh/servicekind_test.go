@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "appmesh".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAppMesh + "  "
+	boundary.ServiceKind = "  " + aws.ServiceAppMesh + "  "
 	client := fakeClient{meshes: []Mesh{{
 		ARN:    meshARN,
 		Name:   "checkout",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppMesh; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceAppMesh; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

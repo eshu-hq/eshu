@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -16,13 +16,13 @@ import (
 // TestCloudFrontRuntimeBindRegisters confirms importing the binding
 // installs the CloudFront scanner builder.
 func TestCloudFrontRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudFront)
+	build, ok := runtime.LookupBuilder(aws.ServiceCloudFront)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudFront)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceCloudFront)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudFront},
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary:  aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudFront},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

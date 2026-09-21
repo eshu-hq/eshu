@@ -14,7 +14,7 @@ import (
 // IAM scanner publishes its role resource_id, so the edge joins the role node by
 // ARN. It returns nil when no service role is reported or the role identifier is
 // not ARN-shaped (a non-ARN value would dangle, so no edge is keyed).
-func environmentRoleRelationship(boundary awscloud.Boundary, environment Environment) *awscloud.RelationshipObservation {
+func environmentRoleRelationship(boundary aws.Boundary, environment Environment) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(environment.ProtonServiceRoleArn)
 	if roleARN == "" || !isARN(roleARN) {
 		return nil
@@ -23,15 +23,15 @@ func environmentRoleRelationship(boundary awscloud.Boundary, environment Environ
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipProtonEnvironmentUsesRole,
+		RelationshipType: aws.RelationshipProtonEnvironmentUsesRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(environment.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipProtonEnvironmentUsesRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipProtonEnvironmentUsesRole + ":" + roleARN,
 	}
 }
 
@@ -42,11 +42,11 @@ func environmentRoleRelationship(boundary awscloud.Boundary, environment Environ
 // identity is missing, so a placement that references an environment the scanner
 // could not resolve never dangles.
 func serviceInEnvironmentRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	serviceID string,
 	serviceARN string,
 	environmentID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	serviceID = strings.TrimSpace(serviceID)
 	environmentID = strings.TrimSpace(environmentID)
 	if serviceID == "" || environmentID == "" {
@@ -56,14 +56,14 @@ func serviceInEnvironmentRelationship(
 	if isARN(environmentID) {
 		targetARN = environmentID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipProtonServiceInEnvironment,
+		RelationshipType: aws.RelationshipProtonServiceInEnvironment,
 		SourceResourceID: serviceID,
 		SourceARN:        strings.TrimSpace(serviceARN),
 		TargetResourceID: environmentID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeProtonEnvironment,
-		SourceRecordID:   serviceID + "->" + awscloud.RelationshipProtonServiceInEnvironment + ":" + environmentID,
+		TargetType:       aws.ResourceTypeProtonEnvironment,
+		SourceRecordID:   serviceID + "->" + aws.RelationshipProtonServiceInEnvironment + ":" + environmentID,
 	}
 }

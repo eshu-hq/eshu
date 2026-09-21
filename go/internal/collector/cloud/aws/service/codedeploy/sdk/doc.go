@@ -12,4 +12,4 @@
 // API that returns appspec.yml content. On-premises instance tag values pass
 // through the redaction library before they reach scanner types so PII-shaped
 // values are never persisted raw.
-package awssdk
+package sdk

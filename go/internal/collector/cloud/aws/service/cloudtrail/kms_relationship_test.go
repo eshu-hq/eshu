@@ -48,7 +48,7 @@ func TestTrailKMSRelationshipTargetFields(t *testing.T) {
 				Name:     "management",
 				KMSKeyID: tc.keyID,
 			})
-			rel := relationshipOfType(t, out, awscloud.RelationshipCloudTrailTrailUsesKMSKey)
+			rel := relationshipOfType(t, out, aws.RelationshipCloudTrailTrailUsesKMSKey)
 			assertKMSRelationship(t, rel, tc.wantTrgID, tc.wantARN)
 		})
 	}
@@ -94,15 +94,15 @@ func TestEventDataStoreKMSRelationshipTargetFields(t *testing.T) {
 			if !ok {
 				t.Fatalf("eventDataStoreKMSRelationship() ok = false, want true")
 			}
-			if rel.RelationshipType != awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey {
-				t.Fatalf("relationship_type = %q, want %q", rel.RelationshipType, awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey)
+			if rel.RelationshipType != aws.RelationshipCloudTrailEventDataStoreUsesKMSKey {
+				t.Fatalf("relationship_type = %q, want %q", rel.RelationshipType, aws.RelationshipCloudTrailEventDataStoreUsesKMSKey)
 			}
 			assertKMSRelationship(t, rel, tc.wantTrgID, tc.wantARN)
 		})
 	}
 }
 
-func relationshipOfType(t *testing.T, out []awscloud.RelationshipObservation, relationshipType string) awscloud.RelationshipObservation {
+func relationshipOfType(t *testing.T, out []aws.RelationshipObservation, relationshipType string) aws.RelationshipObservation {
 	t.Helper()
 	for _, rel := range out {
 		if rel.RelationshipType == relationshipType {
@@ -110,10 +110,10 @@ func relationshipOfType(t *testing.T, out []awscloud.RelationshipObservation, re
 		}
 	}
 	t.Fatalf("missing relationship_type %q (n=%d)", relationshipType, len(out))
-	return awscloud.RelationshipObservation{}
+	return aws.RelationshipObservation{}
 }
 
-func assertKMSRelationship(t *testing.T, rel awscloud.RelationshipObservation, wantTargetID, wantTargetARN string) {
+func assertKMSRelationship(t *testing.T, rel aws.RelationshipObservation, wantTargetID, wantTargetARN string) {
 	t.Helper()
 	if got, want := rel.TargetType, "aws_kms_key"; got != want {
 		t.Fatalf("TargetType = %q, want %q", got, want)

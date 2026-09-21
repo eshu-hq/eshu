@@ -1,11 +1,11 @@
-# AGENTS.md - internal/collector/awscloud/service/ssoadmin/runtimebind guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ssoadmin/bind guidance
 
 ## Read First
 
 1. `README.md` - binding purpose and ownership boundary.
-2. `bind.go` - the single `awsruntime.Register` call.
+2. `bind.go` - the single `runtime.Register` call.
 3. `../README.md` - Identity Center scanner contract.
-4. `../../../awsruntime/README.md` - registry and runtime surface.
+4. `../../../runtime/README.md` - registry and runtime surface.
 
 ## Invariants
 
@@ -15,7 +15,7 @@
 - Do not load AWS config, acquire credentials, or build clients at init time.
   Construct clients inside the builder per claim from `ScannerDeps`.
 - This binding is reached only through
-  `internal/collector/awscloud/awsruntime/bindings/bindings.go`. The one blank
+  `internal/collector/cloud/aws/runtime/bindings/bindings.go`. The one blank
   import there is the only shared-file change a new scanner makes.
 
 ## Common Changes
@@ -26,5 +26,5 @@
 ## What Not To Change Without An ADR
 
 - Do not move scanner logic, SDK calls, or redaction policy into this package.
-- Do not add a `case` or import to `awsruntime/registry.go`; registration is
+- Do not add a `case` or import to `runtime/registry.go`; registration is
   self-contained here.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/secretsmanager` owns the AWS Secrets
+`internal/collector/cloud/aws/service/secretsmanager` owns the AWS Secrets
 Manager scanner contract for the AWS cloud collector. It converts secret
 control-plane metadata into `aws_resource` facts and emits relationship
 evidence when AWS directly reports KMS key and rotation Lambda dependencies.
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -45,9 +45,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Secrets Manager API call counts, throttles, and
+The `sdk` adapter records Secrets Manager API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -65,13 +65,13 @@ pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/secretsmanager/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/secretsmanager/...`
 covers the bounded Secrets Manager metadata path: paginated ListSecrets with
 MaxResults=100 and IncludePlannedDeletion=true; no GetSecretValue,
 BatchGetSecretValue, ListSecretVersionIds, GetResourcePolicy, mutation calls,
 or graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Secrets Manager metadata fact emission, direct KMS and rotation Lambda
 relationship emission, omission of value/version/policy fields, SDK pagination,
 runtime registration, command configuration, and the SDK adapter's safe

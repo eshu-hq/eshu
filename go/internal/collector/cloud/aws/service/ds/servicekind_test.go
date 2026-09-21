@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "ds".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceDirectoryService + "  "
+	boundary.ServiceKind = "  " + aws.ServiceDirectoryService + "  "
 	client := fakeClient{
 		directories: []Directory{{
 			ID:   "d-1234567890",
@@ -34,7 +34,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDirectoryService; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDirectoryService; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

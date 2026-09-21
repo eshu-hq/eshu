@@ -51,12 +51,12 @@ hardcoded.
 
 ## SDK read surface
 
-The accepted SDK surface (`awssdk/client.go` `apiClient`) is exactly
+The accepted SDK surface (`sdk/client.go` `apiClient`) is exactly
 `ListEnvironments`, `ListServices`, `GetService`, `ListEnvironmentTemplates`,
 `ListServiceTemplates`, `ListServiceInstances`, and `ListTagsForResource`. Every
 mutation, sync-status/config reader, deployment-output reader, and
 provisioned-resource reader is excluded by construction, proven by the reflection
-guard in `awssdk/exclusion_test.go`.
+guard in `sdk/exclusion_test.go`.
 
 ## Skipped edge
 
@@ -67,7 +67,7 @@ scanner emits no such edge rather than keying a dangling one.
 
 ## Performance and observability
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/proton/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/proton/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
@@ -75,7 +75,7 @@ No-Observability-Change: reuses shared AWS pagination span + API-call/throttle c
 
 ```bash
 cd go
-go test ./internal/collector/awscloud/service/proton/... -count=1
-go test ./internal/collector/awscloud/ -run 'ServiceKind' -count=1
-golangci-lint run ./internal/collector/awscloud/...
+go test ./internal/collector/cloud/aws/service/proton/... -count=1
+go test ./internal/collector/cloud/aws/ -run 'ServiceKind' -count=1
+golangci-lint run ./internal/collector/cloud/aws/...
 ```

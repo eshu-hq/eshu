@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/accessanalyzer/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/accessanalyzer/sdk` adapts AWS SDK for
 Go v2 Access Analyzer responses to the scanner-owned `Client` contract. It owns
 analyzer pagination, archive-rule pagination, finding-list pagination,
 unused-access detail reads, throttle classification, and per-call AWS API
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/accessanalyzer` for scanner-owned
+- `internal/collector/cloud/aws/service/accessanalyzer` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `accessanalyzer` and Smithy error contracts.

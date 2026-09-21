@@ -25,15 +25,15 @@ type Scanner struct {
 }
 
 // Scan observes Route 53 Resolver metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("route53resolver scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRoute53Resolver:
+	case "", aws.ServiceRoute53Resolver:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRoute53Resolver
+		boundary.ServiceKind = aws.ServiceRoute53Resolver
 	default:
 		return nil, fmt.Errorf("route53resolver scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -84,7 +84,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list firewall rule groups: %w", err)
 	}
 	for _, group := range firewallRuleGroups {
-		envelope, err := awscloud.NewResourceEnvelope(firewallRuleGroupObservation(boundary, group))
+		envelope, err := aws.NewResourceEnvelope(firewallRuleGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list firewall domain lists: %w", err)
 	}
 	for _, list := range domainLists {
-		envelope, err := awscloud.NewResourceEnvelope(firewallDomainListObservation(boundary, list))
+		envelope, err := aws.NewResourceEnvelope(firewallDomainListObservation(boundary, list))
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +123,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list resolver query log configs: %w", err)
 	}
 	for _, config := range queryLogConfigs {
-		envelope, err := awscloud.NewResourceEnvelope(queryLogConfigObservation(boundary, config))
+		envelope, err := aws.NewResourceEnvelope(queryLogConfigObservation(boundary, config))
 		if err != nil {
 			return nil, err
 		}
@@ -135,16 +135,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // emit builds one resource envelope plus its relationship envelopes.
 func emit(
-	resource awscloud.ResourceObservation,
-	relationships []awscloud.RelationshipObservation,
+	resource aws.ResourceObservation,
+	relationships []aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
-	envelope, err := awscloud.NewResourceEnvelope(resource)
+	envelope, err := aws.NewResourceEnvelope(resource)
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{envelope}
 	for _, observation := range relationships {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}

@@ -14,4 +14,4 @@
 // per-resource compliance-detail reads, custom-rule policy-body reads, stored
 // query reads, and every mutation API. A reflection test over the internal
 // apiClient interface enforces that exclusion.
-package awssdk
+package sdk

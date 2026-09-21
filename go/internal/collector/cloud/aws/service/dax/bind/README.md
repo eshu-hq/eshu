@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/dax/runtimebind` registers the DAX scanner
-with the awsruntime registry from a package `init()`. Importing this package for
+`internal/collector/cloud/aws/service/dax/bind` registers the DAX scanner
+with the runtime registry from a package `init()`. Importing this package for
 its blank side effect is the only way a runtime brings the DAX scanner into the
 production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceDAX` to the DAX scanner builder. It does not own AWS API calls,
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceDAX` to the DAX scanner builder. It does not own AWS API calls,
 DAX domain types, redaction policy, or fact emission. Those belong to
-`internal/collector/awscloud/service/dax` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/dax` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceDAX` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceDAX` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/dax` for the scanner struct.
-- `internal/collector/awscloud/service/dax/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/dax` for the scanner struct.
+- `internal/collector/cloud/aws/service/dax/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The DAX scanner and its SDK adapter
 emit the per-service counters and spans documented in `../README.md` and the
-awsruntime README.
+runtime README.
 
 ## Gotchas / invariants
 
@@ -49,6 +49,6 @@ awsruntime README.
 ## Related docs
 
 - `../README.md` for the DAX scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

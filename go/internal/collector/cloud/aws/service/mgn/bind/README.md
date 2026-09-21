@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mgn/runtimebind` registers the MGN scanner
-with the awsruntime registry from a package `init()`. Importing this package for
+`internal/collector/cloud/aws/service/mgn/bind` registers the MGN scanner
+with the runtime registry from a package `init()`. Importing this package for
 its blank side effect is the only way a runtime brings the MGN scanner into the
 production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceMGN` to the MGN scanner builder. It does not own AWS API calls,
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceMGN` to the MGN scanner builder. It does not own AWS API calls,
 MGN domain types, redaction policy, or fact emission. Those belong to
-`internal/collector/awscloud/service/mgn` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/mgn` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceMGN` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceMGN` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/mgn` for the scanner struct.
-- `internal/collector/awscloud/service/mgn/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/mgn` for the scanner struct.
+- `internal/collector/cloud/aws/service/mgn/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The MGN scanner and its SDK adapter
 emit the per-service counters and spans documented in `../README.md` and the
-awsruntime README.
+runtime README.
 
 ## Gotchas / invariants
 
@@ -46,6 +46,6 @@ awsruntime README.
 ## Related docs
 
 - `../README.md` for the MGN scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

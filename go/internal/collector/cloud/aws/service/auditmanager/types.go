@@ -38,7 +38,7 @@ type Snapshot struct {
 	KMSKeyARN string
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling or an unregistered Audit Manager account.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Assessment is the scanner-owned Audit Manager assessment model. It carries

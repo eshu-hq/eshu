@@ -18,10 +18,10 @@ import (
 // padded string leaks into each fact's service_kind and breaks graph
 // joins/filters that key on the canonical "cloudhsmv2".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
-	boundary := awscloud.Boundary{
+	boundary := aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         "  " + awscloud.ServiceCloudHSMV2 + "  ",
+		ServiceKind:         "  " + aws.ServiceCloudHSMV2 + "  ",
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cloudhsmv2:1",
 		CollectorInstanceID: "aws-prod",
@@ -38,7 +38,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceCloudHSMV2; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceCloudHSMV2; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codedeploy guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codedeploy guidance
 
 ## Read First
 
@@ -30,10 +30,10 @@
 
 - Add a new CodeDeploy metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when the CodeDeploy API reports both sides
   directly and the target names a concrete resource (tag filters do not).
-- Extend SDK pagination and mapping in the `awssdk` adapter, not here.
+- Extend SDK pagination and mapping in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codebuild/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/codebuild/sdk` adapts AWS SDK for Go
 v2 CodeBuild responses to the scanner-owned `codebuild.Client` contract. It owns
 CodeBuild pagination, batch metadata resolution, PLAINTEXT environment-value
 redaction, buildspec-body and log exclusion, throttle classification, and
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels and the shared `RedactString` redaction helper.
-- `internal/collector/awscloud/service/codebuild` for scanner-owned result
+- `internal/collector/cloud/aws/service/codebuild` for scanner-owned result
   types.
 - `internal/redact` for the redaction key applied to PLAINTEXT env values.
 - `internal/telemetry` for AWS API call and throttle instruments.
@@ -65,7 +65,7 @@ labels.
   never copy `ProjectSource.Buildspec` because that field carries the
   buildspec.yml body or path.
 - `mapEnvironmentVariables` routes PLAINTEXT values (and any unknown future
-  type) through `awscloud.RedactString`. PARAMETER_STORE and SECRETS_MANAGER
+  type) through `aws.RedactString`. PARAMETER_STORE and SECRETS_MANAGER
   values are kept as references because they name a resource, not a secret.
 - `mapBuild` copies build identity, status, and duration metadata only; it must
   never copy log group/stream references or log content.

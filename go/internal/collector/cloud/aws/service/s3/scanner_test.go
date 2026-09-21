@@ -55,7 +55,7 @@ func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeS3Bucket)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeS3Bucket)
 	if got, want := resource.Payload["arn"], "arn:aws:s3:::orders-artifacts"; got != want {
 		t.Fatalf("bucket arn = %#v, want %q", got, want)
 	}
@@ -106,14 +106,14 @@ func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipS3BucketLogsToBucket)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipS3BucketLogsToBucket)
 	if got, want := relationship.Payload["source_arn"], "arn:aws:s3:::orders-artifacts"; got != want {
 		t.Fatalf("logging relationship source_arn = %#v, want %q", got, want)
 	}
 	if got, want := relationship.Payload["target_arn"], "arn:aws:s3:::orders-logs"; got != want {
 		t.Fatalf("logging relationship target_arn = %#v, want %q", got, want)
 	}
-	if got, want := relationship.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := relationship.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("logging relationship target_type = %#v, want %q", got, want)
 	}
 	relationshipAttributes := attributesOf(t, relationship)
@@ -215,16 +215,16 @@ func TestScannerEmitsExternalPrincipalGrantFacts(t *testing.T) {
 		Name: "orders-artifacts",
 		ExternalPrincipalGrants: []ExternalPrincipalGrant{
 			{
-				PrincipalKind:      awscloud.S3ExternalPrincipalKindAWSAccount,
+				PrincipalKind:      aws.S3ExternalPrincipalKindAWSAccount,
 				PrincipalValue:     "999988887777",
 				PrincipalAccountID: "999988887777",
-				GrantOutcome:       awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount,
+				GrantOutcome:       aws.S3ExternalPrincipalGrantOutcomeCrossAccount,
 				CrossAccount:       true,
 			},
 			{
-				PrincipalKind:     awscloud.S3ExternalPrincipalKindPublic,
+				PrincipalKind:     aws.S3ExternalPrincipalKindPublic,
 				PrincipalValue:    "*",
-				GrantOutcome:      awscloud.S3ExternalPrincipalGrantOutcomePublic,
+				GrantOutcome:      aws.S3ExternalPrincipalGrantOutcomePublic,
 				Public:            true,
 				SourceStatementID: "PublicRead",
 			},
@@ -236,19 +236,19 @@ func TestScannerEmitsExternalPrincipalGrantFacts(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	accountGrant := externalPrincipalGrantByPrincipal(t, envelopes, awscloud.S3ExternalPrincipalKindAWSAccount, "999988887777")
+	accountGrant := externalPrincipalGrantByPrincipal(t, envelopes, aws.S3ExternalPrincipalKindAWSAccount, "999988887777")
 	if got, want := accountGrant.Payload["bucket_arn"], "arn:aws:s3:::orders-artifacts"; got != want {
 		t.Fatalf("account grant bucket_arn = %#v, want %q", got, want)
 	}
-	if got, want := accountGrant.Payload["grant_outcome"], awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount; got != want {
+	if got, want := accountGrant.Payload["grant_outcome"], aws.S3ExternalPrincipalGrantOutcomeCrossAccount; got != want {
 		t.Fatalf("account grant outcome = %#v, want %q", got, want)
 	}
 	if got, want := accountGrant.Payload["is_cross_account"], true; got != want {
 		t.Fatalf("account grant is_cross_account = %#v, want %v", got, want)
 	}
 
-	publicGrant := externalPrincipalGrantByPrincipal(t, envelopes, awscloud.S3ExternalPrincipalKindPublic, "*")
-	if got, want := publicGrant.Payload["grant_outcome"], awscloud.S3ExternalPrincipalGrantOutcomePublic; got != want {
+	publicGrant := externalPrincipalGrantByPrincipal(t, envelopes, aws.S3ExternalPrincipalKindPublic, "*")
+	if got, want := publicGrant.Payload["grant_outcome"], aws.S3ExternalPrincipalGrantOutcomePublic; got != want {
 		t.Fatalf("public grant outcome = %#v, want %q", got, want)
 	}
 	if got, want := publicGrant.Payload["source_statement_id"], "PublicRead"; got != want {
@@ -312,14 +312,14 @@ func TestScannerSkipsLoggingRelationshipWithoutTargetBucket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipS3BucketLogsToBucket); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipS3BucketLogsToBucket); got != 0 {
 		t.Fatalf("logging relationship count = %d, want 0 without target bucket", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = aws.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -327,11 +327,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceS3,
+		ServiceKind:         aws.ServiceS3,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:s3:1",
 		CollectorInstanceID: "aws-prod",

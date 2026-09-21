@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -23,11 +23,11 @@ const awsBatchGetProjectsLimit = 100
 
 var testTime = time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodeBuild,
+		ServiceKind: aws.ServiceCodeBuild,
 	}
 }
 

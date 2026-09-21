@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/licensemanager/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/licensemanager/sdk` adapts AWS SDK for
 Go v2 License Manager responses to the scanner-owned `Client` contract. It owns
 license-configuration pagination, per-configuration association pagination,
 resource-tag reads, throttle classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/licensemanager` for scanner-owned result
+- `internal/collector/cloud/aws/service/licensemanager` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `licensemanager` and Smithy error contracts.

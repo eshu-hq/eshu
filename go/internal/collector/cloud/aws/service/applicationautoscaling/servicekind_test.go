@@ -21,7 +21,7 @@ import (
 // value too; otherwise warning fact IDs diverge from resource/relationship facts.
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceApplicationAutoScaling + "  "
+	boundary.ServiceKind = "  " + aws.ServiceApplicationAutoScaling + "  "
 	warningBoundary := boundary
 	client := fakeClient{snapshot: Snapshot{
 		ScalableTargets: []ScalableTarget{{
@@ -31,9 +31,9 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		}},
 		// Warnings carry the un-canonicalized boundary the SDK client built from
 		// the caller-supplied boundary; the scanner must canonicalize it.
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       warningBoundary,
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Application Auto Scaling DescribeScalingPolicies throttled",
 			SourceRecordID: "applicationautoscaling_scaling_policies_throttled_dynamodb",
@@ -52,7 +52,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		if envelope.FactKind == facts.AWSWarningFactKind {
 			sawWarning = true
 		}
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceApplicationAutoScaling; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceApplicationAutoScaling; got != want {
 			t.Fatalf("envelope (%s) service_kind = %#v, want %q (padded service_kind must be canonicalized)",
 				envelope.FactKind, got, want)
 		}

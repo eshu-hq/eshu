@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsopensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	awsserverless "github.com/aws/aws-sdk-go-v2/service/opensearchserverless"
 	awsserverlesstypes "github.com/aws/aws-sdk-go-v2/service/opensearchserverless/types"
@@ -96,15 +96,15 @@ type serverlessAPI interface {
 type Client struct {
 	domain      domainAPI
 	serverless  serverlessAPI
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an OpenSearch SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -137,7 +137,7 @@ func (c *Client) ListDomains(ctx context.Context) ([]opensearchservice.Domain, e
 	}
 	domainNames := make([]string, 0, len(names.DomainNames))
 	for _, info := range names.DomainNames {
-		if name := strings.TrimSpace(aws.ToString(info.DomainName)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(info.DomainName)); name != "" {
 			domainNames = append(domainNames, name)
 		}
 	}
@@ -161,7 +161,7 @@ func (c *Client) ListDomains(ctx context.Context) ([]opensearchservice.Domain, e
 	}
 	domains := make([]opensearchservice.Domain, 0, len(statuses.DomainStatusList))
 	for _, status := range statuses.DomainStatusList {
-		tags, err := c.listTags(ctx, aws.ToString(status.ARN))
+		tags, err := c.listTags(ctx, awsv2.ToString(status.ARN))
 		if err != nil {
 			return nil, err
 		}
@@ -195,11 +195,11 @@ func (c *Client) ListPackages(ctx context.Context) ([]opensearchservice.Package,
 		for _, raw := range page.PackageDetailsList {
 			packages = append(packages, mapPackage(raw))
 		}
-		next := strings.TrimSpace(aws.ToString(page.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(page.NextToken))
 		if next == "" {
 			return packages, nil
 		}
-		token = aws.String(next)
+		token = awsv2.String(next)
 	}
 }
 
@@ -217,7 +217,7 @@ func (c *Client) ListPackageAssociations(ctx context.Context, packageID string) 
 		err := c.recordAPICall(ctx, "ListDomainsForPackage", func(callCtx context.Context) error {
 			var err error
 			page, err = c.domain.ListDomainsForPackage(callCtx, &awsopensearch.ListDomainsForPackageInput{
-				PackageID:  aws.String(packageID),
+				PackageID:  awsv2.String(packageID),
 				MaxResults: listMaxResults,
 				NextToken:  token,
 			})
@@ -231,17 +231,17 @@ func (c *Client) ListPackageAssociations(ctx context.Context, packageID string) 
 		}
 		for _, raw := range page.DomainPackageDetailsList {
 			associations = append(associations, opensearchservice.PackageAssociation{
-				PackageID:         strings.TrimSpace(aws.ToString(raw.PackageID)),
-				DomainName:        strings.TrimSpace(aws.ToString(raw.DomainName)),
+				PackageID:         strings.TrimSpace(awsv2.ToString(raw.PackageID)),
+				DomainName:        strings.TrimSpace(awsv2.ToString(raw.DomainName)),
 				DomainPackageStat: string(raw.DomainPackageStatus),
-				ReferencePath:     strings.TrimSpace(aws.ToString(raw.ReferencePath)),
+				ReferencePath:     strings.TrimSpace(awsv2.ToString(raw.ReferencePath)),
 			})
 		}
-		next := strings.TrimSpace(aws.ToString(page.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(page.NextToken))
 		if next == "" {
 			return associations, nil
 		}
-		token = aws.String(next)
+		token = awsv2.String(next)
 	}
 }
 
@@ -256,7 +256,7 @@ func (c *Client) ListCollections(ctx context.Context) ([]opensearchservice.Colle
 		err := c.recordAPICall(ctx, "ListCollections", func(callCtx context.Context) error {
 			var err error
 			page, err = c.serverless.ListCollections(callCtx, &awsserverless.ListCollectionsInput{
-				MaxResults: aws.Int32(listMaxResults),
+				MaxResults: awsv2.Int32(listMaxResults),
 				NextToken:  token,
 			})
 			return err
@@ -268,15 +268,15 @@ func (c *Client) ListCollections(ctx context.Context) ([]opensearchservice.Colle
 			break
 		}
 		for _, summary := range page.CollectionSummaries {
-			if id := strings.TrimSpace(aws.ToString(summary.Id)); id != "" {
+			if id := strings.TrimSpace(awsv2.ToString(summary.Id)); id != "" {
 				ids = append(ids, id)
 			}
 		}
-		next := strings.TrimSpace(aws.ToString(page.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(page.NextToken))
 		if next == "" {
 			break
 		}
-		token = aws.String(next)
+		token = awsv2.String(next)
 	}
 	if len(ids) == 0 {
 		return nil, nil
@@ -318,7 +318,7 @@ func (c *Client) ListSecurityConfigs(ctx context.Context) ([]opensearchservice.S
 				var err error
 				page, err = c.serverless.ListSecurityConfigs(callCtx, &awsserverless.ListSecurityConfigsInput{
 					Type:       configType,
-					MaxResults: aws.Int32(listMaxResults),
+					MaxResults: awsv2.Int32(listMaxResults),
 					NextToken:  token,
 				})
 				return err
@@ -331,17 +331,17 @@ func (c *Client) ListSecurityConfigs(ctx context.Context) ([]opensearchservice.S
 			}
 			for _, raw := range page.SecurityConfigSummaries {
 				configs = append(configs, opensearchservice.SecurityConfig{
-					ID:          strings.TrimSpace(aws.ToString(raw.Id)),
+					ID:          strings.TrimSpace(awsv2.ToString(raw.Id)),
 					Type:        string(raw.Type),
-					Description: strings.TrimSpace(aws.ToString(raw.Description)),
-					Version:     strings.TrimSpace(aws.ToString(raw.ConfigVersion)),
+					Description: strings.TrimSpace(awsv2.ToString(raw.Description)),
+					Version:     strings.TrimSpace(awsv2.ToString(raw.ConfigVersion)),
 				})
 			}
-			next := strings.TrimSpace(aws.ToString(page.NextToken))
+			next := strings.TrimSpace(awsv2.ToString(page.NextToken))
 			if next == "" {
 				break
 			}
-			token = aws.String(next)
+			token = awsv2.String(next)
 		}
 	}
 	return configs, nil
@@ -358,7 +358,7 @@ func (c *Client) ListVPCEndpoints(ctx context.Context) ([]opensearchservice.VPCE
 		err := c.recordAPICall(ctx, "ListVpcEndpoints", func(callCtx context.Context) error {
 			var err error
 			page, err = c.serverless.ListVpcEndpoints(callCtx, &awsserverless.ListVpcEndpointsInput{
-				MaxResults: aws.Int32(listMaxResults),
+				MaxResults: awsv2.Int32(listMaxResults),
 				NextToken:  token,
 			})
 			return err
@@ -370,15 +370,15 @@ func (c *Client) ListVPCEndpoints(ctx context.Context) ([]opensearchservice.VPCE
 			break
 		}
 		for _, summary := range page.VpcEndpointSummaries {
-			if id := strings.TrimSpace(aws.ToString(summary.Id)); id != "" {
+			if id := strings.TrimSpace(awsv2.ToString(summary.Id)); id != "" {
 				ids = append(ids, id)
 			}
 		}
-		next := strings.TrimSpace(aws.ToString(page.NextToken))
+		next := strings.TrimSpace(awsv2.ToString(page.NextToken))
 		if next == "" {
 			break
 		}
-		token = aws.String(next)
+		token = awsv2.String(next)
 	}
 	if len(ids) == 0 {
 		return nil, nil
@@ -416,7 +416,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTags", func(callCtx context.Context) error {
 		var err error
 		output, err = c.domain.ListTags(callCtx, &awsopensearch.ListTagsInput{
-			ARN: aws.String(resourceARN),
+			ARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -444,7 +444,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

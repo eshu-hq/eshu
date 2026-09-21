@@ -27,15 +27,15 @@ func serviceResourceID(service Service) string {
 
 // namespaceObservation maps one Cloud Map namespace into an aws_resource
 // observation keyed by the Cloud Map namespace id.
-func namespaceObservation(boundary awscloud.Boundary, namespace Namespace) awscloud.ResourceObservation {
+func namespaceObservation(boundary aws.Boundary, namespace Namespace) aws.ResourceObservation {
 	id := strings.TrimSpace(namespace.ID)
 	arn := strings.TrimSpace(namespace.ARN)
 	name := strings.TrimSpace(namespace.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeCloudMapNamespace,
+		ResourceType: aws.ResourceTypeCloudMapNamespace,
 		Name:         name,
 		Tags:         cloneStringMap(namespace.Tags),
 		Attributes: map[string]any{
@@ -56,15 +56,15 @@ func namespaceObservation(boundary awscloud.Boundary, namespace Namespace) awscl
 // serviceObservation maps one Cloud Map service into an aws_resource
 // observation keyed by "namespaceName/serviceName". It records the instance
 // count only; instance attribute maps are never read or persisted.
-func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.ResourceObservation {
+func serviceObservation(boundary aws.Boundary, service Service) aws.ResourceObservation {
 	resourceID := serviceResourceID(service)
 	arn := strings.TrimSpace(service.ARN)
 	name := strings.TrimSpace(service.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCloudMapService,
+		ResourceType: aws.ResourceTypeCloudMapService,
 		Name:         name,
 		Tags:         cloneStringMap(service.Tags),
 		Attributes: map[string]any{

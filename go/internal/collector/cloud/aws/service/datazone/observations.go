@@ -13,16 +13,16 @@ import (
 // DataZone domain. It records identity, status, the KMS key reference, the
 // execution/service IAM role references, and lifecycle timestamps; it never
 // records glossaries, asset content, or subscription data.
-func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.ResourceObservation {
+func domainObservation(boundary aws.Boundary, domain Domain) aws.ResourceObservation {
 	arn := strings.TrimSpace(domain.ARN)
 	id := strings.TrimSpace(domain.ID)
 	name := strings.TrimSpace(domain.Name)
 	resourceID := domainResourceID(domain)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatazoneDomain,
+		ResourceType: aws.ResourceTypeDatazoneDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -43,13 +43,13 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 
 // projectObservation builds the metadata-only resource observation for one
 // DataZone project.
-func projectObservation(boundary awscloud.Boundary, project Project) awscloud.ResourceObservation {
+func projectObservation(boundary aws.Boundary, project Project) aws.ResourceObservation {
 	id := strings.TrimSpace(project.ID)
 	name := strings.TrimSpace(project.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneProject,
+		ResourceType: aws.ResourceTypeDatazoneProject,
 		Name:         name,
 		State:        strings.TrimSpace(project.Status),
 		Attributes: map[string]any{
@@ -68,13 +68,13 @@ func projectObservation(boundary awscloud.Boundary, project Project) awscloud.Re
 
 // environmentObservation builds the metadata-only resource observation for one
 // DataZone environment.
-func environmentObservation(boundary awscloud.Boundary, environment Environment) awscloud.ResourceObservation {
+func environmentObservation(boundary aws.Boundary, environment Environment) aws.ResourceObservation {
 	id := strings.TrimSpace(environment.ID)
 	name := strings.TrimSpace(environment.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneEnvironment,
+		ResourceType: aws.ResourceTypeDatazoneEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.Status),
 		Attributes: map[string]any{
@@ -99,13 +99,13 @@ func environmentObservation(boundary awscloud.Boundary, environment Environment)
 // DataZone data source. It records identity, parentage, source type, and
 // enablement; it never records ingested asset content, relational filter
 // expressions, or access credentials.
-func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) awscloud.ResourceObservation {
+func dataSourceObservation(boundary aws.Boundary, dataSource DataSource) aws.ResourceObservation {
 	id := strings.TrimSpace(dataSource.ID)
 	name := strings.TrimSpace(dataSource.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneDataSource,
+		ResourceType: aws.ResourceTypeDatazoneDataSource,
 		Name:         name,
 		State:        strings.TrimSpace(dataSource.Status),
 		Attributes: map[string]any{

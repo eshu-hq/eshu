@@ -9,4 +9,4 @@
 // API telemetry. It intentionally avoids log events, log stream payloads,
 // Insights query results, export payloads, resource policies, subscription
 // payloads, and mutation APIs.
-package awssdk
+package sdk

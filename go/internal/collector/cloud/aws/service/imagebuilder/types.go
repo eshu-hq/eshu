@@ -39,7 +39,7 @@ type Snapshot struct {
 	DistributionConfigurations []DistributionConfiguration
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ImagePipeline is the scanner-owned Image Builder pipeline model. It carries

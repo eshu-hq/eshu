@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -18,17 +18,17 @@ import (
 // TestCognitoRuntimeBindRegisters confirms importing the binding installs the
 // Cognito scanner builder.
 func TestCognitoRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCognito)
+	build, ok := runtime.LookupBuilder(aws.ServiceCognito)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCognito)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceCognito)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
 		t.Fatalf("NewKey() error = %v", err)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCognito},
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig:    awsv2.Config{Region: "us-east-1"},
+		Boundary:     aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCognito},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +42,13 @@ func TestCognitoRuntimeBindRegisters(t *testing.T) {
 // TestCognitoRuntimeBindRequiresRedactionKey covers the redaction-key guard the
 // Cognito builder enforces, mirroring the ECS and Lambda scanners.
 func TestCognitoRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCognito)
+	build, ok := runtime.LookupBuilder(aws.ServiceCognito)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCognito)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceCognito)
 	}
-	_, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCognito},
+	_, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary:  aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCognito},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

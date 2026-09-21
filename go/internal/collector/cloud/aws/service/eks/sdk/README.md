@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/eks/awssdk` adapts AWS SDK for Go v2 EKS
+`internal/collector/cloud/aws/service/eks/sdk` adapts AWS SDK for Go v2 EKS
 and IAM responses into scanner-owned records. It handles pagination,
 `Describe*` enrichment, IAM OIDC provider lookup, telemetry, and response
 normalization for one claimed account and region. The code keeps pagination,
@@ -18,7 +18,7 @@ outside this package.
 
 ```mermaid
 flowchart LR
-  A["AWS SDK EKS client"] --> B["awssdk.Client"]
+  A["AWS SDK EKS client"] --> B["sdk.Client"]
   C["AWS SDK IAM client"] --> B
   B --> D["eks.Cluster"]
   B --> E["eks.Nodegroup"]
@@ -39,8 +39,8 @@ See `doc.go` for the godoc contract.
 
 - AWS SDK for Go v2 EKS client and EKS types.
 - AWS SDK for Go v2 IAM client and IAM OIDC provider types.
-- `internal/collector/awscloud` for the claimed boundary.
-- `internal/collector/awscloud/service/eks` for scanner-owned records.
+- `internal/collector/cloud/aws` for the claimed boundary.
+- `internal/collector/cloud/aws/service/eks` for scanner-owned records.
 - `internal/telemetry` for AWS API call counters, throttle counters, and
   pagination spans.
 

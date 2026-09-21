@@ -65,7 +65,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// Server resource.
-	server := resourceByType(t, envelopes, awscloud.ResourceTypeTransferServer)
+	server := resourceByType(t, envelopes, aws.ResourceTypeTransferServer)
 	if got, want := server.Payload["resource_id"], serverARN; got != want {
 		t.Fatalf("server resource_id = %#v, want %q", got, want)
 	}
@@ -83,7 +83,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// User resource.
-	user := resourceByType(t, envelopes, awscloud.ResourceTypeTransferUser)
+	user := resourceByType(t, envelopes, aws.ResourceTypeTransferUser)
 	if got, want := user.Payload["resource_id"], userARN; got != want {
 		t.Fatalf("user resource_id = %#v, want %q", got, want)
 	}
@@ -98,8 +98,8 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// server -> VPC endpoint (bare-ID keyed, no target ARN).
-	vpcEndpoint := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesVPCEndpoint)
-	if got, want := vpcEndpoint.Payload["target_type"], awscloud.ResourceTypeVPCEndpoint; got != want {
+	vpcEndpoint := relationshipByType(t, envelopes, aws.RelationshipTransferServerUsesVPCEndpoint)
+	if got, want := vpcEndpoint.Payload["target_type"], aws.ResourceTypeVPCEndpoint; got != want {
 		t.Fatalf("server->vpc-endpoint target_type = %#v, want %q", got, want)
 	}
 	if got, want := vpcEndpoint.Payload["target_resource_id"], vpcEndpointID; got != want {
@@ -110,11 +110,11 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// server -> Elastic IP (bare allocation-ID keyed, deduplicated).
-	if got := countRelationships(envelopes, awscloud.RelationshipTransferServerUsesElasticIP); got != 1 {
+	if got := countRelationships(envelopes, aws.RelationshipTransferServerUsesElasticIP); got != 1 {
 		t.Fatalf("server->eip relationship count = %d, want 1 (duplicates collapse)", got)
 	}
-	eip := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesElasticIP)
-	if got, want := eip.Payload["target_type"], awscloud.ResourceTypeVPCElasticIP; got != want {
+	eip := relationshipByType(t, envelopes, aws.RelationshipTransferServerUsesElasticIP)
+	if got, want := eip.Payload["target_type"], aws.ResourceTypeVPCElasticIP; got != want {
 		t.Fatalf("server->eip target_type = %#v, want %q", got, want)
 	}
 	if got, want := eip.Payload["target_resource_id"], allocationID; got != want {
@@ -122,8 +122,8 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// server -> ACM certificate (ARN keyed).
-	certificate := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesACMCertificate)
-	if got, want := certificate.Payload["target_type"], awscloud.ResourceTypeACMCertificate; got != want {
+	certificate := relationshipByType(t, envelopes, aws.RelationshipTransferServerUsesACMCertificate)
+	if got, want := certificate.Payload["target_type"], aws.ResourceTypeACMCertificate; got != want {
 		t.Fatalf("server->acm target_type = %#v, want %q", got, want)
 	}
 	if got, want := certificate.Payload["target_resource_id"], certificateARN; got != want {
@@ -134,8 +134,8 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// server -> logging IAM role (ARN keyed).
-	loggingRole := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesLoggingRole)
-	if got, want := loggingRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	loggingRole := relationshipByType(t, envelopes, aws.RelationshipTransferServerUsesLoggingRole)
+	if got, want := loggingRole.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("server->logging-role target_type = %#v, want %q", got, want)
 	}
 	if got, want := loggingRole.Payload["target_resource_id"], loggingRoleARN; got != want {
@@ -143,8 +143,8 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// server -> CloudWatch log group (ARN keyed).
-	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerLogsToLogGroup)
-	if got, want := logGroup.Payload["target_type"], awscloud.ResourceTypeCloudWatchLogsLogGroup; got != want {
+	logGroup := relationshipByType(t, envelopes, aws.RelationshipTransferServerLogsToLogGroup)
+	if got, want := logGroup.Payload["target_type"], aws.ResourceTypeCloudWatchLogsLogGroup; got != want {
 		t.Fatalf("server->log-group target_type = %#v, want %q", got, want)
 	}
 	if got, want := logGroup.Payload["target_resource_id"], logGroupARN; got != want {
@@ -152,11 +152,11 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// user -> IAM role (ARN keyed).
-	userRole := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserUsesIAMRole)
+	userRole := relationshipByType(t, envelopes, aws.RelationshipTransferUserUsesIAMRole)
 	if got, want := userRole.Payload["source_resource_id"], userARN; got != want {
 		t.Fatalf("user->role source_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := userRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := userRole.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("user->role target_type = %#v, want %q", got, want)
 	}
 	if got, want := userRole.Payload["target_resource_id"], userRoleARN; got != want {
@@ -164,8 +164,8 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	// user -> S3 bucket home directory (synthesized partition-aware ARN).
-	homeS3 := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket)
-	if got, want := homeS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	homeS3 := relationshipByType(t, envelopes, aws.RelationshipTransferUserHomeDirectoryInS3Bucket)
+	if got, want := homeS3.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("user->s3 target_type = %#v, want %q", got, want)
 	}
 	if got, want := homeS3.Payload["target_resource_id"], "arn:aws:s3:::landing-bucket"; got != want {
@@ -202,9 +202,9 @@ func TestScannerEmitsEFSHomeDirectoryRelationship(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	homeEFS := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem)
+	homeEFS := relationshipByType(t, envelopes, aws.RelationshipTransferUserHomeDirectoryInEFSFileSystem)
 	wantARN := "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-0a1b2c3d"
-	if got, want := homeEFS.Payload["target_type"], awscloud.ResourceTypeEFSFileSystem; got != want {
+	if got, want := homeEFS.Payload["target_type"], aws.ResourceTypeEFSFileSystem; got != want {
 		t.Fatalf("user->efs target_type = %#v, want %q", got, want)
 	}
 	if got, want := homeEFS.Payload["target_resource_id"], wantARN; got != want {
@@ -246,11 +246,11 @@ func TestScannerDerivesSynthesizedARNPartition(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Scan() error = %v, want nil", err)
 			}
-			homeS3 := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket)
+			homeS3 := relationshipByType(t, envelopes, aws.RelationshipTransferUserHomeDirectoryInS3Bucket)
 			if got := homeS3.Payload["target_resource_id"]; got != tc.wantBucketARN {
 				t.Fatalf("user->s3 target_resource_id = %#v, want %q", got, tc.wantBucketARN)
 			}
-			homeEFS := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem)
+			homeEFS := relationshipByType(t, envelopes, aws.RelationshipTransferUserHomeDirectoryInEFSFileSystem)
 			if got := homeEFS.Payload["target_resource_id"]; got != tc.wantEFSARN {
 				t.Fatalf("user->efs target_resource_id = %#v, want %q", got, tc.wantEFSARN)
 			}
@@ -278,14 +278,14 @@ func TestScannerOmitsRelationshipsWhenAWSReportsNoJoinKey(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipTransferServerUsesVPCEndpoint,
-		awscloud.RelationshipTransferServerUsesElasticIP,
-		awscloud.RelationshipTransferServerUsesACMCertificate,
-		awscloud.RelationshipTransferServerUsesLoggingRole,
-		awscloud.RelationshipTransferServerLogsToLogGroup,
-		awscloud.RelationshipTransferUserUsesIAMRole,
-		awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket,
-		awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
+		aws.RelationshipTransferServerUsesVPCEndpoint,
+		aws.RelationshipTransferServerUsesElasticIP,
+		aws.RelationshipTransferServerUsesACMCertificate,
+		aws.RelationshipTransferServerUsesLoggingRole,
+		aws.RelationshipTransferServerLogsToLogGroup,
+		aws.RelationshipTransferUserUsesIAMRole,
+		aws.RelationshipTransferUserHomeDirectoryInS3Bucket,
+		aws.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
 	} {
 		if got := countRelationships(envelopes, relationshipType); got != 0 {
 			t.Fatalf("relationship %q count = %d, want 0 when AWS reports no join key", relationshipType, got)
@@ -302,7 +302,7 @@ func TestUserHomeDirectoryEFSEdgeRequiresBoundaryAccountAndRegion(t *testing.T) 
 	// The envelope builder rejects boundaries without an account or region, so
 	// the relationship helper defensively skips the EFS edge rather than
 	// synthesizing a malformed join key when either is missing.
-	for _, boundary := range []awscloud.Boundary{
+	for _, boundary := range []aws.Boundary{
 		{Region: "us-east-1"},
 		{AccountID: "123456789012"},
 	} {
@@ -314,7 +314,7 @@ func TestUserHomeDirectoryEFSEdgeRequiresBoundaryAccountAndRegion(t *testing.T) 
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = aws.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -329,11 +329,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceTransfer,
+		ServiceKind:         aws.ServiceTransfer,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:transfer:1",
 		CollectorInstanceID: "aws-prod",
@@ -403,14 +403,14 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 // allRelationshipObservations reconstructs the relationship observations the
 // scanner emitted from the envelope payloads so the relguard runtime contract
 // can be asserted directly on every edge's target_type and join-mode shape.
-func allRelationshipObservations(t *testing.T, envelopes []facts.Envelope) []awscloud.RelationshipObservation {
+func allRelationshipObservations(t *testing.T, envelopes []facts.Envelope) []aws.RelationshipObservation {
 	t.Helper()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		observation := awscloud.RelationshipObservation{
+		observation := aws.RelationshipObservation{
 			RelationshipType: stringField(envelope, "relationship_type"),
 			SourceResourceID: stringField(envelope, "source_resource_id"),
 			TargetResourceID: stringField(envelope, "target_resource_id"),

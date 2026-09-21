@@ -6,7 +6,7 @@ package iam
 // Policy-statement source kinds. They classify which document an emitted derived
 // permission statement came from so downstream posture analysis can distinguish
 // an inline grant from an attached managed policy or a role trust policy. They
-// mirror the awscloud.IAMPolicySource* constants the envelope builder accepts.
+// mirror the aws.IAMPolicySource* constants the envelope builder accepts.
 const (
 	// PolicySourceInline marks a statement from an inline policy embedded on a
 	// role, user, or group.

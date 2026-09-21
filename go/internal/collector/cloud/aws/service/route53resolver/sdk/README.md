@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53resolver/awssdk` adapts the AWS
+`internal/collector/cloud/aws/service/route53resolver/sdk` adapts the AWS
 SDK for Go v2 Route 53 Resolver client into the scanner-owned records the
 route53resolver scanner consumes. It owns pagination, per-resource
 count-derivation Get reads, SDK-to-scanner mapping, and AWS API telemetry for
@@ -30,9 +30,9 @@ explicit and auditable.
 
 - `github.com/aws/aws-sdk-go-v2/service/route53resolver` and its `types`
   package for the client, paginators, and response shapes.
-- `internal/collector/awscloud` for the boundary, API-call recording, and the
+- `internal/collector/cloud/aws` for the boundary, API-call recording, and the
   shared throttle/telemetry helpers.
-- `internal/collector/awscloud/service/route53resolver` for the scanner-owned
+- `internal/collector/cloud/aws/service/route53resolver` for the scanner-owned
   record types this adapter produces.
 - `internal/telemetry` for the AWS API-call counters and pagination span name.
 
@@ -66,7 +66,7 @@ labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/route53resolver/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/route53resolver/...`
 covers the bounded Route 53 Resolver metadata path: one paginated
 ListResolverEndpoints stream with a per-endpoint paginated
 ListResolverEndpointIpAddresses fan-out for subnet derivation, one paginated
@@ -78,7 +78,7 @@ ListFirewallRuleGroupAssociations stream, and one paginated
 ListResolverQueryLogConfigs stream. No mutation, domain-content, or
 query-log-record API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers endpoint/rule/association/firewall/query-log fact emission, every
 relationship's non-empty target type and join key, domain-list and rule-group
 count-not-contents assertions, query-log destination-only assertion, runtime
@@ -102,6 +102,6 @@ counters, and `aws_scan_status`. No new instrument or label was added.
 ## Related docs
 
 - `../README.md` for the Route 53 Resolver scanner contract.
-- `../../../awsruntime/README.md` for the runtime surface.
+- `../../../runtime/README.md` for the runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

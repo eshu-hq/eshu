@@ -60,7 +60,7 @@ func TestScannerEmitsInstanceAndClusterPostureFacts(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	instancePosture := postureByResourceType(t, envelopes, awscloud.ResourceTypeRDSDBInstance)
+	instancePosture := postureByResourceType(t, envelopes, aws.ResourceTypeRDSDBInstance)
 	assertPosture(t, instancePosture, "publicly_accessible", true)
 	assertPosture(t, instancePosture, "storage_encrypted", true)
 	assertPosture(t, instancePosture, "kms_key_id", kmsARN)
@@ -81,11 +81,11 @@ func TestScannerEmitsInstanceAndClusterPostureFacts(t *testing.T) {
 	if got, _ := instancePosture.Payload["security_parameters"].(map[string]string); got["rds.force_ssl"] != "1" {
 		t.Fatalf("instance security_parameters = %#v, want rds.force_ssl=1", instancePosture.Payload["security_parameters"])
 	}
-	if got, want := instancePosture.Payload["service_kind"], awscloud.ServiceRDS; got != want {
+	if got, want := instancePosture.Payload["service_kind"], aws.ServiceRDS; got != want {
 		t.Fatalf("instance posture service_kind = %#v, want %q", got, want)
 	}
 
-	clusterPosture := postureByResourceType(t, envelopes, awscloud.ResourceTypeRDSDBCluster)
+	clusterPosture := postureByResourceType(t, envelopes, aws.ResourceTypeRDSDBCluster)
 	assertPosture(t, clusterPosture, "storage_encrypted", true)
 	assertPosture(t, clusterPosture, "deletion_protection", true)
 	assertPosture(t, clusterPosture, "backup_retention_period", int32(14))

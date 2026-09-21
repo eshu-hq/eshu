@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbedrock "github.com/aws/aws-sdk-go-v2/service/bedrock"
 	awsbedrockagent "github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	"github.com/aws/smithy-go"
@@ -66,7 +66,7 @@ type bedrockAgentAPIClient interface {
 type Client struct {
 	bedrock     bedrockAPIClient
 	agent       bedrockAgentAPIClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -75,8 +75,8 @@ type Client struct {
 // constructs both control-plane SDK clients (bedrock and bedrock-agent); it
 // never constructs a bedrock-runtime or bedrock-agent-runtime client.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -110,7 +110,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -152,7 +152,7 @@ func (c *Client) bedrockTags(ctx context.Context, resourceARN string) (map[strin
 	var output *awsbedrock.ListTagsForResourceOutput
 	if err := c.page(ctx, "ListTagsForResource", func(callCtx context.Context) (err error) {
 		output, err = c.bedrock.ListTagsForResource(callCtx, &awsbedrock.ListTagsForResourceInput{
-			ResourceARN: aws.String(arn),
+			ResourceARN: awsv2.String(arn),
 		})
 		return err
 	}); err != nil {
@@ -163,11 +163,11 @@ func (c *Client) bedrockTags(ctx context.Context, resourceARN string) (map[strin
 	}
 	tags := map[string]string{}
 	for _, tag := range output.Tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -186,7 +186,7 @@ func (c *Client) agentTags(ctx context.Context, resourceARN string) (map[string]
 	var output *awsbedrockagent.ListTagsForResourceOutput
 	if err := c.page(ctx, "ListTagsForResource", func(callCtx context.Context) (err error) {
 		output, err = c.agent.ListTagsForResource(callCtx, &awsbedrockagent.ListTagsForResourceInput{
-			ResourceArn: aws.String(arn),
+			ResourceArn: awsv2.String(arn),
 		})
 		return err
 	}); err != nil {

@@ -63,9 +63,9 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 	if counts[facts.AWSRelationshipFactKind] != 1 {
 		t.Fatalf("aws_relationship count = %d, want 1", counts[facts.AWSRelationshipFactKind])
 	}
-	assertNoResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	assertNoResourceType(t, envelopes, aws.ResourceTypeEC2Instance)
 
-	volume := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Volume)
+	volume := assertResourceType(t, envelopes, aws.ResourceTypeEC2Volume)
 	if got := volume.Payload["resource_id"]; got != "vol-0abc" {
 		t.Fatalf("volume resource_id = %#v, want vol-0abc", got)
 	}
@@ -86,7 +86,7 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 		t.Fatalf("attachment instance_id = %#v, want instance id", got)
 	}
 
-	edge := assertRelationship(t, envelopes, awscloud.RelationshipEC2VolumeUsesKMSKey)
+	edge := assertRelationship(t, envelopes, aws.RelationshipEC2VolumeUsesKMSKey)
 	if got := edge.Payload["source_resource_id"]; got != "vol-0abc" {
 		t.Fatalf("kms edge source_resource_id = %#v, want vol-0abc", got)
 	}
@@ -99,7 +99,7 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 	if got := edge.Payload["target_arn"]; got != kmsARN {
 		t.Fatalf("kms edge target_arn = %#v, want KMS ARN", got)
 	}
-	if got := edge.Payload["target_type"]; got != awscloud.ResourceTypeKMSKey {
+	if got := edge.Payload["target_type"]; got != aws.ResourceTypeKMSKey {
 		t.Fatalf("kms edge target_type = %#v, want aws_kms_key", got)
 	}
 }

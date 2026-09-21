@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsvpclattice "github.com/aws/aws-sdk-go-v2/service/vpclattice"
 	awsvpclatticetypes "github.com/aws/aws-sdk-go-v2/service/vpclattice/types"
 
@@ -25,70 +25,70 @@ func TestClientSnapshotsVPCLatticeMetadataOnly(t *testing.T) {
 
 	api := &fakeVPCLatticeAPI{
 		networks: []awsvpclatticetypes.ServiceNetworkSummary{{
-			Arn:                        aws.String(networkARN),
-			Id:                         aws.String("sn-0123"),
-			Name:                       aws.String("commerce-net"),
-			NumberOfAssociatedServices: aws.Int64(1),
-			NumberOfAssociatedVPCs:     aws.Int64(1),
+			Arn:                        awsv2.String(networkARN),
+			Id:                         awsv2.String("sn-0123"),
+			Name:                       awsv2.String("commerce-net"),
+			NumberOfAssociatedServices: awsv2.Int64(1),
+			NumberOfAssociatedVPCs:     awsv2.Int64(1),
 		}},
 		vpcAssociations: map[string][]awsvpclatticetypes.ServiceNetworkVpcAssociationSummary{
 			"sn-0123": {{
-				Id:     aws.String("snva-0123"),
-				VpcId:  aws.String("vpc-0a1b2c3d"),
+				Id:     awsv2.String("snva-0123"),
+				VpcId:  awsv2.String("vpc-0a1b2c3d"),
 				Status: awsvpclatticetypes.ServiceNetworkVpcAssociationStatusActive,
 			}},
 		},
 		serviceAssociations: map[string][]awsvpclatticetypes.ServiceNetworkServiceAssociationSummary{
 			"sn-0123": {{
-				Id:         aws.String("snsa-0123"),
-				ServiceArn: aws.String(serviceARN),
-				ServiceId:  aws.String("svc-0123"),
+				Id:         awsv2.String("snsa-0123"),
+				ServiceArn: awsv2.String(serviceARN),
+				ServiceId:  awsv2.String("svc-0123"),
 				Status:     awsvpclatticetypes.ServiceNetworkServiceAssociationStatusActive,
 			}},
 		},
 		services: []awsvpclatticetypes.ServiceSummary{{
-			Arn:              aws.String(serviceARN),
-			Id:               aws.String("svc-0123"),
-			Name:             aws.String("checkout"),
+			Arn:              awsv2.String(serviceARN),
+			Id:               awsv2.String("svc-0123"),
+			Name:             awsv2.String("checkout"),
 			Status:           awsvpclatticetypes.ServiceStatusActive,
-			CustomDomainName: aws.String("checkout.example.com"),
-			DnsEntry:         &awsvpclatticetypes.DnsEntry{DomainName: aws.String("checkout.on.aws")},
+			CustomDomainName: awsv2.String("checkout.example.com"),
+			DnsEntry:         &awsvpclatticetypes.DnsEntry{DomainName: awsv2.String("checkout.on.aws")},
 		}},
 		getService: map[string]*awsvpclattice.GetServiceOutput{
 			"svc-0123": {
-				Arn:            aws.String(serviceARN),
-				Id:             aws.String("svc-0123"),
+				Arn:            awsv2.String(serviceARN),
+				Id:             awsv2.String("svc-0123"),
 				AuthType:       awsvpclatticetypes.AuthTypeAwsIam,
-				CertificateArn: aws.String(certARN),
+				CertificateArn: awsv2.String(certARN),
 			},
 		},
 		listeners: map[string][]awsvpclatticetypes.ListenerSummary{
 			"svc-0123": {{
-				Arn:      aws.String(serviceARN + "/listener/listener-0123"),
-				Id:       aws.String("listener-0123"),
-				Name:     aws.String("https"),
+				Arn:      awsv2.String(serviceARN + "/listener/listener-0123"),
+				Id:       awsv2.String("listener-0123"),
+				Name:     awsv2.String("https"),
 				Protocol: awsvpclatticetypes.ListenerProtocolHttps,
-				Port:     aws.Int32(443),
+				Port:     awsv2.Int32(443),
 			}},
 		},
 		targetGroups: []awsvpclatticetypes.TargetGroupSummary{{
-			Arn:         aws.String(tgARN),
-			Id:          aws.String("tg-0123"),
-			Name:        aws.String("checkout-lambda"),
+			Arn:         awsv2.String(tgARN),
+			Id:          awsv2.String("tg-0123"),
+			Name:        awsv2.String("checkout-lambda"),
 			Type:        awsvpclatticetypes.TargetGroupTypeLambda,
 			Status:      awsvpclatticetypes.TargetGroupStatusActive,
 			ServiceArns: []string{serviceARN},
 		}},
 		getTargetGroup: map[string]*awsvpclattice.GetTargetGroupOutput{
 			"tg-0123": {
-				Arn:  aws.String(tgARN),
-				Id:   aws.String("tg-0123"),
+				Arn:  awsv2.String(tgARN),
+				Id:   awsv2.String("tg-0123"),
 				Type: awsvpclatticetypes.TargetGroupTypeLambda,
 			},
 		},
 		targets: map[string][]awsvpclatticetypes.TargetSummary{
 			"tg-0123": {{
-				Id:     aws.String(lambdaARN),
+				Id:     awsv2.String(lambdaARN),
 				Status: awsvpclatticetypes.TargetStatusHealthy,
 			}},
 		},
@@ -153,10 +153,10 @@ func TestClientSnapshotsVPCLatticeMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceVPCLattice,
+		ServiceKind: aws.ServiceVPCLattice,
 	}
 }

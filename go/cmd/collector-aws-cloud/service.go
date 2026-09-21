@@ -29,13 +29,13 @@ import (
 var fallbackClaimSequence uint64
 
 // buildCollectorService constructs the offline AWS cloud collector service from
-// a declarative fixture config document. It wires an awsruntime.FixtureSource
+// a declarative fixture config document. It wires an runtime.FixtureSource
 // over the shared Postgres ingestion store, so fixture facts flow through the
 // same durable commit, projector, and reducer path as live facts but with no
 // AWS credentials and no network calls.
 //
 // Fixture mode requires no redaction key: AWS resource and relationship
-// envelopes carry no fingerprinted material (see awscloud.NewResourceEnvelope),
+// envelopes carry no fingerprinted material (see aws.NewResourceEnvelope),
 // unlike the GCP fixture source which fingerprints labels and members.
 func buildCollectorService(
 	database postgres.SQLDB,
@@ -52,7 +52,7 @@ func buildCollectorService(
 	committer.Logger = logger
 	committer.Instruments = instruments
 	return collector.Service{
-		Source:       &awsruntime.FixtureSource{Config: cfg},
+		Source:       &runtime.FixtureSource{Config: cfg},
 		Committer:    committer,
 		PollInterval: pollInterval,
 		Tracer:       tracer,
@@ -102,7 +102,7 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	limiter := awsruntime.NewAccountLimiter(config.AWS.Targets)
+	limiter := runtime.NewAccountLimiter(config.AWS.Targets)
 	if err := telemetry.RegisterAWSClaimConcurrencyGauge(instruments, meter, limiter); err != nil {
 		return collector.ClaimedService{}, fmt.Errorf("register AWS claim concurrency gauge: %w", err)
 	}
@@ -115,10 +115,10 @@ func buildClaimedService(
 	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now, instruments)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
-		Source: awsruntime.ClaimedSource{
+		Source: runtime.ClaimedSource{
 			Config:      config.AWS,
-			Credentials: awsruntime.SDKCredentialProvider{},
-			Scanners: awsruntime.DefaultScannerFactory{
+			Credentials: runtime.SDKCredentialProvider{},
+			Scanners: runtime.DefaultScannerFactory{
 				Tracer:       tracer,
 				Instruments:  instruments,
 				Checkpoints:  checkpoints,

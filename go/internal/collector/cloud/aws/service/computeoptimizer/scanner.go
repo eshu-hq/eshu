@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes Compute Optimizer recommendation summaries, per-resource
 // recommendations, and the recommendation-to-target relationships through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("compute optimizer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceComputeOptimizer:
+	case "", aws.ServiceComputeOptimizer:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceComputeOptimizer
+		boundary.ServiceKind = aws.ServiceComputeOptimizer
 	default:
 		return nil, fmt.Errorf("compute optimizer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -71,7 +71,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func appendInstanceRecommendations(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	recs []InstanceRecommendation,
 ) error {
 	for _, rec := range recs {
@@ -87,7 +87,7 @@ func appendInstanceRecommendations(
 
 func appendAutoScalingGroupRecommendations(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	recs []AutoScalingGroupRecommendation,
 ) error {
 	for _, rec := range recs {
@@ -103,7 +103,7 @@ func appendAutoScalingGroupRecommendations(
 
 func appendVolumeRecommendations(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	recs []VolumeRecommendation,
 ) error {
 	// EBS volume recommendations have no graph edge in this scanner yet. The
@@ -119,7 +119,7 @@ func appendVolumeRecommendations(
 
 func appendLambdaFunctionRecommendations(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	recs []LambdaFunctionRecommendation,
 ) error {
 	for _, rec := range recs {
@@ -133,8 +133,8 @@ func appendLambdaFunctionRecommendations(
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -142,11 +142,11 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.RelationshipObservation) error {
+func appendRelationship(envelopes *[]facts.Envelope, relationship *aws.RelationshipObservation) error {
 	if relationship == nil {
 		return nil
 	}
-	envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+	envelope, err := aws.NewRelationshipEnvelope(*relationship)
 	if err != nil {
 		return err
 	}
@@ -154,9 +154,9 @@ func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.Rela
 	return nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}

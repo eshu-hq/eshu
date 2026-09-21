@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/docdbelastic/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/docdbelastic/sdk guidance
 
 ## Read First
 

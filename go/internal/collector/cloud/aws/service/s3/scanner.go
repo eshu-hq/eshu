@@ -21,15 +21,15 @@ type Scanner struct {
 }
 
 // Scan observes S3 buckets through the configured metadata-only client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("s3 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceS3:
+	case "", aws.ServiceS3:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceS3
+		boundary.ServiceKind = aws.ServiceS3
 	default:
 		return nil, fmt.Errorf("s3 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -40,25 +40,25 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, bucket := range buckets {
-		resource, err := awscloud.NewResourceEnvelope(bucketObservation(boundary, bucket))
+		resource, err := aws.NewResourceEnvelope(bucketObservation(boundary, bucket))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		posture, err := awscloud.NewS3BucketPostureEnvelope(bucketPostureObservation(boundary, bucket))
+		posture, err := aws.NewS3BucketPostureEnvelope(bucketPostureObservation(boundary, bucket))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, posture)
 		for _, observation := range externalPrincipalGrantObservations(boundary, bucket) {
-			grant, err := awscloud.NewS3ExternalPrincipalGrantEnvelope(observation)
+			grant, err := aws.NewS3ExternalPrincipalGrantEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, grant)
 		}
 		for _, observation := range resourcePolicyPermissionObservations(boundary, bucket) {
-			permission, err := awscloud.NewResourcePolicyPermissionEnvelope(observation)
+			permission, err := aws.NewResourcePolicyPermissionEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !ok {
 			continue
 		}
-		relationship, err := awscloud.NewRelationshipEnvelope(logging)
+		relationship, err := aws.NewRelationshipEnvelope(logging)
 		if err != nil {
 			return nil, err
 		}
@@ -77,14 +77,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func bucketObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.ResourceObservation {
+func bucketObservation(boundary aws.Boundary, bucket Bucket) aws.ResourceObservation {
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
-	return awscloud.ResourceObservation{
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(aws.PartitionForBoundary(boundary), name))
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, name),
-		ResourceType: awscloud.ResourceTypeS3Bucket,
+		ResourceType: aws.ResourceTypeS3Bucket,
 		Name:         name,
 		Tags:         cloneStringMap(bucket.Tags),
 		Attributes:   bucketAttributes(bucket),
@@ -129,11 +129,11 @@ func bucketAttributes(bucket Bucket) map[string]any {
 // MFA-delete state, object ownership / ACL-disabled state, access-logging
 // target, replication presence, and the policy-derived booleans. It never
 // reads or stores the raw bucket policy document.
-func bucketPostureObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.S3BucketPostureObservation {
+func bucketPostureObservation(boundary aws.Boundary, bucket Bucket) aws.S3BucketPostureObservation {
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(aws.PartitionForBoundary(boundary), name))
 	algorithms, keyIDs, bucketKeyEnabled := encryptionSummary(bucket.Encryption)
-	return awscloud.S3BucketPostureObservation{
+	return aws.S3BucketPostureObservation{
 		Boundary:   boundary,
 		BucketARN:  arn,
 		BucketName: name,
@@ -168,17 +168,17 @@ func bucketPostureObservation(boundary awscloud.Boundary, bucket Bucket) awsclou
 }
 
 func externalPrincipalGrantObservations(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	bucket Bucket,
-) []awscloud.S3ExternalPrincipalGrantObservation {
+) []aws.S3ExternalPrincipalGrantObservation {
 	if len(bucket.ExternalPrincipalGrants) == 0 {
 		return nil
 	}
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
-	observations := make([]awscloud.S3ExternalPrincipalGrantObservation, 0, len(bucket.ExternalPrincipalGrants))
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(aws.PartitionForBoundary(boundary), name))
+	observations := make([]aws.S3ExternalPrincipalGrantObservation, 0, len(bucket.ExternalPrincipalGrants))
 	for _, grant := range bucket.ExternalPrincipalGrants {
-		observations = append(observations, awscloud.S3ExternalPrincipalGrantObservation{
+		observations = append(observations, aws.S3ExternalPrincipalGrantObservation{
 			Boundary:           boundary,
 			BucketARN:          arn,
 			BucketName:         name,
@@ -206,20 +206,20 @@ func externalPrincipalGrantObservations(
 // the raw policy document. A bucket with no attached policy carries no
 // statements, so it emits no fact.
 func resourcePolicyPermissionObservations(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	bucket Bucket,
-) []awscloud.ResourcePolicyPermissionObservation {
+) []aws.ResourcePolicyPermissionObservation {
 	if len(bucket.ResourcePolicyStatements) == 0 {
 		return nil
 	}
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
-	observations := make([]awscloud.ResourcePolicyPermissionObservation, 0, len(bucket.ResourcePolicyStatements))
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(aws.PartitionForBoundary(boundary), name))
+	observations := make([]aws.ResourcePolicyPermissionObservation, 0, len(bucket.ResourcePolicyStatements))
 	for _, statement := range bucket.ResourcePolicyStatements {
-		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
+		observations = append(observations, aws.ResourcePolicyPermissionObservation{
 			Boundary:            boundary,
 			ResourceARN:         arn,
-			ResourceType:        awscloud.ResourceTypeS3Bucket,
+			ResourceType:        aws.ResourceTypeS3Bucket,
 			StatementSID:        statement.StatementSID,
 			Effect:              statement.Effect,
 			Actions:             statement.Actions,
@@ -287,24 +287,24 @@ func encryptionSummary(encryption Encryption) ([]string, []string, bool) {
 }
 
 func loggingRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	bucket Bucket,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	sourceName := strings.TrimSpace(bucket.Name)
-	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), sourceName))
+	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(aws.PartitionForBoundary(boundary), sourceName))
 	targetName := strings.TrimSpace(bucket.Logging.TargetBucket)
 	if sourceARN == "" || targetName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	targetARN := arnForBucket(awscloud.PartitionForBoundary(boundary), targetName)
-	return awscloud.RelationshipObservation{
+	targetARN := arnForBucket(aws.PartitionForBoundary(boundary), targetName)
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipS3BucketLogsToBucket,
+		RelationshipType: aws.RelationshipS3BucketLogsToBucket,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"target_prefix": strings.TrimSpace(bucket.Logging.TargetPrefix),
 		},

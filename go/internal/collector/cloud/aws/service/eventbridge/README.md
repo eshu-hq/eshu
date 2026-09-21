@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/eventbridge` owns the EventBridge scanner
+`internal/collector/cloud/aws/service/eventbridge` owns the EventBridge scanner
 contract for the AWS cloud collector. It converts event bus and rule metadata
 into `aws_resource` facts and emits relationship evidence for rule membership
 and ARN-addressable targets.
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -45,9 +45,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records EventBridge API call counts, throttles, and
+The `sdk` adapter records EventBridge API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -67,14 +67,14 @@ pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/eventbridge/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/eventbridge/...`
 covers the bounded EventBridge metadata path: one paginated ListEventBuses
 stream, one ListTagsForResource read per bus, one paginated ListRules stream per
 bus, one DescribeRule read per rule, one ListTagsForResource read per rule, one
 paginated ListTargetsByRule stream per rule, no PutEvents calls, no mutations,
 and no graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers EventBridge event bus and rule metadata fact emission, rule-to-bus
 relationship emission, ARN-only target relationship emission, omission of event
 bus policy and target payload fields, runtime registration, command

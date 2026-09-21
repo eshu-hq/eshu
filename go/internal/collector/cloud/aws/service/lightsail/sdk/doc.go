@@ -13,4 +13,4 @@
 // GetRelationalDatabaseMasterUserPassword, so a mutation or secret read can
 // never be reached through the scanner. A reflective guard test enforces the
 // exclusion on the adapter-local apiClient interface.
-package awssdk
+package sdk

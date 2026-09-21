@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes Network Firewall firewalls, firewall policies, rule groups, and
 // TLS inspection configurations through the configured client and emits
 // resource and relationship facts for one regional boundary.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("networkfirewall scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceNetworkFirewall:
+	case "", aws.ServiceNetworkFirewall:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceNetworkFirewall
+		boundary.ServiceKind = aws.ServiceNetworkFirewall
 	default:
 		return nil, fmt.Errorf("networkfirewall scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -63,14 +63,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func (s Scanner) scanFirewalls(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanFirewalls(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	firewalls, err := s.Client.ListFirewalls(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list Network Firewall firewalls: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, firewall := range firewalls {
-		resource, err := awscloud.NewResourceEnvelope(firewallObservation(boundary, firewall))
+		resource, err := aws.NewResourceEnvelope(firewallObservation(boundary, firewall))
 		if err != nil {
 			return nil, err
 		}
@@ -84,14 +84,14 @@ func (s Scanner) scanFirewalls(ctx context.Context, boundary awscloud.Boundary) 
 	return envelopes, nil
 }
 
-func (s Scanner) scanFirewallPolicies(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanFirewallPolicies(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	policies, err := s.Client.ListFirewallPolicies(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list Network Firewall firewall policies: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, policy := range policies {
-		resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
+		resource, err := aws.NewResourceEnvelope(policyObservation(boundary, policy))
 		if err != nil {
 			return nil, err
 		}
@@ -105,14 +105,14 @@ func (s Scanner) scanFirewallPolicies(ctx context.Context, boundary awscloud.Bou
 	return envelopes, nil
 }
 
-func (s Scanner) scanRuleGroups(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanRuleGroups(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	ruleGroups, err := s.Client.ListRuleGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list Network Firewall rule groups: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, ruleGroup := range ruleGroups {
-		resource, err := awscloud.NewResourceEnvelope(ruleGroupObservation(boundary, ruleGroup))
+		resource, err := aws.NewResourceEnvelope(ruleGroupObservation(boundary, ruleGroup))
 		if err != nil {
 			return nil, err
 		}
@@ -121,14 +121,14 @@ func (s Scanner) scanRuleGroups(ctx context.Context, boundary awscloud.Boundary)
 	return envelopes, nil
 }
 
-func (s Scanner) scanTLSInspectionConfigurations(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanTLSInspectionConfigurations(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	tlsConfigs, err := s.Client.ListTLSInspectionConfigurations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list Network Firewall TLS inspection configurations: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, tlsConfig := range tlsConfigs {
-		resource, err := awscloud.NewResourceEnvelope(tlsInspectionObservation(boundary, tlsConfig))
+		resource, err := aws.NewResourceEnvelope(tlsInspectionObservation(boundary, tlsConfig))
 		if err != nil {
 			return nil, err
 		}
@@ -137,14 +137,14 @@ func (s Scanner) scanTLSInspectionConfigurations(ctx context.Context, boundary a
 	return envelopes, nil
 }
 
-func firewallObservation(boundary awscloud.Boundary, firewall Firewall) awscloud.ResourceObservation {
+func firewallObservation(boundary aws.Boundary, firewall Firewall) aws.ResourceObservation {
 	arn := strings.TrimSpace(firewall.ARN)
 	resourceID := firstNonEmpty(arn, firewall.ID, firewall.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallFirewall,
+		ResourceType: aws.ResourceTypeNetworkFirewallFirewall,
 		Name:         strings.TrimSpace(firewall.Name),
 		State:        strings.TrimSpace(firewall.Status),
 		Tags:         cloneStringMap(firewall.Tags),
@@ -166,14 +166,14 @@ func firewallObservation(boundary awscloud.Boundary, firewall Firewall) awscloud
 	}
 }
 
-func policyObservation(boundary awscloud.Boundary, policy FirewallPolicy) awscloud.ResourceObservation {
+func policyObservation(boundary aws.Boundary, policy FirewallPolicy) aws.ResourceObservation {
 	arn := strings.TrimSpace(policy.ARN)
 	resourceID := firstNonEmpty(arn, policy.ID, policy.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallPolicy,
+		ResourceType: aws.ResourceTypeNetworkFirewallPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		State:        strings.TrimSpace(policy.Status),
 		Tags:         cloneStringMap(policy.Tags),
@@ -195,14 +195,14 @@ func policyObservation(boundary awscloud.Boundary, policy FirewallPolicy) awsclo
 	}
 }
 
-func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscloud.ResourceObservation {
+func ruleGroupObservation(boundary aws.Boundary, ruleGroup RuleGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(ruleGroup.ARN)
 	resourceID := firstNonEmpty(arn, ruleGroup.ID, ruleGroup.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallRuleGroup,
+		ResourceType: aws.ResourceTypeNetworkFirewallRuleGroup,
 		Name:         strings.TrimSpace(ruleGroup.Name),
 		Tags:         cloneStringMap(ruleGroup.Tags),
 		Attributes: map[string]any{
@@ -217,14 +217,14 @@ func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscl
 	}
 }
 
-func tlsInspectionObservation(boundary awscloud.Boundary, tlsConfig TLSInspectionConfiguration) awscloud.ResourceObservation {
+func tlsInspectionObservation(boundary aws.Boundary, tlsConfig TLSInspectionConfiguration) aws.ResourceObservation {
 	arn := strings.TrimSpace(tlsConfig.ARN)
 	resourceID := firstNonEmpty(arn, tlsConfig.ID, tlsConfig.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
+		ResourceType: aws.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
 		Name:         strings.TrimSpace(tlsConfig.Name),
 		State:        strings.TrimSpace(tlsConfig.Status),
 		Tags:         cloneStringMap(tlsConfig.Tags),

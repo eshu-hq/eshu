@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/redshift/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/redshift/sdk guidance
 
 ## Read First
 
@@ -7,7 +7,7 @@
    telemetry, and throttle accounting.
 3. `mapper.go` - AWS SDK shape to scanner-owned metadata mapping.
 4. `../README.md` - scanner-level Redshift fact contract.
-5. `../../../awsruntime/README.md` - runtime registry and claim contract.
+5. `../../../runtime/README.md` - runtime registry and claim contract.
 6. `docs/public/services/collector-aws-cloud.md` - AWS collector
    service coverage and runtime requirements.
 

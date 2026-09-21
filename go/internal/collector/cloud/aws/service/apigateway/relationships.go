@@ -12,21 +12,21 @@ import (
 )
 
 func domainRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	domain DomainName,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := domainResourceID(domain)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, group := range groupedMappings(domain.Mappings) {
 		if group.apiID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayDomainMapsToAPI,
+			RelationshipType: aws.RelationshipAPIGatewayDomainMapsToAPI,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: group.apiID,
@@ -40,9 +40,9 @@ func domainRelationships(
 		})
 	}
 	for _, certificateARN := range cloneStrings(domain.CertificateARNs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayDomainUsesACMCertificate,
+			RelationshipType: aws.RelationshipAPIGatewayDomainUsesACMCertificate,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: certificateARN,
@@ -59,10 +59,10 @@ func domainRelationships(
 }
 
 func stageRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stage Stage,
 	apiARN string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	stageID := stageResourceID(stage.APIID, stage.Name)
 	apiID := strings.TrimSpace(stage.APIID)
 	if stageID == "" || apiID == "" {
@@ -71,14 +71,14 @@ func stageRelationships(
 	if apiARN == "" {
 		apiARN = apiARNForStage(boundary.Region, stage)
 	}
-	relationships := []awscloud.RelationshipObservation{{
+	relationships := []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayAPIHasStage,
+		RelationshipType: aws.RelationshipAPIGatewayAPIHasStage,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN,
 		TargetResourceID: stageID,
 		TargetARN:        stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
-		TargetType:       awscloud.ResourceTypeAPIGatewayStage,
+		TargetType:       aws.ResourceTypeAPIGatewayStage,
 		Attributes: map[string]any{
 			"api_kind":   strings.TrimSpace(stage.APIKind),
 			"stage_name": strings.TrimSpace(stage.Name),
@@ -86,9 +86,9 @@ func stageRelationships(
 		SourceRecordID: apiID + "->" + stageID,
 	}}
 	if targetARN := strings.TrimSpace(stage.AccessLogDestination); targetARN != "" && isARN(targetARN) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayStageLogsToResource,
+			RelationshipType: aws.RelationshipAPIGatewayStageLogsToResource,
 			SourceResourceID: stageID,
 			SourceARN:        stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
 			TargetResourceID: targetARN,
@@ -106,7 +106,7 @@ func stageRelationships(
 
 func appendIntegrationRelationships(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	apiKind string,
 	apiID string,
 	sourceARN string,
@@ -117,9 +117,9 @@ func appendIntegrationRelationships(
 		if groupSourceARN == "" {
 			groupSourceARN = apiARN(boundary.Region, group.apiKind, group.apiID)
 		}
-		err := appendRelationship(envelopes, awscloud.RelationshipObservation{
+		err := appendRelationship(envelopes, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayAPIIntegratesWithResource,
+			RelationshipType: aws.RelationshipAPIGatewayAPIIntegratesWithResource,
 			SourceResourceID: group.apiID,
 			SourceARN:        groupSourceARN,
 			TargetResourceID: group.targetARN,
@@ -284,7 +284,7 @@ func restAPIARN(region, apiID string) string {
 		return ""
 	}
 	region = strings.TrimSpace(region)
-	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/restapis/" + strings.TrimSpace(apiID)
+	return "arn:" + aws.PartitionForRegion(region) + ":apigateway:" + region + "::/restapis/" + strings.TrimSpace(apiID)
 }
 
 func v2APIARN(region, apiID string) string {
@@ -292,7 +292,7 @@ func v2APIARN(region, apiID string) string {
 		return ""
 	}
 	region = strings.TrimSpace(region)
-	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + strings.TrimSpace(apiID)
+	return "arn:" + aws.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + strings.TrimSpace(apiID)
 }
 
 func stageARN(region, apiKind, apiID, stageName string) string {

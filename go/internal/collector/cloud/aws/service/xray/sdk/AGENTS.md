@@ -1,4 +1,4 @@
-# AGENTS — services/xray/awssdk
+# AGENTS — services/xray/sdk
 
 This adapter is the contract surface between the AWS SDK v2 and the
 `xray.Client` interface. Agents editing this package MUST:

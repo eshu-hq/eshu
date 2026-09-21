@@ -14,7 +14,7 @@
 //  1. A static layer that AST-walks the scanner source tree and collects every
 //     statically determinable target_type value: inline string literals, the
 //     package and file-local string constants those literals bind to, and the
-//     compiler-checked awscloud.ResourceType* selectors. DeclaredResourceTypeValues,
+//     compiler-checked aws.ResourceType* selectors. DeclaredResourceTypeValues,
 //     EmittedTargetTypeLiterals, Validate, and the one-call ValidateEmitted
 //     implement it. The repo-level guard test (TestLiveScannerTreeHasNoGraphJoinDefects)
 //     feeds the live tree through it, so a new scanner cannot ship an empty or
@@ -25,11 +25,11 @@
 //     helper call or a struct-field read produced them, and additionally checks
 //     ARN shape and ARN-vs-name join-mode consistency.
 //
-// The valid target-type set is the union of every declared awscloud
+// The valid target-type set is the union of every declared aws
 // ResourceType constant value and the explicit, documented KnownTargetTypeAllowlist
 // of forward references and synthetic join anchors. The package intentionally
-// has no dependency on the awsruntime registry; the expected set is derived
-// from the awscloud constant source, never from the runtime it guards, so the
+// has no dependency on the runtime registry; the expected set is derived
+// from the aws constant source, never from the runtime it guards, so the
 // guard is not tautological.
 //
 // What the guard does NOT catch: a fully data-dependent target_type that a

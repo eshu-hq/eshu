@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/lakeformation/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/lakeformation/sdk guidance
 
 ## Read First
 

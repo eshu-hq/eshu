@@ -1,4 +1,4 @@
-# AGENTS.md - services/backup/awssdk guidance
+# AGENTS.md - services/backup/sdk guidance
 
 ## Read First
 

@@ -12,4 +12,4 @@
 // and never recovers, starts, stops, or mutates DRS state. Reflection guard
 // tests fail the build if a record-read, agent-read, or mutation method ever
 // reaches the adapter interface.
-package awssdk
+package sdk

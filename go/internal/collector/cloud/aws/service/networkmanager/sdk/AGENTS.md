@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/networkmanager/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/networkmanager/sdk guidance
 
 ## Read First
 
@@ -19,7 +19,7 @@
 - Keep Network Manager SDK calls here, not in `cmd/collector-aws-cloud` or the
   scanner package.
 - Network Manager is global: pin the partition's control-plane region in
-  `NewClient` via `globalServiceRegion(awscloud.PartitionForBoundary(...))`.
+  `NewClient` via `globalServiceRegion(aws.PartitionForBoundary(...))`.
   Never hardcode a single region; GovCloud and China use different endpoints.
 - Keep the `apiClient` interface limited to `Describe`/`Get`/`List` reads. The
   exclusion test fails the build if any method matches a mutation prefix or the

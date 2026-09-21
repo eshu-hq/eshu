@@ -33,7 +33,7 @@ type Snapshot struct {
 	ScheduledActions []ScheduledAction
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component for one namespace.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ScalableTarget is the scanner-owned Application Auto Scaling scalable target

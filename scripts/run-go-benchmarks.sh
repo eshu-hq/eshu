@@ -45,7 +45,7 @@ command -v go >/dev/null 2>&1 || die "missing required tool: go"
 # Resolve the package set. When BENCH_PACKAGES is set we honor it verbatim
 # (whitespace-separated). Otherwise we auto-discover exactly the packages that
 # contain a Go benchmark. This yields identical benchmark coverage to ./... but
-# skips the hundreds of benchmark-less packages (e.g. collector/awscloud/services
+# skips the hundreds of benchmark-less packages (e.g. collector/cloud/aws/service
 # /*), whose per-package compile + test-binary startup — not the benchmarks —
 # dominate a naive `-bench=. ./...` run. New benchmark packages are picked up
 # automatically, so coverage cannot silently drift.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/quicksight/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/quicksight/sdk` adapts AWS SDK for Go
 v2 QuickSight responses to the scanner-owned `Client` contract. It owns data
 source/dataset/dashboard/analysis pagination, the per-resource describe fan-out
 that resolves internal edges, VPC connection resolution, resource-tag reads,
@@ -38,9 +38,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/quicksight` for scanner-owned result
+- `internal/collector/cloud/aws/service/quicksight` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `quicksight` and Smithy error contracts.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/applicationautoscaling/awssdk` adapts the
+`internal/collector/cloud/aws/service/applicationautoscaling/sdk` adapts the
 AWS SDK for Go v2 Application Auto Scaling client into the metadata-only
 `applicationautoscaling.Client` interface. It reads scalable target, scaling
 policy, and scheduled action metadata, paginating each Describe call to
@@ -39,5 +39,5 @@ join keys, which live in the parent `applicationautoscaling` package.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/applicationautoscaling/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/applicationautoscaling/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

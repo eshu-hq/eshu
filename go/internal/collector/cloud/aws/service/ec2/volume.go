@@ -13,17 +13,17 @@ import (
 // volumeEnvelopes builds metadata-only EBS volume facts from one boundary-wide
 // DescribeVolumes result. Volumes without an identity are skipped because any
 // fact or edge would be unjoinable.
-func volumeEnvelopes(boundary awscloud.Boundary, volume Volume) ([]facts.Envelope, error) {
+func volumeEnvelopes(boundary aws.Boundary, volume Volume) ([]facts.Envelope, error) {
 	if strings.TrimSpace(volume.ID) == "" && strings.TrimSpace(volume.ARN) == "" {
 		return nil, nil
 	}
-	resource, err := awscloud.NewResourceEnvelope(volumeObservation(boundary, volume))
+	resource, err := aws.NewResourceEnvelope(volumeObservation(boundary, volume))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := volumeKMSRelationship(boundary, volume); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -32,14 +32,14 @@ func volumeEnvelopes(boundary awscloud.Boundary, volume Volume) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.ResourceObservation {
+func volumeObservation(boundary aws.Boundary, volume Volume) aws.ResourceObservation {
 	volumeID := strings.TrimSpace(volume.ID)
 	volumeARN := strings.TrimSpace(volume.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          volumeARN,
 		ResourceID:   volumeID,
-		ResourceType: awscloud.ResourceTypeEC2Volume,
+		ResourceType: aws.ResourceTypeEC2Volume,
 		Name:         volumeID,
 		State:        strings.TrimSpace(volume.State),
 		Tags:         volume.Tags,
@@ -68,24 +68,24 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 	}
 }
 
-func volumeKMSRelationship(boundary awscloud.Boundary, volume Volume) (awscloud.RelationshipObservation, bool) {
+func volumeKMSRelationship(boundary aws.Boundary, volume Volume) (aws.RelationshipObservation, bool) {
 	volumeID := strings.TrimSpace(volume.ID)
 	keyID := strings.TrimSpace(volume.KMSKeyID)
 	if volumeID == "" || keyID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	targetARN := ""
 	if isARN(keyID) {
 		targetARN = keyID
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2VolumeUsesKMSKey,
+		RelationshipType: aws.RelationshipEC2VolumeUsesKMSKey,
 		SourceResourceID: volumeID,
 		SourceARN:        strings.TrimSpace(volume.ARN),
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   volumeID + "#kms#" + keyID,
 	}, true
 }

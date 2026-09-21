@@ -8,7 +8,7 @@ package v1
 // principal.
 //
 // The required set matches the collector emitter
-// (awscloud.NewIAMPermissionEnvelope), which validates principal_arn, effect,
+// (aws.NewIAMPermissionEnvelope), which validates principal_arn, effect,
 // and policy_source non-empty and always emits account_id and region from the
 // scan boundary. The list fields (Actions, Resources, and the NotAction/
 // NotResource/AssumePrincipal sets) are always emitted by the collector as

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/computeoptimizer guidance
+# AGENTS.md - internal/collector/cloud/aws/service/computeoptimizer guidance
 
 ## Read First
 
@@ -38,7 +38,7 @@
   recommendation-to-`aws_ec2_volume` relationship follow-up lands. Record the
   volume identity as metadata only.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant or the documented `aws_ec2_instance`
+  `aws.ResourceType*` constant or the documented `aws_ec2_instance`
   forward-reference anchor, and a `target_resource_id` matching how the target
   scanner publishes its resource_id. If `target_arn` is set, `target_resource_id`
   must also be an ARN (relguard enforces this).
@@ -51,13 +51,13 @@
 
 - Add a new Compute Optimizer metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field carries CloudWatch metric data
+  `aws` envelope builders. If the field carries CloudWatch metric data
   points or customer cost values, leave it out of the scanner contract.
 - Add new relationship evidence only when the Compute Optimizer API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (bare id for EC2 instances, group name for Auto Scaling
   groups, ARN for Lambda functions).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

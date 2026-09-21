@@ -27,15 +27,15 @@ type Scanner struct {
 // resource and relationship facts. Packages are joined to their associated
 // domains, and serverless collections are joined to managed VPC endpoints in
 // the same scan window.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("opensearch scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOpenSearch:
+	case "", aws.ServiceOpenSearch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOpenSearch
+		boundary.ServiceKind = aws.ServiceOpenSearch
 	default:
 		return nil, fmt.Errorf("opensearch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -65,13 +65,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, domain := range domains {
-		resource, err := awscloud.NewResourceEnvelope(domainObservation(boundary, domain))
+		resource, err := aws.NewResourceEnvelope(domainObservation(boundary, domain))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range domainRelationships(boundary, domain) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -80,7 +80,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, pkg := range packages {
-		resource, err := awscloud.NewResourceEnvelope(packageObservation(boundary, pkg))
+		resource, err := aws.NewResourceEnvelope(packageObservation(boundary, pkg))
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -104,13 +104,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, collection := range collections {
-		resource, err := awscloud.NewResourceEnvelope(collectionObservation(boundary, collection))
+		resource, err := aws.NewResourceEnvelope(collectionObservation(boundary, collection))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range collectionRelationships(boundary, collection) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -119,7 +119,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, config := range securityConfigs {
-		resource, err := awscloud.NewResourceEnvelope(securityConfigObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(securityConfigObservation(boundary, config))
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +127,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, endpoint := range vpcEndpoints {
-		resource, err := awscloud.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
+		resource, err := aws.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
 		if err != nil {
 			return nil, err
 		}
@@ -137,15 +137,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.ResourceObservation {
+func domainObservation(boundary aws.Boundary, domain Domain) aws.ResourceObservation {
 	domainARN := strings.TrimSpace(domain.ARN)
 	name := strings.TrimSpace(domain.Name)
 	resourceID := firstNonEmpty(domainARN, name, strings.TrimSpace(domain.ID))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          domainARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchDomain,
+		ResourceType: aws.ResourceTypeOpenSearchDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.State),
 		Tags:         cloneStringMap(domain.Tags),
@@ -175,12 +175,12 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 	}
 }
 
-func packageObservation(boundary awscloud.Boundary, pkg Package) awscloud.ResourceObservation {
+func packageObservation(boundary aws.Boundary, pkg Package) aws.ResourceObservation {
 	id := strings.TrimSpace(pkg.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeOpenSearchPackage,
+		ResourceType: aws.ResourceTypeOpenSearchPackage,
 		Name:         strings.TrimSpace(pkg.Name),
 		State:        strings.TrimSpace(pkg.Status),
 		Attributes: map[string]any{
@@ -194,15 +194,15 @@ func packageObservation(boundary awscloud.Boundary, pkg Package) awscloud.Resour
 	}
 }
 
-func collectionObservation(boundary awscloud.Boundary, collection Collection) awscloud.ResourceObservation {
+func collectionObservation(boundary aws.Boundary, collection Collection) aws.ResourceObservation {
 	collectionARN := strings.TrimSpace(collection.ARN)
 	id := strings.TrimSpace(collection.ID)
 	resourceID := firstNonEmpty(collectionARN, id, strings.TrimSpace(collection.Name))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          collectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessCollection,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessCollection,
 		Name:         strings.TrimSpace(collection.Name),
 		State:        strings.TrimSpace(collection.Status),
 		Attributes: map[string]any{
@@ -218,12 +218,12 @@ func collectionObservation(boundary awscloud.Boundary, collection Collection) aw
 	}
 }
 
-func securityConfigObservation(boundary awscloud.Boundary, config SecurityConfig) awscloud.ResourceObservation {
+func securityConfigObservation(boundary aws.Boundary, config SecurityConfig) aws.ResourceObservation {
 	id := strings.TrimSpace(config.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessSecurityConfig,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessSecurityConfig,
 		Name:         id,
 		Attributes: map[string]any{
 			"security_config_type": strings.TrimSpace(config.Type),
@@ -235,13 +235,13 @@ func securityConfigObservation(boundary awscloud.Boundary, config SecurityConfig
 	}
 }
 
-func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) awscloud.ResourceObservation {
+func vpcEndpointObservation(boundary aws.Boundary, endpoint VPCEndpoint) aws.ResourceObservation {
 	id := strings.TrimSpace(endpoint.ID)
 	resourceID := firstNonEmpty(id, strings.TrimSpace(endpoint.Name))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessVPCEndpoint,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessVPCEndpoint,
 		Name:         strings.TrimSpace(endpoint.Name),
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{

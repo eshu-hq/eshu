@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudtrail/runtimebind` registers the
-CloudTrail scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/cloudtrail/bind` registers the
+CloudTrail scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the CloudTrail scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceCloudTrail` to the CloudTrail scanner builder. It does not
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceCloudTrail` to the CloudTrail scanner builder. It does not
 own AWS API calls, CloudTrail domain types, redaction policy, or fact
-emission. Those belong to `internal/collector/awscloud/service/cloudtrail`
-and its `awssdk` adapter.
+emission. Those belong to `internal/collector/cloud/aws/service/cloudtrail`
+and its `sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceCloudTrail` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceCloudTrail` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/cloudtrail` for the scanner struct.
-- `internal/collector/awscloud/service/cloudtrail/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/cloudtrail` for the scanner struct.
+- `internal/collector/cloud/aws/service/cloudtrail/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The CloudTrail scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the CloudTrail scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

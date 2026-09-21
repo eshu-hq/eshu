@@ -9,7 +9,7 @@ package v1
 // policy).
 //
 // The required set matches the collector emitter
-// (awscloud.NewResourcePolicyPermissionEnvelope), which validates resource_arn,
+// (aws.NewResourcePolicyPermissionEnvelope), which validates resource_arn,
 // resource_type, and effect non-empty and always emits account_id, region, and
 // policy_source from the boundary. The list fields are always emitted as
 // non-nil sorted slices but are semantically optional. IsPublic is an optional

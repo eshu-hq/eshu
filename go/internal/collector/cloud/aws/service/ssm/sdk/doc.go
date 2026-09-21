@@ -8,4 +8,4 @@
 // recording bounded AWS API telemetry for each call. It deliberately avoids
 // value, history, decryption, and mutation APIs so the service package never
 // receives parameter values.
-package awssdk
+package sdk

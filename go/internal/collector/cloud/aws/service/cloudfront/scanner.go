@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes CloudFront distributions and direct certificate/WAF dependency
 // metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudfront scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudFront:
+	case "", aws.ServiceCloudFront:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudFront
+		boundary.ServiceKind = aws.ServiceCloudFront
 	default:
 		return nil, fmt.Errorf("cloudfront scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -40,13 +40,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, distribution := range distributions {
-		resource, err := awscloud.NewResourceEnvelope(distributionObservation(boundary, distribution))
+		resource, err := aws.NewResourceEnvelope(distributionObservation(boundary, distribution))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range distributionRelationships(boundary, distribution) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -57,17 +57,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func distributionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	distribution Distribution,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	distributionARN := strings.TrimSpace(distribution.ARN)
 	distributionID := distributionResourceID(distribution)
 	distributionName := firstNonEmpty(distribution.ID, distribution.DomainName, distributionARN)
-	observation := awscloud.ResourceObservation{
+	observation := aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          distributionARN,
 		ResourceID:   distributionID,
-		ResourceType: awscloud.ResourceTypeCloudFrontDistribution,
+		ResourceType: aws.ResourceTypeCloudFrontDistribution,
 		Name:         distributionName,
 		State:        strings.TrimSpace(distribution.Status),
 		Tags:         cloneStringMap(distribution.Tags),

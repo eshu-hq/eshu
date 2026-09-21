@@ -1,22 +1,22 @@
-# AGENTS.md - services/kms/runtimebind guidance
+# AGENTS.md - services/kms/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - KMS scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime
+4. `../../../runtime/README.md` - runtime registry and runtime
    surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceKMS`.
+- Register exactly once from `init()` with `aws.ServiceKMS`.
 - Do not load AWS configuration or build SDK clients at init time.
   Builders construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here. Validation belongs to
-  awsruntime and the scanner. The builder body stays a constructor call.
+  runtime and the scanner. The builder body stays a constructor call.
 - Do not import anything else from
-  `internal/collector/awscloud/service`. Cross-service knowledge belongs
+  `internal/collector/cloud/aws/service`. Cross-service knowledge belongs
   upstream.
 - The KMS builder does not need `RedactionKey`. The scanner emits no
   redacted fields; if a future change introduces one, the builder must

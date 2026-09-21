@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/networkfirewall` owns the Network Firewall
+`internal/collector/cloud/aws/service/networkfirewall` owns the Network Firewall
 scanner contract for the AWS cloud collector. It converts firewall, firewall
 policy, rule group, and TLS inspection configuration metadata into
 `aws_resource` facts and emits relationship evidence from firewalls to their
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, Network Firewall resource and
+- `internal/collector/cloud/aws` for boundaries, Network Firewall resource and
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,10 +51,10 @@ v2 so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns through
 `eshu_dp_aws_resources_emitted_total{service="networkfirewall"}` and
-`eshu_dp_aws_relationships_emitted_total`. The `awssdk` adapter records Network
+`eshu_dp_aws_relationships_emitted_total`. The `sdk` adapter records Network
 Firewall API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -75,13 +75,13 @@ Firewall API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/networkfirewall/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/networkfirewall/...`
 covers the bounded Network Firewall metadata path: one token-paginated list per
 resource kind, one detail read per resource, and per-rule-group tag reads. Rule
 group metadata is read through `DescribeRuleGroupMetadata`, which never returns
 the rule source.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Network Firewall resource fact emission, all five relationship kinds,
 metadata-only rule group emission, the SDK adapter's read-only interface
 (reflection exclusion test) and rule-body-free domain types (struct reflection

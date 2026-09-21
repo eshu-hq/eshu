@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes Location Service maps, place indexes, trackers, geofence
 // collections, and route calculators plus their direct KMS and consumer
 // dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("location scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLocation:
+	case "", aws.ServiceLocation:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLocation
+		boundary.ServiceKind = aws.ServiceLocation
 	default:
 		return nil, fmt.Errorf("location scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, resource := range snapshot.PlaceIndexes {
-		envelope, err := awscloud.NewResourceEnvelope(placeIndexObservation(boundary, resource))
+		envelope, err := aws.NewResourceEnvelope(placeIndexObservation(boundary, resource))
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, resource := range snapshot.RouteCalculators {
-		envelope, err := awscloud.NewResourceEnvelope(routeCalculatorObservation(boundary, resource))
+		envelope, err := aws.NewResourceEnvelope(routeCalculatorObservation(boundary, resource))
 		if err != nil {
 			return nil, err
 		}
@@ -86,9 +86,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -97,21 +97,21 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func mapEnvelopes(boundary awscloud.Boundary, resource Map) ([]facts.Envelope, error) {
-	envelope, err := awscloud.NewResourceEnvelope(mapObservation(boundary, resource))
+func mapEnvelopes(boundary aws.Boundary, resource Map) ([]facts.Envelope, error) {
+	envelope, err := aws.NewResourceEnvelope(mapObservation(boundary, resource))
 	if err != nil {
 		return nil, err
 	}
 	return []facts.Envelope{envelope}, nil
 }
 
-func trackerEnvelopes(boundary awscloud.Boundary, tracker Tracker) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(trackerObservation(boundary, tracker))
+func trackerEnvelopes(boundary aws.Boundary, tracker Tracker) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(trackerObservation(boundary, tracker))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	relationships := []*awscloud.RelationshipObservation{trackerKMSRelationship(boundary, tracker)}
+	relationships := []*aws.RelationshipObservation{trackerKMSRelationship(boundary, tracker)}
 	for _, consumerARN := range tracker.ConsumerCollectionARNs {
 		relationships = append(relationships, trackerConsumerRelationship(boundary, tracker, consumerARN))
 	}
@@ -123,15 +123,15 @@ func trackerEnvelopes(boundary awscloud.Boundary, tracker Tracker) ([]facts.Enve
 }
 
 func geofenceCollectionEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection GeofenceCollection,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(geofenceCollectionObservation(boundary, collection))
+	resource, err := aws.NewResourceEnvelope(geofenceCollectionObservation(boundary, collection))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	next, err := relationshipEnvelopes([]*awscloud.RelationshipObservation{
+	next, err := relationshipEnvelopes([]*aws.RelationshipObservation{
 		geofenceCollectionKMSRelationship(boundary, collection),
 	})
 	if err != nil {
@@ -142,13 +142,13 @@ func geofenceCollectionEnvelopes(
 
 // relationshipEnvelopes builds envelopes for every non-nil relationship,
 // skipping nil entries so callers can pass optional edges directly.
-func relationshipEnvelopes(relationships []*awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(relationships []*aws.RelationshipObservation) ([]facts.Envelope, error) {
 	var envelopes []facts.Envelope
 	for _, relationship := range relationships {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -157,15 +157,15 @@ func relationshipEnvelopes(relationships []*awscloud.RelationshipObservation) ([
 	return envelopes, nil
 }
 
-func mapObservation(boundary awscloud.Boundary, resource Map) awscloud.ResourceObservation {
+func mapObservation(boundary aws.Boundary, resource Map) aws.ResourceObservation {
 	arn := strings.TrimSpace(resource.ARN)
 	name := strings.TrimSpace(resource.Name)
 	resourceID := mapResourceID(resource)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationMap,
+		ResourceType: aws.ResourceTypeLocationMap,
 		Name:         name,
 		Tags:         cloneStringMap(resource.Tags),
 		Attributes: map[string]any{
@@ -182,15 +182,15 @@ func mapObservation(boundary awscloud.Boundary, resource Map) awscloud.ResourceO
 	}
 }
 
-func placeIndexObservation(boundary awscloud.Boundary, resource PlaceIndex) awscloud.ResourceObservation {
+func placeIndexObservation(boundary aws.Boundary, resource PlaceIndex) aws.ResourceObservation {
 	arn := strings.TrimSpace(resource.ARN)
 	name := strings.TrimSpace(resource.Name)
 	resourceID := placeIndexResourceID(resource)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationPlaceIndex,
+		ResourceType: aws.ResourceTypeLocationPlaceIndex,
 		Name:         name,
 		Tags:         cloneStringMap(resource.Tags),
 		Attributes: map[string]any{
@@ -205,15 +205,15 @@ func placeIndexObservation(boundary awscloud.Boundary, resource PlaceIndex) awsc
 	}
 }
 
-func trackerObservation(boundary awscloud.Boundary, tracker Tracker) awscloud.ResourceObservation {
+func trackerObservation(boundary aws.Boundary, tracker Tracker) aws.ResourceObservation {
 	arn := strings.TrimSpace(tracker.ARN)
 	name := strings.TrimSpace(tracker.Name)
 	resourceID := trackerResourceID(tracker)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationTracker,
+		ResourceType: aws.ResourceTypeLocationTracker,
 		Name:         name,
 		Tags:         cloneStringMap(tracker.Tags),
 		Attributes: map[string]any{
@@ -232,17 +232,17 @@ func trackerObservation(boundary awscloud.Boundary, tracker Tracker) awscloud.Re
 }
 
 func geofenceCollectionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection GeofenceCollection,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(collection.ARN)
 	name := strings.TrimSpace(collection.Name)
 	resourceID := geofenceCollectionResourceID(collection)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationGeofenceCollection,
+		ResourceType: aws.ResourceTypeLocationGeofenceCollection,
 		Name:         name,
 		Tags:         cloneStringMap(collection.Tags),
 		Attributes: map[string]any{
@@ -258,17 +258,17 @@ func geofenceCollectionObservation(
 }
 
 func routeCalculatorObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	calculator RouteCalculator,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(calculator.ARN)
 	name := strings.TrimSpace(calculator.Name)
 	resourceID := routeCalculatorResourceID(calculator)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationRouteCalculator,
+		ResourceType: aws.ResourceTypeLocationRouteCalculator,
 		Name:         name,
 		Tags:         cloneStringMap(calculator.Tags),
 		Attributes: map[string]any{

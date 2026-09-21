@@ -24,9 +24,9 @@ const provisionedProductCFNStackType = "CFN_STACK"
 // source id is firstNonEmpty(arn, id), matching the provisioned-product node's
 // own resource_id, so the outgoing edge resolves to its source node.
 func provisionedProductStackRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	provisioned ProvisionedProduct,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	if !strings.EqualFold(strings.TrimSpace(provisioned.Type), provisionedProductCFNStackType) {
 		return nil
 	}
@@ -38,16 +38,16 @@ func provisionedProductStackRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack,
+		RelationshipType: aws.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(provisioned.ARN),
 		TargetResourceID: stackARN,
 		TargetARN:        stackARN,
-		TargetType:       awscloud.ResourceTypeCloudFormationStack,
+		TargetType:       aws.ResourceTypeCloudFormationStack,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack +
+			aws.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack +
 			":" + stackARN,
 	}
 }
@@ -59,15 +59,15 @@ func provisionedProductStackRelationship(
 // its resource_id. Portfolio ARNs are preferred so the edge is ARN-keyed and
 // joins the portfolio node by ARN equality.
 func productInPortfolioRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	product Product,
 	portfolios []Portfolio,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(product.ARN, product.ID)
 	if sourceID == "" || len(portfolios) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(portfolios))
+	observations := make([]aws.RelationshipObservation, 0, len(portfolios))
 	seen := make(map[string]struct{}, len(portfolios))
 	for _, portfolio := range portfolios {
 		targetID := firstNonEmpty(portfolio.ARN, portfolio.ID)
@@ -78,15 +78,15 @@ func productInPortfolioRelationships(
 			continue
 		}
 		seen[targetID] = struct{}{}
-		observation := awscloud.RelationshipObservation{
+		observation := aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogProductInPortfolio,
+			RelationshipType: aws.RelationshipServiceCatalogProductInPortfolio,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(product.ARN),
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeServiceCatalogPortfolio,
+			TargetType:       aws.ResourceTypeServiceCatalogPortfolio,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogProductInPortfolio + ":" + targetID,
+				aws.RelationshipServiceCatalogProductInPortfolio + ":" + targetID,
 		}
 		if portfolioARN := strings.TrimSpace(portfolio.ARN); portfolioARN != "" {
 			observation.TargetARN = portfolioARN
@@ -107,15 +107,15 @@ func productInPortfolioRelationships(
 // ARN. The source id is firstNonEmpty(portfolio arn, id), matching the
 // portfolio node's own resource_id.
 func portfolioPrincipalRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	portfolio Portfolio,
 	principals []Principal,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(portfolio.ARN, portfolio.ID)
 	if sourceID == "" || len(principals) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(principals))
+	observations := make([]aws.RelationshipObservation, 0, len(principals))
 	seen := make(map[string]struct{}, len(principals))
 	for _, principal := range principals {
 		roleARN := strings.TrimSpace(principal.ARN)
@@ -126,16 +126,16 @@ func portfolioPrincipalRelationships(
 			continue
 		}
 		seen[roleARN] = struct{}{}
-		observation := awscloud.RelationshipObservation{
+		observation := aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal,
+			RelationshipType: aws.RelationshipServiceCatalogPortfolioGrantsPrincipal,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(portfolio.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       aws.ResourceTypeIAMRole,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal + ":" + roleARN,
+				aws.RelationshipServiceCatalogPortfolioGrantsPrincipal + ":" + roleARN,
 		}
 		if principalType := strings.TrimSpace(principal.Type); principalType != "" {
 			observation.Attributes = map[string]any{"principal_type": principalType}

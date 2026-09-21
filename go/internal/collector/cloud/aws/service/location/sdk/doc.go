@@ -13,4 +13,4 @@
 // calculation, map-tile read, API-key read, and Create/Update/Delete mutation,
 // so the adapter cannot read data-plane payloads or mutate Location Service
 // state.
-package awssdk
+package sdk

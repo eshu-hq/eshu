@@ -89,16 +89,16 @@ func TestScannerEmitsSecurityHubMetadataOnlyFactsAndRelationships(t *testing.T) 
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubHub)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubStandard)
-	control := assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubControl)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubMemberAccount)
-	action := assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubActionTarget)
-	insight := assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubInsight)
-	findingCount := assertResourceType(t, envelopes, awscloud.ResourceTypeSecurityHubFindingAggregate)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipSecurityHubHubHasMember)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipSecurityHubStandardHasControl)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipSecurityHubInsightGroupsControl)
+	assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubHub)
+	assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubStandard)
+	control := assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubControl)
+	assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubMemberAccount)
+	action := assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubActionTarget)
+	insight := assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubInsight)
+	findingCount := assertResourceType(t, envelopes, aws.ResourceTypeSecurityHubFindingAggregate)
+	assertRelationshipType(t, envelopes, aws.RelationshipSecurityHubHubHasMember)
+	assertRelationshipType(t, envelopes, aws.RelationshipSecurityHubStandardHasControl)
+	assertRelationshipType(t, envelopes, aws.RelationshipSecurityHubInsightGroupsControl)
 
 	controlAttributes := attributesOf(t, control)
 	if got, want := controlAttributes["compliance_counts"], map[string]any{"FAILED": float64(7), "PASSED": float64(2)}; !jsonEqual(got, want) {
@@ -176,35 +176,35 @@ func TestScannerNormalizesFallbackIdentitiesAndSkipsBlankMembers(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertMissingResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubMemberAccount, "securityhub_member:")
-	member := assertResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubMemberAccount, "securityhub_member:111122223333")
+	assertMissingResourceID(t, envelopes, aws.ResourceTypeSecurityHubMemberAccount, "securityhub_member:")
+	member := assertResourceID(t, envelopes, aws.ResourceTypeSecurityHubMemberAccount, "securityhub_member:111122223333")
 	if got, want := member.Payload["name"], "111122223333"; got != want {
 		t.Fatalf("member name = %#v, want %#v", got, want)
 	}
 
 	actionID := "securityhub_action:Escalate Findings"
-	action := assertResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubActionTarget, actionID)
+	action := assertResourceID(t, envelopes, aws.ResourceTypeSecurityHubActionTarget, actionID)
 	if got, want := action.Payload["name"], "Escalate Findings"; got != want {
 		t.Fatalf("action name = %#v, want %#v", got, want)
 	}
 	if got := action.SourceRef.SourceRecordID; got != actionID {
 		t.Fatalf("action SourceRecordID = %#v, want %#v", got, actionID)
 	}
-	assertMissingResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubActionTarget, "securityhub_action:  Escalate Findings")
+	assertMissingResourceID(t, envelopes, aws.ResourceTypeSecurityHubActionTarget, "securityhub_action:  Escalate Findings")
 	assertAnchorsDoNotContain(t, action, "  Escalate Findings  ")
 
 	insightID := "securityhub_insight:Failed controls"
-	insight := assertResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubInsight, insightID)
+	insight := assertResourceID(t, envelopes, aws.ResourceTypeSecurityHubInsight, insightID)
 	if got, want := insight.Payload["name"], "Failed controls"; got != want {
 		t.Fatalf("insight name = %#v, want %#v", got, want)
 	}
 	if got := insight.SourceRef.SourceRecordID; got != insightID {
 		t.Fatalf("insight SourceRecordID = %#v, want %#v", got, insightID)
 	}
-	assertMissingResourceID(t, envelopes, awscloud.ResourceTypeSecurityHubInsight, "securityhub_insight:  Failed controls")
+	assertMissingResourceID(t, envelopes, aws.ResourceTypeSecurityHubInsight, "securityhub_insight:  Failed controls")
 	assertAnchorsDoNotContain(t, insight, "  Failed controls  ")
 
-	relationship := assertRelationshipType(t, envelopes, awscloud.RelationshipSecurityHubInsightGroupsControl)
+	relationship := assertRelationshipType(t, envelopes, aws.RelationshipSecurityHubInsightGroupsControl)
 	if got := relationship.Payload["source_resource_id"]; got != insightID {
 		t.Fatalf("insight relationship source_resource_id = %#v, want %#v", got, insightID)
 	}
@@ -226,7 +226,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEventBridge
+	boundary.ServiceKind = aws.ServiceEventBridge
 	_, err = (Scanner{Client: fakeClient{}, RedactionKey: key}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -242,11 +242,11 @@ func (f fakeClient) Snapshot(context.Context) (Snapshot, error) {
 	return f.snapshot, f.err
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSecurityHub,
+		ServiceKind:         aws.ServiceSecurityHub,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:securityhub:1",
 		CollectorInstanceID: "aws-prod",

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "lakeformation".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceLakeFormation + "  "
+	boundary.ServiceKind = "  " + aws.ServiceLakeFormation + "  "
 	client := fakeClient{
 		settings: Settings{
 			Admins: []string{"arn:aws:iam::123456789012:role/LakeFormationAdmin"},
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceLakeFormation; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceLakeFormation; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

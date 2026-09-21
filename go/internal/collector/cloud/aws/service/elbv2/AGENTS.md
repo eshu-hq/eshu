@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elbv2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elbv2 guidance
 
 ## Read First
 
@@ -7,11 +7,11 @@
 3. `scanner.go` - fact selection, resource envelopes, and core relationships.
 4. `relationships.go` - route relationship aggregation.
 5. `attributes.go` - typed action and condition attribute maps.
-6. `awssdk/README.md` - AWS SDK pagination and response mapping.
+6. `sdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
-- Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
+- Do not call AWS APIs from this package. The `sdk` adapter owns AWS SDK
   calls and telemetry.
 - Preserve route topology as reported source evidence:
   `LoadBalancer -> Listener -> Rule` and `Listener -> TargetGroup`.
@@ -32,7 +32,7 @@
 - Add a new resource attribute in `scanner.go` only when it supports routing,
   network placement, or later correlation.
 - Add new typed rule-condition fields in `types.go`, `attributes.go`, and
-  `awssdk/conditions.go` together.
+  `sdk/conditions.go` together.
 
 ## What Not To Change Without An ADR
 

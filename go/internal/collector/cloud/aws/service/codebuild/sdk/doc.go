@@ -14,4 +14,4 @@
 // mapping, build logs are never read, and PLAINTEXT environment-variable values
 // pass through the redaction library before they reach scanner types so
 // secret-shaped values are never persisted raw.
-package awssdk
+package sdk

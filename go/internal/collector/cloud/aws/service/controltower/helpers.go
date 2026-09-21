@@ -11,13 +11,13 @@ import (
 
 // organizationsTarget is the resolved Organizations join key for a Control Tower
 // target ARN: the bare id the organizations scanner publishes as a resource_id
-// plus the declared awscloud.ResourceType* constant that node carries.
+// plus the declared aws.ResourceType* constant that node carries.
 type organizationsTarget struct {
 	// ResourceID is the bare Organizations id (ou-…, a 12-digit account id, or
 	// r-…) parsed from the target ARN. It matches the organizations scanner's
 	// published resource_id so the edge joins the node instead of dangling.
 	ResourceID string
-	// ResourceType is the declared awscloud.ResourceType* constant for the
+	// ResourceType is the declared aws.ResourceType* constant for the
 	// resolved id family.
 	ResourceType string
 	// ARN is the original Control Tower target ARN, preserved for edge provenance.
@@ -66,17 +66,17 @@ func resolveOrganizationsTarget(targetARN string) (organizationsTarget, bool) {
 }
 
 // organizationsResourceType maps an Organizations ARN resource family (ou,
-// account, root) to the declared awscloud.ResourceType* constant the
+// account, root) to the declared aws.ResourceType* constant the
 // organizations scanner publishes. It returns ok=false for any other family so
 // the caller skips the edge instead of keying an unknown target type.
 func organizationsResourceType(family string) (string, bool) {
 	switch strings.TrimSpace(family) {
 	case "ou":
-		return awscloud.ResourceTypeOrganizationsOrganizationalUnit, true
+		return aws.ResourceTypeOrganizationsOrganizationalUnit, true
 	case "account":
-		return awscloud.ResourceTypeOrganizationsAccount, true
+		return aws.ResourceTypeOrganizationsAccount, true
 	case "root":
-		return awscloud.ResourceTypeOrganizationsRoot, true
+		return aws.ResourceTypeOrganizationsRoot, true
 	default:
 		return "", false
 	}

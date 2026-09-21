@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/storagegateway` owns the Storage Gateway
+`internal/collector/cloud/aws/service/storagegateway` owns the Storage Gateway
 scanner contract for the AWS cloud collector. It converts gateway metadata,
 cached/stored iSCSI volume metadata, and NFS/SMB S3 file-share metadata into
 `aws_resource` facts and emits relationship evidence for volume-to-gateway,
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Storage Gateway API call counts, throttles, and
+The `sdk` adapter records Storage Gateway API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -83,7 +83,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/storagegateway/...` covers the
+`go test ./internal/collector/cloud/aws/service/storagegateway/...` covers the
 bounded Storage Gateway metadata path: one paginated ListGateways stream with
 one DescribeGatewayInformation point read per gateway, one paginated ListVolumes
 stream per gateway, one paginated ListFileShares stream with batched
@@ -92,7 +92,7 @@ DeleteGateway, RefreshCache, or Create*/Delete* calls, no mutations, and no
 graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Storage Gateway gateway, volume, and file-share metadata fact emission,
 volume-to-gateway and file-share-to-gateway relationship emission,
 file-share-to-S3-bucket relationship emission with partition-aware bucket-ARN

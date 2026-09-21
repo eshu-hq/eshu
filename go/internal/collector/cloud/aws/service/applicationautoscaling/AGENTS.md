@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/applicationautoscaling guidance
+# AGENTS.md - internal/collector/cloud/aws/service/applicationautoscaling guidance
 
 ## Read First
 
@@ -22,12 +22,12 @@
   invoke a scaling action.
 - Never persist step-scaling or target-tracking configuration bodies. Keep only
   the bound CloudWatch alarm ARNs.
-- Every relationship `TargetType` must be a declared `awscloud.ResourceType*`
+- Every relationship `TargetType` must be a declared `aws.ResourceType*`
   constant, and every `TargetResourceID` must match how the target scanner
   publishes its `resource_id`. Verify against the target scanner before adding a
   new edge; skip rather than dangle.
 - Synthesize target ARNs only with the partition from
-  `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - Canonicalize `service_kind` by switching on `strings.TrimSpace(...)` and
   writing the canonical constant back on the merged empty/matched case.
 - Keep every Go file under 500 lines.
@@ -35,7 +35,7 @@
 ## Verification
 
 ```
-go test ./internal/collector/awscloud/service/applicationautoscaling/... -count=1
-go test ./internal/collector/awscloud/ -run ServiceKind -count=1
-golangci-lint run ./internal/collector/awscloud/service/applicationautoscaling/...
+go test ./internal/collector/cloud/aws/service/applicationautoscaling/... -count=1
+go test ./internal/collector/cloud/aws/ -run ServiceKind -count=1
+golangci-lint run ./internal/collector/cloud/aws/service/applicationautoscaling/...
 ```

@@ -27,13 +27,13 @@ type Scanner struct {
 // Scan observes CloudHSM v2 clusters, their HSM and certificate-presence
 // metadata, their backups, and the network and backup relationships through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudhsmv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudHSMV2:
-		boundary.ServiceKind = awscloud.ServiceCloudHSMV2
+	case "", aws.ServiceCloudHSMV2:
+		boundary.ServiceKind = aws.ServiceCloudHSMV2
 	default:
 		return nil, fmt.Errorf("cloudhsmv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -64,9 +64,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -75,14 +75,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+func clusterEnvelopes(boundary aws.Boundary, cluster Cluster) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		clusterVPCRelationship(boundary, cluster),
 		clusterSecurityGroupRelationship(boundary, cluster),
 	}
@@ -94,7 +94,7 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -103,14 +103,14 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	return envelopes, nil
 }
 
-func backupEnvelopes(boundary awscloud.Boundary, backup Backup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(backupObservation(boundary, backup))
+func backupEnvelopes(boundary aws.Boundary, backup Backup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(backupObservation(boundary, backup))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := backupClusterRelationship(boundary, backup); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -119,12 +119,12 @@ func backupEnvelopes(boundary awscloud.Boundary, backup Backup) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	resourceID := clusterResourceID(cluster)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCloudHSMV2Cluster,
+		ResourceType:       aws.ResourceTypeCloudHSMV2Cluster,
 		Name:               resourceID,
 		State:              strings.TrimSpace(cluster.State),
 		Tags:               cloneStringMap(cluster.Tags),
@@ -214,14 +214,14 @@ func hsmAttributes(hsms []HSM) []map[string]any {
 	return out
 }
 
-func backupObservation(boundary awscloud.Boundary, backup Backup) awscloud.ResourceObservation {
+func backupObservation(boundary aws.Boundary, backup Backup) aws.ResourceObservation {
 	resourceID := backupResourceID(backup)
 	arn := strings.TrimSpace(backup.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCloudHSMV2Backup,
+		ResourceType:       aws.ResourceTypeCloudHSMV2Backup,
 		Name:               resourceID,
 		State:              strings.TrimSpace(backup.State),
 		Tags:               cloneStringMap(backup.Tags),

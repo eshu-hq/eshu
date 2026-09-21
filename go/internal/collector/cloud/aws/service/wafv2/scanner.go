@@ -23,15 +23,15 @@ type Scanner struct {
 // through the configured client and emits resource and relationship facts. The
 // REGIONAL or CLOUDFRONT scope is selected by the SDK adapter from the claim
 // boundary; the scanner records the reported scope on each resource.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("wafv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceWAFv2:
+	case "", aws.ServiceWAFv2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceWAFv2
+		boundary.ServiceKind = aws.ServiceWAFv2
 	default:
 		return nil, fmt.Errorf("wafv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -63,14 +63,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func (s Scanner) scanWebACLs(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanWebACLs(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	webACLs, err := s.Client.ListWebACLs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list WAFv2 web ACLs: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, webACL := range webACLs {
-		resource, err := awscloud.NewResourceEnvelope(webACLObservation(boundary, webACL))
+		resource, err := aws.NewResourceEnvelope(webACLObservation(boundary, webACL))
 		if err != nil {
 			return nil, err
 		}
@@ -84,14 +84,14 @@ func (s Scanner) scanWebACLs(ctx context.Context, boundary awscloud.Boundary) ([
 	return envelopes, nil
 }
 
-func (s Scanner) scanRuleGroups(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanRuleGroups(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	ruleGroups, err := s.Client.ListRuleGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list WAFv2 rule groups: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, ruleGroup := range ruleGroups {
-		resource, err := awscloud.NewResourceEnvelope(ruleGroupObservation(boundary, ruleGroup))
+		resource, err := aws.NewResourceEnvelope(ruleGroupObservation(boundary, ruleGroup))
 		if err != nil {
 			return nil, err
 		}
@@ -100,14 +100,14 @@ func (s Scanner) scanRuleGroups(ctx context.Context, boundary awscloud.Boundary)
 	return envelopes, nil
 }
 
-func (s Scanner) scanIPSets(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanIPSets(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	ipSets, err := s.Client.ListIPSets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list WAFv2 IP sets: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, ipSet := range ipSets {
-		resource, err := awscloud.NewResourceEnvelope(ipSetObservation(boundary, ipSet))
+		resource, err := aws.NewResourceEnvelope(ipSetObservation(boundary, ipSet))
 		if err != nil {
 			return nil, err
 		}
@@ -116,14 +116,14 @@ func (s Scanner) scanIPSets(ctx context.Context, boundary awscloud.Boundary) ([]
 	return envelopes, nil
 }
 
-func (s Scanner) scanRegexPatternSets(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) scanRegexPatternSets(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	regexSets, err := s.Client.ListRegexPatternSets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list WAFv2 regex pattern sets: %w", err)
 	}
 	var envelopes []facts.Envelope
 	for _, regexSet := range regexSets {
-		resource, err := awscloud.NewResourceEnvelope(regexPatternSetObservation(boundary, regexSet))
+		resource, err := aws.NewResourceEnvelope(regexPatternSetObservation(boundary, regexSet))
 		if err != nil {
 			return nil, err
 		}
@@ -132,14 +132,14 @@ func (s Scanner) scanRegexPatternSets(ctx context.Context, boundary awscloud.Bou
 	return envelopes, nil
 }
 
-func webACLObservation(boundary awscloud.Boundary, webACL WebACL) awscloud.ResourceObservation {
+func webACLObservation(boundary aws.Boundary, webACL WebACL) aws.ResourceObservation {
 	arn := strings.TrimSpace(webACL.ARN)
 	resourceID := firstNonEmpty(arn, webACL.ID, webACL.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWAFv2WebACL,
+		ResourceType: aws.ResourceTypeWAFv2WebACL,
 		Name:         strings.TrimSpace(webACL.Name),
 		Tags:         cloneStringMap(webACL.Tags),
 		Attributes: map[string]any{
@@ -184,7 +184,7 @@ func managedRuleSetRefAttributes(refs []ManagedRuleSetRef) []map[string]any {
 	return output
 }
 
-func webACLRelationshipEnvelopes(boundary awscloud.Boundary, webACL WebACL) ([]facts.Envelope, error) {
+func webACLRelationshipEnvelopes(boundary aws.Boundary, webACL WebACL) ([]facts.Envelope, error) {
 	arn := strings.TrimSpace(webACL.ARN)
 	sourceID := firstNonEmpty(arn, webACL.ID, webACL.Name)
 	if sourceID == "" {
@@ -196,7 +196,7 @@ func webACLRelationshipEnvelopes(boundary awscloud.Boundary, webACL WebACL) ([]f
 		if targetARN == "" {
 			return nil
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
+		envelope, err := aws.NewRelationshipEnvelope(aws.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: relationshipType,
 			SourceResourceID: sourceID,
@@ -218,17 +218,17 @@ func webACLRelationshipEnvelopes(boundary awscloud.Boundary, webACL WebACL) ([]f
 		}
 	}
 	for _, ruleGroupARN := range dedupeStrings(webACL.RuleGroupRefARNs) {
-		if err := add(awscloud.RelationshipWAFv2WebACLUsesRuleGroup, ruleGroupARN, awscloud.ResourceTypeWAFv2RuleGroup); err != nil {
+		if err := add(aws.RelationshipWAFv2WebACLUsesRuleGroup, ruleGroupARN, aws.ResourceTypeWAFv2RuleGroup); err != nil {
 			return nil, err
 		}
 	}
 	for _, ipSetARN := range dedupeStrings(webACL.IPSetRefARNs) {
-		if err := add(awscloud.RelationshipWAFv2WebACLUsesIPSet, ipSetARN, awscloud.ResourceTypeWAFv2IPSet); err != nil {
+		if err := add(aws.RelationshipWAFv2WebACLUsesIPSet, ipSetARN, aws.ResourceTypeWAFv2IPSet); err != nil {
 			return nil, err
 		}
 	}
 	for _, regexARN := range dedupeStrings(webACL.RegexSetRefARNs) {
-		if err := add(awscloud.RelationshipWAFv2WebACLUsesRegexPatternSet, regexARN, awscloud.ResourceTypeWAFv2RegexPatternSet); err != nil {
+		if err := add(aws.RelationshipWAFv2WebACLUsesRegexPatternSet, regexARN, aws.ResourceTypeWAFv2RegexPatternSet); err != nil {
 			return nil, err
 		}
 	}
@@ -236,7 +236,7 @@ func webACLRelationshipEnvelopes(boundary awscloud.Boundary, webACL WebACL) ([]f
 }
 
 func addProtectedResource(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID string,
 	sourceARN string,
 	resource ProtectedResource,
@@ -246,9 +246,9 @@ func addProtectedResource(
 	if targetARN == "" {
 		return nil
 	}
-	envelope, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
+	envelope, err := aws.NewRelationshipEnvelope(aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWAFv2WebACLProtectsResource,
+		RelationshipType: aws.RelationshipWAFv2WebACLProtectsResource,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
@@ -277,9 +277,9 @@ func addProtectedResource(
 func protectedResourceTargetType(awsResourceType, targetARN string) string {
 	switch strings.ToUpper(strings.TrimSpace(awsResourceType)) {
 	case "APPLICATION_LOAD_BALANCER":
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return aws.ResourceTypeELBv2LoadBalancer
 	case "API_GATEWAY":
-		return awscloud.ResourceTypeAPIGatewayStage
+		return aws.ResourceTypeAPIGatewayStage
 	}
 	return targetTypeForProtectedARN(targetARN)
 }
@@ -292,24 +292,24 @@ func protectedResourceTargetType(awsResourceType, targetARN string) string {
 func targetTypeForProtectedARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return aws.ResourceTypeELBv2LoadBalancer
 	case strings.Contains(arn, ":cloudfront:"):
-		return awscloud.ResourceTypeCloudFrontDistribution
+		return aws.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
-		return awscloud.ResourceTypeAPIGatewayStage
+		return aws.ResourceTypeAPIGatewayStage
 	default:
 		return "aws_resource"
 	}
 }
 
-func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscloud.ResourceObservation {
+func ruleGroupObservation(boundary aws.Boundary, ruleGroup RuleGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(ruleGroup.ARN)
 	resourceID := firstNonEmpty(arn, ruleGroup.ID, ruleGroup.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWAFv2RuleGroup,
+		ResourceType: aws.ResourceTypeWAFv2RuleGroup,
 		Name:         strings.TrimSpace(ruleGroup.Name),
 		Tags:         cloneStringMap(ruleGroup.Tags),
 		Attributes: map[string]any{
@@ -324,14 +324,14 @@ func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscl
 	}
 }
 
-func ipSetObservation(boundary awscloud.Boundary, ipSet IPSet) awscloud.ResourceObservation {
+func ipSetObservation(boundary aws.Boundary, ipSet IPSet) aws.ResourceObservation {
 	arn := strings.TrimSpace(ipSet.ARN)
 	resourceID := firstNonEmpty(arn, ipSet.ID, ipSet.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWAFv2IPSet,
+		ResourceType: aws.ResourceTypeWAFv2IPSet,
 		Name:         strings.TrimSpace(ipSet.Name),
 		Tags:         cloneStringMap(ipSet.Tags),
 		Attributes: map[string]any{
@@ -346,14 +346,14 @@ func ipSetObservation(boundary awscloud.Boundary, ipSet IPSet) awscloud.Resource
 	}
 }
 
-func regexPatternSetObservation(boundary awscloud.Boundary, regexSet RegexPatternSet) awscloud.ResourceObservation {
+func regexPatternSetObservation(boundary aws.Boundary, regexSet RegexPatternSet) aws.ResourceObservation {
 	arn := strings.TrimSpace(regexSet.ARN)
 	resourceID := firstNonEmpty(arn, regexSet.ID, regexSet.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWAFv2RegexPatternSet,
+		ResourceType: aws.ResourceTypeWAFv2RegexPatternSet,
 		Name:         strings.TrimSpace(regexSet.Name),
 		Tags:         cloneStringMap(regexSet.Tags),
 		Attributes: map[string]any{

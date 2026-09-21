@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codepipeline/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codepipeline/sdk guidance
 
 ## Read First
 
@@ -29,7 +29,7 @@
   keeps configuration KEY names only and reads target identifiers from the
   `targetConfigKeys` allowlist alone.
 - Never read `WebhookAuthConfiguration.SecretToken` or a GitHub OAuthToken.
-- Route source-revision summaries through `awscloud.RedactString`.
+- Route source-revision summaries through `aws.RedactString`.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
   object that created this adapter.
 

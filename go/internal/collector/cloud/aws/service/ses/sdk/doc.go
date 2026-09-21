@@ -14,4 +14,4 @@
 // adapter cannot send email or write SES state. It never persists the DKIM
 // signing tokens, identity policy documents, or any signing-key material the
 // SES API also returns.
-package awssdk
+package sdk

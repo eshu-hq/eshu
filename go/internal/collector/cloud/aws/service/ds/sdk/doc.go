@@ -19,4 +19,4 @@
 // VpcSettings for Simple AD and Managed Microsoft AD, and from ConnectSettings
 // for AD Connector. LDAPS settings are queried only for Managed Microsoft AD
 // directories, which are the only type that supports LDAPS.
-package awssdk
+package sdk

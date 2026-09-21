@@ -47,23 +47,23 @@ func repositoryDomainQualifiedName(repository Repository) string {
 // repositoryInDomainRelationship records the repository's membership in the
 // domain that contains it. The target is the domain keyed by its name, matching
 // the domain resource_id the same scanner publishes.
-func repositoryInDomainRelationship(boundary awscloud.Boundary, repository Repository) *awscloud.RelationshipObservation {
+func repositoryInDomainRelationship(boundary aws.Boundary, repository Repository) *aws.RelationshipObservation {
 	repositoryID := repositoryResourceID(repository)
 	domainName := strings.TrimSpace(repository.DomainName)
 	if repositoryID == "" || domainName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeArtifactRepositoryInDomain,
+		RelationshipType: aws.RelationshipCodeArtifactRepositoryInDomain,
 		SourceResourceID: repositoryID,
 		SourceARN:        strings.TrimSpace(repository.ARN),
 		TargetResourceID: domainName,
-		TargetType:       awscloud.ResourceTypeCodeArtifactDomain,
+		TargetType:       aws.ResourceTypeCodeArtifactDomain,
 		Attributes: map[string]any{
 			"domain_owner": strings.TrimSpace(repository.DomainOwner),
 		},
-		SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryInDomain + ":" + domainName,
+		SourceRecordID: repositoryID + "->" + aws.RelationshipCodeArtifactRepositoryInDomain + ":" + domainName,
 	}
 }
 
@@ -72,7 +72,7 @@ func repositoryInDomainRelationship(boundary awscloud.Boundary, repository Repos
 // and the KMS scanner publishes its key resource_id as firstNonEmpty(keyID,
 // keyARN), so a key ARN joins the key node directly. The edge is emitted only
 // when AWS reports an ARN-shaped key.
-func domainKMSKeyRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.RelationshipObservation {
+func domainKMSKeyRelationship(boundary aws.Boundary, domain Domain) *aws.RelationshipObservation {
 	keyARN := strings.TrimSpace(domain.EncryptionKey)
 	if !strings.HasPrefix(keyARN, "arn:") {
 		return nil
@@ -81,15 +81,15 @@ func domainKMSKeyRelationship(boundary awscloud.Boundary, domain Domain) *awsclo
 	if domainID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeArtifactDomainUsesKMSKey,
+		RelationshipType: aws.RelationshipCodeArtifactDomainUsesKMSKey,
 		SourceResourceID: domainID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   domainID + "->" + awscloud.RelationshipCodeArtifactDomainUsesKMSKey + ":" + keyARN,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   domainID + "->" + aws.RelationshipCodeArtifactDomainUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -99,13 +99,13 @@ func domainKMSKeyRelationship(boundary awscloud.Boundary, domain Domain) *awsclo
 // "<domain>/<upstream>", matching the domain-qualified name correlation anchor
 // the upstream repository resource publishes. Duplicate upstream names collapse
 // to one edge.
-func upstreamRepositoryRelationships(boundary awscloud.Boundary, repository Repository) []awscloud.RelationshipObservation {
+func upstreamRepositoryRelationships(boundary aws.Boundary, repository Repository) []aws.RelationshipObservation {
 	repositoryID := repositoryResourceID(repository)
 	domainName := strings.TrimSpace(repository.DomainName)
 	if repositoryID == "" || domainName == "" || len(repository.Upstreams) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(repository.Upstreams))
+	observations := make([]aws.RelationshipObservation, 0, len(repository.Upstreams))
 	seen := make(map[string]struct{}, len(repository.Upstreams))
 	for priority, upstream := range repository.Upstreams {
 		upstreamName := strings.TrimSpace(upstream)
@@ -117,18 +117,18 @@ func upstreamRepositoryRelationships(boundary awscloud.Boundary, repository Repo
 			continue
 		}
 		seen[targetID] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeArtifactRepositoryUpstreamRepository,
+			RelationshipType: aws.RelationshipCodeArtifactRepositoryUpstreamRepository,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeCodeArtifactRepository,
+			TargetType:       aws.ResourceTypeCodeArtifactRepository,
 			Attributes: map[string]any{
 				"upstream_repository_name": upstreamName,
 				"priority":                 priority,
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryUpstreamRepository + ":" + targetID,
+			SourceRecordID: repositoryID + "->" + aws.RelationshipCodeArtifactRepositoryUpstreamRepository + ":" + targetID,
 		})
 	}
 	if len(observations) == 0 {
@@ -142,12 +142,12 @@ func upstreamRepositoryRelationships(boundary awscloud.Boundary, repository Repo
 // identity (for example public:npmjs), not a scanned AWS resource, so the edge
 // carries the externalConnectionTargetType label and no target ARN. Duplicate
 // connection names collapse to one edge.
-func externalConnectionRelationships(boundary awscloud.Boundary, repository Repository) []awscloud.RelationshipObservation {
+func externalConnectionRelationships(boundary aws.Boundary, repository Repository) []aws.RelationshipObservation {
 	repositoryID := repositoryResourceID(repository)
 	if repositoryID == "" || len(repository.ExternalConnections) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(repository.ExternalConnections))
+	observations := make([]aws.RelationshipObservation, 0, len(repository.ExternalConnections))
 	seen := make(map[string]struct{}, len(repository.ExternalConnections))
 	for _, connection := range repository.ExternalConnections {
 		connectionName := strings.TrimSpace(connection.Name)
@@ -158,9 +158,9 @@ func externalConnectionRelationships(boundary awscloud.Boundary, repository Repo
 			continue
 		}
 		seen[connectionName] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeArtifactRepositoryExternalConnection,
+			RelationshipType: aws.RelationshipCodeArtifactRepositoryExternalConnection,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: connectionName,
@@ -169,7 +169,7 @@ func externalConnectionRelationships(boundary awscloud.Boundary, repository Repo
 				"package_format": strings.TrimSpace(connection.PackageFormat),
 				"status":         strings.TrimSpace(connection.Status),
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryExternalConnection + ":" + connectionName,
+			SourceRecordID: repositoryID + "->" + aws.RelationshipCodeArtifactRepositoryExternalConnection + ":" + connectionName,
 		})
 	}
 	if len(observations) == 0 {

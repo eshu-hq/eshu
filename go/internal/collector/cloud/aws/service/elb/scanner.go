@@ -24,15 +24,15 @@ type Scanner struct {
 // aws_resource fact per load balancer and one aws_relationship fact per reported
 // registered instance, subnet, security group, VPC, and HTTPS/SSL listener
 // certificate.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("elb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceELB:
+	case "", aws.ServiceELB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceELB
+		boundary.ServiceKind = aws.ServiceELB
 	default:
 		return nil, fmt.Errorf("elb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -54,15 +54,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // loadBalancerEnvelopes builds the resource fact and every relationship fact for
 // one Classic load balancer.
-func loadBalancerEnvelopes(boundary awscloud.Boundary, loadBalancer LoadBalancer) ([]facts.Envelope, error) {
+func loadBalancerEnvelopes(boundary aws.Boundary, loadBalancer LoadBalancer) ([]facts.Envelope, error) {
 	loadBalancerARN := loadBalancerARN(boundary, loadBalancer.Name)
-	resource, err := awscloud.NewResourceEnvelope(loadBalancerObservation(boundary, loadBalancer, loadBalancerARN))
+	resource, err := aws.NewResourceEnvelope(loadBalancerObservation(boundary, loadBalancer, loadBalancerARN))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range loadBalancerRelationships(boundary, loadBalancer, loadBalancerARN) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -75,16 +75,16 @@ func loadBalancerEnvelopes(boundary awscloud.Boundary, loadBalancer LoadBalancer
 // balancer. The synthesized ARN is the resource id and correlation anchor so
 // downstream ARN-equality joins resolve to this node.
 func loadBalancerObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	loadBalancer LoadBalancer,
 	loadBalancerARN string,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	name := strings.TrimSpace(loadBalancer.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          loadBalancerARN,
 		ResourceID:   loadBalancerARN,
-		ResourceType: awscloud.ResourceTypeELBLoadBalancer,
+		ResourceType: aws.ResourceTypeELBLoadBalancer,
 		Name:         name,
 		Tags:         loadBalancer.Tags,
 		Attributes: map[string]any{

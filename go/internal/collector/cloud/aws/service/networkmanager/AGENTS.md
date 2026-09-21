@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/networkmanager guidance
+# AGENTS.md - internal/collector/cloud/aws/service/networkmanager guidance
 
 ## Read First
 
@@ -19,7 +19,7 @@
 
 - Keep Network Manager API access behind `Client`; do not import the AWS SDK
   into this package.
-- Network Manager is global: the `awssdk` adapter pins the partition's
+- Network Manager is global: the `sdk` adapter pins the partition's
   control-plane region. Never assume the claim region reaches the control plane.
 - Never read route analyses, network routes, network telemetry, or routing
   policy documents. Never call any Create/Update/Delete, Register/Deregister,
@@ -27,7 +27,7 @@
 - Every node publishes its API-reported ARN as resource_id. Network Manager ARNs
   have an empty region segment.
 - Child records report only the parent id. Synthesize the partition-aware parent
-  ARN with `awscloud.PartitionForBoundary`; never hardcode `arn:aws:` - GovCloud
+  ARN with `aws.PartitionForBoundary`; never hardcode `arn:aws:` - GovCloud
   and China must resolve to the real parent node.
 - Key the transit gateway registration edge on the **bare** `tgw-` id (the
   resource_id the transit gateway scanner publishes), extracted from the reported
@@ -35,7 +35,7 @@
 - Do not key a device-to-subnet edge: Eshu does not yet publish a VPC subnet
   resource node. Keep `subnet_arn` as context metadata only.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or environment truth from names, locations, or AWS tags.
@@ -44,11 +44,11 @@
 
 - Add a new Network Manager metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Leave route/telemetry/policy payloads out.
+  `aws` envelope builders. Leave route/telemetry/policy payloads out.
 - Add new relationship evidence only when the Network Manager API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -71,7 +71,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	template := resourceByType(t, envelopes, awscloud.ResourceTypeFISExperimentTemplate)
+	template := resourceByType(t, envelopes, aws.ResourceTypeFISExperimentTemplate)
 	if got, want := template.Payload["resource_id"], testTemplateARN; got != want {
 		t.Fatalf("template resource_id = %#v, want %q", got, want)
 	}
@@ -85,12 +85,12 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "s3_logging", true)
 
 	// template -> IAM role, keyed by the role ARN the IAM scanner publishes.
-	role := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateUsesIAMRole)
-	assertEdgeTarget(t, role, awscloud.ResourceTypeIAMRole, testRoleARN)
+	role := relationshipByType(t, envelopes, aws.RelationshipFISTemplateUsesIAMRole)
+	assertEdgeTarget(t, role, aws.ResourceTypeIAMRole, testRoleARN)
 
 	// template -> EC2 instance, keyed by the bare i- id; target_arn stays empty
 	// because the instance node is bare-id-keyed. The full ARN is an attribute.
-	ec2 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsEC2Instance)
+	ec2 := relationshipByType(t, envelopes, aws.RelationshipFISTemplateTargetsEC2Instance)
 	assertEdgeTarget(t, ec2, "aws_ec2_instance", "i-1234567890abcdef0")
 	if got := ec2.Payload["target_arn"]; got != "" {
 		t.Fatalf("ec2 target_arn = %#v, want empty (bare-id-keyed instance node)", got)
@@ -101,27 +101,27 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 	}
 
 	// template -> ECS cluster, keyed by the cluster ARN.
-	ecs := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsECSCluster)
-	assertEdgeTarget(t, ecs, awscloud.ResourceTypeECSCluster, testClusterARN)
+	ecs := relationshipByType(t, envelopes, aws.RelationshipFISTemplateTargetsECSCluster)
+	assertEdgeTarget(t, ecs, aws.ResourceTypeECSCluster, testClusterARN)
 
 	// template -> RDS DB instance and cluster, keyed by ARN.
-	dbInstance := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBInstance)
-	assertEdgeTarget(t, dbInstance, awscloud.ResourceTypeRDSDBInstance, testDBARN)
-	dbCluster := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBCluster)
-	assertEdgeTarget(t, dbCluster, awscloud.ResourceTypeRDSDBCluster, testRDSClusARN)
+	dbInstance := relationshipByType(t, envelopes, aws.RelationshipFISTemplateTargetsRDSDBInstance)
+	assertEdgeTarget(t, dbInstance, aws.ResourceTypeRDSDBInstance, testDBARN)
+	dbCluster := relationshipByType(t, envelopes, aws.RelationshipFISTemplateTargetsRDSDBCluster)
+	assertEdgeTarget(t, dbCluster, aws.ResourceTypeRDSDBCluster, testRDSClusARN)
 
 	// template -> CloudWatch log group, keyed by the bare log group ARN (no :*).
-	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup)
-	assertEdgeTarget(t, logGroup, awscloud.ResourceTypeCloudWatchLogsLogGroup,
+	logGroup := relationshipByType(t, envelopes, aws.RelationshipFISTemplateLogsToCloudWatchLogGroup)
+	assertEdgeTarget(t, logGroup, aws.ResourceTypeCloudWatchLogsLogGroup,
 		"arn:aws:logs:us-east-1:123456789012:log-group:/fis/experiments")
 
 	// template -> S3 bucket, keyed by the synthesized partition-aware ARN.
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
-	assertEdgeTarget(t, s3, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::fis-logs")
+	s3 := relationshipByType(t, envelopes, aws.RelationshipFISTemplateLogsToS3)
+	assertEdgeTarget(t, s3, aws.ResourceTypeS3Bucket, "arn:aws:s3:::fis-logs")
 
 	// template -> CloudWatch alarm stop condition, keyed by the alarm ARN.
-	alarm := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm)
-	assertEdgeTarget(t, alarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
+	alarm := relationshipByType(t, envelopes, aws.RelationshipFISTemplateStopsOnCloudWatchAlarm)
+	assertEdgeTarget(t, alarm, aws.ResourceTypeCloudWatchAlarm, testAlarmARN)
 
 	// No action parameter values, target filter values, or run output leakage.
 	for _, envelope := range envelopes {
@@ -154,7 +154,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
+	s3 := relationshipByType(t, envelopes, aws.RelationshipFISTemplateLogsToS3)
 	wantARN := "arn:aws-us-gov:s3:::gov-fis-logs"
 	if got := s3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud template->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -175,7 +175,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
+	s3 := relationshipByType(t, envelopes, aws.RelationshipFISTemplateLogsToS3)
 	if got, want := s3.Payload["target_arn"], "arn:aws-cn:s3:::cn-fis-logs"; got != want {
 		t.Fatalf("China template->s3 target_arn = %#v, want %q", got, want)
 	}
@@ -279,7 +279,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -290,9 +290,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Templates: []ExperimentTemplate{{ID: "EXTwarn", ARN: testTemplateARN}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "FIS GetExperimentTemplate throttled after SDK retries; template metadata omitted for this scan",
 			SourceRecordID: "fis_templates_throttled",
@@ -303,7 +303,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -316,11 +316,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFIS,
+		ServiceKind:         aws.ServiceFIS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:fis:1",
 		CollectorInstanceID: "aws-prod",

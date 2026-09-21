@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/quotas guidance
+# AGENTS.md - internal/collector/cloud/aws/service/quotas guidance
 
 ## Read First
 
@@ -27,7 +27,7 @@
   stable `<service_code>/<quota_code>` key. Never synthesize a partition-aware
   ARN here; the API supplies the ARN directly.
 - Set `overridden` only when both the applied value and the AWS default are
-  known and differ. The join by quota code happens in the `awssdk` adapter.
+  known and differ. The join by quota code happens in the `sdk` adapter.
 - Record the CloudWatch usage metric as identity only (namespace, name,
   dimensions, recommended statistic). Never read a metric sample value.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -39,9 +39,9 @@
 
 - Add a new quota metadata field by extending the scanner-owned `ServiceQuota`
   type, writing a focused scanner or adapter test first, then mapping it through
-  the `awscloud` envelope builder. If the field carries usage-sample data or a
+  the `aws` envelope builder. If the field carries usage-sample data or a
   quota-change request, leave it out of the scanner contract.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

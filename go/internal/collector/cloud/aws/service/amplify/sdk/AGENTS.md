@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/amplify/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/amplify/sdk guidance
 
 ## Read First
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscodepipeline "github.com/aws/aws-sdk-go-v2/service/codepipeline"
 	cptypes "github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
 	"github.com/aws/smithy-go"
@@ -45,7 +45,7 @@ type apiClient interface {
 // token, and redacts source-revision summaries before they reach scanner types.
 type Client struct {
 	client       apiClient
-	boundary     awscloud.Boundary
+	boundary     aws.Boundary
 	tracer       trace.Tracer
 	instruments  *telemetry.Instruments
 	redactionKey redact.Key
@@ -55,8 +55,8 @@ type Client struct {
 // redaction key is required so source-revision summaries never persist raw;
 // callers obtain it from the runtime scanner dependencies.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	redactionKey redact.Key,
@@ -84,7 +84,7 @@ func (c *Client) ListPipelines(ctx context.Context) ([]cpservice.Pipeline, error
 		err := c.recordAPICall(ctx, "GetPipeline", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.GetPipeline(callCtx, &awscodepipeline.GetPipelineInput{
-				Name: aws.String(name),
+				Name: awsv2.String(name),
 			})
 			return callErr
 		})
@@ -122,7 +122,7 @@ func (c *Client) listPipelineNames(ctx context.Context) ([]string, error) {
 			break
 		}
 		for _, summary := range output.Pipelines {
-			if name := strings.TrimSpace(aws.ToString(summary.Name)); name != "" {
+			if name := strings.TrimSpace(awsv2.ToString(summary.Name)); name != "" {
 				names = append(names, name)
 			}
 		}
@@ -145,8 +145,8 @@ func (c *Client) ListRecentExecutions(ctx context.Context, pipelineName string) 
 	err := c.recordAPICall(ctx, "ListPipelineExecutions", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListPipelineExecutions(callCtx, &awscodepipeline.ListPipelineExecutionsInput{
-			PipelineName: aws.String(pipelineName),
-			MaxResults:   aws.Int32(recentExecutionLimit),
+			PipelineName: awsv2.String(pipelineName),
+			MaxResults:   awsv2.Int32(recentExecutionLimit),
 		})
 		return callErr
 	})
@@ -244,7 +244,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.ListTagsForResource(callCtx, &awscodepipeline.ListTagsForResourceInput{
-				ResourceArn: aws.String(resourceARN),
+				ResourceArn: awsv2.String(resourceARN),
 				NextToken:   token,
 			})
 			return callErr
@@ -256,11 +256,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 			break
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 		}
 		if output.NextToken == nil || strings.TrimSpace(*output.NextToken) == "" {
 			break
@@ -277,7 +277,7 @@ func pipelineMetadataARN(metadata *cptypes.PipelineMetadata) string {
 	if metadata == nil {
 		return ""
 	}
-	return strings.TrimSpace(aws.ToString(metadata.PipelineArn))
+	return strings.TrimSpace(awsv2.ToString(metadata.PipelineArn))
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
@@ -298,7 +298,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

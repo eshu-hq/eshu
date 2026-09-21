@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsguardduty "github.com/aws/aws-sdk-go-v2/service/guardduty"
 	gdtypes "github.com/aws/aws-sdk-go-v2/service/guardduty/types"
 	"go.opentelemetry.io/otel/trace"
@@ -38,15 +38,15 @@ type apiClient interface {
 // scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a GuardDuty SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -100,7 +100,7 @@ func (c *Client) listDetectorIDs(ctx context.Context) ([]string, error) {
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ids, nil
 		}
 	}
@@ -143,8 +143,8 @@ func (c *Client) detectorMetadata(ctx context.Context, detectorID string) (guard
 		ID:                         strings.TrimSpace(detectorID),
 		Status:                     string(detail.Status),
 		FindingPublishingFrequency: string(detail.FindingPublishingFrequency),
-		CreatedAt:                  strings.TrimSpace(aws.ToString(detail.CreatedAt)),
-		UpdatedAt:                  strings.TrimSpace(aws.ToString(detail.UpdatedAt)),
+		CreatedAt:                  strings.TrimSpace(awsv2.ToString(detail.CreatedAt)),
+		UpdatedAt:                  strings.TrimSpace(awsv2.ToString(detail.UpdatedAt)),
 		Tags:                       cloneStringMap(detail.Tags),
 		Features:                   mapFeatures(detail.Features),
 		FindingCountsBySeverity:    severityCounts,
@@ -162,7 +162,7 @@ func (c *Client) getDetector(ctx context.Context, detectorID string) (*awsguardd
 	err := c.recordAPICall(ctx, "GetDetector", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetDetector(callCtx, &awsguardduty.GetDetectorInput{
-			DetectorId: aws.String(detectorID),
+			DetectorId: awsv2.String(detectorID),
 		})
 		return err
 	})

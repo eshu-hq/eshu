@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/awsruntime guidance
+# AGENTS.md - internal/collector/cloud/aws/runtime guidance
 
 ## Read First
 
@@ -24,8 +24,8 @@
 - Authorize `(account_id, region, service_kind)` before acquiring credentials.
 - Keep static AWS credentials out of this package and out of tests.
 - Keep `fixture_source.go` fully offline: no AWS SDK imports, no network, no
-  credentials. It must reuse `awscloud.NewResourceEnvelope` /
-  `awscloud.NewRelationshipEnvelope` so fixture facts stay byte-identical to
+  credentials. It must reuse `aws.NewResourceEnvelope` /
+  `aws.NewRelationshipEnvelope` so fixture facts stay byte-identical to
   live facts, and must derive generation ids from the scope id only (never the
   clock) so replay is idempotent.
 - Preserve `aws.RetryModeAdaptive` on every loaded AWS SDK config.
@@ -131,26 +131,26 @@
 - Add a new credential mode by extending `CredentialMode`, writing focused
   claim tests, and implementing the provider here.
 - Add a new service scanner. Production registration is now init-time and the
-  awsruntime package has zero compile-time dependency on individual service
+  runtime package has zero compile-time dependency on individual service
   packages. The new-scanner workflow is:
-  1. Add the service constant in `awscloud` (e.g. `ServiceFoo = "foo"`).
+  1. Add the service constant in `aws` (e.g. `ServiceFoo = "foo"`).
   2. Build the scanner package under `services/<svc>/` (scanner.go, tests,
-     `awssdk/` adapter, doc.go, README.md, AGENTS.md).
-  3. Add `services/<svc>/runtimebind/` containing `bind.go`, `doc.go`,
+     `sdk/` adapter, doc.go, README.md, AGENTS.md).
+  3. Add `services/<svc>/bind/` containing `bind.go`, `doc.go`,
      `README.md`, `AGENTS.md`, and `bind_test.go`. The `bind.go` calls
-     `awsruntime.Register` from `init()`; the test asserts the binding
-     resolves via `awsruntime.LookupBuilder`.
+     `runtime.Register` from `init()`; the test asserts the binding
+     resolves via `runtime.LookupBuilder`.
   4. Append one underscore-import line to
-     `awsruntime/bindings/bindings.go`. That file is marked `merge=union` in
+     `runtime/bindings/bindings.go`. That file is marked `merge=union` in
      `.gitattributes` so parallel scanner PRs do not conflict.
   5. Do NOT edit any want-list — there is none. The supported-service guard is
      DERIVED: the guard tests in
-     `awsruntime/registry_supported_services_test.go` and
-     `awsruntime/bindings/bindings_test.go` enumerate the
-     `services/<svc>/runtimebind/` directories on disk and the runtimebind
+     `runtime/registry_supported_services_test.go` and
+     `runtime/bindings/bindings_test.go` enumerate the
+     `services/<svc>/bind/` directories on disk and the bind
      blank imports parsed from `bindings.go`, then assert the two sets and the
-     registry count agree (see `awsruntime/internal/guardset`). A new
-     `services/<svc>/runtimebind/` directory without a matching `bindings.go`
+     registry count agree (see `runtime/internal/guardset`). A new
+     `services/<svc>/bind/` directory without a matching `bindings.go`
      import fails the guard automatically, so adding a scanner touches zero
      want-lists.
 

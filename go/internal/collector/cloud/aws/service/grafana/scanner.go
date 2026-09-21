@@ -26,15 +26,15 @@ type Scanner struct {
 
 // Scan observes Managed Grafana workspaces and the direct IAM role and VPC
 // subnet/security-group dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("grafana scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGrafana:
+	case "", aws.ServiceGrafana:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGrafana
+		boundary.ServiceKind = aws.ServiceGrafana
 	default:
 		return nil, fmt.Errorf("grafana scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,9 +58,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -69,14 +69,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(workspaceObservation(boundary, workspace))
+func workspaceEnvelopes(boundary aws.Boundary, workspace Workspace) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(workspaceObservation(boundary, workspace))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range workspaceRelationships(boundary, workspace) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -85,15 +85,15 @@ func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]fact
 	return envelopes, nil
 }
 
-func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscloud.ResourceObservation {
+func workspaceObservation(boundary aws.Boundary, workspace Workspace) aws.ResourceObservation {
 	arn := strings.TrimSpace(workspace.ARN)
 	name := strings.TrimSpace(workspace.Name)
 	resourceID := workspaceResourceID(workspace)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGrafanaWorkspace,
+		ResourceType: aws.ResourceTypeGrafanaWorkspace,
 		Name:         name,
 		State:        strings.TrimSpace(workspace.Status),
 		Tags:         cloneStringMap(workspace.Tags),

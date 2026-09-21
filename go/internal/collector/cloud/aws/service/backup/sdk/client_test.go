@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbackup "github.com/aws/aws-sdk-go-v2/service/backup"
 	awsbackuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 
@@ -24,29 +24,29 @@ func TestClientListBackupVaultsProjectsMetadataAndExcludesAccessPolicy(t *testin
 	fake := &fakeBackupAPI{
 		listBackupVaults: []*awsbackup.ListBackupVaultsOutput{{
 			BackupVaultList: []awsbackuptypes.BackupVaultListMember{{
-				BackupVaultArn:         aws.String(vaultARN),
-				BackupVaultName:        aws.String("prod"),
-				EncryptionKeyArn:       aws.String(kmsARN),
+				BackupVaultArn:         awsv2.String(vaultARN),
+				BackupVaultName:        awsv2.String("prod"),
+				EncryptionKeyArn:       awsv2.String(kmsARN),
 				NumberOfRecoveryPoints: 7,
-				Locked:                 aws.Bool(true),
-				LockDate:               aws.Time(time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)),
-				CreationDate:           aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				Locked:                 awsv2.Bool(true),
+				LockDate:               awsv2.Time(time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)),
+				CreationDate:           awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		describeBackupVaults: map[string]*awsbackup.DescribeBackupVaultOutput{
 			"prod": {
-				BackupVaultArn:    aws.String(vaultARN),
-				BackupVaultName:   aws.String("prod"),
+				BackupVaultArn:    awsv2.String(vaultARN),
+				BackupVaultName:   awsv2.String("prod"),
 				EncryptionKeyType: awsbackuptypes.EncryptionKeyType("CUSTOMER_MANAGED_KMS_KEY"),
-				Locked:            aws.Bool(true),
-				MinRetentionDays:  aws.Int64(30),
-				MaxRetentionDays:  aws.Int64(365),
+				Locked:            awsv2.Bool(true),
+				MinRetentionDays:  awsv2.Int64(30),
+				MaxRetentionDays:  awsv2.Int64(365),
 			},
 		},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	vaults, err := adapter.ListBackupVaults(context.Background())
 	if err != nil {
@@ -77,28 +77,28 @@ func TestClientListBackupSelectionsMergesTagConditions(t *testing.T) {
 	fake := &fakeBackupAPI{
 		listBackupSelections: []*awsbackup.ListBackupSelectionsOutput{{
 			BackupSelectionsList: []awsbackuptypes.BackupSelectionsListMember{{
-				BackupPlanId:  aws.String(planID),
-				SelectionId:   aws.String("sel-1"),
-				SelectionName: aws.String("all-rds"),
-				IamRoleArn:    aws.String(roleARN),
-				CreationDate:  aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				BackupPlanId:  awsv2.String(planID),
+				SelectionId:   awsv2.String("sel-1"),
+				SelectionName: awsv2.String("all-rds"),
+				IamRoleArn:    awsv2.String(roleARN),
+				CreationDate:  awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		getBackupSelections: map[string]*awsbackup.GetBackupSelectionOutput{
 			"sel-1": {
 				BackupSelection: &awsbackuptypes.BackupSelection{
-					IamRoleArn:    aws.String(roleARN),
-					SelectionName: aws.String("all-rds"),
+					IamRoleArn:    awsv2.String(roleARN),
+					SelectionName: awsv2.String("all-rds"),
 					Resources:     []string{resourceARN},
 					ListOfTags: []awsbackuptypes.Condition{{
 						ConditionType:  awsbackuptypes.ConditionType("STRINGEQUALS"),
-						ConditionKey:   aws.String("aws:ResourceTag/backup"),
-						ConditionValue: aws.String("daily"),
+						ConditionKey:   awsv2.String("aws:ResourceTag/backup"),
+						ConditionValue: awsv2.String("daily"),
 					}},
 					Conditions: &awsbackuptypes.Conditions{
 						StringEquals: []awsbackuptypes.ConditionParameter{{
-							ConditionKey:   aws.String("aws:ResourceTag/team"),
-							ConditionValue: aws.String("payments"),
+							ConditionKey:   awsv2.String("aws:ResourceTag/team"),
+							ConditionValue: awsv2.String("payments"),
 						}},
 					},
 				},
@@ -107,7 +107,7 @@ func TestClientListBackupSelectionsMergesTagConditions(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	selections, err := adapter.ListBackupSelections(context.Background(), planID)
 	if err != nil {
@@ -131,18 +131,18 @@ func TestClientListRecoveryPointsExcludesRestoreMetadata(t *testing.T) {
 		listRecoveryPoints: map[string][]*awsbackup.ListRecoveryPointsByBackupVaultOutput{
 			"prod": {{
 				RecoveryPoints: []awsbackuptypes.RecoveryPointByBackupVault{{
-					RecoveryPointArn:  aws.String(rpARN),
-					BackupVaultName:   aws.String("prod"),
-					BackupVaultArn:    aws.String("arn:aws:backup:us-east-1:123456789012:backup-vault:prod"),
-					ResourceArn:       aws.String("arn:aws:rds:us-east-1:123456789012:db:prod"),
-					ResourceType:      aws.String("RDS"),
+					RecoveryPointArn:  awsv2.String(rpARN),
+					BackupVaultName:   awsv2.String("prod"),
+					BackupVaultArn:    awsv2.String("arn:aws:backup:us-east-1:123456789012:backup-vault:prod"),
+					ResourceArn:       awsv2.String("arn:aws:rds:us-east-1:123456789012:db:prod"),
+					ResourceType:      awsv2.String("RDS"),
 					Status:            awsbackuptypes.RecoveryPointStatusCompleted,
 					IsEncrypted:       true,
-					CreationDate:      aws.Time(time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)),
-					CompletionDate:    aws.Time(time.Date(2026, 5, 20, 0, 30, 0, 0, time.UTC)),
-					BackupSizeInBytes: aws.Int64(2048),
+					CreationDate:      awsv2.Time(time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)),
+					CompletionDate:    awsv2.Time(time.Date(2026, 5, 20, 0, 30, 0, 0, time.UTC)),
+					BackupSizeInBytes: awsv2.Int64(2048),
 					CalculatedLifecycle: &awsbackuptypes.CalculatedLifecycle{
-						DeleteAt: aws.Time(time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)),
+						DeleteAt: awsv2.Time(time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)),
 					},
 				}},
 			}},
@@ -150,7 +150,7 @@ func TestClientListRecoveryPointsExcludesRestoreMetadata(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	rps, err := adapter.ListRecoveryPoints(context.Background(), "prod")
 	if err != nil {
@@ -180,21 +180,21 @@ func TestClientListFrameworksProjectsControlSummaryWithoutInputParameters(t *tes
 	fake := &fakeBackupAPI{
 		listFrameworks: []*awsbackup.ListFrameworksOutput{{
 			Frameworks: []awsbackuptypes.Framework{{
-				FrameworkArn:     aws.String(frameworkARN),
-				FrameworkName:    aws.String("fw-1"),
-				DeploymentStatus: aws.String("COMPLETED"),
+				FrameworkArn:     awsv2.String(frameworkARN),
+				FrameworkName:    awsv2.String("fw-1"),
+				DeploymentStatus: awsv2.String("COMPLETED"),
 				NumberOfControls: 1,
-				CreationTime:     aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				CreationTime:     awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		describeFrameworks: map[string]*awsbackup.DescribeFrameworkOutput{
 			"fw-1": {
-				FrameworkName: aws.String("fw-1"),
+				FrameworkName: awsv2.String("fw-1"),
 				FrameworkControls: []awsbackuptypes.FrameworkControl{{
-					ControlName: aws.String("BACKUP_RECOVERY_POINT_MINIMUM_RETENTION_CHECK"),
+					ControlName: awsv2.String("BACKUP_RECOVERY_POINT_MINIMUM_RETENTION_CHECK"),
 					ControlInputParameters: []awsbackuptypes.ControlInputParameter{{
-						ParameterName:  aws.String("requiredRetentionDays"),
-						ParameterValue: aws.String("35"),
+						ParameterName:  awsv2.String("requiredRetentionDays"),
+						ParameterValue: awsv2.String("35"),
 					}},
 					ControlScope: &awsbackuptypes.ControlScope{
 						ComplianceResourceTypes: []string{"BACKUP_PLAN"},
@@ -206,7 +206,7 @@ func TestClientListFrameworksProjectsControlSummaryWithoutInputParameters(t *tes
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	frameworks, err := adapter.ListFrameworks(context.Background())
 	if err != nil {
@@ -298,7 +298,7 @@ func TestClientMetadataReadsSucceedAgainstEmptyFake(t *testing.T) {
 	fake := &fakeBackupAPI{}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	if _, err := adapter.ListBackupVaults(context.Background()); err != nil {
 		t.Fatalf("ListBackupVaults() error = %v", err)

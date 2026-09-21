@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ec2/awssdk` adapts AWS SDK for Go v2 EC2
+`internal/collector/cloud/aws/service/ec2/sdk` adapts AWS SDK for Go v2 EC2
 responses to the scanner-owned `ec2.Client` contract. It owns EC2 read API
 pagination, response mapping, throttle classification, and per-call telemetry.
 
@@ -14,7 +14,7 @@ admission, instance inventory, or query behavior.
 
 ```mermaid
 flowchart LR
-  A["awsruntime.DefaultScannerFactory"] --> B["Client"]
+  A["runtime.DefaultScannerFactory"] --> B["Client"]
   B --> C["DescribeVpcs"]
   B --> D["DescribeSubnets"]
   B --> E["DescribeSecurityGroups"]
@@ -42,8 +42,8 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - AWS SDK for Go v2 `service/ec2`.
-- `internal/collector/awscloud` for claim boundary labels.
-- `internal/collector/awscloud/service/ec2` for scanner-owned target types.
+- `internal/collector/cloud/aws` for claim boundary labels.
+- `internal/collector/cloud/aws/service/ec2` for scanner-owned target types.
 - `internal/telemetry` for AWS API counters, throttle counters, and pagination
   spans.
 

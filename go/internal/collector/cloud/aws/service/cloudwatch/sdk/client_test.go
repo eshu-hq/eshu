@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscw "github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	awscwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 
@@ -94,77 +94,77 @@ func TestClientListsCallsOnlySafeAPIs(t *testing.T) {
 	fake := &fakeCloudWatchAPI{
 		describeMetricPages: []*awscw.DescribeAlarmsOutput{{
 			MetricAlarms: []awscwtypes.MetricAlarm{{
-				AlarmArn:           aws.String(alarmARN),
-				AlarmName:          aws.String("high-cpu"),
-				AlarmDescription:   aws.String("fires when CPU > 80"),
+				AlarmArn:           awsv2.String(alarmARN),
+				AlarmName:          awsv2.String("high-cpu"),
+				AlarmDescription:   awsv2.String("fires when CPU > 80"),
 				StateValue:         awscwtypes.StateValueOk,
-				ActionsEnabled:     aws.Bool(true),
+				ActionsEnabled:     awsv2.Bool(true),
 				AlarmActions:       []string{"arn:aws:sns:us-east-1:123456789012:on-call"},
-				Namespace:          aws.String("AWS/EC2"),
-				MetricName:         aws.String("CPUUtilization"),
+				Namespace:          awsv2.String("AWS/EC2"),
+				MetricName:         awsv2.String("CPUUtilization"),
 				Statistic:          awscwtypes.StatisticAverage,
 				ComparisonOperator: awscwtypes.ComparisonOperatorGreaterThanThreshold,
-				Threshold:          aws.Float64(80),
-				EvaluationPeriods:  aws.Int32(3),
-				Period:             aws.Int32(60),
+				Threshold:          awsv2.Float64(80),
+				EvaluationPeriods:  awsv2.Int32(3),
+				Period:             awsv2.Int32(60),
 				Dimensions: []awscwtypes.Dimension{
-					{Name: aws.String("InstanceId"), Value: aws.String("i-12345")},
-					{Name: aws.String("Customer"), Value: aws.String("tenant-42")},
+					{Name: awsv2.String("InstanceId"), Value: awsv2.String("i-12345")},
+					{Name: awsv2.String("Customer"), Value: awsv2.String("tenant-42")},
 				},
-				StateUpdatedTimestamp: aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+				StateUpdatedTimestamp: awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		describeCompositePages: []*awscw.DescribeAlarmsOutput{{
 			CompositeAlarms: []awscwtypes.CompositeAlarm{{
-				AlarmArn:       aws.String(compositeARN),
-				AlarmName:      aws.String("composite-fleet"),
+				AlarmArn:       awsv2.String(compositeARN),
+				AlarmName:      awsv2.String("composite-fleet"),
 				StateValue:     awscwtypes.StateValueOk,
-				ActionsEnabled: aws.Bool(true),
-				AlarmRule:      aws.String(`ALARM("high-cpu") OR ALARM("low-disk")`),
+				ActionsEnabled: awsv2.Bool(true),
+				AlarmRule:      awsv2.String(`ALARM("high-cpu") OR ALARM("low-disk")`),
 				AlarmActions:   []string{"arn:aws:sns:us-east-1:123456789012:on-call"},
 			}},
 		}},
 		listDashboardsPages: []*awscw.ListDashboardsOutput{{
 			DashboardEntries: []awscwtypes.DashboardEntry{{
-				DashboardArn:  aws.String(dashboardARN),
-				DashboardName: aws.String("orders-overview"),
-				LastModified:  aws.Time(time.Date(2026, 5, 14, 14, 30, 0, 0, time.UTC)),
-				Size:          aws.Int64(4096),
+				DashboardArn:  awsv2.String(dashboardARN),
+				DashboardName: awsv2.String("orders-overview"),
+				LastModified:  awsv2.Time(time.Date(2026, 5, 14, 14, 30, 0, 0, time.UTC)),
+				Size:          awsv2.Int64(4096),
 			}},
 		}},
 		describeInsightRulesPages: []*awscw.DescribeInsightRulesOutput{{
 			InsightRules: []awscwtypes.InsightRule{{
-				Name:       aws.String("top-talkers"),
-				State:      aws.String("ENABLED"),
-				Schema:     aws.String("CloudWatchLogRule/1"),
-				Definition: aws.String(`{"Keys":["$.customerId"],"AggregateOn":"COUNT"}`),
+				Name:       awsv2.String("top-talkers"),
+				State:      awsv2.String("ENABLED"),
+				Schema:     awsv2.String("CloudWatchLogRule/1"),
+				Definition: awsv2.String(`{"Keys":["$.customerId"],"AggregateOn":"COUNT"}`),
 			}},
 		}},
 		listMetricStreamsPages: []*awscw.ListMetricStreamsOutput{{
 			Entries: []awscwtypes.MetricStreamEntry{{
-				Arn:            aws.String(streamARN),
-				Name:           aws.String("orders-stream"),
-				State:          aws.String("running"),
+				Arn:            awsv2.String(streamARN),
+				Name:           awsv2.String("orders-stream"),
+				State:          awsv2.String("running"),
 				OutputFormat:   awscwtypes.MetricStreamOutputFormatJson,
-				FirehoseArn:    aws.String(firehoseARN),
-				CreationDate:   aws.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
-				LastUpdateDate: aws.Time(time.Date(2026, 5, 14, 13, 0, 0, 0, time.UTC)),
+				FirehoseArn:    awsv2.String(firehoseARN),
+				CreationDate:   awsv2.Time(time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)),
+				LastUpdateDate: awsv2.Time(time.Date(2026, 5, 14, 13, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		getMetricStreamOutput: &awscw.GetMetricStreamOutput{
-			Arn:                          aws.String(streamARN),
-			Name:                         aws.String("orders-stream"),
-			State:                        aws.String("running"),
+			Arn:                          awsv2.String(streamARN),
+			Name:                         awsv2.String("orders-stream"),
+			State:                        awsv2.String("running"),
 			OutputFormat:                 awscwtypes.MetricStreamOutputFormatJson,
-			FirehoseArn:                  aws.String(firehoseARN),
-			RoleArn:                      aws.String("arn:aws:iam::123456789012:role/cw-metric-stream"),
-			IncludeLinkedAccountsMetrics: aws.Bool(false),
+			FirehoseArn:                  awsv2.String(firehoseARN),
+			RoleArn:                      awsv2.String("arn:aws:iam::123456789012:role/cw-metric-stream"),
+			IncludeLinkedAccountsMetrics: awsv2.Bool(false),
 		},
-		tags: []awscwtypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		tags: []awscwtypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudWatch},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudWatch},
 	}
 
 	metricAlarms, err := adapter.ListMetricAlarms(context.Background())

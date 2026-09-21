@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 const (
 	// ServiceCognito identifies the regional Amazon Cognito service scan slice.

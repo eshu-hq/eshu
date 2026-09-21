@@ -1,4 +1,4 @@
-# AGENTS — services/cloudwatch/awssdk
+# AGENTS — services/cloudwatch/sdk
 
 This adapter is the contract surface between the AWS SDK v2 and the
 `cloudwatch.Client` interface. Agents editing this package MUST:

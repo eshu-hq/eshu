@@ -14,33 +14,33 @@ import (
 // that matches the target scanner's resource_id: VPC and subnet edges use the
 // bare AWS ID (joining the VPC scanner's aws_ec2_vpc and aws_ec2_subnet
 // resources).
-func directoryRelationships(boundary awscloud.Boundary, directory Directory) []awscloud.RelationshipObservation {
+func directoryRelationships(boundary aws.Boundary, directory Directory) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(directory.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(directory.VPCID); vpcID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSDirectoryInVPC,
+			RelationshipType: aws.RelationshipDSDirectoryInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDSDirectoryInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(directory.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSDirectoryInSubnet,
+			RelationshipType: aws.RelationshipDSDirectoryInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDSDirectoryInSubnet, subnetID),
 		})
 	}
 	return relationships
@@ -49,20 +49,20 @@ func directoryRelationships(boundary awscloud.Boundary, directory Directory) []a
 // trustRelationships returns the trust-to-directory edge for one trust. The
 // target is the bare directory id so it joins the directory resource fact emitted
 // in the same scan.
-func trustRelationships(boundary awscloud.Boundary, trust Trust) []awscloud.RelationshipObservation {
+func trustRelationships(boundary aws.Boundary, trust Trust) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(trust.ID)
 	directoryID := strings.TrimSpace(trust.DirectoryID)
 	if sourceID == "" || directoryID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDSTrustTargetsDirectory,
+		RelationshipType: aws.RelationshipDSTrustTargetsDirectory,
 		SourceResourceID: sourceID,
 		TargetResourceID: directoryID,
-		TargetType:       awscloud.ResourceTypeDSDirectory,
+		TargetType:       aws.ResourceTypeDSDirectory,
 		Attributes:       map[string]any{"directory_id": directoryID},
-		SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSTrustTargetsDirectory, directoryID),
+		SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDSTrustTargetsDirectory, directoryID),
 	}}
 }
 
@@ -72,40 +72,40 @@ func trustRelationships(boundary awscloud.Boundary, trust Trust) []awscloud.Rela
 // and the owner-account edge targets the bare 12-digit account id; no ARN is
 // synthesized for either target.
 func sharedDirectoryRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	share SharedDirectory,
 	directoryIDs map[string]struct{},
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := sharedDirectoryResourceID(share)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if ownerDirectoryID := strings.TrimSpace(share.OwnerDirectoryID); ownerDirectoryID != "" {
 		_, inScope := directoryIDs[ownerDirectoryID]
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSSharedDirectoryTargetsOwnerDirectory,
+			RelationshipType: aws.RelationshipDSSharedDirectoryTargetsOwnerDirectory,
 			SourceResourceID: sourceID,
 			TargetResourceID: ownerDirectoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       aws.ResourceTypeDSDirectory,
 			Attributes: map[string]any{
 				"owner_directory_id": ownerDirectoryID,
 				"in_scope":           inScope,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipDSSharedDirectoryTargetsOwnerDirectory, ownerDirectoryID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipDSSharedDirectoryTargetsOwnerDirectory, ownerDirectoryID),
 		})
 	}
 	if ownerAccountID := strings.TrimSpace(share.OwnerAccountID); ownerAccountID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount,
+			RelationshipType: aws.RelationshipDSSharedDirectoryTargetsOwnerAccount,
 			SourceResourceID: sourceID,
 			TargetResourceID: ownerAccountID,
-			TargetType:       awscloud.ResourceTypeAWSAccount,
+			TargetType:       aws.ResourceTypeAWSAccount,
 			Attributes:       map[string]any{"owner_account_id": ownerAccountID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount, ownerAccountID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDSSharedDirectoryTargetsOwnerAccount, ownerAccountID),
 		})
 	}
 	return relationships

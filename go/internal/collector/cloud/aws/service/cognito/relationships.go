@@ -17,10 +17,10 @@ const identityProviderTargetType = "aws_iam_identity_provider"
 
 // userPoolClientRelationship records the user pool an app client belongs to.
 func userPoolClientRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	client UserPoolClient,
 	userPoolARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	clientID := strings.TrimSpace(client.ID)
 	userPoolID := strings.TrimSpace(client.UserPoolID)
 	if clientID == "" || userPoolID == "" {
@@ -30,13 +30,13 @@ func userPoolClientRelationship(
 	if target == "" {
 		target = userPoolID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCognitoUserPoolClientUsesUserPool,
+		RelationshipType: aws.RelationshipCognitoUserPoolClientUsesUserPool,
 		SourceResourceID: clientID,
 		TargetResourceID: target,
 		TargetARN:        strings.TrimSpace(userPoolARN),
-		TargetType:       awscloud.ResourceTypeCognitoUserPool,
+		TargetType:       aws.ResourceTypeCognitoUserPool,
 		SourceRecordID:   clientID + "#user-pool#" + userPoolID,
 	}
 }
@@ -45,9 +45,9 @@ func userPoolClientRelationship(
 // pool invokes. Trigger slots are reported as relationship attributes so a
 // single Lambda used by multiple slots still emits distinct evidence.
 func userPoolLambdaTriggerRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pool UserPool,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	poolID := strings.TrimSpace(pool.ID)
 	poolARN := strings.TrimSpace(pool.ARN)
 	source := poolARN
@@ -57,21 +57,21 @@ func userPoolLambdaTriggerRelationships(
 	if source == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, trigger := range pool.LambdaTriggers {
 		arn := strings.TrimSpace(trigger.ARN)
 		slot := strings.TrimSpace(trigger.Trigger)
 		if arn == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger,
+			RelationshipType: aws.RelationshipCognitoUserPoolUsesLambdaTrigger,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: arn,
 			TargetARN:        arn,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       aws.ResourceTypeLambdaFunction,
 			Attributes: map[string]any{
 				"trigger": slot,
 			},
@@ -84,9 +84,9 @@ func userPoolLambdaTriggerRelationships(
 // identityPoolRelationships records the user pool app clients and external
 // providers an identity pool trusts.
 func identityPoolRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pool IdentityPool,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	poolARN := strings.TrimSpace(pool.ARN)
 	source := poolARN
 	if source == "" {
@@ -95,7 +95,7 @@ func identityPoolRelationships(
 	if source == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, provider := range pool.UserPoolProviders {
 		providerName := strings.TrimSpace(provider.ProviderName)
 		if providerName == "" {
@@ -108,13 +108,13 @@ func identityPoolRelationships(
 		// the compound provider-name string. Emitting the full provider name
 		// produces a dangling edge that never joins the user pool node.
 		userPoolID := userPoolIDFromProviderName(providerName)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoIdentityPoolUsesUserPool,
+			RelationshipType: aws.RelationshipCognitoIdentityPoolUsesUserPool,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: userPoolID,
-			TargetType:       awscloud.ResourceTypeCognitoUserPool,
+			TargetType:       aws.ResourceTypeCognitoUserPool,
 			Attributes: map[string]any{
 				"client_id":     strings.TrimSpace(provider.ClientID),
 				"provider_name": providerName,
@@ -124,9 +124,9 @@ func identityPoolRelationships(
 		})
 	}
 	for _, providerARN := range externalProviderARNs(pool) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoIdentityPoolUsesIdentityProvider,
+			RelationshipType: aws.RelationshipCognitoIdentityPoolUsesIdentityProvider,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: providerARN,

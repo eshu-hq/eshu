@@ -50,8 +50,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-expired",
 		ObservedAt:   now,
 	}
@@ -64,8 +64,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-west-2",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-live",
 		ObservedAt:   now,
 	}
@@ -155,8 +155,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 			Kind:         freshness.EventKindConfigChange,
 			AccountID:    "123456789012",
 			Region:       fmt.Sprintf("us-region-%02d", i),
-			ServiceKind:  awscloud.ServiceLambda,
-			ResourceType: awscloud.ResourceTypeLambdaFunction,
+			ServiceKind:  aws.ServiceLambda,
+			ResourceType: aws.ResourceTypeLambdaFunction,
 			ResourceID:   fmt.Sprintf("function-concurrent-%d", i),
 			ObservedAt:   now,
 		}
@@ -230,8 +230,8 @@ func TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-stale-holder",
 		ObservedAt:   now,
 	}

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudformation/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/cloudformation/sdk` adapts AWS SDK for
 Go v2 CloudFormation responses to the scanner-owned `cloudformation.Client`
 contract. It owns stack, stack-set, change-set, drift, instance, and type
 pagination; metadata reads; throttle classification; and per-call AWS API
@@ -41,9 +41,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/cloudformation` for scanner-owned result
+- `internal/collector/cloud/aws/service/cloudformation` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `cloudformation` and Smithy error contracts.

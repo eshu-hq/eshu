@@ -20,7 +20,7 @@ func TestPartitionDerivesFromBoundaryRegion(t *testing.T) {
 		"":               "aws",
 	}
 	for region, want := range cases {
-		if got := partition(awscloud.Boundary{Region: region}); got != want {
+		if got := partition(aws.Boundary{Region: region}); got != want {
 			t.Fatalf("partition(region=%q) = %q, want %q", region, got, want)
 		}
 	}

@@ -1,23 +1,23 @@
-# AGENTS.md - services/codepipeline/runtimebind guidance
+# AGENTS.md - services/codepipeline/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - CodePipeline scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceCodePipeline`.
+- Register exactly once from `init()` with `aws.ServiceCodePipeline`.
 - Keep the redaction-key guard: return a typed error when
   `ScannerDeps.RedactionKey` is zero. CodePipeline redacts source-revision
   summaries, so a missing key is a configuration error, not a silent fallback.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here beyond the redaction-key guard.
-  Validation belongs to awsruntime and the scanner.
-- Do not import anything else from `internal/collector/awscloud/service`.
+  Validation belongs to runtime and the scanner.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

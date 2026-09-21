@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/resiliencehub/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/resiliencehub/sdk guidance
 
 ## Read First
 

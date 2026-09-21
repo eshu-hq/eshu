@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ses` owns the Amazon Simple Email Service
+`internal/collector/cloud/aws/service/ses` owns the Amazon Simple Email Service
 (SES v2) scanner contract for the AWS cloud collector. It converts SES
 email-identity, configuration-set, configuration-set event-destination, and
 dedicated-IP-pool metadata into `aws_resource` facts and emits relationship
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records SES API call counts, throttles, and pagination spans.
+`sdk` adapter records SES API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
 
@@ -76,7 +76,7 @@ scan duration and emitted resource counts after `Scanner.Scan` returns. The
   AWS ever reports a customer key identifier on the DKIM attributes (SES v2 does
   not surface one today); `target_arn` is set only for ARN-shaped identifiers.
 - Synthesized identity, configuration-set, and dedicated-IP-pool ARNs derive the
-  partition from the scan boundary via `awscloud.PartitionForBoundary`; the
+  partition from the scan boundary via `aws.PartitionForBoundary`; the
   scanner never hardcodes `arn:aws:`, so GovCloud and China resolve correctly.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from identity, set, pool, or
@@ -85,14 +85,14 @@ scan duration and emitted resource counts after `Scanner.Scan` returns. The
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/ses/...` covers the bounded SES
+`go test ./internal/collector/cloud/aws/service/ses/...` covers the bounded SES
 metadata path: one paginated ListEmailIdentities stream with one GetEmailIdentity
 point read per identity, one paginated ListConfigurationSets stream with one
 GetConfigurationSet and one GetConfigurationSetEventDestinations point read per
 set, one paginated ListDedicatedIpPools stream, no send APIs, no message or
 template body reads, no DKIM token reads, and no graph writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/ses/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/ses/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 Collector Deployment Evidence: SES runs inside the existing hosted

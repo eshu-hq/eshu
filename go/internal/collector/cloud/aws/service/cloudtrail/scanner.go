@@ -28,15 +28,15 @@ type Scanner struct {
 // dashboards through the configured client and returns reported-confidence
 // AWS facts. The scan calls four read-only list-and-describe paths and never
 // reaches event-extraction, Lake query, or mutation surfaces.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudtrail scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudTrail:
+	case "", aws.ServiceCloudTrail:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudTrail
+		boundary.ServiceKind = aws.ServiceCloudTrail
 	default:
 		return nil, fmt.Errorf("cloudtrail scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -70,7 +70,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CloudTrail channels: %w", err)
 	}
 	for _, channel := range channels {
-		envelope, err := awscloud.NewResourceEnvelope(channelObservation(boundary, channel))
+		envelope, err := aws.NewResourceEnvelope(channelObservation(boundary, channel))
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CloudTrail dashboards: %w", err)
 	}
 	for _, dashboard := range dashboards {
-		envelope, err := awscloud.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
+		envelope, err := aws.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
 		if err != nil {
 			return nil, err
 		}
@@ -92,14 +92,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendTrail(envelopes []facts.Envelope, boundary awscloud.Boundary, trail Trail) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(trailObservation(boundary, trail))
+func appendTrail(envelopes []facts.Envelope, boundary aws.Boundary, trail Trail) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(trailObservation(boundary, trail))
 	if err != nil {
 		return nil, err
 	}
 	envelopes = append(envelopes, resource)
 	for _, relationship := range trailRelationships(boundary, trail) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -108,14 +108,14 @@ func appendTrail(envelopes []facts.Envelope, boundary awscloud.Boundary, trail T
 	return envelopes, nil
 }
 
-func appendEventDataStore(envelopes []facts.Envelope, boundary awscloud.Boundary, store EventDataStore) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(eventDataStoreObservation(boundary, store))
+func appendEventDataStore(envelopes []facts.Envelope, boundary aws.Boundary, store EventDataStore) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(eventDataStoreObservation(boundary, store))
 	if err != nil {
 		return nil, err
 	}
 	envelopes = append(envelopes, resource)
 	if relationship, ok := eventDataStoreKMSRelationship(boundary, store); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -124,13 +124,13 @@ func appendEventDataStore(envelopes []facts.Envelope, boundary awscloud.Boundary
 	return envelopes, nil
 }
 
-func trailObservation(boundary awscloud.Boundary, trail Trail) awscloud.ResourceObservation {
+func trailObservation(boundary aws.Boundary, trail Trail) aws.ResourceObservation {
 	trailARN := strings.TrimSpace(trail.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          trailARN,
 		ResourceID:   firstNonEmpty(trailARN, trail.Name),
-		ResourceType: awscloud.ResourceTypeCloudTrailTrail,
+		ResourceType: aws.ResourceTypeCloudTrailTrail,
 		Name:         strings.TrimSpace(trail.Name),
 		State:        loggingState(trail.LoggingEnabled),
 		Tags:         cloneStringMap(trail.Tags),
@@ -161,13 +161,13 @@ func trailObservation(boundary awscloud.Boundary, trail Trail) awscloud.Resource
 	}
 }
 
-func eventDataStoreObservation(boundary awscloud.Boundary, store EventDataStore) awscloud.ResourceObservation {
+func eventDataStoreObservation(boundary aws.Boundary, store EventDataStore) aws.ResourceObservation {
 	storeARN := strings.TrimSpace(store.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          storeARN,
 		ResourceID:   firstNonEmpty(storeARN, store.Name),
-		ResourceType: awscloud.ResourceTypeCloudTrailEventDataStore,
+		ResourceType: aws.ResourceTypeCloudTrailEventDataStore,
 		Name:         strings.TrimSpace(store.Name),
 		State:        strings.TrimSpace(store.Status),
 		Tags:         cloneStringMap(store.Tags),
@@ -187,13 +187,13 @@ func eventDataStoreObservation(boundary awscloud.Boundary, store EventDataStore)
 	}
 }
 
-func channelObservation(boundary awscloud.Boundary, channel Channel) awscloud.ResourceObservation {
+func channelObservation(boundary aws.Boundary, channel Channel) aws.ResourceObservation {
 	channelARN := strings.TrimSpace(channel.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          channelARN,
 		ResourceID:   firstNonEmpty(channelARN, channel.Name),
-		ResourceType: awscloud.ResourceTypeCloudTrailChannel,
+		ResourceType: aws.ResourceTypeCloudTrailChannel,
 		Name:         strings.TrimSpace(channel.Name),
 		Tags:         cloneStringMap(channel.Tags),
 		Attributes: map[string]any{
@@ -206,13 +206,13 @@ func channelObservation(boundary awscloud.Boundary, channel Channel) awscloud.Re
 	}
 }
 
-func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscloud.ResourceObservation {
+func dashboardObservation(boundary aws.Boundary, dashboard Dashboard) aws.ResourceObservation {
 	dashboardARN := strings.TrimSpace(dashboard.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          dashboardARN,
 		ResourceID:   firstNonEmpty(dashboardARN, dashboard.Name),
-		ResourceType: awscloud.ResourceTypeCloudTrailDashboardConfig,
+		ResourceType: aws.ResourceTypeCloudTrailDashboardConfig,
 		Name:         strings.TrimSpace(dashboard.Name),
 		State:        strings.TrimSpace(dashboard.Status),
 		Tags:         cloneStringMap(dashboard.Tags),
@@ -228,21 +228,21 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 	}
 }
 
-func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.RelationshipObservation {
+func trailRelationships(boundary aws.Boundary, trail Trail) []aws.RelationshipObservation {
 	trailARN := strings.TrimSpace(trail.ARN)
 	if trailARN == "" {
 		return nil
 	}
 	sourceID := firstNonEmpty(trailARN, trail.Name)
-	var out []awscloud.RelationshipObservation
+	var out []aws.RelationshipObservation
 	if bucket := strings.TrimSpace(trail.S3BucketName); bucket != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudTrailTrailLogsToS3Bucket,
+			RelationshipType: aws.RelationshipCloudTrailTrailLogsToS3Bucket,
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: bucket,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       aws.ResourceTypeS3Bucket,
 			Attributes: map[string]any{
 				"s3_key_prefix": strings.TrimSpace(trail.S3KeyPrefix),
 			},
@@ -250,33 +250,33 @@ func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.Rela
 		})
 	}
 	if logGroup := strings.TrimSpace(trail.CloudWatchLogsLogGroupARN); logGroup != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudTrailTrailLogsToCloudWatchLogs,
+			RelationshipType: aws.RelationshipCloudTrailTrailLogsToCloudWatchLogs,
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: logGroup,
 			TargetARN:        logGroup,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
 			SourceRecordID:   trailARN + "->logs:" + logGroup,
 		})
 	}
 	if topic := strings.TrimSpace(trail.SNSTopicARN); topic != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudTrailTrailNotifiesSNSTopic,
+			RelationshipType: aws.RelationshipCloudTrailTrailNotifiesSNSTopic,
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: topic,
 			TargetARN:        topic,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       aws.ResourceTypeSNSTopic,
 			SourceRecordID:   trailARN + "->sns:" + topic,
 		})
 	}
 	if kms := strings.TrimSpace(trail.KMSKeyID); kms != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudTrailTrailUsesKMSKey,
+			RelationshipType: aws.RelationshipCloudTrailTrailUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: kms,
@@ -289,17 +289,17 @@ func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.Rela
 }
 
 func eventDataStoreKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	store EventDataStore,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	storeARN := strings.TrimSpace(store.ARN)
 	kms := strings.TrimSpace(store.KMSKeyID)
 	if storeARN == "" || kms == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey,
+		RelationshipType: aws.RelationshipCloudTrailEventDataStoreUsesKMSKey,
 		SourceResourceID: storeARN,
 		SourceARN:        storeARN,
 		TargetResourceID: kms,
@@ -310,7 +310,7 @@ func eventDataStoreKMSRelationship(
 }
 
 // resourceTypeKMSKey is the relationship target type CloudTrail emits for KMS
-// key references, matching the convention shared by every other awscloud
+// key references, matching the convention shared by every other aws
 // service scanner that points at a KMS key.
 const resourceTypeKMSKey = "aws_kms_key"
 

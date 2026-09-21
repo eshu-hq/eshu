@@ -10,4 +10,4 @@
 // application/environment mutation, environment rebuild/terminate, CNAME swap,
 // environment-info data-plane, or configuration-validation operation, proven by
 // a reflective guard test on the apiClient interface.
-package awssdk
+package sdk

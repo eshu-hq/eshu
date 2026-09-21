@@ -26,15 +26,15 @@ type Scanner struct {
 // key, and the CloudWatch Logs log groups the environment publishes Airflow
 // logs to. Apache Airflow configuration option values stay outside the
 // contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("mwaa scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMWAA:
+	case "", aws.ServiceMWAA:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMWAA
+		boundary.ServiceKind = aws.ServiceMWAA
 	default:
 		return nil, fmt.Errorf("mwaa scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -55,14 +55,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func environmentEnvelopes(boundary awscloud.Boundary, environment Environment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(environmentObservation(boundary, environment))
+func environmentEnvelopes(boundary aws.Boundary, environment Environment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(environmentObservation(boundary, environment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range environmentRelationships(boundary, environment) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -71,15 +71,15 @@ func environmentEnvelopes(boundary awscloud.Boundary, environment Environment) (
 	return envelopes, nil
 }
 
-func environmentObservation(boundary awscloud.Boundary, environment Environment) awscloud.ResourceObservation {
+func environmentObservation(boundary aws.Boundary, environment Environment) aws.ResourceObservation {
 	arn := strings.TrimSpace(environment.ARN)
 	name := strings.TrimSpace(environment.Name)
 	resourceID := environmentResourceID(environment)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMWAAEnvironment,
+		ResourceType: aws.ResourceTypeMWAAEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.Status),
 		Tags:         cloneStringMap(environment.Tags),

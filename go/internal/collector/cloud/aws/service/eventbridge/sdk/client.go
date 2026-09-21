@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsevents "github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	awseventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/aws/smithy-go"
@@ -31,15 +31,15 @@ type apiClient interface {
 // Client adapts AWS SDK EventBridge pagination into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an EventBridge SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -80,7 +80,7 @@ func (c *Client) ListEventBuses(ctx context.Context) ([]eventbridgeservice.Event
 			buses = append(buses, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return buses, nil
 		}
 	}
@@ -90,12 +90,12 @@ func (c *Client) busMetadata(
 	ctx context.Context,
 	bus awseventstypes.EventBus,
 ) (eventbridgeservice.EventBus, error) {
-	busARN := aws.ToString(bus.Arn)
+	busARN := awsv2.ToString(bus.Arn)
 	tags, err := c.listTags(ctx, busARN)
 	if err != nil {
 		return eventbridgeservice.EventBus{}, err
 	}
-	busName := aws.ToString(bus.Name)
+	busName := awsv2.ToString(bus.Name)
 	rules, err := c.listRules(ctx, busName)
 	if err != nil {
 		return eventbridgeservice.EventBus{}, err
@@ -103,9 +103,9 @@ func (c *Client) busMetadata(
 	return eventbridgeservice.EventBus{
 		ARN:              strings.TrimSpace(busARN),
 		Name:             strings.TrimSpace(busName),
-		Description:      strings.TrimSpace(aws.ToString(bus.Description)),
-		CreationTime:     aws.ToTime(bus.CreationTime),
-		LastModifiedTime: aws.ToTime(bus.LastModifiedTime),
+		Description:      strings.TrimSpace(awsv2.ToString(bus.Description)),
+		CreationTime:     awsv2.ToTime(bus.CreationTime),
+		LastModifiedTime: awsv2.ToTime(bus.LastModifiedTime),
 		Tags:             cloneStringMap(tags),
 		Rules:            rules,
 	}, nil
@@ -123,7 +123,7 @@ func (c *Client) listRules(ctx context.Context, eventBusName string) ([]eventbri
 		err := c.recordAPICall(ctx, "ListRules", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListRules(callCtx, &awsevents.ListRulesInput{
-				EventBusName: aws.String(eventBusName),
+				EventBusName: awsv2.String(eventBusName),
 				NextToken:    nextToken,
 			})
 			return err
@@ -142,7 +142,7 @@ func (c *Client) listRules(ctx context.Context, eventBusName string) ([]eventbri
 			rules = append(rules, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return rules, nil
 		}
 	}
@@ -153,12 +153,12 @@ func (c *Client) ruleMetadata(
 	eventBusName string,
 	rule awseventstypes.Rule,
 ) (eventbridgeservice.Rule, error) {
-	ruleName := aws.ToString(rule.Name)
+	ruleName := awsv2.ToString(rule.Name)
 	description, err := c.describeRule(ctx, eventBusName, ruleName)
 	if err != nil {
 		return eventbridgeservice.Rule{}, err
 	}
-	ruleARN := firstNonEmpty(aws.ToString(description.Arn), aws.ToString(rule.Arn))
+	ruleARN := firstNonEmpty(awsv2.ToString(description.Arn), awsv2.ToString(rule.Arn))
 	tags, err := c.listTags(ctx, ruleARN)
 	if err != nil {
 		return eventbridgeservice.Rule{}, err
@@ -169,15 +169,15 @@ func (c *Client) ruleMetadata(
 	}
 	return eventbridgeservice.Rule{
 		ARN:                strings.TrimSpace(ruleARN),
-		Name:               strings.TrimSpace(firstNonEmpty(aws.ToString(description.Name), ruleName)),
-		EventBusName:       strings.TrimSpace(firstNonEmpty(aws.ToString(description.EventBusName), aws.ToString(rule.EventBusName), eventBusName)),
-		Description:        strings.TrimSpace(firstNonEmpty(aws.ToString(description.Description), aws.ToString(rule.Description))),
-		EventPattern:       strings.TrimSpace(firstNonEmpty(aws.ToString(description.EventPattern), aws.ToString(rule.EventPattern))),
-		ManagedBy:          strings.TrimSpace(firstNonEmpty(aws.ToString(description.ManagedBy), aws.ToString(rule.ManagedBy))),
-		RoleARN:            strings.TrimSpace(firstNonEmpty(aws.ToString(description.RoleArn), aws.ToString(rule.RoleArn))),
-		ScheduleExpression: strings.TrimSpace(firstNonEmpty(aws.ToString(description.ScheduleExpression), aws.ToString(rule.ScheduleExpression))),
+		Name:               strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.Name), ruleName)),
+		EventBusName:       strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.EventBusName), awsv2.ToString(rule.EventBusName), eventBusName)),
+		Description:        strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.Description), awsv2.ToString(rule.Description))),
+		EventPattern:       strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.EventPattern), awsv2.ToString(rule.EventPattern))),
+		ManagedBy:          strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.ManagedBy), awsv2.ToString(rule.ManagedBy))),
+		RoleARN:            strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.RoleArn), awsv2.ToString(rule.RoleArn))),
+		ScheduleExpression: strings.TrimSpace(firstNonEmpty(awsv2.ToString(description.ScheduleExpression), awsv2.ToString(rule.ScheduleExpression))),
 		State:              strings.TrimSpace(firstNonEmpty(string(description.State), string(rule.State))),
-		CreatedBy:          strings.TrimSpace(aws.ToString(description.CreatedBy)),
+		CreatedBy:          strings.TrimSpace(awsv2.ToString(description.CreatedBy)),
 		Tags:               cloneStringMap(tags),
 		Targets:            targets,
 	}, nil
@@ -195,8 +195,8 @@ func (c *Client) describeRule(
 	err := c.recordAPICall(ctx, "DescribeRule", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeRule(callCtx, &awsevents.DescribeRuleInput{
-			EventBusName: aws.String(eventBusName),
-			Name:         aws.String(ruleName),
+			EventBusName: awsv2.String(eventBusName),
+			Name:         awsv2.String(ruleName),
 		})
 		return err
 	})
@@ -225,9 +225,9 @@ func (c *Client) listTargets(
 		err := c.recordAPICall(ctx, "ListTargetsByRule", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListTargetsByRule(callCtx, &awsevents.ListTargetsByRuleInput{
-				EventBusName: aws.String(eventBusName),
+				EventBusName: awsv2.String(eventBusName),
 				NextToken:    nextToken,
-				Rule:         aws.String(ruleName),
+				Rule:         awsv2.String(ruleName),
 			})
 			return err
 		})
@@ -241,7 +241,7 @@ func (c *Client) listTargets(
 			targets = append(targets, mapTarget(target))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return targets, nil
 		}
 	}
@@ -256,7 +256,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsevents.ListTagsForResourceInput{
-			ResourceARN: aws.String(resourceARN),
+			ResourceARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -271,16 +271,16 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 
 func mapTarget(target awseventstypes.Target) eventbridgeservice.Target {
 	mapped := eventbridgeservice.Target{
-		ID:      strings.TrimSpace(aws.ToString(target.Id)),
-		ARN:     strings.TrimSpace(aws.ToString(target.Arn)),
-		RoleARN: strings.TrimSpace(aws.ToString(target.RoleArn)),
+		ID:      strings.TrimSpace(awsv2.ToString(target.Id)),
+		ARN:     strings.TrimSpace(awsv2.ToString(target.Arn)),
+		RoleARN: strings.TrimSpace(awsv2.ToString(target.RoleArn)),
 	}
 	if target.DeadLetterConfig != nil {
-		mapped.DeadLetterARN = strings.TrimSpace(aws.ToString(target.DeadLetterConfig.Arn))
+		mapped.DeadLetterARN = strings.TrimSpace(awsv2.ToString(target.DeadLetterConfig.Arn))
 	}
 	if target.RetryPolicy != nil {
-		mapped.MaximumEventAgeInSeconds = aws.ToInt32(target.RetryPolicy.MaximumEventAgeInSeconds)
-		mapped.MaximumRetryAttempts = aws.ToInt32(target.RetryPolicy.MaximumRetryAttempts)
+		mapped.MaximumEventAgeInSeconds = awsv2.ToInt32(target.RetryPolicy.MaximumEventAgeInSeconds)
+		mapped.MaximumRetryAttempts = awsv2.ToInt32(target.RetryPolicy.MaximumRetryAttempts)
 	}
 	return mapped
 }
@@ -291,11 +291,11 @@ func tagsMap(tags []awseventstypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil
@@ -348,7 +348,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

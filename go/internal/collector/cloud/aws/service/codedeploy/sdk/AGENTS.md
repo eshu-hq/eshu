@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codedeploy/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codedeploy/sdk guidance
 
 ## Read First
 
@@ -24,7 +24,7 @@
   enforces this.
 - Never copy appspec.yml bodies (`AppSpecContent.Content`, `String_.Content`)
   into `RevisionSummary`.
-- Route on-premises tag values through `awscloud.RedactString`. Do not persist
+- Route on-premises tag values through `aws.RedactString`. Do not persist
   raw on-premises tag values.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
   object that created this adapter.

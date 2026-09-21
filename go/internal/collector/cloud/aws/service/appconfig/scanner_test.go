@@ -77,7 +77,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Application resource node, keyed by the synthesized application ARN.
-	application := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigApplication)
+	application := resourceByType(t, envelopes, aws.ResourceTypeAppConfigApplication)
 	if got, want := application.Payload["resource_id"], wantAppARN; got != want {
 		t.Fatalf("application resource_id = %#v, want %q", got, want)
 	}
@@ -88,7 +88,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, appAttrs, "application_id", testAppID)
 
 	// Environment resource node.
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigEnvironment)
+	environment := resourceByType(t, envelopes, aws.ResourceTypeAppConfigEnvironment)
 	if got, want := environment.Payload["resource_id"], wantEnvARN; got != want {
 		t.Fatalf("environment resource_id = %#v, want %q", got, want)
 	}
@@ -100,7 +100,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, envAttrs, "application_id", testAppID)
 
 	// Configuration profile resource node.
-	profile := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigConfigurationProfile)
+	profile := resourceByType(t, envelopes, aws.ResourceTypeAppConfigConfigurationProfile)
 	if got, want := profile.Payload["resource_id"], wantProfileARN; got != want {
 		t.Fatalf("profile resource_id = %#v, want %q", got, want)
 	}
@@ -110,7 +110,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, profAttrs, "validator_types", []string{"JSON_SCHEMA"})
 
 	// Deployment strategy resource node (account-level).
-	strategy := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigDeploymentStrategy)
+	strategy := resourceByType(t, envelopes, aws.ResourceTypeAppConfigDeploymentStrategy)
 	if got, want := strategy.Payload["resource_id"], wantStrategyARN; got != want {
 		t.Fatalf("strategy resource_id = %#v, want %q", got, want)
 	}
@@ -120,30 +120,30 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 
 	// environment -> application edge, keyed by the application ARN the
 	// application node publishes.
-	envInApp := relationshipByType(t, envelopes, awscloud.RelationshipAppConfigEnvironmentInApplication)
-	assertEdgeTarget(t, envInApp, awscloud.ResourceTypeAppConfigApplication, wantAppARN)
+	envInApp := relationshipByType(t, envelopes, aws.RelationshipAppConfigEnvironmentInApplication)
+	assertEdgeTarget(t, envInApp, aws.ResourceTypeAppConfigApplication, wantAppARN)
 	if got, want := envInApp.Payload["source_resource_id"], wantEnvARN; got != want {
 		t.Fatalf("env->app source_resource_id = %#v, want %q", got, want)
 	}
 
 	// profile -> application edge.
-	profInApp := relationshipByType(t, envelopes, awscloud.RelationshipAppConfigProfileInApplication)
-	assertEdgeTarget(t, profInApp, awscloud.ResourceTypeAppConfigApplication, wantAppARN)
+	profInApp := relationshipByType(t, envelopes, aws.RelationshipAppConfigProfileInApplication)
+	assertEdgeTarget(t, profInApp, aws.ResourceTypeAppConfigApplication, wantAppARN)
 	if got, want := profInApp.Payload["source_resource_id"], wantProfileARN; got != want {
 		t.Fatalf("profile->app source_resource_id = %#v, want %q", got, want)
 	}
 
 	// environment -> CloudWatch alarm edge, keyed by the alarm ARN the
 	// CloudWatch scanner publishes.
-	envAlarm := relationshipByType(t, envelopes, awscloud.RelationshipAppConfigEnvironmentMonitorsAlarm)
-	assertEdgeTarget(t, envAlarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
+	envAlarm := relationshipByType(t, envelopes, aws.RelationshipAppConfigEnvironmentMonitorsAlarm)
+	assertEdgeTarget(t, envAlarm, aws.ResourceTypeCloudWatchAlarm, testAlarmARN)
 	if got, want := envAlarm.Payload["target_arn"], testAlarmARN; got != want {
 		t.Fatalf("env->alarm target_arn = %#v, want %q", got, want)
 	}
 
 	// environment -> IAM role edge (monitor alarm role).
-	envRole := relationshipByType(t, envelopes, awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole)
-	assertEdgeTarget(t, envRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	envRole := relationshipByType(t, envelopes, aws.RelationshipAppConfigEnvironmentUsesMonitorRole)
+	assertEdgeTarget(t, envRole, aws.ResourceTypeIAMRole, testRoleARN)
 
 	// No configuration content / values anywhere in the resource payloads.
 	for _, envelope := range envelopes {
@@ -180,7 +180,7 @@ func TestScannerSynthesizesGovCloudARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigEnvironment)
+	environment := resourceByType(t, envelopes, aws.ResourceTypeAppConfigEnvironment)
 	wantARN := "arn:aws-us-gov:appconfig:us-gov-west-1:123456789012:application/" + testAppID + "/environment/" + testEnvID
 	if got := environment.Payload["resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud environment resource_id = %#v, want %q", got, wantARN)
@@ -199,7 +199,7 @@ func TestScannerSynthesizesChinaARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	application := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigApplication)
+	application := resourceByType(t, envelopes, aws.ResourceTypeAppConfigApplication)
 	wantARN := "arn:aws-cn:appconfig:cn-north-1:123456789012:application/" + testAppID
 	if got := application.Payload["arn"]; got != wantARN {
 		t.Fatalf("China application arn = %#v, want %q", got, wantARN)
@@ -244,12 +244,12 @@ func TestScannerOmitsMonitorRoleEdgeForNonARNRole(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	// The alarm edge is still emitted; the role edge is skipped, not dangled.
-	relationshipByType(t, envelopes, awscloud.RelationshipAppConfigEnvironmentMonitorsAlarm)
+	relationshipByType(t, envelopes, aws.RelationshipAppConfigEnvironmentMonitorsAlarm)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipAppConfigEnvironmentUsesMonitorRole {
 			t.Fatalf("monitor-role edge emitted for non-ARN role identifier")
 		}
 	}
@@ -267,7 +267,7 @@ func TestScannerEmitsDeploymentStrategyWithoutApplication(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	strategy := resourceByType(t, envelopes, awscloud.ResourceTypeAppConfigDeploymentStrategy)
+	strategy := resourceByType(t, envelopes, aws.ResourceTypeAppConfigDeploymentStrategy)
 	if got, want := strategy.Payload["resource_id"], wantStrategyARN; got != want {
 		t.Fatalf("strategy resource_id = %#v, want %q", got, want)
 	}
@@ -279,8 +279,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	envARN := environmentARN(boundary, testAppID, testEnvID)
 	profARN := profileARN(boundary, testAppID, testProfileID)
 	monitor := Monitor{AlarmARN: testAlarmARN, AlarmRoleARN: testRoleARN}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		environmentInApplicationRelationship(boundary, envARN, appARN),
 		profileInApplicationRelationship(boundary, profARN, appARN),
 		environmentMonitorsAlarmRelationship(boundary, envARN, monitor),
@@ -296,7 +296,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -314,9 +314,9 @@ func TestScannerRequiresClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Applications: []Application{{ID: testAppID, Name: "checkout"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "AppConfig ListEnvironments throttled after SDK retries; environment metadata omitted for this scan",
 			SourceRecordID: "appconfig_environments_throttled",
@@ -327,17 +327,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppConfig,
+		ServiceKind:         aws.ServiceAppConfig,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appconfig:1",
 		CollectorInstanceID: "aws-prod",

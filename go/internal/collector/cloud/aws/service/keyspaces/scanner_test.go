@@ -66,7 +66,7 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	keyspace := resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesKeyspace)
+	keyspace := resourceByType(t, envelopes, aws.ResourceTypeKeyspacesKeyspace)
 	if got, want := keyspace.Payload["resource_id"], testKeyspaceARN; got != want {
 		t.Fatalf("keyspace resource_id = %#v, want %q", got, want)
 	}
@@ -76,7 +76,7 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 	ksAttrs := attributesOf(t, keyspace)
 	assertAttribute(t, ksAttrs, "replication_strategy", "SINGLE_REGION")
 
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesTable)
+	table := resourceByType(t, envelopes, aws.ResourceTypeKeyspacesTable)
 	if got, want := table.Payload["resource_id"], testTableARN; got != want {
 		t.Fatalf("table resource_id = %#v, want %q", got, want)
 	}
@@ -121,22 +121,22 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 		}
 	}
 
-	inKeyspace := relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableInKeyspace)
+	inKeyspace := relationshipByType(t, envelopes, aws.RelationshipKeyspacesTableInKeyspace)
 	if got, want := inKeyspace.Payload["target_resource_id"], testKeyspaceARN; got != want {
 		t.Fatalf("table-in-keyspace target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := inKeyspace.Payload["target_type"], awscloud.ResourceTypeKeyspacesKeyspace; got != want {
+	if got, want := inKeyspace.Payload["target_type"], aws.ResourceTypeKeyspacesKeyspace; got != want {
 		t.Fatalf("table-in-keyspace target_type = %#v, want %q", got, want)
 	}
 	if got, want := inKeyspace.Payload["target_arn"], testKeyspaceARN; got != want {
 		t.Fatalf("table-in-keyspace target_arn = %#v, want %q", got, want)
 	}
 
-	usesKMS := relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableUsesKMSKey)
+	usesKMS := relationshipByType(t, envelopes, aws.RelationshipKeyspacesTableUsesKMSKey)
 	if got, want := usesKMS.Payload["target_resource_id"], testKMSARN; got != want {
 		t.Fatalf("table-uses-kms target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := usesKMS.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := usesKMS.Payload["target_type"], aws.ResourceTypeKMSKey; got != want {
 		t.Fatalf("table-uses-kms target_type = %#v, want %q", got, want)
 	}
 	if got, want := usesKMS.Payload["target_arn"], testKMSARN; got != want {
@@ -167,12 +167,12 @@ func TestScannerOmitsKMSEdgeForAWSOwnedKey(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipKeyspacesTableUsesKMSKey {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipKeyspacesTableUsesKMSKey {
 			t.Fatalf("KMS edge emitted for AWS-owned key; want none")
 		}
 	}
 	// The table-in-keyspace edge must still be present.
-	relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableInKeyspace)
+	relationshipByType(t, envelopes, aws.RelationshipKeyspacesTableInKeyspace)
 }
 
 func TestTableKeyspaceRelationshipDerivesPartitionFromTableARN(t *testing.T) {
@@ -212,8 +212,8 @@ func TestTableKeyspaceRelationshipDerivesPartitionFromTableARN(t *testing.T) {
 			if obs.TargetARN != tc.wantKSARN {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.wantKSARN)
 			}
-			if obs.TargetType != awscloud.ResourceTypeKeyspacesKeyspace {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeKeyspacesKeyspace)
+			if obs.TargetType != aws.ResourceTypeKeyspacesKeyspace {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeKeyspacesKeyspace)
 			}
 		})
 	}
@@ -239,7 +239,7 @@ func TestTableKMSRelationshipDoesNotTreatNonARNIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -250,9 +250,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Keyspaces: []Keyspace{{Name: "orders", ARN: testKeyspaceARN, ReplicationStrategy: "SINGLE_REGION"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Keyspaces GetTable throttled after SDK retries; table metadata omitted for this scan",
 			SourceRecordID: "keyspaces_get_table_throttled",
@@ -264,18 +264,18 @@ func TestScannerEmitsWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
-	resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesKeyspace)
+	resourceByType(t, envelopes, aws.ResourceTypeKeyspacesKeyspace)
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKeyspaces,
+		ServiceKind:         aws.ServiceKeyspaces,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:keyspaces:1",
 		CollectorInstanceID: "aws-prod",

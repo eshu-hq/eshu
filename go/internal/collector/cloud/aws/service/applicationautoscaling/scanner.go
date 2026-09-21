@@ -28,15 +28,15 @@ type Scanner struct {
 // Scan observes Application Auto Scaling scalable targets, scaling policies, and
 // scheduled actions plus their resolvable resource dependencies through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("applicationautoscaling scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceApplicationAutoScaling:
+	case "", aws.ServiceApplicationAutoScaling:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceApplicationAutoScaling
+		boundary.ServiceKind = aws.ServiceApplicationAutoScaling
 	default:
 		return nil, fmt.Errorf("applicationautoscaling scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -80,12 +80,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 // and payloads aligned with the resource and relationship facts Scan emits.
 func appendWarnings(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
-	observations []awscloud.WarningObservation,
+	boundary aws.Boundary,
+	observations []aws.WarningObservation,
 ) error {
 	for _, observation := range observations {
 		observation.Boundary.ServiceKind = boundary.ServiceKind
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -94,14 +94,14 @@ func appendWarnings(
 	return nil
 }
 
-func scalableTargetEnvelopes(boundary awscloud.Boundary, target ScalableTarget) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scalableTargetObservation(boundary, target))
+func scalableTargetEnvelopes(boundary aws.Boundary, target ScalableTarget) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scalableTargetObservation(boundary, target))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := targetScalesResourceRelationship(boundary, target); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -110,21 +110,21 @@ func scalableTargetEnvelopes(boundary awscloud.Boundary, target ScalableTarget) 
 	return envelopes, nil
 }
 
-func scalingPolicyEnvelopes(boundary awscloud.Boundary, policy ScalingPolicy) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scalingPolicyObservation(boundary, policy))
+func scalingPolicyEnvelopes(boundary aws.Boundary, policy ScalingPolicy) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scalingPolicyObservation(boundary, policy))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := policyForScalableTargetRelationship(boundary, policy); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, relationship := range policyAlarmRelationships(boundary, policy) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -133,14 +133,14 @@ func scalingPolicyEnvelopes(boundary awscloud.Boundary, policy ScalingPolicy) ([
 	return envelopes, nil
 }
 
-func scheduledActionEnvelopes(boundary awscloud.Boundary, action ScheduledAction) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scheduledActionObservation(boundary, action))
+func scheduledActionEnvelopes(boundary aws.Boundary, action ScheduledAction) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scheduledActionObservation(boundary, action))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := scheduledActionForScalableTargetRelationship(boundary, action); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -149,15 +149,15 @@ func scheduledActionEnvelopes(boundary awscloud.Boundary, action ScheduledAction
 	return envelopes, nil
 }
 
-func scalableTargetObservation(boundary awscloud.Boundary, target ScalableTarget) awscloud.ResourceObservation {
+func scalableTargetObservation(boundary aws.Boundary, target ScalableTarget) aws.ResourceObservation {
 	targetARN := strings.TrimSpace(target.ARN)
 	resourceID := scalableTargetResourceID(target.ServiceNamespace, target.ScalableDimension, target.ResourceID)
 	name := strings.TrimSpace(target.ResourceID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          targetARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
+		ResourceType: aws.ResourceTypeApplicationAutoScalingScalableTarget,
 		Name:         name,
 		Attributes: map[string]any{
 			"service_namespace":             strings.TrimSpace(target.ServiceNamespace),
@@ -176,15 +176,15 @@ func scalableTargetObservation(boundary awscloud.Boundary, target ScalableTarget
 	}
 }
 
-func scalingPolicyObservation(boundary awscloud.Boundary, policy ScalingPolicy) awscloud.ResourceObservation {
+func scalingPolicyObservation(boundary aws.Boundary, policy ScalingPolicy) aws.ResourceObservation {
 	policyARN := strings.TrimSpace(policy.ARN)
 	resourceID := policyResourceID(policy)
 	name := strings.TrimSpace(policy.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          policyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeApplicationAutoScalingScalingPolicy,
+		ResourceType: aws.ResourceTypeApplicationAutoScalingScalingPolicy,
 		Name:         name,
 		Attributes: map[string]any{
 			"policy_type":        strings.TrimSpace(policy.PolicyType),
@@ -199,15 +199,15 @@ func scalingPolicyObservation(boundary awscloud.Boundary, policy ScalingPolicy) 
 	}
 }
 
-func scheduledActionObservation(boundary awscloud.Boundary, action ScheduledAction) awscloud.ResourceObservation {
+func scheduledActionObservation(boundary aws.Boundary, action ScheduledAction) aws.ResourceObservation {
 	actionARN := strings.TrimSpace(action.ARN)
 	resourceID := scheduledActionResourceID(action)
 	name := strings.TrimSpace(action.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          actionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeApplicationAutoScalingScheduledAction,
+		ResourceType: aws.ResourceTypeApplicationAutoScalingScheduledAction,
 		Name:         name,
 		Attributes: map[string]any{
 			"service_namespace":  strings.TrimSpace(action.ServiceNamespace),

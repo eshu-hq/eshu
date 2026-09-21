@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsevents "github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	awseventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 
@@ -22,56 +22,56 @@ func TestClientListEventBusesReadsSafeMetadataRulesTargetsAndTags(t *testing.T) 
 	client := &fakeEventBridgeAPI{
 		eventBusPages: []*awsevents.ListEventBusesOutput{{
 			EventBuses: []awseventstypes.EventBus{{
-				Arn:              aws.String(busARN),
-				Name:             aws.String("orders"),
-				Description:      aws.String("orders bus"),
-				CreationTime:     aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
-				LastModifiedTime: aws.Time(time.Date(2026, 5, 14, 16, 10, 0, 0, time.UTC)),
-				Policy:           aws.String(`{"Statement":[{"Effect":"Allow"}]}`),
+				Arn:              awsv2.String(busARN),
+				Name:             awsv2.String("orders"),
+				Description:      awsv2.String("orders bus"),
+				CreationTime:     awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+				LastModifiedTime: awsv2.Time(time.Date(2026, 5, 14, 16, 10, 0, 0, time.UTC)),
+				Policy:           awsv2.String(`{"Statement":[{"Effect":"Allow"}]}`),
 			}},
 		}},
 		rulePages: []*awsevents.ListRulesOutput{{
 			Rules: []awseventstypes.Rule{{
-				Arn:                aws.String(ruleARN),
-				Name:               aws.String("route-orders"),
-				EventBusName:       aws.String("orders"),
-				Description:        aws.String("route order events"),
-				EventPattern:       aws.String(`{"source":["orders"]}`),
-				ManagedBy:          aws.String("events.amazonaws.com"),
-				RoleArn:            aws.String("arn:aws:iam::123456789012:role/eventbridge-route-orders"),
-				ScheduleExpression: aws.String("rate(5 minutes)"),
+				Arn:                awsv2.String(ruleARN),
+				Name:               awsv2.String("route-orders"),
+				EventBusName:       awsv2.String("orders"),
+				Description:        awsv2.String("route order events"),
+				EventPattern:       awsv2.String(`{"source":["orders"]}`),
+				ManagedBy:          awsv2.String("events.amazonaws.com"),
+				RoleArn:            awsv2.String("arn:aws:iam::123456789012:role/eventbridge-route-orders"),
+				ScheduleExpression: awsv2.String("rate(5 minutes)"),
 				State:              awseventstypes.RuleStateEnabled,
 			}},
 		}},
 		describeRuleOutput: &awsevents.DescribeRuleOutput{
-			Arn:       aws.String(ruleARN),
-			CreatedBy: aws.String("123456789012"),
+			Arn:       awsv2.String(ruleARN),
+			CreatedBy: awsv2.String("123456789012"),
 		},
 		targetPages: []*awsevents.ListTargetsByRuleOutput{{
 			Targets: []awseventstypes.Target{{
-				Arn: aws.String(targetARN),
-				Id:  aws.String("lambda-target"),
-				Input: aws.String(`{
+				Arn: awsv2.String(targetARN),
+				Id:  awsv2.String("lambda-target"),
+				Input: awsv2.String(`{
 				  "customerEmail":"owner@example.com"
 				}`),
-				InputPath:        aws.String("$.detail"),
-				InputTransformer: &awseventstypes.InputTransformer{InputTemplate: aws.String("<secret>")},
+				InputPath:        awsv2.String("$.detail"),
+				InputTransformer: &awseventstypes.InputTransformer{InputTemplate: awsv2.String("<secret>")},
 				HttpParameters:   &awseventstypes.HttpParameters{HeaderParameters: map[string]string{"Authorization": "Bearer secret"}},
 				DeadLetterConfig: &awseventstypes.DeadLetterConfig{
-					Arn: aws.String("arn:aws:sqs:us-east-1:123456789012:eventbridge-dlq"),
+					Arn: awsv2.String("arn:aws:sqs:us-east-1:123456789012:eventbridge-dlq"),
 				},
 				RetryPolicy: &awseventstypes.RetryPolicy{
-					MaximumEventAgeInSeconds: aws.Int32(3600),
-					MaximumRetryAttempts:     aws.Int32(4),
+					MaximumEventAgeInSeconds: awsv2.Int32(3600),
+					MaximumRetryAttempts:     awsv2.Int32(4),
 				},
-				RoleArn: aws.String("arn:aws:iam::123456789012:role/eventbridge-target"),
+				RoleArn: awsv2.String("arn:aws:iam::123456789012:role/eventbridge-target"),
 			}},
 		}},
-		tags: []awseventstypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		tags: []awseventstypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEventBridge},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceEventBridge},
 	}
 
 	buses, err := adapter.ListEventBuses(context.Background())
@@ -139,7 +139,7 @@ func (f *fakeEventBridgeAPI) ListRules(
 	input *awsevents.ListRulesInput,
 	_ ...func(*awsevents.Options),
 ) (*awsevents.ListRulesOutput, error) {
-	if aws.ToString(input.EventBusName) == "" {
+	if awsv2.ToString(input.EventBusName) == "" {
 		return nil, nil
 	}
 	if f.ruleCalls >= len(f.rulePages) {
@@ -155,7 +155,7 @@ func (f *fakeEventBridgeAPI) DescribeRule(
 	input *awsevents.DescribeRuleInput,
 	_ ...func(*awsevents.Options),
 ) (*awsevents.DescribeRuleOutput, error) {
-	if aws.ToString(input.Name) == "" {
+	if awsv2.ToString(input.Name) == "" {
 		return nil, nil
 	}
 	return f.describeRuleOutput, nil
@@ -166,7 +166,7 @@ func (f *fakeEventBridgeAPI) ListTargetsByRule(
 	input *awsevents.ListTargetsByRuleInput,
 	_ ...func(*awsevents.Options),
 ) (*awsevents.ListTargetsByRuleOutput, error) {
-	if aws.ToString(input.Rule) == "" {
+	if awsv2.ToString(input.Rule) == "" {
 		return nil, nil
 	}
 	if f.targetCalls >= len(f.targetPages) {
@@ -182,7 +182,7 @@ func (f *fakeEventBridgeAPI) ListTagsForResource(
 	input *awsevents.ListTagsForResourceInput,
 	_ ...func(*awsevents.Options),
 ) (*awsevents.ListTagsForResourceOutput, error) {
-	if aws.ToString(input.ResourceARN) == "" {
+	if awsv2.ToString(input.ResourceARN) == "" {
 		return nil, nil
 	}
 	return &awsevents.ListTagsForResourceOutput{Tags: f.tags}, nil

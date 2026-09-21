@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cleanrooms/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/cleanrooms/sdk` adapts AWS SDK for Go
 v2 Clean Rooms responses to the scanner-owned `Client` contract. It owns
 collaboration pagination, configured-table pagination plus the single
 configured-table detail read needed to resolve the Glue backing-table reference,
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/cleanrooms` for scanner-owned result
+- `internal/collector/cloud/aws/service/cleanrooms` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `cleanrooms` and Smithy error contracts.

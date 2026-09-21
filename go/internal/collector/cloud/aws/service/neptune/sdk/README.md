@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/neptune/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/neptune/sdk` adapts AWS SDK for Go v2
 Amazon Neptune and Neptune Analytics responses to the scanner-owned `Client`
 contract. It owns Neptune pagination, resource tag reads, graph detail
 resolution, throttle classification, and per-call AWS API telemetry.
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/neptune` for scanner-owned result
+- `internal/collector/cloud/aws/service/neptune` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `neptune`, `neptunegraph`, and Smithy error contracts.

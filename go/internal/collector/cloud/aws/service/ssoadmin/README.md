@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ssoadmin` owns the AWS IAM Identity
+`internal/collector/cloud/aws/service/ssoadmin` owns the AWS IAM Identity
 Center (formerly AWS SSO) scanner contract for the AWS cloud collector. It
 converts Identity Center instance, permission set, account assignment,
 application instance, trusted token issuer, and resolved principal metadata into
@@ -33,7 +33,7 @@ See `doc.go` for the godoc contract.
 - `Client` - minimal Identity Center metadata read surface consumed by
   `Scanner`, exposing only `Snapshot`.
 - `Scanner` - emits Identity Center metadata facts and redacts principal display
-  names through `awscloud.RedactString`. Requires a non-zero redaction key.
+  names through `aws.RedactString`. Requires a non-zero redaction key.
 - `Snapshot` - one metadata-only Identity Center view for a claimed account.
 - `Instance`, `PermissionSet`, `AccountAssignment`, `Application`,
   `TrustedTokenIssuer`, `Principal`, `ManagedPolicyReference`, and
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, warning constants, redaction helper, and envelope
   builders.
 - `internal/facts` for emitted fact envelope kinds.
@@ -53,9 +53,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration, emitted resource counts, and relationship counts after
-`Scanner.Scan` returns. The `awssdk` adapter records sso-admin and
+`Scanner.Scan` returns. The `sdk` adapter records sso-admin and
 identitystore API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -90,7 +90,7 @@ identitystore API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/ssoadmin/... -count=1 -race`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/ssoadmin/... -count=1 -race`
 passed on 2026-05-28 against `origin/main` commit `b8ecec00`. The fixture input
 is one in-memory Identity Center snapshot with one instance, one permission set
 with managed and customer-managed policy references, one account assignment, one
@@ -99,7 +99,7 @@ no Postgres queue rows and no graph backend. The scanner emits in-memory fact
 envelopes only, so there is no added graph write, worker claim fanout, lease
 contention, or reducer queue pressure in this package.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Identity Center metadata fact emission, inline-policy-body exclusion,
 application access-scope exclusion, principal display-name redaction,
 no-instance and access-skip warning behavior, runtime registration, command

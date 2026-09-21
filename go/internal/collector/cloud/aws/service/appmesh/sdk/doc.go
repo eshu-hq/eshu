@@ -19,4 +19,4 @@
 // names) are not read. HTTP header match values are passed through to the
 // scanner verbatim because the scanner, which holds the redaction key, owns the
 // redaction decision.
-package awssdk
+package sdk

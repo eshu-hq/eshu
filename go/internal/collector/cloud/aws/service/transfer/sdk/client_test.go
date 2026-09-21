@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awstransfer "github.com/aws/aws-sdk-go-v2/service/transfer"
 	awstransfertypes "github.com/aws/aws-sdk-go-v2/service/transfer/types"
 
@@ -20,27 +20,27 @@ func TestClientListServersMapsSafeServerMetadataOnly(t *testing.T) {
 	serverID := "s-0123456789abcdef0"
 	api := &fakeTransferAPI{
 		serverPages: []*awstransfer.ListServersOutput{{
-			Servers: []awstransfertypes.ListedServer{{ServerId: aws.String(serverID)}},
+			Servers: []awstransfertypes.ListedServer{{ServerId: awsv2.String(serverID)}},
 		}},
 		describedServers: map[string]*awstransfertypes.DescribedServer{
 			serverID: {
-				Arn:                  aws.String("arn:aws:transfer:us-east-1:123456789012:server/" + serverID),
-				ServerId:             aws.String(serverID),
+				Arn:                  awsv2.String("arn:aws:transfer:us-east-1:123456789012:server/" + serverID),
+				ServerId:             awsv2.String(serverID),
 				Domain:               awstransfertypes.DomainS3,
 				EndpointType:         awstransfertypes.EndpointTypeVpc,
 				IdentityProviderType: awstransfertypes.IdentityProviderTypeServiceManaged,
 				State:                awstransfertypes.StateOnline,
 				Protocols:            []awstransfertypes.Protocol{awstransfertypes.ProtocolSftp, awstransfertypes.ProtocolFtps},
-				UserCount:            aws.Int32(2),
-				Certificate:          aws.String("arn:aws:acm:us-east-1:123456789012:certificate/abcd"),
-				LoggingRole:          aws.String("arn:aws:iam::123456789012:role/transfer-logging"),
-				HostKeyFingerprint:   aws.String("SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+				UserCount:            awsv2.Int32(2),
+				Certificate:          awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/abcd"),
+				LoggingRole:          awsv2.String("arn:aws:iam::123456789012:role/transfer-logging"),
+				HostKeyFingerprint:   awsv2.String("SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
 				StructuredLogDestinations: []string{
 					"arn:aws:logs:us-east-1:123456789012:log-group:/aws/transfer/" + serverID,
 				},
 				EndpointDetails: &awstransfertypes.EndpointDetails{
-					VpcEndpointId:        aws.String("vpce-0a1b2c3d"),
-					VpcId:                aws.String("vpc-0123"),
+					VpcEndpointId:        awsv2.String("vpce-0a1b2c3d"),
+					VpcId:                awsv2.String("vpc-0123"),
 					AddressAllocationIds: []string{"eipalloc-0123"},
 					SubnetIds:            []string{"subnet-1"},
 					SecurityGroupIds:     []string{"sg-1"},
@@ -83,30 +83,30 @@ func TestClientListUsersMapsSafeUserMetadataOnly(t *testing.T) {
 	serverID := "s-0123456789abcdef0"
 	api := &fakeTransferAPI{
 		serverPages: []*awstransfer.ListServersOutput{{
-			Servers: []awstransfertypes.ListedServer{{ServerId: aws.String(serverID)}},
+			Servers: []awstransfertypes.ListedServer{{ServerId: awsv2.String(serverID)}},
 		}},
 		userPages: map[string][]*awstransfer.ListUsersOutput{
 			serverID: {{
-				Users: []awstransfertypes.ListedUser{{UserName: aws.String("sftp-user")}},
+				Users: []awstransfertypes.ListedUser{{UserName: awsv2.String("sftp-user")}},
 			}},
 		},
 		describedUsers: map[string]*awstransfertypes.DescribedUser{
 			serverID + "/sftp-user": {
-				Arn:               aws.String("arn:aws:transfer:us-east-1:123456789012:user/" + serverID + "/sftp-user"),
-				UserName:          aws.String("sftp-user"),
-				HomeDirectory:     aws.String("/landing/home/sftp-user"),
+				Arn:               awsv2.String("arn:aws:transfer:us-east-1:123456789012:user/" + serverID + "/sftp-user"),
+				UserName:          awsv2.String("sftp-user"),
+				HomeDirectory:     awsv2.String("/landing/home/sftp-user"),
 				HomeDirectoryType: awstransfertypes.HomeDirectoryTypePath,
-				Role:              aws.String("arn:aws:iam::123456789012:role/transfer-access"),
-				Policy:            aws.String(`{"Version":"2012-10-17","Statement":[]}`),
-				PosixProfile:      &awstransfertypes.PosixProfile{Uid: aws.Int64(1000), Gid: aws.Int64(1000)},
+				Role:              awsv2.String("arn:aws:iam::123456789012:role/transfer-access"),
+				Policy:            awsv2.String(`{"Version":"2012-10-17","Statement":[]}`),
+				PosixProfile:      &awstransfertypes.PosixProfile{Uid: awsv2.Int64(1000), Gid: awsv2.Int64(1000)},
 				SshPublicKeys: []awstransfertypes.SshPublicKey{{
-					SshPublicKeyId:   aws.String("key-0001"),
-					SshPublicKeyBody: aws.String("ssh-rsa AAAAB3Nza..."),
-					DateImported:     aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+					SshPublicKeyId:   awsv2.String("key-0001"),
+					SshPublicKeyBody: awsv2.String("ssh-rsa AAAAB3Nza..."),
+					DateImported:     awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 				}},
 				HomeDirectoryMappings: []awstransfertypes.HomeDirectoryMapEntry{{
-					Entry:  aws.String("/"),
-					Target: aws.String("/landing/home/sftp-user"),
+					Entry:  awsv2.String("/"),
+					Target: awsv2.String("/landing/home/sftp-user"),
 				}},
 			},
 		},
@@ -142,11 +142,11 @@ func TestClientListUsersMapsSafeUserMetadataOnly(t *testing.T) {
 	assertNoCredentialField(t, user)
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceTransfer,
+		ServiceKind: aws.ServiceTransfer,
 	}
 }
 
@@ -158,16 +158,16 @@ func TestListServersMemoizedAcrossListServersAndListUsers(t *testing.T) {
 	serverID := "s-0123456789abcdef0"
 	api := &fakeTransferAPI{
 		serverPages: []*awstransfer.ListServersOutput{{
-			Servers: []awstransfertypes.ListedServer{{ServerId: aws.String(serverID)}},
+			Servers: []awstransfertypes.ListedServer{{ServerId: awsv2.String(serverID)}},
 		}},
 		describedServers: map[string]*awstransfertypes.DescribedServer{
 			serverID: {
-				Arn:      aws.String("arn:aws:transfer:us-east-1:123456789012:server/" + serverID),
-				ServerId: aws.String(serverID),
+				Arn:      awsv2.String("arn:aws:transfer:us-east-1:123456789012:server/" + serverID),
+				ServerId: awsv2.String(serverID),
 			},
 		},
 		userPages: map[string][]*awstransfer.ListUsersOutput{
-			serverID: {{Users: []awstransfertypes.ListedUser{{UserName: aws.String("u")}}}},
+			serverID: {{Users: []awstransfertypes.ListedUser{{UserName: awsv2.String("u")}}}},
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -204,11 +204,11 @@ func (f *fakeTransferAPI) ListServers(_ context.Context, _ *awstransfer.ListServ
 }
 
 func (f *fakeTransferAPI) DescribeServer(_ context.Context, input *awstransfer.DescribeServerInput, _ ...func(*awstransfer.Options)) (*awstransfer.DescribeServerOutput, error) {
-	return &awstransfer.DescribeServerOutput{Server: f.describedServers[aws.ToString(input.ServerId)]}, nil
+	return &awstransfer.DescribeServerOutput{Server: f.describedServers[awsv2.ToString(input.ServerId)]}, nil
 }
 
 func (f *fakeTransferAPI) ListUsers(_ context.Context, input *awstransfer.ListUsersInput, _ ...func(*awstransfer.Options)) (*awstransfer.ListUsersOutput, error) {
-	serverID := aws.ToString(input.ServerId)
+	serverID := awsv2.ToString(input.ServerId)
 	if f.userCursors == nil {
 		f.userCursors = map[string]int{}
 	}
@@ -222,7 +222,7 @@ func (f *fakeTransferAPI) ListUsers(_ context.Context, input *awstransfer.ListUs
 }
 
 func (f *fakeTransferAPI) DescribeUser(_ context.Context, input *awstransfer.DescribeUserInput, _ ...func(*awstransfer.Options)) (*awstransfer.DescribeUserOutput, error) {
-	key := aws.ToString(input.ServerId) + "/" + aws.ToString(input.UserName)
+	key := awsv2.ToString(input.ServerId) + "/" + awsv2.ToString(input.UserName)
 	return &awstransfer.DescribeUserOutput{User: f.describedUsers[key]}, nil
 }
 

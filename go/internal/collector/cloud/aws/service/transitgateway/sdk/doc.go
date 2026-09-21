@@ -13,4 +13,4 @@
 // apiClient interface, and a reflect-driven test pins that boundary against
 // regressions. The adapter also never reads transit gateway routes or policy
 // table entries.
-package awssdk
+package sdk

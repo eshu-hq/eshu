@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	awsssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
@@ -23,34 +23,34 @@ func TestClientListsSSMParameterMetadataOnly(t *testing.T) {
 	api := &fakeSSMAPI{
 		pages: []*awsssm.DescribeParametersOutput{{
 			Parameters: []awsssmtypes.ParameterMetadata{{
-				ARN:              aws.String(parameterARN),
-				Name:             aws.String("/orders/db/password"),
+				ARN:              awsv2.String(parameterARN),
+				Name:             awsv2.String("/orders/db/password"),
 				Type:             awsssmtypes.ParameterTypeSecureString,
 				Tier:             awsssmtypes.ParameterTierAdvanced,
-				DataType:         aws.String("text"),
-				KeyId:            aws.String(kmsARN),
-				LastModifiedDate: aws.Time(modifiedAt),
-				Description:      aws.String("database password"),
-				AllowedPattern:   aws.String("^prod-.*$"),
+				DataType:         awsv2.String("text"),
+				KeyId:            awsv2.String(kmsARN),
+				LastModifiedDate: awsv2.Time(modifiedAt),
+				Description:      awsv2.String("database password"),
+				AllowedPattern:   awsv2.String("^prod-.*$"),
 				Policies: []awsssmtypes.ParameterInlinePolicy{{
-					PolicyType:   aws.String("Expiration"),
-					PolicyStatus: aws.String("Pending"),
-					PolicyText:   aws.String(`{"secret":"do-not-store"}`),
+					PolicyType:   awsv2.String("Expiration"),
+					PolicyStatus: awsv2.String("Pending"),
+					PolicyText:   awsv2.String(`{"secret":"do-not-store"}`),
 				}},
 				Version: 7,
 			}},
-			NextToken: aws.String("parameters-next"),
+			NextToken: awsv2.String("parameters-next"),
 		}, {
 			Parameters: []awsssmtypes.ParameterMetadata{{
-				ARN:  aws.String("arn:aws:ssm:us-east-1:123456789012:parameter/payments/db/password"),
-				Name: aws.String("/payments/db/password"),
+				ARN:  awsv2.String("arn:aws:ssm:us-east-1:123456789012:parameter/payments/db/password"),
+				Name: awsv2.String("/payments/db/password"),
 				Type: awsssmtypes.ParameterTypeSecureString,
 			}},
 		}},
 		tags: map[string][]awsssmtypes.Tag{
 			"/orders/db/password": {{
-				Key:   aws.String("Environment"),
-				Value: aws.String("prod"),
+				Key:   awsv2.String("Environment"),
+				Value: awsv2.String("prod"),
 			}},
 		},
 	}
@@ -98,11 +98,11 @@ func TestClientListsSSMParameterMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSSM,
+		ServiceKind: aws.ServiceSSM,
 	}
 }
 
@@ -121,8 +121,8 @@ func (f *fakeSSMAPI) DescribeParameters(
 	input *awsssm.DescribeParametersInput,
 	_ ...func(*awsssm.Options),
 ) (*awsssm.DescribeParametersOutput, error) {
-	f.maxResults = append(f.maxResults, aws.ToInt32(input.MaxResults))
-	f.nextTokens = append(f.nextTokens, aws.ToString(input.NextToken))
+	f.maxResults = append(f.maxResults, awsv2.ToInt32(input.MaxResults))
+	f.nextTokens = append(f.nextTokens, awsv2.ToString(input.NextToken))
 	if f.calls >= len(f.pages) {
 		return &awsssm.DescribeParametersOutput{}, nil
 	}
@@ -136,7 +136,7 @@ func (f *fakeSSMAPI) ListTagsForResource(
 	input *awsssm.ListTagsForResourceInput,
 	_ ...func(*awsssm.Options),
 ) (*awsssm.ListTagsForResourceOutput, error) {
-	resourceID := aws.ToString(input.ResourceId)
+	resourceID := awsv2.ToString(input.ResourceId)
 	f.tagResourceIDs = append(f.tagResourceIDs, resourceID)
 	f.tagResourceTypes = append(f.tagResourceTypes, input.ResourceType)
 	return &awsssm.ListTagsForResourceOutput{TagList: f.tags[resourceID]}, nil

@@ -12,4 +12,4 @@
 // (DescribeSessions, DescribeUsers, DescribeUserStackAssociations), so the
 // adapter cannot mutate AppStream state or read streaming-session, user, or
 // credential content.
-package awssdk
+package sdk

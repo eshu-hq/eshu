@@ -60,39 +60,39 @@ func TestScannerEmitsDomainsRepositoriesAndRelationships(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 4", counts[facts.AWSRelationshipFactKind])
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeCodeArtifactDomain)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeCodeArtifactRepository)
+	assertResourceType(t, envelopes, aws.ResourceTypeCodeArtifactDomain)
+	assertResourceType(t, envelopes, aws.ResourceTypeCodeArtifactRepository)
 
 	repoID := "arn:aws:codeartifact:us-east-1:123456789012:repository/acme/team-npm"
 
 	// repository -> domain: target_type aws_codeartifact_domain, target keyed by
 	// the domain name the domain resource publishes as its resource_id.
 	assertRelationship(t, envelopes, relationshipMatch{
-		relType:    awscloud.RelationshipCodeArtifactRepositoryInDomain,
+		relType:    aws.RelationshipCodeArtifactRepositoryInDomain,
 		sourceID:   repoID,
 		targetID:   "acme",
-		targetType: awscloud.ResourceTypeCodeArtifactDomain,
+		targetType: aws.ResourceTypeCodeArtifactDomain,
 	})
 	// domain -> KMS key: target_type aws_kms_key, ARN-keyed so it joins the KMS
 	// key node directly.
 	assertRelationship(t, envelopes, relationshipMatch{
-		relType:    awscloud.RelationshipCodeArtifactDomainUsesKMSKey,
+		relType:    aws.RelationshipCodeArtifactDomainUsesKMSKey,
 		sourceID:   "acme",
 		targetID:   "arn:aws:kms:us-east-1:123456789012:key/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
 		targetARN:  "arn:aws:kms:us-east-1:123456789012:key/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-		targetType: awscloud.ResourceTypeKMSKey,
+		targetType: aws.ResourceTypeKMSKey,
 	})
 	// repository -> upstream repository: target_type aws_codeartifact_repository,
 	// keyed by "<domain>/<upstream>" within the same domain.
 	assertRelationship(t, envelopes, relationshipMatch{
-		relType:    awscloud.RelationshipCodeArtifactRepositoryUpstreamRepository,
+		relType:    aws.RelationshipCodeArtifactRepositoryUpstreamRepository,
 		sourceID:   repoID,
 		targetID:   "acme/shared-npm",
-		targetType: awscloud.ResourceTypeCodeArtifactRepository,
+		targetType: aws.ResourceTypeCodeArtifactRepository,
 	})
 	// repository -> external connection: labeled non-AWS public-registry target.
 	assertRelationship(t, envelopes, relationshipMatch{
-		relType:    awscloud.RelationshipCodeArtifactRepositoryExternalConnection,
+		relType:    aws.RelationshipCodeArtifactRepositoryExternalConnection,
 		sourceID:   repoID,
 		targetID:   "public:npmjs",
 		targetType: externalConnectionTargetType,
@@ -117,7 +117,7 @@ func TestScannerEmittedRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		Upstreams:           []string{"shared-npm"},
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if rel := domainKMSKeyRelationship(boundary, domain); rel != nil {
 		observations = append(observations, *rel)
 	}
@@ -165,7 +165,7 @@ func TestScannerEmitsResourcesWithoutClientPackagePayloads(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 	_, err := Scanner{Client: fakeClient{}}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -208,11 +208,11 @@ func assertClientHasNoPayloadOrMutationMethods(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeArtifact,
+		ServiceKind:         aws.ServiceCodeArtifact,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:codeartifact:1",
 		CollectorInstanceID: "aws-prod",

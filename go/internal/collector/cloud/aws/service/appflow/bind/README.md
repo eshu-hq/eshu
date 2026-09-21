@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appflow/runtimebind` registers the AppFlow
-scanner with the awsruntime registry from a package `init()`. Importing this
+`internal/collector/cloud/aws/service/appflow/bind` registers the AppFlow
+scanner with the runtime registry from a package `init()`. Importing this
 package for its blank side effect is the only way a runtime brings the AppFlow
 scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceAppFlow` to the AppFlow scanner builder. It does not own AWS API
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceAppFlow` to the AppFlow scanner builder. It does not own AWS API
 calls, AppFlow domain types, metadata-only policy, or fact emission. Those belong
-to `internal/collector/awscloud/service/appflow` and its `awssdk` adapter.
+to `internal/collector/cloud/aws/service/appflow` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceAppFlow` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceAppFlow` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/appflow` for the scanner struct.
-- `internal/collector/awscloud/service/appflow/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/appflow` for the scanner struct.
+- `internal/collector/cloud/aws/service/appflow/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The AppFlow scanner and its SDK
 adapter emit the per-service counters and spans documented in `../README.md` and
-the awsruntime README.
+the runtime README.
 
 ## Gotchas / invariants
 
@@ -46,6 +46,6 @@ the awsruntime README.
 ## Related docs
 
 - `../README.md` for the AppFlow scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

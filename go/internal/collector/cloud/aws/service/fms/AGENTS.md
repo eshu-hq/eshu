@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/fms guidance
+# AGENTS.md - internal/collector/cloud/aws/service/fms guidance
 
 ## Read First
 
@@ -6,7 +6,7 @@
 2. `types.go` - scanner-owned Firewall Manager domain types.
 3. `scanner.go` - policy resource and member-account relationship emission.
 4. `relationships.go` - the policy-to-member-account edge contract.
-5. `awssdk/README.md` - AWS SDK API allowlist and metadata boundary.
+5. `sdk/README.md` - AWS SDK API allowlist and metadata boundary.
 6. `../../README.md` - shared AWS cloud observation and envelope contract.
 7. `docs/public/services/collector-aws-cloud-scanners.md` - AWS collector
    coverage table.
@@ -39,11 +39,11 @@
 ## Common Changes
 
 - Add a new policy metadata field by extending `Policy`, writing a focused
-  scanner or adapter test first, then mapping it through `awscloud` envelope
+  scanner or adapter test first, then mapping it through `aws` envelope
   builders.
 - Add a new relationship only when Firewall Manager reports both sides directly
   and neither side depends on the policy rule payload.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

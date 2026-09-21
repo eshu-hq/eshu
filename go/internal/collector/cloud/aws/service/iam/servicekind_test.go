@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "iam".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceIAM + "  "
+	boundary.ServiceKind = "  " + aws.ServiceIAM + "  "
 	client := fakeClient{
 		roles: []Role{{
 			ARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
@@ -33,10 +33,10 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if envelope.CollectorKind != awscloud.CollectorKind {
+		if envelope.CollectorKind != aws.CollectorKind {
 			continue
 		}
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceIAM; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceIAM; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

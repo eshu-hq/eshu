@@ -69,10 +69,10 @@ func TestEnvelopeCounts(t *testing.T) {
 }
 
 func TestAssertRejectsMismatchedServiceKind(t *testing.T) {
-	scan := func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+	scan := func(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 		return nil, errors.New("s3 scanner received service_kind \"sns\"")
 	}
-	boundary := awscloud.Boundary{
+	boundary := aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
 		ServiceKind:         "s3",
@@ -85,10 +85,10 @@ func TestAssertRejectsMismatchedServiceKind(t *testing.T) {
 }
 
 func TestAssertRequiresClient(t *testing.T) {
-	scan := func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+	scan := func(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 		return nil, errors.New("s3 scanner client is required")
 	}
-	boundary := awscloud.Boundary{
+	boundary := aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
 		ServiceKind:         "s3",

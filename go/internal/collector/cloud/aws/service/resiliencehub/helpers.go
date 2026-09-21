@@ -73,15 +73,15 @@ func assessmentResourceID(assessment Assessment) string {
 func protectedResourceTargetType(resilienceHubType string) string {
 	switch strings.TrimSpace(resilienceHubType) {
 	case "AWS::ECS::Service":
-		return awscloud.ResourceTypeECSService
+		return aws.ResourceTypeECSService
 	case "AWS::EFS::FileSystem":
-		return awscloud.ResourceTypeEFSFileSystem
+		return aws.ResourceTypeEFSFileSystem
 	case "AWS::ElasticLoadBalancingV2::LoadBalancer":
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return aws.ResourceTypeELBv2LoadBalancer
 	case "AWS::Lambda::Function":
-		return awscloud.ResourceTypeLambdaFunction
+		return aws.ResourceTypeLambdaFunction
 	case "AWS::SNS::Topic":
-		return awscloud.ResourceTypeSNSTopic
+		return aws.ResourceTypeSNSTopic
 	default:
 		return ""
 	}

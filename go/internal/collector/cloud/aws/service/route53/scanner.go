@@ -20,15 +20,15 @@ type Scanner struct {
 
 // Scan observes Route 53 hosted zones and high-value DNS records through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("route53 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRoute53:
+	case "", aws.ServiceRoute53:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRoute53
+		boundary.ServiceKind = aws.ServiceRoute53
 	default:
 		return nil, fmt.Errorf("route53 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -50,10 +50,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) hostedZoneEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	hostedZone HostedZone,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(hostedZoneObservation(boundary, hostedZone))
+	resource, err := aws.NewResourceEnvelope(hostedZoneObservation(boundary, hostedZone))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s Scanner) hostedZoneEnvelopes(
 		if !supportedRecord(record) {
 			continue
 		}
-		envelope, err := awscloud.NewDNSRecordEnvelope(recordObservation(boundary, hostedZone, record))
+		envelope, err := aws.NewDNSRecordEnvelope(recordObservation(boundary, hostedZone, record))
 		if err != nil {
 			return nil, err
 		}
@@ -75,12 +75,12 @@ func (s Scanner) hostedZoneEnvelopes(
 	return envelopes, nil
 }
 
-func hostedZoneObservation(boundary awscloud.Boundary, hostedZone HostedZone) awscloud.ResourceObservation {
+func hostedZoneObservation(boundary aws.Boundary, hostedZone HostedZone) aws.ResourceObservation {
 	hostedZoneID := strings.TrimSpace(hostedZone.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   hostedZoneID,
-		ResourceType: awscloud.ResourceTypeRoute53HostedZone,
+		ResourceType: aws.ResourceTypeRoute53HostedZone,
 		Name:         hostedZone.Name,
 		Tags:         hostedZone.Tags,
 		Attributes: map[string]any{
@@ -102,11 +102,11 @@ func hostedZoneObservation(boundary awscloud.Boundary, hostedZone HostedZone) aw
 }
 
 func recordObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	hostedZone HostedZone,
 	record RecordSet,
-) awscloud.DNSRecordObservation {
-	return awscloud.DNSRecordObservation{
+) aws.DNSRecordObservation {
+	return aws.DNSRecordObservation{
 		Boundary:          boundary,
 		HostedZoneID:      hostedZone.ID,
 		HostedZoneName:    hostedZone.Name,
@@ -117,14 +117,14 @@ func recordObservation(
 		TTL:               record.TTL,
 		Values:            record.Values,
 		AliasTarget:       aliasTargetObservation(record.AliasTarget),
-		RoutingPolicy: awscloud.DNSRoutingPolicy{
+		RoutingPolicy: aws.DNSRoutingPolicy{
 			Weight:                  record.Weight,
 			Region:                  record.Region,
 			Failover:                record.Failover,
 			HealthCheckID:           record.HealthCheckID,
 			MultiValueAnswer:        record.MultiValueAnswer,
 			TrafficPolicyInstanceID: record.TrafficPolicyInstanceID,
-			GeoLocation: awscloud.DNSGeoLocation{
+			GeoLocation: aws.DNSGeoLocation{
 				ContinentCode:   record.GeoLocation.ContinentCode,
 				CountryCode:     record.GeoLocation.CountryCode,
 				SubdivisionCode: record.GeoLocation.SubdivisionCode,
@@ -148,11 +148,11 @@ func supportedRecord(record RecordSet) bool {
 	}
 }
 
-func aliasTargetObservation(input *AliasTarget) *awscloud.DNSAliasTarget {
+func aliasTargetObservation(input *AliasTarget) *aws.DNSAliasTarget {
 	if input == nil {
 		return nil
 	}
-	return &awscloud.DNSAliasTarget{
+	return &aws.DNSAliasTarget{
 		DNSName:              input.DNSName,
 		HostedZoneID:         input.HostedZoneID,
 		EvaluateTargetHealth: input.EvaluateTargetHealth,

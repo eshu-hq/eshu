@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codecommit guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codecommit guidance
 
 ## Read First
 
@@ -13,7 +13,7 @@
 
 - Metadata only. Never read commits, refs, blobs, file contents, pull-request
   bodies, or comment text. Keep CodeCommit API access behind `Client`; do not
-  import the AWS SDK into this package. The `awssdk` adapter's read surface
+  import the AWS SDK into this package. The `sdk` adapter's read surface
   excludes every content reader and mutation by construction; keep its
   exclusion reflection guard green.
 - Clone-URL evidence is host-only in resource attributes. The full clone URLs
@@ -22,7 +22,7 @@
 - Preserve the repository as a code-to-cloud anchor: publish the repository
   name and clone URLs as correlation anchors so CodeBuild / CodePipeline Git
   sources and Amplify apps join the repository node.
-- Every relationship sets a declared `awscloud.ResourceType*` target type and a
+- Every relationship sets a declared `aws.ResourceType*` target type and a
   `target_resource_id` that matches how the target scanner publishes its
   `resource_id`: the KMS edge keys on the bare key id when AWS reports one (KMS
   scanner `resource_id`), or the key ARN when ARN-shaped; the SNS edge keys on
@@ -36,12 +36,12 @@
 ## Common Changes
 
 - Add a new CodeCommit metadata field by extending the scanner-owned type,
-  writing a focused scanner test first, then mapping it through `awscloud`
+  writing a focused scanner test first, then mapping it through `aws`
   envelope builders.
 - Add a relationship only when CodeCommit reports an ARN-addressable or
   bare-id-addressable target that names a declared resource family, with a
   `relguard.AssertObservations` test for the new edge.
-- Extend SDK pagination or batch chunking in the `awssdk` adapter, not here.
+- Extend SDK pagination or batch chunking in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

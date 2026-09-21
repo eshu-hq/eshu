@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsshield "github.com/aws/aws-sdk-go-v2/service/shield"
 	awsshieldtypes "github.com/aws/aws-sdk-go-v2/service/shield/types"
 	"github.com/aws/smithy-go"
@@ -56,7 +56,7 @@ type apiClient interface {
 // billing detail, and it never calls a Shield mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -65,8 +65,8 @@ type Client struct {
 // The client region is pinned to us-east-1 because the Shield control plane is
 // reachable only there.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -92,7 +92,7 @@ func (c *Client) ListProtections(ctx context.Context) ([]shieldservice.Protectio
 			var err error
 			page, err = c.client.ListProtections(callCtx, &awsshield.ListProtectionsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(listProtectionsLimit),
+				MaxResults: awsv2.Int32(listProtectionsLimit),
 			})
 			return err
 		})
@@ -106,7 +106,7 @@ func (c *Client) ListProtections(ctx context.Context) ([]shieldservice.Protectio
 			protections = append(protections, mapProtection(protection))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return protections, nil
 		}
 	}
@@ -175,7 +175,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

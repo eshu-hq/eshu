@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsidentitystore "github.com/aws/aws-sdk-go-v2/service/identitystore"
 	awsssoadmin "github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	awsssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
@@ -22,47 +22,47 @@ func TestSnapshotReadsMetadataOnlyAndResolvesPrincipals(t *testing.T) {
 	permSetARN := "arn:aws:sso:::permissionSet/ssoins-1111111111111111/ps-2222222222222222"
 	fake := &fakeSSOAdmin{
 		instances: []awsssoadmintypes.InstanceMetadata{{
-			InstanceArn:     aws.String(instanceARN),
-			IdentityStoreId: aws.String("d-9999999999"),
-			Name:            aws.String("primary"),
-			OwnerAccountId:  aws.String("123456789012"),
+			InstanceArn:     awsv2.String(instanceARN),
+			IdentityStoreId: awsv2.String("d-9999999999"),
+			Name:            awsv2.String("primary"),
+			OwnerAccountId:  awsv2.String("123456789012"),
 			Status:          awsssoadmintypes.InstanceStatusActive,
 		}},
 		permissionSets: []string{permSetARN},
 		describePermissionSet: &awsssoadmintypes.PermissionSet{
-			PermissionSetArn: aws.String(permSetARN),
-			Name:             aws.String("AdministratorAccess"),
-			Description:      aws.String("Full admin"),
-			SessionDuration:  aws.String("PT8H"),
-			RelayState:       aws.String("https://console.aws.amazon.com/"),
+			PermissionSetArn: awsv2.String(permSetARN),
+			Name:             awsv2.String("AdministratorAccess"),
+			Description:      awsv2.String("Full admin"),
+			SessionDuration:  awsv2.String("PT8H"),
+			RelayState:       awsv2.String("https://console.aws.amazon.com/"),
 		},
 		managedPolicies: []awsssoadmintypes.AttachedManagedPolicy{{
-			Arn:  aws.String("arn:aws:iam::aws:policy/AdministratorAccess"),
-			Name: aws.String("AdministratorAccess"),
+			Arn:  awsv2.String("arn:aws:iam::aws:policy/AdministratorAccess"),
+			Name: awsv2.String("AdministratorAccess"),
 		}},
 		customerManagedPolicies: []awsssoadmintypes.CustomerManagedPolicyReference{{
-			Name: aws.String("least-privilege-app"),
-			Path: aws.String("/"),
+			Name: awsv2.String("least-privilege-app"),
+			Path: awsv2.String("/"),
 		}},
 		provisionedAccounts: []string{"210987654321"},
 		accountAssignments: []awsssoadmintypes.AccountAssignment{{
-			AccountId:        aws.String("210987654321"),
-			PermissionSetArn: aws.String(permSetARN),
-			PrincipalId:      aws.String("f81d4fae-7dec-11d0-a765-00a0c91e6bf6"),
+			AccountId:        awsv2.String("210987654321"),
+			PermissionSetArn: awsv2.String(permSetARN),
+			PrincipalId:      awsv2.String("f81d4fae-7dec-11d0-a765-00a0c91e6bf6"),
 			PrincipalType:    awsssoadmintypes.PrincipalTypeGroup,
 		}},
 		applications: []awsssoadmintypes.Application{{
-			ApplicationArn: aws.String("arn:aws:sso::123456789012:application/ssoins-1111111111111111/apl-3333333333333333"),
-			InstanceArn:    aws.String(instanceARN),
-			Name:           aws.String("internal-portal"),
+			ApplicationArn: awsv2.String("arn:aws:sso::123456789012:application/ssoins-1111111111111111/apl-3333333333333333"),
+			InstanceArn:    awsv2.String(instanceARN),
+			Name:           awsv2.String("internal-portal"),
 			Status:         awsssoadmintypes.ApplicationStatusEnabled,
 			PortalOptions: &awsssoadmintypes.PortalOptions{
 				Visibility: awsssoadmintypes.ApplicationVisibilityEnabled,
 			},
 		}},
 		trustedTokenIssuers: []awsssoadmintypes.TrustedTokenIssuerMetadata{{
-			TrustedTokenIssuerArn:  aws.String("arn:aws:sso::123456789012:trustedTokenIssuer/ssoins-1111111111111111/tti-4444444444444444"),
-			Name:                   aws.String("corp-oidc"),
+			TrustedTokenIssuerArn:  awsv2.String("arn:aws:sso::123456789012:trustedTokenIssuer/ssoins-1111111111111111/tti-4444444444444444"),
+			Name:                   awsv2.String("corp-oidc"),
 			TrustedTokenIssuerType: awsssoadmintypes.TrustedTokenIssuerTypeOidcJwt,
 		}},
 		tags: map[string]string{"Environment": "prod"},
@@ -126,17 +126,17 @@ func TestSnapshotResolvesUserPrincipalDisplayName(t *testing.T) {
 	userID := "a1b2c3d4-1111-2222-3333-444455556666"
 	fake := &fakeSSOAdmin{
 		instances: []awsssoadmintypes.InstanceMetadata{{
-			InstanceArn:     aws.String(instanceARN),
-			IdentityStoreId: aws.String("d-9999999999"),
+			InstanceArn:     awsv2.String(instanceARN),
+			IdentityStoreId: awsv2.String("d-9999999999"),
 			Status:          awsssoadmintypes.InstanceStatusActive,
 		}},
 		permissionSets:        []string{permSetARN},
-		describePermissionSet: &awsssoadmintypes.PermissionSet{PermissionSetArn: aws.String(permSetARN)},
+		describePermissionSet: &awsssoadmintypes.PermissionSet{PermissionSetArn: awsv2.String(permSetARN)},
 		provisionedAccounts:   []string{"210987654321"},
 		accountAssignments: []awsssoadmintypes.AccountAssignment{{
-			AccountId:        aws.String("210987654321"),
-			PermissionSetArn: aws.String(permSetARN),
-			PrincipalId:      aws.String(userID),
+			AccountId:        awsv2.String("210987654321"),
+			PermissionSetArn: awsv2.String(permSetARN),
+			PrincipalId:      awsv2.String(userID),
 			PrincipalType:    awsssoadmintypes.PrincipalTypeUser,
 		}},
 	}
@@ -193,7 +193,7 @@ func newTestAdapter(ssoAdmin ssoAdminAPI, store identityStoreAPI) *Client {
 	return &Client{
 		ssoAdmin:      ssoAdmin,
 		identityStore: store,
-		boundary:      awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSSOAdmin},
+		boundary:      aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSSOAdmin},
 	}
 }
 
@@ -255,7 +255,7 @@ func (f *fakeSSOAdmin) ListTrustedTokenIssuers(_ context.Context, _ *awsssoadmin
 func (f *fakeSSOAdmin) ListTagsForResource(_ context.Context, _ *awsssoadmin.ListTagsForResourceInput, _ ...func(*awsssoadmin.Options)) (*awsssoadmin.ListTagsForResourceOutput, error) {
 	tags := make([]awsssoadmintypes.Tag, 0, len(f.tags))
 	for key, value := range f.tags {
-		tags = append(tags, awsssoadmintypes.Tag{Key: aws.String(key), Value: aws.String(value)})
+		tags = append(tags, awsssoadmintypes.Tag{Key: awsv2.String(key), Value: awsv2.String(value)})
 	}
 	return &awsssoadmin.ListTagsForResourceOutput{Tags: tags}, nil
 }
@@ -266,11 +266,11 @@ type fakeIdentityStore struct {
 }
 
 func (f *fakeIdentityStore) DescribeGroup(_ context.Context, _ *awsidentitystore.DescribeGroupInput, _ ...func(*awsidentitystore.Options)) (*awsidentitystore.DescribeGroupOutput, error) {
-	return &awsidentitystore.DescribeGroupOutput{DisplayName: aws.String(f.groupDisplayName)}, nil
+	return &awsidentitystore.DescribeGroupOutput{DisplayName: awsv2.String(f.groupDisplayName)}, nil
 }
 
 func (f *fakeIdentityStore) DescribeUser(_ context.Context, _ *awsidentitystore.DescribeUserInput, _ ...func(*awsidentitystore.Options)) (*awsidentitystore.DescribeUserOutput, error) {
-	return &awsidentitystore.DescribeUserOutput{DisplayName: aws.String(f.userDisplayName)}, nil
+	return &awsidentitystore.DescribeUserOutput{DisplayName: awsv2.String(f.userDisplayName)}, nil
 }
 
 var (

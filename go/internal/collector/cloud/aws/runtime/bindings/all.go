@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package bindings imports every AWS service runtimebind so the production
+// Package bindings imports every AWS service bind so the production
 // scanner registry is populated through init side effects.
 //
 // Importing this package once (typically from the collector-aws-cloud main)
 // is the only step required to make the full set of AWS scanners available
-// through awsruntime.DefaultScannerFactory. Adding a new scanner appends one
+// through runtime.DefaultScannerFactory. Adding a new scanner appends one
 // blank import below; no other file in this package changes.
 package bindings
 

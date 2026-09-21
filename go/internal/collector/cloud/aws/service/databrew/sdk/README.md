@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/databrew/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/databrew/sdk` adapts AWS SDK for Go v2
 Glue DataBrew responses to the scanner-owned `Client` contract. It owns dataset,
 recipe, job, and project pagination, safe metadata mapping, throttle
 classification, and per-call AWS API telemetry.
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/databrew` for scanner-owned result
+- `internal/collector/cloud/aws/service/databrew` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `databrew` and Smithy error contracts.

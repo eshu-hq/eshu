@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsnm "github.com/aws/aws-sdk-go-v2/service/networkmanager"
 	awsnmtypes "github.com/aws/aws-sdk-go-v2/service/networkmanager/types"
 
@@ -69,32 +69,32 @@ func TestSnapshotMapsNestedTopology(t *testing.T) {
 	const gnID = "global-network-0aa11bb22cc33dd44"
 	api := fakeAPI{
 		globalNetworks: []awsnmtypes.GlobalNetwork{{
-			GlobalNetworkArn: aws.String("arn:aws:networkmanager::123456789012:global-network/" + gnID),
-			GlobalNetworkId:  aws.String(gnID),
+			GlobalNetworkArn: awsv2.String("arn:aws:networkmanager::123456789012:global-network/" + gnID),
+			GlobalNetworkId:  awsv2.String(gnID),
 			State:            awsnmtypes.GlobalNetworkStateAvailable,
 		}},
-		sites:   []awsnmtypes.Site{{SiteId: aws.String("site-1"), GlobalNetworkId: aws.String(gnID), Location: &awsnmtypes.Location{Address: aws.String("1 Main")}}},
-		devices: []awsnmtypes.Device{{DeviceId: aws.String("device-1"), GlobalNetworkId: aws.String(gnID), AWSLocation: &awsnmtypes.AWSLocation{SubnetArn: aws.String("arn:aws:ec2:us-east-1:123456789012:subnet/subnet-1")}}},
-		links:   []awsnmtypes.Link{{LinkId: aws.String("link-1"), GlobalNetworkId: aws.String(gnID), Bandwidth: &awsnmtypes.Bandwidth{UploadSpeed: aws.Int32(50), DownloadSpeed: aws.Int32(100)}}},
+		sites:   []awsnmtypes.Site{{SiteId: awsv2.String("site-1"), GlobalNetworkId: awsv2.String(gnID), Location: &awsnmtypes.Location{Address: awsv2.String("1 Main")}}},
+		devices: []awsnmtypes.Device{{DeviceId: awsv2.String("device-1"), GlobalNetworkId: awsv2.String(gnID), AWSLocation: &awsnmtypes.AWSLocation{SubnetArn: awsv2.String("arn:aws:ec2:us-east-1:123456789012:subnet/subnet-1")}}},
+		links:   []awsnmtypes.Link{{LinkId: awsv2.String("link-1"), GlobalNetworkId: awsv2.String(gnID), Bandwidth: &awsnmtypes.Bandwidth{UploadSpeed: awsv2.Int32(50), DownloadSpeed: awsv2.Int32(100)}}},
 		connections: []awsnmtypes.Connection{{
-			ConnectionId: aws.String("connection-1"), GlobalNetworkId: aws.String(gnID),
-			DeviceId: aws.String("device-1"), ConnectedDeviceId: aws.String("device-2"),
+			ConnectionId: awsv2.String("connection-1"), GlobalNetworkId: awsv2.String(gnID),
+			DeviceId: awsv2.String("device-1"), ConnectedDeviceId: awsv2.String("device-2"),
 		}},
-		associations: []awsnmtypes.LinkAssociation{{GlobalNetworkId: aws.String(gnID), DeviceId: aws.String("device-1"), LinkId: aws.String("link-1")}},
+		associations: []awsnmtypes.LinkAssociation{{GlobalNetworkId: awsv2.String(gnID), DeviceId: awsv2.String("device-1"), LinkId: awsv2.String("link-1")}},
 		registrations: []awsnmtypes.TransitGatewayRegistration{{
-			GlobalNetworkId:   aws.String(gnID),
-			TransitGatewayArn: aws.String("arn:aws:ec2:us-east-1:123456789012:transit-gateway/tgw-1"),
+			GlobalNetworkId:   awsv2.String(gnID),
+			TransitGatewayArn: awsv2.String("arn:aws:ec2:us-east-1:123456789012:transit-gateway/tgw-1"),
 			State:             &awsnmtypes.TransitGatewayRegistrationStateReason{Code: awsnmtypes.TransitGatewayRegistrationStateAvailable},
 		}},
-		coreSummaries: []awsnmtypes.CoreNetworkSummary{{CoreNetworkId: aws.String("core-network-1"), GlobalNetworkId: aws.String(gnID)}},
+		coreSummaries: []awsnmtypes.CoreNetworkSummary{{CoreNetworkId: awsv2.String("core-network-1"), GlobalNetworkId: awsv2.String(gnID)}},
 		coreNetwork: &awsnmtypes.CoreNetwork{
-			CoreNetworkArn: aws.String("arn:aws:networkmanager::123456789012:core-network/core-network-1"),
-			CoreNetworkId:  aws.String("core-network-1"), GlobalNetworkId: aws.String(gnID),
-			Segments: []awsnmtypes.CoreNetworkSegment{{Name: aws.String("shared")}},
-			Edges:    []awsnmtypes.CoreNetworkEdge{{EdgeLocation: aws.String("us-east-1")}},
+			CoreNetworkArn: awsv2.String("arn:aws:networkmanager::123456789012:core-network/core-network-1"),
+			CoreNetworkId:  awsv2.String("core-network-1"), GlobalNetworkId: awsv2.String(gnID),
+			Segments: []awsnmtypes.CoreNetworkSegment{{Name: awsv2.String("shared")}},
+			Edges:    []awsnmtypes.CoreNetworkEdge{{EdgeLocation: awsv2.String("us-east-1")}},
 		},
 	}
-	client := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceNetworkManager}}
+	client := &Client{client: api, boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceNetworkManager}}
 
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {

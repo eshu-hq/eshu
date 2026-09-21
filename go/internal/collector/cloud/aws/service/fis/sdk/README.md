@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fis/awssdk` adapts AWS SDK for Go v2 FIS
+`internal/collector/cloud/aws/service/fis/sdk` adapts AWS SDK for Go v2 FIS
 responses to the scanner-owned `Client` contract. It owns experiment-template
 pagination, per-template detail reads, resource-tag reads, throttle
 classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/fis` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/fis` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `fis` and Smithy error contracts.
 

@@ -26,15 +26,15 @@ type Scanner struct {
 // client and returns aws_resource and aws_relationship fact envelopes. It
 // returns an error when the client is missing or the boundary names a
 // non-Bedrock service kind.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("bedrock scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceBedrock:
+	case "", aws.ServiceBedrock:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceBedrock
+		boundary.ServiceKind = aws.ServiceBedrock
 	default:
 		return nil, fmt.Errorf("bedrock scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,7 +47,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 		for _, observation := range observations {
 			observation.Boundary = boundary
-			envelope, err := awscloud.NewResourceEnvelope(observation)
+			envelope, err := aws.NewResourceEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -55,7 +55,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 		for _, relationship := range relationships {
 			relationship.Boundary = boundary
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -67,41 +67,41 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // stageFunc collects one resource group's resource and relationship
 // observations before they are stamped with the boundary and validated.
-type stageFunc func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error)
+type stageFunc func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error)
 
 // stages lists the per-resource-group collection closures in a deterministic
 // order so emitted facts and API fanout stay stable across runs.
 func (s Scanner) stages(ctx context.Context) []stageFunc {
 	return []stageFunc{
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListFoundationModels(ctx)
 			return collect(items, foundationModelObservation, noRelationships[FoundationModel], err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListCustomModels(ctx)
 			return collect(items, customModelObservation, customModelRelationships, err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListModelCustomizationJobs(ctx)
 			return collect(items, customizationJobObservation, noRelationships[ModelCustomizationJob], err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListProvisionedModelThroughputs(ctx)
 			return collect(items, provisionedThroughputObservation, provisionedThroughputRelationships, err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListGuardrails(ctx)
 			return collect(items, guardrailObservation, noRelationships[Guardrail], err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListAgents(ctx)
 			return collect(items, agentObservation, agentRelationships, err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListAgentActionGroups(ctx)
 			return collect(items, actionGroupObservation, actionGroupRelationships, err)
 		},
-		func() ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+		func() ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 			items, err := s.Client.ListKnowledgeBases(ctx)
 			return collect(items, knowledgeBaseObservation, knowledgeBaseRelationships, err)
 		},
@@ -113,15 +113,15 @@ func (s Scanner) stages(ctx context.Context) []stageFunc {
 // truncated truth.
 func collect[T any](
 	items []T,
-	observe func(T) awscloud.ResourceObservation,
-	relate func(T) []awscloud.RelationshipObservation,
+	observe func(T) aws.ResourceObservation,
+	relate func(T) []aws.RelationshipObservation,
 	err error,
-) ([]awscloud.ResourceObservation, []awscloud.RelationshipObservation, error) {
+) ([]aws.ResourceObservation, []aws.RelationshipObservation, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	observations := make([]awscloud.ResourceObservation, 0, len(items))
-	var relationships []awscloud.RelationshipObservation
+	observations := make([]aws.ResourceObservation, 0, len(items))
+	var relationships []aws.RelationshipObservation
 	for _, item := range items {
 		observations = append(observations, observe(item))
 		relationships = append(relationships, relate(item)...)
@@ -131,4 +131,4 @@ func collect[T any](
 
 // noRelationships is the relationship builder for resource groups that emit
 // resources only. It keeps the stage table uniform without per-type closures.
-func noRelationships[T any](T) []awscloud.RelationshipObservation { return nil }
+func noRelationships[T any](T) []aws.RelationshipObservation { return nil }

@@ -24,7 +24,7 @@ type Scanner struct {
 // Scan observes Identity Center instances, permission sets, account
 // assignments, applications, trusted token issuers, and resolved principals
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ssoadmin scanner client is required")
 	}
@@ -32,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ssoadmin scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSSOAdmin:
+	case "", aws.ServiceSSOAdmin:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSSOAdmin
+		boundary.ServiceKind = aws.ServiceSSOAdmin
 	default:
 		return nil, fmt.Errorf("ssoadmin scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -69,7 +69,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) appendInstance(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance Instance,
 ) error {
 	if err := appendResource(envelopes, instanceObservation(boundary, instance)); err != nil {
@@ -95,7 +95,7 @@ func (s Scanner) appendInstance(
 
 func appendPermissionSet(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance Instance,
 	permSet PermissionSet,
 ) error {
@@ -126,13 +126,13 @@ func appendPermissionSet(
 
 func appendAssignment(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assignment AccountAssignment,
 ) error {
 	if err := appendResource(envelopes, assignmentObservation(boundary, assignment)); err != nil {
 		return err
 	}
-	for _, build := range []func(awscloud.Boundary, AccountAssignment) (awscloud.RelationshipObservation, bool){
+	for _, build := range []func(aws.Boundary, AccountAssignment) (aws.RelationshipObservation, bool){
 		assignmentUsesPermissionSetRelationship,
 		assignmentTargetsAccountRelationship,
 		assignmentGrantsPrincipalRelationship,
@@ -150,7 +150,7 @@ func appendAssignment(
 
 func appendApplication(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application Application,
 ) error {
 	if err := appendResource(envelopes, applicationObservation(boundary, application)); err != nil {
@@ -166,14 +166,14 @@ func appendApplication(
 
 func (s Scanner) appendPrincipal(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	principal Principal,
 ) error {
 	return appendResource(envelopes, s.principalObservation(boundary, principal))
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -181,8 +181,8 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.RelationshipObservation) error {
-	envelope, err := awscloud.NewRelationshipEnvelope(observation)
+func appendRelationship(envelopes *[]facts.Envelope, observation aws.RelationshipObservation) error {
+	envelope, err := aws.NewRelationshipEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -192,12 +192,12 @@ func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.Relati
 
 func appendWarnings(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
-	warnings []awscloud.WarningObservation,
+	boundary aws.Boundary,
+	warnings []aws.WarningObservation,
 ) error {
 	for _, warning := range warnings {
 		warning.Boundary = boundary
-		envelope, err := awscloud.NewWarningEnvelope(warning)
+		envelope, err := aws.NewWarningEnvelope(warning)
 		if err != nil {
 			return err
 		}

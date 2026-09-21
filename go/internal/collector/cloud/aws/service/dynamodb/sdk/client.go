@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdynamodb "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -54,15 +54,15 @@ type apiClient interface {
 // records, fetches exports/backups/policies, or calls mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DynamoDB SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -78,7 +78,7 @@ func NewClient(
 // visible to the configured AWS credentials.
 func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error) {
 	var tables []dynamodbservice.Table
-	var warnings []awscloud.WarningObservation
+	var warnings []aws.WarningObservation
 	var startName *string
 	var ttlThrottled bool
 	for {
@@ -87,7 +87,7 @@ func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error)
 			var err error
 			page, err = c.client.ListTables(callCtx, &awsdynamodb.ListTablesInput{
 				ExclusiveStartTableName: startName,
-				Limit:                   aws.Int32(listTablesLimit),
+				Limit:                   awsv2.Int32(listTablesLimit),
 			})
 			return err
 		})
@@ -109,7 +109,7 @@ func (c *Client) Snapshot(ctx context.Context) (dynamodbservice.Snapshot, error)
 			}
 		}
 		startName = page.LastEvaluatedTableName
-		if aws.ToString(startName) == "" {
+		if awsv2.ToString(startName) == "" {
 			return dynamodbservice.Snapshot{Tables: tables, Warnings: warnings}, nil
 		}
 	}
@@ -119,7 +119,7 @@ func (c *Client) describeTable(
 	ctx context.Context,
 	tableName string,
 	skipTTL bool,
-) (dynamodbservice.Table, bool, []awscloud.WarningObservation, bool, error) {
+) (dynamodbservice.Table, bool, []aws.WarningObservation, bool, error) {
 	tableName = strings.TrimSpace(tableName)
 	if tableName == "" {
 		return dynamodbservice.Table{}, false, nil, false, nil
@@ -128,7 +128,7 @@ func (c *Client) describeTable(
 	err := c.recordAPICall(ctx, "DescribeTable", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeTable(callCtx, &awsdynamodb.DescribeTableInput{
-			TableName: aws.String(tableName),
+			TableName: awsv2.String(tableName),
 		})
 		return err
 	})
@@ -138,7 +138,7 @@ func (c *Client) describeTable(
 	if output == nil || output.Table == nil {
 		return dynamodbservice.Table{}, false, nil, false, nil
 	}
-	tableARN := aws.ToString(output.Table.TableArn)
+	tableARN := awsv2.ToString(output.Table.TableArn)
 	tags, err := c.listTags(ctx, tableARN)
 	if err != nil {
 		return dynamodbservice.Table{}, false, nil, false, err
@@ -166,7 +166,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTagsOfResource", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTagsOfResource(callCtx, &awsdynamodb.ListTagsOfResourceInput{
-				ResourceArn: aws.String(resourceARN),
+				ResourceArn: awsv2.String(resourceARN),
 				NextToken:   nextToken,
 			})
 			return err
@@ -184,7 +184,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 			tags[key] = value
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tags, nil
 		}
 	}
@@ -194,7 +194,7 @@ func (c *Client) describeTimeToLive(
 	ctx context.Context,
 	tableName string,
 	skipTTL bool,
-) (dynamodbservice.TTL, []awscloud.WarningObservation, bool, error) {
+) (dynamodbservice.TTL, []aws.WarningObservation, bool, error) {
 	if skipTTL {
 		return dynamodbservice.TTL{}, nil, false, nil
 	}
@@ -202,12 +202,12 @@ func (c *Client) describeTimeToLive(
 	err := c.recordAPICall(ctx, "DescribeTimeToLive", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeTimeToLive(callCtx, &awsdynamodb.DescribeTimeToLiveInput{
-			TableName: aws.String(tableName),
+			TableName: awsv2.String(tableName),
 		})
 		return err
 	})
 	if isThrottleError(err) {
-		return dynamodbservice.TTL{}, []awscloud.WarningObservation{c.ttlThrottleWarning()}, true, nil
+		return dynamodbservice.TTL{}, []aws.WarningObservation{c.ttlThrottleWarning()}, true, nil
 	}
 	if err != nil || output == nil {
 		return dynamodbservice.TTL{}, nil, false, err
@@ -216,17 +216,17 @@ func (c *Client) describeTimeToLive(
 }
 
 func appendDynamoDBWarningOnce(
-	warnings []awscloud.WarningObservation,
-	candidates ...awscloud.WarningObservation,
-) []awscloud.WarningObservation {
+	warnings []aws.WarningObservation,
+	candidates ...aws.WarningObservation,
+) []aws.WarningObservation {
 	for _, candidate := range candidates {
-		if candidate.WarningKind != awscloud.WarningThrottleSustained {
+		if candidate.WarningKind != aws.WarningThrottleSustained {
 			warnings = append(warnings, candidate)
 			continue
 		}
 		seen := false
 		for _, warning := range warnings {
-			if warning.WarningKind == awscloud.WarningThrottleSustained &&
+			if warning.WarningKind == aws.WarningThrottleSustained &&
 				warning.ErrorClass == candidate.ErrorClass {
 				seen = true
 				break
@@ -239,10 +239,10 @@ func appendDynamoDBWarningOnce(
 	return warnings
 }
 
-func (c *Client) ttlThrottleWarning() awscloud.WarningObservation {
-	return awscloud.WarningObservation{
+func (c *Client) ttlThrottleWarning() aws.WarningObservation {
+	return aws.WarningObservation{
 		Boundary:    c.boundary,
-		WarningKind: awscloud.WarningThrottleSustained,
+		WarningKind: aws.WarningThrottleSustained,
 		ErrorClass:  "throttled",
 		Message:     "DynamoDB DescribeTimeToLive throttled after SDK retries; TTL metadata omitted for this scan",
 		Attributes: map[string]any{
@@ -262,7 +262,7 @@ func (c *Client) describeContinuousBackups(
 		var err error
 		output, err = c.client.DescribeContinuousBackups(
 			callCtx,
-			&awsdynamodb.DescribeContinuousBackupsInput{TableName: aws.String(tableName)},
+			&awsdynamodb.DescribeContinuousBackupsInput{TableName: awsv2.String(tableName)},
 		)
 		return err
 	})
@@ -290,7 +290,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

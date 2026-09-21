@@ -61,7 +61,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Outpost resource node.
-	outpost := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsOutpost)
+	outpost := resourceByType(t, envelopes, aws.ResourceTypeOutpostsOutpost)
 	if got, want := outpost.Payload["resource_id"], testOutpostARN; got != want {
 		t.Fatalf("outpost resource_id = %#v, want %q", got, want)
 	}
@@ -80,7 +80,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, outpostAttrs, "supported_hardware_type", "RACK")
 
 	// Site resource node.
-	site := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsSite)
+	site := resourceByType(t, envelopes, aws.ResourceTypeOutpostsSite)
 	if got, want := site.Payload["resource_id"], testSiteARN; got != want {
 		t.Fatalf("site resource_id = %#v, want %q", got, want)
 	}
@@ -89,7 +89,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, siteAttrs, "account_id", "123456789012")
 
 	// Asset resource node.
-	asset := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsAsset)
+	asset := resourceByType(t, envelopes, aws.ResourceTypeOutpostsAsset)
 	wantAssetID := testOutpostARN + "/asset/asset-1234"
 	if got, want := asset.Payload["resource_id"], wantAssetID; got != want {
 		t.Fatalf("asset resource_id = %#v, want %q", got, want)
@@ -104,8 +104,8 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, assetAttrs, "rack_elevation", 14.0)
 
 	// Outpost -> site edge, keyed by the site ARN the site node publishes.
-	outpostInSite := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsOutpostInSite)
-	assertEdgeTarget(t, outpostInSite, awscloud.ResourceTypeOutpostsSite, testSiteARN)
+	outpostInSite := relationshipByType(t, envelopes, aws.RelationshipOutpostsOutpostInSite)
+	assertEdgeTarget(t, outpostInSite, aws.ResourceTypeOutpostsSite, testSiteARN)
 	if got, want := outpostInSite.Payload["source_resource_id"], testOutpostARN; got != want {
 		t.Fatalf("outpost->site source_resource_id = %#v, want %q", got, want)
 	}
@@ -114,8 +114,8 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Asset -> outpost edge, keyed by the outpost ARN the outpost node publishes.
-	assetInOutpost := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsAssetInOutpost)
-	assertEdgeTarget(t, assetInOutpost, awscloud.ResourceTypeOutpostsOutpost, testOutpostARN)
+	assetInOutpost := relationshipByType(t, envelopes, aws.RelationshipOutpostsAssetInOutpost)
+	assertEdgeTarget(t, assetInOutpost, aws.ResourceTypeOutpostsOutpost, testOutpostARN)
 	if got, want := assetInOutpost.Payload["source_resource_id"], wantAssetID; got != want {
 		t.Fatalf("asset->outpost source_resource_id = %#v, want %q", got, want)
 	}
@@ -182,13 +182,13 @@ func TestScannerSynthesizesGovCloudAssetID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	asset := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsAsset)
+	asset := resourceByType(t, envelopes, aws.ResourceTypeOutpostsAsset)
 	wantAssetID := govOutpostARN + "/asset/asset-gov"
 	if got := asset.Payload["resource_id"]; got != wantAssetID {
 		t.Fatalf("GovCloud asset resource_id = %#v, want %q", got, wantAssetID)
 	}
-	assetInOutpost := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsAssetInOutpost)
-	assertEdgeTarget(t, assetInOutpost, awscloud.ResourceTypeOutpostsOutpost, govOutpostARN)
+	assetInOutpost := relationshipByType(t, envelopes, aws.RelationshipOutpostsAssetInOutpost)
+	assertEdgeTarget(t, assetInOutpost, aws.ResourceTypeOutpostsOutpost, govOutpostARN)
 }
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
@@ -201,8 +201,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	}
 	asset := Asset{AssetID: "asset-1234", AssetType: "COMPUTE", RackID: "rack-5678"}
 	assetID := assetResourceID(outpost, asset)
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		outpostInSiteRelationship(boundary, outpost),
 		assetInOutpostRelationship(boundary, outpost, assetID),
 	} {
@@ -216,7 +216,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -227,9 +227,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Outposts: []Outpost{{ARN: testOutpostARN, OutpostID: "op-0123456789abcdef0"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Outposts ListAssets throttled after SDK retries; asset metadata omitted for this scan",
 			SourceRecordID: "outposts_assets_throttled",
@@ -240,7 +240,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -253,11 +253,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOutposts,
+		ServiceKind:         aws.ServiceOutposts,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:outposts:1",
 		CollectorInstanceID: "aws-prod",

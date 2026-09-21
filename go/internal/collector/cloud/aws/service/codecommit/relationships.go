@@ -19,20 +19,20 @@ import (
 // ARN-keyed (target_arn set); when it is a bare key id the edge keys on the
 // bare id, matching how the KMS scanner publishes its key resource_id
 // (firstNonEmpty(keyID, keyARN)).
-func kmsKeyRelationship(boundary awscloud.Boundary, repository Repository) *awscloud.RelationshipObservation {
+func kmsKeyRelationship(boundary aws.Boundary, repository Repository) *aws.RelationshipObservation {
 	repositoryID := repositoryResourceID(repository)
 	keyID := strings.TrimSpace(repository.KMSKeyID)
 	if repositoryID == "" || keyID == "" {
 		return nil
 	}
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey,
+		RelationshipType: aws.RelationshipCodeCommitRepositoryEncryptedWithKMSKey,
 		SourceResourceID: repositoryID,
 		SourceARN:        strings.TrimSpace(repository.ARN),
 		TargetResourceID: keyID,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   repositoryID + "->" + awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey + ":" + keyID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   repositoryID + "->" + aws.RelationshipCodeCommitRepositoryEncryptedWithKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {
 		relationship.TargetARN = keyID
@@ -46,12 +46,12 @@ func kmsKeyRelationship(boundary awscloud.Boundary, repository Repository) *awsc
 // example a Lambda function) stay as resource attributes and are not promoted to
 // a relationship here so the edge never dangles against the wrong target family.
 // Duplicate destination topics across multiple triggers collapse to one edge.
-func triggerRelationships(boundary awscloud.Boundary, repository Repository) []awscloud.RelationshipObservation {
+func triggerRelationships(boundary aws.Boundary, repository Repository) []aws.RelationshipObservation {
 	repositoryID := repositoryResourceID(repository)
 	if repositoryID == "" || len(repository.Triggers) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(repository.Triggers))
+	observations := make([]aws.RelationshipObservation, 0, len(repository.Triggers))
 	seen := make(map[string]struct{}, len(repository.Triggers))
 	for _, trigger := range repository.Triggers {
 		destination := strings.TrimSpace(trigger.DestinationARN)
@@ -62,19 +62,19 @@ func triggerRelationships(boundary awscloud.Boundary, repository Repository) []a
 			continue
 		}
 		seen[destination] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic,
+			RelationshipType: aws.RelationshipCodeCommitRepositoryTriggersSNSTopic,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: destination,
 			TargetARN:        destination,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       aws.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"trigger_name": strings.TrimSpace(trigger.Name),
 				"events":       cloneStringSlice(trigger.Events),
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic + ":" + destination,
+			SourceRecordID: repositoryID + "->" + aws.RelationshipCodeCommitRepositoryTriggersSNSTopic + ":" + destination,
 		})
 	}
 	if len(observations) == 0 {

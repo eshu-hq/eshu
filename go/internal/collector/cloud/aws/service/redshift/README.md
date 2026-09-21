@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/redshift` owns the Amazon Redshift
+`internal/collector/cloud/aws/service/redshift` owns the Amazon Redshift
 scanner contract for the AWS cloud collector. It covers both provisioned
 Redshift and Redshift Serverless. The scanner converts Redshift control-plane
 metadata into `aws_resource` facts and emits relationship evidence when
@@ -45,7 +45,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -54,9 +54,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Redshift and Redshift Serverless API call counts,
+The `sdk` adapter records Redshift and Redshift Serverless API call counts,
 throttles, and pagination spans. Provisioned and Serverless resources share the
 `service="redshift"` metric label; the per-resource breakdown is exposed
 through the `resource_type` attribute on `eshu_dp_aws_resources_emitted_total`,
@@ -96,7 +96,7 @@ not by widening the `service` label.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/redshift/...` covers the
+`go test ./internal/collector/cloud/aws/service/redshift/...` covers the
 bounded Redshift metadata path: paginated `DescribeClusters`,
 `DescribeClusterParameterGroups`, `DescribeClusterSubnetGroups`,
 `DescribeClusterSnapshots`, `DescribeScheduledActions`, `ListNamespaces`,
@@ -105,7 +105,7 @@ resources; no warehouse connections, query results, snapshot reads, table
 reads, mutations, or graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Redshift metadata fact emission, direct relationship emission, omission of
 master/admin password fields, runtime registration, command configuration, and
 the SDK adapter's safe metadata mapping.
@@ -129,13 +129,13 @@ Collector Deployment Evidence: Redshift runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/redshift/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/redshift/... -count=1`
 covers the new `TestRedshiftSynthesizedARNsDerivePartition` and
 `TestSecurityGroupARNDerivesPartition` (commercial / `aws-us-gov` / `aws-cn` /
 blank-region-fallback) alongside the existing assertions. The provisioned
 Redshift shapes omit these ARNs, so the synthesized cluster, parameter-group,
 subnet-group, and snapshot ARNs plus the EC2 security-group join target now
-derive the partition from the scan boundary via `awscloud.PartitionForBoundary`
+derive the partition from the scan boundary via `aws.PartitionForBoundary`
 instead of hardcoding `aws`. Commercial output (`us-east-1`) is byte-for-byte
 unchanged; this is a metadata-only correctness fix with no graph-write, queue,
 or hot-path behavior change.

@@ -30,7 +30,7 @@ const (
 	// identity (account/region/resource_id, with Name set to the bare resource
 	// id like every other EC2 resource type) — no rich state, owner, or
 	// creation-date metadata, since that requires a DescribeImages call the
-	// EC2 scanner does not make (see awscloud.ResourceTypeEC2AMI doc).
+	// EC2 scanner does not make (see aws.ResourceTypeEC2AMI doc).
 	ResourceTypeEC2AMI = "aws_ec2_ami"
 
 	// ResourceTypeIAMRole identifies an IAM role.

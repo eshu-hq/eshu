@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappconfig "github.com/aws/aws-sdk-go-v2/service/appconfig"
 	awsappconfigtypes "github.com/aws/aws-sdk-go-v2/service/appconfig/types"
 
@@ -21,21 +21,21 @@ func TestClientSnapshotsAppConfigMetadataOnly(t *testing.T) {
 	api := &fakeAppConfigAPI{
 		applicationPages: []*awsappconfig.ListApplicationsOutput{{
 			Items: []awsappconfigtypes.Application{{
-				Id:          aws.String("app123"),
-				Name:        aws.String("checkout"),
-				Description: aws.String("checkout config"),
+				Id:          awsv2.String("app123"),
+				Name:        awsv2.String("checkout"),
+				Description: awsv2.String("checkout config"),
 			}},
 		}},
 		environmentPages: map[string][]*awsappconfig.ListEnvironmentsOutput{
 			"app123": {{
 				Items: []awsappconfigtypes.Environment{{
-					Id:            aws.String("env456"),
-					ApplicationId: aws.String("app123"),
-					Name:          aws.String("prod"),
+					Id:            awsv2.String("env456"),
+					ApplicationId: awsv2.String("app123"),
+					Name:          awsv2.String("prod"),
 					State:         awsappconfigtypes.EnvironmentStateReadyForDeployment,
 					Monitors: []awsappconfigtypes.Monitor{{
-						AlarmArn:     aws.String(alarmARN),
-						AlarmRoleArn: aws.String(roleARN),
+						AlarmArn:     awsv2.String(alarmARN),
+						AlarmRoleArn: awsv2.String(roleARN),
 					}},
 				}},
 			}},
@@ -43,22 +43,22 @@ func TestClientSnapshotsAppConfigMetadataOnly(t *testing.T) {
 		profilePages: map[string][]*awsappconfig.ListConfigurationProfilesOutput{
 			"app123": {{
 				Items: []awsappconfigtypes.ConfigurationProfileSummary{{
-					Id:             aws.String("prof789"),
-					ApplicationId:  aws.String("app123"),
-					Name:           aws.String("feature-flags"),
-					Type:           aws.String("AWS.AppConfig.FeatureFlags"),
-					LocationUri:    aws.String("hosted"),
+					Id:             awsv2.String("prof789"),
+					ApplicationId:  awsv2.String("app123"),
+					Name:           awsv2.String("feature-flags"),
+					Type:           awsv2.String("AWS.AppConfig.FeatureFlags"),
+					LocationUri:    awsv2.String("hosted"),
 					ValidatorTypes: []awsappconfigtypes.ValidatorType{awsappconfigtypes.ValidatorTypeJsonSchema},
 				}},
 			}},
 		},
 		strategyPages: []*awsappconfig.ListDeploymentStrategiesOutput{{
 			Items: []awsappconfigtypes.DeploymentStrategy{{
-				Id:                          aws.String("strat012"),
-				Name:                        aws.String("Canary10Percent20Minutes"),
+				Id:                          awsv2.String("strat012"),
+				Name:                        awsv2.String("Canary10Percent20Minutes"),
 				DeploymentDurationInMinutes: 20,
 				FinalBakeTimeInMinutes:      10,
-				GrowthFactor:                aws.Float32(10),
+				GrowthFactor:                awsv2.Float32(10),
 				GrowthType:                  awsappconfigtypes.GrowthTypeExponential,
 				ReplicateTo:                 awsappconfigtypes.ReplicateToSsmDocument,
 			}},
@@ -164,7 +164,7 @@ func (f *fakeAppConfigAPI) ListEnvironments(
 	if f.environmentCalls == nil {
 		f.environmentCalls = map[string]int{}
 	}
-	id := aws.ToString(input.ApplicationId)
+	id := awsv2.ToString(input.ApplicationId)
 	pages := f.environmentPages[id]
 	idx := f.environmentCalls[id]
 	if idx >= len(pages) {
@@ -182,7 +182,7 @@ func (f *fakeAppConfigAPI) ListConfigurationProfiles(
 	if f.profileCalls == nil {
 		f.profileCalls = map[string]int{}
 	}
-	id := aws.ToString(input.ApplicationId)
+	id := awsv2.ToString(input.ApplicationId)
 	pages := f.profilePages[id]
 	idx := f.profileCalls[id]
 	if idx >= len(pages) {
@@ -205,10 +205,10 @@ func (f *fakeAppConfigAPI) ListDeploymentStrategies(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAppConfig,
+		ServiceKind: aws.ServiceAppConfig,
 	}
 }

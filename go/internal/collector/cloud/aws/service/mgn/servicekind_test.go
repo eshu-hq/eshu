@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "mgn".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceMGN + "  "
+	boundary.ServiceKind = "  " + aws.ServiceMGN + "  "
 	client := fakeClient{snapshot: Snapshot{SourceServers: []SourceServer{{
 		ARN:            testSourceServerARN,
 		SourceServerID: testSourceServerID,
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMGN; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceMGN; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

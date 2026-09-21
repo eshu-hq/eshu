@@ -26,7 +26,7 @@ type Snapshot struct {
 	Canaries []Canary
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Canary is the scanner-owned CloudWatch Synthetics canary model. It carries

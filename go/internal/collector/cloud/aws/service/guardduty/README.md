@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/guardduty` owns the GuardDuty scanner
+`internal/collector/cloud/aws/service/guardduty` owns the GuardDuty scanner
 contract for the AWS cloud collector. It converts detector, member-account,
 filter-name, publishing-destination, threat intel set, and IP set metadata into
 reported AWS facts and relationship evidence.
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,9 +51,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records GuardDuty API call counts, throttles, and
+The `sdk` adapter records GuardDuty API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="guardduty"}` with the existing
 bounded AWS collector labels.
@@ -77,13 +77,13 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/guardduty/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/guardduty/...`
 covers the bounded GuardDuty metadata path: paginated detector discovery,
 detector metadata reads, aggregate finding statistics by severity/type, member
 account pages, filter-name pages, publishing destination metadata, threat intel
 set metadata, and IP set metadata without finding-body or list-content reads.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers GuardDuty resource and relationship fact emission, omission of finding
 bodies, omission of filter criteria, omission of threat intel and IP list
 contents, runtime registration, command configuration, and the SDK adapter's

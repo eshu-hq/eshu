@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"testing"
@@ -306,7 +306,7 @@ func TestNetworkInterfaceInputIncludesManagedResourcesAndPagination(t *testing.T
 // TestMapSubnetPreservesVPCLinkageAndIPv6 proves mapSubnet records the VpcId
 // (the RUNS_IN foundation field) and the IPv6 CIDR associations alongside the
 // other subnet identity fields. VPCID is the critical cross-resource link used
-// by the runtimebind reducer to derive RUNS_IN edges; it must survive the
+// by the bind reducer to derive RUNS_IN edges; it must survive the
 // mapping without truncation.
 func TestMapSubnetPreservesVPCLinkageAndIPv6(t *testing.T) {
 	subnet := mapSubnet(awsec2types.Subnet{
@@ -355,7 +355,7 @@ func TestMapSubnetPreservesVPCLinkageAndIPv6(t *testing.T) {
 }
 
 // TestMapSecurityGroupPreservesVPCAndOwner proves mapSecurityGroup records the
-// VpcId and OwnerId fields that the runtimebind reducer uses to scope the
+// VpcId and OwnerId fields that the bind reducer uses to scope the
 // security-group to the correct VPC and account context. The ALLOWS_INGRESS
 // edges derived from security-group rules depend on these fields being present.
 func TestMapSecurityGroupPreservesVPCAndOwner(t *testing.T) {

@@ -125,7 +125,7 @@ func TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships(t *testing.T) 
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheCacheCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheCacheCluster)
 	if got, want := cluster.Payload["arn"], clusterARN; got != want {
 		t.Fatalf("cluster arn = %#v, want %q", got, want)
 	}
@@ -156,7 +156,7 @@ func TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships(t *testing.T) 
 		}
 	}
 
-	replicationGroup := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheReplicationGroup)
+	replicationGroup := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheReplicationGroup)
 	if got, want := replicationGroup.Payload["arn"], replicationGroupARN; got != want {
 		t.Fatalf("replication group arn = %#v, want %q", got, want)
 	}
@@ -170,17 +170,17 @@ func TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships(t *testing.T) 
 		}
 	}
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheSubnetGroup)
 	subnetGroupAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetGroupAttributes, "vpc_id", "vpc-123")
 	assertAttribute(t, subnetGroupAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 
-	parameterGroup := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheParameterGroup)
+	parameterGroup := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheParameterGroup)
 	parameterGroupAttributes := attributesOf(t, parameterGroup)
 	assertAttribute(t, parameterGroupAttributes, "family", "redis7")
 	assertAttribute(t, parameterGroupAttributes, "description", "orders redis 7 params")
 
-	user := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheUser)
+	user := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheUser)
 	userAttributes := attributesOf(t, user)
 	assertAttribute(t, userAttributes, "engine", "redis")
 	assertAttribute(t, userAttributes, "authentication_type", "password")
@@ -197,12 +197,12 @@ func TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships(t *testing.T) 
 		}
 	}
 
-	userGroup := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheUserGroup)
+	userGroup := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheUserGroup)
 	userGroupAttributes := attributesOf(t, userGroup)
 	assertAttribute(t, userGroupAttributes, "engine", "redis")
 	assertAttribute(t, userGroupAttributes, "user_ids", []string{"orders-app"})
 
-	snapshotResource := resourceByType(t, envelopes, awscloud.ResourceTypeElastiCacheSnapshot)
+	snapshotResource := resourceByType(t, envelopes, aws.ResourceTypeElastiCacheSnapshot)
 	if got, want := snapshotResource.Payload["name"], "orders-2026-05-27"; got != want {
 		t.Fatalf("snapshot name = %#v, want %q", got, want)
 	}
@@ -228,22 +228,22 @@ func TestScannerEmitsElastiCacheMetadataOnlyFactsAndRelationships(t *testing.T) 
 		}
 	}
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheClusterInVPC, "vpc-123")
-	assertRelationshipTargetARNEmpty(t, envelopes, awscloud.RelationshipElastiCacheClusterInVPC)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheClusterInSubnet, "subnet-a")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheClusterInSubnet, "subnet-b")
-	assertRelationshipTargetARNEmpty(t, envelopes, awscloud.RelationshipElastiCacheClusterInSubnet)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheClusterUsesKMSKey, kmsKeyARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, clusterARN)
-	assertRelationshipTargetAttribute(t, envelopes, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, "cache_cluster_id", "orders-cache-001")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipElastiCacheUserGroupHasUser, userARN)
-	assertRelationshipTargetAttribute(t, envelopes, awscloud.RelationshipElastiCacheUserGroupHasUser, "user_id", "orders-app")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheClusterInVPC, "vpc-123")
+	assertRelationshipTargetARNEmpty(t, envelopes, aws.RelationshipElastiCacheClusterInVPC)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheClusterInSubnet, "subnet-a")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheClusterInSubnet, "subnet-b")
+	assertRelationshipTargetARNEmpty(t, envelopes, aws.RelationshipElastiCacheClusterInSubnet)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheClusterUsesKMSKey, kmsKeyARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheReplicationGroupHasCluster, clusterARN)
+	assertRelationshipTargetAttribute(t, envelopes, aws.RelationshipElastiCacheReplicationGroupHasCluster, "cache_cluster_id", "orders-cache-001")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipElastiCacheUserGroupHasUser, userARN)
+	assertRelationshipTargetAttribute(t, envelopes, aws.RelationshipElastiCacheUserGroupHasUser, "user_id", "orders-app")
 	// SourceRecordIDs incorporate the relationship type so a source with
 	// multiple edges to the same target stays distinct in the envelope source
 	// ref (matches the RDS scanner pattern).
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipElastiCacheClusterInVPC, clusterARN+"->elasticache_cluster_in_vpc:vpc-123")
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, replicationGroupARN+"->elasticache_replication_group_has_cluster:"+clusterARN)
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipElastiCacheUserGroupHasUser, userGroupARN+"->elasticache_user_group_has_user:"+userARN)
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipElastiCacheClusterInVPC, clusterARN+"->elasticache_cluster_in_vpc:vpc-123")
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipElastiCacheReplicationGroupHasCluster, replicationGroupARN+"->elasticache_replication_group_has_cluster:"+clusterARN)
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipElastiCacheUserGroupHasUser, userGroupARN+"->elasticache_user_group_has_user:"+userARN)
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -273,7 +273,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipElastiCacheClusterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipElastiCacheClusterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -284,7 +284,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceRDS
+	boundary.ServiceKind = aws.ServiceRDS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -312,11 +312,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceElastiCache,
+		ServiceKind:         aws.ServiceElastiCache,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elasticache:1",
 		CollectorInstanceID: "aws-prod",

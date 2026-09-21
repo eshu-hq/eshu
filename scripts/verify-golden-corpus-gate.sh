@@ -120,7 +120,7 @@ source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
-	"collector-aws-cloud:awscloud"
+	"collector-aws-cloud:aws"
 	"collector-azure-cloud:azurecloud"
 	"collector-gcp-cloud:gcpcloud"
 	"collector-vault-live:vaultlive"

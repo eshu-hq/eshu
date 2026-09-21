@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/databrew/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/databrew/sdk guidance
 
 ## Read First
 

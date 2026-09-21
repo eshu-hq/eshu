@@ -35,7 +35,7 @@ type Snapshot struct {
 	TargetGroups []TargetGroup
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ServiceNetwork is the scanner-owned VPC Lattice service network model. It

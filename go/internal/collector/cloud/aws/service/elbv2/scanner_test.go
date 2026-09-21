@@ -103,34 +103,34 @@ func TestScannerEmitsRoutingTopologyWithoutTargetHealth(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 4", counts[facts.AWSRelationshipFactKind])
 	}
 
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2LoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, aws.ResourceTypeELBv2LoadBalancer)
 	assertAttribute(t, loadBalancer, "dns_name", "api-123.us-east-1.elb.amazonaws.com")
-	rule := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2Rule)
+	rule := assertResourceType(t, envelopes, aws.ResourceTypeELBv2Rule)
 	assertRuleConditions(t, rule)
-	targetGroup := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2TargetGroup)
+	targetGroup := assertResourceType(t, envelopes, aws.ResourceTypeELBv2TargetGroup)
 	assertHealthCheck(t, targetGroup)
 	assertNoTargetHealth(t, targetGroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2LoadBalancerHasListener)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2ListenerHasRule)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2TargetGroupAttachedToLoadBalancer)
-	route := assertRelationship(t, envelopes, awscloud.RelationshipELBv2ListenerRoutesToTargetGroup)
+	assertRelationship(t, envelopes, aws.RelationshipELBv2LoadBalancerHasListener)
+	assertRelationship(t, envelopes, aws.RelationshipELBv2ListenerHasRule)
+	assertRelationship(t, envelopes, aws.RelationshipELBv2TargetGroupAttachedToLoadBalancer)
+	route := assertRelationship(t, envelopes, aws.RelationshipELBv2ListenerRoutesToTargetGroup)
 	assertRouteEvidence(t, route)
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = aws.ServiceECS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceELBv2,
+		ServiceKind:         aws.ServiceELBv2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elbv2:1",
 		CollectorInstanceID: "aws-prod",

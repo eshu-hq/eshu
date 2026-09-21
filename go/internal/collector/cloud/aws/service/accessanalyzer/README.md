@@ -2,10 +2,10 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/accessanalyzer` owns the IAM Access
+`internal/collector/cloud/aws/service/accessanalyzer` owns the IAM Access
 Analyzer scanner contract for the AWS cloud collector. It converts analyzer
 metadata, archive-rule bindings, aggregate finding counts, and unused-access
-last-accessed summaries into `awscloud` observations.
+last-accessed summaries into `aws` observations.
 
 ## Ownership boundary
 
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ v2 so tests can use fakes and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Access Analyzer API call counts, throttles, and
+The `sdk` adapter records Access Analyzer API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -78,14 +78,14 @@ pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/accessanalyzer/... -count=1`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/accessanalyzer/... -count=1`
 covers one ListAnalyzers stream, ListArchiveRules reads, ListFindings aggregate
 counting for external-access analyzers, ListFindingsV2 plus bounded
 GetFindingV2 unused-access summary reads, no malformed child IDs when analyzer
 ARNs are absent, no GetFinding external finding-body reads, no policy-generation
 reads, no mutation APIs, and no graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/... -count=1`
 covers Access Analyzer resource fact emission, archive-rule filter omission,
 finding-body redaction, unused-action omission, organization-account
 relationship emission, archive-rule relationship emission, runtime

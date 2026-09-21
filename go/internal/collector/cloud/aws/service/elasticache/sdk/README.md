@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elasticache/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/elasticache/sdk` adapts AWS SDK for Go
 v2 ElastiCache responses to the scanner-owned `Client` contract. It owns cache
 cluster pagination, replication group pagination, parameter group pagination,
 subnet group pagination, user pagination, user group pagination, snapshot
@@ -46,9 +46,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/elasticache` for scanner-owned result
+- `internal/collector/cloud/aws/service/elasticache` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `elasticache` and Smithy error contracts.

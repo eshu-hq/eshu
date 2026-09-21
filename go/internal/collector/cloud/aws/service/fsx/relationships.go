@@ -14,56 +14,56 @@ import (
 // a target_resource_id that matches the target scanner's resource_id: VPC and
 // subnet edges use the bare AWS ID, KMS edges use the key ARN or ID, and AD
 // edges use the bare directory ID.
-func fileSystemRelationships(boundary awscloud.Boundary, fs FileSystem) []awscloud.RelationshipObservation {
+func fileSystemRelationships(boundary aws.Boundary, fs FileSystem) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(fs.ARN, fs.ID)
 	if sourceID == "" {
 		return nil
 	}
 	fsARN := strings.TrimSpace(fs.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(fs.VPCID); vpcID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxFileSystemInVPC,
+			RelationshipType: aws.RelationshipFSxFileSystemInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxFileSystemInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxFileSystemInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(fs.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxFileSystemInSubnet,
+			RelationshipType: aws.RelationshipFSxFileSystemInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"subnet_id": subnetID,
 				"preferred": subnetID == strings.TrimSpace(fs.PreferredSubnetID),
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipFSxFileSystemInSubnet, subnetID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipFSxFileSystemInSubnet, subnetID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(fs.KMSKeyID); kmsKey != "" {
 		relationships = append(relationships, kmsKeyRelationship(
-			boundary, awscloud.RelationshipFSxFileSystemUsesKMSKey, sourceID, fsARN, kmsKey,
+			boundary, aws.RelationshipFSxFileSystemUsesKMSKey, sourceID, fsARN, kmsKey,
 		))
 	}
 	if directoryID := strings.TrimSpace(fs.ActiveDirectoryID); directoryID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxFileSystemUsesADDirectory,
+			RelationshipType: aws.RelationshipFSxFileSystemUsesADDirectory,
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: directoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       aws.ResourceTypeDSDirectory,
 			Attributes:       map[string]any{"directory_id": directoryID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxFileSystemUsesADDirectory, directoryID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxFileSystemUsesADDirectory, directoryID),
 		})
 	}
 	return relationships
@@ -74,41 +74,41 @@ func fileSystemRelationships(boundary awscloud.Boundary, fs FileSystem) []awsclo
 // ARN when the SVM's parent file system is known, so it joins the file system
 // resource fact by ARN.
 func svmRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	svm StorageVirtualMachine,
 	fileSystemARNs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(svm.ARN, svm.ID)
 	if sourceID == "" {
 		return nil
 	}
 	svmARN := strings.TrimSpace(svm.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if fsID := strings.TrimSpace(svm.FileSystemID); fsID != "" {
 		targetID, targetARN := fileSystemTarget(fsID, fileSystemARNs)
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxSVMTargetsFileSystem,
+			RelationshipType: aws.RelationshipFSxSVMTargetsFileSystem,
 			SourceResourceID: sourceID,
 			SourceARN:        svmARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeFSxFileSystem,
+			TargetType:       aws.ResourceTypeFSxFileSystem,
 			Attributes:       map[string]any{"file_system_id": fsID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxSVMTargetsFileSystem, targetID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxSVMTargetsFileSystem, targetID),
 		})
 	}
 	if directoryID := strings.TrimSpace(svm.ActiveDirectoryID); directoryID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxSVMUsesADDirectory,
+			RelationshipType: aws.RelationshipFSxSVMUsesADDirectory,
 			SourceResourceID: sourceID,
 			SourceARN:        svmARN,
 			TargetResourceID: directoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       aws.ResourceTypeDSDirectory,
 			Attributes:       map[string]any{"directory_id": directoryID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxSVMUsesADDirectory, directoryID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxSVMUsesADDirectory, directoryID),
 		})
 	}
 	return relationships
@@ -118,17 +118,17 @@ func svmRelationships(
 // volume. The targets are upgraded to ARNs when the parent SVM or file system
 // is known so the edges join the SVM and file system resource facts by ARN.
 func volumeRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	volume Volume,
 	storageVirtualMachineARNs map[string]string,
 	fileSystemARNs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(volume.ARN, volume.ID)
 	if sourceID == "" {
 		return nil
 	}
 	volumeARN := strings.TrimSpace(volume.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if svmID := strings.TrimSpace(volume.StorageVirtualMachineID); svmID != "" {
 		targetID := svmID
@@ -137,30 +137,30 @@ func volumeRelationships(
 			targetID = arn
 			targetARN = arn
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxVolumeTargetsSVM,
+			RelationshipType: aws.RelationshipFSxVolumeTargetsSVM,
 			SourceResourceID: sourceID,
 			SourceARN:        volumeARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeFSxStorageVirtualMachine,
+			TargetType:       aws.ResourceTypeFSxStorageVirtualMachine,
 			Attributes:       map[string]any{"storage_virtual_machine_id": svmID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxVolumeTargetsSVM, targetID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxVolumeTargetsSVM, targetID),
 		})
 	}
 	if fsID := strings.TrimSpace(volume.FileSystemID); fsID != "" {
 		targetID, targetARN := fileSystemTarget(fsID, fileSystemARNs)
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFSxVolumeTargetsFileSystem,
+			RelationshipType: aws.RelationshipFSxVolumeTargetsFileSystem,
 			SourceResourceID: sourceID,
 			SourceARN:        volumeARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeFSxFileSystem,
+			TargetType:       aws.ResourceTypeFSxFileSystem,
 			Attributes:       map[string]any{"file_system_id": fsID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxVolumeTargetsFileSystem, targetID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxVolumeTargetsFileSystem, targetID),
 		})
 	}
 	return relationships
@@ -175,10 +175,10 @@ func volumeRelationships(
 // later projection can still resolve it by ARN; it is never downgraded to the
 // bare file system ID.
 func backupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	backup Backup,
 	fileSystemARNs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(backup.ARN, backup.ID)
 	fsID := firstNonEmpty(backup.FileSystemARN, backup.FileSystemID)
 	if sourceID == "" || fsID == "" {
@@ -200,16 +200,16 @@ func backupRelationships(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFSxBackupTargetsFileSystem,
+		RelationshipType: aws.RelationshipFSxBackupTargetsFileSystem,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(backup.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeFSxFileSystem,
+		TargetType:       aws.ResourceTypeFSxFileSystem,
 		Attributes:       map[string]any{"file_system_id": strings.TrimSpace(backup.FileSystemID)},
-		SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipFSxBackupTargetsFileSystem, targetID),
+		SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipFSxBackupTargetsFileSystem, targetID),
 	}}
 }
 
@@ -217,24 +217,24 @@ func backupRelationships(
 // ARN or ID exactly as FSx reports it, matching the KMS scanner's resource_id;
 // target_arn is set only when the value is ARN-shaped.
 func kmsKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	kmsKey string,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	targetARN := ""
 	if isARN(kmsKey) {
 		targetARN = kmsKey
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, kmsKey),
 	}
 }

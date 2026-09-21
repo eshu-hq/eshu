@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/route53recoverycontrolconfig guidance
+# AGENTS.md - internal/collector/cloud/aws/service/route53recoverycontrolconfig guidance
 
 ## Read First
 
@@ -34,7 +34,7 @@
   handles to the routing control state data plane.
 - Safety rules record rule logic and routing control counts only, never traffic.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from resource names or tags.
@@ -47,12 +47,12 @@
 
 - Add a new recovery-control metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry routing control state,
+  `aws` envelope builders. If the field can carry routing control state,
   leave it out of the scanner contract.
 - Add new relationship evidence only when the recovery-control API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

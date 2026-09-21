@@ -108,7 +108,7 @@ func apiARN(region, apiID string) string {
 		return ""
 	}
 	region = strings.TrimSpace(region)
-	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + apiID
+	return "arn:" + aws.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + apiID
 }
 
 func stageARN(region, apiID, stageName string) string {

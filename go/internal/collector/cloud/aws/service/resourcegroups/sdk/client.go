@@ -6,7 +6,7 @@
 // query type, and their membership only; it never calls a mutation API and never
 // persists the resource-query body beyond the stack identifier a
 // CloudFormation-stack-backed group reports.
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsrg "github.com/aws/aws-sdk-go-v2/service/resourcegroups"
 	awsrgtypes "github.com/aws/aws-sdk-go-v2/service/resourcegroups/types"
 	"github.com/aws/smithy-go"
@@ -43,15 +43,15 @@ type apiClient interface {
 // the stack identifier the query reports.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Resource Groups SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -105,8 +105,8 @@ func (c *Client) groupMetadata(
 	ctx context.Context,
 	identifier awsrgtypes.GroupIdentifier,
 ) (rgservice.Group, error) {
-	groupARN := strings.TrimSpace(aws.ToString(identifier.GroupArn))
-	name := strings.TrimSpace(aws.ToString(identifier.GroupName))
+	groupARN := strings.TrimSpace(awsv2.ToString(identifier.GroupArn))
+	name := strings.TrimSpace(awsv2.ToString(identifier.GroupName))
 	queryType, stackIdentifier, err := c.groupQuery(ctx, groupARN, name)
 	if err != nil {
 		return rgservice.Group{}, err
@@ -118,7 +118,7 @@ func (c *Client) groupMetadata(
 	return rgservice.Group{
 		ARN:             groupARN,
 		Name:            name,
-		Description:     strings.TrimSpace(aws.ToString(identifier.Description)),
+		Description:     strings.TrimSpace(awsv2.ToString(identifier.Description)),
 		QueryType:       queryType,
 		StackIdentifier: stackIdentifier,
 		Members:         members,
@@ -134,7 +134,7 @@ func (c *Client) groupQuery(ctx context.Context, groupARN, name string) (queryTy
 	callErr := c.recordAPICall(ctx, "GetGroupQuery", func(callCtx context.Context) error {
 		var inner error
 		out, inner = c.client.GetGroupQuery(callCtx, &awsrg.GetGroupQueryInput{
-			Group: aws.String(groupRef(groupARN, name)),
+			Group: awsv2.String(groupRef(groupARN, name)),
 		})
 		return inner
 	})
@@ -147,14 +147,14 @@ func (c *Client) groupQuery(ctx context.Context, groupARN, name string) (queryTy
 	query := out.GroupQuery.ResourceQuery
 	queryType = string(query.Type)
 	if queryType == queryTypeCloudFormationStack {
-		stackIdentifier = stackIdentifierFromQuery(aws.ToString(query.Query))
+		stackIdentifier = stackIdentifierFromQuery(awsv2.ToString(query.Query))
 	}
 	return queryType, stackIdentifier, nil
 }
 
 func (c *Client) groupResources(ctx context.Context, groupARN, name string) ([]rgservice.ResourceMember, error) {
 	paginator := awsrg.NewListGroupResourcesPaginator(c.client, &awsrg.ListGroupResourcesInput{
-		Group: aws.String(groupRef(groupARN, name)),
+		Group: awsv2.String(groupRef(groupARN, name)),
 	})
 	var members []rgservice.ResourceMember
 	for paginator.HasMorePages() {
@@ -171,13 +171,13 @@ func (c *Client) groupResources(ctx context.Context, groupARN, name string) ([]r
 			if item.Identifier == nil {
 				continue
 			}
-			arn := strings.TrimSpace(aws.ToString(item.Identifier.ResourceArn))
+			arn := strings.TrimSpace(awsv2.ToString(item.Identifier.ResourceArn))
 			if arn == "" {
 				continue
 			}
 			members = append(members, rgservice.ResourceMember{
 				ARN:          arn,
-				ResourceType: strings.TrimSpace(aws.ToString(item.Identifier.ResourceType)),
+				ResourceType: strings.TrimSpace(awsv2.ToString(item.Identifier.ResourceType)),
 			})
 		}
 	}
@@ -233,7 +233,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

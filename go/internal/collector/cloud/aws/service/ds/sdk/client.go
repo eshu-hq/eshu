@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsds "github.com/aws/aws-sdk-go-v2/service/directoryservice"
 	awsdstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
 	"github.com/aws/smithy-go"
@@ -60,15 +60,15 @@ type apiClient interface {
 // secret, the AD Connector service-account credentials, or any mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Directory Service SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -94,7 +94,7 @@ func (c *Client) ListDirectories(ctx context.Context) ([]dsservice.Directory, er
 		err := c.recordAPICall(ctx, "DescribeDirectories", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeDirectories(callCtx, &awsds.DescribeDirectoriesInput{
-				Limit:     aws.Int32(describeLimit),
+				Limit:     awsv2.Int32(describeLimit),
 				NextToken: nextToken,
 			})
 			return err
@@ -110,14 +110,14 @@ func (c *Client) ListDirectories(ctx context.Context) ([]dsservice.Directory, er
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(raw.DirectoryId))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DirectoryId))
 			if err != nil {
 				return nil, err
 			}
 			directories = append(directories, mapDirectory(raw, ldapsStatuses, tags))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return directories, nil
 		}
 	}
@@ -136,8 +136,8 @@ func (c *Client) ListTrusts(ctx context.Context, directoryID string) ([]dsservic
 		err := c.recordAPICall(ctx, "DescribeTrusts", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeTrusts(callCtx, &awsds.DescribeTrustsInput{
-				DirectoryId: aws.String(directoryID),
-				Limit:       aws.Int32(describeLimit),
+				DirectoryId: awsv2.String(directoryID),
+				Limit:       awsv2.Int32(describeLimit),
 				NextToken:   nextToken,
 			})
 			return err
@@ -152,7 +152,7 @@ func (c *Client) ListTrusts(ctx context.Context, directoryID string) ([]dsservic
 			trusts = append(trusts, mapTrust(raw))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return trusts, nil
 		}
 	}
@@ -171,8 +171,8 @@ func (c *Client) ListSharedDirectories(ctx context.Context, ownerDirectoryID str
 		err := c.recordAPICall(ctx, "DescribeSharedDirectories", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeSharedDirectories(callCtx, &awsds.DescribeSharedDirectoriesInput{
-				OwnerDirectoryId: aws.String(ownerDirectoryID),
-				Limit:            aws.Int32(describeLimit),
+				OwnerDirectoryId: awsv2.String(ownerDirectoryID),
+				Limit:            awsv2.Int32(describeLimit),
 				NextToken:        nextToken,
 			})
 			return err
@@ -187,7 +187,7 @@ func (c *Client) ListSharedDirectories(ctx context.Context, ownerDirectoryID str
 			shares = append(shares, mapSharedDirectory(raw))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return shares, nil
 		}
 	}
@@ -206,9 +206,9 @@ func (c *Client) ListLDAPSSettings(ctx context.Context, directoryID string) ([]d
 		err := c.recordAPICall(ctx, "DescribeLDAPSSettings", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeLDAPSSettings(callCtx, &awsds.DescribeLDAPSSettingsInput{
-				DirectoryId: aws.String(directoryID),
+				DirectoryId: awsv2.String(directoryID),
 				Type:        awsdstypes.LDAPSTypeClient,
-				Limit:       aws.Int32(describeLimit),
+				Limit:       awsv2.Int32(describeLimit),
 				NextToken:   nextToken,
 			})
 			return err
@@ -223,7 +223,7 @@ func (c *Client) ListLDAPSSettings(ctx context.Context, directoryID string) ([]d
 			settings = append(settings, mapLDAPSSetting(raw))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return settings, nil
 		}
 	}
@@ -237,7 +237,7 @@ func (c *Client) listLDAPSStatuses(ctx context.Context, raw awsdstypes.Directory
 	if !supportsLDAPS(raw.Type) {
 		return nil, nil
 	}
-	directoryID := aws.ToString(raw.DirectoryId)
+	directoryID := awsv2.ToString(raw.DirectoryId)
 	settings, err := c.ListLDAPSSettings(ctx, directoryID)
 	if err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func (c *Client) listTags(ctx context.Context, directoryID string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTagsForResource(callCtx, &awsds.ListTagsForResourceInput{
-				ResourceId: aws.String(directoryID),
+				ResourceId: awsv2.String(directoryID),
 				NextToken:  nextToken,
 			})
 			return err
@@ -287,14 +287,14 @@ func (c *Client) listTags(ctx context.Context, directoryID string) (map[string]s
 			break
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -322,7 +322,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

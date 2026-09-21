@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudtrail "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 
@@ -89,51 +89,51 @@ func TestClientListTrailsReadsMetadataAndNeverFetchesEventPayloads(t *testing.T)
 	api := &fakeCloudTrailAPI{
 		trailsPages: []*awscloudtrail.ListTrailsOutput{{
 			Trails: []cttypes.TrailInfo{{
-				TrailARN:   aws.String(trailARN),
-				Name:       aws.String("audit-trail"),
-				HomeRegion: aws.String("us-east-1"),
+				TrailARN:   awsv2.String(trailARN),
+				Name:       awsv2.String("audit-trail"),
+				HomeRegion: awsv2.String("us-east-1"),
 			}},
 		}},
 		trail: map[string]*awscloudtrail.GetTrailOutput{
 			trailARN: {
 				Trail: &cttypes.Trail{
-					Name:                       aws.String("audit-trail"),
-					HomeRegion:                 aws.String("us-east-1"),
-					S3BucketName:               aws.String(bucket),
-					S3KeyPrefix:                aws.String("logs/"),
-					SnsTopicARN:                aws.String(snsARN),
-					CloudWatchLogsLogGroupArn:  aws.String(logGroupARN),
-					CloudWatchLogsRoleArn:      aws.String("arn:aws:iam::123456789012:role/CT-CW"),
-					KmsKeyId:                   aws.String(kmsKey),
-					IncludeGlobalServiceEvents: aws.Bool(true),
-					IsMultiRegionTrail:         aws.Bool(true),
-					IsOrganizationTrail:        aws.Bool(true),
-					LogFileValidationEnabled:   aws.Bool(true),
-					HasCustomEventSelectors:    aws.Bool(true),
-					HasInsightSelectors:        aws.Bool(true),
+					Name:                       awsv2.String("audit-trail"),
+					HomeRegion:                 awsv2.String("us-east-1"),
+					S3BucketName:               awsv2.String(bucket),
+					S3KeyPrefix:                awsv2.String("logs/"),
+					SnsTopicARN:                awsv2.String(snsARN),
+					CloudWatchLogsLogGroupArn:  awsv2.String(logGroupARN),
+					CloudWatchLogsRoleArn:      awsv2.String("arn:aws:iam::123456789012:role/CT-CW"),
+					KmsKeyId:                   awsv2.String(kmsKey),
+					IncludeGlobalServiceEvents: awsv2.Bool(true),
+					IsMultiRegionTrail:         awsv2.Bool(true),
+					IsOrganizationTrail:        awsv2.Bool(true),
+					LogFileValidationEnabled:   awsv2.Bool(true),
+					HasCustomEventSelectors:    awsv2.Bool(true),
+					HasInsightSelectors:        awsv2.Bool(true),
 				},
 			},
 		},
 		trailStatus: map[string]*awscloudtrail.GetTrailStatusOutput{
 			trailARN: {
-				IsLogging:               aws.Bool(true),
-				LatestDeliveryError:     aws.String(""),
-				LatestNotificationError: aws.String(""),
+				IsLogging:               awsv2.Bool(true),
+				LatestDeliveryError:     awsv2.String(""),
+				LatestNotificationError: awsv2.String(""),
 			},
 		},
 		eventSelectors: map[string]*awscloudtrail.GetEventSelectorsOutput{
 			trailARN: {
 				EventSelectors: []cttypes.EventSelector{{
 					DataResources: []cttypes.DataResource{{
-						Type: aws.String("AWS::S3::Object"),
+						Type: awsv2.String("AWS::S3::Object"),
 					}, {
-						Type: aws.String("AWS::Lambda::Function"),
+						Type: awsv2.String("AWS::Lambda::Function"),
 					}},
 				}},
 				AdvancedEventSelectors: []cttypes.AdvancedEventSelector{{
-					Name: aws.String("Log Lambda data events"),
+					Name: awsv2.String("Log Lambda data events"),
 					FieldSelectors: []cttypes.AdvancedFieldSelector{{
-						Field:  aws.String("resources.type"),
+						Field:  awsv2.String("resources.type"),
 						Equals: []string{"AWS::DynamoDB::Table"},
 					}},
 				}},
@@ -151,10 +151,10 @@ func TestClientListTrailsReadsMetadataAndNeverFetchesEventPayloads(t *testing.T)
 		tags: map[string]*awscloudtrail.ListTagsOutput{
 			trailARN: {
 				ResourceTagList: []cttypes.ResourceTag{{
-					ResourceId: aws.String(trailARN),
+					ResourceId: awsv2.String(trailARN),
 					TagsList: []cttypes.Tag{{
-						Key:   aws.String("Environment"),
-						Value: aws.String("prod"),
+						Key:   awsv2.String("Environment"),
+						Value: awsv2.String("prod"),
 					}},
 				}},
 			},
@@ -162,7 +162,7 @@ func TestClientListTrailsReadsMetadataAndNeverFetchesEventPayloads(t *testing.T)
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudTrail},
 	}
 
 	trails, err := adapter.ListTrails(context.Background())
@@ -236,34 +236,34 @@ func TestClientListEventDataStoresReadsMetadataOnly(t *testing.T) {
 	api := &fakeCloudTrailAPI{
 		eventDataStoresPages: []*awscloudtrail.ListEventDataStoresOutput{{
 			EventDataStores: []cttypes.EventDataStore{{
-				EventDataStoreArn: aws.String(storeARN),
+				EventDataStoreArn: awsv2.String(storeARN),
 			}},
 		}},
 		eventDataStoreDetails: map[string]*awscloudtrail.GetEventDataStoreOutput{
 			storeARN: {
-				Name:                         aws.String("security-lake"),
+				Name:                         awsv2.String("security-lake"),
 				Status:                       cttypes.EventDataStoreStatusEnabled,
-				RetentionPeriod:              aws.Int32(2555),
-				MultiRegionEnabled:           aws.Bool(true),
-				OrganizationEnabled:          aws.Bool(true),
-				TerminationProtectionEnabled: aws.Bool(true),
+				RetentionPeriod:              awsv2.Int32(2555),
+				MultiRegionEnabled:           awsv2.Bool(true),
+				OrganizationEnabled:          awsv2.Bool(true),
+				TerminationProtectionEnabled: awsv2.Bool(true),
 				BillingMode:                  cttypes.BillingModeExtendableRetentionPricing,
-				KmsKeyId:                     aws.String(kmsKey),
-				CreatedTimestamp:             aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
-				UpdatedTimestamp:             aws.Time(time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC)),
+				KmsKeyId:                     awsv2.String(kmsKey),
+				CreatedTimestamp:             awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				UpdatedTimestamp:             awsv2.Time(time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC)),
 				AdvancedEventSelectors: []cttypes.AdvancedEventSelector{
-					{Name: aws.String("selector-1")},
-					{Name: aws.String("selector-2")},
+					{Name: awsv2.String("selector-1")},
+					{Name: awsv2.String("selector-2")},
 				},
 			},
 		},
 		tags: map[string]*awscloudtrail.ListTagsOutput{
 			storeARN: {
 				ResourceTagList: []cttypes.ResourceTag{{
-					ResourceId: aws.String(storeARN),
+					ResourceId: awsv2.String(storeARN),
 					TagsList: []cttypes.Tag{{
-						Key:   aws.String("Team"),
-						Value: aws.String("security"),
+						Key:   awsv2.String("Team"),
+						Value: awsv2.String("security"),
 					}},
 				}},
 			},
@@ -271,7 +271,7 @@ func TestClientListEventDataStoresReadsMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudTrail},
 	}
 
 	stores, err := adapter.ListEventDataStores(context.Background())
@@ -313,22 +313,22 @@ func TestClientListChannelsAndDashboardsReadsMetadataOnly(t *testing.T) {
 	api := &fakeCloudTrailAPI{
 		channelsPages: []*awscloudtrail.ListChannelsOutput{{
 			Channels: []cttypes.Channel{{
-				ChannelArn: aws.String(channelARN),
+				ChannelArn: awsv2.String(channelARN),
 			}},
 		}},
 		channelDetails: map[string]*awscloudtrail.GetChannelOutput{
 			channelARN: {
-				Name:   aws.String("external-events"),
-				Source: aws.String("Custom"),
+				Name:   awsv2.String("external-events"),
+				Source: awsv2.String("Custom"),
 				Destinations: []cttypes.Destination{{
 					Type:     cttypes.DestinationTypeEventDataStore,
-					Location: aws.String(storeARN),
+					Location: awsv2.String(storeARN),
 				}},
 			},
 		},
 		dashboardsPages: []*awscloudtrail.ListDashboardsOutput{{
 			Dashboards: []cttypes.DashboardDetail{{
-				DashboardArn: aws.String(dashboardARN),
+				DashboardArn: awsv2.String(dashboardARN),
 				Type:         cttypes.DashboardTypeCustom,
 			}},
 		}},
@@ -338,12 +338,12 @@ func TestClientListChannelsAndDashboardsReadsMetadataOnly(t *testing.T) {
 				Type:   cttypes.DashboardTypeCustom,
 				Widgets: []cttypes.Widget{
 					{
-						QueryAlias:     aws.String("widget-1"),
-						QueryStatement: aws.String("SELECT * FROM events"),
+						QueryAlias:     awsv2.String("widget-1"),
+						QueryStatement: awsv2.String("SELECT * FROM events"),
 					},
 					{
-						QueryAlias:     aws.String("widget-2"),
-						QueryStatement: aws.String("SELECT count(*) FROM events"),
+						QueryAlias:     awsv2.String("widget-2"),
+						QueryStatement: awsv2.String("SELECT count(*) FROM events"),
 					},
 				},
 				RefreshSchedule: &cttypes.RefreshSchedule{
@@ -356,7 +356,7 @@ func TestClientListChannelsAndDashboardsReadsMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudTrail},
 	}
 
 	channels, err := adapter.ListChannels(context.Background())

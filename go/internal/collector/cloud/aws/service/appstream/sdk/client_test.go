@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappstream "github.com/aws/aws-sdk-go-v2/service/appstream"
 	awsappstreamtypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 
@@ -25,30 +25,30 @@ func TestClientSnapshotsAppStreamMetadataOnly(t *testing.T) {
 
 	api := &fakeAppStreamAPI{
 		fleets: [][]awsappstreamtypes.Fleet{{{
-			Arn:          aws.String(fleetARN),
-			Name:         aws.String("sales-fleet"),
+			Arn:          awsv2.String(fleetARN),
+			Name:         awsv2.String("sales-fleet"),
 			State:        awsappstreamtypes.FleetStateRunning,
 			FleetType:    awsappstreamtypes.FleetTypeOnDemand,
-			InstanceType: aws.String("stream.standard.medium"),
-			IamRoleArn:   aws.String(roleARN),
-			ImageArn:     aws.String(imageARN),
-			CreatedTime:  aws.Time(createdAt),
+			InstanceType: awsv2.String("stream.standard.medium"),
+			IamRoleArn:   awsv2.String(roleARN),
+			ImageArn:     awsv2.String(imageARN),
+			CreatedTime:  awsv2.Time(createdAt),
 			VpcConfig: &awsappstreamtypes.VpcConfig{
 				SubnetIds:        []string{"subnet-aaa", " ", "subnet-bbb"},
 				SecurityGroupIds: []string{"sg-111"},
 			},
 		}}},
 		stacks: [][]awsappstreamtypes.Stack{{{
-			Arn:  aws.String(stackARN),
-			Name: aws.String("sales-stack"),
+			Arn:  awsv2.String(stackARN),
+			Name: awsv2.String("sales-stack"),
 			ApplicationSettings: &awsappstreamtypes.ApplicationSettingsResponse{
-				Enabled:      aws.Bool(true),
-				S3BucketName: aws.String("appstream-settings-bucket"),
+				Enabled:      awsv2.Bool(true),
+				S3BucketName: awsv2.String("appstream-settings-bucket"),
 			},
 			StorageConnectors: []awsappstreamtypes.StorageConnector{
 				{
 					ConnectorType:      awsappstreamtypes.StorageConnectorTypeHomefolders,
-					ResourceIdentifier: aws.String("appstream-home-folders"),
+					ResourceIdentifier: awsv2.String("appstream-home-folders"),
 				},
 				{
 					ConnectorType: awsappstreamtypes.StorageConnectorTypeGoogleDrive,
@@ -57,12 +57,12 @@ func TestClientSnapshotsAppStreamMetadataOnly(t *testing.T) {
 			},
 		}}},
 		builders: [][]awsappstreamtypes.ImageBuilder{{{
-			Arn:          aws.String(builderARN),
-			Name:         aws.String("builder-1"),
+			Arn:          awsv2.String(builderARN),
+			Name:         awsv2.String("builder-1"),
 			State:        awsappstreamtypes.ImageBuilderStateRunning,
-			InstanceType: aws.String("stream.standard.large"),
-			IamRoleArn:   aws.String(roleARN),
-			ImageArn:     aws.String(imageARN),
+			InstanceType: awsv2.String("stream.standard.large"),
+			IamRoleArn:   awsv2.String(roleARN),
+			ImageArn:     awsv2.String(imageARN),
 			VpcConfig: &awsappstreamtypes.VpcConfig{
 				SubnetIds:        []string{"subnet-ccc"},
 				SecurityGroupIds: []string{"sg-222"},
@@ -70,8 +70,8 @@ func TestClientSnapshotsAppStreamMetadataOnly(t *testing.T) {
 		}}},
 		imagesByType: map[awsappstreamtypes.VisibilityType][][]awsappstreamtypes.Image{
 			awsappstreamtypes.VisibilityTypePrivate: {{{
-				Arn:        aws.String(imageARN),
-				Name:       aws.String("custom-image"),
+				Arn:        awsv2.String(imageARN),
+				Name:       awsv2.String("custom-image"),
 				State:      awsappstreamtypes.ImageStateAvailable,
 				Visibility: awsappstreamtypes.VisibilityTypePrivate,
 				ImageType:  awsappstreamtypes.ImageTypeCustom,
@@ -171,11 +171,11 @@ func TestClientDescribeImagesScopesToPrivateAndShared(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAppStream,
+		ServiceKind: aws.ServiceAppStream,
 	}
 }
 
@@ -271,7 +271,7 @@ func (f *fakeAppStreamAPI) ListAssociatedStacks(
 	if f.associatedIdx == nil {
 		f.associatedIdx = map[string]int{}
 	}
-	name := aws.ToString(input.FleetName)
+	name := awsv2.ToString(input.FleetName)
 	pages := f.associatedStacks[name]
 	idx := f.associatedIdx[name]
 	if idx >= len(pages) {
@@ -287,6 +287,6 @@ func (f *fakeAppStreamAPI) ListTagsForResource(
 	_ ...func(*awsappstream.Options),
 ) (*awsappstream.ListTagsForResourceOutput, error) {
 	return &awsappstream.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }

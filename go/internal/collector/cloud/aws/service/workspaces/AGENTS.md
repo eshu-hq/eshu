@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/workspaces guidance
+# AGENTS.md - internal/collector/cloud/aws/service/workspaces guidance
 
 ## Read First
 
@@ -25,7 +25,7 @@
 - The WorkSpaces describe APIs return no ARNs. The workspace, directory, bundle,
   and IP-group nodes publish a synthesized partition-aware WorkSpaces ARN as
   their resource_id via `workspacesARN`, which derives the partition with
-  `awscloud.PartitionForBoundary` and never hardcodes `arn:aws:`. The bare id is
+  `aws.PartitionForBoundary` and never hardcodes `arn:aws:`. The bare id is
   the fallback when account or region is missing.
 - The internal workspace-in-directory edge targets the directory node's
   synthesized ARN. The directory-to-DS-directory edge targets the BARE directory
@@ -37,7 +37,7 @@
   publishes; the workspace-to-KMS-key edge targets the reported key reference.
   Set `target_arn` only when the value is ARN-shaped.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from WorkSpace, directory,
@@ -50,14 +50,14 @@
 
 - Add a new WorkSpaces metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a credential, registration
+  `aws` envelope builders. If the field can carry a credential, registration
   code, IP address, or session detail, leave it out of the scanner contract.
 - Add new relationship evidence only when the WorkSpaces API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (bare id for DS directory / subnet / security group, role
   ARN for IAM, key reference for KMS, synthesized WorkSpaces ARN for the internal
   directory/bundle/IP-group nodes).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

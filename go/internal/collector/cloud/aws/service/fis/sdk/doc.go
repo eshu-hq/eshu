@@ -11,4 +11,4 @@
 // ListExperimentResolvedTargets), and all Create/Update/Delete mutation APIs,
 // so the adapter cannot launch a fault-injection experiment, read experiment
 // run results, or mutate FIS state.
-package awssdk
+package sdk

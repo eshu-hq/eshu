@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/opensearch/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/opensearch/sdk` adapts AWS SDK for Go
 v2 OpenSearch and OpenSearch Serverless responses to the scanner-owned `Client`
 contract. It owns domain listing and description, custom package pagination,
 package-to-domain association pagination, serverless collection listing and
@@ -41,9 +41,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/opensearch` for scanner-owned result
+- `internal/collector/cloud/aws/service/opensearch` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `opensearch`, `opensearchserverless`, and Smithy error

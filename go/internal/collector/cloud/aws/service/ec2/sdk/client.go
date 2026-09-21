@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -34,15 +34,15 @@ type apiClient interface {
 // Client adapts AWS SDK EC2 pagination into scanner-owned EC2 network records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an EC2 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -57,7 +57,7 @@ func NewClient(
 // ListVPCs returns all VPCs visible to the configured AWS credentials.
 func (c *Client) ListVPCs(ctx context.Context) ([]ec2service.VPC, error) {
 	paginator := awsec2.NewDescribeVpcsPaginator(c.client, &awsec2.DescribeVpcsInput{
-		MaxResults: aws.Int32(ec2PageLimit),
+		MaxResults: awsv2.Int32(ec2PageLimit),
 	})
 	var vpcs []ec2service.VPC
 	for paginator.HasMorePages() {
@@ -80,7 +80,7 @@ func (c *Client) ListVPCs(ctx context.Context) ([]ec2service.VPC, error) {
 // ListSubnets returns all subnets visible to the configured AWS credentials.
 func (c *Client) ListSubnets(ctx context.Context) ([]ec2service.Subnet, error) {
 	paginator := awsec2.NewDescribeSubnetsPaginator(c.client, &awsec2.DescribeSubnetsInput{
-		MaxResults: aws.Int32(ec2PageLimit),
+		MaxResults: awsv2.Int32(ec2PageLimit),
 	})
 	var subnets []ec2service.Subnet
 	for paginator.HasMorePages() {
@@ -104,7 +104,7 @@ func (c *Client) ListSubnets(ctx context.Context) ([]ec2service.Subnet, error) {
 // credentials.
 func (c *Client) ListSecurityGroups(ctx context.Context) ([]ec2service.SecurityGroup, error) {
 	paginator := awsec2.NewDescribeSecurityGroupsPaginator(c.client, &awsec2.DescribeSecurityGroupsInput{
-		MaxResults: aws.Int32(ec2PageLimit),
+		MaxResults: awsv2.Int32(ec2PageLimit),
 	})
 	var groups []ec2service.SecurityGroup
 	for paginator.HasMorePages() {
@@ -129,7 +129,7 @@ func (c *Client) ListSecurityGroups(ctx context.Context) ([]ec2service.SecurityG
 func (c *Client) ListSecurityGroupRules(ctx context.Context) ([]ec2service.SecurityGroupRule, error) {
 	paginator := awsec2.NewDescribeSecurityGroupRulesPaginator(
 		c.client,
-		&awsec2.DescribeSecurityGroupRulesInput{MaxResults: aws.Int32(ec2PageLimit)},
+		&awsec2.DescribeSecurityGroupRulesInput{MaxResults: awsv2.Int32(ec2PageLimit)},
 	)
 	var rules []ec2service.SecurityGroupRule
 	for paginator.HasMorePages() {
@@ -182,7 +182,7 @@ func (c *Client) ListNetworkInterfaces(ctx context.Context) ([]ec2service.Networ
 // instance payload, so this adds no per-instance API fan-out.
 func (c *Client) ListInstances(ctx context.Context) ([]ec2service.Instance, error) {
 	paginator := awsec2.NewDescribeInstancesPaginator(c.client, &awsec2.DescribeInstancesInput{
-		MaxResults: aws.Int32(ec2PageLimit),
+		MaxResults: awsv2.Int32(ec2PageLimit),
 	})
 	var instances []ec2service.Instance
 	for paginator.HasMorePages() {
@@ -209,7 +209,7 @@ func (c *Client) ListInstances(ctx context.Context) ([]ec2service.Instance, erro
 // instance block-device facts remain sourced only by DescribeInstances.
 func (c *Client) ListVolumes(ctx context.Context) ([]ec2service.Volume, error) {
 	paginator := awsec2.NewDescribeVolumesPaginator(c.client, &awsec2.DescribeVolumesInput{
-		MaxResults: aws.Int32(ec2PageLimit),
+		MaxResults: awsv2.Int32(ec2PageLimit),
 	})
 	var volumes []ec2service.Volume
 	for paginator.HasMorePages() {
@@ -231,8 +231,8 @@ func (c *Client) ListVolumes(ctx context.Context) ([]ec2service.Volume, error) {
 
 func networkInterfacesInput() *awsec2.DescribeNetworkInterfacesInput {
 	return &awsec2.DescribeNetworkInterfacesInput{
-		IncludeManagedResources: aws.Bool(true),
-		MaxResults:              aws.Int32(ec2PageLimit),
+		IncludeManagedResources: awsv2.Bool(true),
+		MaxResults:              awsv2.Int32(ec2PageLimit),
 	}
 }
 
@@ -254,7 +254,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

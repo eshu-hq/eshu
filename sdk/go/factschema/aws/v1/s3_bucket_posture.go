@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // Only AccountID and Region are required: the collector emitter
-// (awscloud.NewS3BucketPostureEnvelope) validates bucket_arn OR bucket_name
+// (aws.NewS3BucketPostureEnvelope) validates bucket_arn OR bucket_name
 // non-empty as an either-or identity, so NEITHER BucketARN nor BucketName can be
 // required on its own — requiring one would dead-letter a valid fact identified
 // only by the other. The reducer's source-bucket-name derivation already

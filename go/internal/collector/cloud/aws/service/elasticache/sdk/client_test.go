@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awselasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	awselasticachetypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 
@@ -27,32 +27,32 @@ func TestClientListsElastiCacheMetadataOnly(t *testing.T) {
 	api := &fakeElastiCacheAPI{
 		cacheClusterPages: []*awselasticache.DescribeCacheClustersOutput{{
 			CacheClusters: []awselasticachetypes.CacheCluster{{
-				ARN:                       aws.String(clusterARN),
-				CacheClusterId:            aws.String("orders-cache-001"),
-				Engine:                    aws.String("redis"),
-				EngineVersion:             aws.String("7.1"),
-				CacheClusterStatus:        aws.String("available"),
-				CacheNodeType:             aws.String("cache.r7g.large"),
-				NumCacheNodes:             aws.Int32(1),
-				PreferredAvailabilityZone: aws.String("us-east-1a"),
-				CacheSubnetGroupName:      aws.String("orders-cache"),
+				ARN:                       awsv2.String(clusterARN),
+				CacheClusterId:            awsv2.String("orders-cache-001"),
+				Engine:                    awsv2.String("redis"),
+				EngineVersion:             awsv2.String("7.1"),
+				CacheClusterStatus:        awsv2.String("available"),
+				CacheNodeType:             awsv2.String("cache.r7g.large"),
+				NumCacheNodes:             awsv2.Int32(1),
+				PreferredAvailabilityZone: awsv2.String("us-east-1a"),
+				CacheSubnetGroupName:      awsv2.String("orders-cache"),
 				CacheParameterGroup: &awselasticachetypes.CacheParameterGroupStatus{
-					CacheParameterGroupName: aws.String("orders-redis7"),
+					CacheParameterGroupName: awsv2.String("orders-redis7"),
 				},
 				SecurityGroups: []awselasticachetypes.SecurityGroupMembership{{
-					SecurityGroupId: aws.String("sg-123"),
-					Status:          aws.String("active"),
+					SecurityGroupId: awsv2.String("sg-123"),
+					Status:          awsv2.String("active"),
 				}},
-				ReplicationGroupId:        aws.String("orders"),
-				AtRestEncryptionEnabled:   aws.Bool(true),
-				TransitEncryptionEnabled:  aws.Bool(true),
-				AuthTokenEnabled:          aws.Bool(true),
-				AuthTokenLastModifiedDate: aws.Time(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
-				SnapshotRetentionLimit:    aws.Int32(7),
-				SnapshotWindow:            aws.String("05:00-06:00"),
-				AutoMinorVersionUpgrade:   aws.Bool(true),
+				ReplicationGroupId:        awsv2.String("orders"),
+				AtRestEncryptionEnabled:   awsv2.Bool(true),
+				TransitEncryptionEnabled:  awsv2.Bool(true),
+				AuthTokenEnabled:          awsv2.Bool(true),
+				AuthTokenLastModifiedDate: awsv2.Time(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+				SnapshotRetentionLimit:    awsv2.Int32(7),
+				SnapshotWindow:            awsv2.String("05:00-06:00"),
+				AutoMinorVersionUpgrade:   awsv2.Bool(true),
 				NotificationConfiguration: &awselasticachetypes.NotificationConfiguration{
-					TopicArn: aws.String("arn:aws:sns:us-east-1:123456789012:elasticache-events"),
+					TopicArn: awsv2.String("arn:aws:sns:us-east-1:123456789012:elasticache-events"),
 				},
 				NetworkType: awselasticachetypes.NetworkTypeIpv4,
 				IpDiscovery: awselasticachetypes.IpDiscoveryIpv4,
@@ -60,21 +60,21 @@ func TestClientListsElastiCacheMetadataOnly(t *testing.T) {
 		}},
 		replicationGroupPages: []*awselasticache.DescribeReplicationGroupsOutput{{
 			ReplicationGroups: []awselasticachetypes.ReplicationGroup{{
-				ARN:                      aws.String(replicationGroupARN),
-				ReplicationGroupId:       aws.String("orders"),
-				Description:              aws.String("orders redis cluster"),
-				Status:                   aws.String("available"),
+				ARN:                      awsv2.String(replicationGroupARN),
+				ReplicationGroupId:       awsv2.String("orders"),
+				Description:              awsv2.String("orders redis cluster"),
+				Status:                   awsv2.String("available"),
 				MemberClusters:           []string{"orders-cache-001"},
 				AutomaticFailover:        awselasticachetypes.AutomaticFailoverStatusEnabled,
 				MultiAZ:                  awselasticachetypes.MultiAZStatusEnabled,
-				ClusterEnabled:           aws.Bool(true),
-				CacheNodeType:            aws.String("cache.r7g.large"),
-				AtRestEncryptionEnabled:  aws.Bool(true),
-				TransitEncryptionEnabled: aws.Bool(true),
-				AuthTokenEnabled:         aws.Bool(true),
-				KmsKeyId:                 aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
-				SnapshotRetentionLimit:   aws.Int32(7),
-				SnapshotWindow:           aws.String("05:00-06:00"),
+				ClusterEnabled:           awsv2.Bool(true),
+				CacheNodeType:            awsv2.String("cache.r7g.large"),
+				AtRestEncryptionEnabled:  awsv2.Bool(true),
+				TransitEncryptionEnabled: awsv2.Bool(true),
+				AuthTokenEnabled:         awsv2.Bool(true),
+				KmsKeyId:                 awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+				SnapshotRetentionLimit:   awsv2.Int32(7),
+				SnapshotWindow:           awsv2.String("05:00-06:00"),
 				DataTiering:              awselasticachetypes.DataTieringStatusDisabled,
 				NetworkType:              awselasticachetypes.NetworkTypeIpv4,
 				IpDiscovery:              awselasticachetypes.IpDiscoveryIpv4,
@@ -82,76 +82,76 @@ func TestClientListsElastiCacheMetadataOnly(t *testing.T) {
 		}},
 		subnetGroupPages: []*awselasticache.DescribeCacheSubnetGroupsOutput{{
 			CacheSubnetGroups: []awselasticachetypes.CacheSubnetGroup{{
-				ARN:                         aws.String(subnetGroupARN),
-				CacheSubnetGroupName:        aws.String("orders-cache"),
-				CacheSubnetGroupDescription: aws.String("orders cache subnets"),
-				VpcId:                       aws.String("vpc-123"),
+				ARN:                         awsv2.String(subnetGroupARN),
+				CacheSubnetGroupName:        awsv2.String("orders-cache"),
+				CacheSubnetGroupDescription: awsv2.String("orders cache subnets"),
+				VpcId:                       awsv2.String("vpc-123"),
 				Subnets: []awselasticachetypes.Subnet{{
-					SubnetIdentifier: aws.String("subnet-a"),
+					SubnetIdentifier: awsv2.String("subnet-a"),
 				}, {
-					SubnetIdentifier: aws.String("subnet-b"),
+					SubnetIdentifier: awsv2.String("subnet-b"),
 				}},
 			}},
 		}},
 		parameterGroupPages: []*awselasticache.DescribeCacheParameterGroupsOutput{{
 			CacheParameterGroups: []awselasticachetypes.CacheParameterGroup{{
-				ARN:                       aws.String(parameterGroupARN),
-				CacheParameterGroupName:   aws.String("orders-redis7"),
-				CacheParameterGroupFamily: aws.String("redis7"),
-				Description:               aws.String("orders redis 7 params"),
-				IsGlobal:                  aws.Bool(false),
+				ARN:                       awsv2.String(parameterGroupARN),
+				CacheParameterGroupName:   awsv2.String("orders-redis7"),
+				CacheParameterGroupFamily: awsv2.String("redis7"),
+				Description:               awsv2.String("orders redis 7 params"),
+				IsGlobal:                  awsv2.Bool(false),
 			}},
 		}},
 		userPages: []*awselasticache.DescribeUsersOutput{{
 			Users: []awselasticachetypes.User{{
-				ARN:                  aws.String(userARN),
-				UserId:               aws.String("orders-app"),
-				UserName:             aws.String("orders-app"),
-				Engine:               aws.String("redis"),
-				Status:               aws.String("active"),
-				MinimumEngineVersion: aws.String("6.0"),
-				AccessString:         aws.String("on ~* +@all"),
+				ARN:                  awsv2.String(userARN),
+				UserId:               awsv2.String("orders-app"),
+				UserName:             awsv2.String("orders-app"),
+				Engine:               awsv2.String("redis"),
+				Status:               awsv2.String("active"),
+				MinimumEngineVersion: awsv2.String("6.0"),
+				AccessString:         awsv2.String("on ~* +@all"),
 				Authentication: &awselasticachetypes.Authentication{
 					Type:          awselasticachetypes.AuthenticationTypePassword,
-					PasswordCount: aws.Int32(2),
+					PasswordCount: awsv2.Int32(2),
 				},
 				UserGroupIds: []string{"orders-app-group"},
 			}},
 		}},
 		userGroupPages: []*awselasticache.DescribeUserGroupsOutput{{
 			UserGroups: []awselasticachetypes.UserGroup{{
-				ARN:         aws.String(userGroupARN),
-				UserGroupId: aws.String("orders-app-group"),
-				Engine:      aws.String("redis"),
-				Status:      aws.String("active"),
+				ARN:         awsv2.String(userGroupARN),
+				UserGroupId: awsv2.String("orders-app-group"),
+				Engine:      awsv2.String("redis"),
+				Status:      awsv2.String("active"),
 				UserIds:     []string{"orders-app"},
 			}},
 		}},
 		snapshotPages: []*awselasticache.DescribeSnapshotsOutput{{
 			Snapshots: []awselasticachetypes.Snapshot{{
-				ARN:                aws.String(snapshotARN),
-				SnapshotName:       aws.String("orders-2026-05-27"),
-				SnapshotStatus:     aws.String("available"),
-				SnapshotSource:     aws.String("manual"),
-				CacheClusterId:     aws.String("orders-cache-001"),
-				ReplicationGroupId: aws.String("orders"),
-				Engine:             aws.String("redis"),
-				EngineVersion:      aws.String("7.1"),
-				KmsKeyId:           aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+				ARN:                awsv2.String(snapshotARN),
+				SnapshotName:       awsv2.String("orders-2026-05-27"),
+				SnapshotStatus:     awsv2.String("available"),
+				SnapshotSource:     awsv2.String("manual"),
+				CacheClusterId:     awsv2.String("orders-cache-001"),
+				ReplicationGroupId: awsv2.String("orders"),
+				Engine:             awsv2.String("redis"),
+				EngineVersion:      awsv2.String("7.1"),
+				KmsKeyId:           awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
 				NodeSnapshots: []awselasticachetypes.NodeSnapshot{{
-					CacheClusterId: aws.String("orders-cache-001"),
-					CacheNodeId:    aws.String("0001"),
+					CacheClusterId: awsv2.String("orders-cache-001"),
+					CacheNodeId:    awsv2.String("0001"),
 				}},
 			}},
 		}},
 		tags: map[string][]awselasticachetypes.Tag{
-			clusterARN:          {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			replicationGroupARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			subnetGroupARN:      {{Key: aws.String("Network"), Value: aws.String("private")}},
-			parameterGroupARN:   {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			userARN:             {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			userGroupARN:        {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			snapshotARN:         {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			clusterARN:          {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			replicationGroupARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			subnetGroupARN:      {{Key: awsv2.String("Network"), Value: awsv2.String("private")}},
+			parameterGroupARN:   {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			userARN:             {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			userGroupARN:        {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			snapshotARN:         {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -283,10 +283,10 @@ func TestClientListsElastiCacheMetadataOnly(t *testing.T) {
 func TestClientPaginatesCacheClusters(t *testing.T) {
 	api := &fakeElastiCacheAPI{
 		cacheClusterPages: []*awselasticache.DescribeCacheClustersOutput{{
-			CacheClusters: []awselasticachetypes.CacheCluster{{CacheClusterId: aws.String("first")}},
-			Marker:        aws.String("next"),
+			CacheClusters: []awselasticachetypes.CacheCluster{{CacheClusterId: awsv2.String("first")}},
+			Marker:        awsv2.String("next"),
 		}, {
-			CacheClusters: []awselasticachetypes.CacheCluster{{CacheClusterId: aws.String("second")}},
+			CacheClusters: []awselasticachetypes.CacheCluster{{CacheClusterId: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -303,11 +303,11 @@ func TestClientPaginatesCacheClusters(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceElastiCache,
+		ServiceKind: aws.ServiceElastiCache,
 	}
 }
 
@@ -342,7 +342,7 @@ func (f *fakeElastiCacheAPI) DescribeCacheClusters(
 	input *awselasticache.DescribeCacheClustersInput,
 	_ ...func(*awselasticache.Options),
 ) (*awselasticache.DescribeCacheClustersOutput, error) {
-	f.cacheClusterMarkers = append(f.cacheClusterMarkers, aws.ToString(input.Marker))
+	f.cacheClusterMarkers = append(f.cacheClusterMarkers, awsv2.ToString(input.Marker))
 	if f.cacheClusterCalls >= len(f.cacheClusterPages) {
 		return &awselasticache.DescribeCacheClustersOutput{}, nil
 	}
@@ -437,7 +437,7 @@ func (f *fakeElastiCacheAPI) ListTagsForResource(
 	if f.tags == nil {
 		return &awselasticache.ListTagsForResourceOutput{}, nil
 	}
-	tags := f.tags[aws.ToString(input.ResourceName)]
+	tags := f.tags[awsv2.ToString(input.ResourceName)]
 	return &awselasticache.ListTagsForResourceOutput{TagList: tags}, nil
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmemorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
 	awsmemorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 
@@ -73,104 +73,104 @@ func TestClientListsMemoryDBMetadataOnly(t *testing.T) {
 	api := &fakeMemoryDBAPI{
 		clusterPages: []*awsmemorydb.DescribeClustersOutput{{
 			Clusters: []awsmemorydbtypes.Cluster{{
-				ARN:                aws.String(clusterARN),
-				Name:               aws.String("orders-cache"),
-				Description:        aws.String("orders memorydb cluster"),
-				Status:             aws.String("available"),
-				Engine:             aws.String("redis"),
-				EngineVersion:      aws.String("7.1"),
-				NodeType:           aws.String("db.r7g.large"),
-				NumberOfShards:     aws.Int32(2),
-				ACLName:            aws.String("orders-app-acl"),
-				ParameterGroupName: aws.String("orders-redis7"),
-				SubnetGroupName:    aws.String("orders-cache"),
+				ARN:                awsv2.String(clusterARN),
+				Name:               awsv2.String("orders-cache"),
+				Description:        awsv2.String("orders memorydb cluster"),
+				Status:             awsv2.String("available"),
+				Engine:             awsv2.String("redis"),
+				EngineVersion:      awsv2.String("7.1"),
+				NodeType:           awsv2.String("db.r7g.large"),
+				NumberOfShards:     awsv2.Int32(2),
+				ACLName:            awsv2.String("orders-app-acl"),
+				ParameterGroupName: awsv2.String("orders-redis7"),
+				SubnetGroupName:    awsv2.String("orders-cache"),
 				SecurityGroups: []awsmemorydbtypes.SecurityGroupMembership{{
-					SecurityGroupId: aws.String("sg-123"),
-					Status:          aws.String("active"),
+					SecurityGroupId: awsv2.String("sg-123"),
+					Status:          awsv2.String("active"),
 				}},
-				KmsKeyId:                aws.String(kmsKeyARN),
-				SnsTopicArn:             aws.String(snsTopicARN),
-				TLSEnabled:              aws.Bool(true),
+				KmsKeyId:                awsv2.String(kmsKeyARN),
+				SnsTopicArn:             awsv2.String(snsTopicARN),
+				TLSEnabled:              awsv2.Bool(true),
 				DataTiering:             awsmemorydbtypes.DataTieringStatusFalse,
-				AutoMinorVersionUpgrade: aws.Bool(true),
-				SnapshotRetentionLimit:  aws.Int32(7),
-				SnapshotWindow:          aws.String("05:00-06:00"),
-				MaintenanceWindow:       aws.String("sun:05:00-sun:06:00"),
+				AutoMinorVersionUpgrade: awsv2.Bool(true),
+				SnapshotRetentionLimit:  awsv2.Int32(7),
+				SnapshotWindow:          awsv2.String("05:00-06:00"),
+				MaintenanceWindow:       awsv2.String("sun:05:00-sun:06:00"),
 				AvailabilityMode:        awsmemorydbtypes.AZStatusMultiAZ,
 				NetworkType:             awsmemorydbtypes.NetworkTypeIpv4,
 				IpDiscovery:             awsmemorydbtypes.IpDiscoveryIpv4,
 				Shards: []awsmemorydbtypes.Shard{{
-					Name:          aws.String("0001"),
-					NumberOfNodes: aws.Int32(2),
+					Name:          awsv2.String("0001"),
+					NumberOfNodes: awsv2.Int32(2),
 				}},
 			}},
 		}},
 		subnetGroupPages: []*awsmemorydb.DescribeSubnetGroupsOutput{{
 			SubnetGroups: []awsmemorydbtypes.SubnetGroup{{
-				ARN:         aws.String(subnetGroupARN),
-				Name:        aws.String("orders-cache"),
-				Description: aws.String("orders cache subnets"),
-				VpcId:       aws.String("vpc-123"),
+				ARN:         awsv2.String(subnetGroupARN),
+				Name:        awsv2.String("orders-cache"),
+				Description: awsv2.String("orders cache subnets"),
+				VpcId:       awsv2.String("vpc-123"),
 				Subnets: []awsmemorydbtypes.Subnet{{
-					Identifier: aws.String("subnet-a"),
+					Identifier: awsv2.String("subnet-a"),
 				}, {
-					Identifier: aws.String("subnet-b"),
+					Identifier: awsv2.String("subnet-b"),
 				}},
 			}},
 		}},
 		parameterGroupPages: []*awsmemorydb.DescribeParameterGroupsOutput{{
 			ParameterGroups: []awsmemorydbtypes.ParameterGroup{{
-				ARN:         aws.String(parameterGroupARN),
-				Name:        aws.String("orders-redis7"),
-				Family:      aws.String("memorydb_redis7"),
-				Description: aws.String("orders redis 7 params"),
+				ARN:         awsv2.String(parameterGroupARN),
+				Name:        awsv2.String("orders-redis7"),
+				Family:      awsv2.String("memorydb_redis7"),
+				Description: awsv2.String("orders redis 7 params"),
 			}},
 		}},
 		userPages: []*awsmemorydb.DescribeUsersOutput{{
 			Users: []awsmemorydbtypes.User{{
-				ARN:                  aws.String(userARN),
-				Name:                 aws.String("orders-app"),
-				Status:               aws.String("active"),
-				MinimumEngineVersion: aws.String("6.0"),
-				AccessString:         aws.String("on ~* +@all"),
+				ARN:                  awsv2.String(userARN),
+				Name:                 awsv2.String("orders-app"),
+				Status:               awsv2.String("active"),
+				MinimumEngineVersion: awsv2.String("6.0"),
+				AccessString:         awsv2.String("on ~* +@all"),
 				Authentication: &awsmemorydbtypes.Authentication{
 					Type:          awsmemorydbtypes.AuthenticationTypePassword,
-					PasswordCount: aws.Int32(2),
+					PasswordCount: awsv2.Int32(2),
 				},
 				ACLNames: []string{"orders-app-acl"},
 			}},
 		}},
 		aclPages: []*awsmemorydb.DescribeACLsOutput{{
 			ACLs: []awsmemorydbtypes.ACL{{
-				ARN:                  aws.String(aclARN),
-				Name:                 aws.String("orders-app-acl"),
-				Status:               aws.String("active"),
-				MinimumEngineVersion: aws.String("6.0"),
+				ARN:                  awsv2.String(aclARN),
+				Name:                 awsv2.String("orders-app-acl"),
+				Status:               awsv2.String("active"),
+				MinimumEngineVersion: awsv2.String("6.0"),
 				UserNames:            []string{"orders-app"},
 				Clusters:             []string{"orders-cache"},
 			}},
 		}},
 		snapshotPages: []*awsmemorydb.DescribeSnapshotsOutput{{
 			Snapshots: []awsmemorydbtypes.Snapshot{{
-				ARN:    aws.String(snapshotARN),
-				Name:   aws.String("orders-2026-05-27"),
-				Status: aws.String("available"),
-				Source: aws.String("manual"),
+				ARN:    awsv2.String(snapshotARN),
+				Name:   awsv2.String("orders-2026-05-27"),
+				Status: awsv2.String("available"),
+				Source: awsv2.String("manual"),
 				ClusterConfiguration: &awsmemorydbtypes.ClusterConfiguration{
-					Name:          aws.String("orders-cache"),
-					EngineVersion: aws.String("7.1"),
-					NodeType:      aws.String("db.r7g.large"),
+					Name:          awsv2.String("orders-cache"),
+					EngineVersion: awsv2.String("7.1"),
+					NodeType:      awsv2.String("db.r7g.large"),
 				},
-				KmsKeyId: aws.String(kmsKeyARN),
+				KmsKeyId: awsv2.String(kmsKeyARN),
 			}},
 		}},
 		tags: map[string][]awsmemorydbtypes.Tag{
-			clusterARN:        {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			subnetGroupARN:    {{Key: aws.String("Network"), Value: aws.String("private")}},
-			parameterGroupARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			userARN:           {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			aclARN:            {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			snapshotARN:       {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			clusterARN:        {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			subnetGroupARN:    {{Key: awsv2.String("Network"), Value: awsv2.String("private")}},
+			parameterGroupARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			userARN:           {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			aclARN:            {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			snapshotARN:       {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -284,10 +284,10 @@ func TestClientListsMemoryDBMetadataOnly(t *testing.T) {
 func TestClientPaginatesClusters(t *testing.T) {
 	api := &fakeMemoryDBAPI{
 		clusterPages: []*awsmemorydb.DescribeClustersOutput{{
-			Clusters:  []awsmemorydbtypes.Cluster{{Name: aws.String("first")}},
-			NextToken: aws.String("next"),
+			Clusters:  []awsmemorydbtypes.Cluster{{Name: awsv2.String("first")}},
+			NextToken: awsv2.String("next"),
 		}, {
-			Clusters: []awsmemorydbtypes.Cluster{{Name: aws.String("second")}},
+			Clusters: []awsmemorydbtypes.Cluster{{Name: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -304,11 +304,11 @@ func TestClientPaginatesClusters(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceMemoryDB,
+		ServiceKind: aws.ServiceMemoryDB,
 	}
 }
 
@@ -340,7 +340,7 @@ func (f *fakeMemoryDBAPI) DescribeClusters(
 	input *awsmemorydb.DescribeClustersInput,
 	_ ...func(*awsmemorydb.Options),
 ) (*awsmemorydb.DescribeClustersOutput, error) {
-	f.clusterTokens = append(f.clusterTokens, aws.ToString(input.NextToken))
+	f.clusterTokens = append(f.clusterTokens, awsv2.ToString(input.NextToken))
 	if f.clusterCalls >= len(f.clusterPages) {
 		return &awsmemorydb.DescribeClustersOutput{}, nil
 	}
@@ -422,7 +422,7 @@ func (f *fakeMemoryDBAPI) ListTags(
 	if f.tags == nil {
 		return &awsmemorydb.ListTagsOutput{}, nil
 	}
-	tags := f.tags[aws.ToString(input.ResourceArn)]
+	tags := f.tags[awsv2.ToString(input.ResourceArn)]
 	return &awsmemorydb.ListTagsOutput{TagList: tags}, nil
 }
 

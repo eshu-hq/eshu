@@ -44,7 +44,7 @@ type Snapshot struct {
 	LambdaFunctionRecommendations []LambdaFunctionRecommendation
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // RecommendationSummary is the scanner-owned Compute Optimizer recommendation

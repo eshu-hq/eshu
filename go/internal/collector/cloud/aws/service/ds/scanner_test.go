@@ -76,20 +76,20 @@ func TestScannerEmitsDirectoriesTrustsSharesAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	if got, want := countResources(envelopes, awscloud.ResourceTypeDSDirectory), 2; got != want {
+	if got, want := countResources(envelopes, aws.ResourceTypeDSDirectory), 2; got != want {
 		t.Fatalf("directory resources = %d, want %d", got, want)
 	}
-	if got, want := countResources(envelopes, awscloud.ResourceTypeDSTrust), 1; got != want {
+	if got, want := countResources(envelopes, aws.ResourceTypeDSTrust), 1; got != want {
 		t.Fatalf("trust resources = %d, want %d", got, want)
 	}
-	if got, want := countResources(envelopes, awscloud.ResourceTypeDSSharedDirectory), 1; got != want {
+	if got, want := countResources(envelopes, aws.ResourceTypeDSSharedDirectory), 1; got != want {
 		t.Fatalf("shared-directory resources = %d, want %d", got, want)
 	}
 
 	// Directory resource_id must be the bare directory ID so the FSx AD-directory
 	// edge (target_resource_id = bare d-xxxx) resolves against it.
 	directory := resourceByID(t, envelopes, "d-1234567890")
-	if got, want := directory.Payload["resource_type"], awscloud.ResourceTypeDSDirectory; got != want {
+	if got, want := directory.Payload["resource_type"], aws.ResourceTypeDSDirectory; got != want {
 		t.Fatalf("directory resource_type = %#v, want %q", got, want)
 	}
 	attrs := attributesOf(t, directory)
@@ -107,17 +107,17 @@ func TestScannerEmitsDirectoriesTrustsSharesAndRelationships(t *testing.T) {
 	}
 
 	// Relationships present.
-	assertRelationship(t, envelopes, awscloud.RelationshipDSDirectoryInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipDSDirectoryInSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipDSTrustTargetsDirectory)
-	assertRelationship(t, envelopes, awscloud.RelationshipDSSharedDirectoryTargetsOwnerDirectory)
-	assertRelationship(t, envelopes, awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount)
+	assertRelationship(t, envelopes, aws.RelationshipDSDirectoryInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipDSDirectoryInSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipDSTrustTargetsDirectory)
+	assertRelationship(t, envelopes, aws.RelationshipDSSharedDirectoryTargetsOwnerDirectory)
+	assertRelationship(t, envelopes, aws.RelationshipDSSharedDirectoryTargetsOwnerAccount)
 
 	// VPC edges: one per directory (2). Subnet edges: 2 + 1 = 3.
-	if got, want := countRelationships(envelopes, awscloud.RelationshipDSDirectoryInVPC), 2; got != want {
+	if got, want := countRelationships(envelopes, aws.RelationshipDSDirectoryInVPC), 2; got != want {
 		t.Fatalf("directory-in-vpc relationships = %d, want %d", got, want)
 	}
-	if got, want := countRelationships(envelopes, awscloud.RelationshipDSDirectoryInSubnet), 3; got != want {
+	if got, want := countRelationships(envelopes, aws.RelationshipDSDirectoryInSubnet), 3; got != want {
 		t.Fatalf("directory-in-subnet relationships = %d, want %d", got, want)
 	}
 
@@ -125,25 +125,25 @@ func TestScannerEmitsDirectoriesTrustsSharesAndRelationships(t *testing.T) {
 	assertRelationshipJoinKeys(t, envelopes)
 
 	// VPC/subnet edges target the bare AWS ID (joins aws_ec2_vpc / aws_ec2_subnet).
-	vpcEdge := relationshipByType(t, envelopes, awscloud.RelationshipDSDirectoryInVPC)
+	vpcEdge := relationshipByType(t, envelopes, aws.RelationshipDSDirectoryInVPC)
 	if got, want := vpcEdge.Payload["target_resource_id"], "vpc-aaa"; got != want {
 		t.Fatalf("directory->vpc target_resource_id = %#v, want bare %q", got, want)
 	}
-	if got, want := vpcEdge.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := vpcEdge.Payload["target_type"], aws.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("directory->vpc target_type = %#v, want %q", got, want)
 	}
 
 	// Trust->directory edge targets the bare directory id (joins the directory fact).
-	trustEdge := relationshipByType(t, envelopes, awscloud.RelationshipDSTrustTargetsDirectory)
+	trustEdge := relationshipByType(t, envelopes, aws.RelationshipDSTrustTargetsDirectory)
 	if got, want := trustEdge.Payload["target_resource_id"], "d-1234567890"; got != want {
 		t.Fatalf("trust->directory target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := trustEdge.Payload["target_type"], awscloud.ResourceTypeDSDirectory; got != want {
+	if got, want := trustEdge.Payload["target_type"], aws.ResourceTypeDSDirectory; got != want {
 		t.Fatalf("trust->directory target_type = %#v, want %q", got, want)
 	}
 
 	// Shared-directory->owner-account edge targets the bare account id (no ARN synthesis).
-	ownerAccountEdge := relationshipByType(t, envelopes, awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount)
+	ownerAccountEdge := relationshipByType(t, envelopes, aws.RelationshipDSSharedDirectoryTargetsOwnerAccount)
 	if got, want := ownerAccountEdge.Payload["target_resource_id"], "123456789012"; got != want {
 		t.Fatalf("shared-directory->owner-account target_resource_id = %#v, want %q", got, want)
 	}
@@ -207,7 +207,7 @@ func TestScannerNeverPersistsSecrets(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceFSx
+	boundary.ServiceKind = aws.ServiceFSx
 
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -229,7 +229,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countResources(envelopes, awscloud.ResourceTypeDSDirectory); got != 1 {
+	if got := countResources(envelopes, aws.ResourceTypeDSDirectory); got != 1 {
 		t.Fatalf("directory resources = %d, want 1", got)
 	}
 }

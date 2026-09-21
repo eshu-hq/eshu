@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind
+package bind
 
 import (
 	"fmt"
@@ -13,10 +13,10 @@ import (
 )
 
 func init() {
-	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind:          awscloud.ServiceCodePipeline,
+	runtime.Register(runtime.ScannerRegistration{
+		ServiceKind:          aws.ServiceCodePipeline,
 		RequiresRedactionKey: true,
-		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
+		Build: func(d runtime.ScannerDeps) (runtime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("codepipeline scanner redaction key is required")
 			}

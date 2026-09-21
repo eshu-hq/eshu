@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/acm/awssdk` adapts AWS SDK for Go v2 ACM
+`internal/collector/cloud/aws/service/acm/sdk` adapts AWS SDK for Go v2 ACM
 responses to the scanner-owned `acm.Client` contract. It owns ACM certificate
 pagination, certificate metadata reads, certificate tag reads, throttle
 classification, and per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/acm` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/acm` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `acm` and Smithy error contracts.
 

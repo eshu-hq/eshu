@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsworkspaces "github.com/aws/aws-sdk-go-v2/service/workspaces"
 	awsworkspacestypes "github.com/aws/aws-sdk-go-v2/service/workspaces/types"
 
@@ -19,57 +19,57 @@ func TestClientSnapshotsWorkSpacesMetadataOnly(t *testing.T) {
 		directoryPages: []*awsworkspaces.DescribeWorkspaceDirectoriesOutput{
 			{
 				Directories: []awsworkspacestypes.WorkspaceDirectory{{
-					DirectoryId:              aws.String("d-1234567890"),
-					DirectoryName:            aws.String("corp.example.com"),
+					DirectoryId:              awsv2.String("d-1234567890"),
+					DirectoryName:            awsv2.String("corp.example.com"),
 					State:                    awsworkspacestypes.WorkspaceDirectoryStateRegistered,
 					DirectoryType:            awsworkspacestypes.WorkspaceDirectoryTypeAdConnector,
-					IamRoleId:                aws.String("arn:aws:iam::123456789012:role/workspaces_DefaultRole"),
-					WorkspaceSecurityGroupId: aws.String("sg-cccc3333"),
+					IamRoleId:                awsv2.String("arn:aws:iam::123456789012:role/workspaces_DefaultRole"),
+					WorkspaceSecurityGroupId: awsv2.String("sg-cccc3333"),
 					SubnetIds:                []string{"subnet-aaaa1111", "subnet-bbbb2222"},
 					IpGroupIds:               []string{"wsipg-1234567890"},
-					RegistrationCode:         aws.String("SLiad+ABCDEF"), // must NOT leak into the model
+					RegistrationCode:         awsv2.String("SLiad+ABCDEF"), // must NOT leak into the model
 				}},
-				NextToken: aws.String("more"),
+				NextToken: awsv2.String("more"),
 			},
 			{Directories: []awsworkspacestypes.WorkspaceDirectory{}},
 		},
 		bundlePages: []*awsworkspaces.DescribeWorkspaceBundlesOutput{{
 			Bundles: []awsworkspacestypes.WorkspaceBundle{{
-				BundleId:    aws.String("wsb-1234567890"),
-				Name:        aws.String("Standard"),
-				Owner:       aws.String("AMAZON"),
+				BundleId:    awsv2.String("wsb-1234567890"),
+				Name:        awsv2.String("Standard"),
+				Owner:       awsv2.String("AMAZON"),
 				BundleType:  awsworkspacestypes.BundleTypeRegular,
 				ComputeType: &awsworkspacestypes.ComputeType{Name: awsworkspacestypes.ComputeStandard},
-				RootStorage: &awsworkspacestypes.RootStorage{Capacity: aws.String("80")},
-				UserStorage: &awsworkspacestypes.UserStorage{Capacity: aws.String("50")},
-				ImageId:     aws.String("wsi-abc123"),
+				RootStorage: &awsworkspacestypes.RootStorage{Capacity: awsv2.String("80")},
+				UserStorage: &awsworkspacestypes.UserStorage{Capacity: awsv2.String("50")},
+				ImageId:     awsv2.String("wsi-abc123"),
 			}},
 		}},
 		ipGroupPages: []*awsworkspaces.DescribeIpGroupsOutput{{
 			Result: []awsworkspacestypes.WorkspacesIpGroup{{
-				GroupId:   aws.String("wsipg-1234567890"),
-				GroupName: aws.String("office-cidrs"),
-				GroupDesc: aws.String("corp ranges"),
+				GroupId:   awsv2.String("wsipg-1234567890"),
+				GroupName: awsv2.String("office-cidrs"),
+				GroupDesc: awsv2.String("corp ranges"),
 				UserRules: []awsworkspacestypes.IpRuleItem{
-					{IpRule: aws.String("203.0.113.0/24"), RuleDesc: aws.String("hq")},
+					{IpRule: awsv2.String("203.0.113.0/24"), RuleDesc: awsv2.String("hq")},
 				},
 			}},
 		}},
 		workspacePages: []*awsworkspaces.DescribeWorkspacesOutput{{
 			Workspaces: []awsworkspacestypes.Workspace{{
-				WorkspaceId:                 aws.String("ws-1234567890"),
-				DirectoryId:                 aws.String("d-1234567890"),
-				BundleId:                    aws.String("wsb-1234567890"),
+				WorkspaceId:                 awsv2.String("ws-1234567890"),
+				DirectoryId:                 awsv2.String("d-1234567890"),
+				BundleId:                    awsv2.String("wsb-1234567890"),
 				State:                       awsworkspacestypes.WorkspaceStateAvailable,
-				UserName:                    aws.String("alice"),
-				ComputerName:                aws.String("EC2AMAZ-ABC"),
-				VolumeEncryptionKey:         aws.String("arn:aws:kms:us-east-1:123456789012:key/1234abcd"),
-				RootVolumeEncryptionEnabled: aws.Bool(true),
-				IpAddress:                   aws.String("10.0.0.5"), // must NOT leak into the model
+				UserName:                    awsv2.String("alice"),
+				ComputerName:                awsv2.String("EC2AMAZ-ABC"),
+				VolumeEncryptionKey:         awsv2.String("arn:aws:kms:us-east-1:123456789012:key/1234abcd"),
+				RootVolumeEncryptionEnabled: awsv2.Bool(true),
+				IpAddress:                   awsv2.String("10.0.0.5"), // must NOT leak into the model
 			}},
 		}},
 		tags: map[string][]awsworkspacestypes.Tag{
-			"ws-1234567890": {{Key: aws.String("CostCenter"), Value: aws.String("1234")}},
+			"ws-1234567890": {{Key: awsv2.String("CostCenter"), Value: awsv2.String("1234")}},
 		},
 	}
 
@@ -215,14 +215,14 @@ func (f *fakeWorkSpacesAPI) DescribeTags(
 	_ ...func(*awsworkspaces.Options),
 ) (*awsworkspaces.DescribeTagsOutput, error) {
 	return &awsworkspaces.DescribeTagsOutput{
-		TagList: f.tags[aws.ToString(input.ResourceId)],
+		TagList: f.tags[awsv2.ToString(input.ResourceId)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceWorkSpaces,
+		ServiceKind: aws.ServiceWorkSpaces,
 	}
 }

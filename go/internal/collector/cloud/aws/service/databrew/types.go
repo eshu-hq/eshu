@@ -35,7 +35,7 @@ type Snapshot struct {
 	Projects []Project
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Dataset is the scanner-owned DataBrew dataset model. It carries control-plane

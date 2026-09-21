@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssfn "github.com/aws/aws-sdk-go-v2/service/sfn"
 	awssfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 	"github.com/aws/smithy-go"
@@ -35,15 +35,15 @@ type apiClient interface {
 // scanner persists.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Step Functions SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -86,7 +86,7 @@ func (c *Client) ListStateMachines(ctx context.Context) ([]stepfunctionsservice.
 			stateMachines = append(stateMachines, machine)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return stateMachines, nil
 		}
 	}
@@ -121,7 +121,7 @@ func (c *Client) ListActivities(ctx context.Context) ([]stepfunctionsservice.Act
 			activities = append(activities, activity)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return activities, nil
 		}
 	}
@@ -131,7 +131,7 @@ func (c *Client) stateMachineMetadata(
 	ctx context.Context,
 	item awssfntypes.StateMachineListItem,
 ) (stepfunctionsservice.StateMachine, error) {
-	machineARN := aws.ToString(item.StateMachineArn)
+	machineARN := awsv2.ToString(item.StateMachineArn)
 	described, err := c.describeStateMachine(ctx, machineARN)
 	if err != nil {
 		return stepfunctionsservice.StateMachine{}, err
@@ -140,7 +140,7 @@ func (c *Client) stateMachineMetadata(
 	if err != nil {
 		return stepfunctionsservice.StateMachine{}, err
 	}
-	startAt, states, refs := parseDefinition(aws.ToString(described.Definition))
+	startAt, states, refs := parseDefinition(awsv2.ToString(described.Definition))
 	tracing := false
 	if described.TracingConfiguration != nil {
 		tracing = described.TracingConfiguration.Enabled
@@ -149,16 +149,16 @@ func (c *Client) stateMachineMetadata(
 	if described.LoggingConfiguration != nil {
 		loggingLevel = string(described.LoggingConfiguration.Level)
 	}
-	creation := aws.ToTime(described.CreationDate)
+	creation := awsv2.ToTime(described.CreationDate)
 	if creation.IsZero() {
-		creation = aws.ToTime(item.CreationDate)
+		creation = awsv2.ToTime(item.CreationDate)
 	}
 	return stepfunctionsservice.StateMachine{
 		ARN:            strings.TrimSpace(machineARN),
-		Name:           strings.TrimSpace(firstNonEmpty(aws.ToString(described.Name), aws.ToString(item.Name))),
+		Name:           strings.TrimSpace(firstNonEmpty(awsv2.ToString(described.Name), awsv2.ToString(item.Name))),
 		Type:           strings.TrimSpace(string(firstStateMachineType(described.Type, item.Type))),
 		Status:         strings.TrimSpace(string(described.Status)),
-		RoleARN:        strings.TrimSpace(aws.ToString(described.RoleArn)),
+		RoleARN:        strings.TrimSpace(awsv2.ToString(described.RoleArn)),
 		CreationDate:   creation,
 		LoggingLevel:   strings.TrimSpace(loggingLevel),
 		TracingEnabled: tracing,
@@ -173,15 +173,15 @@ func (c *Client) activityMetadata(
 	ctx context.Context,
 	item awssfntypes.ActivityListItem,
 ) (stepfunctionsservice.Activity, error) {
-	activityARN := aws.ToString(item.ActivityArn)
+	activityARN := awsv2.ToString(item.ActivityArn)
 	tags, err := c.listTags(ctx, activityARN)
 	if err != nil {
 		return stepfunctionsservice.Activity{}, err
 	}
 	return stepfunctionsservice.Activity{
 		ARN:          strings.TrimSpace(activityARN),
-		Name:         strings.TrimSpace(aws.ToString(item.Name)),
-		CreationDate: aws.ToTime(item.CreationDate),
+		Name:         strings.TrimSpace(awsv2.ToString(item.Name)),
+		CreationDate: awsv2.ToTime(item.CreationDate),
 		Tags:         cloneStringMap(tags),
 	}, nil
 }
@@ -197,7 +197,7 @@ func (c *Client) describeStateMachine(
 	err := c.recordAPICall(ctx, "DescribeStateMachine", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeStateMachine(callCtx, &awssfn.DescribeStateMachineInput{
-			StateMachineArn: aws.String(stateMachineARN),
+			StateMachineArn: awsv2.String(stateMachineARN),
 		})
 		return err
 	})
@@ -219,7 +219,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awssfn.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -359,11 +359,11 @@ func tagsMap(tags []awssfntypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil
@@ -416,7 +416,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

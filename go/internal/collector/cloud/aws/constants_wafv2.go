@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 const (
 	// ServiceWAFv2 identifies the AWS WAFv2 metadata scan slice. One claim

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/bedrock/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/bedrock/sdk guidance
 
 ## Read First
 

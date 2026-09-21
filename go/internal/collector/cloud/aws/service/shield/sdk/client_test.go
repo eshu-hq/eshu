@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsshield "github.com/aws/aws-sdk-go-v2/service/shield"
 	awsshieldtypes "github.com/aws/aws-sdk-go-v2/service/shield/types"
 
@@ -22,7 +22,7 @@ const (
 func testClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceShield},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceShield},
 	}
 }
 
@@ -31,18 +31,18 @@ func TestClientListsProtectionsAcrossPages(t *testing.T) {
 		protectionPages: []*awsshield.ListProtectionsOutput{
 			{
 				Protections: []awsshieldtypes.Protection{{
-					ProtectionArn: aws.String(protectionARN),
-					Id:            aws.String("abcd1234"),
-					Name:          aws.String("cf-protection"),
-					ResourceArn:   aws.String(resourceARN),
+					ProtectionArn: awsv2.String(protectionARN),
+					Id:            awsv2.String("abcd1234"),
+					Name:          awsv2.String("cf-protection"),
+					ResourceArn:   awsv2.String(resourceARN),
 				}},
-				NextToken: aws.String("page-2"),
+				NextToken: awsv2.String("page-2"),
 			},
 			{
 				Protections: []awsshieldtypes.Protection{{
-					ProtectionArn: aws.String("arn:aws:shield::123456789012:protection/second"),
-					Id:            aws.String("second"),
-					ResourceArn:   aws.String("arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc"),
+					ProtectionArn: awsv2.String("arn:aws:shield::123456789012:protection/second"),
+					Id:            awsv2.String("second"),
+					ResourceArn:   awsv2.String("arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc"),
 				}},
 			},
 		},
@@ -69,7 +69,7 @@ func TestClientDescribesSubscriptionMetadataOnly(t *testing.T) {
 	api := &fakeAPI{
 		subscription: &awsshield.DescribeSubscriptionOutput{
 			Subscription: &awsshieldtypes.Subscription{
-				SubscriptionArn: aws.String("arn:aws:shield::123456789012:subscription"),
+				SubscriptionArn: awsv2.String("arn:aws:shield::123456789012:subscription"),
 				AutoRenew:       awsshieldtypes.AutoRenewEnabled,
 				// Billing detail present on the API response that must not survive.
 				SubscriptionLimits:      &awsshieldtypes.SubscriptionLimits{},

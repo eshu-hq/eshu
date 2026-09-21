@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lightsail/runtimebind` registers the
-Lightsail scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/lightsail/bind` registers the
+Lightsail scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the Lightsail scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceLightsail` to the Lightsail scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceLightsail` to the Lightsail scanner builder. It does not own
 AWS API calls, Lightsail domain types, or fact emission. Those belong to
-`internal/collector/awscloud/service/lightsail` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/lightsail` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceLightsail` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceLightsail` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/lightsail` for the scanner struct.
-- `internal/collector/awscloud/service/lightsail/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/lightsail` for the scanner struct.
+- `internal/collector/cloud/aws/service/lightsail/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Lightsail scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -46,6 +46,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the Lightsail scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

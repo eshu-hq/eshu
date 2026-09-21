@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscleanrooms "github.com/aws/aws-sdk-go-v2/service/cleanrooms"
 	awscleanroomstypes "github.com/aws/aws-sdk-go-v2/service/cleanrooms/types"
 
@@ -24,53 +24,53 @@ func TestClientSnapshotsCleanRoomsMetadataOnly(t *testing.T) {
 	api := &fakeCleanRoomsAPI{
 		collaborationPages: []*awscleanrooms.ListCollaborationsOutput{{
 			CollaborationList: []awscleanroomstypes.CollaborationSummary{{
-				Arn:                aws.String(collaborationARN),
-				Id:                 aws.String("c1"),
-				Name:               aws.String("ad-attribution"),
-				CreatorAccountId:   aws.String("123456789012"),
-				CreatorDisplayName: aws.String("Publisher"),
+				Arn:                awsv2.String(collaborationARN),
+				Id:                 awsv2.String("c1"),
+				Name:               awsv2.String("ad-attribution"),
+				CreatorAccountId:   awsv2.String("123456789012"),
+				CreatorDisplayName: awsv2.String("Publisher"),
 				MemberStatus:       awscleanroomstypes.MemberStatusActive,
 				AnalyticsEngine:    awscleanroomstypes.AnalyticsEngineSpark,
-				CreateTime:         aws.Time(createdAt),
-				UpdateTime:         aws.Time(createdAt),
+				CreateTime:         awsv2.Time(createdAt),
+				UpdateTime:         awsv2.Time(createdAt),
 			}},
 		}},
 		configuredTablePages: []*awscleanrooms.ListConfiguredTablesOutput{{
 			ConfiguredTableSummaries: []awscleanroomstypes.ConfiguredTableSummary{{
-				Arn:               aws.String(configuredARN),
-				Id:                aws.String("t1"),
-				Name:              aws.String("impressions"),
+				Arn:               awsv2.String(configuredARN),
+				Id:                awsv2.String("t1"),
+				Name:              awsv2.String("impressions"),
 				AnalysisMethod:    awscleanroomstypes.AnalysisMethodDirectQuery,
 				AnalysisRuleTypes: []awscleanroomstypes.ConfiguredTableAnalysisRuleType{awscleanroomstypes.ConfiguredTableAnalysisRuleTypeAggregation},
-				CreateTime:        aws.Time(createdAt),
-				UpdateTime:        aws.Time(createdAt),
+				CreateTime:        awsv2.Time(createdAt),
+				UpdateTime:        awsv2.Time(createdAt),
 			}},
 		}},
 		configuredTableDetails: map[string]*awscleanroomstypes.ConfiguredTable{
 			"t1": {
-				Arn:            aws.String(configuredARN),
-				Id:             aws.String("t1"),
-				Name:           aws.String("impressions"),
+				Arn:            awsv2.String(configuredARN),
+				Id:             awsv2.String("t1"),
+				Name:           awsv2.String("impressions"),
 				AllowedColumns: []string{"user_id", "campaign_id", "event_time"},
 				TableReference: &awscleanroomstypes.TableReferenceMemberGlue{
 					Value: awscleanroomstypes.GlueTableReference{
-						DatabaseName: aws.String("analytics"),
-						TableName:    aws.String("impressions"),
+						DatabaseName: awsv2.String("analytics"),
+						TableName:    awsv2.String("impressions"),
 					},
 				},
 			},
 		},
 		membershipPages: []*awscleanrooms.ListMembershipsOutput{{
 			MembershipSummaries: []awscleanroomstypes.MembershipSummary{{
-				Arn:               aws.String(membershipARN),
-				Id:                aws.String("m1"),
-				CollaborationArn:  aws.String(collaborationARN),
-				CollaborationId:   aws.String("c1"),
-				CollaborationName: aws.String("ad-attribution"),
+				Arn:               awsv2.String(membershipARN),
+				Id:                awsv2.String("m1"),
+				CollaborationArn:  awsv2.String(collaborationARN),
+				CollaborationId:   awsv2.String("c1"),
+				CollaborationName: awsv2.String("ad-attribution"),
 				MemberAbilities:   []awscleanroomstypes.MemberAbility{awscleanroomstypes.MemberAbilityCanQuery},
 				Status:            awscleanroomstypes.MembershipStatusActive,
-				CreateTime:        aws.Time(createdAt),
-				UpdateTime:        aws.Time(createdAt),
+				CreateTime:        awsv2.Time(createdAt),
+				UpdateTime:        awsv2.Time(createdAt),
 			}},
 		}},
 		tags: map[string]map[string]string{
@@ -135,11 +135,11 @@ func TestClientSnapshotPaginatesEverything(t *testing.T) {
 	api := &fakeCleanRoomsAPI{
 		collaborationPages: []*awscleanrooms.ListCollaborationsOutput{
 			{
-				CollaborationList: []awscleanroomstypes.CollaborationSummary{{Arn: aws.String("arn:aws:cleanrooms:us-east-1:1:collaboration/a"), Id: aws.String("a")}},
-				NextToken:         aws.String("page2"),
+				CollaborationList: []awscleanroomstypes.CollaborationSummary{{Arn: awsv2.String("arn:aws:cleanrooms:us-east-1:1:collaboration/a"), Id: awsv2.String("a")}},
+				NextToken:         awsv2.String("page2"),
 			},
 			{
-				CollaborationList: []awscleanroomstypes.CollaborationSummary{{Arn: aws.String("arn:aws:cleanrooms:us-east-1:1:collaboration/b"), Id: aws.String("b")}},
+				CollaborationList: []awscleanroomstypes.CollaborationSummary{{Arn: awsv2.String("arn:aws:cleanrooms:us-east-1:1:collaboration/b"), Id: awsv2.String("b")}},
 			},
 		},
 	}
@@ -198,7 +198,7 @@ func (f *fakeCleanRoomsAPI) GetConfiguredTable(
 	input *awscleanrooms.GetConfiguredTableInput,
 	_ ...func(*awscleanrooms.Options),
 ) (*awscleanrooms.GetConfiguredTableOutput, error) {
-	detail := f.configuredTableDetails[aws.ToString(input.ConfiguredTableIdentifier)]
+	detail := f.configuredTableDetails[awsv2.ToString(input.ConfiguredTableIdentifier)]
 	return &awscleanrooms.GetConfiguredTableOutput{ConfiguredTable: detail}, nil
 }
 
@@ -221,14 +221,14 @@ func (f *fakeCleanRoomsAPI) ListTagsForResource(
 	_ ...func(*awscleanrooms.Options),
 ) (*awscleanrooms.ListTagsForResourceOutput, error) {
 	return &awscleanrooms.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCleanRooms,
+		ServiceKind: aws.ServiceCleanRooms,
 	}
 }

@@ -178,7 +178,7 @@ func awsScheduledTargetAllowed(target awsfreshness.Target) (string, bool) {
 
 func awsScheduledServiceGlobalOnly(serviceKind string) bool {
 	switch serviceKind {
-	case awscloud.ServiceCloudFront, awscloud.ServiceIAM, awscloud.ServiceRoute53:
+	case aws.ServiceCloudFront, aws.ServiceIAM, aws.ServiceRoute53:
 		return true
 	default:
 		return false

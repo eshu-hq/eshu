@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "autoscaling".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAutoScaling + "  "
+	boundary.ServiceKind = "  " + aws.ServiceAutoScaling + "  "
 
 	envelopes, err := Scanner{Client: sampleClient()}.Scan(context.Background(), boundary)
 	if err != nil {
@@ -27,7 +27,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAutoScaling; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceAutoScaling; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

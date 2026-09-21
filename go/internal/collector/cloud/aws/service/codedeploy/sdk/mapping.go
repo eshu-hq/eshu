@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	cdtypes "github.com/aws/aws-sdk-go-v2/service/codedeploy/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -20,10 +20,10 @@ const onPremisesTagValueReason = "codedeploy_on_premises_tag_value"
 
 func mapApplication(info cdtypes.ApplicationInfo) cdservice.Application {
 	application := cdservice.Application{
-		Name:            aws.ToString(info.ApplicationName),
-		ID:              aws.ToString(info.ApplicationId),
+		Name:            awsv2.ToString(info.ApplicationName),
+		ID:              awsv2.ToString(info.ApplicationId),
 		ComputePlatform: string(info.ComputePlatform),
-		GitHubAccount:   aws.ToString(info.GitHubAccountName),
+		GitHubAccount:   awsv2.ToString(info.GitHubAccountName),
 		LinkedToGitHub:  info.LinkedToGitHub,
 	}
 	if info.CreateTime != nil {
@@ -34,12 +34,12 @@ func mapApplication(info cdtypes.ApplicationInfo) cdservice.Application {
 
 func mapDeploymentGroup(info cdtypes.DeploymentGroupInfo, key redact.Key) cdservice.DeploymentGroup {
 	group := cdservice.DeploymentGroup{
-		Name:                      aws.ToString(info.DeploymentGroupName),
-		ID:                        aws.ToString(info.DeploymentGroupId),
-		ApplicationName:           aws.ToString(info.ApplicationName),
+		Name:                      awsv2.ToString(info.DeploymentGroupName),
+		ID:                        awsv2.ToString(info.DeploymentGroupId),
+		ApplicationName:           awsv2.ToString(info.ApplicationName),
 		ComputePlatform:           string(info.ComputePlatform),
-		DeploymentConfigName:      aws.ToString(info.DeploymentConfigName),
-		ServiceRoleARN:            aws.ToString(info.ServiceRoleArn),
+		DeploymentConfigName:      awsv2.ToString(info.DeploymentConfigName),
+		ServiceRoleARN:            awsv2.ToString(info.ServiceRoleArn),
 		OutdatedInstancesStrategy: string(info.OutdatedInstancesStrategy),
 		TerminationHookEnabled:    info.TerminationHookEnabled,
 		DeploymentStyle:           mapDeploymentStyle(info.DeploymentStyle),
@@ -85,7 +85,7 @@ func mapAutoScalingGroups(groups []cdtypes.AutoScalingGroup) []string {
 	}
 	names := make([]string, 0, len(groups))
 	for _, group := range groups {
-		if name := strings.TrimSpace(aws.ToString(group.Name)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(group.Name)); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -99,8 +99,8 @@ func mapECSServices(services []cdtypes.ECSService) []cdservice.ECSServiceTarget 
 	targets := make([]cdservice.ECSServiceTarget, 0, len(services))
 	for _, service := range services {
 		targets = append(targets, cdservice.ECSServiceTarget{
-			ClusterName: strings.TrimSpace(aws.ToString(service.ClusterName)),
-			ServiceName: strings.TrimSpace(aws.ToString(service.ServiceName)),
+			ClusterName: strings.TrimSpace(awsv2.ToString(service.ClusterName)),
+			ServiceName: strings.TrimSpace(awsv2.ToString(service.ServiceName)),
 		})
 	}
 	return targets
@@ -117,8 +117,8 @@ func mapSNSTriggers(triggers []cdtypes.TriggerConfig) []cdservice.SNSTrigger {
 			events = append(events, string(event))
 		}
 		out = append(out, cdservice.SNSTrigger{
-			Name:     strings.TrimSpace(aws.ToString(trigger.TriggerName)),
-			TopicARN: strings.TrimSpace(aws.ToString(trigger.TriggerTargetArn)),
+			Name:     strings.TrimSpace(awsv2.ToString(trigger.TriggerName)),
+			TopicARN: strings.TrimSpace(awsv2.ToString(trigger.TriggerTargetArn)),
 			Events:   events,
 		})
 	}
@@ -144,9 +144,9 @@ func mapEC2TagFilters(filters []cdtypes.EC2TagFilter, tagSet *cdtypes.EC2TagSet)
 }
 
 func ec2TagFilterSummary(filter cdtypes.EC2TagFilter) cdservice.TagFilterSummary {
-	value := strings.TrimSpace(aws.ToString(filter.Value))
+	value := strings.TrimSpace(awsv2.ToString(filter.Value))
 	return cdservice.TagFilterSummary{
-		Key:      strings.TrimSpace(aws.ToString(filter.Key)),
+		Key:      strings.TrimSpace(awsv2.ToString(filter.Key)),
 		Type:     string(filter.Type),
 		HasValue: value != "",
 	}
@@ -175,22 +175,22 @@ func mapOnPremisesTagFilters(
 }
 
 func onPremisesTagFilterSummary(filter cdtypes.TagFilter, key redact.Key) cdservice.TagFilterSummary {
-	value := strings.TrimSpace(aws.ToString(filter.Value))
+	value := strings.TrimSpace(awsv2.ToString(filter.Value))
 	summary := cdservice.TagFilterSummary{
-		Key:      strings.TrimSpace(aws.ToString(filter.Key)),
+		Key:      strings.TrimSpace(awsv2.ToString(filter.Key)),
 		Type:     string(filter.Type),
 		HasValue: value != "",
 	}
 	if summary.HasValue {
-		summary.ValueMarker = awscloud.RedactString(value, onPremisesTagValueReason, key)
+		summary.ValueMarker = aws.RedactString(value, onPremisesTagValueReason, key)
 	}
 	return summary
 }
 
 func mapDeploymentConfig(info cdtypes.DeploymentConfigInfo) cdservice.DeploymentConfig {
 	config := cdservice.DeploymentConfig{
-		Name:            aws.ToString(info.DeploymentConfigName),
-		ID:              aws.ToString(info.DeploymentConfigId),
+		Name:            awsv2.ToString(info.DeploymentConfigName),
+		ID:              awsv2.ToString(info.DeploymentConfigId),
 		ComputePlatform: string(info.ComputePlatform),
 	}
 	if info.MinimumHealthyHosts != nil {
@@ -205,10 +205,10 @@ func mapDeploymentConfig(info cdtypes.DeploymentConfigInfo) cdservice.Deployment
 
 func mapDeployment(info cdtypes.DeploymentInfo) cdservice.Deployment {
 	deployment := cdservice.Deployment{
-		ID:                   aws.ToString(info.DeploymentId),
-		ApplicationName:      aws.ToString(info.ApplicationName),
-		DeploymentGroupName:  aws.ToString(info.DeploymentGroupName),
-		DeploymentConfigName: aws.ToString(info.DeploymentConfigName),
+		ID:                   awsv2.ToString(info.DeploymentId),
+		ApplicationName:      awsv2.ToString(info.ApplicationName),
+		DeploymentGroupName:  awsv2.ToString(info.DeploymentGroupName),
+		DeploymentConfigName: awsv2.ToString(info.DeploymentConfigName),
 		Status:               string(info.Status),
 		Creator:              string(info.Creator),
 		ComputePlatform:      string(info.ComputePlatform),
@@ -234,14 +234,14 @@ func mapRevisionSummary(revision *cdtypes.RevisionLocation) cdservice.RevisionSu
 		RevisionType: string(revision.RevisionType),
 	}
 	if revision.S3Location != nil {
-		summary.S3Bucket = strings.TrimSpace(aws.ToString(revision.S3Location.Bucket))
-		summary.S3Key = strings.TrimSpace(aws.ToString(revision.S3Location.Key))
-		summary.S3Version = strings.TrimSpace(aws.ToString(revision.S3Location.Version))
+		summary.S3Bucket = strings.TrimSpace(awsv2.ToString(revision.S3Location.Bucket))
+		summary.S3Key = strings.TrimSpace(awsv2.ToString(revision.S3Location.Key))
+		summary.S3Version = strings.TrimSpace(awsv2.ToString(revision.S3Location.Version))
 		summary.S3BundleType = string(revision.S3Location.BundleType)
 	}
 	if revision.GitHubLocation != nil {
-		summary.GitHubRepo = strings.TrimSpace(aws.ToString(revision.GitHubLocation.Repository))
-		summary.GitHubCommitID = strings.TrimSpace(aws.ToString(revision.GitHubLocation.CommitId))
+		summary.GitHubRepo = strings.TrimSpace(awsv2.ToString(revision.GitHubLocation.Repository))
+		summary.GitHubCommitID = strings.TrimSpace(awsv2.ToString(revision.GitHubLocation.CommitId))
 	}
 	return summary
 }

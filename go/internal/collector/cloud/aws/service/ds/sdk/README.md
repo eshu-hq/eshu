@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ds/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/ds/sdk` adapts AWS SDK for Go v2
 Directory Service describe calls into the scanner-owned metadata types defined by
 the parent `ds` package. It owns SDK pagination, SDK-to-scanner mapping,
 per-directory LDAPS resolution, and API-call telemetry.
@@ -29,9 +29,9 @@ is the only place SDK methods can be called from.
 
 - `github.com/aws/aws-sdk-go-v2/service/directoryservice` and its `types` package
   for the Directory Service SDK client and response types.
-- `internal/collector/awscloud` for the boundary and the shared API-call
+- `internal/collector/cloud/aws` for the boundary and the shared API-call
   recorder.
-- `internal/collector/awscloud/service/ds` for the scanner-owned target types.
+- `internal/collector/cloud/aws/service/ds` for the scanner-owned target types.
 - `internal/telemetry` for spans, metric instruments, and attribute helpers.
 
 ## Telemetry

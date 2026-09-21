@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/guardduty/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/guardduty/sdk guidance
 
 ## Read First
 

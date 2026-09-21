@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/opensearch` owns the OpenSearch scanner
+`internal/collector/cloud/aws/service/opensearch` owns the OpenSearch scanner
 contract for the AWS cloud collector. It converts OpenSearch Service
 provisioned domains, OpenSearch custom packages, and OpenSearch Serverless
 collections, security configurations, and managed VPC endpoints into
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,10 +51,10 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns;
 `eshu_dp_aws_resources_emitted_total{service="opensearch"}` covers each new
-resource type. The `awssdk` adapter records OpenSearch API call counts,
+resource type. The `sdk` adapter records OpenSearch API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -94,7 +94,7 @@ throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/opensearch/...` covers the
+`go test ./internal/collector/cloud/aws/service/opensearch/...` covers the
 bounded OpenSearch metadata path: one ListDomainNames read, one batched
 DescribeDomains read, one ListTags read per domain ARN, one paginated
 DescribePackages stream, one paginated ListDomainsForPackage stream per
@@ -105,7 +105,7 @@ BatchGetVpcEndpoint, no mutation calls, no OpenSearch HTTP API calls, and no
 graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 OpenSearch resource fact emission for all five resource types, relationship
 emission for domain-to-VPC, domain-to-subnet, domain-to-security-group,
 domain-to-KMS-key, domain-to-IAM-role, package-to-domain, and

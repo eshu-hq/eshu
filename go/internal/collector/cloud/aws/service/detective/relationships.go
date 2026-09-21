@@ -15,21 +15,21 @@ import (
 // the edge joins rather than dangles. The edge is omitted when the account id is
 // blank.
 func memberAccountRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graphARN string,
 	member MemberAccount,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	accountID := strings.TrimSpace(member.AccountID)
 	if graphARN == "" || accountID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDetectiveGraphHasMemberAccount,
+		RelationshipType: aws.RelationshipDetectiveGraphHasMemberAccount,
 		SourceResourceID: graphARN,
 		SourceARN:        graphARN,
 		TargetResourceID: accountID,
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       aws.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"account_id":        accountID,
 			"membership_status": strings.TrimSpace(member.Status),
@@ -46,21 +46,21 @@ func memberAccountRelationship(
 // resolver supplied a real id on the graph (Graph.GuardDutyDetectorID); a blank
 // id yields no edge, never a fabricated one, so the edge can never dangle.
 func guardDutyDetectorRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graph Graph,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	graphARN := strings.TrimSpace(graph.ARN)
 	detectorID := strings.TrimSpace(graph.GuardDutyDetectorID)
 	if graphARN == "" || detectorID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector,
+		RelationshipType: aws.RelationshipDetectiveGraphSourcesGuardDutyDetector,
 		SourceResourceID: graphARN,
 		SourceARN:        graphARN,
 		TargetResourceID: detectorID,
-		TargetType:       awscloud.ResourceTypeGuardDutyDetector,
+		TargetType:       aws.ResourceTypeGuardDutyDetector,
 		Attributes: map[string]any{
 			"detector_id": detectorID,
 		},

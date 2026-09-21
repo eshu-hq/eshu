@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func foundationModelObservation(model FoundationModel) awscloud.ResourceObservation {
+func foundationModelObservation(model FoundationModel) aws.ResourceObservation {
 	arn := strings.TrimSpace(model.ARN)
 	id := firstNonEmpty(arn, model.ModelID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockFoundationModel,
+		ResourceType: aws.ResourceTypeBedrockFoundationModel,
 		Name:         strings.TrimSpace(model.ModelID),
 		State:        strings.TrimSpace(model.LifecycleStatus),
 		Attributes: map[string]any{
@@ -27,16 +27,16 @@ func foundationModelObservation(model FoundationModel) awscloud.ResourceObservat
 	}
 }
 
-func customModelObservation(model CustomModel) awscloud.ResourceObservation {
+func customModelObservation(model CustomModel) aws.ResourceObservation {
 	arn := strings.TrimSpace(model.ARN)
 	id := firstNonEmpty(arn, model.Name)
 	// Hyperparameter values and training input data references are intentionally
 	// omitted: the scanner-owned type has no field for them. The base model id,
 	// job ARN, and output S3 reference are inventory metadata.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockCustomModel,
+		ResourceType: aws.ResourceTypeBedrockCustomModel,
 		Name:         strings.TrimSpace(model.Name),
 		Tags:         cloneStringMap(model.Tags),
 		Attributes: map[string]any{
@@ -50,13 +50,13 @@ func customModelObservation(model CustomModel) awscloud.ResourceObservation {
 	}
 }
 
-func customizationJobObservation(job ModelCustomizationJob) awscloud.ResourceObservation {
+func customizationJobObservation(job ModelCustomizationJob) aws.ResourceObservation {
 	arn := strings.TrimSpace(job.ARN)
 	id := firstNonEmpty(arn, job.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockModelCustomizationJob,
+		ResourceType: aws.ResourceTypeBedrockModelCustomizationJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -71,13 +71,13 @@ func customizationJobObservation(job ModelCustomizationJob) awscloud.ResourceObs
 	}
 }
 
-func provisionedThroughputObservation(pt ProvisionedModelThroughput) awscloud.ResourceObservation {
+func provisionedThroughputObservation(pt ProvisionedModelThroughput) aws.ResourceObservation {
 	arn := strings.TrimSpace(pt.ARN)
 	id := firstNonEmpty(arn, pt.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockProvisionedModelThroughput,
+		ResourceType: aws.ResourceTypeBedrockProvisionedModelThroughput,
 		Name:         strings.TrimSpace(pt.Name),
 		State:        strings.TrimSpace(pt.Status),
 		Tags:         cloneStringMap(pt.Tags),
@@ -91,16 +91,16 @@ func provisionedThroughputObservation(pt ProvisionedModelThroughput) awscloud.Re
 	}
 }
 
-func guardrailObservation(guardrail Guardrail) awscloud.ResourceObservation {
+func guardrailObservation(guardrail Guardrail) aws.ResourceObservation {
 	arn := strings.TrimSpace(guardrail.ARN)
 	id := firstNonEmpty(arn, guardrail.ID, guardrail.Name)
 	// Topic and content policy bodies are intentionally omitted: they encode the
 	// organization's content-safety posture and the scanner-owned type has no
 	// field for them. Only the name, version, and status are inventory metadata.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockGuardrail,
+		ResourceType: aws.ResourceTypeBedrockGuardrail,
 		Name:         strings.TrimSpace(guardrail.Name),
 		State:        strings.TrimSpace(guardrail.Status),
 		Tags:         cloneStringMap(guardrail.Tags),
@@ -115,17 +115,17 @@ func guardrailObservation(guardrail Guardrail) awscloud.ResourceObservation {
 	}
 }
 
-func agentObservation(agent Agent) awscloud.ResourceObservation {
+func agentObservation(agent Agent) aws.ResourceObservation {
 	arn := strings.TrimSpace(agent.ARN)
 	id := firstNonEmpty(arn, agent.ID, agent.Name)
 	// The agent instruction (system prompt) and prompt-override configuration are
 	// intentionally omitted: they are valuable IP and the scanner-owned type has
 	// no field for them. Only the name, description, and foundation model id are
 	// inventory metadata.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockAgent,
+		ResourceType: aws.ResourceTypeBedrockAgent,
 		Name:         strings.TrimSpace(agent.Name),
 		State:        strings.TrimSpace(agent.Status),
 		Tags:         cloneStringMap(agent.Tags),
@@ -140,14 +140,14 @@ func agentObservation(agent Agent) awscloud.ResourceObservation {
 	}
 }
 
-func actionGroupObservation(group AgentActionGroup) awscloud.ResourceObservation {
+func actionGroupObservation(group AgentActionGroup) aws.ResourceObservation {
 	id := firstNonEmpty(actionGroupID(group.AgentID, group.ID), group.Name)
 	// The action-group API schema body and function schema are intentionally
 	// omitted: they are often customer IP and the scanner-owned type has no field
 	// for them. Only the name, state, and Lambda executor ARN are metadata.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockAgentActionGroup,
+		ResourceType: aws.ResourceTypeBedrockAgentActionGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.State),
 		Attributes: map[string]any{
@@ -160,16 +160,16 @@ func actionGroupObservation(group AgentActionGroup) awscloud.ResourceObservation
 	}
 }
 
-func knowledgeBaseObservation(kb KnowledgeBase) awscloud.ResourceObservation {
+func knowledgeBaseObservation(kb KnowledgeBase) aws.ResourceObservation {
 	arn := strings.TrimSpace(kb.ARN)
 	id := firstNonEmpty(arn, kb.ID, kb.Name)
 	// Ingested document content and chunks are intentionally omitted: the
 	// scanner-owned type has no field for them. Only the name, status, embedding
 	// model reference, and data source endpoint refs are inventory metadata.
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockKnowledgeBase,
+		ResourceType: aws.ResourceTypeBedrockKnowledgeBase,
 		Name:         strings.TrimSpace(kb.Name),
 		State:        strings.TrimSpace(kb.Status),
 		Tags:         cloneStringMap(kb.Tags),

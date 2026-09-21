@@ -14,4 +14,4 @@
 // the build if any forbidden operation becomes reachable. Resolver endpoint IP
 // address strings are read only to derive subnet placement and are never
 // carried out of the adapter.
-package awssdk
+package sdk

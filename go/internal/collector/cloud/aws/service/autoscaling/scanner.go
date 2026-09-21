@@ -26,15 +26,15 @@ type Scanner struct {
 }
 
 // Scan observes EC2 Auto Scaling resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("autoscaling scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAutoScaling:
+	case "", aws.ServiceAutoScaling:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAutoScaling
+		boundary.ServiceKind = aws.ServiceAutoScaling
 	default:
 		return nil, fmt.Errorf("autoscaling scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -70,7 +70,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Auto Scaling launch configurations: %w", err)
 	}
 	for _, launchConfiguration := range launchConfigurations {
-		resource, err := awscloud.NewResourceEnvelope(launchConfigurationObservation(boundary, launchConfiguration))
+		resource, err := aws.NewResourceEnvelope(launchConfigurationObservation(boundary, launchConfiguration))
 		if err != nil {
 			return nil, err
 		}
@@ -104,14 +104,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(groupObservation(boundary, group))
+func groupEnvelopes(boundary aws.Boundary, group Group) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(groupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range groupRelationships(boundary, group) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -120,14 +120,14 @@ func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, 
 	return envelopes, nil
 }
 
-func lifecycleHookEnvelopes(boundary awscloud.Boundary, hook LifecycleHook) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(lifecycleHookObservation(boundary, hook))
+func lifecycleHookEnvelopes(boundary aws.Boundary, hook LifecycleHook) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(lifecycleHookObservation(boundary, hook))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if observation, ok := lifecycleHookRelationship(boundary, hook); ok {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -136,14 +136,14 @@ func lifecycleHookEnvelopes(boundary awscloud.Boundary, hook LifecycleHook) ([]f
 	return envelopes, nil
 }
 
-func scalingPolicyEnvelopes(boundary awscloud.Boundary, policy ScalingPolicy) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scalingPolicyObservation(boundary, policy))
+func scalingPolicyEnvelopes(boundary aws.Boundary, policy ScalingPolicy) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scalingPolicyObservation(boundary, policy))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if observation, ok := scalingPolicyRelationship(boundary, policy); ok {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -152,14 +152,14 @@ func scalingPolicyEnvelopes(boundary awscloud.Boundary, policy ScalingPolicy) ([
 	return envelopes, nil
 }
 
-func scheduledActionEnvelopes(boundary awscloud.Boundary, action ScheduledAction) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scheduledActionObservation(boundary, action))
+func scheduledActionEnvelopes(boundary aws.Boundary, action ScheduledAction) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scheduledActionObservation(boundary, action))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if observation, ok := scheduledActionRelationship(boundary, action); ok {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -171,14 +171,14 @@ func scheduledActionEnvelopes(boundary awscloud.Boundary, action ScheduledAction
 // groupObservation builds the Auto Scaling group resource fact. ResourceID is
 // the bare group name so CodeDeploy and Batch dangling edges that target an
 // Auto Scaling group by name resolve to this resource.
-func groupObservation(boundary awscloud.Boundary, group Group) awscloud.ResourceObservation {
+func groupObservation(boundary aws.Boundary, group Group) aws.ResourceObservation {
 	groupName := strings.TrimSpace(group.Name)
 	groupARN := strings.TrimSpace(group.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   groupName,
-		ResourceType: awscloud.ResourceTypeAutoScalingGroup,
+		ResourceType: aws.ResourceTypeAutoScalingGroup,
 		Name:         groupName,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         group.Tags,
@@ -211,16 +211,16 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 }
 
 func launchConfigurationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	launchConfiguration LaunchConfiguration,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	launchConfigurationARN := strings.TrimSpace(launchConfiguration.ARN)
 	name := strings.TrimSpace(launchConfiguration.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          launchConfigurationARN,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAutoScalingLaunchConfiguration,
+		ResourceType: aws.ResourceTypeAutoScalingLaunchConfiguration,
 		Name:         name,
 		// No attributes: launch configuration UserData and other launch detail
 		// are never persisted. Only identity is emitted.
@@ -229,15 +229,15 @@ func launchConfigurationObservation(
 	}
 }
 
-func scalingPolicyObservation(boundary awscloud.Boundary, policy ScalingPolicy) awscloud.ResourceObservation {
+func scalingPolicyObservation(boundary aws.Boundary, policy ScalingPolicy) aws.ResourceObservation {
 	policyARN := strings.TrimSpace(policy.ARN)
 	name := strings.TrimSpace(policy.Name)
 	resourceID := firstNonEmpty(policyARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          policyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingPolicy,
+		ResourceType: aws.ResourceTypeAutoScalingPolicy,
 		Name:         name,
 		Attributes: map[string]any{
 			"adjustment_type":         strings.TrimSpace(policy.AdjustmentType),
@@ -250,14 +250,14 @@ func scalingPolicyObservation(boundary awscloud.Boundary, policy ScalingPolicy) 
 	}
 }
 
-func lifecycleHookObservation(boundary awscloud.Boundary, hook LifecycleHook) awscloud.ResourceObservation {
+func lifecycleHookObservation(boundary aws.Boundary, hook LifecycleHook) aws.ResourceObservation {
 	name := strings.TrimSpace(hook.Name)
 	groupName := strings.TrimSpace(hook.AutoScalingGroupName)
 	resourceID := groupName + "/" + name
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingLifecycleHook,
+		ResourceType: aws.ResourceTypeAutoScalingLifecycleHook,
 		Name:         name,
 		Attributes: map[string]any{
 			"auto_scaling_group_name": groupName,
@@ -273,16 +273,16 @@ func lifecycleHookObservation(boundary awscloud.Boundary, hook LifecycleHook) aw
 	}
 }
 
-func scheduledActionObservation(boundary awscloud.Boundary, action ScheduledAction) awscloud.ResourceObservation {
+func scheduledActionObservation(boundary aws.Boundary, action ScheduledAction) aws.ResourceObservation {
 	actionARN := strings.TrimSpace(action.ARN)
 	name := strings.TrimSpace(action.Name)
 	groupName := strings.TrimSpace(action.AutoScalingGroupName)
 	resourceID := firstNonEmpty(actionARN, groupName+"/"+name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          actionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingScheduledAction,
+		ResourceType: aws.ResourceTypeAutoScalingScheduledAction,
 		Name:         name,
 		Attributes: map[string]any{
 			"auto_scaling_group_name": groupName,

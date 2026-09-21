@@ -1,4 +1,4 @@
-# AGENTS - awscloud/internal/relguard guidance
+# AGENTS - aws/internal/relguard guidance
 
 ## Read First
 
@@ -7,14 +7,14 @@
 2. `doc.go` - godoc contract for the exported helpers.
 3. `../../envelope.go` - `NewRelationshipEnvelope`, the emission path the guard
    protects. Note it does NOT validate `target_type`; relguard does.
-4. `../../awsruntime/internal/guardset/AGENTS.md` - the sibling derived-guard
+4. `../../runtime/internal/guardset/AGENTS.md` - the sibling derived-guard
    precedent this package mirrors.
 
 ## Invariants
 
-- NEVER import the `awsruntime` registry or read
-  `awsruntime.SupportedServiceKinds()`. The valid target-type set MUST be
-  derived from the awscloud constant source plus `KnownTargetTypeAllowlist`.
+- NEVER import the `runtime` registry or read
+  `runtime.SupportedServiceKinds()`. The valid target-type set MUST be
+  derived from the aws constant source plus `KnownTargetTypeAllowlist`.
   Deriving it from the runtime would make the guard tautological.
 - Keep the static layer source-based (`go/parser`, no type checking). It must
   stay fast and free of a `golang.org/x/tools/go/packages` dependency.
@@ -30,7 +30,7 @@
 
 - A new scanner with a literal or constant target_type that names a real
   resource family needs NO change here: the guard derives the value from the
-  `awscloud.ResourceType*` constants automatically.
+  `aws.ResourceType*` constants automatically.
 - A new scanner whose target_type is genuinely a forward reference (target not
   scanned yet) or a synthetic/non-AWS anchor: add a commented entry to
   `KnownTargetTypeAllowlist`, and prefer fixing the dangling target later.

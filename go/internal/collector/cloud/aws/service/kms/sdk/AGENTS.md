@@ -1,4 +1,4 @@
-# AGENTS.md - services/kms/awssdk guidance
+# AGENTS.md - services/kms/sdk guidance
 
 ## Read First
 

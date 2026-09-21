@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/autoscaling/awssdk` adapts the AWS SDK for
+`internal/collector/cloud/aws/service/autoscaling/sdk` adapts the AWS SDK for
 Go v2 Auto Scaling client into the scanner-owned records the `autoscaling`
 package consumes. It owns pagination, the per-group lifecycle-hook describe
 fan-out, SDK-to-scanner mapping, AWS API telemetry, throttle detection, and
@@ -29,9 +29,9 @@ See `doc.go` for the godoc contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/autoscaling` and its `types` package for
   the AWS read surface.
-- `internal/collector/awscloud` for the boundary, API-call recording, and the
+- `internal/collector/cloud/aws` for the boundary, API-call recording, and the
   scanner `Client` contract it satisfies.
-- `internal/collector/awscloud/service/autoscaling` for the scanner-owned
+- `internal/collector/cloud/aws/service/autoscaling` for the scanner-owned
   record types.
 - `internal/telemetry` for spans, API-call counters, and throttle counters.
 
@@ -66,7 +66,7 @@ caller-supplied data stay out of metric labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/autoscaling/awssdk/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/autoscaling/sdk/...`
 covers the bounded mapping and read surface: subnet identifier splitting,
 launch-template ID preference, UserData and notification-metadata exclusion, and
 the reflective metadata-only guard. The adapter performs no graph writes.

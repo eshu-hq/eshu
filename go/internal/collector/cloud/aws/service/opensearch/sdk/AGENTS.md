@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/opensearch/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/opensearch/sdk guidance
 
 ## Read First
 

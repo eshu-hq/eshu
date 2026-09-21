@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/lightsail guidance
+# AGENTS.md - internal/collector/cloud/aws/service/lightsail guidance
 
 ## Read First
 
@@ -29,7 +29,7 @@
   resource_id, or the edge dangles.
 - Use Lightsail resource ARNs exactly as the API reports them. Never synthesize
   an ARN and never hardcode `arn:aws:`; if a synthesized ARN ever becomes
-  necessary, derive the partition with `awscloud.PartitionForBoundary` /
+  necessary, derive the partition with `aws.PartitionForBoundary` /
   `PartitionFromARN`.
 - Emit load-balancer-to-instance edges once per distinct attached instance
   name; collapse duplicates. Emit instance-to-disk and instance-to-static-IP
@@ -46,13 +46,13 @@
 
 - Add a new Lightsail metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry credential or
+  `aws` envelope builders. If the field can carry credential or
   access-secret material, leave it out of the scanner contract until an ADR
   documents a sanitized exception.
 - Add new relationship evidence only when the Lightsail API reports both sides
   directly and the target identity matches a published node resource_id (a bare
   Lightsail name or an ARN-keyed family).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

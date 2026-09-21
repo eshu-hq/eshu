@@ -45,8 +45,8 @@ func (f *fakeClient) PrincipalsForPortfolio(_ context.Context, portfolioID strin
 	return f.principalsByID[portfolioID], f.err
 }
 
-func boundaryFor(serviceKind string) awscloud.Boundary {
-	return awscloud.Boundary{
+func boundaryFor(serviceKind string) aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
 		ServiceKind:         serviceKind,
@@ -106,7 +106,7 @@ func sampleClient() *fakeClient {
 
 func scanFixture(t *testing.T, client Client) []facts.Envelope {
 	t.Helper()
-	envelopes, err := Scanner{Client: client}.Scan(context.Background(), boundaryFor(awscloud.ServiceServiceCatalog))
+	envelopes, err := Scanner{Client: client}.Scan(context.Background(), boundaryFor(aws.ServiceServiceCatalog))
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
@@ -199,14 +199,14 @@ func TestScanRejectsForeignServiceKind(t *testing.T) {
 }
 
 func TestScanRequiresClient(t *testing.T) {
-	_, err := Scanner{}.Scan(context.Background(), boundaryFor(awscloud.ServiceServiceCatalog))
+	_, err := Scanner{}.Scan(context.Background(), boundaryFor(aws.ServiceServiceCatalog))
 	if err == nil {
 		t.Fatal("Scan() error = nil, want client-required rejection")
 	}
 }
 
 func TestScanEmitsPortfolioResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogPortfolio)
+	envelope := findResource(t, scanFixture(t, sampleClient()), aws.ResourceTypeServiceCatalogPortfolio)
 	wantID := "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("portfolio resource_id = %v, want %v", got, wantID)
@@ -217,7 +217,7 @@ func TestScanEmitsPortfolioResource(t *testing.T) {
 }
 
 func TestScanEmitsProductResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogProduct)
+	envelope := findResource(t, scanFixture(t, sampleClient()), aws.ResourceTypeServiceCatalogProduct)
 	wantID := "arn:aws:catalog:us-east-1:123456789012:product/prod-xyz789"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("product resource_id = %v, want %v", got, wantID)
@@ -235,7 +235,7 @@ func TestScanEmitsProductResource(t *testing.T) {
 }
 
 func TestScanEmitsProvisionedProductResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogProvisionedProduct)
+	envelope := findResource(t, scanFixture(t, sampleClient()), aws.ResourceTypeServiceCatalogProvisionedProduct)
 	wantID := "arn:aws:servicecatalog:us-east-1:123456789012:stack/team/pp-stack001"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("provisioned product resource_id = %v, want %v", got, wantID)
@@ -247,9 +247,9 @@ func TestScanEmitsProvisionedProductResource(t *testing.T) {
 
 func TestScanEmitsProvisionedProductToStackEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeCloudFormationStack {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeCloudFormationStack)
+		aws.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack)
+	if got := envelope.Payload["target_type"]; got != aws.ResourceTypeCloudFormationStack {
+		t.Fatalf("target_type = %v, want %v", got, aws.ResourceTypeCloudFormationStack)
 	}
 	wantTarget := "arn:aws:cloudformation:us-east-1:123456789012:stack/SC-team-bucket/abcd-1234"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {
@@ -266,9 +266,9 @@ func TestScanEmitsProvisionedProductToStackEdge(t *testing.T) {
 
 func TestScanEmitsProductToPortfolioEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogProductInPortfolio)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeServiceCatalogPortfolio {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeServiceCatalogPortfolio)
+		aws.RelationshipServiceCatalogProductInPortfolio)
+	if got := envelope.Payload["target_type"]; got != aws.ResourceTypeServiceCatalogPortfolio {
+		t.Fatalf("target_type = %v, want %v", got, aws.ResourceTypeServiceCatalogPortfolio)
 	}
 	wantTarget := "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {
@@ -282,9 +282,9 @@ func TestScanEmitsProductToPortfolioEdge(t *testing.T) {
 
 func TestScanEmitsPortfolioToIAMRoleEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeIAMRole {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeIAMRole)
+		aws.RelationshipServiceCatalogPortfolioGrantsPrincipal)
+	if got := envelope.Payload["target_type"]; got != aws.ResourceTypeIAMRole {
+		t.Fatalf("target_type = %v, want %v", got, aws.ResourceTypeIAMRole)
 	}
 	wantTarget := "arn:aws:iam::123456789012:role/ServiceCatalogLaunchRole"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {
@@ -312,7 +312,7 @@ func TestScanOmitsNonCFNStackProvisionedProductEdge(t *testing.T) {
 	for _, envelope := range scanFixture(t, client) {
 		if envelope.FactKind == facts.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
-				awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack {
+				aws.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack {
 			t.Fatal("emitted a stack edge for a non-CFN_STACK provisioned product")
 		}
 	}
@@ -332,7 +332,7 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 	for _, envelope := range scanFixture(t, client) {
 		if envelope.FactKind == facts.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
-				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal {
+				aws.RelationshipServiceCatalogPortfolioGrantsPrincipal {
 			t.Fatalf("emitted a role edge for a non-role / wildcard principal: %v",
 				envelope.Payload["target_resource_id"])
 		}
@@ -345,13 +345,13 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 // contain only the metadata identity keys.
 func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 	allowed := map[string]map[string]struct{}{
-		awscloud.ResourceTypeServiceCatalogPortfolio: keySet(
+		aws.ResourceTypeServiceCatalogPortfolio: keySet(
 			"portfolio_id", "display_name", "provider_name", "description", "created_time",
 		),
-		awscloud.ResourceTypeServiceCatalogProduct: keySet(
+		aws.ResourceTypeServiceCatalogProduct: keySet(
 			"product_id", "product_type", "owner", "distributor", "status", "created_time",
 		),
-		awscloud.ResourceTypeServiceCatalogProvisionedProduct: keySet(
+		aws.ResourceTypeServiceCatalogProvisionedProduct: keySet(
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
 			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
 		),
@@ -383,13 +383,13 @@ func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 // (no key outside the allowlist), the two tests pin the emitted set exactly.
 func TestScanEmitsEveryDocumentedAttribute(t *testing.T) {
 	documented := map[string][]string{
-		awscloud.ResourceTypeServiceCatalogPortfolio: {
+		aws.ResourceTypeServiceCatalogPortfolio: {
 			"portfolio_id", "display_name", "provider_name", "description", "created_time",
 		},
-		awscloud.ResourceTypeServiceCatalogProduct: {
+		aws.ResourceTypeServiceCatalogProduct: {
 			"product_id", "product_type", "owner", "distributor", "status", "created_time",
 		},
-		awscloud.ResourceTypeServiceCatalogProvisionedProduct: {
+		aws.ResourceTypeServiceCatalogProvisionedProduct: {
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
 			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
 		},

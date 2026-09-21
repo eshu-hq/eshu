@@ -13,4 +13,4 @@
 // guard test. Runtime environment-variable values and source repository
 // credentials never cross the adapter boundary: only environment-variable names
 // and secret-reference ARNs are mapped.
-package awssdk
+package sdk

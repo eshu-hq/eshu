@@ -18,16 +18,16 @@ import (
 
 // importPathSuffix is the trailing module path under which every AWS service
 // scanner registers itself. A blank import that ends with
-// service/<service>/runtimebind contributes <service> to the bindings set.
-const importPathSuffix = "/internal/collector/awscloud/service/"
+// service/<service>/bind contributes <service> to the bindings set.
+const importPathSuffix = "/internal/collector/cloud/aws/service/"
 
-// runtimebindLeaf is the final path element every service registration import
+// bindLeaf is the final path element every service registration import
 // must carry.
-const runtimebindLeaf = "runtimebind"
+const bindLeaf = "bind"
 
-// ServiceFromImportPath extracts the service token from a runtimebind blank
+// ServiceFromImportPath extracts the service token from a bind blank
 // import path. It returns ("", false) for any import that is not exactly a
-// service/<service>/runtimebind package, so unrelated imports and deeper
+// service/<service>/bind package, so unrelated imports and deeper
 // nested packages are ignored rather than misattributed.
 func ServiceFromImportPath(path string) (string, bool) {
 	idx := strings.Index(path, importPathSuffix)
@@ -36,22 +36,22 @@ func ServiceFromImportPath(path string) (string, bool) {
 	}
 	tail := path[idx+len(importPathSuffix):]
 	parts := strings.Split(tail, "/")
-	// Exactly <service>/runtimebind. Reject <service>,
-	// <service>/runtimebind/extra, and empty service tokens.
+	// Exactly <service>/bind. Reject <service>,
+	// <service>/bind/extra, and empty service tokens.
 	if len(parts) != 2 {
 		return "", false
 	}
 	service, leaf := parts[0], parts[1]
-	if service == "" || leaf != runtimebindLeaf {
+	if service == "" || leaf != bindLeaf {
 		return "", false
 	}
 	return service, true
 }
 
-// RuntimebindServiceDirs returns the sorted set of service tokens that have a
-// service/<service>/runtimebind/ directory under serviceDir. This is the set
+// BindServiceDirs returns the sorted set of service tokens that have a
+// service/<service>/bind/ directory under serviceDir. This is the set
 // of scanners the repository layout says SHOULD be registered.
-func RuntimebindServiceDirs(serviceDir string) ([]string, error) {
+func BindServiceDirs(serviceDir string) ([]string, error) {
 	entries, err := os.ReadDir(serviceDir)
 	if err != nil {
 		return nil, fmt.Errorf("read service dir %q: %w", serviceDir, err)
@@ -61,14 +61,14 @@ func RuntimebindServiceDirs(serviceDir string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		bindDir := filepath.Join(serviceDir, entry.Name(), runtimebindLeaf)
+		bindDir := filepath.Join(serviceDir, entry.Name(), bindLeaf)
 		info, statErr := os.Stat(bindDir)
 		if errors.Is(statErr, os.ErrNotExist) {
-			// Service directory without a runtimebind package; skip it.
+			// Service directory without a bind package; skip it.
 			continue
 		}
 		if statErr != nil {
-			return nil, fmt.Errorf("stat runtimebind dir %q: %w", bindDir, statErr)
+			return nil, fmt.Errorf("stat bind dir %q: %w", bindDir, statErr)
 		}
 		if !info.IsDir() {
 			continue
@@ -80,7 +80,7 @@ func RuntimebindServiceDirs(serviceDir string) ([]string, error) {
 }
 
 // BindingsImportServices parses bindingsFile and returns the sorted set of
-// service tokens from its services/<service>/runtimebind blank imports. This is
+// service tokens from its services/<service>/bind blank imports. This is
 // the set of scanners that ARE wired into the runtime aggregator.
 func BindingsImportServices(bindingsFile string) ([]string, error) {
 	fset := token.NewFileSet()
@@ -127,7 +127,7 @@ func importPath(spec *ast.ImportSpec) (string, error) {
 // service tokens present in dirs but absent from imports (missing) and present
 // in imports but absent from dirs (extra). Both inputs are de-duplicated first,
 // so repeated entries do not distort the result. A non-empty missing slice
-// means a runtimebind directory exists without a matching bindings.go import,
+// means a bind directory exists without a matching all.go import,
 // which is the unwired-scanner failure the guard exists to catch.
 func Diff(dirs, imports []string) (missing, extra []string) {
 	dirSet := toSet(dirs)

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfirehose "github.com/aws/aws-sdk-go-v2/service/firehose"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -39,15 +39,15 @@ type apiClient interface {
 // processing-configuration Lambda bodies.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Firehose SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -112,10 +112,10 @@ func (c *Client) listDeliveryStreamNames(ctx context.Context) ([]string, error) 
 				names = append(names, trimmed)
 			}
 		}
-		if !aws.ToBool(page.HasMoreDeliveryStreams) || len(page.DeliveryStreamNames) == 0 {
+		if !awsv2.ToBool(page.HasMoreDeliveryStreams) || len(page.DeliveryStreamNames) == 0 {
 			return names, nil
 		}
-		exclusiveStart = aws.String(page.DeliveryStreamNames[len(page.DeliveryStreamNames)-1])
+		exclusiveStart = awsv2.String(page.DeliveryStreamNames[len(page.DeliveryStreamNames)-1])
 	}
 }
 
@@ -134,7 +134,7 @@ func (c *Client) listDeliveryStreamTags(ctx context.Context, name string) (map[s
 		err := c.recordAPICall(ctx, "ListTagsForDeliveryStream", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.ListTagsForDeliveryStream(callCtx, &awsfirehose.ListTagsForDeliveryStreamInput{
-				DeliveryStreamName:   aws.String(trimmed),
+				DeliveryStreamName:   awsv2.String(trimmed),
 				ExclusiveStartTagKey: exclusiveStart,
 			})
 			return callErr
@@ -146,11 +146,11 @@ func (c *Client) listDeliveryStreamTags(ctx context.Context, name string) (map[s
 			break
 		}
 		for _, tag := range output.Tags {
-			if key := strings.TrimSpace(aws.ToString(tag.Key)); key != "" {
-				tags[key] = aws.ToString(tag.Value)
+			if key := strings.TrimSpace(awsv2.ToString(tag.Key)); key != "" {
+				tags[key] = awsv2.ToString(tag.Value)
 			}
 		}
-		if !aws.ToBool(output.HasMoreTags) || len(output.Tags) == 0 {
+		if !awsv2.ToBool(output.HasMoreTags) || len(output.Tags) == 0 {
 			break
 		}
 		exclusiveStart = output.Tags[len(output.Tags)-1].Key
@@ -176,7 +176,7 @@ func (c *Client) describeDeliveryStream(
 	err := c.recordAPICall(ctx, "DescribeDeliveryStream", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeDeliveryStream(callCtx, &awsfirehose.DescribeDeliveryStreamInput{
-			DeliveryStreamName: aws.String(trimmed),
+			DeliveryStreamName: awsv2.String(trimmed),
 		})
 		return err
 	})
@@ -213,7 +213,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

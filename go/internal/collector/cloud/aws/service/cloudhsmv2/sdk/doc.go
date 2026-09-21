@@ -13,4 +13,4 @@
 // cannot mutate CloudHSM state, initialize a cluster (the flow that exposes the
 // Pre-Crypto Officer password), or read key material. Certificate and CSR
 // bodies are inspected only to test presence and are never copied out.
-package awssdk
+package sdk

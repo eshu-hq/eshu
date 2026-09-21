@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes ECR repositories, images, and lifecycle policies through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ecr scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceECR:
+	case "", aws.ServiceECR:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceECR
+		boundary.ServiceKind = aws.ServiceECR
 	default:
 		return nil, fmt.Errorf("ecr scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -40,7 +40,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, repository := range repositories {
-		resource, err := awscloud.NewResourceEnvelope(repositoryObservation(boundary, repository))
+		resource, err := aws.NewResourceEnvelope(repositoryObservation(boundary, repository))
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, fmt.Errorf("get ECR lifecycle policy for repository %q: %w", repository.Name, err)
 		}
 		if policy != nil {
-			resource, err := awscloud.NewResourceEnvelope(lifecyclePolicyObservation(boundary, *policy))
+			resource, err := aws.NewResourceEnvelope(lifecyclePolicyObservation(boundary, *policy))
 			if err != nil {
 				return nil, err
 			}
@@ -73,13 +73,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func repositoryObservation(boundary awscloud.Boundary, repository Repository) awscloud.ResourceObservation {
+func repositoryObservation(boundary aws.Boundary, repository Repository) aws.ResourceObservation {
 	repositoryARN := strings.TrimSpace(repository.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   firstNonEmpty(repositoryARN, repository.URI, repository.Name),
-		ResourceType: awscloud.ResourceTypeECRRepository,
+		ResourceType: aws.ResourceTypeECRRepository,
 		Name:         repository.Name,
 		Tags:         repository.Tags,
 		Attributes: map[string]any{
@@ -95,16 +95,16 @@ func repositoryObservation(boundary awscloud.Boundary, repository Repository) aw
 	}
 }
 
-func lifecyclePolicyObservation(boundary awscloud.Boundary, policy LifecyclePolicy) awscloud.ResourceObservation {
+func lifecyclePolicyObservation(boundary aws.Boundary, policy LifecyclePolicy) aws.ResourceObservation {
 	repositoryARN := strings.TrimSpace(policy.RepositoryARN)
 	resourceID := repositoryARN + "#lifecycle-policy"
 	if strings.TrimSpace(repositoryARN) == "" {
 		resourceID = strings.TrimSpace(policy.RepositoryName) + "#lifecycle-policy"
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeECRLifecyclePolicy,
+		ResourceType: aws.ResourceTypeECRLifecyclePolicy,
 		Name:         strings.TrimSpace(policy.RepositoryName) + ":lifecycle-policy",
 		Attributes: map[string]any{
 			"last_evaluated_at":      timeOrNil(policy.LastEvaluatedAt),
@@ -118,14 +118,14 @@ func lifecyclePolicyObservation(boundary awscloud.Boundary, policy LifecyclePoli
 	}
 }
 
-func imageReferenceEnvelopes(boundary awscloud.Boundary, image Image) ([]facts.Envelope, error) {
+func imageReferenceEnvelopes(boundary aws.Boundary, image Image) ([]facts.Envelope, error) {
 	tags := image.Tags
 	if len(tags) == 0 {
 		tags = []string{""}
 	}
 	envelopes := make([]facts.Envelope, 0, len(tags))
 	for _, tag := range tags {
-		envelope, err := awscloud.NewImageReferenceEnvelope(awscloud.ImageReferenceObservation{
+		envelope, err := aws.NewImageReferenceEnvelope(aws.ImageReferenceObservation{
 			Boundary:          boundary,
 			RepositoryARN:     image.RepositoryARN,
 			RepositoryName:    image.RepositoryName,

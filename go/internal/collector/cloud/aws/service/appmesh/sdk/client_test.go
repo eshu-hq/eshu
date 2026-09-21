@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappmesh "github.com/aws/aws-sdk-go-v2/service/appmesh"
 	appmeshtypes "github.com/aws/aws-sdk-go-v2/service/appmesh/types"
 
@@ -34,21 +34,21 @@ func TestAPIClientInterfaceExcludesAllMutationAPIs(t *testing.T) {
 	}
 }
 
-func meshOwner() *string { return aws.String("123456789012") }
+func meshOwner() *string { return awsv2.String("123456789012") }
 
 func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 	return &fakeAppMeshAPI{
 		meshPages: []*awsappmesh.ListMeshesOutput{{
 			Meshes: []appmeshtypes.MeshRef{{
-				Arn:      aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"),
-				MeshName: aws.String("checkout"),
+				Arn:      awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"),
+				MeshName: awsv2.String("checkout"),
 			}},
 		}},
 		meshDescribe: map[string]*appmeshtypes.MeshData{
 			"checkout": {
-				MeshName: aws.String("checkout"),
+				MeshName: awsv2.String("checkout"),
 				Metadata: &appmeshtypes.ResourceMetadata{
-					Arn:           aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"),
+					Arn:           awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"),
 					MeshOwner:     meshOwner(),
 					ResourceOwner: meshOwner(),
 				},
@@ -60,18 +60,18 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		virtualServices: map[string][]appmeshtypes.VirtualServiceRef{
 			"checkout": {{
-				Arn:                aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualService/checkout.apps.local"),
-				VirtualServiceName: aws.String("checkout.apps.local"),
+				Arn:                awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualService/checkout.apps.local"),
+				VirtualServiceName: awsv2.String("checkout.apps.local"),
 			}},
 		},
 		virtualServiceDescribe: map[string]*appmeshtypes.VirtualServiceData{
 			"checkout.apps.local": {
-				VirtualServiceName: aws.String("checkout.apps.local"),
-				MeshName:           aws.String("checkout"),
-				Metadata:           &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualService/checkout.apps.local")},
+				VirtualServiceName: awsv2.String("checkout.apps.local"),
+				MeshName:           awsv2.String("checkout"),
+				Metadata:           &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualService/checkout.apps.local")},
 				Spec: &appmeshtypes.VirtualServiceSpec{
 					Provider: &appmeshtypes.VirtualServiceProviderMemberVirtualRouter{
-						Value: appmeshtypes.VirtualRouterServiceProvider{VirtualRouterName: aws.String("checkout-router")},
+						Value: appmeshtypes.VirtualRouterServiceProvider{VirtualRouterName: awsv2.String("checkout-router")},
 					},
 				},
 				Status: &appmeshtypes.VirtualServiceStatus{Status: appmeshtypes.VirtualServiceStatusCodeActive},
@@ -79,26 +79,26 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		virtualNodes: map[string][]appmeshtypes.VirtualNodeRef{
 			"checkout": {{
-				Arn:             aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualNode/checkout-node"),
-				VirtualNodeName: aws.String("checkout-node"),
+				Arn:             awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualNode/checkout-node"),
+				VirtualNodeName: awsv2.String("checkout-node"),
 			}},
 		},
 		virtualNodeDescribe: map[string]*appmeshtypes.VirtualNodeData{
 			"checkout-node": {
-				VirtualNodeName: aws.String("checkout-node"),
-				MeshName:        aws.String("checkout"),
-				Metadata:        &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualNode/checkout-node")},
+				VirtualNodeName: awsv2.String("checkout-node"),
+				MeshName:        awsv2.String("checkout"),
+				Metadata:        &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualNode/checkout-node")},
 				Spec: &appmeshtypes.VirtualNodeSpec{
 					ServiceDiscovery: &appmeshtypes.ServiceDiscoveryMemberAwsCloudMap{
 						Value: appmeshtypes.AwsCloudMapServiceDiscovery{
-							NamespaceName: aws.String("apps.local"),
-							ServiceName:   aws.String("checkout"),
+							NamespaceName: awsv2.String("apps.local"),
+							ServiceName:   awsv2.String("checkout"),
 						},
 					},
 					Backends: []appmeshtypes.Backend{
 						&appmeshtypes.BackendMemberVirtualService{
 							Value: appmeshtypes.VirtualServiceBackend{
-								VirtualServiceName: aws.String("payments.apps.local"),
+								VirtualServiceName: awsv2.String("payments.apps.local"),
 								ClientPolicy: &appmeshtypes.ClientPolicy{
 									Tls: &appmeshtypes.ClientPolicyTls{
 										Validation: &appmeshtypes.TlsValidationContext{
@@ -119,18 +119,18 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		virtualRouters: map[string][]appmeshtypes.VirtualRouterRef{
 			"checkout": {{
-				Arn:               aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router"),
-				VirtualRouterName: aws.String("checkout-router"),
+				Arn:               awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router"),
+				VirtualRouterName: awsv2.String("checkout-router"),
 			}},
 		},
 		virtualRouterDescribe: map[string]*appmeshtypes.VirtualRouterData{
 			"checkout-router": {
-				VirtualRouterName: aws.String("checkout-router"),
-				MeshName:          aws.String("checkout"),
-				Metadata:          &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router")},
+				VirtualRouterName: awsv2.String("checkout-router"),
+				MeshName:          awsv2.String("checkout"),
+				Metadata:          &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router")},
 				Spec: &appmeshtypes.VirtualRouterSpec{
 					Listeners: []appmeshtypes.VirtualRouterListener{{
-						PortMapping: &appmeshtypes.PortMapping{Port: aws.Int32(8080), Protocol: appmeshtypes.PortProtocolHttp},
+						PortMapping: &appmeshtypes.PortMapping{Port: awsv2.Int32(8080), Protocol: appmeshtypes.PortProtocolHttp},
 					}},
 				},
 				Status: &appmeshtypes.VirtualRouterStatus{Status: appmeshtypes.VirtualRouterStatusCodeActive},
@@ -138,25 +138,25 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		routes: map[string][]appmeshtypes.RouteRef{
 			"checkout-router": {{
-				Arn:               aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router/route/checkout-route"),
-				RouteName:         aws.String("checkout-route"),
-				VirtualRouterName: aws.String("checkout-router"),
+				Arn:               awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router/route/checkout-route"),
+				RouteName:         awsv2.String("checkout-route"),
+				VirtualRouterName: awsv2.String("checkout-router"),
 			}},
 		},
 		routeDescribe: map[string]*appmeshtypes.RouteData{
 			"checkout-route": {
-				RouteName:         aws.String("checkout-route"),
-				MeshName:          aws.String("checkout"),
-				VirtualRouterName: aws.String("checkout-router"),
-				Metadata:          &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router/route/checkout-route")},
+				RouteName:         awsv2.String("checkout-route"),
+				MeshName:          awsv2.String("checkout"),
+				VirtualRouterName: awsv2.String("checkout-router"),
+				Metadata:          &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualRouter/checkout-router/route/checkout-route")},
 				Spec: &appmeshtypes.RouteSpec{
 					HttpRoute: &appmeshtypes.HttpRoute{
 						Match: &appmeshtypes.HttpRouteMatch{
-							Prefix: aws.String("/checkout"),
+							Prefix: awsv2.String("/checkout"),
 							Method: appmeshtypes.HttpMethodPost,
 							Headers: []appmeshtypes.HttpRouteHeader{
-								{Name: aws.String("x-tenant"), Match: &appmeshtypes.HeaderMatchMethodMemberExact{Value: "acme"}},
-								{Name: aws.String("Authorization"), Match: &appmeshtypes.HeaderMatchMethodMemberExact{Value: "Bearer secret"}},
+								{Name: awsv2.String("x-tenant"), Match: &appmeshtypes.HeaderMatchMethodMemberExact{Value: "acme"}},
+								{Name: awsv2.String("Authorization"), Match: &appmeshtypes.HeaderMatchMethodMemberExact{Value: "Bearer secret"}},
 							},
 						},
 					},
@@ -166,18 +166,18 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		virtualGateways: map[string][]appmeshtypes.VirtualGatewayRef{
 			"checkout": {{
-				Arn:                aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge"),
-				VirtualGatewayName: aws.String("edge"),
+				Arn:                awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge"),
+				VirtualGatewayName: awsv2.String("edge"),
 			}},
 		},
 		virtualGatewayDescribe: map[string]*appmeshtypes.VirtualGatewayData{
 			"edge": {
-				VirtualGatewayName: aws.String("edge"),
-				MeshName:           aws.String("checkout"),
-				Metadata:           &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge")},
+				VirtualGatewayName: awsv2.String("edge"),
+				MeshName:           awsv2.String("checkout"),
+				Metadata:           &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge")},
 				Spec: &appmeshtypes.VirtualGatewaySpec{
 					Listeners: []appmeshtypes.VirtualGatewayListener{{
-						PortMapping: &appmeshtypes.VirtualGatewayPortMapping{Port: aws.Int32(443), Protocol: appmeshtypes.VirtualGatewayPortProtocolHttp2},
+						PortMapping: &appmeshtypes.VirtualGatewayPortMapping{Port: awsv2.Int32(443), Protocol: appmeshtypes.VirtualGatewayPortProtocolHttp2},
 					}},
 				},
 				Status: &appmeshtypes.VirtualGatewayStatus{Status: appmeshtypes.VirtualGatewayStatusCodeActive},
@@ -185,22 +185,22 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 		},
 		gatewayRoutes: map[string][]appmeshtypes.GatewayRouteRef{
 			"edge": {{
-				Arn:                aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge/gatewayRoute/edge-route"),
-				GatewayRouteName:   aws.String("edge-route"),
-				VirtualGatewayName: aws.String("edge"),
+				Arn:                awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge/gatewayRoute/edge-route"),
+				GatewayRouteName:   awsv2.String("edge-route"),
+				VirtualGatewayName: awsv2.String("edge"),
 			}},
 		},
 		gatewayRouteDescribe: map[string]*appmeshtypes.GatewayRouteData{
 			"edge-route": {
-				GatewayRouteName:   aws.String("edge-route"),
-				MeshName:           aws.String("checkout"),
-				VirtualGatewayName: aws.String("edge"),
-				Metadata:           &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge/gatewayRoute/edge-route")},
+				GatewayRouteName:   awsv2.String("edge-route"),
+				MeshName:           awsv2.String("checkout"),
+				VirtualGatewayName: awsv2.String("edge"),
+				Metadata:           &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout/virtualGateway/edge/gatewayRoute/edge-route")},
 				Spec: &appmeshtypes.GatewayRouteSpec{
 					HttpRoute: &appmeshtypes.HttpGatewayRoute{
 						Action: &appmeshtypes.HttpGatewayRouteAction{
 							Target: &appmeshtypes.GatewayRouteTarget{
-								VirtualService: &appmeshtypes.GatewayRouteVirtualService{VirtualServiceName: aws.String("checkout.apps.local")},
+								VirtualService: &appmeshtypes.GatewayRouteVirtualService{VirtualServiceName: awsv2.String("checkout.apps.local")},
 							},
 						},
 					},
@@ -209,7 +209,7 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 			},
 		},
 		tags: map[string][]appmeshtypes.TagRef{
-			"arn:aws:appmesh:us-east-1:123456789012:mesh/checkout": {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			"arn:aws:appmesh:us-east-1:123456789012:mesh/checkout": {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 }
@@ -217,7 +217,7 @@ func fakeAPIWithFullMesh() *fakeAppMeshAPI {
 func newTestAdapter(api *fakeAppMeshAPI) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppMesh},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAppMesh},
 	}
 }
 
@@ -302,16 +302,16 @@ func TestClientListMeshesPaginates(t *testing.T) {
 	api := fakeAPIWithFullMesh()
 	api.meshPages = []*awsappmesh.ListMeshesOutput{
 		{
-			Meshes:    []appmeshtypes.MeshRef{{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/a"), MeshName: aws.String("a")}},
-			NextToken: aws.String("token-1"),
+			Meshes:    []appmeshtypes.MeshRef{{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/a"), MeshName: awsv2.String("a")}},
+			NextToken: awsv2.String("token-1"),
 		},
 		{
-			Meshes: []appmeshtypes.MeshRef{{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"), MeshName: aws.String("checkout")}},
+			Meshes: []appmeshtypes.MeshRef{{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/checkout"), MeshName: awsv2.String("checkout")}},
 		},
 	}
 	api.meshDescribe["a"] = &appmeshtypes.MeshData{
-		MeshName: aws.String("a"),
-		Metadata: &appmeshtypes.ResourceMetadata{Arn: aws.String("arn:aws:appmesh:us-east-1:123456789012:mesh/a")},
+		MeshName: awsv2.String("a"),
+		Metadata: &appmeshtypes.ResourceMetadata{Arn: awsv2.String("arn:aws:appmesh:us-east-1:123456789012:mesh/a")},
 		Spec:     &appmeshtypes.MeshSpec{},
 		Status:   &appmeshtypes.MeshStatus{Status: appmeshtypes.MeshStatusCodeActive},
 	}

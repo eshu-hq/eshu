@@ -6,7 +6,7 @@ package scheduled
 // This file exists to populate the AWS scanner registry from init() for every
 // scheduled test binary. The planner reaches
 // freshness.ParseTargetScopes, which calls
-// awsruntime.SupportsServiceKind to validate target-scope service_kind values,
+// runtime.SupportsServiceKind to validate target-scope service_kind values,
 // and the registry is empty until at least one runtimebind package init runs.
 // Without this the scheduled-planner tests fail with an "unsupported AWS
 // service_kind" error that has nothing to do with the planner: the root
@@ -17,5 +17,5 @@ package scheduled
 // from cmd/workflow-coordinator/main.go. The sibling freshness
 // package carries an identical file for the same reason.
 import (
-	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime/bindings"
 )

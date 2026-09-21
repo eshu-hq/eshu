@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/proton/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/proton/sdk guidance
 
 ## Read First
 

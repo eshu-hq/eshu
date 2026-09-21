@@ -16,7 +16,7 @@ import (
 // like the sibling running-image reducer (aws_resource_running_image.go): the
 // dot-separated cassette short-name ("lambda.function" / "ecs.task_definition")
 // AND the live collector's own production strings ("aws_lambda_function" /
-// "aws_ecs_task_definition", awscloud.ResourceTypeLambdaFunction /
+// "aws_ecs_task_definition", aws.ResourceTypeLambdaFunction /
 // ResourceTypeECSTaskDefinition in constants_lambda.go / constants_ecs.go).
 // Matching only the cassette short-name would make cloudObservedValueAttributes
 // silently return nil for every real production Lambda/ECS observation, so
@@ -27,7 +27,7 @@ const (
 	// cassette short-name form
 	cloudResourceTypeLambdaFunction    = "lambda.function"
 	cloudResourceTypeECSTaskDefinition = "ecs.task_definition"
-	// live-collector production form (awscloud.ResourceTypeLambdaFunction /
+	// live-collector production form (aws.ResourceTypeLambdaFunction /
 	// ResourceTypeECSTaskDefinition)
 	cloudResourceTypeLambdaFunctionProd    = "aws_lambda_function"
 	cloudResourceTypeECSTaskDefinitionProd = "aws_ecs_task_definition"
@@ -296,7 +296,7 @@ func comparableScalarAttrSet(
 // falls to 1 of 2, Classify returns "" and the retire deletes the finding.
 //
 //   - Observed side: Eshu's own defensive fallback in the AWS client
-//     (services/lambda/awssdk/client.go) substitutes the ListFunctions
+//     (services/lambda/sdk/client.go) substitutes the ListFunctions
 //     FunctionConfiguration when GetFunction returns a nil output, and that
 //     value carries PackageType but no Code block, so mapFunction yields
 //     PackageType "Image" with an empty ImageURI. This is a guarded branch

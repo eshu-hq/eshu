@@ -24,7 +24,7 @@ type Snapshot struct {
 	Accounts                []Account
 	Policies                []Policy
 	DelegatedAdministrators []DelegatedAdministrator
-	Warnings                []awscloud.WarningObservation
+	Warnings                []aws.WarningObservation
 }
 
 // Organization carries the organization-wide metadata safe to attach to root

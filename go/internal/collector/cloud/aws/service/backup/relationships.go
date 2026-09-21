@@ -10,17 +10,17 @@ import (
 )
 
 func vaultKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	vault Vault,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	vaultARN := strings.TrimSpace(vault.ARN)
 	kmsARN := strings.TrimSpace(vault.EncryptionKeyARN)
 	if vaultARN == "" || !isKMSKeyARN(kmsARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupVaultUsesKMSKey,
+		RelationshipType: aws.RelationshipBackupVaultUsesKMSKey,
 		SourceResourceID: vaultARN,
 		SourceARN:        vaultARN,
 		TargetResourceID: kmsARN,
@@ -31,55 +31,55 @@ func vaultKMSRelationship(
 }
 
 func planHasSelectionRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	plan Plan,
 	selection Selection,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	planARN := strings.TrimSpace(plan.ARN)
 	selID := strings.TrimSpace(selection.ID)
 	if planARN == "" || selID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupPlanHasSelection,
+		RelationshipType: aws.RelationshipBackupPlanHasSelection,
 		SourceResourceID: planARN,
 		SourceARN:        planARN,
 		TargetResourceID: selID,
-		TargetType:       awscloud.ResourceTypeBackupSelection,
+		TargetType:       aws.ResourceTypeBackupSelection,
 		SourceRecordID:   planARN + "#selection#" + selID,
 	}, true
 }
 
 func selectionRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	selection Selection,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(selection.IAMRoleARN)
 	selID := strings.TrimSpace(selection.ID)
 	if !isARN(roleARN) || selID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupSelectionUsesIAMRole,
+		RelationshipType: aws.RelationshipBackupSelectionUsesIAMRole,
 		SourceResourceID: selID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   selID + "#role#" + roleARN,
 	}, true
 }
 
 func selectionIncludesResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	selection Selection,
 	targetARN string,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	selID := strings.TrimSpace(selection.ID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupSelectionIncludesResource,
+		RelationshipType: aws.RelationshipBackupSelectionIncludesResource,
 		SourceResourceID: firstNonEmpty(selID, selection.Name),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
@@ -89,38 +89,38 @@ func selectionIncludesResourceRelationship(
 }
 
 func recoveryPointInVaultRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rp RecoveryPoint,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	rpARN := strings.TrimSpace(rp.ARN)
 	vaultARN := strings.TrimSpace(rp.VaultARN)
 	if rpARN == "" || vaultARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupRecoveryPointInVault,
+		RelationshipType: aws.RelationshipBackupRecoveryPointInVault,
 		SourceResourceID: rpARN,
 		SourceARN:        rpARN,
 		TargetResourceID: vaultARN,
 		TargetARN:        vaultARN,
-		TargetType:       awscloud.ResourceTypeBackupVault,
+		TargetType:       aws.ResourceTypeBackupVault,
 		SourceRecordID:   rpARN + "#vault#" + vaultARN,
 	}, true
 }
 
 func recoveryPointOfResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rp RecoveryPoint,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	rpARN := strings.TrimSpace(rp.ARN)
 	sourceARN := strings.TrimSpace(rp.SourceResourceARN)
 	if rpARN == "" || !isARN(sourceARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupRecoveryPointOfResource,
+		RelationshipType: aws.RelationshipBackupRecoveryPointOfResource,
 		SourceResourceID: rpARN,
 		SourceARN:        rpARN,
 		TargetResourceID: sourceARN,
@@ -131,23 +131,23 @@ func recoveryPointOfResourceRelationship(
 }
 
 func frameworkHasControlRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	framework Framework,
 	control FrameworkControl,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	frameworkARN := strings.TrimSpace(framework.ARN)
 	controlName := strings.TrimSpace(control.Name)
 	if frameworkARN == "" || controlName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	resourceID := frameworkARN + "/" + controlName
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupFrameworkHasControl,
+		RelationshipType: aws.RelationshipBackupFrameworkHasControl,
 		SourceResourceID: frameworkARN,
 		SourceARN:        frameworkARN,
 		TargetResourceID: resourceID,
-		TargetType:       awscloud.ResourceTypeBackupFrameworkControl,
+		TargetType:       aws.ResourceTypeBackupFrameworkControl,
 		SourceRecordID:   frameworkARN + "#control#" + controlName,
 	}, true
 }
@@ -160,17 +160,17 @@ func frameworkHasControlRelationship(
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":dynamodb:"):
-		return awscloud.ResourceTypeDynamoDBTable
+		return aws.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":rds:") && strings.Contains(arn, ":cluster:"):
-		return awscloud.ResourceTypeRDSDBCluster
+		return aws.ResourceTypeRDSDBCluster
 	case strings.Contains(arn, ":rds:"):
-		return awscloud.ResourceTypeRDSDBInstance
+		return aws.ResourceTypeRDSDBInstance
 	case strings.Contains(arn, ":s3:::") || strings.HasPrefix(arn, "arn:aws:s3:::"):
-		return awscloud.ResourceTypeS3Bucket
+		return aws.ResourceTypeS3Bucket
 	case strings.Contains(arn, ":elasticache:"):
-		return awscloud.ResourceTypeElastiCacheCacheCluster
+		return aws.ResourceTypeElastiCacheCacheCluster
 	case strings.Contains(arn, ":redshift:"):
-		return awscloud.ResourceTypeRedshiftCluster
+		return aws.ResourceTypeRedshiftCluster
 	default:
 		return "aws_resource"
 	}

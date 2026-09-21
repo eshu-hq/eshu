@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsarc "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig"
 	awsarctypes "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig/types"
 
@@ -23,38 +23,38 @@ func TestClientSnapshotsRecoveryControlMetadataOnly(t *testing.T) {
 	api := &fakeARCAPI{
 		clusterPages: []*awsarc.ListClustersOutput{{
 			Clusters: []awsarctypes.Cluster{{
-				ClusterArn:  aws.String(clusterARN),
-				Name:        aws.String("prod-failover"),
+				ClusterArn:  awsv2.String(clusterARN),
+				Name:        awsv2.String("prod-failover"),
 				Status:      awsarctypes.StatusDeployed,
 				NetworkType: awsarctypes.NetworkTypeDualstack,
-				Owner:       aws.String("123456789012"),
+				Owner:       awsv2.String("123456789012"),
 				ClusterEndpoints: []awsarctypes.ClusterEndpoint{
-					{Endpoint: aws.String("https://secret-endpoint.example"), Region: aws.String("us-east-1")},
-					{Region: aws.String("us-west-2")},
+					{Endpoint: awsv2.String("https://secret-endpoint.example"), Region: awsv2.String("us-east-1")},
+					{Region: awsv2.String("us-west-2")},
 				},
 			}},
 		}},
 		panelPages: map[string][]*awsarc.ListControlPanelsOutput{
 			clusterARN: {{
 				ControlPanels: []awsarctypes.ControlPanel{{
-					ControlPanelArn:     aws.String(panelARN),
-					ClusterArn:          aws.String(clusterARN),
-					Name:                aws.String("main-panel"),
+					ControlPanelArn:     awsv2.String(panelARN),
+					ClusterArn:          awsv2.String(clusterARN),
+					Name:                awsv2.String("main-panel"),
 					Status:              awsarctypes.StatusDeployed,
-					DefaultControlPanel: aws.Bool(true),
-					RoutingControlCount: aws.Int32(1),
-					Owner:               aws.String("123456789012"),
+					DefaultControlPanel: awsv2.Bool(true),
+					RoutingControlCount: awsv2.Int32(1),
+					Owner:               awsv2.String("123456789012"),
 				}},
 			}},
 		},
 		controlPages: map[string][]*awsarc.ListRoutingControlsOutput{
 			panelARN: {{
 				RoutingControls: []awsarctypes.RoutingControl{{
-					RoutingControlArn: aws.String(controlARN),
-					ControlPanelArn:   aws.String(panelARN),
-					Name:              aws.String("us-east-1-control"),
+					RoutingControlArn: awsv2.String(controlARN),
+					ControlPanelArn:   awsv2.String(panelARN),
+					Name:              awsv2.String("us-east-1-control"),
 					Status:            awsarctypes.StatusDeployed,
-					Owner:             aws.String("123456789012"),
+					Owner:             awsv2.String("123456789012"),
 				}},
 			}},
 		},
@@ -62,16 +62,16 @@ func TestClientSnapshotsRecoveryControlMetadataOnly(t *testing.T) {
 			panelARN: {{
 				SafetyRules: []awsarctypes.Rule{{
 					ASSERTION: &awsarctypes.AssertionRule{
-						SafetyRuleArn:    aws.String(ruleARN),
-						ControlPanelArn:  aws.String(panelARN),
-						Name:             aws.String("min-one-region"),
+						SafetyRuleArn:    awsv2.String(ruleARN),
+						ControlPanelArn:  awsv2.String(panelARN),
+						Name:             awsv2.String("min-one-region"),
 						Status:           awsarctypes.StatusDeployed,
-						WaitPeriodMs:     aws.Int32(5000),
+						WaitPeriodMs:     awsv2.Int32(5000),
 						AssertedControls: []string{controlARN, controlARN + "-2"},
 						RuleConfig: &awsarctypes.RuleConfig{
 							Type:      awsarctypes.RuleTypeAtleast,
-							Threshold: aws.Int32(1),
-							Inverted:  aws.Bool(false),
+							Threshold: awsv2.Int32(1),
+							Inverted:  awsv2.Bool(false),
 						},
 					},
 				}},
@@ -143,23 +143,23 @@ func TestClientMapsGatingRule(t *testing.T) {
 	clusterARN := "arn:aws:route53-recovery-control::123456789012:cluster/abcd1234"
 	api := &fakeARCAPI{
 		clusterPages: []*awsarc.ListClustersOutput{{
-			Clusters: []awsarctypes.Cluster{{ClusterArn: aws.String(clusterARN), Name: aws.String("prod")}},
+			Clusters: []awsarctypes.Cluster{{ClusterArn: awsv2.String(clusterARN), Name: awsv2.String("prod")}},
 		}},
 		panelPages: map[string][]*awsarc.ListControlPanelsOutput{
 			clusterARN: {{ControlPanels: []awsarctypes.ControlPanel{{
-				ControlPanelArn: aws.String(panelARN), ClusterArn: aws.String(clusterARN), Name: aws.String("panel"),
+				ControlPanelArn: awsv2.String(panelARN), ClusterArn: awsv2.String(clusterARN), Name: awsv2.String("panel"),
 			}}}},
 		},
 		rulePages: map[string][]*awsarc.ListSafetyRulesOutput{
 			panelARN: {{SafetyRules: []awsarctypes.Rule{{
 				GATING: &awsarctypes.GatingRule{
-					SafetyRuleArn:   aws.String(ruleARN),
-					ControlPanelArn: aws.String(panelARN),
-					Name:            aws.String("gate"),
+					SafetyRuleArn:   awsv2.String(ruleARN),
+					ControlPanelArn: awsv2.String(panelARN),
+					Name:            awsv2.String("gate"),
 					Status:          awsarctypes.StatusDeployed,
 					GatingControls:  []string{"c1"},
 					TargetControls:  []string{"t1", "t2", "t3"},
-					RuleConfig:      &awsarctypes.RuleConfig{Type: awsarctypes.RuleTypeAnd, Inverted: aws.Bool(true)},
+					RuleConfig:      &awsarctypes.RuleConfig{Type: awsarctypes.RuleTypeAnd, Inverted: awsv2.Bool(true)},
 				},
 			}}}},
 		},
@@ -223,7 +223,7 @@ func (f *fakeARCAPI) ListControlPanels(
 	if f.panelCalls == nil {
 		f.panelCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ClusterArn)
+	name := awsv2.ToString(input.ClusterArn)
 	pages := f.panelPages[name]
 	idx := f.panelCalls[name]
 	if idx >= len(pages) {
@@ -241,7 +241,7 @@ func (f *fakeARCAPI) ListRoutingControls(
 	if f.controlCalls == nil {
 		f.controlCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ControlPanelArn)
+	name := awsv2.ToString(input.ControlPanelArn)
 	pages := f.controlPages[name]
 	idx := f.controlCalls[name]
 	if idx >= len(pages) {
@@ -259,7 +259,7 @@ func (f *fakeARCAPI) ListSafetyRules(
 	if f.ruleCalls == nil {
 		f.ruleCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ControlPanelArn)
+	name := awsv2.ToString(input.ControlPanelArn)
 	pages := f.rulePages[name]
 	idx := f.ruleCalls[name]
 	if idx >= len(pages) {
@@ -275,14 +275,14 @@ func (f *fakeARCAPI) ListTagsForResource(
 	_ ...func(*awsarc.Options),
 ) (*awsarc.ListTagsForResourceOutput, error) {
 	return &awsarc.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceRoute53RecoveryControlConfig,
+		ServiceKind: aws.ServiceRoute53RecoveryControlConfig,
 	}
 }

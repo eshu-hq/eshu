@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/securitylake` owns the Amazon Security
+`internal/collector/cloud/aws/service/securitylake` owns the Amazon Security
 Lake scanner contract for the AWS cloud collector. It converts Security Lake
 data lake, log source, and subscriber control-plane metadata into `aws_resource`
 facts and emits relationship evidence for the data lake's backing S3 bucket, KMS
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Security Lake API call counts, throttles, and
+The `sdk` adapter records Security Lake API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -87,7 +87,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/securitylake/...` covers the
+`go test ./internal/collector/cloud/aws/service/securitylake/...` covers the
 bounded Security Lake metadata path: one ListDataLakes read scoped to the
 boundary Region, one paginated ListLogSources stream, one paginated
 ListSubscribers stream, no record reads, no credential reads, no mutations, and
@@ -95,7 +95,7 @@ no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
 change to existing hot paths. `go test
-./internal/collector/awscloud/service/securitylake/...` green.
+./internal/collector/cloud/aws/service/securitylake/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle
 counters; no telemetry contract change.

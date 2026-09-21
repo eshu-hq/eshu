@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func domainObservation(domain Domain) awscloud.ResourceObservation {
+func domainObservation(domain Domain) aws.ResourceObservation {
 	arn := strings.TrimSpace(domain.ARN)
 	id := firstNonEmpty(arn, domain.ID, domain.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerDomain,
+		ResourceType: aws.ResourceTypeSageMakerDomain,
 		Name:         strings.TrimSpace(domain.Name),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -33,15 +33,15 @@ func domainObservation(domain Domain) awscloud.ResourceObservation {
 	}
 }
 
-func userProfileObservation(profile UserProfile) awscloud.ResourceObservation {
+func userProfileObservation(profile UserProfile) aws.ResourceObservation {
 	name := strings.TrimSpace(profile.Name)
 	domainID := strings.TrimSpace(profile.DomainID)
 	// Studio user profiles have no ARN in the list summary; the durable id
 	// combines the parent domain and profile name so it stays stable.
 	id := firstNonEmpty(userProfileID(domainID, name), name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerUserProfile,
+		ResourceType: aws.ResourceTypeSageMakerUserProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.Status),
 		Attributes: map[string]any{
@@ -54,13 +54,13 @@ func userProfileObservation(profile UserProfile) awscloud.ResourceObservation {
 	}
 }
 
-func appObservation(app App) awscloud.ResourceObservation {
+func appObservation(app App) aws.ResourceObservation {
 	arn := strings.TrimSpace(app.ARN)
 	id := firstNonEmpty(arn, appID(app))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerApp,
+		ResourceType: aws.ResourceTypeSageMakerApp,
 		Name:         strings.TrimSpace(app.Name),
 		State:        strings.TrimSpace(app.Status),
 		Attributes: map[string]any{
@@ -75,13 +75,13 @@ func appObservation(app App) awscloud.ResourceObservation {
 	}
 }
 
-func inferenceComponentObservation(component InferenceComponent) awscloud.ResourceObservation {
+func inferenceComponentObservation(component InferenceComponent) aws.ResourceObservation {
 	arn := strings.TrimSpace(component.ARN)
 	id := firstNonEmpty(arn, component.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerInferenceComponent,
+		ResourceType: aws.ResourceTypeSageMakerInferenceComponent,
 		Name:         strings.TrimSpace(component.Name),
 		State:        strings.TrimSpace(component.Status),
 		Attributes: map[string]any{

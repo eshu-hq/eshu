@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/imagebuilder/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/imagebuilder/sdk` adapts AWS SDK for Go
 v2 EC2 Image Builder responses to the scanner-owned `Client` contract. It owns
 pipeline/recipe/configuration pagination, the per-resource get reads that fetch
 one resource's control-plane metadata, throttle classification, and per-call AWS
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/imagebuilder` for scanner-owned result
+- `internal/collector/cloud/aws/service/imagebuilder` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `imagebuilder` and Smithy error contracts.

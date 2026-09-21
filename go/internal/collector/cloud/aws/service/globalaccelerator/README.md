@@ -16,7 +16,7 @@ repository, or deployable-unit truth.
 
 ```mermaid
 flowchart LR
-    Runtime[awsruntime target] --> Scanner[globalaccelerator.Scanner]
+    Runtime[runtime target] --> Scanner[globalaccelerator.Scanner]
     Scanner --> Client[Global Accelerator client port]
     Scanner --> Facts[AWS resource and relationship facts]
 ```
@@ -41,7 +41,7 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, service constants, and resource
+- `internal/collector/cloud/aws` for boundaries, service constants, and resource
   and relationship observation contracts.
 - `internal/facts` for the fact envelope returned by `Scanner`.
 
@@ -76,7 +76,7 @@ Accelerator accelerator, listener, endpoint group, and tag listing.
 ## Evidence
 
 Collector Performance Evidence: `go test -race
-./internal/collector/awscloud/service/globalaccelerator/...` covers the bounded
+./internal/collector/cloud/aws/service/globalaccelerator/...` covers the bounded
 Global Accelerator metadata path: one paginated ListAccelerators stream, a
 per-accelerator paginated ListListeners stream, a per-listener paginated
 ListEndpointGroups stream, and a per-accelerator ListTagsForResource read.
@@ -86,7 +86,7 @@ accelerator times endpoint groups per listener; each List level paginates at
 writes.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud
-./internal/collector/awscloud/...` covers accelerator, listener, endpoint-group,
+./internal/collector/cloud/aws/...` covers accelerator, listener, endpoint-group,
 and endpoint fact emission, every relationship's non-empty target type and
 endpoint-target join-key typing (ELB v2 ARN, Elastic IP allocation id, EC2
 instance id, generic fallback), runtime registration, and command

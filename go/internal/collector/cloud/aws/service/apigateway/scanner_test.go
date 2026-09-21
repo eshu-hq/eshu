@@ -137,15 +137,15 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	rest := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayRESTAPI, restAPIID)
+	rest := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAPIGatewayRESTAPI, restAPIID)
 	assertAttribute(t, attributesOf(t, rest), "endpoint_types", []string{"REGIONAL"})
 	assertAttribute(t, attributesOf(t, rest), "disable_execute_api_endpoint", true)
-	v2 := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayV2API, v2APIID)
+	v2 := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAPIGatewayV2API, v2APIID)
 	assertAttribute(t, attributesOf(t, v2), "protocol_type", "HTTP")
 	assertAttribute(t, attributesOf(t, v2), "api_gateway_managed", true)
-	stage := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayStage, restAPIID+"/stages/prod")
+	stage := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAPIGatewayStage, restAPIID+"/stages/prod")
 	assertAttribute(t, attributesOf(t, stage), "access_log_destination_arn", logGroupARN)
-	domain := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayDomainName, "api.example.com")
+	domain := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAPIGatewayDomainName, "api.example.com")
 	assertAttribute(t, attributesOf(t, domain), "mappings", []map[string]any{{
 		"api_kind": "rest",
 		"api_id":   restAPIID,
@@ -175,11 +175,11 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayAPIHasStage, restAPIID+"/stages/prod")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayDomainMapsToAPI, restAPIID)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayDomainUsesACMCertificate, certificateARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayStageLogsToResource, logGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayAPIIntegratesWithResource, lambdaARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipAPIGatewayAPIHasStage, restAPIID+"/stages/prod")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipAPIGatewayDomainMapsToAPI, restAPIID)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipAPIGatewayDomainUsesACMCertificate, certificateARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipAPIGatewayStageLogsToResource, logGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipAPIGatewayAPIIntegratesWithResource, lambdaARN)
 }
 
 func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
@@ -234,7 +234,7 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 	mapping := singleRelationshipByTypeAndTarget(
 		t,
 		envelopes,
-		awscloud.RelationshipAPIGatewayDomainMapsToAPI,
+		aws.RelationshipAPIGatewayDomainMapsToAPI,
 		apiID,
 	)
 	assertAttribute(t, relationshipAttributesOf(t, mapping), "mappings", []map[string]any{{
@@ -252,7 +252,7 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 	integration := singleRelationshipByTypeAndTarget(
 		t,
 		envelopes,
-		awscloud.RelationshipAPIGatewayAPIIntegratesWithResource,
+		aws.RelationshipAPIGatewayAPIIntegratesWithResource,
 		lambdaARN,
 	)
 	assertAttribute(t, relationshipAttributesOf(t, integration), "integrations", []map[string]any{{
@@ -283,9 +283,9 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	boundary := testBoundary()
 	client := fakeClient{snapshot: Snapshot{
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:    boundary,
-			WarningKind: awscloud.WarningThrottleSustained,
+			WarningKind: aws.WarningThrottleSustained,
 			ErrorClass:  "throttled",
 			Message:     "API Gateway GetResources throttled after SDK retries",
 		}},
@@ -299,16 +299,16 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := singleWarningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := singleWarningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if warning.Payload["error_class"] != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", warning.Payload["error_class"])
 	}
-	resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayRESTAPI, "rest-1")
+	resourceByTypeAndID(t, envelopes, aws.ResourceTypeAPIGatewayRESTAPI, "rest-1")
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -320,11 +320,11 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAPIGateway,
+		ServiceKind:         aws.ServiceAPIGateway,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:apigateway:1",
 		CollectorInstanceID: "aws-prod",

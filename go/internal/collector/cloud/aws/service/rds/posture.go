@@ -13,17 +13,17 @@ import (
 // one RDS DB instance. Every value comes from already-reported describe
 // metadata; the scanner never reads database contents to build it.
 func instancePostureObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance DBInstance,
-) awscloud.RDSPostureObservation {
+) aws.RDSPostureObservation {
 	instanceARN := strings.TrimSpace(instance.ARN)
 	identifier := strings.TrimSpace(instance.Identifier)
 	resourceID := firstNonEmpty(instanceARN, instance.ResourceID, identifier)
-	return awscloud.RDSPostureObservation{
+	return aws.RDSPostureObservation{
 		Boundary:                         boundary,
 		ARN:                              instanceARN,
 		ResourceID:                       resourceID,
-		ResourceType:                     awscloud.ResourceTypeRDSDBInstance,
+		ResourceType:                     aws.ResourceTypeRDSDBInstance,
 		Identifier:                       identifier,
 		Engine:                           strings.TrimSpace(instance.Engine),
 		PubliclyAccessible:               instance.PubliclyAccessible,
@@ -48,9 +48,9 @@ func instancePostureObservation(
 // one Aurora DB cluster. Every value comes from already-reported describe
 // metadata; the scanner never reads database contents to build it.
 func clusterPostureObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster DBCluster,
-) awscloud.RDSPostureObservation {
+) aws.RDSPostureObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	identifier := strings.TrimSpace(cluster.Identifier)
 	resourceID := firstNonEmpty(clusterARN, cluster.ResourceID, identifier)
@@ -58,11 +58,11 @@ func clusterPostureObservation(
 	if name := strings.TrimSpace(cluster.ParameterGroup); name != "" {
 		parameterGroups = []string{name}
 	}
-	return awscloud.RDSPostureObservation{
+	return aws.RDSPostureObservation{
 		Boundary:                         boundary,
 		ARN:                              clusterARN,
 		ResourceID:                       resourceID,
-		ResourceType:                     awscloud.ResourceTypeRDSDBCluster,
+		ResourceType:                     aws.ResourceTypeRDSDBCluster,
 		Identifier:                       identifier,
 		Engine:                           strings.TrimSpace(cluster.Engine),
 		PubliclyAccessible:               cluster.PubliclyAccessible,

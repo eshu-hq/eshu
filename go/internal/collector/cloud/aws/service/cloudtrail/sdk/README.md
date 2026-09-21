@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudtrail/awssdk` adapts AWS SDK v2
+`internal/collector/cloud/aws/service/cloudtrail/sdk` adapts AWS SDK v2
 CloudTrail calls into the metadata-only records consumed by the scanner. It
 is the only place in this service tree that imports the AWS SDK.
 
@@ -11,12 +11,12 @@ is the only place in this service tree that imports the AWS SDK.
 This package owns AWS SDK pagination, response mapping, and adapter-level
 telemetry for CloudTrail. It does not own fact selection, envelope
 construction, credential acquisition, or registration. Those belong to the
-scanner package and `awsruntime`.
+scanner package and `runtime`.
 
 ## Exported surface
 
 - `NewClient(config, boundary, tracer, instruments) *Client` - constructor
-  used by `runtimebind`.
+  used by `bind`.
 - `Client.ListTrails`, `Client.ListEventDataStores`, `Client.ListChannels`,
   `Client.ListDashboards` - the metadata read paths required by the
   scanner-owned `Client` interface.
@@ -31,7 +31,7 @@ build if any of those slip onto the interface.
 - `github.com/aws/aws-sdk-go-v2/service/cloudtrail` for SDK types and the
   default `Client`.
 - `github.com/aws/smithy-go` for throttle classification.
-- `internal/collector/awscloud` for boundary metadata and telemetry
+- `internal/collector/cloud/aws` for boundary metadata and telemetry
   recording.
 - `internal/telemetry` for shared OTel attribute helpers.
 

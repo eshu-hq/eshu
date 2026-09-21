@@ -15,11 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppSync,
+		ServiceKind:         aws.ServiceAppSync,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appsync:1",
 		CollectorInstanceID: "aws-prod",
@@ -88,7 +88,7 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	api := resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncGraphQLAPI)
+	api := resourceByType(t, envelopes, aws.ResourceTypeAppSyncGraphQLAPI)
 	if got := payloadString(t, api, "resource_id"); got != "api-123" {
 		t.Fatalf("api resource_id = %q, want api-123", got)
 	}
@@ -103,34 +103,34 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("log_config = %#v, want map", apiAttrs["log_config"])
 	}
 
-	ds := resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncDataSource)
+	ds := resourceByType(t, envelopes, aws.ResourceTypeAppSyncDataSource)
 	if got := payloadString(t, ds, "resource_id"); !strings.HasPrefix(got, "api-123/datasources/") {
 		t.Fatalf("data source resource_id = %q, want api-123/datasources/ prefix", got)
 	}
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncResolver)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncFunction)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncSchema)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncAPIKey)
+	resourceByType(t, envelopes, aws.ResourceTypeAppSyncResolver)
+	resourceByType(t, envelopes, aws.ResourceTypeAppSyncFunction)
+	resourceByType(t, envelopes, aws.ResourceTypeAppSyncSchema)
+	resourceByType(t, envelopes, aws.ResourceTypeAppSyncAPIKey)
 
 	// API -> user pool must target the bare pool ID, matching the Cognito
 	// scanner's published user pool resource_id.
-	userPoolEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppSyncAPIUsesUserPool)
+	userPoolEdge := relationshipByType(t, envelopes, aws.RelationshipAppSyncAPIUsesUserPool)
 	if got := payloadString(t, userPoolEdge, "target_resource_id"); got != "us-east-1_abc123" {
 		t.Fatalf("user pool target_resource_id = %q, want bare pool id us-east-1_abc123", got)
 	}
-	if got := payloadString(t, userPoolEdge, "target_type"); got != awscloud.ResourceTypeCognitoUserPool {
-		t.Fatalf("user pool target_type = %q, want %q", got, awscloud.ResourceTypeCognitoUserPool)
+	if got := payloadString(t, userPoolEdge, "target_type"); got != aws.ResourceTypeCognitoUserPool {
+		t.Fatalf("user pool target_type = %q, want %q", got, aws.ResourceTypeCognitoUserPool)
 	}
 
-	oidcEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppSyncAPIUsesOIDCIssuer)
+	oidcEdge := relationshipByType(t, envelopes, aws.RelationshipAppSyncAPIUsesOIDCIssuer)
 	if got := payloadString(t, oidcEdge, "target_resource_id"); got != "https://issuer.example.com" {
 		t.Fatalf("oidc target_resource_id = %q", got)
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncAPIHasDataSource)
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncResolverUsesDataSource)
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncFunctionUsesDataSource)
+	assertRelationship(t, envelopes, aws.RelationshipAppSyncAPIHasDataSource)
+	assertRelationship(t, envelopes, aws.RelationshipAppSyncResolverUsesDataSource)
+	assertRelationship(t, envelopes, aws.RelationshipAppSyncFunctionUsesDataSource)
 }
 
 func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
@@ -145,11 +145,11 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		targetType string
 		wantID     string
 	}{
-		{awscloud.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
-		{awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
-		{awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
-		{awscloud.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},
-		{awscloud.AppSyncDataSourceTargetTypeHTTPEndpoint, "https://api.partner.example.com"},
+		{aws.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
+		{aws.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
+		{aws.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
+		{aws.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},
+		{aws.AppSyncDataSourceTargetTypeHTTPEndpoint, "https://api.partner.example.com"},
 	}
 	for _, tc := range cases {
 		got, ok := targets[tc.targetType]
@@ -166,7 +166,7 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
+		if rt, _ := envelope.Payload["relationship_type"].(string); rt != aws.RelationshipAppSyncDataSourceTargetsResource {
 			continue
 		}
 		if tt, _ := envelope.Payload["target_type"].(string); strings.TrimSpace(tt) == "" {
@@ -190,7 +190,7 @@ func TestDynamoDBTargetDerivesPartitionFromSourceARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	targets := dataSourceTargetEdges(t, envelopes)
-	got := targets[awscloud.ResourceTypeDynamoDBTable]
+	got := targets[aws.ResourceTypeDynamoDBTable]
 	want := "arn:aws-us-gov:dynamodb:us-gov-west-1:123456789012:table/Orders"
 	if got != want {
 		t.Fatalf("dynamodb target = %q, want %q (partition must derive from source ARN)", got, want)
@@ -212,7 +212,7 @@ func TestDynamoDBTargetFallsBackToTableNameWithoutSourceARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	targets := dataSourceTargetEdges(t, envelopes)
-	if got := targets[awscloud.ResourceTypeDynamoDBTable]; got != "Orders" {
+	if got := targets[aws.ResourceTypeDynamoDBTable]; got != "Orders" {
 		t.Fatalf("dynamodb fallback target = %q, want bare table name Orders", got)
 	}
 }
@@ -371,7 +371,7 @@ func dataSourceTargetEdges(t *testing.T, envelopes []facts.Envelope) map[string]
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
+		if rt, _ := envelope.Payload["relationship_type"].(string); rt != aws.RelationshipAppSyncDataSourceTargetsResource {
 			continue
 		}
 		targetType, _ := envelope.Payload["target_type"].(string)

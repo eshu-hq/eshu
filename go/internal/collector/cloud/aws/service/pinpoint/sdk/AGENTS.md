@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/pinpoint/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/pinpoint/sdk guidance
 
 ## Read First
 

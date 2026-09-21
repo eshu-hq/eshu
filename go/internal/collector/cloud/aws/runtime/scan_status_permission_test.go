@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -26,19 +26,19 @@ func TestClaimedSourceClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps(t 
 	}{
 		{
 			name:        "access denied",
-			serviceKind: awscloud.ServiceIAM,
+			serviceKind: aws.ServiceIAM,
 			errorCode:   "AccessDenied",
 			wantClass:   FailureClassPermissionDenied,
 		},
 		{
 			name:        "unauthorized operation",
-			serviceKind: awscloud.ServiceEC2,
+			serviceKind: aws.ServiceEC2,
 			errorCode:   "UnauthorizedOperation",
 			wantClass:   FailureClassPermissionDenied,
 		},
 		{
 			name:        "unsupported operation",
-			serviceKind: awscloud.ServiceKMS,
+			serviceKind: aws.ServiceKMS,
 			errorCode:   "UnsupportedOperationException",
 			wantClass:   FailureClassUnsupportedPermission,
 		},
@@ -100,7 +100,7 @@ func TestClaimedSourceClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps(t 
 				t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
 			}
 			observation := statusStore.observations[0]
-			if observation.Status != awscloud.ScanStatusFailed {
+			if observation.Status != aws.ScanStatusFailed {
 				t.Fatalf("status = %q, want failed", observation.Status)
 			}
 			if observation.FailureClass != tc.wantClass {
@@ -117,7 +117,7 @@ func TestClaimedSourceKeepsTransportFailureRetryable(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 6, 10, 30, 0, 0, time.UTC)
-	item := awsWorkItemForService(now, awscloud.ServiceAPIGateway)
+	item := awsWorkItemForService(now, aws.ServiceAPIGateway)
 	statusStore := &stubScanStatusStore{}
 	source := ClaimedSource{
 		Config: Config{
@@ -125,7 +125,7 @@ func TestClaimedSourceKeepsTransportFailureRetryable(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceAPIGateway},
+				AllowedServices: []string{aws.ServiceAPIGateway},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -151,7 +151,7 @@ func TestClaimedSourceKeepsTransportFailureRetryable(t *testing.T) {
 		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
 	}
 	observation := statusStore.observations[0]
-	if observation.Status != awscloud.ScanStatusFailed {
+	if observation.Status != aws.ScanStatusFailed {
 		t.Fatalf("status = %q, want failed", observation.Status)
 	}
 	if observation.FailureClass != "collect_failure" {

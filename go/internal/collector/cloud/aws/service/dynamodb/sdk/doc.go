@@ -8,4 +8,4 @@
 // reads, throttle classification, and per-call AWS API telemetry. It does not
 // own workflow claims, credential acquisition, fact selection, graph writes,
 // reducer admission, workload ownership, or query behavior.
-package awssdk
+package sdk

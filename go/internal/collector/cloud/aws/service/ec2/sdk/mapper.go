@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -17,13 +17,13 @@ const ec2InstanceTargetType = "aws_ec2_instance"
 
 func mapVPC(vpc awsec2types.Vpc) ec2service.VPC {
 	return ec2service.VPC{
-		ID:              aws.ToString(vpc.VpcId),
-		OwnerID:         aws.ToString(vpc.OwnerId),
+		ID:              awsv2.ToString(vpc.VpcId),
+		OwnerID:         awsv2.ToString(vpc.OwnerId),
 		State:           string(vpc.State),
-		CIDRBlock:       aws.ToString(vpc.CidrBlock),
-		DHCPOptionsID:   aws.ToString(vpc.DhcpOptionsId),
+		CIDRBlock:       awsv2.ToString(vpc.CidrBlock),
+		DHCPOptionsID:   awsv2.ToString(vpc.DhcpOptionsId),
 		InstanceTenancy: string(vpc.InstanceTenancy),
-		IsDefault:       aws.ToBool(vpc.IsDefault),
+		IsDefault:       awsv2.ToBool(vpc.IsDefault),
 		IPv4CIDRBlocks:  mapVPCCIDRBlocks(vpc.CidrBlockAssociationSet),
 		IPv6CIDRBlocks:  mapVPCIPv6CIDRBlocks(vpc.Ipv6CidrBlockAssociationSet),
 		Tags:            mapTags(vpc.Tags),
@@ -32,20 +32,20 @@ func mapVPC(vpc awsec2types.Vpc) ec2service.VPC {
 
 func mapSubnet(subnet awsec2types.Subnet) ec2service.Subnet {
 	return ec2service.Subnet{
-		ARN:                       aws.ToString(subnet.SubnetArn),
-		ID:                        aws.ToString(subnet.SubnetId),
-		VPCID:                     aws.ToString(subnet.VpcId),
-		OwnerID:                   aws.ToString(subnet.OwnerId),
+		ARN:                       awsv2.ToString(subnet.SubnetArn),
+		ID:                        awsv2.ToString(subnet.SubnetId),
+		VPCID:                     awsv2.ToString(subnet.VpcId),
+		OwnerID:                   awsv2.ToString(subnet.OwnerId),
 		State:                     string(subnet.State),
-		CIDRBlock:                 aws.ToString(subnet.CidrBlock),
-		AvailabilityZone:          aws.ToString(subnet.AvailabilityZone),
-		AvailabilityZoneID:        aws.ToString(subnet.AvailabilityZoneId),
-		AvailableIPAddressCount:   aws.ToInt32(subnet.AvailableIpAddressCount),
-		DefaultForAZ:              aws.ToBool(subnet.DefaultForAz),
-		MapPublicIPOnLaunch:       aws.ToBool(subnet.MapPublicIpOnLaunch),
-		AssignIPv6AddressOnCreate: aws.ToBool(subnet.AssignIpv6AddressOnCreation),
-		IPv6Native:                aws.ToBool(subnet.Ipv6Native),
-		OutpostARN:                aws.ToString(subnet.OutpostArn),
+		CIDRBlock:                 awsv2.ToString(subnet.CidrBlock),
+		AvailabilityZone:          awsv2.ToString(subnet.AvailabilityZone),
+		AvailabilityZoneID:        awsv2.ToString(subnet.AvailabilityZoneId),
+		AvailableIPAddressCount:   awsv2.ToInt32(subnet.AvailableIpAddressCount),
+		DefaultForAZ:              awsv2.ToBool(subnet.DefaultForAz),
+		MapPublicIPOnLaunch:       awsv2.ToBool(subnet.MapPublicIpOnLaunch),
+		AssignIPv6AddressOnCreate: awsv2.ToBool(subnet.AssignIpv6AddressOnCreation),
+		IPv6Native:                awsv2.ToBool(subnet.Ipv6Native),
+		OutpostARN:                awsv2.ToString(subnet.OutpostArn),
 		IPv6CIDRBlocks:            mapSubnetIPv6CIDRBlocks(subnet.Ipv6CidrBlockAssociationSet),
 		Tags:                      mapTags(subnet.Tags),
 	}
@@ -53,29 +53,29 @@ func mapSubnet(subnet awsec2types.Subnet) ec2service.Subnet {
 
 func mapSecurityGroup(group awsec2types.SecurityGroup) ec2service.SecurityGroup {
 	return ec2service.SecurityGroup{
-		ID:          aws.ToString(group.GroupId),
-		Name:        aws.ToString(group.GroupName),
-		Description: aws.ToString(group.Description),
-		VPCID:       aws.ToString(group.VpcId),
-		OwnerID:     aws.ToString(group.OwnerId),
+		ID:          awsv2.ToString(group.GroupId),
+		Name:        awsv2.ToString(group.GroupName),
+		Description: awsv2.ToString(group.Description),
+		VPCID:       awsv2.ToString(group.VpcId),
+		OwnerID:     awsv2.ToString(group.OwnerId),
 		Tags:        mapTags(group.Tags),
 	}
 }
 
 func mapSecurityGroupRule(rule awsec2types.SecurityGroupRule) ec2service.SecurityGroupRule {
 	return ec2service.SecurityGroupRule{
-		ID:              aws.ToString(rule.SecurityGroupRuleId),
-		GroupID:         aws.ToString(rule.GroupId),
-		GroupOwnerID:    aws.ToString(rule.GroupOwnerId),
-		IsEgress:        aws.ToBool(rule.IsEgress),
-		Protocol:        aws.ToString(rule.IpProtocol),
+		ID:              awsv2.ToString(rule.SecurityGroupRuleId),
+		GroupID:         awsv2.ToString(rule.GroupId),
+		GroupOwnerID:    awsv2.ToString(rule.GroupOwnerId),
+		IsEgress:        awsv2.ToBool(rule.IsEgress),
+		Protocol:        awsv2.ToString(rule.IpProtocol),
 		FromPort:        rule.FromPort,
 		ToPort:          rule.ToPort,
-		CIDRIPv4:        aws.ToString(rule.CidrIpv4),
-		CIDRIPv6:        aws.ToString(rule.CidrIpv6),
-		PrefixListID:    aws.ToString(rule.PrefixListId),
+		CIDRIPv4:        awsv2.ToString(rule.CidrIpv4),
+		CIDRIPv6:        awsv2.ToString(rule.CidrIpv6),
+		PrefixListID:    awsv2.ToString(rule.PrefixListId),
 		ReferencedGroup: mapReferencedSecurityGroup(rule.ReferencedGroupInfo),
-		Description:     aws.ToString(rule.Description),
+		Description:     awsv2.ToString(rule.Description),
 		Tags:            mapTags(rule.Tags),
 	}
 }
@@ -86,20 +86,20 @@ func mapNetworkInterface(
 	networkInterface awsec2types.NetworkInterface,
 ) ec2service.NetworkInterface {
 	return ec2service.NetworkInterface{
-		ID:                 aws.ToString(networkInterface.NetworkInterfaceId),
-		VPCID:              aws.ToString(networkInterface.VpcId),
-		SubnetID:           aws.ToString(networkInterface.SubnetId),
-		OwnerID:            aws.ToString(networkInterface.OwnerId),
+		ID:                 awsv2.ToString(networkInterface.NetworkInterfaceId),
+		VPCID:              awsv2.ToString(networkInterface.VpcId),
+		SubnetID:           awsv2.ToString(networkInterface.SubnetId),
+		OwnerID:            awsv2.ToString(networkInterface.OwnerId),
 		Status:             string(networkInterface.Status),
 		InterfaceType:      string(networkInterface.InterfaceType),
-		Description:        aws.ToString(networkInterface.Description),
-		AvailabilityZone:   aws.ToString(networkInterface.AvailabilityZone),
-		MacAddress:         aws.ToString(networkInterface.MacAddress),
-		PrivateDNSName:     aws.ToString(networkInterface.PrivateDnsName),
-		PrivateIPAddress:   aws.ToString(networkInterface.PrivateIpAddress),
-		RequesterID:        aws.ToString(networkInterface.RequesterId),
-		RequesterManaged:   aws.ToBool(networkInterface.RequesterManaged),
-		SourceDestCheck:    aws.ToBool(networkInterface.SourceDestCheck),
+		Description:        awsv2.ToString(networkInterface.Description),
+		AvailabilityZone:   awsv2.ToString(networkInterface.AvailabilityZone),
+		MacAddress:         awsv2.ToString(networkInterface.MacAddress),
+		PrivateDNSName:     awsv2.ToString(networkInterface.PrivateDnsName),
+		PrivateIPAddress:   awsv2.ToString(networkInterface.PrivateIpAddress),
+		RequesterID:        awsv2.ToString(networkInterface.RequesterId),
+		RequesterManaged:   awsv2.ToBool(networkInterface.RequesterManaged),
+		SourceDestCheck:    awsv2.ToBool(networkInterface.SourceDestCheck),
 		SecurityGroups:     mapSecurityGroupRefs(networkInterface.Groups),
 		PrivateIPAddresses: mapPrivateIPAddresses(networkInterface.PrivateIpAddresses),
 		IPv6Addresses:      mapIPv6Addresses(networkInterface.Ipv6Addresses),
@@ -116,26 +116,26 @@ func mapNetworkInterface(
 // no-N+1 pass; a later bounded enrichment may set it without a per-instance
 // describe call here.
 func mapInstance(region string, accountID string, instance awsec2types.Instance) ec2service.Instance {
-	instanceID := aws.ToString(instance.InstanceId)
+	instanceID := awsv2.ToString(instance.InstanceId)
 	state := ""
 	if instance.State != nil {
 		state = string(instance.State.Name)
 	}
-	publicIP := aws.ToString(instance.PublicIpAddress)
+	publicIP := awsv2.ToString(instance.PublicIpAddress)
 	return ec2service.Instance{
 		ID:                      instanceID,
 		ARN:                     ec2InstanceARN(region, accountID, instanceID),
 		State:                   state,
 		OwnerID:                 strings.TrimSpace(accountID),
 		InstanceType:            string(instance.InstanceType),
-		SubnetID:                aws.ToString(instance.SubnetId),
-		VPCID:                   aws.ToString(instance.VpcId),
-		ImageID:                 aws.ToString(instance.ImageId),
+		SubnetID:                awsv2.ToString(instance.SubnetId),
+		VPCID:                   awsv2.ToString(instance.VpcId),
+		ImageID:                 awsv2.ToString(instance.ImageId),
 		IMDSv2Required:          mapIMDSv2Required(instance.MetadataOptions),
 		HTTPEndpoint:            mapIMDSHTTPEndpoint(instance.MetadataOptions),
 		HTTPPutResponseHopLimit: mapIMDSHopLimit(instance.MetadataOptions),
 		DetailedMonitoring:      mapDetailedMonitoring(instance.Monitoring),
-		EBSOptimized:            aws.ToBool(instance.EbsOptimized),
+		EBSOptimized:            awsv2.ToBool(instance.EbsOptimized),
 		PublicIPAssociated:      strings.TrimSpace(publicIP) != "",
 		PublicIPAddress:         publicIP,
 		InstanceProfileARN:      mapInstanceProfileARN(instance.IamInstanceProfile),
@@ -180,7 +180,7 @@ func mapInstanceProfileARN(profile *awsec2types.IamInstanceProfile) string {
 	if profile == nil {
 		return ""
 	}
-	return aws.ToString(profile.Arn)
+	return awsv2.ToString(profile.Arn)
 }
 
 func mapTenancy(placement *awsec2types.Placement) string {
@@ -194,7 +194,7 @@ func mapEnclaveEnabled(options *awsec2types.EnclaveOptions) bool {
 	if options == nil {
 		return false
 	}
-	return aws.ToBool(options.Enabled)
+	return awsv2.ToBool(options.Enabled)
 }
 
 func mapInstanceBlockDevices(input []awsec2types.InstanceBlockDeviceMapping) []ec2service.BlockDevice {
@@ -204,11 +204,11 @@ func mapInstanceBlockDevices(input []awsec2types.InstanceBlockDeviceMapping) []e
 	output := make([]ec2service.BlockDevice, 0, len(input))
 	for _, mapping := range input {
 		device := ec2service.BlockDevice{
-			DeviceName: aws.ToString(mapping.DeviceName),
+			DeviceName: awsv2.ToString(mapping.DeviceName),
 		}
 		if mapping.Ebs != nil {
-			device.VolumeID = aws.ToString(mapping.Ebs.VolumeId)
-			device.DeleteOnTermination = aws.ToBool(mapping.Ebs.DeleteOnTermination)
+			device.VolumeID = awsv2.ToString(mapping.Ebs.VolumeId)
+			device.DeleteOnTermination = awsv2.ToBool(mapping.Ebs.DeleteOnTermination)
 			device.Status = string(mapping.Ebs.Status)
 		}
 		output = append(output, device)
@@ -220,23 +220,23 @@ func mapInstanceBlockDevices(input []awsec2types.InstanceBlockDeviceMapping) []e
 // metadata. The EC2 scanner records reported encryption/KMS metadata only; it
 // does not read volume contents, snapshots, or per-instance payloads.
 func mapVolume(region string, accountID string, volume awsec2types.Volume) ec2service.Volume {
-	volumeID := aws.ToString(volume.VolumeId)
+	volumeID := awsv2.ToString(volume.VolumeId)
 	return ec2service.Volume{
 		ID:                       volumeID,
 		ARN:                      ec2VolumeARN(region, accountID, volumeID),
 		State:                    string(volume.State),
-		AvailabilityZone:         aws.ToString(volume.AvailabilityZone),
-		AvailabilityZoneID:       aws.ToString(volume.AvailabilityZoneId),
-		CreateTime:               aws.ToTime(volume.CreateTime),
+		AvailabilityZone:         awsv2.ToString(volume.AvailabilityZone),
+		AvailabilityZoneID:       awsv2.ToString(volume.AvailabilityZoneId),
+		CreateTime:               awsv2.ToTime(volume.CreateTime),
 		Encrypted:                boolPointer(volume.Encrypted),
 		FastRestored:             boolPointer(volume.FastRestored),
 		IOPS:                     int32Pointer(volume.Iops),
-		KMSKeyID:                 aws.ToString(volume.KmsKeyId),
+		KMSKeyID:                 awsv2.ToString(volume.KmsKeyId),
 		MultiAttachEnabled:       boolPointer(volume.MultiAttachEnabled),
-		OutpostARN:               aws.ToString(volume.OutpostArn),
+		OutpostARN:               awsv2.ToString(volume.OutpostArn),
 		SizeGiB:                  int32Pointer(volume.Size),
-		SnapshotID:               aws.ToString(volume.SnapshotId),
-		SourceVolumeID:           aws.ToString(volume.SourceVolumeId),
+		SnapshotID:               awsv2.ToString(volume.SnapshotId),
+		SourceVolumeID:           awsv2.ToString(volume.SourceVolumeId),
 		SSEType:                  string(volume.SseType),
 		ThroughputMiBps:          int32Pointer(volume.Throughput),
 		VolumeInitializationRate: int32Pointer(volume.VolumeInitializationRate),
@@ -253,15 +253,15 @@ func mapVolumeAttachments(input []awsec2types.VolumeAttachment) []ec2service.Vol
 	output := make([]ec2service.VolumeAttachment, 0, len(input))
 	for _, attachment := range input {
 		output = append(output, ec2service.VolumeAttachment{
-			AssociatedResource:    aws.ToString(attachment.AssociatedResource),
-			AttachTime:            aws.ToTime(attachment.AttachTime),
-			DeleteOnTermination:   aws.ToBool(attachment.DeleteOnTermination),
-			Device:                aws.ToString(attachment.Device),
+			AssociatedResource:    awsv2.ToString(attachment.AssociatedResource),
+			AttachTime:            awsv2.ToTime(attachment.AttachTime),
+			DeleteOnTermination:   awsv2.ToBool(attachment.DeleteOnTermination),
+			Device:                awsv2.ToString(attachment.Device),
 			EBSCardIndex:          int32Pointer(attachment.EbsCardIndex),
-			InstanceID:            aws.ToString(attachment.InstanceId),
-			InstanceOwningService: aws.ToString(attachment.InstanceOwningService),
+			InstanceID:            awsv2.ToString(attachment.InstanceId),
+			InstanceOwningService: awsv2.ToString(attachment.InstanceOwningService),
 			State:                 string(attachment.State),
-			VolumeID:              aws.ToString(attachment.VolumeId),
+			VolumeID:              awsv2.ToString(attachment.VolumeId),
 		})
 	}
 	return output
@@ -278,8 +278,8 @@ func mapVPCCIDRBlocks(input []awsec2types.VpcCidrBlockAssociation) []ec2service.
 			state = string(association.CidrBlockState.State)
 		}
 		output = append(output, ec2service.CIDRBlockAssociation{
-			AssociationID: aws.ToString(association.AssociationId),
-			CIDRBlock:     aws.ToString(association.CidrBlock),
+			AssociationID: awsv2.ToString(association.AssociationId),
+			CIDRBlock:     awsv2.ToString(association.CidrBlock),
 			State:         state,
 		})
 	}
@@ -297,11 +297,11 @@ func mapVPCIPv6CIDRBlocks(input []awsec2types.VpcIpv6CidrBlockAssociation) []ec2
 			state = string(association.Ipv6CidrBlockState.State)
 		}
 		output = append(output, ec2service.IPv6CIDRBlockAssociation{
-			AssociationID:      aws.ToString(association.AssociationId),
-			CIDRBlock:          aws.ToString(association.Ipv6CidrBlock),
+			AssociationID:      awsv2.ToString(association.AssociationId),
+			CIDRBlock:          awsv2.ToString(association.Ipv6CidrBlock),
 			State:              state,
-			IPv6Pool:           aws.ToString(association.Ipv6Pool),
-			NetworkBorderGroup: aws.ToString(association.NetworkBorderGroup),
+			IPv6Pool:           awsv2.ToString(association.Ipv6Pool),
+			NetworkBorderGroup: awsv2.ToString(association.NetworkBorderGroup),
 		})
 	}
 	return output
@@ -318,8 +318,8 @@ func mapSubnetIPv6CIDRBlocks(input []awsec2types.SubnetIpv6CidrBlockAssociation)
 			state = string(association.Ipv6CidrBlockState.State)
 		}
 		output = append(output, ec2service.CIDRBlockAssociation{
-			AssociationID: aws.ToString(association.AssociationId),
-			CIDRBlock:     aws.ToString(association.Ipv6CidrBlock),
+			AssociationID: awsv2.ToString(association.AssociationId),
+			CIDRBlock:     awsv2.ToString(association.Ipv6CidrBlock),
 			State:         state,
 		})
 	}
@@ -331,11 +331,11 @@ func mapReferencedSecurityGroup(input *awsec2types.ReferencedSecurityGroup) *ec2
 		return nil
 	}
 	return &ec2service.ReferencedSecurityGroup{
-		GroupID:                aws.ToString(input.GroupId),
-		UserID:                 aws.ToString(input.UserId),
-		VPCID:                  aws.ToString(input.VpcId),
-		PeeringStatus:          aws.ToString(input.PeeringStatus),
-		VPCPeeringConnectionID: aws.ToString(input.VpcPeeringConnectionId),
+		GroupID:                awsv2.ToString(input.GroupId),
+		UserID:                 awsv2.ToString(input.UserId),
+		VPCID:                  awsv2.ToString(input.VpcId),
+		PeeringStatus:          awsv2.ToString(input.PeeringStatus),
+		VPCPeeringConnectionID: awsv2.ToString(input.VpcPeeringConnectionId),
 	}
 }
 
@@ -347,19 +347,19 @@ func mapAttachment(
 	if attachment == nil {
 		return nil
 	}
-	instanceID := aws.ToString(attachment.InstanceId)
-	instanceOwnerID := firstNonEmpty(aws.ToString(attachment.InstanceOwnerId), accountID)
+	instanceID := awsv2.ToString(attachment.InstanceId)
+	instanceOwnerID := firstNonEmpty(awsv2.ToString(attachment.InstanceOwnerId), accountID)
 	return &ec2service.NetworkInterfaceAttachment{
-		ID:                   aws.ToString(attachment.AttachmentId),
+		ID:                   awsv2.ToString(attachment.AttachmentId),
 		InstanceID:           instanceID,
 		InstanceOwnerID:      instanceOwnerID,
 		AttachedResourceARN:  ec2InstanceARN(region, instanceOwnerID, instanceID),
 		AttachedResourceType: attachedResourceType(instanceID),
 		Status:               string(attachment.Status),
-		AttachTime:           aws.ToTime(attachment.AttachTime),
-		DeleteOnTermination:  aws.ToBool(attachment.DeleteOnTermination),
-		DeviceIndex:          aws.ToInt32(attachment.DeviceIndex),
-		NetworkCardIndex:     aws.ToInt32(attachment.NetworkCardIndex),
+		AttachTime:           awsv2.ToTime(attachment.AttachTime),
+		DeleteOnTermination:  awsv2.ToBool(attachment.DeleteOnTermination),
+		DeviceIndex:          awsv2.ToInt32(attachment.DeviceIndex),
+		NetworkCardIndex:     awsv2.ToInt32(attachment.NetworkCardIndex),
 	}
 }
 
@@ -370,8 +370,8 @@ func mapSecurityGroupRefs(input []awsec2types.GroupIdentifier) []ec2service.Secu
 	output := make([]ec2service.SecurityGroupRef, 0, len(input))
 	for _, group := range input {
 		output = append(output, ec2service.SecurityGroupRef{
-			ID:   aws.ToString(group.GroupId),
-			Name: aws.ToString(group.GroupName),
+			ID:   awsv2.ToString(group.GroupId),
+			Name: awsv2.ToString(group.GroupName),
 		})
 	}
 	return output
@@ -384,9 +384,9 @@ func mapPrivateIPAddresses(input []awsec2types.NetworkInterfacePrivateIpAddress)
 	output := make([]ec2service.PrivateIPAddress, 0, len(input))
 	for _, address := range input {
 		output = append(output, ec2service.PrivateIPAddress{
-			Address:        aws.ToString(address.PrivateIpAddress),
-			PrivateDNSName: aws.ToString(address.PrivateDnsName),
-			Primary:        aws.ToBool(address.Primary),
+			Address:        awsv2.ToString(address.PrivateIpAddress),
+			PrivateDNSName: awsv2.ToString(address.PrivateDnsName),
+			Primary:        awsv2.ToBool(address.Primary),
 		})
 	}
 	return output
@@ -398,7 +398,7 @@ func mapIPv6Addresses(input []awsec2types.NetworkInterfaceIpv6Address) []string 
 	}
 	output := make([]string, 0, len(input))
 	for _, address := range input {
-		if value := strings.TrimSpace(aws.ToString(address.Ipv6Address)); value != "" {
+		if value := strings.TrimSpace(awsv2.ToString(address.Ipv6Address)); value != "" {
 			output = append(output, value)
 		}
 	}
@@ -411,11 +411,11 @@ func mapTags(tags []awsec2types.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	return output
 }
@@ -427,7 +427,7 @@ func ec2InstanceARN(region string, accountID string, instanceID string) string {
 	if region == "" || accountID == "" || instanceID == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":instance/" + instanceID
+	return "arn:" + aws.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":instance/" + instanceID
 }
 
 func ec2VolumeARN(region string, accountID string, volumeID string) string {
@@ -437,7 +437,7 @@ func ec2VolumeARN(region string, accountID string, volumeID string) string {
 	if region == "" || accountID == "" || volumeID == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":volume/" + volumeID
+	return "arn:" + aws.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":volume/" + volumeID
 }
 
 func attachedResourceType(instanceID string) string {

@@ -11,4 +11,4 @@
 // operation by construction, proven by a reflective guard test. Container
 // command lists, job parameters, scheduling-policy fair-share state, and
 // resolved secret values never cross the adapter boundary.
-package awssdk
+package sdk

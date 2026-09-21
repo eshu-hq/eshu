@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsoutposts "github.com/aws/aws-sdk-go-v2/service/outposts"
 	awsoutpoststypes "github.com/aws/aws-sdk-go-v2/service/outposts/types"
 
@@ -21,42 +21,42 @@ func TestClientSnapshotsOutpostsMetadataOnly(t *testing.T) {
 	api := &fakeOutpostsAPI{
 		outpostPages: []*awsoutposts.ListOutpostsOutput{{
 			Outposts: []awsoutpoststypes.Outpost{{
-				OutpostArn:            aws.String(outpostARN),
-				OutpostId:             aws.String("op-0123456789abcdef0"),
-				Name:                  aws.String("edge-rack-1"),
-				LifeCycleStatus:       aws.String("ACTIVE"),
-				AvailabilityZone:      aws.String("us-east-1a"),
-				AvailabilityZoneId:    aws.String("use1-az1"),
-				OwnerId:               aws.String("123456789012"),
-				SiteId:                aws.String("os-0123456789abcdef0"),
-				SiteArn:               aws.String(siteARN),
+				OutpostArn:            awsv2.String(outpostARN),
+				OutpostId:             awsv2.String("op-0123456789abcdef0"),
+				Name:                  awsv2.String("edge-rack-1"),
+				LifeCycleStatus:       awsv2.String("ACTIVE"),
+				AvailabilityZone:      awsv2.String("us-east-1a"),
+				AvailabilityZoneId:    awsv2.String("use1-az1"),
+				OwnerId:               awsv2.String("123456789012"),
+				SiteId:                awsv2.String("os-0123456789abcdef0"),
+				SiteArn:               awsv2.String(siteARN),
 				SupportedHardwareType: awsoutpoststypes.SupportedHardwareTypeRack,
 			}},
 		}},
 		sitePages: []*awsoutposts.ListSitesOutput{{
 			Sites: []awsoutpoststypes.Site{{
-				SiteArn:   aws.String(siteARN),
-				SiteId:    aws.String("os-0123456789abcdef0"),
-				Name:      aws.String("datacenter-east"),
-				AccountId: aws.String("123456789012"),
+				SiteArn:   awsv2.String(siteARN),
+				SiteId:    awsv2.String("os-0123456789abcdef0"),
+				Name:      awsv2.String("datacenter-east"),
+				AccountId: awsv2.String("123456789012"),
 				// Address/notes fields are present in the API record but must be
 				// dropped by the adapter.
-				OperatingAddressCity:        aws.String("Seattle"),
-				OperatingAddressCountryCode: aws.String("US"),
-				Notes:                       aws.String("loading dock B"),
+				OperatingAddressCity:        awsv2.String("Seattle"),
+				OperatingAddressCountryCode: awsv2.String("US"),
+				Notes:                       awsv2.String("loading dock B"),
 			}},
 		}},
 		assetPages: map[string][]*awsoutposts.ListAssetsOutput{
 			outpostARN: {{
 				Assets: []awsoutpoststypes.AssetInfo{{
-					AssetId:   aws.String("asset-1234"),
+					AssetId:   awsv2.String("asset-1234"),
 					AssetType: awsoutpoststypes.AssetTypeCompute,
-					RackId:    aws.String("rack-5678"),
+					RackId:    awsv2.String("rack-5678"),
 					ComputeAttributes: &awsoutpoststypes.ComputeAttributes{
 						State: awsoutpoststypes.ComputeAssetStateActive,
 					},
 					AssetLocation: &awsoutpoststypes.AssetLocation{
-						RackElevation: aws.Float32(14),
+						RackElevation: awsv2.Float32(14),
 					},
 				}},
 			}},
@@ -138,11 +138,11 @@ func TestClientPaginatesOutposts(t *testing.T) {
 	api := &fakeOutpostsAPI{
 		outpostPages: []*awsoutposts.ListOutpostsOutput{
 			{
-				Outposts:  []awsoutpoststypes.Outpost{{OutpostArn: aws.String(first), OutpostId: aws.String("op-1")}},
-				NextToken: aws.String("page-2"),
+				Outposts:  []awsoutpoststypes.Outpost{{OutpostArn: awsv2.String(first), OutpostId: awsv2.String("op-1")}},
+				NextToken: awsv2.String("page-2"),
 			},
 			{
-				Outposts: []awsoutpoststypes.Outpost{{OutpostArn: aws.String(second), OutpostId: aws.String("op-2")}},
+				Outposts: []awsoutpoststypes.Outpost{{OutpostArn: awsv2.String(second), OutpostId: awsv2.String("op-2")}},
 			},
 		},
 	}
@@ -198,11 +198,11 @@ func (f *fakeOutpostsAPI) GetOutpost(
 	_ ...func(*awsoutposts.Options),
 ) (*awsoutposts.GetOutpostOutput, error) {
 	f.getOutpostCalls++
-	id := aws.ToString(input.OutpostId)
+	id := awsv2.ToString(input.OutpostId)
 	for _, page := range f.outpostPages {
 		for i := range page.Outposts {
 			o := page.Outposts[i]
-			if aws.ToString(o.OutpostArn) == id || aws.ToString(o.OutpostId) == id {
+			if awsv2.ToString(o.OutpostArn) == id || awsv2.ToString(o.OutpostId) == id {
 				return &awsoutposts.GetOutpostOutput{Outpost: &o}, nil
 			}
 		}
@@ -229,11 +229,11 @@ func (f *fakeOutpostsAPI) GetSite(
 	_ ...func(*awsoutposts.Options),
 ) (*awsoutposts.GetSiteOutput, error) {
 	f.getSiteCalls++
-	id := aws.ToString(input.SiteId)
+	id := awsv2.ToString(input.SiteId)
 	for _, page := range f.sitePages {
 		for i := range page.Sites {
 			s := page.Sites[i]
-			if aws.ToString(s.SiteArn) == id || aws.ToString(s.SiteId) == id {
+			if awsv2.ToString(s.SiteArn) == id || awsv2.ToString(s.SiteId) == id {
 				return &awsoutposts.GetSiteOutput{Site: &s}, nil
 			}
 		}
@@ -249,7 +249,7 @@ func (f *fakeOutpostsAPI) ListAssets(
 	if f.assetCalls == nil {
 		f.assetCalls = map[string]int{}
 	}
-	id := aws.ToString(input.OutpostIdentifier)
+	id := awsv2.ToString(input.OutpostIdentifier)
 	pages := f.assetPages[id]
 	idx := f.assetCalls[id]
 	if idx >= len(pages) {
@@ -265,14 +265,14 @@ func (f *fakeOutpostsAPI) ListTagsForResource(
 	_ ...func(*awsoutposts.Options),
 ) (*awsoutposts.ListTagsForResourceOutput, error) {
 	return &awsoutposts.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOutposts,
+		ServiceKind: aws.ServiceOutposts,
 	}
 }

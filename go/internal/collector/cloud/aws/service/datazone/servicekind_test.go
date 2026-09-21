@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "datazone".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceDatazone + "  "
+	boundary.ServiceKind = "  " + aws.ServiceDatazone + "  "
 	client := fakeClient{snapshot: Snapshot{Domains: []Domain{{
 		ARN:  testDomainARN,
 		ID:   testDomainID,
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDatazone; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDatazone; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

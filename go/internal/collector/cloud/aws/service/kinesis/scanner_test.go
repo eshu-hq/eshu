@@ -33,7 +33,7 @@ func TestScannerEmitsDataStreamFactsAndKMSRelationship(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stream := resourceByType(t, envelopes, awscloud.ResourceTypeKinesisDataStream)
+	stream := resourceByType(t, envelopes, aws.ResourceTypeKinesisDataStream)
 	attributes := attributesOf(t, stream)
 	if got, want := attributes["open_shard_count"], int32(4); got != want {
 		t.Fatalf("open_shard_count = %#v, want %v", got, want)
@@ -51,7 +51,7 @@ func TestScannerEmitsDataStreamFactsAndKMSRelationship(t *testing.T) {
 	if got, want := stream.Payload["arn"], streamARN; got != want {
 		t.Fatalf("resource ARN = %#v, want %q", got, want)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipKinesisDataStreamUsesKMSKey)
+	assertRelationship(t, envelopes, aws.RelationshipKinesisDataStreamUsesKMSKey)
 }
 
 func TestScannerDataStreamOmitsKMSRelationshipForNonARNKey(t *testing.T) {
@@ -67,7 +67,7 @@ func TestScannerDataStreamOmitsKMSRelationshipForNonARNKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	assertNoRelationship(t, envelopes, awscloud.RelationshipKinesisDataStreamUsesKMSKey)
+	assertNoRelationship(t, envelopes, aws.RelationshipKinesisDataStreamUsesKMSKey)
 }
 
 func TestScannerEmitsFirehoseFactsWithAllDestinationRelationships(t *testing.T) {
@@ -124,7 +124,7 @@ func TestScannerEmitsFirehoseFactsWithAllDestinationRelationships(t *testing.T) 
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	delivery := resourceByType(t, envelopes, awscloud.ResourceTypeKinesisFirehoseDeliveryStream)
+	delivery := resourceByType(t, envelopes, aws.ResourceTypeKinesisFirehoseDeliveryStream)
 	attributes := attributesOf(t, delivery)
 	if got, want := attributes["encryption_status"], "ENABLED"; got != want {
 		t.Fatalf("encryption_status = %#v, want %q", got, want)
@@ -145,17 +145,17 @@ func TestScannerEmitsFirehoseFactsWithAllDestinationRelationships(t *testing.T) 
 		t.Fatalf("processing_configuration persisted; Firehose scanner must not store the Lambda processing body")
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamUsesIAMRole)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamUsesLambdaTransform)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamDeliversToS3)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamDeliversToOpenSearch)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamDeliversToSplunk)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamDeliversToHTTPEndpoint)
-	assertRelationship(t, envelopes, awscloud.RelationshipFirehoseDeliveryStreamDeliversToRedshift)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamUsesIAMRole)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamUsesLambdaTransform)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamDeliversToS3)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamDeliversToOpenSearch)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamDeliversToSplunk)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamDeliversToHTTPEndpoint)
+	assertRelationship(t, envelopes, aws.RelationshipFirehoseDeliveryStreamDeliversToRedshift)
 
 	// The shared role ARN appears on three destinations but must dedupe to one
 	// IAM-role relationship to avoid inflating edge counts.
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseDeliveryStreamUsesIAMRole); got != 1 {
+	if got := countRelationships(envelopes, aws.RelationshipFirehoseDeliveryStreamUsesIAMRole); got != 1 {
 		t.Fatalf("IAM role relationships = %d, want 1 after dedupe", got)
 	}
 }
@@ -178,7 +178,7 @@ func TestScannerEmitsVideoStreamFactsAndKMSRelationship(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stream := resourceByType(t, envelopes, awscloud.ResourceTypeKinesisVideoStream)
+	stream := resourceByType(t, envelopes, aws.ResourceTypeKinesisVideoStream)
 	attributes := attributesOf(t, stream)
 	if got, want := attributes["data_retention_hours"], int32(24); got != want {
 		t.Fatalf("data_retention_hours = %#v, want %v", got, want)
@@ -192,12 +192,12 @@ func TestScannerEmitsVideoStreamFactsAndKMSRelationship(t *testing.T) {
 	if _, exists := attributes["fragment"]; exists {
 		t.Fatalf("fragment attribute persisted; video scanner must not read media fragments")
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipKinesisVideoStreamUsesKMSKey)
+	assertRelationship(t, envelopes, aws.RelationshipKinesisVideoStreamUsesKMSKey)
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceMSK
+	boundary.ServiceKind = aws.ServiceMSK
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -212,11 +212,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKinesis,
+		ServiceKind:         aws.ServiceKinesis,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:kinesis:1",
 		CollectorInstanceID: "aws-prod",

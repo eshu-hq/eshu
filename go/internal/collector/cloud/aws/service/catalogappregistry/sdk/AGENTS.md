@@ -1,4 +1,4 @@
-# AGENTS.md - services/servicecatalogappregistry/awssdk guidance
+# AGENTS.md - services/servicecatalogappregistry/sdk guidance
 
 ## Read First
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssfn "github.com/aws/aws-sdk-go-v2/service/sfn"
 	awssfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 
@@ -47,44 +47,44 @@ func TestClientListStateMachinesProjectsSafeMetadataAndDefinitionShape(t *testin
 	client := &fakeSFNAPI{
 		stateMachinePages: []*awssfn.ListStateMachinesOutput{{
 			StateMachines: []awssfntypes.StateMachineListItem{{
-				StateMachineArn: aws.String(stateMachineARN),
-				Name:            aws.String("order-fulfillment"),
+				StateMachineArn: awsv2.String(stateMachineARN),
+				Name:            awsv2.String("order-fulfillment"),
 				Type:            awssfntypes.StateMachineTypeStandard,
-				CreationDate:    aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+				CreationDate:    awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		describeStateMachine: &awssfn.DescribeStateMachineOutput{
-			StateMachineArn: aws.String(stateMachineARN),
-			Name:            aws.String("order-fulfillment"),
-			RoleArn:         aws.String(roleARN),
+			StateMachineArn: awsv2.String(stateMachineARN),
+			Name:            awsv2.String("order-fulfillment"),
+			RoleArn:         awsv2.String(roleARN),
 			Type:            awssfntypes.StateMachineTypeStandard,
 			Status:          awssfntypes.StateMachineStatusActive,
-			Definition:      aws.String(definition),
-			CreationDate:    aws.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
+			Definition:      awsv2.String(definition),
+			CreationDate:    awsv2.Time(time.Date(2026, 5, 14, 16, 0, 0, 0, time.UTC)),
 			LoggingConfiguration: &awssfntypes.LoggingConfiguration{
 				Level: awssfntypes.LogLevelAll,
 			},
 			TracingConfiguration: &awssfntypes.TracingConfiguration{Enabled: true},
 		},
 		stateMachineTags: []awssfntypes.Tag{{
-			Key:   aws.String("Environment"),
-			Value: aws.String("prod"),
+			Key:   awsv2.String("Environment"),
+			Value: awsv2.String("prod"),
 		}},
 		activityPages: []*awssfn.ListActivitiesOutput{{
 			Activities: []awssfntypes.ActivityListItem{{
-				ActivityArn:  aws.String("arn:aws:states:us-east-1:123456789012:activity:human-review"),
-				Name:         aws.String("human-review"),
-				CreationDate: aws.Time(time.Date(2026, 5, 14, 16, 5, 0, 0, time.UTC)),
+				ActivityArn:  awsv2.String("arn:aws:states:us-east-1:123456789012:activity:human-review"),
+				Name:         awsv2.String("human-review"),
+				CreationDate: awsv2.Time(time.Date(2026, 5, 14, 16, 5, 0, 0, time.UTC)),
 			}},
 		}},
 		activityTags: []awssfntypes.Tag{{
-			Key:   aws.String("Owner"),
-			Value: aws.String("ops"),
+			Key:   awsv2.String("Owner"),
+			Value: awsv2.String("ops"),
 		}},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStepFunctions},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceStepFunctions},
 	}
 
 	machines, err := adapter.ListStateMachines(context.Background())
@@ -168,21 +168,21 @@ func TestClientListStateMachinesSkipsActivitiesAndDoesNotMutate(t *testing.T) {
 	client := &fakeSFNAPI{
 		stateMachinePages: []*awssfn.ListStateMachinesOutput{{
 			StateMachines: []awssfntypes.StateMachineListItem{{
-				StateMachineArn: aws.String("arn:aws:states:us-east-1:123456789012:stateMachine:empty"),
-				Name:            aws.String("empty"),
+				StateMachineArn: awsv2.String("arn:aws:states:us-east-1:123456789012:stateMachine:empty"),
+				Name:            awsv2.String("empty"),
 				Type:            awssfntypes.StateMachineTypeExpress,
 			}},
 		}},
 		describeStateMachine: &awssfn.DescribeStateMachineOutput{
-			StateMachineArn: aws.String("arn:aws:states:us-east-1:123456789012:stateMachine:empty"),
-			Name:            aws.String("empty"),
+			StateMachineArn: awsv2.String("arn:aws:states:us-east-1:123456789012:stateMachine:empty"),
+			Name:            awsv2.String("empty"),
 			Type:            awssfntypes.StateMachineTypeExpress,
-			Definition:      aws.String(`{"StartAt":"End","States":{"End":{"Type":"Succeed"}}}`),
+			Definition:      awsv2.String(`{"StartAt":"End","States":{"End":{"Type":"Succeed"}}}`),
 		},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStepFunctions},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceStepFunctions},
 	}
 	if _, err := adapter.ListStateMachines(context.Background()); err != nil {
 		t.Fatalf("ListStateMachines() error = %v, want nil", err)
@@ -252,7 +252,7 @@ func (f *fakeSFNAPI) ListTagsForResource(
 	input *awssfn.ListTagsForResourceInput,
 	_ ...func(*awssfn.Options),
 ) (*awssfn.ListTagsForResourceOutput, error) {
-	arn := aws.ToString(input.ResourceArn)
+	arn := awsv2.ToString(input.ResourceArn)
 	if arn == "" {
 		return &awssfn.ListTagsForResourceOutput{}, nil
 	}

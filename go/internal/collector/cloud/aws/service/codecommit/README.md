@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codecommit` owns the CodeCommit scanner
+`internal/collector/cloud/aws/service/codecommit` owns the CodeCommit scanner
 contract for the AWS cloud collector. It converts repository metadata into
 `aws_resource` facts and emits relationship evidence for repository encryption
 (KMS key) and repository triggers (SNS topic). The repository resource is a
@@ -43,7 +43,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -52,9 +52,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records CodeCommit API call counts, throttles, and
+The `sdk` adapter records CodeCommit API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -88,7 +88,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codecommit/...` covers the
+`go test ./internal/collector/cloud/aws/service/codecommit/...` covers the
 bounded CodeCommit metadata path: one paginated `ListRepositories` stream, one
 `BatchGetRepositories` call per 25-name chunk, one `GetRepositoryTriggers`
 point read per repository, one paginated `ListTagsForResource` stream per
@@ -96,7 +96,7 @@ repository, no commit/ref/blob/file-content reads, no mutations, and no graph
 writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/codecommit/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/codecommit/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers repository metadata fact emission, host-only clone-URL evidence,
 code-to-cloud correlation-anchor publication (repository name + clone URLs),
 the repository-to-KMS-key edge (ARN-keyed and bare-key-id-keyed), the

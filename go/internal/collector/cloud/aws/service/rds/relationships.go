@@ -10,14 +10,14 @@ import (
 )
 
 func instanceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance DBInstance,
 	clusterIDs map[string]string,
 	clusterMemberships map[string]clusterMembership,
 	subnetGroupIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(instance.ARN, instance.ResourceID, instance.Identifier)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	clusterIdentifier := strings.TrimSpace(instance.ClusterIdentifier)
 	targetID := clusterIDs[clusterIdentifier]
 	membership := clusterMemberships[strings.TrimSpace(instance.Identifier)]
@@ -28,12 +28,12 @@ func instanceRelationships(
 	if targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceMemberOfCluster,
+			aws.RelationshipRDSDBInstanceMemberOfCluster,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBCluster,
+			aws.ResourceTypeRDSDBCluster,
 			map[string]any{
 				"cluster_identifier": clusterIdentifier,
 				"is_writer":          membership.isWriter,
@@ -43,12 +43,12 @@ func instanceRelationships(
 	if targetID := subnetGroupIDs[strings.TrimSpace(instance.DBSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceInSubnetGroup,
+			aws.RelationshipRDSDBInstanceInSubnetGroup,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBSubnetGroup,
+			aws.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(instance.DBSubnetGroupName)},
 		))
 	}
@@ -56,18 +56,18 @@ func instanceRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceUsesSecurityGroup,
+			aws.RelationshipRDSDBInstanceUsesSecurityGroup,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			aws.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBInstanceUsesKMSKey,
+		aws.RelationshipRDSDBInstanceUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(instance.ARN),
 		strings.TrimSpace(instance.KMSKeyID),
@@ -75,17 +75,17 @@ func instanceRelationships(
 	)...)
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBInstanceUsesMonitoringRole,
+		aws.RelationshipRDSDBInstanceUsesMonitoringRole,
 		sourceID,
 		strings.TrimSpace(instance.ARN),
 		strings.TrimSpace(instance.MonitoringRoleARN),
-		awscloud.ResourceTypeIAMRole,
+		aws.ResourceTypeIAMRole,
 	)...)
 	for _, group := range instance.ParameterGroups {
 		if name := strings.TrimSpace(group.Name); name != "" {
 			relationships = append(relationships, namedRelationship(
 				boundary,
-				awscloud.RelationshipRDSDBInstanceUsesParameterGroup,
+				aws.RelationshipRDSDBInstanceUsesParameterGroup,
 				sourceID,
 				strings.TrimSpace(instance.ARN),
 				name,
@@ -98,7 +98,7 @@ func instanceRelationships(
 		if name := strings.TrimSpace(group.Name); name != "" {
 			relationships = append(relationships, namedRelationship(
 				boundary,
-				awscloud.RelationshipRDSDBInstanceUsesOptionGroup,
+				aws.RelationshipRDSDBInstanceUsesOptionGroup,
 				sourceID,
 				strings.TrimSpace(instance.ARN),
 				name,
@@ -111,21 +111,21 @@ func instanceRelationships(
 }
 
 func clusterRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster DBCluster,
 	subnetGroupIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(cluster.ARN, cluster.ResourceID, cluster.Identifier)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if targetID := subnetGroupIDs[strings.TrimSpace(cluster.DBSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterInSubnetGroup,
+			aws.RelationshipRDSDBClusterInSubnetGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBSubnetGroup,
+			aws.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(cluster.DBSubnetGroupName)},
 		))
 	}
@@ -133,18 +133,18 @@ func clusterRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesSecurityGroup,
+			aws.RelationshipRDSDBClusterUsesSecurityGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			aws.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBClusterUsesKMSKey,
+		aws.RelationshipRDSDBClusterUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(cluster.ARN),
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -153,19 +153,19 @@ func clusterRelationships(
 	for _, roleARN := range cloneStrings(cluster.AssociatedRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesIAMRole,
+			aws.RelationshipRDSDBClusterUsesIAMRole,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			aws.ResourceTypeIAMRole,
 			nil,
 		))
 	}
 	if name := strings.TrimSpace(cluster.ParameterGroup); name != "" {
 		relationships = append(relationships, namedRelationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesParameterGroup,
+			aws.RelationshipRDSDBClusterUsesParameterGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			name,
@@ -177,13 +177,13 @@ func clusterRelationships(
 }
 
 func optionalTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	targetID string,
 	targetType string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	targetID = strings.TrimSpace(targetID)
 	if targetID == "" {
 		return nil
@@ -192,7 +192,7 @@ func optionalTargetRelationship(
 	if strings.HasPrefix(targetID, "arn:") {
 		targetARN = targetID
 	}
-	return []awscloud.RelationshipObservation{relationship(
+	return []aws.RelationshipObservation{relationship(
 		boundary,
 		relationshipType,
 		sourceID,
@@ -205,19 +205,19 @@ func optionalTargetRelationship(
 }
 
 func namedRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	targetID string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	return relationship(boundary, relationshipType, sourceID, sourceARN, targetID, "", targetType, attributes)
 }
 
 func relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
@@ -225,8 +225,8 @@ func relationship(
 	targetARN string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
@@ -239,12 +239,12 @@ func relationship(
 	}
 }
 
-func securityGroupARN(boundary awscloud.Boundary, groupID string) string {
+func securityGroupARN(boundary aws.Boundary, groupID string) string {
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" || strings.HasPrefix(groupID, "arn:") {
 		return groupID
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
 }
 
 func targetARNFor(targetID string) string {

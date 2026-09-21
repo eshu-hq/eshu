@@ -13,4 +13,4 @@
 // Create/Delete/Update/Restore/Import lifecycle API. A reflective guard test
 // fails if any of those methods appears on the interface, so a future SDK
 // refactor cannot quietly broaden the contract.
-package awssdk
+package sdk

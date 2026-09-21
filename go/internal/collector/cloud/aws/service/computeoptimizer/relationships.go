@@ -16,22 +16,22 @@ import (
 // publish. It returns nil when the source recommendation id or the bare instance
 // id cannot be resolved, so the edge never dangles.
 func instanceTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rec InstanceRecommendation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := instanceRecommendationID(rec)
 	instanceID := instanceIDFromARN(rec.InstanceARN)
 	if sourceID == "" || instanceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance,
+		RelationshipType: aws.RelationshipComputeOptimizerRecommendationTargetsInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rec.InstanceARN),
 		TargetResourceID: instanceID,
 		TargetType:       "aws_ec2_instance",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance + ":" + instanceID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipComputeOptimizerRecommendationTargetsInstance + ":" + instanceID,
 	}
 }
 
@@ -42,9 +42,9 @@ func instanceTargetRelationship(
 // carried as edge attribute evidence instead. It returns nil when the source
 // recommendation id or the group name is missing.
 func autoScalingGroupTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rec AutoScalingGroupRecommendation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := autoScalingGroupRecommendationID(rec)
 	groupName := strings.TrimSpace(rec.AutoScalingGroupName)
 	if sourceID == "" || groupName == "" {
@@ -54,15 +54,15 @@ func autoScalingGroupTargetRelationship(
 	if groupARN := strings.TrimSpace(rec.AutoScalingGroupARN); groupARN != "" {
 		attributes = map[string]any{"auto_scaling_group_arn": groupARN}
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup,
+		RelationshipType: aws.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rec.AutoScalingGroupARN),
 		TargetResourceID: groupName,
-		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+		TargetType:       aws.ResourceTypeAutoScalingGroup,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup + ":" + groupName,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup + ":" + groupName,
 	}
 }
 
@@ -72,9 +72,9 @@ func autoScalingGroupTargetRelationship(
 // ARN to join that node. It returns nil when the source recommendation id or the
 // function ARN is missing.
 func lambdaFunctionTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rec LambdaFunctionRecommendation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := lambdaFunctionRecommendationID(rec)
 	functionARN := strings.TrimSpace(rec.FunctionARN)
 	if sourceID == "" || functionARN == "" {
@@ -84,14 +84,14 @@ func lambdaFunctionTargetRelationship(
 	if isARN(functionARN) {
 		targetARN = functionARN
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction,
+		RelationshipType: aws.RelationshipComputeOptimizerRecommendationTargetsFunction,
 		SourceResourceID: sourceID,
 		SourceARN:        functionARN,
 		TargetResourceID: functionARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction + ":" + functionARN,
+		TargetType:       aws.ResourceTypeLambdaFunction,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipComputeOptimizerRecommendationTargetsFunction + ":" + functionARN,
 	}
 }

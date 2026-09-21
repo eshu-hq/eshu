@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/pinpoint guidance
+# AGENTS.md - internal/collector/cloud/aws/service/pinpoint guidance
 
 ## Read First
 
@@ -39,10 +39,10 @@
   set is reported; key the configuration set NAME (matching the SES
   configuration-set scanner's published resource_id).
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Canonicalize `service_kind` by switching on `strings.TrimSpace(...)` and
-  writing `awscloud.ServicePinpoint` back on the merged empty/matched case.
+  writing `aws.ServicePinpoint` back on the merged empty/matched case.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from Pinpoint names or tags.
 - Keep Pinpoint resource ARNs, names, tags, and AWS error payloads out of metric
@@ -51,13 +51,13 @@
 ## Common Changes
 
 - Add a new Pinpoint metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry endpoint, address, or message
   content, leave it out of the scanner contract.
 - Add new relationship evidence only when the Pinpoint API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

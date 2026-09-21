@@ -31,15 +31,15 @@ type Scanner struct {
 
 // Scan observes IAM roles, policies, instance profiles, and trust
 // relationships through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("iam scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceIAM:
+	case "", aws.ServiceIAM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceIAM
+		boundary.ServiceKind = aws.ServiceIAM
 	default:
 		return nil, fmt.Errorf("iam scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -71,7 +71,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	envelopes := make([]facts.Envelope, 0, len(roles)+len(users)+len(policies)+len(profiles)+len(oidcProviders)+len(warnings))
 	secretsCtx := secretsIAMContext(boundary)
 	for _, role := range roles {
-		resource, err := awscloud.NewResourceEnvelope(roleObservation(boundary, role))
+		resource, err := aws.NewResourceEnvelope(roleObservation(boundary, role))
 		if err != nil {
 			return nil, err
 		}
@@ -94,14 +94,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			envelopes = append(envelopes, boundaryFact)
 		}
 		for _, principal := range role.TrustPrincipals {
-			relationship, err := awscloud.NewRelationshipEnvelope(roleTrustRelationship(boundary, role, principal))
+			relationship, err := aws.NewRelationshipEnvelope(roleTrustRelationship(boundary, role, principal))
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, relationship)
 		}
 		for _, policyARN := range role.AttachedPolicyARNs {
-			relationship, err := awscloud.NewRelationshipEnvelope(rolePolicyRelationship(boundary, role, policyARN))
+			relationship, err := aws.NewRelationshipEnvelope(rolePolicyRelationship(boundary, role, policyARN))
 			if err != nil {
 				return nil, err
 			}
@@ -117,7 +117,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, attachment)
 		}
-		permissions, err := permissionEnvelopes(boundary, role.ARN, awscloud.ResourceTypeIAMRole, role.PermissionStatements)
+		permissions, err := permissionEnvelopes(boundary, role.ARN, aws.ResourceTypeIAMRole, role.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, secretsPolicies...)
 	}
 	for _, user := range users {
-		resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
+		resource, err := aws.NewResourceEnvelope(userObservation(boundary, user))
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, attachment)
 		}
-		permissions, err := permissionEnvelopes(boundary, user.ARN, awscloud.ResourceTypeIAMUser, user.PermissionStatements)
+		permissions, err := permissionEnvelopes(boundary, user.ARN, aws.ResourceTypeIAMUser, user.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -175,20 +175,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, secretsPolicies...)
 	}
 	for _, policy := range policies {
-		resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
+		resource, err := aws.NewResourceEnvelope(policyObservation(boundary, policy))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, profile := range profiles {
-		resource, err := awscloud.NewResourceEnvelope(instanceProfileObservation(boundary, profile))
+		resource, err := aws.NewResourceEnvelope(instanceProfileObservation(boundary, profile))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, roleARN := range profile.RoleARNs {
-			relationship, err := awscloud.NewRelationshipEnvelope(profileRoleRelationship(boundary, profile, roleARN))
+			relationship, err := aws.NewRelationshipEnvelope(profileRoleRelationship(boundary, profile, roleARN))
 			if err != nil {
 				return nil, err
 			}
@@ -217,13 +217,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func roleObservation(boundary awscloud.Boundary, role Role) awscloud.ResourceObservation {
+func roleObservation(boundary aws.Boundary, role Role) aws.ResourceObservation {
 	roleARN := strings.TrimSpace(role.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          roleARN,
 		ResourceID:   roleARN,
-		ResourceType: awscloud.ResourceTypeIAMRole,
+		ResourceType: aws.ResourceTypeIAMRole,
 		Name:         role.Name,
 		Attributes: map[string]any{
 			"attached_policy_arns":     role.AttachedPolicyARNs,
@@ -240,13 +240,13 @@ func roleObservation(boundary awscloud.Boundary, role Role) awscloud.ResourceObs
 	}
 }
 
-func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.ResourceObservation {
+func policyObservation(boundary aws.Boundary, policy Policy) aws.ResourceObservation {
 	policyARN := strings.TrimSpace(policy.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          policyARN,
 		ResourceID:   policyARN,
-		ResourceType: awscloud.ResourceTypeIAMPolicy,
+		ResourceType: aws.ResourceTypeIAMPolicy,
 		Name:         policy.Name,
 		Attributes: map[string]any{
 			"attachment_count":   policy.AttachmentCount,
@@ -258,13 +258,13 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 	}
 }
 
-func instanceProfileObservation(boundary awscloud.Boundary, profile InstanceProfile) awscloud.ResourceObservation {
+func instanceProfileObservation(boundary aws.Boundary, profile InstanceProfile) aws.ResourceObservation {
 	profileARN := strings.TrimSpace(profile.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          profileARN,
 		ResourceID:   profileARN,
-		ResourceType: awscloud.ResourceTypeIAMInstanceProfile,
+		ResourceType: aws.ResourceTypeIAMInstanceProfile,
 		Name:         profile.Name,
 		Attributes: map[string]any{
 			"path":      strings.TrimSpace(profile.Path),
@@ -275,13 +275,13 @@ func instanceProfileObservation(boundary awscloud.Boundary, profile InstanceProf
 	}
 }
 
-func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObservation {
+func userObservation(boundary aws.Boundary, user User) aws.ResourceObservation {
 	userARN := strings.TrimSpace(user.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   userARN,
-		ResourceType: awscloud.ResourceTypeIAMUser,
+		ResourceType: aws.ResourceTypeIAMUser,
 		Name:         user.Name,
 		Attributes: map[string]any{
 			"attached_policy_arns":     user.AttachedPolicyARNs,
@@ -299,13 +299,13 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 // into derived aws_iam_permission facts. It bounds nothing itself: the SDK
 // adapter is responsible for paging and bounding the per-principal policy
 // fan-out before handing the normalized statements to the scanner.
-func permissionEnvelopes(boundary awscloud.Boundary, principalARN, principalType string, statements []PolicyStatement) ([]facts.Envelope, error) {
+func permissionEnvelopes(boundary aws.Boundary, principalARN, principalType string, statements []PolicyStatement) ([]facts.Envelope, error) {
 	if len(statements) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(statements))
 	for _, statement := range statements {
-		envelope, err := awscloud.NewIAMPermissionEnvelope(awscloud.IAMPermissionObservation{
+		envelope, err := aws.NewIAMPermissionEnvelope(aws.IAMPermissionObservation{
 			Boundary:           boundary,
 			PrincipalARN:       strings.TrimSpace(principalARN),
 			PrincipalType:      principalType,
@@ -330,15 +330,15 @@ func permissionEnvelopes(boundary awscloud.Boundary, principalARN, principalType
 	return envelopes, nil
 }
 
-func roleTrustRelationship(boundary awscloud.Boundary, role Role, principal TrustPrincipal) awscloud.RelationshipObservation {
+func roleTrustRelationship(boundary aws.Boundary, role Role, principal TrustPrincipal) aws.RelationshipObservation {
 	principalID := strings.TrimSpace(principal.Type) + ":" + strings.TrimSpace(principal.Identifier)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleTrustsPrincipal,
+		RelationshipType: aws.RelationshipIAMRoleTrustsPrincipal,
 		SourceResourceID: strings.TrimSpace(role.ARN),
 		SourceARN:        strings.TrimSpace(role.ARN),
 		TargetResourceID: principalID,
-		TargetType:       awscloud.ResourceTypeIAMPrincipal,
+		TargetType:       aws.ResourceTypeIAMPrincipal,
 		Attributes: map[string]any{
 			"principal_type": strings.TrimSpace(principal.Type),
 		},
@@ -346,28 +346,28 @@ func roleTrustRelationship(boundary awscloud.Boundary, role Role, principal Trus
 	}
 }
 
-func rolePolicyRelationship(boundary awscloud.Boundary, role Role, policyARN string) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+func rolePolicyRelationship(boundary aws.Boundary, role Role, policyARN string) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleAttachedPolicy,
+		RelationshipType: aws.RelationshipIAMRoleAttachedPolicy,
 		SourceResourceID: strings.TrimSpace(role.ARN),
 		SourceARN:        strings.TrimSpace(role.ARN),
 		TargetResourceID: strings.TrimSpace(policyARN),
 		TargetARN:        strings.TrimSpace(policyARN),
-		TargetType:       awscloud.ResourceTypeIAMPolicy,
+		TargetType:       aws.ResourceTypeIAMPolicy,
 		SourceRecordID:   strings.TrimSpace(role.ARN) + "#policy#" + strings.TrimSpace(policyARN),
 	}
 }
 
-func profileRoleRelationship(boundary awscloud.Boundary, profile InstanceProfile, roleARN string) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+func profileRoleRelationship(boundary aws.Boundary, profile InstanceProfile, roleARN string) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleInInstanceProfile,
+		RelationshipType: aws.RelationshipIAMRoleInInstanceProfile,
 		SourceResourceID: strings.TrimSpace(roleARN),
 		SourceARN:        strings.TrimSpace(roleARN),
 		TargetResourceID: strings.TrimSpace(profile.ARN),
 		TargetARN:        strings.TrimSpace(profile.ARN),
-		TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
+		TargetType:       aws.ResourceTypeIAMInstanceProfile,
 		SourceRecordID:   strings.TrimSpace(roleARN) + "#instance-profile#" + strings.TrimSpace(profile.ARN),
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssesv2 "github.com/aws/aws-sdk-go-v2/service/sesv2"
 	awssesv2types "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 
@@ -59,7 +59,7 @@ func TestClientSnapshotMapsSafeMetadata(t *testing.T) {
 	client := &fakeSESAPI{
 		identityPages: []*awssesv2.ListEmailIdentitiesOutput{{
 			EmailIdentities: []awssesv2types.IdentityInfo{{
-				IdentityName:       aws.String("marketing.example.com"),
+				IdentityName:       awsv2.String("marketing.example.com"),
 				IdentityType:       awssesv2types.IdentityTypeDomain,
 				VerificationStatus: awssesv2types.VerificationStatusSuccess,
 				SendingEnabled:     true,
@@ -67,7 +67,7 @@ func TestClientSnapshotMapsSafeMetadata(t *testing.T) {
 		}},
 		getIdentity: map[string]*awssesv2.GetEmailIdentityOutput{
 			"marketing.example.com": {
-				ConfigurationSetName:     aws.String("primary"),
+				ConfigurationSetName:     awsv2.String("primary"),
 				IdentityType:             awssesv2types.IdentityTypeDomain,
 				VerificationStatus:       awssesv2types.VerificationStatusSuccess,
 				VerifiedForSendingStatus: true,
@@ -80,13 +80,13 @@ func TestClientSnapshotMapsSafeMetadata(t *testing.T) {
 					Tokens: []string{"token-one", "token-two"},
 				},
 				MailFromAttributes: &awssesv2types.MailFromAttributes{
-					MailFromDomain:       aws.String("mail.example.com"),
+					MailFromDomain:       awsv2.String("mail.example.com"),
 					MailFromDomainStatus: awssesv2types.MailFromDomainStatusSuccess,
 					BehaviorOnMxFailure:  awssesv2types.BehaviorOnMxFailureUseDefaultValue,
 				},
 				// Policies must never be mapped.
 				Policies: map[string]string{"policy-1": "{\"Version\":\"2012-10-17\"}"},
-				Tags:     []awssesv2types.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+				Tags:     []awssesv2types.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 			},
 		},
 		configSetPages: []*awssesv2.ListConfigurationSetsOutput{{
@@ -94,31 +94,31 @@ func TestClientSnapshotMapsSafeMetadata(t *testing.T) {
 		}},
 		getConfigSet: map[string]*awssesv2.GetConfigurationSetOutput{
 			"primary": {
-				ConfigurationSetName: aws.String("primary"),
+				ConfigurationSetName: awsv2.String("primary"),
 				SendingOptions:       &awssesv2types.SendingOptions{SendingEnabled: true},
 				ReputationOptions:    &awssesv2types.ReputationOptions{ReputationMetricsEnabled: true},
 				DeliveryOptions: &awssesv2types.DeliveryOptions{
 					TlsPolicy:       awssesv2types.TlsPolicyRequire,
-					SendingPoolName: aws.String("dedicated-prod"),
+					SendingPoolName: awsv2.String("dedicated-prod"),
 				},
 				TrackingOptions: &awssesv2types.TrackingOptions{
-					CustomRedirectDomain: aws.String("click.example.com"),
+					CustomRedirectDomain: awsv2.String("click.example.com"),
 				},
-				Tags: []awssesv2types.Tag{{Key: aws.String("Team"), Value: aws.String("growth")}},
+				Tags: []awssesv2types.Tag{{Key: awsv2.String("Team"), Value: awsv2.String("growth")}},
 			},
 		},
 		eventDestinations: map[string]*awssesv2.GetConfigurationSetEventDestinationsOutput{
 			"primary": {
 				EventDestinations: []awssesv2types.EventDestination{{
-					Name:               aws.String("all-events"),
+					Name:               awsv2.String("all-events"),
 					Enabled:            true,
 					MatchingEventTypes: []awssesv2types.EventType{awssesv2types.EventTypeSend, awssesv2types.EventTypeBounce},
 					SnsDestination: &awssesv2types.SnsDestination{
-						TopicArn: aws.String("arn:aws:sns:us-east-1:123456789012:ses-events"),
+						TopicArn: awsv2.String("arn:aws:sns:us-east-1:123456789012:ses-events"),
 					},
 					KinesisFirehoseDestination: &awssesv2types.KinesisFirehoseDestination{
-						DeliveryStreamArn: aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/ses-events"),
-						IamRoleArn:        aws.String("arn:aws:iam::123456789012:role/ses-firehose"),
+						DeliveryStreamArn: awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/ses-events"),
+						IamRoleArn:        awsv2.String("arn:aws:iam::123456789012:role/ses-firehose"),
 					},
 					CloudWatchDestination: &awssesv2types.CloudWatchDestination{},
 				}},
@@ -195,7 +195,7 @@ func TestClientNeverMapsDKIMTokensOrPolicies(t *testing.T) {
 		},
 		Policies: map[string]string{"p": "policy-body"},
 	}
-	identity := mapIdentityInfo(awssesv2types.IdentityInfo{IdentityName: aws.String("a.example.com")})
+	identity := mapIdentityInfo(awssesv2types.IdentityInfo{IdentityName: awsv2.String("a.example.com")})
 	applyIdentityDetail(&identity, output)
 
 	// The scanner-owned identity model has no token/policy fields by design, so
@@ -209,11 +209,11 @@ func TestClientNeverMapsDKIMTokensOrPolicies(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSES,
+		ServiceKind: aws.ServiceSES,
 		ScopeID:     "aws:123456789012:us-east-1",
 	}
 }
@@ -248,7 +248,7 @@ func (f *fakeSESAPI) GetEmailIdentity(
 	input *awssesv2.GetEmailIdentityInput,
 	_ ...func(*awssesv2.Options),
 ) (*awssesv2.GetEmailIdentityOutput, error) {
-	if output, ok := f.getIdentity[aws.ToString(input.EmailIdentity)]; ok {
+	if output, ok := f.getIdentity[awsv2.ToString(input.EmailIdentity)]; ok {
 		return output, nil
 	}
 	return &awssesv2.GetEmailIdentityOutput{}, nil
@@ -272,7 +272,7 @@ func (f *fakeSESAPI) GetConfigurationSet(
 	input *awssesv2.GetConfigurationSetInput,
 	_ ...func(*awssesv2.Options),
 ) (*awssesv2.GetConfigurationSetOutput, error) {
-	if output, ok := f.getConfigSet[aws.ToString(input.ConfigurationSetName)]; ok {
+	if output, ok := f.getConfigSet[awsv2.ToString(input.ConfigurationSetName)]; ok {
 		return output, nil
 	}
 	return &awssesv2.GetConfigurationSetOutput{}, nil
@@ -283,7 +283,7 @@ func (f *fakeSESAPI) GetConfigurationSetEventDestinations(
 	input *awssesv2.GetConfigurationSetEventDestinationsInput,
 	_ ...func(*awssesv2.Options),
 ) (*awssesv2.GetConfigurationSetEventDestinationsOutput, error) {
-	if output, ok := f.eventDestinations[aws.ToString(input.ConfigurationSetName)]; ok {
+	if output, ok := f.eventDestinations[awsv2.ToString(input.ConfigurationSetName)]; ok {
 		return output, nil
 	}
 	return &awssesv2.GetConfigurationSetEventDestinationsOutput{}, nil

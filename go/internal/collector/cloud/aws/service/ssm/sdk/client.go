@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsssm "github.com/aws/aws-sdk-go-v2/service/ssm"
 	awsssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/smithy-go"
@@ -41,15 +41,15 @@ type apiClient interface {
 // GetParameterHistory, decryption, or mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an SSM SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -71,7 +71,7 @@ func (c *Client) ListParameters(ctx context.Context) ([]ssmservice.Parameter, er
 		err := c.recordAPICall(ctx, "DescribeParameters", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeParameters(callCtx, &awsssm.DescribeParametersInput{
-				MaxResults: aws.Int32(describeParametersLimit),
+				MaxResults: awsv2.Int32(describeParametersLimit),
 				NextToken:  nextToken,
 			})
 			return err
@@ -92,7 +92,7 @@ func (c *Client) ListParameters(ctx context.Context) ([]ssmservice.Parameter, er
 			parameters = append(parameters, parameter)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return parameters, nil
 		}
 	}
@@ -107,7 +107,7 @@ func (c *Client) listTags(ctx context.Context, resourceID string) (map[string]st
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsssm.ListTagsForResourceInput{
-			ResourceId:   aws.String(resourceID),
+			ResourceId:   awsv2.String(resourceID),
 			ResourceType: awsssmtypes.ResourceTypeForTaggingParameter,
 		})
 		return err
@@ -139,7 +139,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

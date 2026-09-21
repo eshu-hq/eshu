@@ -26,15 +26,15 @@ type Scanner struct {
 }
 
 // Scan observes AWS App Runner resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("apprunner scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppRunner:
+	case "", aws.ServiceAppRunner:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppRunner
+		boundary.ServiceKind = aws.ServiceAppRunner
 	default:
 		return nil, fmt.Errorf("apprunner scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,7 +58,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list App Runner connections: %w", err)
 	}
 	for _, connection := range connections {
-		resource, err := awscloud.NewResourceEnvelope(connectionObservation(boundary, connection))
+		resource, err := aws.NewResourceEnvelope(connectionObservation(boundary, connection))
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +70,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list App Runner autoscaling configurations: %w", err)
 	}
 	for _, autoScalingConfiguration := range autoScalingConfigurations {
-		resource, err := awscloud.NewResourceEnvelope(autoScalingConfigurationObservation(boundary, autoScalingConfiguration))
+		resource, err := aws.NewResourceEnvelope(autoScalingConfigurationObservation(boundary, autoScalingConfiguration))
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list App Runner observability configurations: %w", err)
 	}
 	for _, observabilityConfiguration := range observabilityConfigurations {
-		resource, err := awscloud.NewResourceEnvelope(observabilityConfigurationObservation(boundary, observabilityConfiguration))
+		resource, err := aws.NewResourceEnvelope(observabilityConfigurationObservation(boundary, observabilityConfiguration))
 		if err != nil {
 			return nil, err
 		}
@@ -116,14 +116,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func serviceEnvelopes(boundary awscloud.Boundary, service Service) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serviceObservation(boundary, service))
+func serviceEnvelopes(boundary aws.Boundary, service Service) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(serviceObservation(boundary, service))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range serviceRelationships(boundary, service) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -132,14 +132,14 @@ func serviceEnvelopes(boundary awscloud.Boundary, service Service) ([]facts.Enve
 	return envelopes, nil
 }
 
-func vpcConnectorEnvelopes(boundary awscloud.Boundary, connector VpcConnector) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpcConnectorObservation(boundary, connector))
+func vpcConnectorEnvelopes(boundary aws.Boundary, connector VpcConnector) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpcConnectorObservation(boundary, connector))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpcConnectorRelationships(boundary, connector) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -148,14 +148,14 @@ func vpcConnectorEnvelopes(boundary awscloud.Boundary, connector VpcConnector) (
 	return envelopes, nil
 }
 
-func vpcIngressConnectionEnvelopes(boundary awscloud.Boundary, ingress VpcIngressConnection) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpcIngressConnectionObservation(boundary, ingress))
+func vpcIngressConnectionEnvelopes(boundary aws.Boundary, ingress VpcIngressConnection) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpcIngressConnectionObservation(boundary, ingress))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range vpcIngressConnectionRelationships(boundary, ingress) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -164,13 +164,13 @@ func vpcIngressConnectionEnvelopes(boundary awscloud.Boundary, ingress VpcIngres
 	return envelopes, nil
 }
 
-func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.ResourceObservation {
+func serviceObservation(boundary aws.Boundary, service Service) aws.ResourceObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          serviceARN,
 		ResourceID:   serviceARN,
-		ResourceType: awscloud.ResourceTypeAppRunnerService,
+		ResourceType: aws.ResourceTypeAppRunnerService,
 		Name:         strings.TrimSpace(service.Name),
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -203,14 +203,14 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 	}
 }
 
-func connectionObservation(boundary awscloud.Boundary, connection Connection) awscloud.ResourceObservation {
+func connectionObservation(boundary aws.Boundary, connection Connection) aws.ResourceObservation {
 	connectionARN := strings.TrimSpace(connection.ARN)
 	resourceID := firstNonEmpty(connectionARN, connection.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          connectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerConnection,
+		ResourceType: aws.ResourceTypeAppRunnerConnection,
 		Name:         strings.TrimSpace(connection.Name),
 		State:        strings.TrimSpace(connection.Status),
 		Attributes: map[string]any{
@@ -224,16 +224,16 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 }
 
 func autoScalingConfigurationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configuration AutoScalingConfiguration,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	configurationARN := strings.TrimSpace(configuration.ARN)
 	resourceID := firstNonEmpty(configurationARN, configuration.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerAutoScalingConfiguration,
+		ResourceType: aws.ResourceTypeAppRunnerAutoScalingConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.Status),
 		Attributes: map[string]any{
@@ -252,16 +252,16 @@ func autoScalingConfigurationObservation(
 }
 
 func observabilityConfigurationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configuration ObservabilityConfiguration,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	configurationARN := strings.TrimSpace(configuration.ARN)
 	resourceID := firstNonEmpty(configurationARN, configuration.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerObservabilityConfiguration,
+		ResourceType: aws.ResourceTypeAppRunnerObservabilityConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.Status),
 		Attributes: map[string]any{
@@ -276,14 +276,14 @@ func observabilityConfigurationObservation(
 	}
 }
 
-func vpcConnectorObservation(boundary awscloud.Boundary, connector VpcConnector) awscloud.ResourceObservation {
+func vpcConnectorObservation(boundary aws.Boundary, connector VpcConnector) aws.ResourceObservation {
 	connectorARN := strings.TrimSpace(connector.ARN)
 	resourceID := firstNonEmpty(connectorARN, connector.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          connectorARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerVpcConnector,
+		ResourceType: aws.ResourceTypeAppRunnerVpcConnector,
 		Name:         strings.TrimSpace(connector.Name),
 		State:        strings.TrimSpace(connector.Status),
 		Attributes: map[string]any{
@@ -299,16 +299,16 @@ func vpcConnectorObservation(boundary awscloud.Boundary, connector VpcConnector)
 }
 
 func vpcIngressConnectionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	ingress VpcIngressConnection,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	ingressARN := strings.TrimSpace(ingress.ARN)
 	resourceID := firstNonEmpty(ingressARN, ingress.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          ingressARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerVpcIngressConnection,
+		ResourceType: aws.ResourceTypeAppRunnerVpcIngressConnection,
 		Name:         strings.TrimSpace(ingress.Name),
 		State:        strings.TrimSpace(ingress.Status),
 		Attributes: map[string]any{

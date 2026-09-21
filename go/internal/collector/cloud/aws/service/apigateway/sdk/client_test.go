@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsapigateway "github.com/aws/aws-sdk-go-v2/service/apigateway"
 	awsapigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 	awsapigatewayv2 "github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
@@ -27,11 +27,11 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 	restFake := &fakeRESTAPI{
 		restAPIPages: []*awsapigateway.GetRestApisOutput{{
 			Items: []awsapigatewaytypes.RestApi{{
-				Id:                        aws.String(restAPIID),
-				Name:                      aws.String("orders-rest"),
-				Description:               aws.String("orders REST API"),
-				CreatedDate:               aws.Time(created),
-				Version:                   aws.String("v1"),
+				Id:                        awsv2.String(restAPIID),
+				Name:                      awsv2.String("orders-rest"),
+				Description:               awsv2.String("orders REST API"),
+				CreatedDate:               awsv2.Time(created),
+				Version:                   awsv2.String("v1"),
 				ApiStatus:                 awsapigatewaytypes.ApiStatusAvailable,
 				ApiKeySource:              awsapigatewaytypes.ApiKeySourceTypeHeader,
 				DisableExecuteApiEndpoint: true,
@@ -39,23 +39,23 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 					Types:          []awsapigatewaytypes.EndpointType{awsapigatewaytypes.EndpointTypeRegional},
 					VpcEndpointIds: []string{"vpce-123"},
 				},
-				Policy: aws.String("should-not-persist"),
+				Policy: awsv2.String("should-not-persist"),
 				Tags:   map[string]string{"Environment": "prod"},
 			}},
 		}},
 		restStagePages: []*awsapigateway.GetStagesOutput{{
 			Item: []awsapigatewaytypes.Stage{{
-				StageName:           aws.String("prod"),
-				DeploymentId:        aws.String("dep-1"),
-				CreatedDate:         aws.Time(created),
-				LastUpdatedDate:     aws.Time(created.Add(time.Hour)),
+				StageName:           awsv2.String("prod"),
+				DeploymentId:        awsv2.String("dep-1"),
+				CreatedDate:         awsv2.Time(created),
+				LastUpdatedDate:     awsv2.Time(created.Add(time.Hour)),
 				CacheClusterEnabled: true,
 				CacheClusterSize:    awsapigatewaytypes.CacheClusterSizeSize0Point5Gb,
 				CacheClusterStatus:  awsapigatewaytypes.CacheClusterStatusAvailable,
 				TracingEnabled:      true,
 				AccessLogSettings: &awsapigatewaytypes.AccessLogSettings{
-					DestinationArn: aws.String("arn:aws:logs:us-east-1:123456789012:log-group:/aws/apigateway/orders"),
-					Format:         aws.String("$context.requestId $context.identity.sourceIp"),
+					DestinationArn: awsv2.String("arn:aws:logs:us-east-1:123456789012:log-group:/aws/apigateway/orders"),
+					Format:         awsv2.String("$context.requestId $context.identity.sourceIp"),
 				},
 				Variables: map[string]string{"SECRET": "should-not-persist"},
 				Tags:      map[string]string{"Stage": "prod"},
@@ -63,13 +63,13 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 		}},
 		restResourcePages: []*awsapigateway.GetResourcesOutput{{
 			Items: []awsapigatewaytypes.Resource{{
-				Id:   aws.String("res-1"),
-				Path: aws.String("/orders"),
+				Id:   awsv2.String("res-1"),
+				Path: awsv2.String("/orders"),
 				ResourceMethods: map[string]awsapigatewaytypes.Method{"POST": {
 					MethodIntegration: &awsapigatewaytypes.Integration{
 						Type:             awsapigatewaytypes.IntegrationTypeAwsProxy,
-						Uri:              aws.String("arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/" + lambdaARN + "/invocations"),
-						Credentials:      aws.String("arn:aws:iam::123456789012:role/secret"),
+						Uri:              awsv2.String("arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/" + lambdaARN + "/invocations"),
+						Credentials:      awsv2.String("arn:aws:iam::123456789012:role/secret"),
 						RequestTemplates: map[string]string{"application/json": "$input.body"},
 						ConnectionType:   awsapigatewaytypes.ConnectionTypeInternet,
 						TimeoutInMillis:  29000,
@@ -79,69 +79,69 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 		}},
 		restDomainPages: []*awsapigateway.GetDomainNamesOutput{{
 			Items: []awsapigatewaytypes.DomainName{{
-				DomainName:                          aws.String("api.example.com"),
-				DomainNameArn:                       aws.String(restDomainARN),
-				RegionalCertificateArn:              aws.String(certificateARN),
-				OwnershipVerificationCertificateArn: aws.String(certificateARN),
-				RegionalDomainName:                  aws.String("d-abc.execute-api.us-east-1.amazonaws.com"),
-				RegionalHostedZoneId:                aws.String("Z1UJRXOUMOOFQ8"),
+				DomainName:                          awsv2.String("api.example.com"),
+				DomainNameArn:                       awsv2.String(restDomainARN),
+				RegionalCertificateArn:              awsv2.String(certificateARN),
+				OwnershipVerificationCertificateArn: awsv2.String(certificateARN),
+				RegionalDomainName:                  awsv2.String("d-abc.execute-api.us-east-1.amazonaws.com"),
+				RegionalHostedZoneId:                awsv2.String("Z1UJRXOUMOOFQ8"),
 				DomainNameStatus:                    awsapigatewaytypes.DomainNameStatusAvailable,
 				EndpointConfiguration: &awsapigatewaytypes.EndpointConfiguration{
 					Types: []awsapigatewaytypes.EndpointType{awsapigatewaytypes.EndpointTypeRegional},
 				},
-				Policy:           aws.String("should-not-persist"),
-				ManagementPolicy: aws.String("should-not-persist"),
+				Policy:           awsv2.String("should-not-persist"),
+				ManagementPolicy: awsv2.String("should-not-persist"),
 				Tags:             map[string]string{"Domain": "orders"},
 			}},
 		}},
 		restMappingPages: []*awsapigateway.GetBasePathMappingsOutput{{
 			Items: []awsapigatewaytypes.BasePathMapping{{
-				BasePath:  aws.String("(none)"),
-				RestApiId: aws.String(restAPIID),
-				Stage:     aws.String("prod"),
+				BasePath:  awsv2.String("(none)"),
+				RestApiId: awsv2.String(restAPIID),
+				Stage:     awsv2.String("prod"),
 			}},
 		}},
 	}
 	v2Fake := &fakeV2API{
 		v2APIPages: []*awsapigatewayv2.GetApisOutput{{
 			Items: []awsapigatewayv2types.Api{{
-				ApiId:                     aws.String(v2APIID),
-				Name:                      aws.String("orders-http"),
+				ApiId:                     awsv2.String(v2APIID),
+				Name:                      awsv2.String("orders-http"),
 				ProtocolType:              awsapigatewayv2types.ProtocolTypeHttp,
-				ApiEndpoint:               aws.String("https://z9y8x7w6.execute-api.us-east-1.amazonaws.com"),
-				CreatedDate:               aws.Time(created),
-				DisableExecuteApiEndpoint: aws.Bool(true),
-				ApiGatewayManaged:         aws.Bool(true),
+				ApiEndpoint:               awsv2.String("https://z9y8x7w6.execute-api.us-east-1.amazonaws.com"),
+				CreatedDate:               awsv2.Time(created),
+				DisableExecuteApiEndpoint: awsv2.Bool(true),
+				ApiGatewayManaged:         awsv2.Bool(true),
 				IpAddressType:             awsapigatewayv2types.IpAddressTypeDualstack,
 				Tags:                      map[string]string{"Environment": "prod"},
 			}},
 		}},
 		v2StagePages: []*awsapigatewayv2.GetStagesOutput{{
 			Items: []awsapigatewayv2types.Stage{{
-				StageName:      aws.String("$default"),
-				DeploymentId:   aws.String("dep-v2"),
-				AutoDeploy:     aws.Bool(true),
+				StageName:      awsv2.String("$default"),
+				DeploymentId:   awsv2.String("dep-v2"),
+				AutoDeploy:     awsv2.Bool(true),
 				StageVariables: map[string]string{"SECRET": "should-not-persist"},
 			}},
 		}},
 		v2IntegrationPages: []*awsapigatewayv2.GetIntegrationsOutput{{
 			Items: []awsapigatewayv2types.Integration{{
-				IntegrationId:        aws.String("int-1"),
-				IntegrationMethod:    aws.String("POST"),
+				IntegrationId:        awsv2.String("int-1"),
+				IntegrationMethod:    awsv2.String("POST"),
 				IntegrationType:      awsapigatewayv2types.IntegrationTypeAwsProxy,
-				IntegrationUri:       aws.String(lambdaARN),
-				CredentialsArn:       aws.String("arn:aws:iam::123456789012:role/secret"),
-				PayloadFormatVersion: aws.String("2.0"),
-				TimeoutInMillis:      aws.Int32(30000),
+				IntegrationUri:       awsv2.String(lambdaARN),
+				CredentialsArn:       awsv2.String("arn:aws:iam::123456789012:role/secret"),
+				PayloadFormatVersion: awsv2.String("2.0"),
+				TimeoutInMillis:      awsv2.Int32(30000),
 			}},
 		}},
 		v2DomainPages: []*awsapigatewayv2.GetDomainNamesOutput{{
 			Items: []awsapigatewayv2types.DomainName{{
-				DomainName:                    aws.String("http.example.com"),
-				DomainNameArn:                 aws.String("arn:aws:apigateway:us-east-1::/domainnames/http.example.com"),
-				ApiMappingSelectionExpression: aws.String("$request.basepath"),
+				DomainName:                    awsv2.String("http.example.com"),
+				DomainNameArn:                 awsv2.String("arn:aws:apigateway:us-east-1::/domainnames/http.example.com"),
+				ApiMappingSelectionExpression: awsv2.String("$request.basepath"),
 				DomainNameConfigurations: []awsapigatewayv2types.DomainNameConfiguration{{
-					CertificateArn: aws.String(certificateARN),
+					CertificateArn: awsv2.String(certificateARN),
 					EndpointType:   awsapigatewayv2types.EndpointTypeRegional,
 					SecurityPolicy: awsapigatewayv2types.SecurityPolicyTls12,
 				}},
@@ -149,17 +149,17 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 		}},
 		v2MappingPages: []*awsapigatewayv2.GetApiMappingsOutput{{
 			Items: []awsapigatewayv2types.ApiMapping{{
-				ApiMappingId:  aws.String("map-1"),
-				ApiMappingKey: aws.String("orders"),
-				ApiId:         aws.String(v2APIID),
-				Stage:         aws.String("$default"),
+				ApiMappingId:  awsv2.String("map-1"),
+				ApiMappingKey: awsv2.String("orders"),
+				ApiId:         awsv2.String(v2APIID),
+				Stage:         awsv2.String("$default"),
 			}},
 		}},
 	}
 	adapter := &Client{
 		rest:     restFake,
 		v2:       v2Fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGateway},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAPIGateway},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())

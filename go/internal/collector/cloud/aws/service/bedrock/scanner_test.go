@@ -17,31 +17,31 @@ func TestScannerEmitsResourcesAndRelationshipsMetadataOnly(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
 
 	for _, resourceType := range []string{
-		awscloud.ResourceTypeBedrockFoundationModel,
-		awscloud.ResourceTypeBedrockCustomModel,
-		awscloud.ResourceTypeBedrockModelCustomizationJob,
-		awscloud.ResourceTypeBedrockProvisionedModelThroughput,
-		awscloud.ResourceTypeBedrockGuardrail,
-		awscloud.ResourceTypeBedrockAgent,
-		awscloud.ResourceTypeBedrockAgentActionGroup,
-		awscloud.ResourceTypeBedrockKnowledgeBase,
+		aws.ResourceTypeBedrockFoundationModel,
+		aws.ResourceTypeBedrockCustomModel,
+		aws.ResourceTypeBedrockModelCustomizationJob,
+		aws.ResourceTypeBedrockProvisionedModelThroughput,
+		aws.ResourceTypeBedrockGuardrail,
+		aws.ResourceTypeBedrockAgent,
+		aws.ResourceTypeBedrockAgentActionGroup,
+		aws.ResourceTypeBedrockKnowledgeBase,
 	} {
 		resourceByType(t, envelopes, resourceType)
 	}
 
 	for _, relationshipType := range []string{
-		awscloud.RelationshipBedrockCustomModelUsesBaseModel,
-		awscloud.RelationshipBedrockCustomModelUsesS3Output,
-		awscloud.RelationshipBedrockCustomModelFromCustomizationJob,
-		awscloud.RelationshipBedrockProvisionedThroughputUsesModel,
-		awscloud.RelationshipBedrockAgentUsesFoundationModel,
-		awscloud.RelationshipBedrockAgentUsesKnowledgeBase,
-		awscloud.RelationshipBedrockAgentHasActionGroup,
-		awscloud.RelationshipBedrockActionGroupUsesLambda,
-		awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
-		awscloud.RelationshipBedrockKnowledgeBaseUsesConfluence,
-		awscloud.RelationshipBedrockKnowledgeBaseUsesSharePoint,
-		awscloud.RelationshipBedrockKnowledgeBaseUsesWebCrawler,
+		aws.RelationshipBedrockCustomModelUsesBaseModel,
+		aws.RelationshipBedrockCustomModelUsesS3Output,
+		aws.RelationshipBedrockCustomModelFromCustomizationJob,
+		aws.RelationshipBedrockProvisionedThroughputUsesModel,
+		aws.RelationshipBedrockAgentUsesFoundationModel,
+		aws.RelationshipBedrockAgentUsesKnowledgeBase,
+		aws.RelationshipBedrockAgentHasActionGroup,
+		aws.RelationshipBedrockActionGroupUsesLambda,
+		aws.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
+		aws.RelationshipBedrockKnowledgeBaseUsesConfluence,
+		aws.RelationshipBedrockKnowledgeBaseUsesSharePoint,
+		aws.RelationshipBedrockKnowledgeBaseUsesWebCrawler,
 	} {
 		relationshipByType(t, envelopes, relationshipType)
 	}
@@ -104,7 +104,7 @@ func TestScannerEmitsOnlyAllowlistedAttributeKeys(t *testing.T) {
 
 func TestScannerAgentOmitsInstructionAndPromptOverrideAttributes(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
-	agent := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockAgent)
+	agent := resourceByType(t, envelopes, aws.ResourceTypeBedrockAgent)
 	attributes := attributesOf(t, agent)
 	for key := range attributes {
 		lower := strings.ToLower(key)
@@ -119,7 +119,7 @@ func TestScannerAgentOmitsInstructionAndPromptOverrideAttributes(t *testing.T) {
 
 func TestScannerGuardrailOmitsPolicyBodyAttributes(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
-	guardrail := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockGuardrail)
+	guardrail := resourceByType(t, envelopes, aws.ResourceTypeBedrockGuardrail)
 	attributes := attributesOf(t, guardrail)
 	for key := range attributes {
 		lower := strings.ToLower(key)
@@ -135,32 +135,32 @@ func TestScannerGuardrailOmitsPolicyBodyAttributes(t *testing.T) {
 func TestScannerCustomModelRelationshipTargetTypes(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
 
-	base := relationshipByType(t, envelopes, awscloud.RelationshipBedrockCustomModelUsesBaseModel)
-	if got, want := base.Payload["target_type"], awscloud.ResourceTypeBedrockFoundationModel; got != want {
+	base := relationshipByType(t, envelopes, aws.RelationshipBedrockCustomModelUsesBaseModel)
+	if got, want := base.Payload["target_type"], aws.ResourceTypeBedrockFoundationModel; got != want {
 		t.Fatalf("base model target_type = %#v, want %q", got, want)
 	}
 
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipBedrockCustomModelUsesS3Output)
+	s3 := relationshipByType(t, envelopes, aws.RelationshipBedrockCustomModelUsesS3Output)
 	if got, want := s3.Payload["target_resource_id"], "arn:aws:s3:::custom-model-output"; got != want {
 		t.Fatalf("custom model S3 output target = %#v, want %q", got, want)
 	}
-	if got, want := s3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("custom model S3 output target_type = %#v, want %q", got, want)
 	}
 
-	job := relationshipByType(t, envelopes, awscloud.RelationshipBedrockCustomModelFromCustomizationJob)
-	if got, want := job.Payload["target_type"], awscloud.ResourceTypeBedrockModelCustomizationJob; got != want {
+	job := relationshipByType(t, envelopes, aws.RelationshipBedrockCustomModelFromCustomizationJob)
+	if got, want := job.Payload["target_type"], aws.ResourceTypeBedrockModelCustomizationJob; got != want {
 		t.Fatalf("custom model job target_type = %#v, want %q", got, want)
 	}
 }
 
 func TestScannerActionGroupLambdaJoinTarget(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
-	lambda := relationshipByType(t, envelopes, awscloud.RelationshipBedrockActionGroupUsesLambda)
+	lambda := relationshipByType(t, envelopes, aws.RelationshipBedrockActionGroupUsesLambda)
 	if got, want := lambda.Payload["target_resource_id"], "arn:aws:lambda:us-east-1:123456789012:function:order-tool"; got != want {
 		t.Fatalf("action group lambda target = %#v, want %q", got, want)
 	}
-	if got, want := lambda.Payload["target_type"], awscloud.ResourceTypeLambdaFunction; got != want {
+	if got, want := lambda.Payload["target_type"], aws.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("action group lambda target_type = %#v, want %q", got, want)
 	}
 	if got, want := lambda.Payload["target_arn"], "arn:aws:lambda:us-east-1:123456789012:function:order-tool"; got != want {
@@ -171,15 +171,15 @@ func TestScannerActionGroupLambdaJoinTarget(t *testing.T) {
 func TestScannerKnowledgeBaseDataSourceTargets(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
 
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource)
+	s3 := relationshipByType(t, envelopes, aws.RelationshipBedrockKnowledgeBaseUsesS3DataSource)
 	if got, want := s3.Payload["target_resource_id"], "arn:aws:s3:::kb-docs"; got != want {
 		t.Fatalf("kb S3 data source target = %#v, want %q", got, want)
 	}
-	if got, want := s3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("kb S3 data source target_type = %#v, want %q", got, want)
 	}
 
-	web := relationshipByType(t, envelopes, awscloud.RelationshipBedrockKnowledgeBaseUsesWebCrawler)
+	web := relationshipByType(t, envelopes, aws.RelationshipBedrockKnowledgeBaseUsesWebCrawler)
 	if got, want := web.Payload["target_resource_id"], "https://docs.example.com"; got != want {
 		t.Fatalf("kb web crawler target = %#v, want %q", got, want)
 	}
@@ -207,7 +207,7 @@ func TestScannerRelationshipsNeverHaveEmptyTargetType(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSageMaker
+	boundary.ServiceKind = aws.ServiceSageMaker
 	if _, err := (Scanner{Client: richClient()}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
@@ -246,11 +246,11 @@ func scanFixture(t *testing.T, client Client) []facts.Envelope {
 	return envelopes
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceBedrock,
+		ServiceKind:         aws.ServiceBedrock,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:bedrock:1",
 		CollectorInstanceID: "aws-prod",

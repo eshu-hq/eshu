@@ -18,7 +18,7 @@ const encryptionTypeKMS = "KMS"
 // account-region encryption configuration. X-Ray exposes one encryption
 // configuration per account and region with no ARN, so the scanner keys it by
 // "<account>/<region>/xray-encryption-config" derived from the scan boundary.
-func encryptionConfigResourceID(boundary awscloud.Boundary) string {
+func encryptionConfigResourceID(boundary aws.Boundary) string {
 	account := strings.TrimSpace(boundary.AccountID)
 	region := strings.TrimSpace(boundary.Region)
 	return strings.Join([]string{account, region, "xray-encryption-config"}, "/")

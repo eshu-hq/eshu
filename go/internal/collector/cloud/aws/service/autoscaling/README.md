@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/autoscaling` owns the EC2 Auto Scaling
+`internal/collector/cloud/aws/service/autoscaling` owns the EC2 Auto Scaling
 scanner contract for the AWS cloud collector. It converts Auto Scaling groups,
 launch configurations, scaling policies, lifecycle hooks, and scheduled actions
 into `aws_resource` facts and emits relationship evidence for
@@ -49,7 +49,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -59,11 +59,11 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource/relationship counts after
 `Scanner.Scan` returns. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total{service="autoscaling"}` with the existing
-per-resource `resource_type` label. The `awssdk` adapter records Auto Scaling
+per-resource `resource_type` label. The `sdk` adapter records Auto Scaling
 API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -96,7 +96,7 @@ API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/autoscaling/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/autoscaling/...`
 covers the bounded Auto Scaling metadata path: one paginated
 DescribeAutoScalingGroups stream, one paginated DescribeLaunchConfigurations
 stream, one paginated DescribePolicies stream, one paginated
@@ -104,7 +104,7 @@ DescribeScheduledActions stream, and a per-group DescribeLifecycleHooks call
 (DescribeLifecycleHooks is not paginated by AWS). No mutation or
 capacity-control API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Auto Scaling group, launch-configuration, scaling-policy,
 lifecycle-hook, and scheduled-action fact emission, every relationship's
 non-empty target type and grepped join key, the bare-group-name resource_id

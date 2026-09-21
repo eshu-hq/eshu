@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "memorydb".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceMemoryDB + "  "
+	boundary.ServiceKind = "  " + aws.ServiceMemoryDB + "  "
 	client := fakeClient{clusters: []Cluster{{
 		ARN:  "arn:aws:memorydb:us-east-1:123456789012:cluster/padded",
 		Name: "padded",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMemoryDB; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceMemoryDB; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

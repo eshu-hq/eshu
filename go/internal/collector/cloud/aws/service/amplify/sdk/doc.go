@@ -11,4 +11,4 @@
 // leak. The adapter exposes no Create, Update, Delete, Start (job/deployment),
 // Generate, or webhook API; a reflection guard test asserts the read surface
 // stays metadata-only.
-package awssdk
+package sdk

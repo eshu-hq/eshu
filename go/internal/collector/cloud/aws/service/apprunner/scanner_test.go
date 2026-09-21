@@ -48,12 +48,12 @@ func TestScannerEmitsAllResourceKinds(t *testing.T) {
 		resourceType string
 		want         int
 	}{
-		{awscloud.ResourceTypeAppRunnerService, 2},
-		{awscloud.ResourceTypeAppRunnerConnection, 1},
-		{awscloud.ResourceTypeAppRunnerAutoScalingConfiguration, 1},
-		{awscloud.ResourceTypeAppRunnerObservabilityConfiguration, 1},
-		{awscloud.ResourceTypeAppRunnerVpcConnector, 1},
-		{awscloud.ResourceTypeAppRunnerVpcIngressConnection, 1},
+		{aws.ResourceTypeAppRunnerService, 2},
+		{aws.ResourceTypeAppRunnerConnection, 1},
+		{aws.ResourceTypeAppRunnerAutoScalingConfiguration, 1},
+		{aws.ResourceTypeAppRunnerObservabilityConfiguration, 1},
+		{aws.ResourceTypeAppRunnerVpcConnector, 1},
+		{aws.ResourceTypeAppRunnerVpcIngressConnection, 1},
 	} {
 		if got := resourcesByType(t, envelopes, tc.resourceType); len(got) != tc.want {
 			t.Fatalf("resource %q count = %d, want %d", tc.resourceType, len(got), tc.want)
@@ -70,7 +70,7 @@ func TestServiceResourceIDIsServiceARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	services := resourcesByType(t, envelopes, awscloud.ResourceTypeAppRunnerService)
+	services := resourcesByType(t, envelopes, aws.ResourceTypeAppRunnerService)
 	var found bool
 	for _, service := range services {
 		if service["resource_id"] == serviceARN {
@@ -99,80 +99,80 @@ func TestServiceRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		targetResourceID string
 	}{
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesImage,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesImage,
 			targetType:       "container_image",
 			sourceResourceID: serviceARN,
 			targetResourceID: imageURI,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesConnection,
-			targetType:       awscloud.ResourceTypeAppRunnerConnection,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesConnection,
+			targetType:       aws.ResourceTypeAppRunnerConnection,
 			sourceResourceID: imageServiceARN,
 			targetResourceID: connectionARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesIAMRole,
+			targetType:       aws.ResourceTypeIAMRole,
 			sourceResourceID: serviceARN,
 			targetResourceID: accessRoleARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesIAMRole,
+			targetType:       aws.ResourceTypeIAMRole,
 			sourceResourceID: serviceARN,
 			targetResourceID: instanceRoleARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesKMSKey,
-			targetType:       awscloud.ResourceTypeKMSKey,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesKMSKey,
+			targetType:       aws.ResourceTypeKMSKey,
 			sourceResourceID: serviceARN,
 			targetResourceID: kmsKeyARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesVpcConnector,
-			targetType:       awscloud.ResourceTypeAppRunnerVpcConnector,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesVpcConnector,
+			targetType:       aws.ResourceTypeAppRunnerVpcConnector,
 			sourceResourceID: serviceARN,
 			targetResourceID: vpcConnectorARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesAutoScalingConfiguration,
-			targetType:       awscloud.ResourceTypeAppRunnerAutoScalingConfiguration,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesAutoScalingConfiguration,
+			targetType:       aws.ResourceTypeAppRunnerAutoScalingConfiguration,
 			sourceResourceID: serviceARN,
 			targetResourceID: autoScalingARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceUsesObservabilityConfiguration,
-			targetType:       awscloud.ResourceTypeAppRunnerObservabilityConfiguration,
+			relationshipType: aws.RelationshipAppRunnerServiceUsesObservabilityConfiguration,
+			targetType:       aws.ResourceTypeAppRunnerObservabilityConfiguration,
 			sourceResourceID: serviceARN,
 			targetResourceID: observabilityARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceReferencesSecret,
-			targetType:       awscloud.ResourceTypeSecretsManagerSecret,
+			relationshipType: aws.RelationshipAppRunnerServiceReferencesSecret,
+			targetType:       aws.ResourceTypeSecretsManagerSecret,
 			sourceResourceID: serviceARN,
 			targetResourceID: secretARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerServiceReferencesSecret,
-			targetType:       awscloud.ResourceTypeSSMParameter,
+			relationshipType: aws.RelationshipAppRunnerServiceReferencesSecret,
+			targetType:       aws.ResourceTypeSSMParameter,
 			sourceResourceID: serviceARN,
 			targetResourceID: ssmSecretARN,
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSubnet,
-			targetType:       awscloud.ResourceTypeEC2Subnet,
+			relationshipType: aws.RelationshipAppRunnerVpcConnectorUsesSubnet,
+			targetType:       aws.ResourceTypeEC2Subnet,
 			sourceResourceID: vpcConnectorARN,
 			targetResourceID: "subnet-aaa",
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
-			targetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			relationshipType: aws.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
+			targetType:       aws.ResourceTypeEC2SecurityGroup,
 			sourceResourceID: vpcConnectorARN,
 			targetResourceID: "sg-111",
 		},
 		{
-			relationshipType: awscloud.RelationshipAppRunnerVpcIngressConnectionTargetsService,
-			targetType:       awscloud.ResourceTypeAppRunnerService,
+			relationshipType: aws.RelationshipAppRunnerVpcIngressConnectionTargetsService,
+			targetType:       aws.ResourceTypeAppRunnerService,
 			sourceResourceID: vpcIngressARN,
 			targetResourceID: serviceARN,
 		},
@@ -210,7 +210,7 @@ func TestServiceNeverPersistsEnvironmentValuesOrCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	services := resourcesByType(t, envelopes, awscloud.ResourceTypeAppRunnerService)
+	services := resourcesByType(t, envelopes, aws.ResourceTypeAppRunnerService)
 	var imageService map[string]any
 	for _, service := range services {
 		if service["resource_id"] == serviceARN {
@@ -246,7 +246,7 @@ func TestSourceConfigurationTypeAndHealthCheckPersisted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	services := resourcesByType(t, envelopes, awscloud.ResourceTypeAppRunnerService)
+	services := resourcesByType(t, envelopes, aws.ResourceTypeAppRunnerService)
 	var service map[string]any
 	for _, candidate := range services {
 		if candidate["resource_id"] == serviceARN {
@@ -283,16 +283,16 @@ func TestSecretReferenceClassification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	relationships := relationshipsByType(t, envelopes, awscloud.RelationshipAppRunnerServiceReferencesSecret)
+	relationships := relationshipsByType(t, envelopes, aws.RelationshipAppRunnerServiceReferencesSecret)
 	seen := map[string]string{}
 	for _, relationship := range relationships {
 		seen[relationship["target_resource_id"].(string)] = relationship["target_type"].(string)
 	}
-	if seen[secretARN] != awscloud.ResourceTypeSecretsManagerSecret {
-		t.Fatalf("secret %q target_type = %q, want %q", secretARN, seen[secretARN], awscloud.ResourceTypeSecretsManagerSecret)
+	if seen[secretARN] != aws.ResourceTypeSecretsManagerSecret {
+		t.Fatalf("secret %q target_type = %q, want %q", secretARN, seen[secretARN], aws.ResourceTypeSecretsManagerSecret)
 	}
-	if seen[ssmSecretARN] != awscloud.ResourceTypeSSMParameter {
-		t.Fatalf("secret %q target_type = %q, want %q", ssmSecretARN, seen[ssmSecretARN], awscloud.ResourceTypeSSMParameter)
+	if seen[ssmSecretARN] != aws.ResourceTypeSSMParameter {
+		t.Fatalf("secret %q target_type = %q, want %q", ssmSecretARN, seen[ssmSecretARN], aws.ResourceTypeSSMParameter)
 	}
 }
 

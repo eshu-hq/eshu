@@ -12,25 +12,25 @@ import (
 // jobQueueRelationships records the compute-environment dispatch order of a
 // job queue. Each edge targets the compute environment by its reported
 // identity so reducers can join to the compute-environment resource fact.
-func jobQueueRelationships(boundary awscloud.Boundary, jobQueue JobQueue) []awscloud.RelationshipObservation {
+func jobQueueRelationships(boundary aws.Boundary, jobQueue JobQueue) []aws.RelationshipObservation {
 	jobQueueID := firstNonEmpty(jobQueue.ARN, jobQueue.Name)
 	if jobQueueID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, entry := range jobQueue.ComputeEnvironmentOrder {
 		computeEnvironment := strings.TrimSpace(entry.ComputeEnvironment)
 		if computeEnvironment == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobQueueUsesComputeEnvironment,
+			RelationshipType: aws.RelationshipBatchJobQueueUsesComputeEnvironment,
 			SourceResourceID: jobQueueID,
 			SourceARN:        strings.TrimSpace(jobQueue.ARN),
 			TargetResourceID: computeEnvironment,
 			TargetARN:        arnOrEmpty(computeEnvironment),
-			TargetType:       awscloud.ResourceTypeBatchComputeEnvironment,
+			TargetType:       aws.ResourceTypeBatchComputeEnvironment,
 			Attributes:       map[string]any{"order": entry.Order},
 			SourceRecordID:   jobQueueID + "#compute-environment#" + computeEnvironment,
 		})
@@ -42,24 +42,24 @@ func jobQueueRelationships(boundary awscloud.Boundary, jobQueue JobQueue) []awsc
 // template, and security group joins of a compute environment. Every edge sets
 // a non-empty target_type matching the target scanner's resource_id form.
 func computeEnvironmentRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	computeEnvironment ComputeEnvironment,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	computeEnvironmentID := firstNonEmpty(computeEnvironment.ARN, computeEnvironment.Name)
 	if computeEnvironmentID == "" {
 		return nil
 	}
 	computeEnvironmentARN := strings.TrimSpace(computeEnvironment.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	addRole := func(roleARN, targetType, recordSuffix string) {
 		roleARN = strings.TrimSpace(roleARN)
 		if roleARN == "" {
 			return
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesIAMRole,
+			RelationshipType: aws.RelationshipBatchComputeEnvironmentUsesIAMRole,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: roleARN,
@@ -68,41 +68,41 @@ func computeEnvironmentRelationships(
 			SourceRecordID:   computeEnvironmentID + "#" + recordSuffix + "#" + roleARN,
 		})
 	}
-	addRole(computeEnvironment.ServiceRoleARN, awscloud.ResourceTypeIAMRole, "service-role")
+	addRole(computeEnvironment.ServiceRoleARN, aws.ResourceTypeIAMRole, "service-role")
 	addRole(computeEnvironment.InstanceRoleARN, instanceRoleTargetType(computeEnvironment.InstanceRoleARN), "instance-role")
 
 	for _, subnetID := range dedupeStrings(computeEnvironment.ComputeResource.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesSubnet,
+			RelationshipType: aws.RelationshipBatchComputeEnvironmentUsesSubnet,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   computeEnvironmentID + "#subnet#" + subnetID,
 		})
 	}
 
 	for _, securityGroupID := range dedupeStrings(computeEnvironment.ComputeResource.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesSecurityGroup,
+			RelationshipType: aws.RelationshipBatchComputeEnvironmentUsesSecurityGroup,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   computeEnvironmentID + "#security-group#" + securityGroupID,
 		})
 	}
 
 	if launchTemplate := launchTemplateTargetID(computeEnvironment.ComputeResource); launchTemplate != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
+			RelationshipType: aws.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: launchTemplate,
-			TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			TargetType:       aws.ResourceTypeEC2LaunchTemplate,
 			SourceRecordID:   computeEnvironmentID + "#launch-template#" + launchTemplate,
 		})
 	}
@@ -114,34 +114,34 @@ func computeEnvironmentRelationships(
 // reference joins of a job definition. Secret edges carry the Secrets Manager
 // or SSM ARN reference only; the resolved value is never read.
 func jobDefinitionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	jobDefinition JobDefinition,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	jobDefinitionID := firstNonEmpty(jobDefinition.ARN, strings.TrimSpace(jobDefinition.Name))
 	if jobDefinitionID == "" || jobDefinition.Container == nil {
 		return nil
 	}
 	jobDefinitionARN := strings.TrimSpace(jobDefinition.ARN)
 	container := jobDefinition.Container
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	for _, roleARN := range dedupeStrings([]string{container.JobRoleARN, container.ExecutionRoleARN}) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionUsesIAMRole,
+			RelationshipType: aws.RelationshipBatchJobDefinitionUsesIAMRole,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       aws.ResourceTypeIAMRole,
 			SourceRecordID:   jobDefinitionID + "#role#" + roleARN,
 		})
 	}
 
 	if image := strings.TrimSpace(container.Image); image != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionUsesImage,
+			RelationshipType: aws.RelationshipBatchJobDefinitionUsesImage,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: image,
@@ -155,9 +155,9 @@ func jobDefinitionRelationships(
 		if valueFrom == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionReferencesSecret,
+			RelationshipType: aws.RelationshipBatchJobDefinitionReferencesSecret,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: valueFrom,
@@ -182,9 +182,9 @@ func launchTemplateTargetID(computeResource ComputeResource) string {
 // profile, otherwise as an IAM role.
 func instanceRoleTargetType(roleARN string) string {
 	if strings.Contains(strings.TrimSpace(roleARN), ":instance-profile/") {
-		return awscloud.ResourceTypeIAMInstanceProfile
+		return aws.ResourceTypeIAMInstanceProfile
 	}
-	return awscloud.ResourceTypeIAMRole
+	return aws.ResourceTypeIAMRole
 }
 
 // secretReferenceTargetType classifies a container secret reference ARN as an
@@ -192,9 +192,9 @@ func instanceRoleTargetType(roleARN string) string {
 // Manager secret.
 func secretReferenceTargetType(valueFrom string) string {
 	if strings.HasPrefix(strings.TrimSpace(valueFrom), "arn:") && strings.Contains(valueFrom, ":ssm:") {
-		return awscloud.ResourceTypeSSMParameter
+		return aws.ResourceTypeSSMParameter
 	}
-	return awscloud.ResourceTypeSecretsManagerSecret
+	return aws.ResourceTypeSecretsManagerSecret
 }
 
 // arnOrEmpty returns the candidate when it is an ARN, so relationship target

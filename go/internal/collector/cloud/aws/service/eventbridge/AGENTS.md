@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/eventbridge guidance
+# AGENTS.md - internal/collector/cloud/aws/service/eventbridge guidance
 
 ## Read First
 
@@ -29,10 +29,10 @@
 
 - Add a new EventBridge metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when the EventBridge API reports both sides
   directly and the target identity is not sensitive.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -16,12 +16,12 @@ import (
 // stop conditions. Unresolvable references (a non-ARN role, an unrecognized
 // target ARN family, a missing log group) are skipped rather than keyed to a
 // dangling target.
-func templateRelationships(boundary awscloud.Boundary, template ExperimentTemplate) []awscloud.RelationshipObservation {
+func templateRelationships(boundary aws.Boundary, template ExperimentTemplate) []aws.RelationshipObservation {
 	sourceID := templateResourceID(template)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if rel := templateIAMRoleRelationship(boundary, template, sourceID); rel != nil {
 		relationships = append(relationships, *rel)
 	}
@@ -41,23 +41,23 @@ func templateRelationships(boundary awscloud.Boundary, template ExperimentTempla
 // role resource_id. It returns nil when no role ARN is reported or it is not an
 // ARN.
 func templateIAMRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(template.RoleARN)
 	if roleARN == "" || !isARN(roleARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateUsesIAMRole,
+		RelationshipType: aws.RelationshipFISTemplateUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipFISTemplateUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -67,12 +67,12 @@ func templateIAMRoleRelationship(
 // id, ECS clusters and RDS resources by ARN. Targets selected only by tag or
 // filter (no explicit ARN) and ARNs from unmodeled families are skipped.
 func templateTargetRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	seen := make(map[string]struct{})
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, target := range template.Targets {
 		for _, resourceARN := range target.ResourceARNs {
 			rel := targetResourceRelationship(boundary, template, sourceID, target, resourceARN)
@@ -93,12 +93,12 @@ func templateTargetRelationships(
 // family and keys the edge to the published identity, or returns nil when the
 // ARN belongs to a resource family this scanner does not model.
 func targetResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
 	target Target,
 	resourceARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	resourceARN = strings.TrimSpace(resourceARN)
 	if !isARN(resourceARN) {
 		return nil
@@ -116,7 +116,7 @@ func targetResourceRelationship(
 		ec2Attributes := withInstanceARN(attributes, resourceARN)
 		return newTargetRelationship(
 			boundary, template, sourceID,
-			awscloud.RelationshipFISTemplateTargetsEC2Instance,
+			aws.RelationshipFISTemplateTargetsEC2Instance,
 			instanceID, "", ec2InstanceTargetType, ec2Attributes,
 		)
 	case "ecs":
@@ -125,8 +125,8 @@ func targetResourceRelationship(
 		}
 		return newTargetRelationship(
 			boundary, template, sourceID,
-			awscloud.RelationshipFISTemplateTargetsECSCluster,
-			resourceARN, resourceARN, awscloud.ResourceTypeECSCluster, attributes,
+			aws.RelationshipFISTemplateTargetsECSCluster,
+			resourceARN, resourceARN, aws.ResourceTypeECSCluster, attributes,
 		)
 	case "rds":
 		segment := arnResourceSegment(resourceARN)
@@ -134,14 +134,14 @@ func targetResourceRelationship(
 		case strings.HasPrefix(segment, "db:"):
 			return newTargetRelationship(
 				boundary, template, sourceID,
-				awscloud.RelationshipFISTemplateTargetsRDSDBInstance,
-				resourceARN, resourceARN, awscloud.ResourceTypeRDSDBInstance, attributes,
+				aws.RelationshipFISTemplateTargetsRDSDBInstance,
+				resourceARN, resourceARN, aws.ResourceTypeRDSDBInstance, attributes,
 			)
 		case strings.HasPrefix(segment, "cluster:"):
 			return newTargetRelationship(
 				boundary, template, sourceID,
-				awscloud.RelationshipFISTemplateTargetsRDSDBCluster,
-				resourceARN, resourceARN, awscloud.ResourceTypeRDSDBCluster, attributes,
+				aws.RelationshipFISTemplateTargetsRDSDBCluster,
+				resourceARN, resourceARN, aws.ResourceTypeRDSDBCluster, attributes,
 			)
 		default:
 			return nil
@@ -155,12 +155,12 @@ func targetResourceRelationship(
 // stable, idempotent SourceRecordID keyed on the relationship type and target
 // id so duplicate target ARNs do not create duplicate edges.
 func newTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID, relationshipType, targetID, targetARN, targetType string,
 	attributes map[string]any,
-) *awscloud.RelationshipObservation {
-	return &awscloud.RelationshipObservation{
+) *aws.RelationshipObservation {
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
@@ -216,23 +216,23 @@ func withInstanceARN(base map[string]any, instanceARN string) map[string]any {
 // trimmed so the edge keys the bare log group ARN the cloudwatchlogs node
 // publishes.
 func templateLogGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	logGroupARN := strings.TrimSuffix(strings.TrimSpace(template.LogGroupARN), ":*")
 	if logGroupARN == "" || !isARN(logGroupARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup,
+		RelationshipType: aws.RelationshipFISTemplateLogsToCloudWatchLogGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup + ":" + logGroupARN,
+		TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipFISTemplateLogsToCloudWatchLogGroup + ":" + logGroupARN,
 	}
 }
 
@@ -241,15 +241,15 @@ func templateLogGroupRelationship(
 // bucket ARN to match the S3 scanner's published bucket resource_id. It returns
 // nil when no S3 log destination is configured.
 func templateS3Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	bucket := strings.TrimSpace(template.LogS3Bucket)
 	if bucket == "" {
 		return nil
 	}
-	bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), bucket)
+	bucketARN := arnForBucket(aws.PartitionForBoundary(boundary), bucket)
 	if bucketARN == "" {
 		return nil
 	}
@@ -257,16 +257,16 @@ func templateS3Relationship(
 	if prefix := strings.TrimSpace(template.LogS3Prefix); prefix != "" {
 		attributes["object_key_prefix"] = prefix
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateLogsToS3,
+		RelationshipType: aws.RelationshipFISTemplateLogsToS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateLogsToS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipFISTemplateLogsToS3 + ":" + bucketARN,
 	}
 }
 
@@ -275,30 +275,30 @@ func templateS3Relationship(
 // stop condition, matching how the cloudwatch scanner publishes its alarm
 // resource_id. Non-ARN and the implicit "none" stop condition are skipped.
 func templateStopConditionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	template ExperimentTemplate,
 	sourceID string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	seen := make(map[string]struct{})
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, alarmARN := range template.StopConditionAlarmARNs {
 		alarmARN = strings.TrimSpace(alarmARN)
 		if !isARN(alarmARN) {
 			continue
 		}
-		recordID := sourceID + "->" + awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm + ":" + alarmARN
+		recordID := sourceID + "->" + aws.RelationshipFISTemplateStopsOnCloudWatchAlarm + ":" + alarmARN
 		if _, exists := seen[recordID]; exists {
 			continue
 		}
 		seen[recordID] = struct{}{}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm,
+			RelationshipType: aws.RelationshipFISTemplateStopsOnCloudWatchAlarm,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(template.ARN),
 			TargetResourceID: alarmARN,
 			TargetARN:        alarmARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
+			TargetType:       aws.ResourceTypeCloudWatchAlarm,
 			SourceRecordID:   recordID,
 		})
 	}

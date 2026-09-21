@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cognito/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cognito/sdk guidance
 
 ## Read First
 

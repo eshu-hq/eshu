@@ -13,4 +13,4 @@
 // record-payload API, so they are unreachable through this adapter by
 // construction. Destination access keys, Splunk HEC tokens, Redshift passwords,
 // and processing-configuration Lambda bodies are never mapped.
-package awssdk
+package sdk

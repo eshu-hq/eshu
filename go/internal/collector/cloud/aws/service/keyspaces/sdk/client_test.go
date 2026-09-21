@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskeyspaces "github.com/aws/aws-sdk-go-v2/service/keyspaces"
 	awskeyspacestypes "github.com/aws/aws-sdk-go-v2/service/keyspaces/types"
 
@@ -77,63 +77,63 @@ func TestClientSnapshotMapsKeyspacesAndTablesMetadataOnly(t *testing.T) {
 	api := &fakeKeyspacesAPI{
 		keyspacePages: []*awskeyspaces.ListKeyspacesOutput{{
 			Keyspaces: []awskeyspacestypes.KeyspaceSummary{{
-				KeyspaceName:        aws.String("orders"),
-				ResourceArn:         aws.String(keyspaceARN),
+				KeyspaceName:        awsv2.String("orders"),
+				ResourceArn:         awsv2.String(keyspaceARN),
 				ReplicationStrategy: awskeyspacestypes.RsSingleRegion,
 			}},
 		}},
 		keyspaces: map[string]*awskeyspaces.GetKeyspaceOutput{
 			"orders": {
-				KeyspaceName:        aws.String("orders"),
-				ResourceArn:         aws.String(keyspaceARN),
+				KeyspaceName:        awsv2.String("orders"),
+				ResourceArn:         awsv2.String(keyspaceARN),
 				ReplicationStrategy: awskeyspacestypes.RsSingleRegion,
 			},
 		},
 		tablePages: map[string][]*awskeyspaces.ListTablesOutput{
 			"orders": {{
 				Tables: []awskeyspacestypes.TableSummary{{
-					KeyspaceName: aws.String("orders"),
-					ResourceArn:  aws.String(tableARN),
+					KeyspaceName: awsv2.String("orders"),
+					ResourceArn:  awsv2.String(tableARN),
 				}},
 			}},
 		},
 		tables: map[string]*awskeyspaces.GetTableOutput{
 			"events": {
-				KeyspaceName:      aws.String("orders"),
-				TableName:         aws.String("events"),
-				ResourceArn:       aws.String(tableARN),
+				KeyspaceName:      awsv2.String("orders"),
+				TableName:         awsv2.String("events"),
+				ResourceArn:       awsv2.String(tableARN),
 				Status:            awskeyspacestypes.TableStatusActive,
-				CreationTimestamp: aws.Time(createdAt),
-				DefaultTimeToLive: aws.Int32(3600),
+				CreationTimestamp: awsv2.Time(createdAt),
+				DefaultTimeToLive: awsv2.Int32(3600),
 				CapacitySpecification: &awskeyspacestypes.CapacitySpecificationSummary{
 					ThroughputMode:     awskeyspacestypes.ThroughputModeProvisioned,
-					ReadCapacityUnits:  aws.Int64(5),
-					WriteCapacityUnits: aws.Int64(10),
+					ReadCapacityUnits:  awsv2.Int64(5),
+					WriteCapacityUnits: awsv2.Int64(10),
 				},
 				EncryptionSpecification: &awskeyspacestypes.EncryptionSpecification{
 					Type:             awskeyspacestypes.EncryptionTypeCustomerManagedKmsKey,
-					KmsKeyIdentifier: aws.String(kmsARN),
+					KmsKeyIdentifier: awsv2.String(kmsARN),
 				},
 				PointInTimeRecovery: &awskeyspacestypes.PointInTimeRecoverySummary{
 					Status: awskeyspacestypes.PointInTimeRecoveryStatusEnabled,
 				},
 				SchemaDefinition: &awskeyspacestypes.SchemaDefinition{
 					AllColumns: []awskeyspacestypes.ColumnDefinition{
-						{Name: aws.String("tenant_id"), Type: aws.String("uuid")},
-						{Name: aws.String("payload"), Type: aws.String("text")},
+						{Name: awsv2.String("tenant_id"), Type: awsv2.String("uuid")},
+						{Name: awsv2.String("payload"), Type: awsv2.String("text")},
 					},
-					PartitionKeys: []awskeyspacestypes.PartitionKey{{Name: aws.String("tenant_id")}},
+					PartitionKeys: []awskeyspacestypes.PartitionKey{{Name: awsv2.String("tenant_id")}},
 					ClusteringKeys: []awskeyspacestypes.ClusteringKey{{
-						Name:    aws.String("event_id"),
+						Name:    awsv2.String("event_id"),
 						OrderBy: awskeyspacestypes.SortOrderAsc,
 					}},
-					StaticColumns: []awskeyspacestypes.StaticColumn{{Name: aws.String("tenant_name")}},
+					StaticColumns: []awskeyspacestypes.StaticColumn{{Name: awsv2.String("tenant_name")}},
 				},
 			},
 		},
 		tags: map[string][]*awskeyspaces.ListTagsForResourceOutput{
 			tableARN: {{
-				Tags: []awskeyspacestypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+				Tags: []awskeyspacestypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 			}},
 		},
 	}
@@ -179,11 +179,11 @@ func TestClientSnapshotMapsKeyspacesAndTablesMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceKeyspaces,
+		ServiceKind: aws.ServiceKeyspaces,
 	}
 }
 
@@ -217,7 +217,7 @@ func (f *fakeKeyspacesAPI) GetKeyspace(
 	input *awskeyspaces.GetKeyspaceInput,
 	_ ...func(*awskeyspaces.Options),
 ) (*awskeyspaces.GetKeyspaceOutput, error) {
-	if output := f.keyspaces[aws.ToString(input.KeyspaceName)]; output != nil {
+	if output := f.keyspaces[awsv2.ToString(input.KeyspaceName)]; output != nil {
 		return output, nil
 	}
 	return &awskeyspaces.GetKeyspaceOutput{}, nil
@@ -228,7 +228,7 @@ func (f *fakeKeyspacesAPI) ListTables(
 	input *awskeyspaces.ListTablesInput,
 	_ ...func(*awskeyspaces.Options),
 ) (*awskeyspaces.ListTablesOutput, error) {
-	keyspaceName := aws.ToString(input.KeyspaceName)
+	keyspaceName := awsv2.ToString(input.KeyspaceName)
 	if f.tableCalls == nil {
 		f.tableCalls = map[string]int{}
 	}
@@ -246,7 +246,7 @@ func (f *fakeKeyspacesAPI) GetTable(
 	input *awskeyspaces.GetTableInput,
 	_ ...func(*awskeyspaces.Options),
 ) (*awskeyspaces.GetTableOutput, error) {
-	tableName := aws.ToString(input.TableName)
+	tableName := awsv2.ToString(input.TableName)
 	f.getTableNames = append(f.getTableNames, tableName)
 	if output := f.tables[tableName]; output != nil {
 		return output, nil
@@ -259,7 +259,7 @@ func (f *fakeKeyspacesAPI) ListTagsForResource(
 	input *awskeyspaces.ListTagsForResourceInput,
 	_ ...func(*awskeyspaces.Options),
 ) (*awskeyspaces.ListTagsForResourceOutput, error) {
-	resourceARN := aws.ToString(input.ResourceArn)
+	resourceARN := awsv2.ToString(input.ResourceArn)
 	if f.tagCalls == nil {
 		f.tagCalls = map[string]int{}
 	}

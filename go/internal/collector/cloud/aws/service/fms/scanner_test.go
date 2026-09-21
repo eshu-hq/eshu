@@ -33,7 +33,7 @@ func TestScannerEmitsPolicyMetadataAndSecurityServiceTypeLabel(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeFMSPolicy)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeFMSPolicy)
 	if got, _ := policy.Payload["arn"].(string); got != policyARN {
 		t.Fatalf("arn = %q, want %q", got, policyARN)
 	}
@@ -78,8 +78,8 @@ func TestScannerEmitsPolicyMemberAccountRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	first := relationshipByTarget(t, envelopes, awscloud.RelationshipFMSPolicyAppliesToAccount, "111111111111")
-	if got, want := first.Payload["target_type"], awscloud.ResourceTypeOrganizationsAccount; got != want {
+	first := relationshipByTarget(t, envelopes, aws.RelationshipFMSPolicyAppliesToAccount, "111111111111")
+	if got, want := first.Payload["target_type"], aws.ResourceTypeOrganizationsAccount; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 	if got, want := first.Payload["source_resource_id"], policyARN; got != want {
@@ -91,9 +91,9 @@ func TestScannerEmitsPolicyMemberAccountRelationships(t *testing.T) {
 	if got, _ := first.Payload["target_arn"].(string); got != "" {
 		t.Fatalf("target_arn = %q, want empty (bare-id keyed member account)", got)
 	}
-	relationshipByTarget(t, envelopes, awscloud.RelationshipFMSPolicyAppliesToAccount, "222222222222")
+	relationshipByTarget(t, envelopes, aws.RelationshipFMSPolicyAppliesToAccount, "222222222222")
 
-	if got := countRelationships(envelopes, awscloud.RelationshipFMSPolicyAppliesToAccount); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipFMSPolicyAppliesToAccount); got != 2 {
 		t.Fatalf("member account relationship count = %d, want 2 (deduped)", got)
 	}
 }
@@ -143,13 +143,13 @@ func TestScannerEmitsPartitionAwareARNsFromAPI(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeFMSPolicy)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeFMSPolicy)
 	// The scanner uses the AWS-reported ARN verbatim; it never hardcodes
 	// arn:aws: so the GovCloud partition survives.
 	if got, _ := policy.Payload["arn"].(string); got != govARN {
 		t.Fatalf("arn = %q, want %q (partition preserved from API)", got, govARN)
 	}
-	relationship := relationshipByTarget(t, envelopes, awscloud.RelationshipFMSPolicyAppliesToAccount, "333333333333")
+	relationship := relationshipByTarget(t, envelopes, aws.RelationshipFMSPolicyAppliesToAccount, "333333333333")
 	if got, _ := relationship.Payload["source_arn"].(string); got != govARN {
 		t.Fatalf("source_arn = %q, want %q", got, govARN)
 	}
@@ -157,7 +157,7 @@ func TestScannerEmitsPartitionAwareARNsFromAPI(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceOrganizations
+	boundary.ServiceKind = aws.ServiceOrganizations
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -181,9 +181,9 @@ func TestScannerDefaultsServiceKindWhenBlank(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeFMSPolicy)
-	if got, _ := policy.Payload["service_kind"].(string); got != awscloud.ServiceFMS {
-		t.Fatalf("service_kind = %q, want %q", got, awscloud.ServiceFMS)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeFMSPolicy)
+	if got, _ := policy.Payload["service_kind"].(string); got != aws.ServiceFMS {
+		t.Fatalf("service_kind = %q, want %q", got, aws.ServiceFMS)
 	}
 }
 
@@ -207,11 +207,11 @@ func assertNoForbiddenPolicyPayload(t *testing.T, attributes map[string]any) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFMS,
+		ServiceKind:         aws.ServiceFMS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:fms:1",
 		CollectorInstanceID: "aws-prod",

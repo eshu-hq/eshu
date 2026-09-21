@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awswafv2 "github.com/aws/aws-sdk-go-v2/service/wafv2"
 	awswafv2types "github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 
@@ -16,7 +16,7 @@ import (
 // newTestClient builds a Client around a fake apiClient without touching the
 // AWS SDK constructor. It mirrors the boundary-driven scope selection the
 // production NewClient performs.
-func newTestClient(api apiClient, boundary awscloud.Boundary) *Client {
+func newTestClient(api apiClient, boundary aws.Boundary) *Client {
 	return &Client{
 		client:   api,
 		boundary: boundary,
@@ -78,12 +78,12 @@ func (f *fakeWAFv2API) GetRuleGroup(context.Context, *awswafv2.GetRuleGroupInput
 func (f *fakeWAFv2API) ListIPSets(_ context.Context, input *awswafv2.ListIPSetsInput, _ ...func(*awswafv2.Options)) (*awswafv2.ListIPSetsOutput, error) {
 	f.lastIPSetScope = input.Scope
 	f.ipSetListCalls++
-	f.ipSetPageMarkers = append(f.ipSetPageMarkers, aws.ToString(input.NextMarker))
+	f.ipSetPageMarkers = append(f.ipSetPageMarkers, awsv2.ToString(input.NextMarker))
 	if len(f.ipSetSecondPage) > 0 && input.NextMarker == nil {
 		// First page advertises a marker so the adapter must request page two.
 		return &awswafv2.ListIPSetsOutput{
 			IPSets:     f.ipSetSummaries,
-			NextMarker: aws.String("page-2"),
+			NextMarker: awsv2.String("page-2"),
 		}, nil
 	}
 	if len(f.ipSetSecondPage) > 0 {
@@ -110,7 +110,7 @@ func (f *fakeWAFv2API) ListTagsForResource(context.Context, *awswafv2.ListTagsFo
 	}
 	tagList := make([]awswafv2types.Tag, 0, len(f.webACLTags))
 	for key, value := range f.webACLTags {
-		tagList = append(tagList, awswafv2types.Tag{Key: aws.String(key), Value: aws.String(value)})
+		tagList = append(tagList, awswafv2types.Tag{Key: awsv2.String(key), Value: awsv2.String(value)})
 	}
 	return &awswafv2.ListTagsForResourceOutput{
 		TagInfoForResource: &awswafv2types.TagInfoForResource{TagList: tagList},

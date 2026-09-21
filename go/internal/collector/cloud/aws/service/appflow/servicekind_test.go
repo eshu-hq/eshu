@@ -18,7 +18,7 @@ import (
 // joins/filters that key on the canonical "appflow".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAppFlow + "  "
+	boundary.ServiceKind = "  " + aws.ServiceAppFlow + "  "
 	client := fakeClient{
 		flows: []Flow{{
 			ARN:       "arn:aws:appflow:us-east-1:123456789012:flow/padded",
@@ -36,7 +36,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppFlow; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceAppFlow; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

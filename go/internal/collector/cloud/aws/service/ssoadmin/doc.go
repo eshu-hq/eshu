@@ -13,6 +13,6 @@
 // SDK adapters provide a Snapshot, and Scanner emits aws_resource facts for
 // instances, permission sets, account assignments, applications, trusted token
 // issuers, and resolved principals, plus aws_relationship evidence between
-// them. Principal display names are redacted through awscloud.RedactString
+// them. Principal display names are redacted through aws.RedactString
 // before persistence, so Scanner requires a non-zero redaction key.
 package ssoadmin

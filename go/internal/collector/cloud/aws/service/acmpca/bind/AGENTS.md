@@ -1,23 +1,23 @@
-# AGENTS.md - services/acmpca/runtimebind guidance
+# AGENTS.md - services/acmpca/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - ACM Private CA scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceACMPCA`.
+- Register exactly once from `init()` with `aws.ServiceACMPCA`.
 - Leave `RequiresRedactionKey` unset. The acm-pca scanner is metadata-only and
   routes no operator free-text through redact. Set the flag only if that
   changes, and keep the builder's `d.RedactionKey` guard in lockstep.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
-- Do not validate or transform claims here. Validation belongs to awsruntime and
+- Do not validate or transform claims here. Validation belongs to runtime and
   the scanner. The builder body stays a constructor call.
-- Do not import anything else from `internal/collector/awscloud/service`.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

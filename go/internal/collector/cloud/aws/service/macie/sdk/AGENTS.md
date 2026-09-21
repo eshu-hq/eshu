@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/macie/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/macie/sdk guidance
 
 ## Read First
 

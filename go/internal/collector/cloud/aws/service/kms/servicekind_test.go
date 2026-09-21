@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "kms".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceKMS + "  "
+	boundary.ServiceKind = "  " + aws.ServiceKMS + "  "
 	keyID := "1234abcd-12ab-34cd-56ef-1234567890ab"
 	client := fakeClient{keys: []Key{{
 		ID:         keyID,
@@ -37,7 +37,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceKMS; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceKMS; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

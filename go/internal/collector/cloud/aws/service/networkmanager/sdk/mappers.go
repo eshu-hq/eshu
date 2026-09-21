@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsnm "github.com/aws/aws-sdk-go-v2/service/networkmanager"
 	awsnmtypes "github.com/aws/aws-sdk-go-v2/service/networkmanager/types"
 
@@ -21,9 +21,9 @@ import (
 // us-west-2, GovCloud us-gov-west-1, and China cn-north-1.
 func globalServiceRegion(partition string) string {
 	switch partition {
-	case awscloud.PartitionGovCloud:
+	case aws.PartitionGovCloud:
 		return "us-gov-west-1"
-	case awscloud.PartitionChina:
+	case aws.PartitionChina:
 		return "cn-north-1"
 	default:
 		return "us-west-2"
@@ -52,7 +52,7 @@ func (c *Client) describeGlobalNetworks(ctx context.Context) ([]nmservice.Global
 			networks = append(networks, mapGlobalNetwork(network))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return networks, nil
 		}
 	}
@@ -66,7 +66,7 @@ func (c *Client) getSites(ctx context.Context, globalNetworkID string) ([]nmserv
 		err := c.recordAPICall(ctx, "GetSites", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetSites(callCtx, &awsnm.GetSitesInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -81,7 +81,7 @@ func (c *Client) getSites(ctx context.Context, globalNetworkID string) ([]nmserv
 			sites = append(sites, mapSite(site))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return sites, nil
 		}
 	}
@@ -95,7 +95,7 @@ func (c *Client) getDevices(ctx context.Context, globalNetworkID string) ([]nmse
 		err := c.recordAPICall(ctx, "GetDevices", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetDevices(callCtx, &awsnm.GetDevicesInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -110,7 +110,7 @@ func (c *Client) getDevices(ctx context.Context, globalNetworkID string) ([]nmse
 			devices = append(devices, mapDevice(device))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return devices, nil
 		}
 	}
@@ -124,7 +124,7 @@ func (c *Client) getLinks(ctx context.Context, globalNetworkID string) ([]nmserv
 		err := c.recordAPICall(ctx, "GetLinks", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetLinks(callCtx, &awsnm.GetLinksInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -139,7 +139,7 @@ func (c *Client) getLinks(ctx context.Context, globalNetworkID string) ([]nmserv
 			links = append(links, mapLink(link))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return links, nil
 		}
 	}
@@ -153,7 +153,7 @@ func (c *Client) getConnections(ctx context.Context, globalNetworkID string) ([]
 		err := c.recordAPICall(ctx, "GetConnections", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetConnections(callCtx, &awsnm.GetConnectionsInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -168,7 +168,7 @@ func (c *Client) getConnections(ctx context.Context, globalNetworkID string) ([]
 			connections = append(connections, mapConnection(connection))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return connections, nil
 		}
 	}
@@ -182,7 +182,7 @@ func (c *Client) getLinkAssociations(ctx context.Context, globalNetworkID string
 		err := c.recordAPICall(ctx, "GetLinkAssociations", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetLinkAssociations(callCtx, &awsnm.GetLinkAssociationsInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -197,7 +197,7 @@ func (c *Client) getLinkAssociations(ctx context.Context, globalNetworkID string
 			associations = append(associations, mapLinkAssociation(association))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return associations, nil
 		}
 	}
@@ -214,7 +214,7 @@ func (c *Client) getTransitGatewayRegistrations(
 		err := c.recordAPICall(ctx, "GetTransitGatewayRegistrations", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.GetTransitGatewayRegistrations(callCtx, &awsnm.GetTransitGatewayRegistrationsInput{
-				GlobalNetworkId: aws.String(globalNetworkID),
+				GlobalNetworkId: awsv2.String(globalNetworkID),
 				NextToken:       token,
 			})
 			return callErr
@@ -229,7 +229,7 @@ func (c *Client) getTransitGatewayRegistrations(
 			registrations = append(registrations, mapTransitGatewayRegistration(registration))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return registrations, nil
 		}
 	}
@@ -257,7 +257,7 @@ func (c *Client) listCoreNetworks(ctx context.Context) ([]nmservice.CoreNetwork,
 		}
 		summaries = append(summaries, page.CoreNetworks...)
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			break
 		}
 	}
@@ -277,7 +277,7 @@ func (c *Client) getCoreNetwork(
 	ctx context.Context,
 	summary awsnmtypes.CoreNetworkSummary,
 ) (nmservice.CoreNetwork, error) {
-	id := strings.TrimSpace(aws.ToString(summary.CoreNetworkId))
+	id := strings.TrimSpace(awsv2.ToString(summary.CoreNetworkId))
 	if id == "" {
 		return mapCoreNetworkSummary(summary), nil
 	}
@@ -285,7 +285,7 @@ func (c *Client) getCoreNetwork(
 	err := c.recordAPICall(ctx, "GetCoreNetwork", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetCoreNetwork(callCtx, &awsnm.GetCoreNetworkInput{
-			CoreNetworkId: aws.String(id),
+			CoreNetworkId: awsv2.String(id),
 		})
 		return callErr
 	})

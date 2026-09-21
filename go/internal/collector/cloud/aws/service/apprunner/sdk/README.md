@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/apprunner/awssdk` adapts the AWS SDK for
+`internal/collector/cloud/aws/service/apprunner/sdk` adapts the AWS SDK for
 Go v2 App Runner client into the scanner-owned records the App Runner scanner
 consumes. It owns NextToken pagination, per-resource describe enrichment,
 SDK-to-scanner mapping, and AWS API telemetry for the App Runner read surface.
@@ -29,9 +29,9 @@ surface stays explicit and auditable.
 
 - `github.com/aws/aws-sdk-go-v2/service/apprunner` and its `types` package for
   the App Runner client and response shapes.
-- `internal/collector/awscloud` for the boundary, API-call recording, and the
+- `internal/collector/cloud/aws` for the boundary, API-call recording, and the
   shared throttle/telemetry helpers.
-- `internal/collector/awscloud/service/apprunner` for the scanner-owned record
+- `internal/collector/cloud/aws/service/apprunner` for the scanner-owned record
   types this adapter produces.
 - `internal/telemetry` for the AWS API-call counters and pagination span name.
 
@@ -66,7 +66,7 @@ labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/apprunner/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/apprunner/...`
 covers the bounded App Runner metadata path: one paginated ListServices stream
 with a DescribeService and ListTagsForResource enrichment per service, one
 paginated ListConnections stream, one paginated ListAutoScalingConfigurations
@@ -77,7 +77,7 @@ ListVpcConnectors stream, and one paginated ListVpcIngressConnections stream
 with a DescribeVpcIngressConnection enrichment per connection. No mutation or
 lifecycle API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers service, connection, autoscaling, observability, VPC-connector, and
 VPC-ingress fact emission, relationship target types and join keys, structural
 exclusion of environment-variable values and source credentials, runtime
@@ -100,6 +100,6 @@ counters, and `aws_scan_status`. No new instrument or label was added.
 ## Related docs
 
 - `../README.md` for the App Runner scanner contract.
-- `../../../awsruntime/README.md` for the runtime surface.
+- `../../../runtime/README.md` for the runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

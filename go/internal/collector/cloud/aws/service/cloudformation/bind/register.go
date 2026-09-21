@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package runtimebind binds the CloudFormation service scanner into the
-// awsruntime registry. Importing this package for its init side effect adds the
+// Package bind binds the CloudFormation service scanner into the
+// runtime registry. Importing this package for its init side effect adds the
 // production scanner to the registry without modifying any shared file.
-package runtimebind
+package bind
 
 import (
 	"fmt"
@@ -16,10 +16,10 @@ import (
 )
 
 func init() {
-	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind:          awscloud.ServiceCloudFormation,
+	runtime.Register(runtime.ScannerRegistration{
+		ServiceKind:          aws.ServiceCloudFormation,
 		RequiresRedactionKey: true,
-		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
+		Build: func(d runtime.ScannerDeps) (runtime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("cloudformation scanner redaction key is required")
 			}

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kinesis` owns the Amazon Kinesis scanner
+`internal/collector/cloud/aws/service/kinesis` owns the Amazon Kinesis scanner
 contract for the AWS cloud collector. One `service_kind` ("kinesis") covers
 three sub-services: Kinesis Data Streams, Kinesis Data Firehose, and Kinesis
 Video Streams. It converts data-stream, delivery-stream, and video-stream
@@ -44,7 +44,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -53,9 +53,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Kinesis API call counts, throttles, and pagination
+The `sdk` adapter records Kinesis API call counts, throttles, and pagination
 spans. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total{service="kinesis"}` with the existing
 per-resource `resource_type` label, which is the sub-service attribute: it
@@ -86,7 +86,7 @@ distinguishes `aws_kinesis_data_stream` (datastream),
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/kinesis/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/kinesis/...`
 covers the bounded Kinesis metadata path: one paginated ListStreams stream for
 data streams followed by one DescribeStreamSummary and one ListTagsForStream
 per stream, one paginated ListDeliveryStreams stream for Firehose followed by
@@ -96,7 +96,7 @@ full, so no per-stream describe) followed by one ListTagsForStream per video
 stream, no record-plane or media-plane APIs, no mutation APIs, and no graph
 writes inside the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers data-stream, delivery-stream, and video-stream fact emission, ARN-only
 KMS key, IAM role, Lambda transform, S3, and OpenSearch relationship emission,
 URL-keyed Splunk and HTTP endpoint relationship emission, JDBC-derived Redshift

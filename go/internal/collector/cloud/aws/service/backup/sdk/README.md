@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/backup/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/backup/sdk` adapts AWS SDK for Go v2
 AWS Backup responses to the scanner-owned `backup.Client` contract. It owns
 Backup pagination, vault description, plan body retrieval, selection
 projection, recovery point listing, report plan listing, restore testing plan
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/backup` for scanner-owned result
+- `internal/collector/cloud/aws/service/backup` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `backup` and Smithy error contracts.

@@ -26,13 +26,13 @@ type Scanner struct {
 // Scan observes DMS replication instances, subnet groups, endpoints, and
 // replication tasks plus their direct EC2, KMS, S3, Kinesis, Secrets Manager,
 // and intra-DMS dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("dms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDMS:
-		boundary.ServiceKind = awscloud.ServiceDMS
+	case "", aws.ServiceDMS:
+		boundary.ServiceKind = aws.ServiceDMS
 	default:
 		return nil, fmt.Errorf("dms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -77,9 +77,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -88,32 +88,32 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func instanceEnvelopes(boundary awscloud.Boundary, instance ReplicationInstance) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
+func instanceEnvelopes(boundary aws.Boundary, instance ReplicationInstance) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(instanceObservation(boundary, instance))
 	if err != nil {
 		return nil, err
 	}
 	return appendRelationships([]facts.Envelope{resource}, instanceRelationships(boundary, instance))
 }
 
-func subnetGroupEnvelopes(boundary awscloud.Boundary, group ReplicationSubnetGroup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(subnetGroupObservation(boundary, group))
+func subnetGroupEnvelopes(boundary aws.Boundary, group ReplicationSubnetGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(subnetGroupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	return appendRelationships([]facts.Envelope{resource}, subnetGroupRelationships(boundary, group))
 }
 
-func endpointEnvelopes(boundary awscloud.Boundary, endpoint Endpoint) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(endpointObservation(boundary, endpoint))
+func endpointEnvelopes(boundary aws.Boundary, endpoint Endpoint) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(endpointObservation(boundary, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	return appendRelationships([]facts.Envelope{resource}, endpointRelationships(boundary, endpoint))
 }
 
-func taskEnvelopes(boundary awscloud.Boundary, task ReplicationTask) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(taskObservation(boundary, task))
+func taskEnvelopes(boundary aws.Boundary, task ReplicationTask) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(taskObservation(boundary, task))
 	if err != nil {
 		return nil, err
 	}
@@ -125,10 +125,10 @@ func taskEnvelopes(boundary awscloud.Boundary, task ReplicationTask) ([]facts.En
 // one slice.
 func appendRelationships(
 	base []facts.Envelope,
-	relationships []awscloud.RelationshipObservation,
+	relationships []aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
 	for _, observation := range relationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -137,15 +137,15 @@ func appendRelationships(
 	return base, nil
 }
 
-func instanceObservation(boundary awscloud.Boundary, instance ReplicationInstance) awscloud.ResourceObservation {
+func instanceObservation(boundary aws.Boundary, instance ReplicationInstance) aws.ResourceObservation {
 	arn := strings.TrimSpace(instance.ARN)
 	identifier := strings.TrimSpace(instance.Identifier)
 	resourceID := instanceResourceID(instance)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSReplicationInstance,
+		ResourceType: aws.ResourceTypeDMSReplicationInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -169,12 +169,12 @@ func instanceObservation(boundary awscloud.Boundary, instance ReplicationInstanc
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, group ReplicationSubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, group ReplicationSubnetGroup) aws.ResourceObservation {
 	identifier := subnetGroupResourceID(group)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   identifier,
-		ResourceType: awscloud.ResourceTypeDMSReplicationSubnetGroup,
+		ResourceType: aws.ResourceTypeDMSReplicationSubnetGroup,
 		Name:         identifier,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -188,15 +188,15 @@ func subnetGroupObservation(boundary awscloud.Boundary, group ReplicationSubnetG
 	}
 }
 
-func endpointObservation(boundary awscloud.Boundary, endpoint Endpoint) awscloud.ResourceObservation {
+func endpointObservation(boundary aws.Boundary, endpoint Endpoint) aws.ResourceObservation {
 	arn := strings.TrimSpace(endpoint.ARN)
 	identifier := strings.TrimSpace(endpoint.Identifier)
 	resourceID := endpointResourceID(endpoint)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSEndpoint,
+		ResourceType: aws.ResourceTypeDMSEndpoint,
 		Name:         identifier,
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{
@@ -217,15 +217,15 @@ func endpointObservation(boundary awscloud.Boundary, endpoint Endpoint) awscloud
 	}
 }
 
-func taskObservation(boundary awscloud.Boundary, task ReplicationTask) awscloud.ResourceObservation {
+func taskObservation(boundary aws.Boundary, task ReplicationTask) aws.ResourceObservation {
 	arn := strings.TrimSpace(task.ARN)
 	identifier := strings.TrimSpace(task.Identifier)
 	resourceID := taskResourceID(task)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSReplicationTask,
+		ResourceType: aws.ResourceTypeDMSReplicationTask,
 		Name:         identifier,
 		State:        strings.TrimSpace(task.Status),
 		Tags:         cloneStringMap(task.Tags),

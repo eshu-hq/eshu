@@ -16,9 +16,9 @@ import (
 // when no certificate is reported. Only the ARN reference is emitted; the
 // certificate body and private key are never read.
 func profileACMCertificateRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	profile SigningProfile,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetARN := strings.TrimSpace(profile.CertificateARN)
 	if targetARN == "" || !isARN(targetARN) {
 		return nil
@@ -27,15 +27,15 @@ func profileACMCertificateRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSignerProfileUsesACMCertificate,
+		RelationshipType: aws.RelationshipSignerProfileUsesACMCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSignerProfileUsesACMCertificate + ":" + targetARN,
+		TargetType:       aws.ResourceTypeACMCertificate,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipSignerProfileUsesACMCertificate + ":" + targetARN,
 	}
 }
 
@@ -46,9 +46,9 @@ func profileACMCertificateRelationship(
 // when no platform id is reported. Signer platforms carry no ARN, so the edge
 // keys the bare id with no target_arn.
 func profileSigningPlatformRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	profile SigningProfile,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	platformID := strings.TrimSpace(profile.PlatformID)
 	if platformID == "" {
 		return nil
@@ -57,13 +57,13 @@ func profileSigningPlatformRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSignerProfileUsesSigningPlatform,
+		RelationshipType: aws.RelationshipSignerProfileUsesSigningPlatform,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: platformID,
-		TargetType:       awscloud.ResourceTypeSignerSigningPlatform,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSignerProfileUsesSigningPlatform + ":" + platformID,
+		TargetType:       aws.ResourceTypeSignerSigningPlatform,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipSignerProfileUsesSigningPlatform + ":" + platformID,
 	}
 }

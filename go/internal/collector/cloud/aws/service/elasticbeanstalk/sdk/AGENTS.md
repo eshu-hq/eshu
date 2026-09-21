@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elasticbeanstalk/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elasticbeanstalk/sdk guidance
 
 ## Read First
 

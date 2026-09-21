@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fms` owns the scanner contract for AWS
+`internal/collector/cloud/aws/service/fms` owns the scanner contract for AWS
 Firewall Manager (FMS) metadata. It converts a claim-scoped policy listing into
 `aws_resource` facts for each Firewall Manager policy and `aws_relationship`
 facts linking each policy to the Organizations member accounts it applies to.
@@ -36,18 +36,18 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
 The package depends on a small `Client` interface rather than the AWS SDK for Go
-v2 so scanner tests use fakes and SDK behavior stays in `awssdk`.
+v2 so scanner tests use fakes and SDK behavior stays in `sdk`.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Firewall Manager API call counts, throttles, and
+The `sdk` adapter records Firewall Manager API call counts, throttles, and
 pagination spans. Firewall Manager resources appear on
 `eshu_dp_aws_resources_emitted_total{service="fms"}` with the bounded
 `resource_type=aws_fms_policy` label.
@@ -80,14 +80,14 @@ pagination spans. Firewall Manager resources appear on
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/fms/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/fms/...` covers the bounded
 Firewall Manager metadata path: one paginated ListPolicies stream and one
 paginated ListComplianceStatus stream per policy reduced to a deduplicated,
 sorted member-account set, no GetPolicy calls, no mutations, and no graph writes
 in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/fms/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/fms/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers Firewall Manager policy fact emission, security-service-type and
 in-scope resource-type label emission, policy-to-member-account relationship
 emission keyed on the bare account id, the metadata-only rule-payload omission,

@@ -9,41 +9,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []awscloud.RelationshipObservation {
+func clusterRelationships(boundary aws.Boundary, cluster CacheCluster) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(cluster.ARN, cluster.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	if vpcID := strings.TrimSpace(cluster.VPCID); vpcID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterInVPC,
+			RelationshipType: aws.RelationshipElastiCacheClusterInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"vpc_id":                  vpcID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInVPC, vpcID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipElastiCacheClusterInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(cluster.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterInSubnet,
+			RelationshipType: aws.RelationshipElastiCacheClusterInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"subnet_id":               subnetID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInSubnet, subnetID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipElastiCacheClusterInSubnet, subnetID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(cluster.KMSKeyID); kmsKey != "" {
@@ -51,30 +51,30 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 		if isARN(kmsKey) {
 			targetARN = kmsKey
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterUsesKMSKey,
+			RelationshipType: aws.RelationshipElastiCacheClusterUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       "aws_kms_key",
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterUsesKMSKey, kmsKey),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipElastiCacheClusterUsesKMSKey, kmsKey),
 		})
 	}
 	return relationships
 }
 
 func replicationGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ReplicationGroup,
 	clusterIdentities map[string]clusterIdentity,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(group.ARN, group.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	groupARN := strings.TrimSpace(group.ARN)
 	for _, memberID := range cloneStrings(group.MemberClusters) {
 		identity, ok := clusterIdentities[memberID]
@@ -84,33 +84,33 @@ func replicationGroupRelationships(
 			targetID = identity.arn
 			targetARN = identity.arn
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheReplicationGroupHasCluster,
+			RelationshipType: aws.RelationshipElastiCacheReplicationGroupHasCluster,
 			SourceResourceID: sourceID,
 			SourceARN:        groupARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeElastiCacheCacheCluster,
+			TargetType:       aws.ResourceTypeElastiCacheCacheCluster,
 			Attributes: map[string]any{
 				"cache_cluster_id": memberID,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipElastiCacheReplicationGroupHasCluster, targetID),
 		})
 	}
 	return relationships
 }
 
 func userGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group UserGroup,
 	userIdentities map[string]userIdentity,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(group.ARN, group.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	groupARN := strings.TrimSpace(group.ARN)
 	for _, userID := range cloneStrings(group.UserIDs) {
 		identity, ok := userIdentities[userID]
@@ -120,18 +120,18 @@ func userGroupRelationships(
 			targetID = identity.arn
 			targetARN = identity.arn
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheUserGroupHasUser,
+			RelationshipType: aws.RelationshipElastiCacheUserGroupHasUser,
 			SourceResourceID: sourceID,
 			SourceARN:        groupARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeElastiCacheUser,
+			TargetType:       aws.ResourceTypeElastiCacheUser,
 			Attributes: map[string]any{
 				"user_id": userID,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheUserGroupHasUser, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipElastiCacheUserGroupHasUser, targetID),
 		})
 	}
 	return relationships

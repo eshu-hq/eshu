@@ -9,12 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func connectionObservation(boundary awscloud.Boundary, connection Connection) awscloud.ResourceObservation {
+func connectionObservation(boundary aws.Boundary, connection Connection) aws.ResourceObservation {
 	id := strings.TrimSpace(connection.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectConnection,
+		ResourceType: aws.ResourceTypeDirectConnectConnection,
 		Name:         firstNonEmpty(connection.Name, id),
 		State:        strings.TrimSpace(connection.State),
 		Tags:         cloneStringMap(connection.Tags),
@@ -35,12 +35,12 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 	}
 }
 
-func virtualInterfaceObservation(boundary awscloud.Boundary, vif VirtualInterface) awscloud.ResourceObservation {
+func virtualInterfaceObservation(boundary aws.Boundary, vif VirtualInterface) aws.ResourceObservation {
 	id := strings.TrimSpace(vif.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectVirtualInterface,
+		ResourceType: aws.ResourceTypeDirectConnectVirtualInterface,
 		Name:         firstNonEmpty(vif.Name, id),
 		State:        strings.TrimSpace(vif.State),
 		Tags:         cloneStringMap(vif.Tags),
@@ -61,12 +61,12 @@ func virtualInterfaceObservation(boundary awscloud.Boundary, vif VirtualInterfac
 	}
 }
 
-func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.ResourceObservation {
+func gatewayObservation(boundary aws.Boundary, gateway Gateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectGateway,
+		ResourceType: aws.ResourceTypeDirectConnectGateway,
 		Name:         firstNonEmpty(gateway.Name, id),
 		State:        strings.TrimSpace(gateway.State),
 		Attributes: map[string]any{
@@ -78,12 +78,12 @@ func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.Re
 	}
 }
 
-func lagObservation(boundary awscloud.Boundary, lag LAG) awscloud.ResourceObservation {
+func lagObservation(boundary aws.Boundary, lag LAG) aws.ResourceObservation {
 	id := strings.TrimSpace(lag.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectLAG,
+		ResourceType: aws.ResourceTypeDirectConnectLAG,
 		Name:         firstNonEmpty(lag.Name, id),
 		State:        strings.TrimSpace(lag.State),
 		Tags:         cloneStringMap(lag.Tags),

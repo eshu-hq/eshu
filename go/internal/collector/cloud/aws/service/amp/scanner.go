@@ -28,15 +28,15 @@ type Scanner struct {
 // Scan observes AMP workspaces, their rule-groups namespaces, and the account's
 // scrapers plus their direct EKS, workspace, and VPC dependency metadata through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("amp scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAMP:
+	case "", aws.ServiceAMP:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAMP
+		boundary.ServiceKind = aws.ServiceAMP
 	default:
 		return nil, fmt.Errorf("amp scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -66,9 +66,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -77,14 +77,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(workspaceObservation(boundary, workspace))
+func workspaceEnvelopes(boundary aws.Boundary, workspace Workspace) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(workspaceObservation(boundary, workspace))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := workspaceKMSRelationship(boundary, workspace); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -102,17 +102,17 @@ func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]fact
 }
 
 func namespaceEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspaceID string,
 	namespace RuleGroupsNamespace,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(namespaceObservation(boundary, workspaceID, namespace))
+	resource, err := aws.NewResourceEnvelope(namespaceObservation(boundary, workspaceID, namespace))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := namespaceInWorkspaceRelationship(boundary, workspaceID, namespace); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -121,14 +121,14 @@ func namespaceEnvelopes(
 	return envelopes, nil
 }
 
-func scraperEnvelopes(boundary awscloud.Boundary, scraper Scraper) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scraperObservation(boundary, scraper))
+func scraperEnvelopes(boundary aws.Boundary, scraper Scraper) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(scraperObservation(boundary, scraper))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range scraperRelationships(boundary, scraper) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -137,16 +137,16 @@ func scraperEnvelopes(boundary awscloud.Boundary, scraper Scraper) ([]facts.Enve
 	return envelopes, nil
 }
 
-func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscloud.ResourceObservation {
+func workspaceObservation(boundary aws.Boundary, workspace Workspace) aws.ResourceObservation {
 	workspaceARN := strings.TrimSpace(workspace.ARN)
 	resourceID := workspaceResourceID(workspace)
 	alias := strings.TrimSpace(workspace.Alias)
 	name := firstNonEmpty(alias, workspace.WorkspaceID, workspaceARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          workspaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPWorkspace,
+		ResourceType: aws.ResourceTypeAMPWorkspace,
 		Name:         name,
 		State:        strings.TrimSpace(workspace.Status),
 		Tags:         cloneStringMap(workspace.Tags),
@@ -162,18 +162,18 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 }
 
 func namespaceObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspaceID string,
 	namespace RuleGroupsNamespace,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	namespaceARN := strings.TrimSpace(namespace.ARN)
 	name := strings.TrimSpace(namespace.Name)
 	resourceID := namespaceResourceID(namespace)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          namespaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPRuleGroupsNamespace,
+		ResourceType: aws.ResourceTypeAMPRuleGroupsNamespace,
 		Name:         name,
 		State:        strings.TrimSpace(namespace.Status),
 		Tags:         cloneStringMap(namespace.Tags),
@@ -188,16 +188,16 @@ func namespaceObservation(
 	}
 }
 
-func scraperObservation(boundary awscloud.Boundary, scraper Scraper) awscloud.ResourceObservation {
+func scraperObservation(boundary aws.Boundary, scraper Scraper) aws.ResourceObservation {
 	scraperARN := strings.TrimSpace(scraper.ARN)
 	resourceID := scraperResourceID(scraper)
 	alias := strings.TrimSpace(scraper.Alias)
 	name := firstNonEmpty(alias, scraper.ScraperID, scraperARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          scraperARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPScraper,
+		ResourceType: aws.ResourceTypeAMPScraper,
 		Name:         name,
 		State:        strings.TrimSpace(scraper.Status),
 		Tags:         cloneStringMap(scraper.Tags),

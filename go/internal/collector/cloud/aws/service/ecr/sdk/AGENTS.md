@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ecr/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ecr/sdk guidance
 
 ## Read First
 

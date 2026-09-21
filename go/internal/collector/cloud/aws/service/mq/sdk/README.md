@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mq/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/mq/sdk` adapts AWS SDK for Go v2
 Amazon MQ responses to the scanner-owned `Client` contract. It owns broker
 pagination, the per-broker `DescribeBroker` enrichment used to capture engine,
 deployment, instance, status, encryption, configuration, log destination,
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/mq` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/mq` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `mq` and Smithy error contracts.
 

@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/rolesanywhere/runtimebind` registers the
-Roles Anywhere scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/rolesanywhere/bind` registers the
+Roles Anywhere scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime brings
 the Roles Anywhere scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceRolesAnywhere` to the Roles Anywhere scanner builder. It does
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceRolesAnywhere` to the Roles Anywhere scanner builder. It does
 not own AWS API calls, Roles Anywhere domain types, redaction policy, or fact
 emission. Those belong to
-`internal/collector/awscloud/service/rolesanywhere` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/rolesanywhere` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceRolesAnywhere` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceRolesAnywhere` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/rolesanywhere` for the scanner struct.
-- `internal/collector/awscloud/service/rolesanywhere/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/rolesanywhere` for the scanner struct.
+- `internal/collector/cloud/aws/service/rolesanywhere/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Roles Anywhere scanner and its
 SDK adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ and the awsruntime README.
 ## Related docs
 
 - `../README.md` for the Roles Anywhere scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

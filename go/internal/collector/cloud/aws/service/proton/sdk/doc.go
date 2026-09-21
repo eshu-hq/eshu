@@ -13,4 +13,4 @@
 // values, and never calls a mutation API. The accepted read surface is enforced
 // at build time by exclusion_test.go. Each call is wrapped in the shared AWS
 // pagination span and API-call/throttle counters.
-package awssdk
+package sdk

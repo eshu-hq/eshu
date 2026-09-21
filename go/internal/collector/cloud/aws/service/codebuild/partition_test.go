@@ -28,7 +28,7 @@ func TestS3BucketARNFromLocationDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region}
+			boundary := aws.Boundary{Region: tc.region}
 			if got := s3BucketARNFromLocation(boundary, "artifacts/path/key"); got != tc.want {
 				t.Fatalf("s3BucketARNFromLocation(%q) = %q, want %q", tc.region, got, tc.want)
 			}
@@ -55,7 +55,7 @@ func TestS3BucketARNFromLocationPreservesObjectARNPartition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// The boundary region is irrelevant when the location is already an
 			// ARN; the partition is inherited from the source ARN.
-			boundary := awscloud.Boundary{Region: "us-east-1"}
+			boundary := aws.Boundary{Region: "us-east-1"}
 			if got := s3BucketARNFromLocation(boundary, tc.location); got != tc.want {
 				t.Fatalf("s3BucketARNFromLocation(%q) = %q, want %q", tc.location, got, tc.want)
 			}

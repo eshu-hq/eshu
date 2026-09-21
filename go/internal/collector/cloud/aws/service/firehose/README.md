@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/firehose` owns the Firehose scanner
+`internal/collector/cloud/aws/service/firehose` owns the Firehose scanner
 contract for the AWS cloud collector. It converts Amazon Data Firehose delivery
 stream metadata into `aws_resource` facts and emits relationship evidence for
 each stream's S3 bucket, Amazon Redshift cluster, and Amazon OpenSearch Service
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Firehose API call counts, throttles, and
+The `sdk` adapter records Firehose API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -96,7 +96,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/firehose/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/firehose/...` covers the bounded
 Firehose metadata path: one paginated `ListDeliveryStreams` stream followed by
 one `DescribeDeliveryStream` point read per stream, no `PutRecord`,
 `PutRecordBatch`, mutation, encryption-toggle, or tag-write calls, and no graph
@@ -104,7 +104,7 @@ writes in the collector. The describe-per-stream fan-out is the same bounded
 shape the Glue workflow path uses (`ListWorkflows` + `GetWorkflow` per name).
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/firehose/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/firehose/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers delivery stream metadata fact emission, the stream-to-S3-bucket,
 stream-to-Redshift-cluster, stream-to-OpenSearch-domain, stream-sourced-from-
 Kinesis-stream, stream-uses-IAM-role, stream-uses-KMS-key,

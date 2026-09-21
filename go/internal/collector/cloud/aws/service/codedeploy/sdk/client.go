@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscodedeploy "github.com/aws/aws-sdk-go-v2/service/codedeploy"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -55,7 +55,7 @@ type apiClient interface {
 // redacts on-premises instance tag values before they reach scanner types.
 type Client struct {
 	client       apiClient
-	boundary     awscloud.Boundary
+	boundary     aws.Boundary
 	tracer       trace.Tracer
 	instruments  *telemetry.Instruments
 	redactionKey redact.Key
@@ -65,8 +65,8 @@ type Client struct {
 // redaction key is required so on-premises instance tag values never persist
 // raw; callers obtain it from the runtime scanner dependencies.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	redactionKey redact.Key,
@@ -170,7 +170,7 @@ func (c *Client) ListDeploymentGroups(ctx context.Context, applicationName strin
 		err = c.recordAPICall(ctx, "BatchGetDeploymentGroups", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.BatchGetDeploymentGroups(callCtx, &awscodedeploy.BatchGetDeploymentGroupsInput{
-				ApplicationName:      aws.String(applicationName),
+				ApplicationName:      awsv2.String(applicationName),
 				DeploymentGroupNames: names[start:end],
 			})
 			return callErr
@@ -203,7 +203,7 @@ func (c *Client) listDeploymentGroupNames(ctx context.Context, applicationName s
 		err := c.recordAPICall(ctx, "ListDeploymentGroups", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.ListDeploymentGroups(callCtx, &awscodedeploy.ListDeploymentGroupsInput{
-				ApplicationName: aws.String(applicationName),
+				ApplicationName: awsv2.String(applicationName),
 				NextToken:       token,
 			})
 			return callErr
@@ -236,7 +236,7 @@ func (c *Client) ListDeploymentConfigs(ctx context.Context) ([]cdservice.Deploym
 		err := c.recordAPICall(ctx, "GetDeploymentConfig", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.GetDeploymentConfig(callCtx, &awscodedeploy.GetDeploymentConfigInput{
-				DeploymentConfigName: aws.String(name),
+				DeploymentConfigName: awsv2.String(name),
 			})
 			return callErr
 		})
@@ -340,7 +340,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.ListTagsForResource(callCtx, &awscodedeploy.ListTagsForResourceInput{
-				ResourceArn: aws.String(resourceARN),
+				ResourceArn: awsv2.String(resourceARN),
 				NextToken:   token,
 			})
 			return callErr
@@ -352,11 +352,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 			break
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 		}
 		if output.NextToken == nil || strings.TrimSpace(*output.NextToken) == "" {
 			break
@@ -387,7 +387,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -423,21 +423,21 @@ func isThrottleError(err error) bool {
 		code == "TooManyRequestsException"
 }
 
-func applicationARN(boundary awscloud.Boundary, name string) string {
+func applicationARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s", awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s", aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
-func deploymentGroupARN(boundary awscloud.Boundary, application, group string) string {
+func deploymentGroupARN(boundary aws.Boundary, application, group string) string {
 	application = strings.TrimSpace(application)
 	group = strings.TrimSpace(group)
 	if application == "" || group == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentgroup:%s/%s", awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentgroup:%s/%s", aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
 }
 
 var _ apiClient = (*awscodedeploy.Client)(nil)

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "servicecatalogappregistry".
 func TestScannerCanonicalizesPaddedServiceKindRegression(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "\t" + awscloud.ServiceServiceCatalogAppRegistry + " "
+	boundary.ServiceKind = "\t" + aws.ServiceServiceCatalogAppRegistry + " "
 	client := fakeClient{snapshot: Snapshot{Applications: []Application{{
 		ID:   "app-0abc123",
 		ARN:  testApplicationARN,
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKindRegression(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceServiceCatalogAppRegistry; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceServiceCatalogAppRegistry; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q", got, want)
 		}
 	}

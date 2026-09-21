@@ -15,4 +15,4 @@
 // Associate/Disassociate/Create/Update/Delete/Put/Configure mutation APIs, so
 // the adapter cannot read findings, recommendation content, or profiling samples
 // or write CodeGuru state.
-package awssdk
+package sdk

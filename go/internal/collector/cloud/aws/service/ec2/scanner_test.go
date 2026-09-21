@@ -112,10 +112,10 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	if got := ruleFact.Payload["group_id"]; got != "sg-123" {
 		t.Fatalf("security_group_rule group_id = %#v, want sg-123", got)
 	}
-	if got := ruleFact.Payload["direction"]; got != awscloud.SecurityGroupRuleDirectionIngress {
+	if got := ruleFact.Payload["direction"]; got != aws.SecurityGroupRuleDirectionIngress {
 		t.Fatalf("security_group_rule direction = %#v, want ingress", got)
 	}
-	if got := ruleFact.Payload["source_kind"]; got != awscloud.SecurityGroupRuleSourceCIDRIPv4 {
+	if got := ruleFact.Payload["source_kind"]; got != aws.SecurityGroupRuleSourceCIDRIPv4 {
 		t.Fatalf("security_group_rule source_kind = %#v, want cidr_ipv4", got)
 	}
 	if got := ruleFact.Payload["source_value"]; got != "0.0.0.0/0" {
@@ -125,22 +125,22 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 		t.Fatalf("security_group_rule is_internet = %#v, want true", ruleFact.Payload["is_internet"])
 	}
 
-	vpc := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2VPC)
+	vpc := assertResourceType(t, envelopes, aws.ResourceTypeEC2VPC)
 	assertAttribute(t, vpc, "cidr_block", "10.0.0.0/16")
-	subnet := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Subnet)
+	subnet := assertResourceType(t, envelopes, aws.ResourceTypeEC2Subnet)
 	assertAttribute(t, subnet, "vpc_id", "vpc-123")
-	rule := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2SecurityGroupRule)
+	rule := assertResourceType(t, envelopes, aws.ResourceTypeEC2SecurityGroupRule)
 	assertAttribute(t, rule, "cidr_ipv4", "0.0.0.0/0")
-	eni := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2NetworkInterface)
+	eni := assertResourceType(t, envelopes, aws.ResourceTypeEC2NetworkInterface)
 	assertAttachment(t, eni)
 
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2SubnetInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2SecurityGroupInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2SecurityGroupHasRule)
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceInSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceUsesSecurityGroup)
-	attached := assertRelationship(t, envelopes, awscloud.RelationshipEC2NetworkInterfaceAttachedToResource)
+	assertRelationship(t, envelopes, aws.RelationshipEC2SubnetInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipEC2SecurityGroupInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipEC2SecurityGroupHasRule)
+	assertRelationship(t, envelopes, aws.RelationshipEC2NetworkInterfaceInSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipEC2NetworkInterfaceInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipEC2NetworkInterfaceUsesSecurityGroup)
+	attached := assertRelationship(t, envelopes, aws.RelationshipEC2NetworkInterfaceAttachedToResource)
 	if got := attached.Payload["target_resource_id"]; got != "i-1234567890abcdef0" {
 		t.Fatalf("attached target_resource_id = %#v", got)
 	}
@@ -197,21 +197,21 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 1 (#5448 instance->AMI relationship)", counts[facts.AWSRelationshipFactKind])
 	}
 
-	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	identity := assertResourceType(t, envelopes, aws.ResourceTypeEC2Instance)
 	if got := identity.Payload["resource_id"]; got != "i-1234567890abcdef0" {
 		t.Fatalf("identity resource_id = %#v, want i-1234567890abcdef0", got)
 	}
 	assertAttribute(t, identity, "ami_id", "ami-0000000000000000a")
 
-	amiRelationship := assertRelationship(t, envelopes, awscloud.RelationshipEC2InstanceUsesAMI)
+	amiRelationship := assertRelationship(t, envelopes, aws.RelationshipEC2InstanceUsesAMI)
 	if got := amiRelationship.Payload["source_resource_id"]; got != "i-1234567890abcdef0" {
 		t.Fatalf("ami relationship source_resource_id = %#v", got)
 	}
 	if got := amiRelationship.Payload["target_resource_id"]; got != "ami-0000000000000000a" {
 		t.Fatalf("ami relationship target_resource_id = %#v", got)
 	}
-	if got := amiRelationship.Payload["target_type"]; got != awscloud.ResourceTypeEC2AMI {
-		t.Fatalf("ami relationship target_type = %#v, want %s", got, awscloud.ResourceTypeEC2AMI)
+	if got := amiRelationship.Payload["target_type"]; got != aws.ResourceTypeEC2AMI {
+		t.Fatalf("ami relationship target_type = %#v, want %s", got, aws.ResourceTypeEC2AMI)
 	}
 
 	// #5717: the AMI resource fact this relationship's target join resolves
@@ -219,7 +219,7 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	// rich state/owner metadata, since
 	// this increment reads no DescribeImages data (see amiResourceObservation
 	// doc).
-	amiResource := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2AMI)
+	amiResource := assertResourceType(t, envelopes, aws.ResourceTypeEC2AMI)
 	if got := amiResource.Payload["resource_id"]; got != "ami-0000000000000000a" {
 		t.Fatalf("ami resource_id = %#v, want ami-0000000000000000a", got)
 	}
@@ -243,7 +243,7 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	if got := posture.Payload["instance_profile_arn"]; got != "arn:aws:iam::123456789012:instance-profile/app" {
 		t.Fatalf("posture instance_profile_arn = %#v", got)
 	}
-	if got, _ := posture.Payload["service_kind"].(string); got != awscloud.ServiceEC2 {
+	if got, _ := posture.Payload["service_kind"].(string); got != aws.ServiceEC2 {
 		t.Fatalf("posture service_kind = %#v, want ec2", got)
 	}
 	if _, exists := posture.Payload["relationship_type"]; exists {
@@ -282,9 +282,9 @@ func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T
 	if counts[facts.AWSRelationshipFactKind] != 0 {
 		t.Fatalf("aws_relationship count = %d, want 0 (no AMI id to relate)", counts[facts.AWSRelationshipFactKind])
 	}
-	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	identity := assertResourceType(t, envelopes, aws.ResourceTypeEC2Instance)
 	assertAttribute(t, identity, "ami_id", "")
-	assertNoResourceType(t, envelopes, awscloud.ResourceTypeEC2AMI)
+	assertNoResourceType(t, envelopes, aws.ResourceTypeEC2AMI)
 }
 
 func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
@@ -300,18 +300,18 @@ func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.E
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = aws.ServiceECS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceEC2,
+		ServiceKind:         aws.ServiceEC2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ec2:1",
 		CollectorInstanceID: "aws-prod",

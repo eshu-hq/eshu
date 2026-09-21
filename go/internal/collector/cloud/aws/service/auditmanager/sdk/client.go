@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsauditmanager "github.com/aws/aws-sdk-go-v2/service/auditmanager"
 	awsauditmanagertypes "github.com/aws/aws-sdk-go-v2/service/auditmanager/types"
 	"go.opentelemetry.io/otel/metric"
@@ -87,7 +87,7 @@ var controlTypes = []awsauditmanagertypes.ControlType{
 // never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	accountID   string
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
@@ -95,8 +95,8 @@ type Client struct {
 
 // NewClient builds an Audit Manager SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -117,12 +117,12 @@ func (c *Client) Snapshot(ctx context.Context) (auditmanagerservice.Snapshot, er
 	registered, statusErr := c.accountRegistered(ctx)
 	if statusErr != nil {
 		if isNotRegistered(statusErr) {
-			return auditmanagerservice.Snapshot{Warnings: []awscloud.WarningObservation{c.notRegisteredWarning(statusErr)}}, nil
+			return auditmanagerservice.Snapshot{Warnings: []aws.WarningObservation{c.notRegisteredWarning(statusErr)}}, nil
 		}
 		return auditmanagerservice.Snapshot{}, statusErr
 	}
 	if !registered {
-		return auditmanagerservice.Snapshot{Warnings: []awscloud.WarningObservation{c.notRegisteredWarning(nil)}}, nil
+		return auditmanagerservice.Snapshot{Warnings: []aws.WarningObservation{c.notRegisteredWarning(nil)}}, nil
 	}
 
 	assessments, err := c.listAssessments(ctx)
@@ -186,14 +186,14 @@ func (c *Client) listAssessments(ctx context.Context) ([]auditmanagerservice.Ass
 			return assessments, nil
 		}
 		for _, item := range page.AssessmentMetadata {
-			detail, err := c.getAssessment(ctx, aws.ToString(item.Id))
+			detail, err := c.getAssessment(ctx, awsv2.ToString(item.Id))
 			if err != nil {
 				return nil, err
 			}
 			assessments = append(assessments, detail)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return assessments, nil
 		}
 	}
@@ -208,7 +208,7 @@ func (c *Client) getAssessment(ctx context.Context, assessmentID string) (auditm
 	err := c.recordAPICall(ctx, "GetAssessment", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetAssessment(callCtx, &awsauditmanager.GetAssessmentInput{
-			AssessmentId: aws.String(assessmentID),
+			AssessmentId: awsv2.String(assessmentID),
 		})
 		return callErr
 	})
@@ -245,7 +245,7 @@ func (c *Client) listFrameworks(ctx context.Context) ([]auditmanagerservice.Fram
 				frameworks = append(frameworks, mapFramework(item))
 			}
 			nextToken = page.NextToken
-			if aws.ToString(nextToken) == "" {
+			if awsv2.ToString(nextToken) == "" {
 				break
 			}
 		}
@@ -277,7 +277,7 @@ func (c *Client) listControls(ctx context.Context) ([]auditmanagerservice.Contro
 				controls = append(controls, mapControl(item, string(controlType)))
 			}
 			nextToken = page.NextToken
-			if aws.ToString(nextToken) == "" {
+			if awsv2.ToString(nextToken) == "" {
 				break
 			}
 		}
@@ -307,7 +307,7 @@ func (c *Client) settingsKMSKey(ctx context.Context) (string, error) {
 	if output == nil || output.Settings == nil {
 		return "", nil
 	}
-	return strings.TrimSpace(aws.ToString(output.Settings.KmsKey)), nil
+	return strings.TrimSpace(awsv2.ToString(output.Settings.KmsKey)), nil
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
@@ -328,7 +328,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -353,12 +353,12 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 	return err
 }
 
-func (c *Client) notRegisteredWarning(err error) awscloud.WarningObservation {
+func (c *Client) notRegisteredWarning(err error) aws.WarningObservation {
 	class := "not_registered"
 	if err != nil {
 		class = errorClass(err)
 	}
-	return awscloud.WarningObservation{
+	return aws.WarningObservation{
 		Boundary:       c.boundary,
 		WarningKind:    "auditmanager_not_registered",
 		ErrorClass:     class,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudwatchlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	awscloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/smithy-go"
@@ -26,27 +26,27 @@ func TestClientListsCloudWatchLogsMetadataOnly(t *testing.T) {
 	api := &fakeCloudWatchLogsAPI{
 		groupPages: []*awscloudwatchlogs.DescribeLogGroupsOutput{{
 			LogGroups: []awscloudwatchlogstypes.LogGroup{{
-				Arn:                              aws.String(wildcardARN),
-				LogGroupArn:                      aws.String(logGroupARN),
-				LogGroupName:                     aws.String("/aws/lambda/orders"),
-				CreationTime:                     aws.Int64(createdAtMillis),
-				RetentionInDays:                  aws.Int32(30),
-				StoredBytes:                      aws.Int64(2048),
-				MetricFilterCount:                aws.Int32(2),
+				Arn:                              awsv2.String(wildcardARN),
+				LogGroupArn:                      awsv2.String(logGroupARN),
+				LogGroupName:                     awsv2.String("/aws/lambda/orders"),
+				CreationTime:                     awsv2.Int64(createdAtMillis),
+				RetentionInDays:                  awsv2.Int32(30),
+				StoredBytes:                      awsv2.Int64(2048),
+				MetricFilterCount:                awsv2.Int32(2),
 				LogGroupClass:                    awscloudwatchlogstypes.LogGroupClassStandard,
 				DataProtectionStatus:             awscloudwatchlogstypes.DataProtectionStatusActivated,
-				DeletionProtectionEnabled:        aws.Bool(true),
-				BearerTokenAuthenticationEnabled: aws.Bool(true),
+				DeletionProtectionEnabled:        awsv2.Bool(true),
+				BearerTokenAuthenticationEnabled: awsv2.Bool(true),
 				InheritedProperties: []awscloudwatchlogstypes.InheritedProperty{
 					awscloudwatchlogstypes.InheritedPropertyAccountDataProtection,
 				},
-				KmsKeyId: aws.String(kmsARN),
+				KmsKeyId: awsv2.String(kmsARN),
 			}},
-			NextToken: aws.String("groups-next"),
+			NextToken: awsv2.String("groups-next"),
 		}, {
 			LogGroups: []awscloudwatchlogstypes.LogGroup{{
-				Arn:          aws.String(fallbackARN),
-				LogGroupName: aws.String("/aws/ecs/payments"),
+				Arn:          awsv2.String(fallbackARN),
+				LogGroupName: awsv2.String("/aws/ecs/payments"),
 			}},
 		}},
 		tags: map[string]*awscloudwatchlogs.ListTagsForResourceOutput{
@@ -112,8 +112,8 @@ func TestClientListsLogGroupsWhenTagReadIsThrottled(t *testing.T) {
 	api := &fakeCloudWatchLogsAPI{
 		groupPages: []*awscloudwatchlogs.DescribeLogGroupsOutput{{
 			LogGroups: []awscloudwatchlogstypes.LogGroup{{
-				LogGroupArn:  aws.String(logGroupARN),
-				LogGroupName: aws.String("/aws/lambda/orders"),
+				LogGroupArn:  awsv2.String(logGroupARN),
+				LogGroupName: awsv2.String("/aws/lambda/orders"),
 			}},
 		}},
 		tagErrors: map[string]error{
@@ -137,11 +137,11 @@ func TestClientListsLogGroupsWhenTagReadIsThrottled(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCloudWatchLogs,
+		ServiceKind: aws.ServiceCloudWatchLogs,
 	}
 }
 
@@ -160,8 +160,8 @@ func (f *fakeCloudWatchLogsAPI) DescribeLogGroups(
 	input *awscloudwatchlogs.DescribeLogGroupsInput,
 	_ ...func(*awscloudwatchlogs.Options),
 ) (*awscloudwatchlogs.DescribeLogGroupsOutput, error) {
-	f.groupLimits = append(f.groupLimits, aws.ToInt32(input.Limit))
-	f.groupTokens = append(f.groupTokens, aws.ToString(input.NextToken))
+	f.groupLimits = append(f.groupLimits, awsv2.ToInt32(input.Limit))
+	f.groupTokens = append(f.groupTokens, awsv2.ToString(input.NextToken))
 	if f.groupCalls >= len(f.groupPages) {
 		return &awscloudwatchlogs.DescribeLogGroupsOutput{}, nil
 	}
@@ -175,7 +175,7 @@ func (f *fakeCloudWatchLogsAPI) ListTagsForResource(
 	input *awscloudwatchlogs.ListTagsForResourceInput,
 	_ ...func(*awscloudwatchlogs.Options),
 ) (*awscloudwatchlogs.ListTagsForResourceOutput, error) {
-	resourceARN := aws.ToString(input.ResourceArn)
+	resourceARN := awsv2.ToString(input.ResourceArn)
 	f.tagARNs = append(f.tagARNs, resourceARN)
 	if err := f.tagErrors[resourceARN]; err != nil {
 		return nil, err

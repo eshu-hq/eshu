@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscodecommit "github.com/aws/aws-sdk-go-v2/service/codecommit"
 	awscodecommittypes "github.com/aws/aws-sdk-go-v2/service/codecommit/types"
 
@@ -43,17 +43,17 @@ func (c *fakeAPIClient) BatchGetRepositories(_ context.Context, input *awscodeco
 }
 
 func (c *fakeAPIClient) GetRepositoryTriggers(_ context.Context, input *awscodecommit.GetRepositoryTriggersInput, _ ...func(*awscodecommit.Options)) (*awscodecommit.GetRepositoryTriggersOutput, error) {
-	return &awscodecommit.GetRepositoryTriggersOutput{Triggers: c.triggers[aws.ToString(input.RepositoryName)]}, nil
+	return &awscodecommit.GetRepositoryTriggersOutput{Triggers: c.triggers[awsv2.ToString(input.RepositoryName)]}, nil
 }
 
 func (c *fakeAPIClient) ListTagsForResource(_ context.Context, input *awscodecommit.ListTagsForResourceInput, _ ...func(*awscodecommit.Options)) (*awscodecommit.ListTagsForResourceOutput, error) {
-	return &awscodecommit.ListTagsForResourceOutput{Tags: c.tags[aws.ToString(input.ResourceArn)]}, nil
+	return &awscodecommit.ListTagsForResourceOutput{Tags: c.tags[awsv2.ToString(input.ResourceArn)]}, nil
 }
 
 func newTestClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeCommit},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCodeCommit},
 	}
 }
 
@@ -65,26 +65,26 @@ func TestClientMapsRepositoryMetadataTriggersAndTags(t *testing.T) {
 
 	api := &fakeAPIClient{
 		repositories: []awscodecommittypes.RepositoryNameIdPair{
-			{RepositoryName: aws.String("payments-api"), RepositoryId: aws.String("repo-1234")},
+			{RepositoryName: awsv2.String("payments-api"), RepositoryId: awsv2.String("repo-1234")},
 		},
 		metadata: map[string]awscodecommittypes.RepositoryMetadata{
 			"payments-api": {
-				Arn:              aws.String(repositoryARN),
-				RepositoryName:   aws.String("payments-api"),
-				RepositoryId:     aws.String("repo-1234"),
-				AccountId:        aws.String("123456789012"),
-				DefaultBranch:    aws.String("main"),
-				CloneUrlHttp:     aws.String("https://git-codecommit.us-east-1.amazonaws.com/v1/repos/payments-api"),
-				CloneUrlSsh:      aws.String("ssh://git-codecommit.us-east-1.amazonaws.com/v1/repos/payments-api"),
-				KmsKeyId:         aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
-				CreationDate:     aws.Time(created),
-				LastModifiedDate: aws.Time(modified),
+				Arn:              awsv2.String(repositoryARN),
+				RepositoryName:   awsv2.String("payments-api"),
+				RepositoryId:     awsv2.String("repo-1234"),
+				AccountId:        awsv2.String("123456789012"),
+				DefaultBranch:    awsv2.String("main"),
+				CloneUrlHttp:     awsv2.String("https://git-codecommit.us-east-1.amazonaws.com/v1/repos/payments-api"),
+				CloneUrlSsh:      awsv2.String("ssh://git-codecommit.us-east-1.amazonaws.com/v1/repos/payments-api"),
+				KmsKeyId:         awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+				CreationDate:     awsv2.Time(created),
+				LastModifiedDate: awsv2.Time(modified),
 			},
 		},
 		triggers: map[string][]awscodecommittypes.RepositoryTrigger{
 			"payments-api": {{
-				Name:           aws.String("notify-main"),
-				DestinationArn: aws.String(topicARN),
+				Name:           awsv2.String("notify-main"),
+				DestinationArn: awsv2.String(topicARN),
 				Events:         []awscodecommittypes.RepositoryTriggerEventEnum{awscodecommittypes.RepositoryTriggerEventEnumAll},
 				Branches:       []string{"main"},
 			}},
@@ -127,10 +127,10 @@ func TestClientChunksBatchGetRepositories(t *testing.T) {
 	metadata := make(map[string]awscodecommittypes.RepositoryMetadata, batchRepositoryLimit+5)
 	for i := 0; i < batchRepositoryLimit+5; i++ {
 		name := "repo-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
-		pairs = append(pairs, awscodecommittypes.RepositoryNameIdPair{RepositoryName: aws.String(name)})
+		pairs = append(pairs, awscodecommittypes.RepositoryNameIdPair{RepositoryName: awsv2.String(name)})
 		metadata[name] = awscodecommittypes.RepositoryMetadata{
-			Arn:            aws.String("arn:aws:codecommit:us-east-1:123456789012:" + name),
-			RepositoryName: aws.String(name),
+			Arn:            awsv2.String("arn:aws:codecommit:us-east-1:123456789012:" + name),
+			RepositoryName: awsv2.String(name),
 		}
 	}
 	api := &fakeAPIClient{repositories: pairs, metadata: metadata}

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscontroltower "github.com/aws/aws-sdk-go-v2/service/controltower"
 	awscontroltowerdocument "github.com/aws/aws-sdk-go-v2/service/controltower/document"
 	awscontroltowertypes "github.com/aws/aws-sdk-go-v2/service/controltower/types"
@@ -25,11 +25,11 @@ const (
 
 func TestClientSnapshotsControlTowerMetadataOnly(t *testing.T) {
 	api := &fakeControlTowerAPI{
-		landingZones: []awscontroltowertypes.LandingZoneSummary{{Arn: aws.String(lzARN)}},
+		landingZones: []awscontroltowertypes.LandingZoneSummary{{Arn: awsv2.String(lzARN)}},
 		landingZone: &awscontroltowertypes.LandingZoneDetail{
-			Arn:                    aws.String(lzARN),
-			Version:                aws.String("3.3"),
-			LatestAvailableVersion: aws.String("3.3"),
+			Arn:                    awsv2.String(lzARN),
+			Version:                awsv2.String("3.3"),
+			LatestAvailableVersion: awsv2.String("3.3"),
 			Status:                 awscontroltowertypes.LandingZoneStatusActive,
 			DriftStatus: &awscontroltowertypes.LandingZoneDriftStatusSummary{
 				Status: awscontroltowertypes.LandingZoneDriftStatusInSync,
@@ -41,17 +41,17 @@ func TestClientSnapshotsControlTowerMetadataOnly(t *testing.T) {
 			}),
 		},
 		baselines: []awscontroltowertypes.EnabledBaselineSummary{{
-			Arn:                aws.String(baseARN),
-			BaselineIdentifier: aws.String("arn:aws:controltower:us-east-1::baseline/17BSJV3IGJ2QSGA2"),
-			BaselineVersion:    aws.String("4.0"),
-			TargetIdentifier:   aws.String(ouARN),
+			Arn:                awsv2.String(baseARN),
+			BaselineIdentifier: awsv2.String("arn:aws:controltower:us-east-1::baseline/17BSJV3IGJ2QSGA2"),
+			BaselineVersion:    awsv2.String("4.0"),
+			TargetIdentifier:   awsv2.String(ouARN),
 			StatusSummary:      &awscontroltowertypes.EnablementStatusSummary{Status: awscontroltowertypes.EnablementStatusSucceeded},
 		}},
 		controlsByTarget: map[string][]awscontroltowertypes.EnabledControlSummary{
 			ouARN: {{
-				Arn:               aws.String(ctlARN),
-				ControlIdentifier: aws.String("arn:aws:controltower:us-east-1::control/AWS-GR_ENCRYPTED_VOLUMES"),
-				TargetIdentifier:  aws.String(ouARN),
+				Arn:               awsv2.String(ctlARN),
+				ControlIdentifier: awsv2.String("arn:aws:controltower:us-east-1::control/AWS-GR_ENCRYPTED_VOLUMES"),
+				TargetIdentifier:  awsv2.String(ouARN),
 				StatusSummary:     &awscontroltowertypes.EnablementStatusSummary{Status: awscontroltowertypes.EnablementStatusSucceeded},
 				DriftStatusSummary: &awscontroltowertypes.DriftStatusSummary{
 					DriftStatus: awscontroltowertypes.DriftStatusInSync,
@@ -138,12 +138,12 @@ func TestClientDeduplicatesEnabledControlsAcrossTargets(t *testing.T) {
 	ou2 := "arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-payments"
 	api := &fakeControlTowerAPI{
 		baselines: []awscontroltowertypes.EnabledBaselineSummary{
-			{Arn: aws.String(baseARN), BaselineIdentifier: aws.String("b"), TargetIdentifier: aws.String(ouARN)},
-			{Arn: aws.String(baseARN + "2"), BaselineIdentifier: aws.String("b"), TargetIdentifier: aws.String(ou2)},
+			{Arn: awsv2.String(baseARN), BaselineIdentifier: awsv2.String("b"), TargetIdentifier: awsv2.String(ouARN)},
+			{Arn: awsv2.String(baseARN + "2"), BaselineIdentifier: awsv2.String("b"), TargetIdentifier: awsv2.String(ou2)},
 		},
 		controlsByTarget: map[string][]awscontroltowertypes.EnabledControlSummary{
-			ouARN: {{Arn: aws.String(ctlARN), TargetIdentifier: aws.String(ouARN)}},
-			ou2:   {{Arn: aws.String(ctlARN), TargetIdentifier: aws.String(ou2)}},
+			ouARN: {{Arn: awsv2.String(ctlARN), TargetIdentifier: awsv2.String(ouARN)}},
+			ou2:   {{Arn: awsv2.String(ctlARN), TargetIdentifier: awsv2.String(ou2)}},
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary()}
@@ -188,7 +188,7 @@ func (f *fakeControlTowerAPI) ListEnabledControls(
 	_ ...func(*awscontroltower.Options),
 ) (*awscontroltower.ListEnabledControlsOutput, error) {
 	return &awscontroltower.ListEnabledControlsOutput{
-		EnabledControls: f.controlsByTarget[aws.ToString(input.TargetIdentifier)],
+		EnabledControls: f.controlsByTarget[awsv2.ToString(input.TargetIdentifier)],
 	}, nil
 }
 
@@ -206,15 +206,15 @@ func (f *fakeControlTowerAPI) ListTagsForResource(
 	_ ...func(*awscontroltower.Options),
 ) (*awscontroltower.ListTagsForResourceOutput, error) {
 	return &awscontroltower.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceControlTower,
+		ServiceKind: aws.ServiceControlTower,
 	}
 }
 

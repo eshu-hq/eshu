@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdocdbelastic "github.com/aws/aws-sdk-go-v2/service/docdbelastic"
 	awsdocdbelastictypes "github.com/aws/aws-sdk-go-v2/service/docdbelastic/types"
 
@@ -22,29 +22,29 @@ func TestClientSnapshotsClusterMetadataOnly(t *testing.T) {
 	api := &fakeDocDBElasticAPI{
 		listPages: []*awsdocdbelastic.ListClustersOutput{{
 			Clusters: []awsdocdbelastictypes.ClusterInList{{
-				ClusterArn:  aws.String(clusterARN),
-				ClusterName: aws.String("analytics"),
+				ClusterArn:  awsv2.String(clusterARN),
+				ClusterName: awsv2.String("analytics"),
 				Status:      awsdocdbelastictypes.StatusActive,
 			}},
 		}},
 		clusters: map[string]*awsdocdbelastictypes.Cluster{
 			clusterARN: {
-				ClusterArn:                 aws.String(clusterARN),
-				ClusterName:                aws.String("analytics"),
+				ClusterArn:                 awsv2.String(clusterARN),
+				ClusterName:                awsv2.String("analytics"),
 				Status:                     awsdocdbelastictypes.StatusActive,
 				AuthType:                   awsdocdbelastictypes.AuthSecretArn,
-				AdminUserName:              aws.String(secretARN),
-				ClusterEndpoint:            aws.String("analytics.cluster-abcd.us-east-1.docdb-elastic.amazonaws.com:27017"),
-				KmsKeyId:                   aws.String(kmsARN),
-				ShardCapacity:              aws.Int32(4),
-				ShardCount:                 aws.Int32(2),
-				ShardInstanceCount:         aws.Int32(3),
-				BackupRetentionPeriod:      aws.Int32(7),
-				PreferredBackupWindow:      aws.String("02:00-03:00"),
-				PreferredMaintenanceWindow: aws.String("sun:05:00-sun:06:00"),
+				AdminUserName:              awsv2.String(secretARN),
+				ClusterEndpoint:            awsv2.String("analytics.cluster-abcd.us-east-1.docdb-elastic.amazonaws.com:27017"),
+				KmsKeyId:                   awsv2.String(kmsARN),
+				ShardCapacity:              awsv2.Int32(4),
+				ShardCount:                 awsv2.Int32(2),
+				ShardInstanceCount:         awsv2.Int32(3),
+				BackupRetentionPeriod:      awsv2.Int32(7),
+				PreferredBackupWindow:      awsv2.String("02:00-03:00"),
+				PreferredMaintenanceWindow: awsv2.String("sun:05:00-sun:06:00"),
 				SubnetIds:                  []string{"subnet-0a1b2c3d", "subnet-4e5f6a7b"},
 				VpcSecurityGroupIds:        []string{"sg-0123456789abcdef0"},
-				CreateTime:                 aws.String("2026-05-14T12:00:00Z"),
+				CreateTime:                 awsv2.String("2026-05-14T12:00:00Z"),
 			},
 		},
 		tags: map[string]map[string]string{
@@ -98,18 +98,18 @@ func TestClientDropsAdminUserNameForPlainTextAuth(t *testing.T) {
 	api := &fakeDocDBElasticAPI{
 		listPages: []*awsdocdbelastic.ListClustersOutput{{
 			Clusters: []awsdocdbelastictypes.ClusterInList{{
-				ClusterArn:  aws.String(clusterARN),
-				ClusterName: aws.String("plain"),
+				ClusterArn:  awsv2.String(clusterARN),
+				ClusterName: awsv2.String("plain"),
 				Status:      awsdocdbelastictypes.StatusActive,
 			}},
 		}},
 		clusters: map[string]*awsdocdbelastictypes.Cluster{
 			clusterARN: {
-				ClusterArn:    aws.String(clusterARN),
-				ClusterName:   aws.String("plain"),
+				ClusterArn:    awsv2.String(clusterARN),
+				ClusterName:   awsv2.String("plain"),
 				Status:        awsdocdbelastictypes.StatusActive,
 				AuthType:      awsdocdbelastictypes.AuthPlainText,
-				AdminUserName: aws.String("dbadmin"),
+				AdminUserName: awsv2.String("dbadmin"),
 			},
 		},
 	}
@@ -151,7 +151,7 @@ func (f *fakeDocDBElasticAPI) GetCluster(
 	_ ...func(*awsdocdbelastic.Options),
 ) (*awsdocdbelastic.GetClusterOutput, error) {
 	return &awsdocdbelastic.GetClusterOutput{
-		Cluster: f.clusters[aws.ToString(input.ClusterArn)],
+		Cluster: f.clusters[awsv2.ToString(input.ClusterArn)],
 	}, nil
 }
 
@@ -161,14 +161,14 @@ func (f *fakeDocDBElasticAPI) ListTagsForResource(
 	_ ...func(*awsdocdbelastic.Options),
 ) (*awsdocdbelastic.ListTagsForResourceOutput, error) {
 	return &awsdocdbelastic.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDocDBElastic,
+		ServiceKind: aws.ServiceDocDBElastic,
 	}
 }

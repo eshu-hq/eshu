@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	awsecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -25,8 +25,8 @@ func TestListImagesResumesFromCheckpointToken(t *testing.T) {
 		imagePages: map[string]checkpointImagePage{
 			"resume-token": {
 				images: []awsecrtypes.ImageDetail{{
-					ImageDigest:    aws.String("sha256:resumed"),
-					RepositoryName: aws.String("team/api"),
+					ImageDigest:    awsv2.String("sha256:resumed"),
+					RepositoryName: awsv2.String("team/api"),
 				}},
 			},
 		},
@@ -56,14 +56,14 @@ func TestListImagesDeduplicatesRepeatedPageDelivery(t *testing.T) {
 			"": {
 				nextToken: "token-2",
 				images: []awsecrtypes.ImageDetail{{
-					ImageDigest:    aws.String("sha256:duplicate"),
-					RepositoryName: aws.String("team/api"),
+					ImageDigest:    awsv2.String("sha256:duplicate"),
+					RepositoryName: awsv2.String("team/api"),
 				}},
 			},
 			"token-2": {
 				images: []awsecrtypes.ImageDetail{{
-					ImageDigest:    aws.String("sha256:duplicate"),
-					RepositoryName: aws.String("team/api"),
+					ImageDigest:    awsv2.String("sha256:duplicate"),
+					RepositoryName: awsv2.String("team/api"),
 				}},
 			},
 		},
@@ -110,7 +110,7 @@ func testImageCheckpointKey() checkpoint.Key {
 			CollectorInstanceID: "aws-prod",
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceECR,
+			ServiceKind:         aws.ServiceECR,
 			GenerationID:        "generation-1",
 			FencingToken:        7,
 		},
@@ -119,11 +119,11 @@ func testImageCheckpointKey() checkpoint.Key {
 	}
 }
 
-func testCheckpointBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testCheckpointBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         aws.ServiceECR,
 		CollectorInstanceID: "aws-prod",
 		GenerationID:        "generation-1",
 		FencingToken:        7,
@@ -153,12 +153,12 @@ func (api *checkpointECRAPI) DescribeImages(
 	input *awsecr.DescribeImagesInput,
 	_ ...func(*awsecr.Options),
 ) (*awsecr.DescribeImagesOutput, error) {
-	token := aws.ToString(input.NextToken)
+	token := awsv2.ToString(input.NextToken)
 	api.describeImageTokens = append(api.describeImageTokens, token)
 	page := api.imagePages[token]
 	output := &awsecr.DescribeImagesOutput{ImageDetails: page.images}
 	if page.nextToken != "" {
-		output.NextToken = aws.String(page.nextToken)
+		output.NextToken = awsv2.String(page.nextToken)
 	}
 	return output, nil
 }

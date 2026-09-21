@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/appmesh/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/appmesh/sdk guidance
 
 ## Read First
 

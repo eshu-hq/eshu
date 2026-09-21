@@ -18,4 +18,4 @@
 // The adapter records the instance count from the Cloud Map service summary and
 // never reads, lists, or discovers instances. Instance attribute maps, which can
 // hold caller-defined secrets, never enter the scanner.
-package awssdk
+package sdk

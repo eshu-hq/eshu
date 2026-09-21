@@ -11,4 +11,4 @@
 // API, so the adapter cannot read recipe step expressions, custom SQL query
 // strings, sample data, or mutate DataBrew state. It records only the recipe
 // step count, never the step expressions or their transformation parameters.
-package awssdk
+package sdk

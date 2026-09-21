@@ -13,7 +13,7 @@ import (
 // application. It records identity, status and drift/compliance labels, the
 // configured RPO/RTO targets, the assessment schedule, the resiliency score, and
 // the integrated AppRegistry application ARN only.
-func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObservation {
+func appObservation(boundary aws.Boundary, app App) aws.ResourceObservation {
 	arn := strings.TrimSpace(app.ARN)
 	name := strings.TrimSpace(app.Name)
 	resourceID := appResourceID(app)
@@ -36,11 +36,11 @@ func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObserv
 	if awsAppARN := strings.TrimSpace(app.AWSApplicationARN); awsAppARN != "" {
 		attributes["aws_application_arn"] = awsAppARN
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeResilienceHubApp,
+		ResourceType:       aws.ResourceTypeResilienceHubApp,
 		Name:               name,
 		State:              strings.TrimSpace(app.Status),
 		Tags:               cloneStringMap(app.Tags),
@@ -53,7 +53,7 @@ func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObserv
 // policyObservation builds the aws_resource observation for one resiliency
 // policy. It records the policy tier, cost tier, data-location constraint, and
 // the per-failure-type RPO/RTO targets only.
-func policyObservation(boundary awscloud.Boundary, policy ResiliencyPolicy) awscloud.ResourceObservation {
+func policyObservation(boundary aws.Boundary, policy ResiliencyPolicy) aws.ResourceObservation {
 	arn := strings.TrimSpace(policy.ARN)
 	name := strings.TrimSpace(policy.Name)
 	resourceID := policyResourceID(policy)
@@ -69,11 +69,11 @@ func policyObservation(boundary awscloud.Boundary, policy ResiliencyPolicy) awsc
 	if description := strings.TrimSpace(policy.Description); description != "" {
 		attributes["description"] = description
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeResilienceHubResiliencyPolicy,
+		ResourceType:       aws.ResourceTypeResilienceHubResiliencyPolicy,
 		Name:               name,
 		Tags:               cloneStringMap(policy.Tags),
 		Attributes:         attributes,
@@ -86,17 +86,17 @@ func policyObservation(boundary awscloud.Boundary, policy ResiliencyPolicy) awsc
 // component. Components have no API ARN, so the node is keyed by the
 // application-qualified component id.
 func componentObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	component AppComponent,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	appID := appResourceID(app)
 	resourceID := componentResourceID(appID, component)
 	name := strings.TrimSpace(component.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppComponent,
+		ResourceType: aws.ResourceTypeResilienceHubAppComponent,
 		Name:         name,
 		Attributes: map[string]any{
 			"component_type": strings.TrimSpace(component.Type),
@@ -111,19 +111,19 @@ func componentObservation(
 // input source. It records the import type, source ARN, and reported resource
 // count only.
 func inputSourceObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	source InputSource,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	appID := appResourceID(app)
 	resourceID := inputSourceResourceID(appID, source)
 	name := strings.TrimSpace(source.SourceName)
 	sourceARN := strings.TrimSpace(source.SourceARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          sourceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppInputSource,
+		ResourceType: aws.ResourceTypeResilienceHubAppInputSource,
 		Name:         name,
 		Attributes: map[string]any{
 			"import_type":    strings.TrimSpace(source.ImportType),
@@ -138,14 +138,14 @@ func inputSourceObservation(
 // assessmentObservation builds the aws_resource observation for one application
 // assessment summary. It records the assessment outcome labels only, never the
 // assessment result body or drift detail.
-func assessmentObservation(boundary awscloud.Boundary, assessment Assessment) awscloud.ResourceObservation {
+func assessmentObservation(boundary aws.Boundary, assessment Assessment) aws.ResourceObservation {
 	arn := strings.TrimSpace(assessment.ARN)
 	name := strings.TrimSpace(assessment.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppAssessment,
+		ResourceType: aws.ResourceTypeResilienceHubAppAssessment,
 		Name:         name,
 		State:        strings.TrimSpace(assessment.Status),
 		Attributes: map[string]any{

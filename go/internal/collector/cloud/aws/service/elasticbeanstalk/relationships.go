@@ -40,20 +40,20 @@ const elbv2ARNMarker = ":elasticloadbalancing:"
 // from the environment resource description, and the running application
 // version.
 func environmentRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	resources EnvironmentResources,
 	settings []OptionSetting,
 	applicationARNByName map[string]string,
 	versionARNByKey map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	environmentARN := strings.TrimSpace(environment.ARN)
 	sourceID := firstNonEmpty(environmentARN, strings.TrimSpace(environment.ID), strings.TrimSpace(environment.Name))
 	if sourceID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if rel, ok := applicationRelationship(boundary, environment, environmentARN, sourceID, applicationARNByName); ok {
 		observations = append(observations, rel)
 	}
@@ -66,28 +66,28 @@ func environmentRelationships(
 }
 
 func applicationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	environmentARN, sourceID string,
 	applicationARNByName map[string]string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	appName := strings.TrimSpace(environment.ApplicationName)
 	if appName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	appARN := strings.TrimSpace(applicationARNByName[appName])
 	// Join against the application node, whose resource_id is the application
 	// ARN when known. Fall back to the bare name so the edge still carries a
 	// stable target identity for downstream correlation.
 	target := firstNonEmpty(appARN, appName)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
+		RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
 		SourceResourceID: sourceID,
 		SourceARN:        environmentARN,
 		TargetResourceID: target,
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeElasticBeanstalkApplication,
+		TargetType:       aws.ResourceTypeElasticBeanstalkApplication,
 		SourceRecordID:   sourceID + "#application#" + appName,
 	}, true
 }
@@ -96,12 +96,12 @@ func applicationRelationship(
 // option settings. Only the resource-identity options are read; option values
 // such as environment variables are never turned into relationships.
 func optionSettingRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	environmentARN, sourceID string,
 	settings []OptionSetting,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, setting := range settings {
 		namespace := strings.TrimSpace(setting.Namespace)
 		option := strings.TrimSpace(setting.OptionName)
@@ -111,35 +111,35 @@ func optionSettingRelationships(
 		}
 		switch {
 		case namespace == optionNamespaceVPC && option == optionNameVPCID:
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC,
+				RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesVPC,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
-				TargetType:       awscloud.ResourceTypeEC2VPC,
+				TargetType:       aws.ResourceTypeEC2VPC,
 				SourceRecordID:   sourceID + "#vpc#" + value,
 			})
 		case namespace == optionNamespaceLaunchConfig && option == optionNameInstanceProfile:
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile,
+				RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
 				TargetARN:        arnOrEmpty(value),
-				TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
+				TargetType:       aws.ResourceTypeIAMInstanceProfile,
 				SourceRecordID:   sourceID + "#instance-profile#" + value,
 			})
 		case namespace == optionNamespaceEnvironment && option == optionNameServiceRole:
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole,
+				RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesServiceRole,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
 				TargetARN:        arnOrEmpty(value),
-				TargetType:       awscloud.ResourceTypeIAMRole,
+				TargetType:       aws.ResourceTypeIAMRole,
 				SourceRecordID:   sourceID + "#service-role#" + value,
 			})
 		}
@@ -151,20 +151,20 @@ func optionSettingRelationships(
 // launch-template joins from the environment resource description reported by
 // DescribeEnvironmentResources.
 func resourceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environmentARN, sourceID string,
 	resources EnvironmentResources,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, identifier := range resources.LoadBalancerNames {
 		identifier = strings.TrimSpace(identifier)
 		if identifier == "" {
 			continue
 		}
 		targetType, targetARN := loadBalancerTarget(identifier)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer,
+			RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: identifier,
@@ -178,13 +178,13 @@ func resourceRelationships(
 		if name == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup,
+			RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+			TargetType:       aws.ResourceTypeAutoScalingGroup,
 			SourceRecordID:   sourceID + "#asg#" + name,
 		})
 	}
@@ -193,13 +193,13 @@ func resourceRelationships(
 		if id == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate,
+			RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			TargetType:       aws.ResourceTypeEC2LaunchTemplate,
 			SourceRecordID:   sourceID + "#launch-template#" + id,
 		})
 	}
@@ -207,14 +207,14 @@ func resourceRelationships(
 }
 
 func versionRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	environmentARN, sourceID string,
 	versionARNByKey map[string]string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	label := strings.TrimSpace(environment.VersionLabel)
 	if label == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	appName := strings.TrimSpace(environment.ApplicationName)
 	versionARN := strings.TrimSpace(versionARNByKey[versionKey(appName, label)])
@@ -222,14 +222,14 @@ func versionRelationship(
 	// version ARN when known. Fall back to the application/version key so the
 	// edge still carries a stable target identity.
 	target := firstNonEmpty(versionARN, versionKey(appName, label))
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion,
+		RelationshipType: aws.RelationshipElasticBeanstalkEnvironmentRunsVersion,
 		SourceResourceID: sourceID,
 		SourceARN:        environmentARN,
 		TargetResourceID: target,
 		TargetARN:        versionARN,
-		TargetType:       awscloud.ResourceTypeElasticBeanstalkApplicationVersion,
+		TargetType:       aws.ResourceTypeElasticBeanstalkApplicationVersion,
 		SourceRecordID:   sourceID + "#version#" + label,
 	}, true
 }
@@ -245,7 +245,7 @@ func versionRelationship(
 func loadBalancerTarget(identifier string) (targetType, targetARN string) {
 	id := strings.TrimSpace(identifier)
 	if strings.HasPrefix(id, "arn:") && strings.Contains(id, elbv2ARNMarker) {
-		return awscloud.ResourceTypeELBv2LoadBalancer, id
+		return aws.ResourceTypeELBv2LoadBalancer, id
 	}
 	return genericResourceTargetType, ""
 }

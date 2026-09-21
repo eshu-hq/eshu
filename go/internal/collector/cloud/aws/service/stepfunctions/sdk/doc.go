@@ -12,4 +12,4 @@
 // literal Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result
 // contents from the state machine definition. The definition is read only as
 // state names, state types, structural transitions, and Task Resource ARNs.
-package awssdk
+package sdk

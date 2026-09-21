@@ -17,4 +17,4 @@
 // property documents are reduced to per-status counts.
 // TestAPIClientInterfaceExcludesTemplateAndMutationAPIs proves the accepted SDK
 // surface lists none of the forbidden methods.
-package awssdk
+package sdk

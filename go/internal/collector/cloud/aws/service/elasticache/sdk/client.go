@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk //nolint:filelength // 527 lines: ElastiCache SDK pagination, KMS + subnet resolution caching, and per-call telemetry. The per-service awssdk client intentionally owns the full surface so scanner.go can stay a thin fact selector.
+package sdk //nolint:filelength // 527 lines: ElastiCache SDK pagination, KMS + subnet resolution caching, and per-call telemetry. The per-service sdk client intentionally owns the full surface so scanner.go can stay a thin fact selector.
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awselasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	awselasticachetypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/smithy-go"
@@ -71,7 +71,7 @@ type apiClient interface {
 // user access strings, snapshot node payloads, or any mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 
@@ -86,8 +86,8 @@ type Client struct {
 
 // NewClient builds an ElastiCache SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -121,8 +121,8 @@ func (c *Client) ListCacheClusters(ctx context.Context) ([]elasticacheservice.Ca
 			var err error
 			page, err = c.client.DescribeCacheClusters(callCtx, &awselasticache.DescribeCacheClustersInput{
 				Marker:            marker,
-				MaxRecords:        aws.Int32(describeMaxRecords),
-				ShowCacheNodeInfo: aws.Bool(false),
+				MaxRecords:        awsv2.Int32(describeMaxRecords),
+				ShowCacheNodeInfo: awsv2.Bool(false),
 			})
 			return err
 		})
@@ -133,7 +133,7 @@ func (c *Client) ListCacheClusters(ctx context.Context) ([]elasticacheservice.Ca
 			return clusters, nil
 		}
 		for _, raw := range page.CacheClusters {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -141,7 +141,7 @@ func (c *Client) ListCacheClusters(ctx context.Context) ([]elasticacheservice.Ca
 			clusters = append(clusters, mapCacheCluster(raw, tags, subnetGroups, replicationGroupKMS))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return clusters, nil
 		}
 	}
@@ -192,7 +192,7 @@ func (c *Client) fetchReplicationGroups(ctx context.Context) ([]elasticacheservi
 			var err error
 			page, err = c.client.DescribeReplicationGroups(callCtx, &awselasticache.DescribeReplicationGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -203,7 +203,7 @@ func (c *Client) fetchReplicationGroups(ctx context.Context) ([]elasticacheservi
 			return groups, nil
 		}
 		for _, raw := range page.ReplicationGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -211,7 +211,7 @@ func (c *Client) fetchReplicationGroups(ctx context.Context) ([]elasticacheservi
 			groups = append(groups, mapReplicationGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -243,7 +243,7 @@ func (c *Client) ListCacheParameterGroups(ctx context.Context) ([]elasticacheser
 			var err error
 			page, err = c.client.DescribeCacheParameterGroups(callCtx, &awselasticache.DescribeCacheParameterGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -254,7 +254,7 @@ func (c *Client) ListCacheParameterGroups(ctx context.Context) ([]elasticacheser
 			return groups, nil
 		}
 		for _, raw := range page.CacheParameterGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -262,7 +262,7 @@ func (c *Client) ListCacheParameterGroups(ctx context.Context) ([]elasticacheser
 			groups = append(groups, mapParameterGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -281,7 +281,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]elasticacheservice.User, erro
 			var err error
 			page, err = c.client.DescribeUsers(callCtx, &awselasticache.DescribeUsersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -292,7 +292,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]elasticacheservice.User, erro
 			return users, nil
 		}
 		for _, raw := range page.Users {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -300,7 +300,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]elasticacheservice.User, erro
 			users = append(users, mapUser(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return users, nil
 		}
 	}
@@ -317,7 +317,7 @@ func (c *Client) ListUserGroups(ctx context.Context) ([]elasticacheservice.UserG
 			var err error
 			page, err = c.client.DescribeUserGroups(callCtx, &awselasticache.DescribeUserGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -328,7 +328,7 @@ func (c *Client) ListUserGroups(ctx context.Context) ([]elasticacheservice.UserG
 			return groups, nil
 		}
 		for _, raw := range page.UserGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -336,7 +336,7 @@ func (c *Client) ListUserGroups(ctx context.Context) ([]elasticacheservice.UserG
 			groups = append(groups, mapUserGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -354,7 +354,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]elasticacheservice.Snapsh
 			var err error
 			page, err = c.client.DescribeSnapshots(callCtx, &awselasticache.DescribeSnapshotsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -365,7 +365,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]elasticacheservice.Snapsh
 			return snapshots, nil
 		}
 		for _, raw := range page.Snapshots {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -373,7 +373,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]elasticacheservice.Snapsh
 			snapshots = append(snapshots, mapSnapshot(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return snapshots, nil
 		}
 	}
@@ -409,7 +409,7 @@ func (c *Client) fetchSubnetGroups(ctx context.Context) ([]elasticacheservice.Su
 			var err error
 			page, err = c.client.DescribeCacheSubnetGroups(callCtx, &awselasticache.DescribeCacheSubnetGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -420,7 +420,7 @@ func (c *Client) fetchSubnetGroups(ctx context.Context) ([]elasticacheservice.Su
 			return groups, nil
 		}
 		for _, raw := range page.CacheSubnetGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -428,7 +428,7 @@ func (c *Client) fetchSubnetGroups(ctx context.Context) ([]elasticacheservice.Su
 			groups = append(groups, mapSubnetGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -443,7 +443,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awselasticache.ListTagsForResourceInput{
-			ResourceName: aws.String(resourceARN),
+			ResourceName: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -471,7 +471,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -513,11 +513,11 @@ func mapTags(tags []awselasticachetypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil

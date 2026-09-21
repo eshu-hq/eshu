@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/workspaces` owns the Amazon WorkSpaces
+`internal/collector/cloud/aws/service/workspaces` owns the Amazon WorkSpaces
 scanner contract for the AWS cloud collector. It converts WorkSpaces virtual
 desktop, registered directory, account-owned bundle, and IP access control group
 metadata into `aws_resource` facts and emits relationship evidence for
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -50,9 +50,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records WorkSpaces API call counts, throttles, and
+The `sdk` adapter records WorkSpaces API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -65,7 +65,7 @@ pagination spans.
 - The WorkSpaces describe APIs return no ARNs, so the WorkSpace, directory,
   bundle, and IP-group nodes publish a synthesized partition-aware WorkSpaces ARN
   (`arn:<partition>:workspaces:<region>:<account>:<resource>/<id>`) as their
-  resource_id, derived via `awscloud.PartitionForBoundary` so the nodes join in
+  resource_id, derived via `aws.PartitionForBoundary` so the nodes join in
   GovCloud and China, not just commercial. The bare id is the fallback when
   account or region is missing.
 - The internal workspace-in-directory edge targets the WorkSpaces directory
@@ -87,7 +87,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/workspaces/...` covers the
+`go test ./internal/collector/cloud/aws/service/workspaces/...` covers the
 bounded WorkSpaces metadata path: one paginated DescribeWorkspaces stream, one
 paginated DescribeWorkspaceDirectories stream, one paginated
 DescribeWorkspaceBundles stream, one paginated DescribeIpGroups stream, one
@@ -95,7 +95,7 @@ DescribeTags point read per resource, no session or connection-status reads, no
 mutations, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/workspaces/...`
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/workspaces/...`
 green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle

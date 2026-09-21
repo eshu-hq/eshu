@@ -13,17 +13,17 @@ import (
 // target. Bedrock base and foundation model ARNs are managed by AWS and are not
 // emitted as scanner resources of their own, so the target is the foundation
 // model resource type the scanner does emit for the read-only model list.
-const foundationModelTargetType = awscloud.ResourceTypeBedrockFoundationModel
+const foundationModelTargetType = aws.ResourceTypeBedrockFoundationModel
 
-func customModelRelationships(model CustomModel) []awscloud.RelationshipObservation {
+func customModelRelationships(model CustomModel) []aws.RelationshipObservation {
 	id := firstNonEmpty(model.ARN, model.Name)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if base := strings.TrimSpace(model.BaseModelARN); isARN(base) {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockCustomModelUsesBaseModel,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockCustomModelUsesBaseModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: base,
@@ -33,13 +33,13 @@ func customModelRelationships(model CustomModel) []awscloud.RelationshipObservat
 		})
 	}
 	if job := strings.TrimSpace(model.JobARN); isARN(job) {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockCustomModelFromCustomizationJob,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockCustomModelFromCustomizationJob,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: job,
 			TargetARN:        job,
-			TargetType:       awscloud.ResourceTypeBedrockModelCustomizationJob,
+			TargetType:       aws.ResourceTypeBedrockModelCustomizationJob,
 			SourceRecordID:   id + "#job#" + job,
 		})
 	}
@@ -53,40 +53,40 @@ func customModelRelationships(model CustomModel) []awscloud.RelationshipObservat
 // relationship target, taking the partition from the custom model ARN so the
 // synthesized bucket ARN is correct in any AWS partition. It returns ok=false
 // for blank, non-S3 URIs.
-func customModelS3Relationship(modelID, modelARN, outputURI string) (awscloud.RelationshipObservation, bool) {
+func customModelS3Relationship(modelID, modelARN, outputURI string) (aws.RelationshipObservation, bool) {
 	uri := strings.TrimSpace(outputURI)
 	if uri == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	bucket, key, ok := parseS3URL(uri)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	bucketARN := s3BucketARN(awscloud.PartitionFromARN(modelARN), bucket)
+	bucketARN := s3BucketARN(aws.PartitionFromARN(modelARN), bucket)
 	attributes := map[string]any{"output_s3_uri": uri, "bucket": bucket}
 	if key != "" {
 		attributes["object_key"] = key
 	}
-	return awscloud.RelationshipObservation{
-		RelationshipType: awscloud.RelationshipBedrockCustomModelUsesS3Output,
+	return aws.RelationshipObservation{
+		RelationshipType: aws.RelationshipBedrockCustomModelUsesS3Output,
 		SourceResourceID: modelID,
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   modelID + "#output#" + uri,
 	}, true
 }
 
-func provisionedThroughputRelationships(pt ProvisionedModelThroughput) []awscloud.RelationshipObservation {
+func provisionedThroughputRelationships(pt ProvisionedModelThroughput) []aws.RelationshipObservation {
 	id := firstNonEmpty(pt.ARN, pt.Name)
 	model := strings.TrimSpace(pt.ModelARN)
 	if id == "" || !isARN(model) {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipBedrockProvisionedThroughputUsesModel,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipBedrockProvisionedThroughputUsesModel,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(pt.ARN),
 		TargetResourceID: model,
@@ -96,15 +96,15 @@ func provisionedThroughputRelationships(pt ProvisionedModelThroughput) []awsclou
 	}}
 }
 
-func agentRelationships(agent Agent) []awscloud.RelationshipObservation {
+func agentRelationships(agent Agent) []aws.RelationshipObservation {
 	id := firstNonEmpty(agent.ARN, agent.ID, agent.Name)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if model := strings.TrimSpace(agent.FoundationModel); model != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentUsesFoundationModel,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockAgentUsesFoundationModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(agent.ARN),
 			TargetResourceID: model,
@@ -122,53 +122,53 @@ func agentRelationships(agent Agent) []awscloud.RelationshipObservation {
 			continue
 		}
 		seen[kbID] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentUsesKnowledgeBase,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockAgentUsesKnowledgeBase,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(agent.ARN),
 			TargetResourceID: kbID,
-			TargetType:       awscloud.ResourceTypeBedrockKnowledgeBase,
+			TargetType:       aws.ResourceTypeBedrockKnowledgeBase,
 			SourceRecordID:   id + "#knowledge-base#" + kbID,
 		})
 	}
 	return observations
 }
 
-func actionGroupRelationships(group AgentActionGroup) []awscloud.RelationshipObservation {
+func actionGroupRelationships(group AgentActionGroup) []aws.RelationshipObservation {
 	id := firstNonEmpty(actionGroupID(group.AgentID, group.ID), group.Name)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if agentID := strings.TrimSpace(group.AgentID); agentID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentHasActionGroup,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockAgentHasActionGroup,
 			SourceResourceID: agentID,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeBedrockAgentActionGroup,
+			TargetType:       aws.ResourceTypeBedrockAgentActionGroup,
 			SourceRecordID:   agentID + "#action-group#" + id,
 		})
 	}
 	if lambda := strings.TrimSpace(group.LambdaARN); isARN(lambda) {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockActionGroupUsesLambda,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockActionGroupUsesLambda,
 			SourceResourceID: id,
 			TargetResourceID: lambda,
 			TargetARN:        lambda,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       aws.ResourceTypeLambdaFunction,
 			SourceRecordID:   id + "#lambda#" + lambda,
 		})
 	}
 	return observations
 }
 
-func knowledgeBaseRelationships(kb KnowledgeBase) []awscloud.RelationshipObservation {
+func knowledgeBaseRelationships(kb KnowledgeBase) []aws.RelationshipObservation {
 	id := firstNonEmpty(kb.ARN, kb.ID, kb.Name)
 	if id == "" {
 		return nil
 	}
-	partition := awscloud.PartitionFromARN(kb.ARN)
-	var observations []awscloud.RelationshipObservation
+	partition := aws.PartitionFromARN(kb.ARN)
+	var observations []aws.RelationshipObservation
 	for _, source := range kb.DataSources {
 		if observation, ok := knowledgeBaseDataSourceRelationship(id, kb.ARN, partition, source); ok {
 			observations = append(observations, observation)
@@ -184,7 +184,7 @@ func knowledgeBaseRelationships(kb KnowledgeBase) []awscloud.RelationshipObserva
 func knowledgeBaseDataSourceRelationship(
 	kbID, kbARN, partition string,
 	source KnowledgeBaseDataSource,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	attributes := map[string]any{"data_source_type": strings.TrimSpace(source.Type)}
 	if name := strings.TrimSpace(source.Name); name != "" {
 		attributes["data_source_name"] = name
@@ -199,29 +199,29 @@ func knowledgeBaseDataSourceRelationship(
 			// example an `s3://` or `s3:///path` scheme prefix) cannot address a
 			// real bucket. Dropping the edge keeps an invalid empty join key out
 			// of the graph rather than emitting `arn:<partition>:s3:::`.
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		return awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
+		return aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
 			SourceResourceID: kbID,
 			SourceARN:        strings.TrimSpace(kbARN),
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       aws.ResourceTypeS3Bucket,
 			Attributes:       attributes,
 			SourceRecordID:   kbID + "#s3-data-source#" + bucketARN,
 		}, true
 	}
 	url := strings.TrimSpace(source.URL)
 	if url == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	relationshipType, targetType, ok := urlDataSourceKinds(source.Type)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	attributes["url"] = url
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		RelationshipType: relationshipType,
 		SourceResourceID: kbID,
 		SourceARN:        strings.TrimSpace(kbARN),
@@ -238,11 +238,11 @@ func knowledgeBaseDataSourceRelationship(
 func urlDataSourceKinds(dataSourceType string) (relationshipType, targetType string, ok bool) {
 	switch strings.ToUpper(strings.TrimSpace(dataSourceType)) {
 	case "CONFLUENCE":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesConfluence, "confluence_data_source", true
+		return aws.RelationshipBedrockKnowledgeBaseUsesConfluence, "confluence_data_source", true
 	case "SHAREPOINT":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesSharePoint, "sharepoint_data_source", true
+		return aws.RelationshipBedrockKnowledgeBaseUsesSharePoint, "sharepoint_data_source", true
 	case "WEB":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesWebCrawler, "web_data_source", true
+		return aws.RelationshipBedrockKnowledgeBaseUsesWebCrawler, "web_data_source", true
 	default:
 		return "", "", false
 	}

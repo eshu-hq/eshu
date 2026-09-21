@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/inspector2/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/inspector2/sdk` adapts AWS SDK for Go
 v2 Inspector v2 responses to the scanner-owned `inspector2.Client` contract. It
 owns Inspector v2 pagination, the account status read, member, filter-name, and
 CIS scan configuration list reads, throttle classification, and per-call AWS API
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/inspector2` for scanner-owned result
+- `internal/collector/cloud/aws/service/inspector2` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `inspector2` and Smithy error contracts.

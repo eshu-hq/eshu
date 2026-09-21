@@ -12,11 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceEMR,
+		ServiceKind:         aws.ServiceEMR,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:emr:1",
 		CollectorInstanceID: "aws-prod",
@@ -58,41 +58,41 @@ func TestScannerEmitsClusterInstanceGroupAndAllClusterRelationships(t *testing.T
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeEMRCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeEMRCluster)
 	if got := cluster.Payload["resource_id"]; got != clusterARN {
 		t.Fatalf("cluster resource_id = %v, want %q", got, clusterARN)
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeEMRInstanceGroup)
+	assertResourceType(t, envelopes, aws.ResourceTypeEMRInstanceGroup)
 
 	// Subnet join: bare subnet id, target_type aws_ec2_subnet, deduplicated.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-aaa", awscloud.ResourceTypeEC2Subnet, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-bbb", awscloud.ResourceTypeEC2Subnet, "")
-	if got := countRelationships(envelopes, awscloud.RelationshipEMRClusterUsesSubnet); got != 2 {
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesSubnet, "subnet-aaa", aws.ResourceTypeEC2Subnet, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesSubnet, "subnet-bbb", aws.ResourceTypeEC2Subnet, "")
+	if got := countRelationships(envelopes, aws.RelationshipEMRClusterUsesSubnet); got != 2 {
 		t.Fatalf("subnet edge count = %d, want 2 (deduplicated)", got)
 	}
 	// Security group join: bare sg id, aws_ec2_security_group, deduplicated.
-	if got := countRelationships(envelopes, awscloud.RelationshipEMRClusterUsesSecurityGroup); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipEMRClusterUsesSecurityGroup); got != 2 {
 		t.Fatalf("security group edge count = %d, want 2 (deduplicated)", got)
 	}
 	// IAM role join: ServiceRole name (no ARN) + AutoScalingRole ARN.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesIAMRole, "EMR_DefaultRole", awscloud.ResourceTypeIAMRole, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesIAMRole,
-		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole", awscloud.ResourceTypeIAMRole,
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesIAMRole, "EMR_DefaultRole", aws.ResourceTypeIAMRole, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesIAMRole,
+		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole", aws.ResourceTypeIAMRole,
 		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole")
 	// Instance profile join: ARN target carries target_arn.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesInstanceProfile,
-		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole", awscloud.ResourceTypeIAMInstanceProfile,
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesInstanceProfile,
+		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole", aws.ResourceTypeIAMInstanceProfile,
 		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole")
 	// Security configuration join: name only.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSecurityConfiguration,
-		"prod-sec-config", awscloud.ResourceTypeEMRSecurityConfiguration, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesSecurityConfiguration,
+		"prod-sec-config", aws.ResourceTypeEMRSecurityConfiguration, "")
 	// KMS join: ARN key carries target_arn.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/abc-def", awscloud.ResourceTypeKMSKey,
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterUsesKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/abc-def", aws.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/abc-def")
 	// Instance group membership join: scoped id.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterHasInstanceGroup,
-		clusterARN+"/ig-111", awscloud.ResourceTypeEMRInstanceGroup, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterHasInstanceGroup,
+		clusterARN+"/ig-111", aws.ResourceTypeEMRInstanceGroup, "")
 }
 
 func TestScannerEmitsInstanceFleetClusterRelationship(t *testing.T) {
@@ -116,9 +116,9 @@ func TestScannerEmitsInstanceFleetClusterRelationship(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeEMRInstanceFleet)
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterHasInstanceFleet,
-		clusterARN+"/if-222", awscloud.ResourceTypeEMRInstanceFleet, "")
+	assertResourceType(t, envelopes, aws.ResourceTypeEMRInstanceFleet)
+	assertEdge(t, envelopes, aws.RelationshipEMRClusterHasInstanceFleet,
+		clusterARN+"/if-222", aws.ResourceTypeEMRInstanceFleet, "")
 }
 
 func TestScannerEmitsSecurityConfigurationNameOnly(t *testing.T) {
@@ -132,7 +132,7 @@ func TestScannerEmitsSecurityConfigurationNameOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	config := resourceByType(t, envelopes, awscloud.ResourceTypeEMRSecurityConfiguration)
+	config := resourceByType(t, envelopes, aws.ResourceTypeEMRSecurityConfiguration)
 	if got := config.Payload["resource_id"]; got != "kerberos-config" {
 		t.Fatalf("security config resource_id = %v, want kerberos-config", got)
 	}
@@ -166,16 +166,16 @@ func TestScannerEmitsServerlessApplicationAndRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	app := resourceByType(t, envelopes, awscloud.ResourceTypeEMRServerlessApplication)
+	app := resourceByType(t, envelopes, aws.ResourceTypeEMRServerlessApplication)
 	if got := app.Payload["resource_id"]; got != appARN {
 		t.Fatalf("application resource_id = %v, want %q", got, appARN)
 	}
-	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesSubnet,
-		"subnet-ccc", awscloud.ResourceTypeEC2Subnet, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup,
-		"sg-app", awscloud.ResourceTypeEC2SecurityGroup, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/serverless-key", awscloud.ResourceTypeKMSKey,
+	assertEdge(t, envelopes, aws.RelationshipEMRServerlessApplicationUsesSubnet,
+		"subnet-ccc", aws.ResourceTypeEC2Subnet, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRServerlessApplicationUsesSecurityGroup,
+		"sg-app", aws.ResourceTypeEC2SecurityGroup, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRServerlessApplicationUsesKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/serverless-key", aws.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/serverless-key")
 }
 
@@ -207,8 +207,8 @@ func TestScannerEmitsStudioVPCSubnetRoleKMSAndSessionMapping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeEMRStudio)
-	mapping := resourceByType(t, envelopes, awscloud.ResourceTypeEMRStudioSessionMapping)
+	assertResourceType(t, envelopes, aws.ResourceTypeEMRStudio)
+	mapping := resourceByType(t, envelopes, aws.ResourceTypeEMRStudioSessionMapping)
 	mappingID := studioARN + "/session-mapping/group:id-1"
 	if got := mapping.Payload["resource_id"]; got != mappingID {
 		t.Fatalf("session mapping resource_id = %v, want %q", got, mappingID)
@@ -216,19 +216,19 @@ func TestScannerEmitsStudioVPCSubnetRoleKMSAndSessionMapping(t *testing.T) {
 
 	// Studio->VPC is the only direct VPC join EMR exposes (clusters and
 	// applications derive VPC from subnet membership downstream).
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioInVPC, "vpc-123", awscloud.ResourceTypeEC2VPC, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioUsesSubnet, "subnet-ddd", awscloud.ResourceTypeEC2Subnet, "")
-	if got := countRelationships(envelopes, awscloud.RelationshipEMRStudioUsesSecurityGroup); got != 2 {
+	assertEdge(t, envelopes, aws.RelationshipEMRStudioInVPC, "vpc-123", aws.ResourceTypeEC2VPC, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRStudioUsesSubnet, "subnet-ddd", aws.ResourceTypeEC2Subnet, "")
+	if got := countRelationships(envelopes, aws.RelationshipEMRStudioUsesSecurityGroup); got != 2 {
 		t.Fatalf("studio security group edge count = %d, want 2", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipEMRStudioUsesIAMRole); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipEMRStudioUsesIAMRole); got != 2 {
 		t.Fatalf("studio IAM role edge count = %d, want 2", got)
 	}
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/studio-key", awscloud.ResourceTypeKMSKey,
+	assertEdge(t, envelopes, aws.RelationshipEMRStudioUsesKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/studio-key", aws.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/studio-key")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioHasSessionMapping,
-		mappingID, awscloud.ResourceTypeEMRStudioSessionMapping, "")
+	assertEdge(t, envelopes, aws.RelationshipEMRStudioHasSessionMapping,
+		mappingID, aws.ResourceTypeEMRStudioSessionMapping, "")
 }
 
 // TestSessionMappingOmitsLastModified proves the session-mapping observation
@@ -258,7 +258,7 @@ func TestSessionMappingOmitsLastModified(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	mapping := resourceByType(t, envelopes, awscloud.ResourceTypeEMRStudioSessionMapping)
+	mapping := resourceByType(t, envelopes, aws.ResourceTypeEMRStudioSessionMapping)
 	attributes, _ := mapping.Payload["attributes"].(map[string]any)
 	if _, exists := attributes["last_modified_at"]; exists {
 		t.Fatalf("session mapping emits last_modified_at, but ListStudioSessionMappings never reports it; attribute must be removed")
@@ -277,7 +277,7 @@ func TestScannerSurfacesListErrors(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceLambda
+	boundary.ServiceKind = aws.ServiceLambda
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}

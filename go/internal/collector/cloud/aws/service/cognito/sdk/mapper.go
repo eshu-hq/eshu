@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsidentity "github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 	awsidentitytypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentity/types"
 	awsidptypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
@@ -18,18 +18,18 @@ import (
 
 func mapUserPool(pool awsidptypes.UserPoolType) cognitoservice.UserPool {
 	return cognitoservice.UserPool{
-		ID:  aws.ToString(pool.Id),
-		ARN: aws.ToString(pool.Arn),
+		ID:  awsv2.ToString(pool.Id),
+		ARN: awsv2.ToString(pool.Arn),
 		// pool.Status is deprecated in the Cognito API ("no longer available")
 		// and always empty, so it is intentionally not mapped.
-		Name:               aws.ToString(pool.Name),
+		Name:               awsv2.ToString(pool.Name),
 		MFAConfiguration:   string(pool.MfaConfiguration),
 		DeletionProtection: string(pool.DeletionProtection),
-		Domain:             aws.ToString(pool.Domain),
-		CustomDomain:       aws.ToString(pool.CustomDomain),
+		Domain:             awsv2.ToString(pool.Domain),
+		CustomDomain:       awsv2.ToString(pool.CustomDomain),
 		EstimatedNumUsers:  pool.EstimatedNumberOfUsers,
-		CreatedAt:          aws.ToTime(pool.CreationDate),
-		LastModifiedAt:     aws.ToTime(pool.LastModifiedDate),
+		CreatedAt:          awsv2.ToTime(pool.CreationDate),
+		LastModifiedAt:     awsv2.ToTime(pool.LastModifiedDate),
 		PasswordPolicy:     mapPasswordPolicy(pool.Policies),
 		LambdaTriggers:     mapLambdaTriggers(pool.LambdaConfig),
 		Tags:               mapStringMap(pool.UserPoolTags),
@@ -42,13 +42,13 @@ func mapPasswordPolicy(policies *awsidptypes.UserPoolPolicyType) *cognitoservice
 	}
 	policy := policies.PasswordPolicy
 	return &cognitoservice.PasswordPolicy{
-		MinimumLength:                 aws.ToInt32(policy.MinimumLength),
+		MinimumLength:                 awsv2.ToInt32(policy.MinimumLength),
 		RequireUppercase:              policy.RequireUppercase,
 		RequireLowercase:              policy.RequireLowercase,
 		RequireNumbers:                policy.RequireNumbers,
 		RequireSymbols:                policy.RequireSymbols,
 		TemporaryPasswordValidityDays: policy.TemporaryPasswordValidityDays,
-		PasswordHistorySize:           aws.ToInt32(policy.PasswordHistorySize),
+		PasswordHistorySize:           awsv2.ToInt32(policy.PasswordHistorySize),
 	}
 }
 
@@ -77,7 +77,7 @@ func mapLambdaTriggers(config *awsidptypes.LambdaConfigType) []cognitoservice.La
 	}
 	var triggers []cognitoservice.LambdaTrigger
 	for _, slot := range slots {
-		arn := strings.TrimSpace(aws.ToString(slot.arn))
+		arn := strings.TrimSpace(awsv2.ToString(slot.arn))
 		if arn == "" {
 			continue
 		}
@@ -89,18 +89,18 @@ func mapLambdaTriggers(config *awsidptypes.LambdaConfigType) []cognitoservice.La
 // mapUserPoolClient copies app-client metadata but never reads ClientSecret.
 func mapUserPoolClient(client awsidptypes.UserPoolClientType) cognitoservice.UserPoolClient {
 	return cognitoservice.UserPoolClient{
-		ID:                              aws.ToString(client.ClientId),
-		Name:                            aws.ToString(client.ClientName),
-		UserPoolID:                      aws.ToString(client.UserPoolId),
+		ID:                              awsv2.ToString(client.ClientId),
+		Name:                            awsv2.ToString(client.ClientName),
+		UserPoolID:                      awsv2.ToString(client.UserPoolId),
 		AllowedOAuthFlows:               mapOAuthFlows(client.AllowedOAuthFlows),
 		AllowedOAuthScopes:              cloneStrings(client.AllowedOAuthScopes),
-		AllowedOAuthFlowsUserPoolClient: aws.ToBool(client.AllowedOAuthFlowsUserPoolClient),
+		AllowedOAuthFlowsUserPoolClient: awsv2.ToBool(client.AllowedOAuthFlowsUserPoolClient),
 		CallbackURLs:                    cloneStrings(client.CallbackURLs),
 		LogoutURLs:                      cloneStrings(client.LogoutURLs),
 		SupportedIdentityProviders:      cloneStrings(client.SupportedIdentityProviders),
 		ExplicitAuthFlows:               mapExplicitAuthFlows(client.ExplicitAuthFlows),
-		CreatedAt:                       aws.ToTime(client.CreationDate),
-		LastModifiedAt:                  aws.ToTime(client.LastModifiedDate),
+		CreatedAt:                       awsv2.ToTime(client.CreationDate),
+		LastModifiedAt:                  awsv2.ToTime(client.LastModifiedDate),
 	}
 }
 
@@ -109,17 +109,17 @@ func mapUserPoolClient(client awsidptypes.UserPoolClientType) cognitoservice.Use
 func mapIdentityProvider(poolID string, provider awsidptypes.ProviderDescription) cognitoservice.IdentityProvider {
 	return cognitoservice.IdentityProvider{
 		UserPoolID:     poolID,
-		ProviderName:   aws.ToString(provider.ProviderName),
+		ProviderName:   awsv2.ToString(provider.ProviderName),
 		ProviderType:   string(provider.ProviderType),
-		CreatedAt:      aws.ToTime(provider.CreationDate),
-		LastModifiedAt: aws.ToTime(provider.LastModifiedDate),
+		CreatedAt:      awsv2.ToTime(provider.CreationDate),
+		LastModifiedAt: awsv2.ToTime(provider.LastModifiedDate),
 	}
 }
 
 func mapResourceServer(resourceServer awsidptypes.ResourceServerType) cognitoservice.ResourceServer {
 	scopes := make([]string, 0, len(resourceServer.Scopes))
 	for _, scope := range resourceServer.Scopes {
-		if name := strings.TrimSpace(aws.ToString(scope.ScopeName)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(scope.ScopeName)); name != "" {
 			scopes = append(scopes, name)
 		}
 	}
@@ -127,38 +127,38 @@ func mapResourceServer(resourceServer awsidptypes.ResourceServerType) cognitoser
 		scopes = nil
 	}
 	return cognitoservice.ResourceServer{
-		UserPoolID: aws.ToString(resourceServer.UserPoolId),
-		Identifier: aws.ToString(resourceServer.Identifier),
-		Name:       aws.ToString(resourceServer.Name),
+		UserPoolID: awsv2.ToString(resourceServer.UserPoolId),
+		Identifier: awsv2.ToString(resourceServer.Identifier),
+		Name:       awsv2.ToString(resourceServer.Name),
 		Scopes:     scopes,
 	}
 }
 
 func mapGroup(group awsidptypes.GroupType) cognitoservice.Group {
 	return cognitoservice.Group{
-		UserPoolID:     aws.ToString(group.UserPoolId),
-		Name:           aws.ToString(group.GroupName),
-		Description:    aws.ToString(group.Description),
-		RoleARN:        aws.ToString(group.RoleArn),
+		UserPoolID:     awsv2.ToString(group.UserPoolId),
+		Name:           awsv2.ToString(group.GroupName),
+		Description:    awsv2.ToString(group.Description),
+		RoleARN:        awsv2.ToString(group.RoleArn),
 		Precedence:     group.Precedence,
-		CreatedAt:      aws.ToTime(group.CreationDate),
-		LastModifiedAt: aws.ToTime(group.LastModifiedDate),
+		CreatedAt:      awsv2.ToTime(group.CreationDate),
+		LastModifiedAt: awsv2.ToTime(group.LastModifiedDate),
 	}
 }
 
 func mapIdentityPool(
 	output *awsidentity.DescribeIdentityPoolOutput,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	roles map[string]string,
 ) cognitoservice.IdentityPool {
-	poolID := aws.ToString(output.IdentityPoolId)
+	poolID := awsv2.ToString(output.IdentityPoolId)
 	return cognitoservice.IdentityPool{
 		ID:                             poolID,
 		ARN:                            identityPoolARN(boundary, poolID),
-		Name:                           aws.ToString(output.IdentityPoolName),
+		Name:                           awsv2.ToString(output.IdentityPoolName),
 		AllowUnauthenticatedIdentities: output.AllowUnauthenticatedIdentities,
-		AllowClassicFlow:               aws.ToBool(output.AllowClassicFlow),
-		DeveloperProviderName:          aws.ToString(output.DeveloperProviderName),
+		AllowClassicFlow:               awsv2.ToBool(output.AllowClassicFlow),
+		DeveloperProviderName:          awsv2.ToString(output.DeveloperProviderName),
 		UserPoolProviders:              mapUserPoolProviders(output.CognitoIdentityProviders),
 		OpenIDConnectProviderARNs:      cloneStrings(output.OpenIdConnectProviderARNs),
 		SAMLProviderARNs:               cloneStrings(output.SamlProviderARNs),
@@ -173,8 +173,8 @@ func mapUserPoolProviders(providers []awsidentitytypes.CognitoIdentityProvider) 
 	output := make([]cognitoservice.IdentityPoolUserPoolProvider, 0, len(providers))
 	for _, provider := range providers {
 		output = append(output, cognitoservice.IdentityPoolUserPoolProvider{
-			ProviderName: aws.ToString(provider.ProviderName),
-			ClientID:     aws.ToString(provider.ClientId),
+			ProviderName: awsv2.ToString(provider.ProviderName),
+			ClientID:     awsv2.ToString(provider.ClientId),
 		})
 	}
 	return output
@@ -183,14 +183,14 @@ func mapUserPoolProviders(providers []awsidentitytypes.CognitoIdentityProvider) 
 // identityPoolARN synthesizes the identity pool ARN. The cognito-identity APIs
 // return only the bare pool ID, so the adapter builds the ARN from the claim
 // boundary so reducers have a stable, partition-shaped identity.
-func identityPoolARN(boundary awscloud.Boundary, poolID string) string {
+func identityPoolARN(boundary aws.Boundary, poolID string) string {
 	poolID = strings.TrimSpace(poolID)
 	if poolID == "" {
 		return ""
 	}
 	return fmt.Sprintf(
 		"arn:%s:cognito-identity:%s:%s:identitypool/%s",
-		awscloud.PartitionForBoundary(boundary),
+		aws.PartitionForBoundary(boundary),
 		strings.TrimSpace(boundary.Region),
 		strings.TrimSpace(boundary.AccountID),
 		poolID,

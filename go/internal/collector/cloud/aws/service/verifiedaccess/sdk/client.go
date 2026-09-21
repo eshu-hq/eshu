@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -56,15 +56,15 @@ type apiClient interface {
 // client secrets.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Verified Access SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -125,7 +125,7 @@ func (c *Client) listInstances(ctx context.Context) ([]verifiedaccessservice.Ins
 			instances = append(instances, mapInstance(instance))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return instances, nil
 		}
 	}
@@ -153,7 +153,7 @@ func (c *Client) listTrustProviders(ctx context.Context) ([]verifiedaccessservic
 			trustProviders = append(trustProviders, mapTrustProvider(trustProvider))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return trustProviders, nil
 		}
 	}
@@ -181,7 +181,7 @@ func (c *Client) listGroups(ctx context.Context) ([]verifiedaccessservice.Group,
 			groups = append(groups, mapGroup(group))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return groups, nil
 		}
 	}
@@ -209,7 +209,7 @@ func (c *Client) listEndpoints(ctx context.Context) ([]verifiedaccessservice.End
 			endpoints = append(endpoints, mapEndpoint(endpoint))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return endpoints, nil
 		}
 	}
@@ -233,7 +233,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

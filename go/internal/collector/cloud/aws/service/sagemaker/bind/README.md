@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sagemaker/runtimebind` registers the
-SageMaker scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/sagemaker/bind` registers the
+SageMaker scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the SageMaker scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceSageMaker` to the SageMaker scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceSageMaker` to the SageMaker scanner builder. It does not own
 AWS API calls, SageMaker domain types, or fact emission. Those belong to
-`internal/collector/awscloud/service/sagemaker` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/sagemaker` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceSageMaker` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceSageMaker` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/sagemaker` for the scanner struct.
-- `internal/collector/awscloud/service/sagemaker/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/sagemaker` for the scanner struct.
+- `internal/collector/cloud/aws/service/sagemaker/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The SageMaker scanner and its SDK
 adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -49,6 +49,6 @@ and the awsruntime README.
 ## Related docs
 
 - `../README.md` for the SageMaker scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

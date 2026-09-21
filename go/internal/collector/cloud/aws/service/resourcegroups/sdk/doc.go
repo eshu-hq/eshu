@@ -11,4 +11,4 @@
 // DeleteGroup, UpdateGroupQuery, GroupResources, UngroupResources, Tag, Untag,
 // PutGroupConfiguration, and any other mutation API. The resource-query body is
 // never persisted beyond the stack identifier.
-package awssdk
+package sdk

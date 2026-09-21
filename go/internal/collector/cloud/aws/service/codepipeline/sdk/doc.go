@@ -15,4 +15,4 @@
 // identifiers only), never reads the webhook authentication secret token, and
 // routes source-revision summaries through the redaction library before they
 // reach scanner types so a pasted secret cannot persist raw.
-package awssdk
+package sdk

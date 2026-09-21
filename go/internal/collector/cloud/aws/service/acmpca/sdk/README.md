@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/acmpca/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/acmpca/sdk` adapts AWS SDK for Go v2
 ACM Private CA (acm-pca) responses to the scanner-owned `acmpca.Client`
 contract. It owns certificate authority pagination, CA metadata reads, CA tag
 reads, throttle classification, and per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/acmpca` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/acmpca` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `acmpca` and Smithy error contracts.
 

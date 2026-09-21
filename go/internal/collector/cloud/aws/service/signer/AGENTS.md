@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/signer guidance
+# AGENTS.md - internal/collector/cloud/aws/service/signer guidance
 
 ## Read First
 
@@ -38,7 +38,7 @@
   report those dependencies. An S3 source/destination is reported only on a
   signing job, which is data-plane and never read.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from profile, platform, or
@@ -48,14 +48,14 @@
 ## Common Changes
 
 - Add a new Signer metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry signing material, signed payloads,
   or signing-parameter values, leave it out of the scanner contract.
 - Add new relationship evidence only when the Signer API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for ACM certificates, the bare platform id for
   the signing platform).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

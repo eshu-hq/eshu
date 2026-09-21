@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codebuild guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codebuild guidance
 
 ## Read First
 
@@ -29,7 +29,7 @@
 - Derive S3 bucket ARNs as `arn:<partition>:s3:::bucket`. S3 ARNs omit the
   region and account segments, but the partition segment is NOT optional and
   differs across partitions (`aws` / `aws-us-gov` / `aws-cn`). Derive the
-  partition from the scan boundary via `awscloud.PartitionForBoundary`, or
+  partition from the scan boundary via `aws.PartitionForBoundary`, or
   preserve the source ARN's partition when reducing an object ARN to its
   bucket ARN. Never hardcode the commercial `aws` partition.
 
@@ -37,11 +37,11 @@
 
 - Add a new CodeBuild metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when the CodeBuild API reports both sides
   directly and the target names a concrete resource whose owning scanner
   resource_id you can match.
-- Extend SDK pagination and mapping in the `awssdk` adapter, not here.
+- Extend SDK pagination and mapping in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

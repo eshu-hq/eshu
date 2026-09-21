@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes Detective behavior graphs and their member accounts through the
 // configured client, emitting one resource per graph and per member plus the
 // graph-to-member-account and graph-to-GuardDuty-detector relationships.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("detective scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDetective:
+	case "", aws.ServiceDetective:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDetective
+		boundary.ServiceKind = aws.ServiceDetective
 	default:
 		return nil, fmt.Errorf("detective scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -57,7 +57,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 // graph node it publishes.
 func (s Scanner) graphEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graph Graph,
 ) ([]facts.Envelope, error) {
 	graphARN := strings.TrimSpace(graph.ARN)
@@ -76,14 +76,14 @@ func (s Scanner) graphEnvelopes(
 		return nil, fmt.Errorf("list Detective members for %q: %w", graphARN, err)
 	}
 
-	graphResource, err := awscloud.NewResourceEnvelope(graphObservation(boundary, graph, tags, members))
+	graphResource, err := aws.NewResourceEnvelope(graphObservation(boundary, graph, tags, members))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{graphResource}
 
 	if rel, ok := guardDutyDetectorRelationship(boundary, graph); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(rel)
+		envelope, err := aws.NewRelationshipEnvelope(rel)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (s Scanner) graphEnvelopes(
 	}
 
 	for _, member := range members {
-		memberResource, err := awscloud.NewResourceEnvelope(memberObservation(boundary, graphARN, member))
+		memberResource, err := aws.NewResourceEnvelope(memberObservation(boundary, graphARN, member))
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (s Scanner) graphEnvelopes(
 		if !ok {
 			continue
 		}
-		relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+		relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 		if err != nil {
 			return nil, err
 		}
@@ -113,17 +113,17 @@ func (s Scanner) graphEnvelopes(
 // the ARN and the resource id, so the graph's edges (sourced on the ARN) join
 // this node, and the partition is inherited from the ARN Detective reported.
 func graphObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graph Graph,
 	tags map[string]string,
 	members []MemberAccount,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	graphARN := strings.TrimSpace(graph.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          graphARN,
 		ResourceID:   graphARN,
-		ResourceType: awscloud.ResourceTypeDetectiveGraph,
+		ResourceType: aws.ResourceTypeDetectiveGraph,
 		Name:         graphName(graphARN),
 		Tags:         cloneStringMap(tags),
 		Attributes: map[string]any{
@@ -142,15 +142,15 @@ func graphObservation(
 // derived from the graph ARN and the member account id, never from list order,
 // so the identity is stable across scans even if Detective reorders members.
 func memberObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graphARN string,
 	member MemberAccount,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	accountID := strings.TrimSpace(member.AccountID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(graphARN, accountID),
-		ResourceType: awscloud.ResourceTypeDetectiveMemberAccount,
+		ResourceType: aws.ResourceTypeDetectiveMemberAccount,
 		Name:         accountID,
 		State:        strings.TrimSpace(member.Status),
 		Attributes: map[string]any{

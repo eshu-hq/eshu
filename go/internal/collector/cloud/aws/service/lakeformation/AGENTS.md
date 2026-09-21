@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/lakeformation guidance
+# AGENTS.md - internal/collector/cloud/aws/service/lakeformation guidance
 
 ## Read First
 
@@ -30,14 +30,14 @@
 - Permission privilege names (`SELECT`, `ALTER`, `ALL`, ...) are a closed AWS
   enum recorded as grant identity. Do not widen this to free-form policy text.
 - Derive the S3 bucket ARN from the registered location ARN with
-  `awscloud.PartitionFromARN` (or the local `partition(boundary)` fallback);
+  `aws.PartitionFromARN` (or the local `partition(boundary)` fallback);
   never hardcode `arn:aws:`.
 - Emit the permission-to-principal edge only when the principal identifier is
   an IAM role ARN; the resource edge still resolves for special principals.
 - Emit the registered-location-to-S3 edge only when the registered ARN is an
   S3 location ARN, and the registered-location-to-IAM-role edge only when AWS
   reports an ARN-shaped role identity.
-- Every relationship sets a non-empty declared `awscloud.ResourceType*`
+- Every relationship sets a non-empty declared `aws.ResourceType*`
   `TargetType` and a matching `TargetResourceID` (the relguard contract).
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from principal, database, or
@@ -48,14 +48,14 @@
 
 - Add a new Lake Formation metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry policy, condition, or
+  `aws` envelope builders. If the field can carry policy, condition, or
   LF-Tag value material, leave it out of the scanner contract until an ADR
   documents a sanitized exception.
 - Add new relationship evidence only when the Lake Formation API reports both
   sides directly and the target identity is not sensitive (an ARN or a
   catalog-stable name) and matches how the target scanner publishes its
   `resource_id`.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

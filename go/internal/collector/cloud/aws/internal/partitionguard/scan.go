@@ -34,7 +34,7 @@ type Violation struct {
 
 // String renders a violation for a guard failure message.
 func (v Violation) String() string {
-	return fmt.Sprintf("%s:%d: hardcoded partition in ARN %s (%q) — derive it with awscloud.PartitionForRegion/PartitionForBoundary/PartitionFromARN", v.File, v.Line, v.Context, v.Literal)
+	return fmt.Sprintf("%s:%d: hardcoded partition in ARN %s (%q) — derive it with aws.PartitionForRegion/PartitionForBoundary/PartitionFromARN", v.File, v.Line, v.Context, v.Literal)
 }
 
 // ScanForHardcodedPartitions walks every non-test Go file under servicesDir

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsworkspaces "github.com/aws/aws-sdk-go-v2/service/workspaces"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -59,15 +59,15 @@ type apiClient interface {
 // connection state, or registration codes, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a WorkSpaces SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -134,7 +134,7 @@ func (c *Client) listWorkspaces(ctx context.Context) ([]workspacesservice.Worksp
 			workspaces = append(workspaces, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return workspaces, nil
 		}
 	}
@@ -166,7 +166,7 @@ func (c *Client) listDirectories(ctx context.Context) ([]workspacesservice.Direc
 			directories = append(directories, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return directories, nil
 		}
 	}
@@ -203,7 +203,7 @@ func (c *Client) listBundles(ctx context.Context) ([]workspacesservice.Bundle, e
 			bundles = append(bundles, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return bundles, nil
 		}
 	}
@@ -235,7 +235,7 @@ func (c *Client) listIPGroups(ctx context.Context) ([]workspacesservice.IPGroup,
 			groups = append(groups, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return groups, nil
 		}
 	}
@@ -253,7 +253,7 @@ func (c *Client) listTags(ctx context.Context, resourceID string) (map[string]st
 	err := c.recordAPICall(ctx, "DescribeTags", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.DescribeTags(callCtx, &awsworkspaces.DescribeTagsInput{
-			ResourceId: aws.String(resourceID),
+			ResourceId: awsv2.String(resourceID),
 		})
 		return callErr
 	})
@@ -265,11 +265,11 @@ func (c *Client) listTags(ctx context.Context, resourceID string) (map[string]st
 	}
 	tags := make(map[string]string, len(output.TagList))
 	for _, tag := range output.TagList {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -295,7 +295,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

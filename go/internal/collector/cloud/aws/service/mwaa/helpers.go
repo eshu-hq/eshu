@@ -16,8 +16,8 @@ import (
 // GovCloud and China instead of dangling against the commercial-partition
 // bucket node. When the source data already carries an ARN, the scanner reads
 // the partition from that ARN instead.
-func partition(boundary awscloud.Boundary) string {
-	return awscloud.PartitionForBoundary(boundary)
+func partition(boundary aws.Boundary) string {
+	return aws.PartitionForBoundary(boundary)
 }
 
 // s3BucketARN returns the S3 bucket ARN for an MWAA source-bucket reference.
@@ -25,7 +25,7 @@ func partition(boundary awscloud.Boundary) string {
 // it inherits its own partition. When the reference is a bare bucket name the
 // ARN is synthesized with the boundary partition. The empty string is returned
 // when no bucket can be derived so the caller skips the edge.
-func s3BucketARN(boundary awscloud.Boundary, sourceBucket string) string {
+func s3BucketARN(boundary aws.Boundary, sourceBucket string) string {
 	trimmed := strings.TrimSpace(sourceBucket)
 	if trimmed == "" {
 		return ""

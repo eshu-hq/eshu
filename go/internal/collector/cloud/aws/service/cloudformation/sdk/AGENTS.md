@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cloudformation/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cloudformation/sdk guidance
 
 ## Read First
 

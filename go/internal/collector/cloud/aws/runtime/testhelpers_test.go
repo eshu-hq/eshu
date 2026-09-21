@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime_test
+package runtime_test
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-// staticAWSConfigLease is a test double satisfying awsruntime.AWSConfigLease
+// staticAWSConfigLease is a test double satisfying runtime.AWSConfigLease
 // for builders that need a non-nil config but no lease semantics.
 type staticAWSConfigLease struct {
 	config aws.Config
@@ -24,7 +24,7 @@ func (l staticAWSConfigLease) Release() error {
 	return nil
 }
 
-// releaseOnlyLease satisfies awsruntime.CredentialLease but NOT AWSConfigLease
+// releaseOnlyLease satisfies runtime.CredentialLease but NOT AWSConfigLease
 // so the runtime error path that requires an AWS-shaped lease has coverage.
 type releaseOnlyLease struct{}
 

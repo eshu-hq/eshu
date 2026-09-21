@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/wafv2/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/wafv2/sdk guidance
 
 ## Read First
 

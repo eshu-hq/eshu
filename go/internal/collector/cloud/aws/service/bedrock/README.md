@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/bedrock` owns the Bedrock scanner contract
+`internal/collector/cloud/aws/service/bedrock` owns the Bedrock scanner contract
 for the AWS cloud collector. It converts Bedrock control-plane metadata for
 eight resource types into `aws_resource` facts and emits the reported
 relationships that tie custom models, agents, and knowledge bases to their
@@ -22,7 +22,7 @@ have no field to hold them.
 This package owns scanner-level Bedrock fact selection and identity mapping. It
 does not own AWS SDK pagination, STS credentials, workflow claims, fact
 persistence, graph writes, reducer admission, or query behavior. The SDK adapter
-in `awssdk` owns every AWS call; this package consumes the small `Client`
+in `sdk` owns every AWS call; this package consumes the small `Client`
 interface only.
 
 ```mermaid
@@ -50,7 +50,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -59,10 +59,10 @@ so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns, labeled
 `service="bedrock"` on `eshu_dp_aws_resources_emitted_total` and
-`eshu_dp_aws_relationships_emitted_total`. The `awssdk` adapter records Bedrock
+`eshu_dp_aws_relationships_emitted_total`. The `sdk` adapter records Bedrock
 API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -93,7 +93,7 @@ API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/bedrock/... -count=1 -race`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/bedrock/... -count=1 -race`
 covers the bounded Bedrock metadata path. The SDK adapter API fanout per claim
 is: one `ListFoundationModels` (single call, no Describe fanout), one paginated
 `List*` per remaining resource type, one `GetCustomModel` per custom model (for
@@ -107,7 +107,7 @@ no graph write, queue, lease, or worker change: the scanner returns a fact slice
 for the existing claim runtime to commit, so this slice adds no new concurrency
 surface.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/bedrock/... ./internal/collector/awscloud/awsruntime/... ./cmd/collector-aws-cloud/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/bedrock/... ./internal/collector/cloud/aws/runtime/... ./cmd/collector-aws-cloud/... -count=1`
 covers resource fact emission for all eight types, the twelve required
 relationships, sensitive-payload omission, the struct-reflection redaction gate
 proving no scanner type can carry agent prompts / guardrail policies / KB
@@ -133,10 +133,10 @@ Collector Deployment Evidence: Bedrock runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/bedrock/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/bedrock/... -count=1`
 covers the existing partition assertions, now backed by the shared helper. The
 synthesized S3 bucket and knowledge-base-source ARNs inherit the partition of
-the referencing model/knowledge-base ARN via `awscloud.PartitionFromARN`
+the referencing model/knowledge-base ARN via `aws.PartitionFromARN`
 (replacing the package-local `arnPartition` helper) instead of hardcoding `aws`.
 Commercial output is byte-for-byte unchanged; this is a metadata-only
 correctness fix with no graph-write, queue, or hot-path behavior change.

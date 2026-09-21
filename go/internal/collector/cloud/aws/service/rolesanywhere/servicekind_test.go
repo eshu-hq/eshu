@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "rolesanywhere".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceRolesAnywhere + "  "
+	boundary.ServiceKind = "  " + aws.ServiceRolesAnywhere + "  "
 	client := fakeClient{snapshot: Snapshot{TrustAnchors: []TrustAnchor{{
 		ARN:  testTrustAnchorARN,
 		Name: "corp-pca",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceRolesAnywhere; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceRolesAnywhere; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

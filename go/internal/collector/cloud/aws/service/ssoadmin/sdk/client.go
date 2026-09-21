@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsidentitystore "github.com/aws/aws-sdk-go-v2/service/identitystore"
 	awsssoadmin "github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/smithy-go"
@@ -55,7 +55,7 @@ type identityStoreAPI interface {
 type Client struct {
 	ssoAdmin      ssoAdminAPI
 	identityStore identityStoreAPI
-	boundary      awscloud.Boundary
+	boundary      aws.Boundary
 	tracer        trace.Tracer
 	instruments   *telemetry.Instruments
 }
@@ -63,8 +63,8 @@ type Client struct {
 // NewClient builds an Identity Center SDK adapter for one claimed AWS boundary.
 // The sso-admin and identitystore clients use the org control-plane region.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -160,7 +160,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -220,9 +220,9 @@ func skipReason(err error) string {
 	return strings.TrimSpace(err.Error())
 }
 
-func skippedSnapshot(boundary awscloud.Boundary, warningKind, message string) ssoadminservice.Snapshot {
+func skippedSnapshot(boundary aws.Boundary, warningKind, message string) ssoadminservice.Snapshot {
 	return ssoadminservice.Snapshot{
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:    boundary,
 			WarningKind: warningKind,
 			ErrorClass:  "skip",

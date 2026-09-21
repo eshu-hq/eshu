@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ses/awssdk` adapts AWS SDK for Go v2 SES
+`internal/collector/cloud/aws/service/ses/sdk` adapts AWS SDK for Go v2 SES
 v2 responses to the scanner-owned `Client` contract. It owns email-identity and
 configuration-set listing pagination, the per-identity and per-set get fan-out,
 the dedicated-IP-pool listing, throttle classification, per-call AWS API
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/ses` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/ses` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `sesv2` and Smithy error contracts.
 
@@ -76,7 +76,7 @@ stay out of metric labels.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK pagination.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/ses/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/ses/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 ## Related docs

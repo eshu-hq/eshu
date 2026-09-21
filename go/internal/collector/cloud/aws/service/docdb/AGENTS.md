@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/docdb guidance
+# AGENTS.md - internal/collector/cloud/aws/service/docdb guidance
 
 ## Read First
 
@@ -34,10 +34,10 @@
 
 - Add a new DocumentDB metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when DocumentDB directly reports both
   sides and the target identity is not secret.
-- Extend SDK pagination and optional-not-found handling in the `awssdk`
+- Extend SDK pagination and optional-not-found handling in the `sdk`
   adapter, not here.
 - When adding a `Client` method, update `contract_test.go` so the new
   metadata-only read is in the allowed set and no mutation verb leaks in.

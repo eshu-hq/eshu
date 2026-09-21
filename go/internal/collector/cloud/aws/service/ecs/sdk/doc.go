@@ -6,4 +6,4 @@
 //
 // The package owns ECS pagination, batched describe calls, SDK response
 // mapping, AWS API telemetry, throttle detection, and pagination spans.
-package awssdk
+package sdk

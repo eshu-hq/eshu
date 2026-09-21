@@ -49,7 +49,7 @@ func TestScannerEmitsPipelineResourceAndEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	pipeline := resourceByType(t, envelopes, awscloud.ResourceTypeImageBuilderImagePipeline)
+	pipeline := resourceByType(t, envelopes, aws.ResourceTypeImageBuilderImagePipeline)
 	if got, want := pipeline.Payload["resource_id"], testPipelineARN; got != want {
 		t.Fatalf("pipeline resource_id = %#v, want %q", got, want)
 	}
@@ -57,27 +57,27 @@ func TestScannerEmitsPipelineResourceAndEdges(t *testing.T) {
 		t.Fatalf("pipeline state = %#v, want %q", got, want)
 	}
 
-	recipeEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderPipelineUsesImageRecipe)
-	assertEdgeTarget(t, recipeEdge, awscloud.ResourceTypeImageBuilderImageRecipe, testImageRecipe)
+	recipeEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderPipelineUsesImageRecipe)
+	assertEdgeTarget(t, recipeEdge, aws.ResourceTypeImageBuilderImageRecipe, testImageRecipe)
 	if got, want := recipeEdge.Payload["target_arn"], testImageRecipe; got != want {
 		t.Fatalf("pipeline->image-recipe target_arn = %#v, want %q", got, want)
 	}
 
-	infraEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration)
-	assertEdgeTarget(t, infraEdge, awscloud.ResourceTypeImageBuilderInfrastructureConfiguration, testInfraConfig)
+	infraEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration)
+	assertEdgeTarget(t, infraEdge, aws.ResourceTypeImageBuilderInfrastructureConfiguration, testInfraConfig)
 
-	distEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderPipelineUsesDistributionConfiguration)
-	assertEdgeTarget(t, distEdge, awscloud.ResourceTypeImageBuilderDistributionConfiguration, testDistConfig)
+	distEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderPipelineUsesDistributionConfiguration)
+	assertEdgeTarget(t, distEdge, aws.ResourceTypeImageBuilderDistributionConfiguration, testDistConfig)
 
-	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderPipelineUsesExecutionRole)
-	assertEdgeTarget(t, roleEdge, awscloud.ResourceTypeIAMRole, testExecRoleARN)
+	roleEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderPipelineUsesExecutionRole)
+	assertEdgeTarget(t, roleEdge, aws.ResourceTypeIAMRole, testExecRoleARN)
 
 	// A pipeline with an image recipe must not emit a container recipe edge.
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipImageBuilderPipelineUsesContainerRecipe {
+		if envelope.Payload["relationship_type"] == aws.RelationshipImageBuilderPipelineUsesContainerRecipe {
 			t.Fatalf("unexpected container-recipe edge for image-recipe pipeline")
 		}
 	}
@@ -99,7 +99,7 @@ func TestScannerEmitsImageRecipeWithParentImageAttribute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	recipe := resourceByType(t, envelopes, awscloud.ResourceTypeImageBuilderImageRecipe)
+	recipe := resourceByType(t, envelopes, aws.ResourceTypeImageBuilderImageRecipe)
 	attrs := attributesOf(t, recipe)
 	assertAttribute(t, attrs, "parent_image", "ami-0123456789abcdef0")
 	assertAttribute(t, attrs, "version", "1.0.0")
@@ -133,21 +133,21 @@ func TestScannerEmitsContainerRecipeECRAndKMSEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	recipe := resourceByType(t, envelopes, awscloud.ResourceTypeImageBuilderContainerRecipe)
+	recipe := resourceByType(t, envelopes, aws.ResourceTypeImageBuilderContainerRecipe)
 	attrs := attributesOf(t, recipe)
 	assertAttribute(t, attrs, "container_type", "DOCKER")
 	if _, leaked := attrs["dockerfile_template_data"]; leaked {
 		t.Fatalf("container recipe leaked Dockerfile template body")
 	}
 
-	ecrEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository)
-	assertEdgeTarget(t, ecrEdge, awscloud.ResourceTypeECRRepository, testWantECRARN)
+	ecrEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderContainerRecipeUsesECRRepository)
+	assertEdgeTarget(t, ecrEdge, aws.ResourceTypeECRRepository, testWantECRARN)
 	if got, want := ecrEdge.Payload["target_arn"], testWantECRARN; got != want {
 		t.Fatalf("container-recipe->ecr target_arn = %#v, want %q", got, want)
 	}
 
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey)
-	assertEdgeTarget(t, kmsEdge, awscloud.ResourceTypeKMSKey, testKMSKeyARN)
+	kmsEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderContainerRecipeUsesKMSKey)
+	assertEdgeTarget(t, kmsEdge, aws.ResourceTypeKMSKey, testKMSKeyARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSKeyARN; got != want {
 		t.Fatalf("container-recipe->kms target_arn = %#v, want %q", got, want)
 	}
@@ -164,7 +164,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderContainerRecipeUsesKMSKey)
 	if got, want := kmsEdge.Payload["target_resource_id"], "alias/imagebuilder"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -192,24 +192,24 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	profEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile)
-	assertEdgeTarget(t, profEdge, awscloud.ResourceTypeIAMInstanceProfile, testWantProfARN)
+	profEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigUsesInstanceProfile)
+	assertEdgeTarget(t, profEdge, aws.ResourceTypeIAMInstanceProfile, testWantProfARN)
 	if got, want := profEdge.Payload["target_arn"], testWantProfARN; got != want {
 		t.Fatalf("infra->instance-profile target_arn = %#v, want %q", got, want)
 	}
 
-	subnetEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesSubnet)
-	assertEdgeTarget(t, subnetEdge, awscloud.ResourceTypeEC2Subnet, "subnet-0abc123")
+	subnetEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigUsesSubnet)
+	assertEdgeTarget(t, subnetEdge, aws.ResourceTypeEC2Subnet, "subnet-0abc123")
 	if got := subnetEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("infra->subnet target_arn = %#v, want empty (bare id target)", got)
 	}
 
-	sgEdges := relationshipsByType(envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesSecurityGroup)
+	sgEdges := relationshipsByType(envelopes, aws.RelationshipImageBuilderInfraConfigUsesSecurityGroup)
 	if len(sgEdges) != 2 {
 		t.Fatalf("got %d security-group edges, want 2", len(sgEdges))
 	}
 	for _, edge := range sgEdges {
-		if edge.Payload["target_type"] != awscloud.ResourceTypeEC2SecurityGroup {
+		if edge.Payload["target_type"] != aws.ResourceTypeEC2SecurityGroup {
 			t.Fatalf("sg edge target_type = %#v", edge.Payload["target_type"])
 		}
 		if got := edge.Payload["target_arn"]; got != "" {
@@ -217,11 +217,11 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 		}
 	}
 
-	snsEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesSNSTopic)
-	assertEdgeTarget(t, snsEdge, awscloud.ResourceTypeSNSTopic, testSNSTopicARN)
+	snsEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigUsesSNSTopic)
+	assertEdgeTarget(t, snsEdge, aws.ResourceTypeSNSTopic, testSNSTopicARN)
 
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigLogsToS3)
-	assertEdgeTarget(t, s3Edge, awscloud.ResourceTypeS3Bucket, testWantLogARN)
+	s3Edge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigLogsToS3)
+	assertEdgeTarget(t, s3Edge, aws.ResourceTypeS3Bucket, testWantLogARN)
 	if got, want := s3Edge.Payload["target_arn"], testWantLogARN; got != want {
 		t.Fatalf("infra->s3 target_arn = %#v, want %q", got, want)
 	}
@@ -248,15 +248,15 @@ func TestScannerSynthesizesGovCloudARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	profEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile)
+	profEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigUsesInstanceProfile)
 	if got, want := profEdge.Payload["target_arn"], "arn:aws-us-gov:iam::123456789012:instance-profile/ImageBuilderInstanceProfile"; got != want {
 		t.Fatalf("GovCloud instance-profile ARN = %#v, want %q", got, want)
 	}
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigLogsToS3)
+	s3Edge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderInfraConfigLogsToS3)
 	if got, want := s3Edge.Payload["target_arn"], "arn:aws-us-gov:s3:::gov-logs"; got != want {
 		t.Fatalf("GovCloud S3 ARN = %#v, want %q", got, want)
 	}
-	ecrEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository)
+	ecrEdge := relationshipByType(t, envelopes, aws.RelationshipImageBuilderContainerRecipeUsesECRRepository)
 	if got, want := ecrEdge.Payload["target_arn"], "arn:aws-us-gov:ecr:us-gov-west-1:123456789012:repository/gov-repo"; got != want {
 		t.Fatalf("GovCloud ECR ARN = %#v, want %q", got, want)
 	}
@@ -282,11 +282,11 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 	}
 	// All five resource types are present.
 	for _, rt := range []string{
-		awscloud.ResourceTypeImageBuilderImagePipeline,
-		awscloud.ResourceTypeImageBuilderImageRecipe,
-		awscloud.ResourceTypeImageBuilderContainerRecipe,
-		awscloud.ResourceTypeImageBuilderInfrastructureConfiguration,
-		awscloud.ResourceTypeImageBuilderDistributionConfiguration,
+		aws.ResourceTypeImageBuilderImagePipeline,
+		aws.ResourceTypeImageBuilderImageRecipe,
+		aws.ResourceTypeImageBuilderContainerRecipe,
+		aws.ResourceTypeImageBuilderInfrastructureConfiguration,
+		aws.ResourceTypeImageBuilderDistributionConfiguration,
 	} {
 		_ = resourceByType(t, envelopes, rt)
 	}
@@ -294,7 +294,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	observations = append(observations, pipelineRelationships(boundary, ImagePipeline{
 		ARN:                            testPipelineARN,
 		ContainerRecipeARN:             testContRecipe,
@@ -324,7 +324,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -342,9 +342,9 @@ func TestScannerRequiresClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Pipelines: []ImagePipeline{{ARN: testPipelineARN, Name: "web"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Image Builder ListImageRecipes throttled after SDK retries; recipe metadata omitted for this scan",
 			SourceRecordID: "imagebuilder_image_recipes_throttled",
@@ -355,7 +355,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}

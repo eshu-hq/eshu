@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/s3` owns the Amazon S3 scanner contract
+`internal/collector/cloud/aws/service/s3` owns the Amazon S3 scanner contract
 for the AWS cloud collector. It converts bucket control-plane metadata into
 `aws_resource` facts, emits a derived metadata-only `s3_bucket_posture` fact per
 bucket, emits bounded `s3_external_principal_grant` facts for external
@@ -58,7 +58,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -67,9 +67,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records S3 API call counts, throttles, and pagination
+The `sdk` adapter records S3 API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -103,7 +103,7 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/s3/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/s3/...`
 covers the bounded S3 metadata path: regional paginated ListBuckets with
 MaxBuckets set, HeadBucket,
 GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
@@ -114,7 +114,7 @@ mutations, and no graph writes in the collector. Per-bucket API fan-out is a
 fixed, bounded set of control-plane describes (no N+1 against object inventory
 or pagination per bucket).
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers S3 bucket metadata fact emission, logging-target relationship emission,
 omission of object/policy/ACL/replication/lifecycle/notification fields, runtime
 registration, command configuration, and the SDK adapter's safe metadata
@@ -132,11 +132,11 @@ API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
 ### Partition-aware bucket node identity (#862, keystone)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/s3/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/s3/... -count=1`
 covers the new `TestBucketNodeIdentityDerivesPartition`,
 `TestLoggingRelationshipDerivesPartition`, and `TestBucketARNDerivesPartition`
 (commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
-existing commercial assertions in `scanner_test.go` / `awssdk/client_test.go`.
+existing commercial assertions in `scanner_test.go` / `sdk/client_test.go`.
 S3 buckets carry no API ARN, so the scanner synthesizes the node `ARN`,
 `ResourceID`, ARN correlation anchor, and bucket->bucket logging endpoints; these
 now derive the partition from the claim region (`partitionForRegion` in the SDK
@@ -162,12 +162,12 @@ Collector Deployment Evidence: S3 runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/s3/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/s3/... -count=1`
 keeps `TestBucketNodeIdentityDerivesPartition` and
 `TestLoggingRelationshipDerivesPartition` green after the scanner and the SDK
 adapter (`bucketARN`) were switched from their package-local `partition` /
-`partitionForRegion` helpers to the shared `awscloud.PartitionForBoundary` and
-`awscloud.PartitionForRegion`. The derivation logic is identical; commercial
+`partitionForRegion` helpers to the shared `aws.PartitionForBoundary` and
+`aws.PartitionForRegion`. The derivation logic is identical; commercial
 output (`us-east-1`) is byte-for-byte unchanged; this is a metadata-only
 consolidation with no graph-write, queue, or hot-path behavior change.
 
@@ -177,7 +177,7 @@ or `aws_scan_status` row changes.
 
 ### Derived bucket posture fact (#1144, PR1 facts-only)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/s3/... ./internal/facts -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/s3/... ./internal/facts -count=1`
 covers the new derived `s3_bucket_posture` fact (`TestScannerEmitsDerivedBucketPostureFact`,
 `TestScannerPostureDerivesPartition`), the partition-aware envelope builder
 (`TestNewS3BucketPostureEnvelope*`), the fact-kind registry
@@ -201,7 +201,7 @@ names enter metric labels.
 
 ### S3 external-principal grant fact (#1241, PR1 facts-only)
 
-No-Regression Evidence: `go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/service/s3/... -run 'S3ExternalPrincipal|ExternalPrincipal|DeriveBucketPolicyExternalPrincipal|DeriveBucketPolicyFlags|ScannerEmitsExternalPrincipal' -count=1`
+No-Regression Evidence: `go test ./internal/facts ./internal/collector/cloud/aws ./internal/collector/cloud/aws/service/s3/... -run 'S3ExternalPrincipal|ExternalPrincipal|DeriveBucketPolicyExternalPrincipal|DeriveBucketPolicyFlags|ScannerEmitsExternalPrincipal' -count=1`
 covers the new `s3_external_principal_grant` fact registry, envelope builder
 redaction guard, scanner emission, SDK adapter mapping, and transient
 bucket-policy derivation for public wildcard, cross-account account ID,
@@ -218,7 +218,7 @@ label, bucket name label, principal label, or raw policy label is introduced.
 
 ### Resource-policy permission fact (PR4b of #1134)
 
-No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/service/s3/... -count=1`
+No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/cloud/aws ./internal/collector/cloud/aws/service/s3/... -count=1`
 covers the new `aws_resource_policy_permission` fact registry, the envelope
 builder normalization and redaction guard, the scanner emission (one fact per
 statement; none for a bucket with no policy), and the SDK adapter's

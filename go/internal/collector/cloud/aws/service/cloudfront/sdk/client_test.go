@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudfront "github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	awscloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 
@@ -24,82 +24,82 @@ func TestClientListsCloudFrontDistributionMetadataOnly(t *testing.T) {
 		distributionPages: []*awscloudfront.ListDistributionsOutput{{
 			DistributionList: &awscloudfronttypes.DistributionList{
 				Items: []awscloudfronttypes.DistributionSummary{{
-					ARN:              aws.String(distributionARN),
-					Id:               aws.String("EDFDVBD632BHDS5"),
-					DomainName:       aws.String("d111111abcdef8.cloudfront.net"),
-					Status:           aws.String("Deployed"),
-					Enabled:          aws.Bool(true),
-					Comment:          aws.String("orders edge"),
+					ARN:              awsv2.String(distributionARN),
+					Id:               awsv2.String("EDFDVBD632BHDS5"),
+					DomainName:       awsv2.String("d111111abcdef8.cloudfront.net"),
+					Status:           awsv2.String("Deployed"),
+					Enabled:          awsv2.Bool(true),
+					Comment:          awsv2.String("orders edge"),
 					HttpVersion:      awscloudfronttypes.HttpVersionHttp2and3,
-					IsIPV6Enabled:    aws.Bool(true),
-					LastModifiedTime: aws.Time(lastModified),
+					IsIPV6Enabled:    awsv2.Bool(true),
+					LastModifiedTime: awsv2.Time(lastModified),
 					PriceClass:       awscloudfronttypes.PriceClassPriceClass100,
-					Staging:          aws.Bool(false),
-					WebACLId:         aws.String(webACLARN),
+					Staging:          awsv2.Bool(false),
+					WebACLId:         awsv2.String(webACLARN),
 					Aliases: &awscloudfronttypes.Aliases{
 						Items: []string{"orders.example.com"},
 					},
 					Origins: &awscloudfronttypes.Origins{
 						Items: []awscloudfronttypes.Origin{{
-							Id:                    aws.String("orders-origin"),
-							DomainName:            aws.String("orders.s3.us-east-1.amazonaws.com"),
-							OriginPath:            aws.String("/public"),
-							OriginAccessControlId: aws.String("oac-123"),
+							Id:                    awsv2.String("orders-origin"),
+							DomainName:            awsv2.String("orders.s3.us-east-1.amazonaws.com"),
+							OriginPath:            awsv2.String("/public"),
+							OriginAccessControlId: awsv2.String("oac-123"),
 							CustomHeaders: &awscloudfronttypes.CustomHeaders{
 								Items: []awscloudfronttypes.OriginCustomHeader{{
-									HeaderName:  aws.String("X-Origin-Auth"),
-									HeaderValue: aws.String("secret-value"),
+									HeaderName:  awsv2.String("X-Origin-Auth"),
+									HeaderValue: awsv2.String("secret-value"),
 								}},
 							},
 						}},
 					},
 					DefaultCacheBehavior: &awscloudfronttypes.DefaultCacheBehavior{
-						TargetOriginId:          aws.String("orders-origin"),
+						TargetOriginId:          awsv2.String("orders-origin"),
 						ViewerProtocolPolicy:    awscloudfronttypes.ViewerProtocolPolicyRedirectToHttps,
 						AllowedMethods:          methodList(awscloudfronttypes.MethodGet, awscloudfronttypes.MethodHead),
-						CachePolicyId:           aws.String("cache-policy-1"),
-						OriginRequestPolicyId:   aws.String("origin-request-policy-1"),
-						ResponseHeadersPolicyId: aws.String("response-headers-policy-1"),
-						Compress:                aws.Bool(true),
+						CachePolicyId:           awsv2.String("cache-policy-1"),
+						OriginRequestPolicyId:   awsv2.String("origin-request-policy-1"),
+						ResponseHeadersPolicyId: awsv2.String("response-headers-policy-1"),
+						Compress:                awsv2.Bool(true),
 					},
 					CacheBehaviors: &awscloudfronttypes.CacheBehaviors{
 						Items: []awscloudfronttypes.CacheBehavior{{
-							PathPattern:             aws.String("/api/*"),
-							TargetOriginId:          aws.String("orders-origin"),
+							PathPattern:             awsv2.String("/api/*"),
+							TargetOriginId:          awsv2.String("orders-origin"),
 							ViewerProtocolPolicy:    awscloudfronttypes.ViewerProtocolPolicyHttpsOnly,
 							AllowedMethods:          methodList(awscloudfronttypes.MethodGet, awscloudfronttypes.MethodHead, awscloudfronttypes.MethodOptions),
-							CachePolicyId:           aws.String("cache-policy-2"),
-							OriginRequestPolicyId:   aws.String("origin-request-policy-2"),
-							ResponseHeadersPolicyId: aws.String("response-headers-policy-2"),
-							Compress:                aws.Bool(false),
+							CachePolicyId:           awsv2.String("cache-policy-2"),
+							OriginRequestPolicyId:   awsv2.String("origin-request-policy-2"),
+							ResponseHeadersPolicyId: awsv2.String("response-headers-policy-2"),
+							Compress:                awsv2.Bool(false),
 						}},
 					},
 					ViewerCertificate: &awscloudfronttypes.ViewerCertificate{
-						ACMCertificateArn:            aws.String(certificateARN),
-						CloudFrontDefaultCertificate: aws.Bool(false),
-						IAMCertificateId:             aws.String("iam-cert-1"),
+						ACMCertificateArn:            awsv2.String(certificateARN),
+						CloudFrontDefaultCertificate: awsv2.Bool(false),
+						IAMCertificateId:             awsv2.String("iam-cert-1"),
 						MinimumProtocolVersion:       awscloudfronttypes.MinimumProtocolVersionTLSv122021,
 						SSLSupportMethod:             awscloudfronttypes.SSLSupportMethodSniOnly,
 					},
 				}},
-				IsTruncated: aws.Bool(true),
-				NextMarker:  aws.String("next-page"),
+				IsTruncated: awsv2.Bool(true),
+				NextMarker:  awsv2.String("next-page"),
 			},
 		}, {
 			DistributionList: &awscloudfronttypes.DistributionList{
 				Items: []awscloudfronttypes.DistributionSummary{{
-					ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/ESECOND"),
-					Id:         aws.String("ESECOND"),
-					DomainName: aws.String("d222222abcdef8.cloudfront.net"),
-					Status:     aws.String("InProgress"),
+					ARN:        awsv2.String("arn:aws:cloudfront::123456789012:distribution/ESECOND"),
+					Id:         awsv2.String("ESECOND"),
+					DomainName: awsv2.String("d222222abcdef8.cloudfront.net"),
+					Status:     awsv2.String("InProgress"),
 				}},
 			},
 		}},
 		tags: map[string]*awscloudfront.ListTagsForResourceOutput{
 			distributionARN: {
 				Tags: &awscloudfronttypes.Tags{Items: []awscloudfronttypes.Tag{{
-					Key:   aws.String("Environment"),
-					Value: aws.String("prod"),
+					Key:   awsv2.String("Environment"),
+					Value: awsv2.String("prod"),
 				}}},
 			},
 		},
@@ -138,11 +138,11 @@ func TestClientListsCloudFrontDistributionMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceCloudFront,
+		ServiceKind: aws.ServiceCloudFront,
 	}
 }
 
@@ -160,8 +160,8 @@ func (f *fakeCloudFrontAPI) ListDistributions(
 	input *awscloudfront.ListDistributionsInput,
 	_ ...func(*awscloudfront.Options),
 ) (*awscloudfront.ListDistributionsOutput, error) {
-	f.maxItems = append(f.maxItems, aws.ToInt32(input.MaxItems))
-	f.markers = append(f.markers, aws.ToString(input.Marker))
+	f.maxItems = append(f.maxItems, awsv2.ToInt32(input.MaxItems))
+	f.markers = append(f.markers, awsv2.ToString(input.Marker))
 	if f.distributionCalls >= len(f.distributionPages) {
 		return &awscloudfront.ListDistributionsOutput{}, nil
 	}
@@ -175,7 +175,7 @@ func (f *fakeCloudFrontAPI) ListTagsForResource(
 	input *awscloudfront.ListTagsForResourceInput,
 	_ ...func(*awscloudfront.Options),
 ) (*awscloudfront.ListTagsForResourceOutput, error) {
-	resource := aws.ToString(input.Resource)
+	resource := awsv2.ToString(input.Resource)
 	f.tagResources = append(f.tagResources, resource)
 	if output := f.tags[resource]; output != nil {
 		return output, nil

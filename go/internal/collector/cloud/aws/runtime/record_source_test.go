@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -19,7 +19,7 @@ func TestRecordSourceWalksEveryTargetTupleWithoutStores(t *testing.T) {
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	factory := &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{{
 		FactKind: facts.AWSResourceFactKind, StableFactKey: "resource-1", SchemaVersion: facts.AWSResourceSchemaVersion,
-		CollectorKind: awscloud.CollectorKind, FencingToken: 1, SourceConfidence: facts.SourceConfidenceReported,
+		CollectorKind: aws.CollectorKind, FencingToken: 1, SourceConfidence: facts.SourceConfidenceReported,
 	}}}}
 	provider := &stubCredentialProvider{lease: &stubCredentialLease{}}
 	source := &RecordSource{Claimed: ClaimedSource{
@@ -28,12 +28,12 @@ func TestRecordSourceWalksEveryTargetTupleWithoutStores(t *testing.T) {
 			Targets: []TargetScope{
 				{
 					AccountID: "123456789012", AllowedRegions: []string{"us-east-1", "eu-west-1"},
-					AllowedServices: []string{awscloud.ServiceIAM, awscloud.ServiceECR},
+					AllowedServices: []string{aws.ServiceIAM, aws.ServiceECR},
 					Credentials:     CredentialConfig{Mode: CredentialModeLocalWorkloadIdentity},
 				},
 				{
 					AccountID: "000000000000", AllowedRegions: []string{"us-east-1"},
-					AllowedServices: []string{awscloud.ServiceIAM},
+					AllowedServices: []string{aws.ServiceIAM},
 					Credentials:     CredentialConfig{Mode: CredentialModeLocalWorkloadIdentity},
 				},
 			},

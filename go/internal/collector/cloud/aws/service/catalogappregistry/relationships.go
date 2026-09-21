@@ -17,14 +17,14 @@ import (
 // AWS reports an attribute-group ARN per association; non-ARN identifiers are
 // skipped so the edge never dangles. Duplicate group ARNs are de-duplicated.
 func applicationAttributeGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application Application,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := applicationResourceID(application)
 	if sourceID == "" || len(application.AttributeGroupARNs) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(application.AttributeGroupARNs))
+	observations := make([]aws.RelationshipObservation, 0, len(application.AttributeGroupARNs))
 	seen := make(map[string]struct{}, len(application.AttributeGroupARNs))
 	for _, raw := range application.AttributeGroupARNs {
 		targetID := strings.TrimSpace(raw)
@@ -39,16 +39,16 @@ func applicationAttributeGroupRelationships(
 		if isARN(targetID) {
 			targetARN = targetID
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup,
+			RelationshipType: aws.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(application.ARN),
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
+			TargetType:       aws.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup +
+				aws.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup +
 				":" + targetID,
 		})
 	}
@@ -69,14 +69,14 @@ func applicationAttributeGroupRelationships(
 // scanned target node and are skipped rather than dangled. Duplicate stack ARNs
 // are de-duplicated.
 func applicationStackRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application Application,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := applicationResourceID(application)
 	if sourceID == "" || len(application.AssociatedResources) == 0 {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	seen := make(map[string]struct{}, len(application.AssociatedResources))
 	for _, resource := range application.AssociatedResources {
 		if !strings.EqualFold(strings.TrimSpace(resource.ResourceType), cfnStackAssociationType) {
@@ -90,16 +90,16 @@ func applicationStackRelationships(
 			continue
 		}
 		seen[stackARN] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack,
+			RelationshipType: aws.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(application.ARN),
 			TargetResourceID: stackARN,
 			TargetARN:        stackARN,
-			TargetType:       awscloud.ResourceTypeCloudFormationStack,
+			TargetType:       aws.ResourceTypeCloudFormationStack,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack +
+				aws.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack +
 				":" + stackARN,
 		})
 	}

@@ -52,7 +52,7 @@ func TestScannerDedupesAMIResourceFactAcrossSharedInstances(t *testing.T) {
 		if envelope.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["resource_type"].(string); got == awscloud.ResourceTypeEC2AMI {
+		if got, _ := envelope.Payload["resource_type"].(string); got == aws.ResourceTypeEC2AMI {
 			amiResourceCount++
 		}
 	}

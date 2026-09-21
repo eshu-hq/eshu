@@ -12,4 +12,4 @@
 // adapter cannot mutate Compute Optimizer state or read the CloudWatch
 // utilization metric data points behind a recommendation. An account that is not
 // opted in to Compute Optimizer yields an empty snapshot rather than an error.
-package awssdk
+package sdk

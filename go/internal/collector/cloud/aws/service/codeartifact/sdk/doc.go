@@ -12,4 +12,4 @@
 // Create/Update/Delete/Put/Associate mutation API, so package payloads and
 // resource mutation are unreachable by construction. A reflection guard test
 // enforces the read-only, payload-free surface.
-package awssdk
+package sdk

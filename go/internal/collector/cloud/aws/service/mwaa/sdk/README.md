@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mwaa/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/mwaa/sdk` adapts AWS SDK for Go v2
 MWAA responses to the scanner-owned `Client` contract. It owns environment
 name pagination, per-environment point reads, throttle classification, and
 per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/mwaa` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/mwaa` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `mwaa` and Smithy error contracts.
 

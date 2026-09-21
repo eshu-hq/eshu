@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/acm guidance
+# AGENTS.md - internal/collector/cloud/aws/service/acm guidance
 
 ## Read First
 
@@ -34,10 +34,10 @@
 ## Common Changes
 
 - Add a new ACM metadata field by extending `Certificate`, writing a focused
-  scanner or adapter test first, then mapping it through `awscloud` envelope
+  scanner or adapter test first, then mapping it through `aws` envelope
   builders.
 - Add new relationship evidence only when ACM reports both sides directly.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

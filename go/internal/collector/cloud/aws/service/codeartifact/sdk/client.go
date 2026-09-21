@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsca "github.com/aws/aws-sdk-go-v2/service/codeartifact"
 	awscatypes "github.com/aws/aws-sdk-go-v2/service/codeartifact/types"
 	"github.com/aws/smithy-go"
@@ -40,15 +40,15 @@ type apiClient interface {
 // version or asset; it reads only domain and repository metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CodeArtifact SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -70,11 +70,11 @@ func (c *Client) ListDomains(ctx context.Context) ([]codeartifactservice.Domain,
 	}
 	domains := make([]codeartifactservice.Domain, 0, len(summaries))
 	for _, summary := range summaries {
-		name := strings.TrimSpace(aws.ToString(summary.Name))
+		name := strings.TrimSpace(awsv2.ToString(summary.Name))
 		if name == "" {
 			continue
 		}
-		domain, err := c.describeDomain(ctx, name, aws.ToString(summary.Owner), summary)
+		domain, err := c.describeDomain(ctx, name, awsv2.ToString(summary.Owner), summary)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +103,7 @@ func (c *Client) listDomainSummaries(ctx context.Context) ([]awscatypes.DomainSu
 		}
 		summaries = append(summaries, page.Domains...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -119,7 +119,7 @@ func (c *Client) describeDomain(
 	err := c.recordAPICall(ctx, "DescribeDomain", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeDomain(callCtx, &awsca.DescribeDomainInput{
-			Domain:      aws.String(name),
+			Domain:      awsv2.String(name),
 			DomainOwner: optionalString(owner),
 		})
 		return err
@@ -129,22 +129,22 @@ func (c *Client) describeDomain(
 	}
 	domain := codeartifactservice.Domain{
 		Name:          name,
-		ARN:           strings.TrimSpace(aws.ToString(summary.Arn)),
-		Owner:         strings.TrimSpace(aws.ToString(summary.Owner)),
-		EncryptionKey: strings.TrimSpace(aws.ToString(summary.EncryptionKey)),
+		ARN:           strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		Owner:         strings.TrimSpace(awsv2.ToString(summary.Owner)),
+		EncryptionKey: strings.TrimSpace(awsv2.ToString(summary.EncryptionKey)),
 		Status:        strings.TrimSpace(string(summary.Status)),
-		CreatedTime:   aws.ToTime(summary.CreatedTime),
+		CreatedTime:   awsv2.ToTime(summary.CreatedTime),
 	}
 	if output != nil && output.Domain != nil {
 		description := output.Domain
-		domain.ARN = firstNonEmpty(strings.TrimSpace(aws.ToString(description.Arn)), domain.ARN)
-		domain.Owner = firstNonEmpty(strings.TrimSpace(aws.ToString(description.Owner)), domain.Owner)
-		domain.EncryptionKey = firstNonEmpty(strings.TrimSpace(aws.ToString(description.EncryptionKey)), domain.EncryptionKey)
-		domain.S3BucketARN = strings.TrimSpace(aws.ToString(description.S3BucketArn))
+		domain.ARN = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.Arn)), domain.ARN)
+		domain.Owner = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.Owner)), domain.Owner)
+		domain.EncryptionKey = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.EncryptionKey)), domain.EncryptionKey)
+		domain.S3BucketARN = strings.TrimSpace(awsv2.ToString(description.S3BucketArn))
 		domain.RepositoryCount = description.RepositoryCount
 		domain.AssetSizeBytes = description.AssetSizeBytes
 		domain.Status = firstNonEmpty(strings.TrimSpace(string(description.Status)), domain.Status)
-		if created := aws.ToTime(description.CreatedTime); !created.IsZero() {
+		if created := awsv2.ToTime(description.CreatedTime); !created.IsZero() {
 			domain.CreatedTime = created
 		}
 	}
@@ -161,12 +161,12 @@ func (c *Client) ListRepositories(ctx context.Context) ([]codeartifactservice.Re
 	}
 	repositories := make([]codeartifactservice.Repository, 0, len(summaries))
 	for _, summary := range summaries {
-		name := strings.TrimSpace(aws.ToString(summary.Name))
-		domainName := strings.TrimSpace(aws.ToString(summary.DomainName))
+		name := strings.TrimSpace(awsv2.ToString(summary.Name))
+		domainName := strings.TrimSpace(awsv2.ToString(summary.DomainName))
 		if name == "" || domainName == "" {
 			continue
 		}
-		repository, err := c.describeRepository(ctx, domainName, name, aws.ToString(summary.DomainOwner), summary)
+		repository, err := c.describeRepository(ctx, domainName, name, awsv2.ToString(summary.DomainOwner), summary)
 		if err != nil {
 			return nil, err
 		}
@@ -195,7 +195,7 @@ func (c *Client) listRepositorySummaries(ctx context.Context) ([]awscatypes.Repo
 		}
 		summaries = append(summaries, page.Repositories...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -212,8 +212,8 @@ func (c *Client) describeRepository(
 	err := c.recordAPICall(ctx, "DescribeRepository", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeRepository(callCtx, &awsca.DescribeRepositoryInput{
-			Domain:      aws.String(domainName),
-			Repository:  aws.String(name),
+			Domain:      awsv2.String(domainName),
+			Repository:  awsv2.String(name),
 			DomainOwner: optionalString(domainOwner),
 		})
 		return err
@@ -223,21 +223,21 @@ func (c *Client) describeRepository(
 	}
 	repository := codeartifactservice.Repository{
 		Name:                 name,
-		ARN:                  strings.TrimSpace(aws.ToString(summary.Arn)),
+		ARN:                  strings.TrimSpace(awsv2.ToString(summary.Arn)),
 		DomainName:           domainName,
-		DomainOwner:          strings.TrimSpace(aws.ToString(summary.DomainOwner)),
-		AdministratorAccount: strings.TrimSpace(aws.ToString(summary.AdministratorAccount)),
-		Description:          strings.TrimSpace(aws.ToString(summary.Description)),
-		CreatedTime:          aws.ToTime(summary.CreatedTime),
+		DomainOwner:          strings.TrimSpace(awsv2.ToString(summary.DomainOwner)),
+		AdministratorAccount: strings.TrimSpace(awsv2.ToString(summary.AdministratorAccount)),
+		Description:          strings.TrimSpace(awsv2.ToString(summary.Description)),
+		CreatedTime:          awsv2.ToTime(summary.CreatedTime),
 	}
 	if output != nil && output.Repository != nil {
 		description := output.Repository
-		repository.ARN = firstNonEmpty(strings.TrimSpace(aws.ToString(description.Arn)), repository.ARN)
-		repository.DomainName = firstNonEmpty(strings.TrimSpace(aws.ToString(description.DomainName)), repository.DomainName)
-		repository.DomainOwner = firstNonEmpty(strings.TrimSpace(aws.ToString(description.DomainOwner)), repository.DomainOwner)
-		repository.AdministratorAccount = firstNonEmpty(strings.TrimSpace(aws.ToString(description.AdministratorAccount)), repository.AdministratorAccount)
-		repository.Description = firstNonEmpty(strings.TrimSpace(aws.ToString(description.Description)), repository.Description)
-		if created := aws.ToTime(description.CreatedTime); !created.IsZero() {
+		repository.ARN = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.Arn)), repository.ARN)
+		repository.DomainName = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.DomainName)), repository.DomainName)
+		repository.DomainOwner = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.DomainOwner)), repository.DomainOwner)
+		repository.AdministratorAccount = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.AdministratorAccount)), repository.AdministratorAccount)
+		repository.Description = firstNonEmpty(strings.TrimSpace(awsv2.ToString(description.Description)), repository.Description)
+		if created := awsv2.ToTime(description.CreatedTime); !created.IsZero() {
 			repository.CreatedTime = created
 		}
 		repository.ExternalConnections = mapExternalConnections(description.ExternalConnections)
@@ -252,7 +252,7 @@ func mapExternalConnections(connections []awscatypes.RepositoryExternalConnectio
 	}
 	mapped := make([]codeartifactservice.ExternalConnection, 0, len(connections))
 	for _, connection := range connections {
-		name := strings.TrimSpace(aws.ToString(connection.ExternalConnectionName))
+		name := strings.TrimSpace(awsv2.ToString(connection.ExternalConnectionName))
 		if name == "" {
 			continue
 		}
@@ -274,7 +274,7 @@ func mapUpstreams(upstreams []awscatypes.UpstreamRepositoryInfo) []string {
 	}
 	names := make([]string, 0, len(upstreams))
 	for _, upstream := range upstreams {
-		if name := strings.TrimSpace(aws.ToString(upstream.RepositoryName)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(upstream.RepositoryName)); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -297,7 +297,7 @@ func optionalString(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	return aws.String(value)
+	return awsv2.String(value)
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
@@ -318,7 +318,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

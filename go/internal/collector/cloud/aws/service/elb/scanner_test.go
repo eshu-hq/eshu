@@ -78,7 +78,7 @@ func TestScannerEmitsLoadBalancerAndTopologyEdges(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 8", counts[facts.AWSRelationshipFactKind])
 	}
 
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBLoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, aws.ResourceTypeELBLoadBalancer)
 	wantARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/web"
 	if got, _ := loadBalancer.Payload["resource_id"].(string); got != wantARN {
 		t.Fatalf("resource_id = %q, want %q", got, wantARN)
@@ -103,17 +103,17 @@ func TestScannerRelationshipTargetsResolveToTargetScanners(t *testing.T) {
 		targetType       string
 		targetResourceID string
 	}{
-		{awscloud.RelationshipELBLoadBalancerRegistersInstance, "aws_ec2_instance", "i-0abc"},
-		{awscloud.RelationshipELBLoadBalancerInSubnet, awscloud.ResourceTypeEC2Subnet, "subnet-1"},
-		{awscloud.RelationshipELBLoadBalancerUsesSecurityGroup, awscloud.ResourceTypeEC2SecurityGroup, "sg-1"},
-		{awscloud.RelationshipELBLoadBalancerInVPC, awscloud.ResourceTypeEC2VPC, "vpc-123"},
+		{aws.RelationshipELBLoadBalancerRegistersInstance, "aws_ec2_instance", "i-0abc"},
+		{aws.RelationshipELBLoadBalancerInSubnet, aws.ResourceTypeEC2Subnet, "subnet-1"},
+		{aws.RelationshipELBLoadBalancerUsesSecurityGroup, aws.ResourceTypeEC2SecurityGroup, "sg-1"},
+		{aws.RelationshipELBLoadBalancerInVPC, aws.ResourceTypeEC2VPC, "vpc-123"},
 		{
-			awscloud.RelationshipELBLoadBalancerUsesACMCertificate,
-			awscloud.ResourceTypeACMCertificate,
+			aws.RelationshipELBLoadBalancerUsesACMCertificate,
+			aws.ResourceTypeACMCertificate,
 			"arn:aws:acm:us-east-1:123456789012:certificate/abc",
 		},
 		{
-			awscloud.RelationshipELBLoadBalancerUsesIAMServerCertificate,
+			aws.RelationshipELBLoadBalancerUsesIAMServerCertificate,
 			"aws_iam_server_certificate",
 			"arn:aws:iam::123456789012:server-certificate/legacy",
 		},
@@ -149,7 +149,7 @@ func TestScannerExcludesLiveInstanceHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBLoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, aws.ResourceTypeELBLoadBalancer)
 	attributes, ok := loadBalancer.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("attributes = %#v, want map", loadBalancer.Payload["attributes"])
@@ -171,7 +171,7 @@ func TestScannerOmitsCertificateBodies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBLoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, aws.ResourceTypeELBLoadBalancer)
 	attributes, _ := loadBalancer.Payload["attributes"].(map[string]any)
 	listeners, ok := attributes["listeners"].([]map[string]any)
 	if !ok || len(listeners) != 3 {
@@ -219,7 +219,7 @@ func TestSynthesizedLoadBalancerARNIsPartitionAware(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{AccountID: tc.account, Region: tc.region, ServiceKind: awscloud.ServiceELB}
+			boundary := aws.Boundary{AccountID: tc.account, Region: tc.region, ServiceKind: aws.ServiceELB}
 			if got := loadBalancerARN(boundary, tc.lbName); got != tc.want {
 				t.Fatalf("loadBalancerARN = %q, want %q", got, tc.want)
 			}
@@ -236,11 +236,11 @@ func TestSynthesizedARNFlowsIntoGovCloudResourceAndEdges(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 	wantARN := "arn:aws-us-gov:elasticloadbalancing:us-gov-west-1:123456789012:loadbalancer/web"
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBLoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, aws.ResourceTypeELBLoadBalancer)
 	if got, _ := loadBalancer.Payload["resource_id"].(string); got != wantARN {
 		t.Fatalf("govcloud resource_id = %q, want %q", got, wantARN)
 	}
-	rel := assertRelationship(t, envelopes, awscloud.RelationshipELBLoadBalancerInVPC, "vpc-123")
+	rel := assertRelationship(t, envelopes, aws.RelationshipELBLoadBalancerInVPC, "vpc-123")
 	if got, _ := rel.Payload["source_resource_id"].(string); got != wantARN {
 		t.Fatalf("govcloud edge source_resource_id = %q, want %q", got, wantARN)
 	}
@@ -248,7 +248,7 @@ func TestSynthesizedARNFlowsIntoGovCloudResourceAndEdges(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceELBv2
+	boundary.ServiceKind = aws.ServiceELBv2
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -262,11 +262,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceELB,
+		ServiceKind:         aws.ServiceELB,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elb:1",
 		CollectorInstanceID: "aws-prod",

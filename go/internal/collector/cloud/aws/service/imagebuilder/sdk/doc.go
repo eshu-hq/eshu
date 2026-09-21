@@ -13,4 +13,4 @@
 // build-version, image build-version, image-scan-finding, and workflow reads, so
 // the adapter cannot read or persist component build-document bodies, Dockerfile
 // bodies, instance user data, scan findings, or build artifacts.
-package awssdk
+package sdk

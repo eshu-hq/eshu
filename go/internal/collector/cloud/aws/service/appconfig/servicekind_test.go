@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "appconfig".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAppConfig + "  "
+	boundary.ServiceKind = "  " + aws.ServiceAppConfig + "  "
 	client := fakeClient{snapshot: Snapshot{Applications: []Application{{
 		ID:   testAppID,
 		Name: "checkout",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppConfig; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceAppConfig; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

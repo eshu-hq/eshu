@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`awssdk` adapts the AWS SDK for Go v2 Shield Advanced client into the
+`sdk` adapts the AWS SDK for Go v2 Shield Advanced client into the
 metadata-only `shield.Client` port. It pages protections, reads the per-account
 subscription summary and state, and maps the SDK types into the scanner-owned
 model.
@@ -27,8 +27,8 @@ See `doc.go` for the godoc-rendered package contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/shield` and its `types` package for the
   control-plane client.
-- `internal/collector/awscloud` for the boundary and shared API-call recording.
-- `internal/collector/awscloud/service/shield` for the scanner-owned model
+- `internal/collector/cloud/aws` for the boundary and shared API-call recording.
+- `internal/collector/cloud/aws/service/shield` for the scanner-owned model
   returned to callers.
 - `internal/telemetry` for spans and instruments.
 

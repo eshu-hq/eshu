@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsathena "github.com/aws/aws-sdk-go-v2/service/athena"
 	awsathenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/smithy-go"
@@ -50,13 +50,13 @@ type apiClient interface {
 // Athena ListTagsForResource expects an ARN-shaped identifier. The builder is a
 // field to keep production behavior testable without reaching into AWS account
 // metadata at unit-test time.
-type arnBuilder func(boundary awscloud.Boundary, name string) string
+type arnBuilder func(boundary aws.Boundary, name string) string
 
 // Client adapts AWS SDK Athena control-plane calls into the scanner-owned
 // metadata-only contract.
 type Client struct {
 	client         apiClient
-	boundary       awscloud.Boundary
+	boundary       aws.Boundary
 	tracer         trace.Tracer
 	instruments    *telemetry.Instruments
 	workGroupARN   arnBuilder
@@ -67,8 +67,8 @@ type Client struct {
 // adapter only calls metadata-only Athena APIs; mutation APIs and SQL-body
 // fetches are not part of the underlying interface and cannot be called.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -92,7 +92,7 @@ func (c *Client) ListWorkGroups(ctx context.Context) ([]athenaservice.WorkGroup,
 		err := c.recordAPICall(ctx, "ListWorkGroups", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListWorkGroups(callCtx, &awsathena.ListWorkGroupsInput{
-				MaxResults: aws.Int32(listWorkGroupsLimit),
+				MaxResults: awsv2.Int32(listWorkGroupsLimit),
 				NextToken:  nextToken,
 			})
 			return err
@@ -104,7 +104,7 @@ func (c *Client) ListWorkGroups(ctx context.Context) ([]athenaservice.WorkGroup,
 			return workGroups, nil
 		}
 		for _, summary := range page.WorkGroups {
-			name := strings.TrimSpace(aws.ToString(summary.Name))
+			name := strings.TrimSpace(awsv2.ToString(summary.Name))
 			if name == "" {
 				continue
 			}
@@ -115,7 +115,7 @@ func (c *Client) ListWorkGroups(ctx context.Context) ([]athenaservice.WorkGroup,
 			workGroups = append(workGroups, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return workGroups, nil
 		}
 	}
@@ -130,7 +130,7 @@ func (c *Client) workGroupMetadata(
 	err := c.recordAPICall(ctx, "GetWorkGroup", func(callCtx context.Context) error {
 		var callErr error
 		detail, callErr = c.client.GetWorkGroup(callCtx, &awsathena.GetWorkGroupInput{
-			WorkGroup: aws.String(name),
+			WorkGroup: awsv2.String(name),
 		})
 		return callErr
 	})
@@ -154,7 +154,7 @@ func (c *Client) ListDataCatalogs(ctx context.Context) ([]athenaservice.DataCata
 		err := c.recordAPICall(ctx, "ListDataCatalogs", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListDataCatalogs(callCtx, &awsathena.ListDataCatalogsInput{
-				MaxResults: aws.Int32(listDataCatalogsLimit),
+				MaxResults: awsv2.Int32(listDataCatalogsLimit),
 				NextToken:  nextToken,
 			})
 			return err
@@ -166,7 +166,7 @@ func (c *Client) ListDataCatalogs(ctx context.Context) ([]athenaservice.DataCata
 			return catalogs, nil
 		}
 		for _, summary := range page.DataCatalogsSummary {
-			name := strings.TrimSpace(aws.ToString(summary.CatalogName))
+			name := strings.TrimSpace(awsv2.ToString(summary.CatalogName))
 			if name == "" {
 				continue
 			}
@@ -177,7 +177,7 @@ func (c *Client) ListDataCatalogs(ctx context.Context) ([]athenaservice.DataCata
 			catalogs = append(catalogs, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return catalogs, nil
 		}
 	}
@@ -188,7 +188,7 @@ func (c *Client) dataCatalogMetadata(ctx context.Context, name string) (athenase
 	err := c.recordAPICall(ctx, "GetDataCatalog", func(callCtx context.Context) error {
 		var callErr error
 		detail, callErr = c.client.GetDataCatalog(callCtx, &awsathena.GetDataCatalogInput{
-			Name: aws.String(name),
+			Name: awsv2.String(name),
 		})
 		return callErr
 	})
@@ -221,8 +221,8 @@ func (c *Client) ListPreparedStatements(
 			err := c.recordAPICall(ctx, "ListPreparedStatements", func(callCtx context.Context) error {
 				var callErr error
 				page, callErr = c.client.ListPreparedStatements(callCtx, &awsathena.ListPreparedStatementsInput{
-					WorkGroup:  aws.String(workGroup),
-					MaxResults: aws.Int32(listPreparedStatementsLimit),
+					WorkGroup:  awsv2.String(workGroup),
+					MaxResults: awsv2.Int32(listPreparedStatementsLimit),
 					NextToken:  nextToken,
 				})
 				return callErr
@@ -236,12 +236,12 @@ func (c *Client) ListPreparedStatements(
 			for _, summary := range page.PreparedStatements {
 				statements = append(statements, athenaservice.PreparedStatement{
 					WorkGroupName:    workGroup,
-					StatementName:    strings.TrimSpace(aws.ToString(summary.StatementName)),
+					StatementName:    strings.TrimSpace(awsv2.ToString(summary.StatementName)),
 					LastModifiedTime: timeValue(summary.LastModifiedTime),
 				})
 			}
 			nextToken = page.NextToken
-			if aws.ToString(nextToken) == "" {
+			if awsv2.ToString(nextToken) == "" {
 				break
 			}
 		}
@@ -285,8 +285,8 @@ func (c *Client) listNamedQueryIDs(ctx context.Context, workGroup string) ([]str
 		err := c.recordAPICall(ctx, "ListNamedQueries", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListNamedQueries(callCtx, &awsathena.ListNamedQueriesInput{
-				WorkGroup:  aws.String(workGroup),
-				MaxResults: aws.Int32(listNamedQueriesLimit),
+				WorkGroup:  awsv2.String(workGroup),
+				MaxResults: awsv2.Int32(listNamedQueriesLimit),
 				NextToken:  nextToken,
 			})
 			return callErr
@@ -299,7 +299,7 @@ func (c *Client) listNamedQueryIDs(ctx context.Context, workGroup string) ([]str
 		}
 		ids = append(ids, page.NamedQueryIds...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ids, nil
 		}
 	}
@@ -349,7 +349,7 @@ func (c *Client) listResourceTags(ctx context.Context, resourceARN string) (map[
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var callErr error
 			output, callErr = c.client.ListTagsForResource(callCtx, &awsathena.ListTagsForResourceInput{
-				ResourceARN: aws.String(resourceARN),
+				ResourceARN: awsv2.String(resourceARN),
 				NextToken:   nextToken,
 			})
 			return callErr
@@ -361,14 +361,14 @@ func (c *Client) listResourceTags(ctx context.Context, resourceARN string) (map[
 			break
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -396,7 +396,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

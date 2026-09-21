@@ -26,13 +26,13 @@ func uniqueSubnetCount(subnetIDs []string) int {
 	return len(seen)
 }
 
-func endpointObservation(boundary awscloud.Boundary, endpoint ResolverEndpoint) awscloud.ResourceObservation {
+func endpointObservation(boundary aws.Boundary, endpoint ResolverEndpoint) aws.ResourceObservation {
 	id := strings.TrimSpace(endpoint.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(endpoint.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverEndpoint,
+		ResourceType: aws.ResourceTypeRoute53ResolverEndpoint,
 		Name:         endpoint.Name,
 		State:        endpoint.Status,
 		Tags:         endpoint.Tags,
@@ -47,13 +47,13 @@ func endpointObservation(boundary awscloud.Boundary, endpoint ResolverEndpoint) 
 	}
 }
 
-func ruleObservation(boundary awscloud.Boundary, rule ResolverRule) awscloud.ResourceObservation {
+func ruleObservation(boundary aws.Boundary, rule ResolverRule) aws.ResourceObservation {
 	id := strings.TrimSpace(rule.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(rule.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverRule,
+		ResourceType: aws.ResourceTypeRoute53ResolverRule,
 		Name:         rule.Name,
 		State:        rule.Status,
 		Tags:         rule.Tags,
@@ -69,14 +69,14 @@ func ruleObservation(boundary awscloud.Boundary, rule ResolverRule) awscloud.Res
 }
 
 func ruleAssociationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association ResolverRuleAssociation,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(association.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeRoute53ResolverRuleAssociation,
+		ResourceType: aws.ResourceTypeRoute53ResolverRuleAssociation,
 		Name:         association.Name,
 		State:        association.Status,
 		Attributes: map[string]any{
@@ -89,15 +89,15 @@ func ruleAssociationObservation(
 }
 
 func firewallRuleGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group FirewallRuleGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(group.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(group.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup,
+		ResourceType: aws.ResourceTypeRoute53ResolverFirewallRuleGroup,
 		Name:         group.Name,
 		State:        group.Status,
 		Tags:         group.Tags,
@@ -112,15 +112,15 @@ func firewallRuleGroupObservation(
 }
 
 func firewallDomainListObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	list FirewallDomainList,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(list.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(list.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallDomainList,
+		ResourceType: aws.ResourceTypeRoute53ResolverFirewallDomainList,
 		Name:         list.Name,
 		State:        list.Status,
 		Tags:         list.Tags,
@@ -134,15 +134,15 @@ func firewallDomainListObservation(
 }
 
 func firewallRuleGroupAssociationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association FirewallRuleGroupAssociation,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(association.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(association.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
+		ResourceType: aws.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
 		Name:         association.Name,
 		State:        association.Status,
 		Attributes: map[string]any{
@@ -157,15 +157,15 @@ func firewallRuleGroupAssociationObservation(
 }
 
 func queryLogConfigObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	config QueryLogConfig,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(config.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(config.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverQueryLogConfig,
+		ResourceType: aws.ResourceTypeRoute53ResolverQueryLogConfig,
 		Name:         config.Name,
 		State:        config.Status,
 		Tags:         config.Tags,

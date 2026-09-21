@@ -42,9 +42,9 @@ func endpointTargetType(endpointID string) string {
 	id := strings.TrimSpace(endpointID)
 	switch {
 	case strings.Contains(id, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return aws.ResourceTypeELBv2LoadBalancer
 	case strings.HasPrefix(id, "eipalloc-"):
-		return awscloud.ResourceTypeVPCElasticIP
+		return aws.ResourceTypeVPCElasticIP
 	case strings.HasPrefix(id, "i-"):
 		return ec2InstanceTargetType
 	default:

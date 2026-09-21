@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/quicksight` owns the Amazon QuickSight
+`internal/collector/cloud/aws/service/quicksight` owns the Amazon QuickSight
 scanner contract for the AWS cloud collector. It converts QuickSight data
 source, dataset, dashboard, and analysis metadata into `aws_resource` facts and
 emits relationship evidence for data-source-to-backing-store (Redshift cluster,
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records QuickSight API call counts, throttles, and
+The `sdk` adapter records QuickSight API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -70,7 +70,7 @@ pagination spans.
   target id: bare Redshift cluster id, bare RDS DB instance id, bare Athena
   workgroup name (each matching its scanner's published resource_id), and the
   partition-aware synthesized `arn:<partition>:s3:::<bucket>` for S3, derived via
-  `awscloud.PartitionForBoundary`. A host/port-only connection or an unscanned
+  `aws.PartitionForBoundary`. A host/port-only connection or an unscanned
   connector type emits no backing edge.
 - VPC-connection edges are emitted only when the data source uses a VPC
   connection that resolved to a known summary. Security groups and subnets are
@@ -81,7 +81,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/quicksight/...` covers the
+`go test ./internal/collector/cloud/aws/service/quicksight/...` covers the
 bounded QuickSight metadata path: one paginated ListDataSources stream, one
 paginated ListVPCConnections stream, one paginated ListDataSets/ListDashboards/
 ListAnalyses stream each, one DescribeDataSet/DescribeDashboard/DescribeAnalysis
@@ -89,7 +89,7 @@ point read per resource to resolve internal edges, one ListTagsForResource point
 read per resource, no credential reads, no SQL reads, and no graph writes in the
 collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/quicksight/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/quicksight/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

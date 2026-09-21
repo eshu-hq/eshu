@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/networkfirewall/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/networkfirewall/sdk guidance
 
 ## Read First
 

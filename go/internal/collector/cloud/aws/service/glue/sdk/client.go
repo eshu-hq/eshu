@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk //nolint:filelength // 631 lines: Glue SDK pagination, HidePassword/IncludeGraph enforcement, and safe metadata mapping. Per services/glue/awssdk/AGENTS.md the SDK adapter owns pagination, retries, throttling, and credential loading so scanner.go can stay a thin fact selector.
+package sdk //nolint:filelength // 631 lines: Glue SDK pagination, HidePassword/IncludeGraph enforcement, and safe metadata mapping. Per service/glue/sdk/AGENTS.md the SDK adapter owns pagination, retries, throttling, and credential loading so scanner.go can stay a thin fact selector.
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsglue "github.com/aws/aws-sdk-go-v2/service/glue"
 	awsgluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/smithy-go"
@@ -38,15 +38,15 @@ type apiClient interface {
 // HidePassword=true so passwords stay inside AWS.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Glue SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -88,7 +88,7 @@ func (c *Client) ListDatabases(ctx context.Context) ([]glueservice.Database, err
 			databases = append(databases, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return databases, nil
 		}
 	}
@@ -98,17 +98,17 @@ func (c *Client) mapDatabase(
 	ctx context.Context,
 	database awsgluetypes.Database,
 ) (glueservice.Database, error) {
-	name := aws.ToString(database.Name)
-	tables, err := c.listTables(ctx, aws.ToString(database.CatalogId), name)
+	name := awsv2.ToString(database.Name)
+	tables, err := c.listTables(ctx, awsv2.ToString(database.CatalogId), name)
 	if err != nil {
 		return glueservice.Database{}, err
 	}
 	return glueservice.Database{
-		CatalogID:   strings.TrimSpace(aws.ToString(database.CatalogId)),
+		CatalogID:   strings.TrimSpace(awsv2.ToString(database.CatalogId)),
 		Name:        strings.TrimSpace(name),
-		Description: strings.TrimSpace(aws.ToString(database.Description)),
-		LocationURI: strings.TrimSpace(aws.ToString(database.LocationUri)),
-		CreateTime:  aws.ToTime(database.CreateTime),
+		Description: strings.TrimSpace(awsv2.ToString(database.Description)),
+		LocationURI: strings.TrimSpace(awsv2.ToString(database.LocationUri)),
+		CreateTime:  awsv2.ToTime(database.CreateTime),
 		Parameters:  cloneStringMap(database.Parameters),
 		Tables:      tables,
 	}, nil
@@ -131,7 +131,7 @@ func (c *Client) listTables(
 			var err error
 			page, err = c.client.GetTables(callCtx, &awsglue.GetTablesInput{
 				CatalogId:    optionalString(catalogID),
-				DatabaseName: aws.String(databaseName),
+				DatabaseName: awsv2.String(databaseName),
 				NextToken:    nextToken,
 			})
 			return err
@@ -146,7 +146,7 @@ func (c *Client) listTables(
 			tables = append(tables, mapTable(table, databaseName))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tables, nil
 		}
 	}
@@ -176,7 +176,7 @@ func (c *Client) ListCrawlers(ctx context.Context) ([]glueservice.Crawler, error
 			crawlers = append(crawlers, mapCrawler(crawler))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return crawlers, nil
 		}
 	}
@@ -207,7 +207,7 @@ func (c *Client) ListJobs(ctx context.Context) ([]glueservice.Job, error) {
 			jobs = append(jobs, mapJob(job))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return jobs, nil
 		}
 	}
@@ -236,7 +236,7 @@ func (c *Client) ListTriggers(ctx context.Context) ([]glueservice.Trigger, error
 			triggers = append(triggers, mapTrigger(trigger))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return triggers, nil
 		}
 	}
@@ -289,7 +289,7 @@ func (c *Client) listWorkflowNames(ctx context.Context) ([]string, error) {
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return names, nil
 		}
 	}
@@ -304,8 +304,8 @@ func (c *Client) getWorkflow(ctx context.Context, name string) (*glueservice.Wor
 	err := c.recordAPICall(ctx, "GetWorkflow", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetWorkflow(callCtx, &awsglue.GetWorkflowInput{
-			Name:         aws.String(trimmed),
-			IncludeGraph: aws.Bool(false),
+			Name:         awsv2.String(trimmed),
+			IncludeGraph: awsv2.Bool(false),
 		})
 		return err
 	})
@@ -348,41 +348,41 @@ func (c *Client) ListConnections(ctx context.Context) ([]glueservice.Connection,
 			connections = append(connections, mapConnection(connection))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return connections, nil
 		}
 	}
 }
 
 func mapTable(table awsgluetypes.Table, databaseName string) glueservice.Table {
-	tableDatabase := strings.TrimSpace(aws.ToString(table.DatabaseName))
+	tableDatabase := strings.TrimSpace(awsv2.ToString(table.DatabaseName))
 	if tableDatabase == "" {
 		tableDatabase = strings.TrimSpace(databaseName)
 	}
 	mapped := glueservice.Table{
-		CatalogID:        strings.TrimSpace(aws.ToString(table.CatalogId)),
+		CatalogID:        strings.TrimSpace(awsv2.ToString(table.CatalogId)),
 		DatabaseName:     tableDatabase,
-		Name:             strings.TrimSpace(aws.ToString(table.Name)),
-		Owner:            strings.TrimSpace(aws.ToString(table.Owner)),
-		TableType:        strings.TrimSpace(aws.ToString(table.TableType)),
-		Description:      strings.TrimSpace(aws.ToString(table.Description)),
-		CreateTime:       aws.ToTime(table.CreateTime),
-		UpdateTime:       aws.ToTime(table.UpdateTime),
-		LastAccessTime:   aws.ToTime(table.LastAccessTime),
-		LastAnalyzedTime: aws.ToTime(table.LastAnalyzedTime),
+		Name:             strings.TrimSpace(awsv2.ToString(table.Name)),
+		Owner:            strings.TrimSpace(awsv2.ToString(table.Owner)),
+		TableType:        strings.TrimSpace(awsv2.ToString(table.TableType)),
+		Description:      strings.TrimSpace(awsv2.ToString(table.Description)),
+		CreateTime:       awsv2.ToTime(table.CreateTime),
+		UpdateTime:       awsv2.ToTime(table.UpdateTime),
+		LastAccessTime:   awsv2.ToTime(table.LastAccessTime),
+		LastAnalyzedTime: awsv2.ToTime(table.LastAnalyzedTime),
 		Retention:        table.Retention,
 		Parameters:       cloneStringMap(table.Parameters),
 		PartitionKeys:    columnNames(table.PartitionKeys),
 	}
 	if table.StorageDescriptor != nil {
-		mapped.StorageLocation = strings.TrimSpace(aws.ToString(table.StorageDescriptor.Location))
-		mapped.InputFormat = strings.TrimSpace(aws.ToString(table.StorageDescriptor.InputFormat))
-		mapped.OutputFormat = strings.TrimSpace(aws.ToString(table.StorageDescriptor.OutputFormat))
+		mapped.StorageLocation = strings.TrimSpace(awsv2.ToString(table.StorageDescriptor.Location))
+		mapped.InputFormat = strings.TrimSpace(awsv2.ToString(table.StorageDescriptor.InputFormat))
+		mapped.OutputFormat = strings.TrimSpace(awsv2.ToString(table.StorageDescriptor.OutputFormat))
 		mapped.Compressed = table.StorageDescriptor.Compressed
 		mapped.Columns = columnNames(table.StorageDescriptor.Columns)
 		if table.StorageDescriptor.SerdeInfo != nil {
-			mapped.SerdeName = strings.TrimSpace(aws.ToString(table.StorageDescriptor.SerdeInfo.Name))
-			mapped.SerdeLibrary = strings.TrimSpace(aws.ToString(table.StorageDescriptor.SerdeInfo.SerializationLibrary))
+			mapped.SerdeName = strings.TrimSpace(awsv2.ToString(table.StorageDescriptor.SerdeInfo.Name))
+			mapped.SerdeLibrary = strings.TrimSpace(awsv2.ToString(table.StorageDescriptor.SerdeInfo.SerializationLibrary))
 		}
 	}
 	return mapped
@@ -390,18 +390,18 @@ func mapTable(table awsgluetypes.Table, databaseName string) glueservice.Table {
 
 func mapCrawler(crawler awsgluetypes.Crawler) glueservice.Crawler {
 	mapped := glueservice.Crawler{
-		Name:                 strings.TrimSpace(aws.ToString(crawler.Name)),
-		Description:          strings.TrimSpace(aws.ToString(crawler.Description)),
-		RoleARN:              strings.TrimSpace(aws.ToString(crawler.Role)),
-		DatabaseName:         strings.TrimSpace(aws.ToString(crawler.DatabaseName)),
-		TablePrefix:          strings.TrimSpace(aws.ToString(crawler.TablePrefix)),
+		Name:                 strings.TrimSpace(awsv2.ToString(crawler.Name)),
+		Description:          strings.TrimSpace(awsv2.ToString(crawler.Description)),
+		RoleARN:              strings.TrimSpace(awsv2.ToString(crawler.Role)),
+		DatabaseName:         strings.TrimSpace(awsv2.ToString(crawler.DatabaseName)),
+		TablePrefix:          strings.TrimSpace(awsv2.ToString(crawler.TablePrefix)),
 		State:                strings.TrimSpace(string(crawler.State)),
-		CreationTime:         aws.ToTime(crawler.CreationTime),
-		LastUpdated:          aws.ToTime(crawler.LastUpdated),
+		CreationTime:         awsv2.ToTime(crawler.CreationTime),
+		LastUpdated:          awsv2.ToTime(crawler.LastUpdated),
 		ConfigurationVersion: "",
 	}
 	if crawler.Schedule != nil {
-		mapped.Schedule = strings.TrimSpace(aws.ToString(crawler.Schedule.ScheduleExpression))
+		mapped.Schedule = strings.TrimSpace(awsv2.ToString(crawler.Schedule.ScheduleExpression))
 	}
 	if crawler.RecrawlPolicy != nil {
 		mapped.RecrawlBehavior = strings.TrimSpace(string(crawler.RecrawlPolicy.RecrawlBehavior))
@@ -421,40 +421,40 @@ func mapCrawler(crawler awsgluetypes.Crawler) glueservice.Crawler {
 
 func mapJob(job awsgluetypes.Job) glueservice.Job {
 	mapped := glueservice.Job{
-		Name:                  strings.TrimSpace(aws.ToString(job.Name)),
-		Description:           strings.TrimSpace(aws.ToString(job.Description)),
-		RoleARN:               strings.TrimSpace(aws.ToString(job.Role)),
-		GlueVersion:           strings.TrimSpace(aws.ToString(job.GlueVersion)),
+		Name:                  strings.TrimSpace(awsv2.ToString(job.Name)),
+		Description:           strings.TrimSpace(awsv2.ToString(job.Description)),
+		RoleARN:               strings.TrimSpace(awsv2.ToString(job.Role)),
+		GlueVersion:           strings.TrimSpace(awsv2.ToString(job.GlueVersion)),
 		WorkerType:            strings.TrimSpace(string(job.WorkerType)),
-		NumberOfWorkers:       aws.ToInt32(job.NumberOfWorkers),
-		MaxCapacity:           aws.ToFloat64(job.MaxCapacity),
+		NumberOfWorkers:       awsv2.ToInt32(job.NumberOfWorkers),
+		MaxCapacity:           awsv2.ToFloat64(job.MaxCapacity),
 		MaxRetries:            job.MaxRetries,
-		Timeout:               aws.ToInt32(job.Timeout),
-		CreatedOn:             aws.ToTime(job.CreatedOn),
-		LastModifiedOn:        aws.ToTime(job.LastModifiedOn),
-		SecurityConfiguration: strings.TrimSpace(aws.ToString(job.SecurityConfiguration)),
+		Timeout:               awsv2.ToInt32(job.Timeout),
+		CreatedOn:             awsv2.ToTime(job.CreatedOn),
+		LastModifiedOn:        awsv2.ToTime(job.LastModifiedOn),
+		SecurityConfiguration: strings.TrimSpace(awsv2.ToString(job.SecurityConfiguration)),
 		DefaultArgKeys:        mapKeys(job.DefaultArguments),
 		NonOverridableArgKeys: mapKeys(job.NonOverridableArguments),
 	}
 	if job.Command != nil {
-		mapped.CommandName = strings.TrimSpace(aws.ToString(job.Command.Name))
-		mapped.ScriptLanguage = strings.TrimSpace(aws.ToString(job.Command.PythonVersion))
-		mapped.ScriptLocation = strings.TrimSpace(aws.ToString(job.Command.ScriptLocation))
+		mapped.CommandName = strings.TrimSpace(awsv2.ToString(job.Command.Name))
+		mapped.ScriptLanguage = strings.TrimSpace(awsv2.ToString(job.Command.PythonVersion))
+		mapped.ScriptLocation = strings.TrimSpace(awsv2.ToString(job.Command.ScriptLocation))
 	}
 	return mapped
 }
 
 func mapTrigger(trigger awsgluetypes.Trigger) glueservice.Trigger {
 	mapped := glueservice.Trigger{
-		Name:         strings.TrimSpace(aws.ToString(trigger.Name)),
+		Name:         strings.TrimSpace(awsv2.ToString(trigger.Name)),
 		Type:         strings.TrimSpace(string(trigger.Type)),
 		State:        strings.TrimSpace(string(trigger.State)),
-		Description:  strings.TrimSpace(aws.ToString(trigger.Description)),
-		Schedule:     strings.TrimSpace(aws.ToString(trigger.Schedule)),
-		WorkflowName: strings.TrimSpace(aws.ToString(trigger.WorkflowName)),
+		Description:  strings.TrimSpace(awsv2.ToString(trigger.Description)),
+		Schedule:     strings.TrimSpace(awsv2.ToString(trigger.Schedule)),
+		WorkflowName: strings.TrimSpace(awsv2.ToString(trigger.WorkflowName)),
 	}
 	for _, action := range trigger.Actions {
-		if name := strings.TrimSpace(aws.ToString(action.JobName)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(action.JobName)); name != "" {
 			mapped.ActionJobs = append(mapped.ActionJobs, name)
 		}
 	}
@@ -463,11 +463,11 @@ func mapTrigger(trigger awsgluetypes.Trigger) glueservice.Trigger {
 
 func mapWorkflow(workflow awsgluetypes.Workflow) glueservice.Workflow {
 	mapped := glueservice.Workflow{
-		Name:             strings.TrimSpace(aws.ToString(workflow.Name)),
-		Description:      strings.TrimSpace(aws.ToString(workflow.Description)),
-		CreatedOn:        aws.ToTime(workflow.CreatedOn),
-		LastModifiedOn:   aws.ToTime(workflow.LastModifiedOn),
-		MaxConcurrentRun: aws.ToInt32(workflow.MaxConcurrentRuns),
+		Name:             strings.TrimSpace(awsv2.ToString(workflow.Name)),
+		Description:      strings.TrimSpace(awsv2.ToString(workflow.Description)),
+		CreatedOn:        awsv2.ToTime(workflow.CreatedOn),
+		LastModifiedOn:   awsv2.ToTime(workflow.LastModifiedOn),
+		MaxConcurrentRun: awsv2.ToInt32(workflow.MaxConcurrentRuns),
 	}
 	mapped.DefaultRunKeys = mapKeys(workflow.DefaultRunProperties)
 	return mapped
@@ -475,18 +475,18 @@ func mapWorkflow(workflow awsgluetypes.Workflow) glueservice.Workflow {
 
 func mapConnection(connection awsgluetypes.Connection) glueservice.Connection {
 	mapped := glueservice.Connection{
-		Name:            strings.TrimSpace(aws.ToString(connection.Name)),
-		Description:     strings.TrimSpace(aws.ToString(connection.Description)),
+		Name:            strings.TrimSpace(awsv2.ToString(connection.Name)),
+		Description:     strings.TrimSpace(awsv2.ToString(connection.Description)),
 		ConnectionType:  strings.TrimSpace(string(connection.ConnectionType)),
-		CreationTime:    aws.ToTime(connection.CreationTime),
-		LastUpdatedTime: aws.ToTime(connection.LastUpdatedTime),
-		LastUpdatedBy:   strings.TrimSpace(aws.ToString(connection.LastUpdatedBy)),
+		CreationTime:    awsv2.ToTime(connection.CreationTime),
+		LastUpdatedTime: awsv2.ToTime(connection.LastUpdatedTime),
+		LastUpdatedBy:   strings.TrimSpace(awsv2.ToString(connection.LastUpdatedBy)),
 		MatchCriteria:   cloneStringSlice(connection.MatchCriteria),
 		PropertyKeys:    propertyKeysOnly(connection.ConnectionProperties),
 	}
 	if connection.PhysicalConnectionRequirements != nil {
-		mapped.PhysicalRequirementsAZ = strings.TrimSpace(aws.ToString(connection.PhysicalConnectionRequirements.AvailabilityZone))
-		mapped.SubnetID = strings.TrimSpace(aws.ToString(connection.PhysicalConnectionRequirements.SubnetId))
+		mapped.PhysicalRequirementsAZ = strings.TrimSpace(awsv2.ToString(connection.PhysicalConnectionRequirements.AvailabilityZone))
+		mapped.SubnetID = strings.TrimSpace(awsv2.ToString(connection.PhysicalConnectionRequirements.SubnetId))
 		mapped.SecurityGroupIDs = cloneStringSlice(connection.PhysicalConnectionRequirements.SecurityGroupIdList)
 	}
 	return mapped
@@ -498,7 +498,7 @@ func columnNames(columns []awsgluetypes.Column) []string {
 	}
 	names := make([]string, 0, len(columns))
 	for _, column := range columns {
-		if name := strings.TrimSpace(aws.ToString(column.Name)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(column.Name)); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -572,7 +572,7 @@ func optionalString(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
 	}
-	return aws.String(value)
+	return awsv2.String(value)
 }
 
 func (c *Client) recordAPICall(ctx context.Context, operation string, call func(context.Context) error) error {
@@ -593,7 +593,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

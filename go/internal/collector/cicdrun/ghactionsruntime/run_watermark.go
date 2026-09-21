@@ -31,7 +31,7 @@ func watermarkKey(target TargetConfig) runwatermark.Key {
 // when s.watermarks is not wired (Watermarks was left unset in SourceConfig),
 // it returns hasWatermark=false without error, so gap detection is simply
 // skipped rather than failing every claim -- the same optionality
-// awsruntime.ClaimedSource.Checkpoints uses.
+// runtime.ClaimedSource.Checkpoints uses.
 func (s ClaimedSource) loadWatermark(ctx context.Context, target TargetConfig) (runwatermark.Watermark, bool, error) {
 	if s.watermarks == nil {
 		return runwatermark.Watermark{}, false, nil

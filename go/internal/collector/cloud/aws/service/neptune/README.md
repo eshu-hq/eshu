@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/neptune` owns the Amazon Neptune scanner
+`internal/collector/cloud/aws/service/neptune` owns the Amazon Neptune scanner
 contract for the AWS cloud collector. It covers both Neptune (provisioned,
 RDS-shaped) and Neptune Analytics (graph) resources under one
 `service_kind=neptune`. It converts Neptune control-plane metadata into
@@ -64,7 +64,7 @@ join `aws_ec2_vpc`, IAM roles join `aws_iam_role`, and clusters join
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -73,10 +73,10 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns;
 `eshu_dp_aws_resources_emitted_total{service="neptune"}` carries the emitted
-resource count. The `awssdk` adapter records Neptune API call counts,
+resource count. The `sdk` adapter records Neptune API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -110,7 +110,7 @@ throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence: `go test
-./internal/collector/awscloud/service/neptune/...` covers the bounded Neptune
+./internal/collector/cloud/aws/service/neptune/...` covers the bounded Neptune
 metadata path: paginated DescribeDBClusters, DescribeDBInstances,
 DescribeDBClusterParameterGroups, DescribeDBClusterSnapshots,
 DescribeDBSubnetGroups, DescribeGlobalClusters, and ListTagsForResource for
@@ -124,7 +124,7 @@ connections, graph queries, vertex/edge reads, snapshot content reads,
 parameter-value reads, mutations, or Eshu graph writes occur in the collector.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud
-./internal/collector/awscloud/...` covers Neptune metadata fact emission,
+./internal/collector/cloud/aws/...` covers Neptune metadata fact emission,
 direct relationship emission, omission of master-username/secret/vertex/edge/
 query-result fields, runtime registration, command configuration, and the SDK
 adapter's safe metadata mapping. The Neptune scanner adds a new bounded

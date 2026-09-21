@@ -1,4 +1,4 @@
-# AGENTS.md - services/batch/awssdk guidance
+# AGENTS.md - services/batch/sdk guidance
 
 ## Read First
 

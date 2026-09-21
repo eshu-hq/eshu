@@ -12,4 +12,4 @@
 // fingerprints, host key material, login banners, SSH public key bodies, user
 // policy JSON, and POSIX UID/GID material are never copied into scanner-owned
 // types even when DescribeServer or DescribeUser returns them.
-package awssdk
+package sdk

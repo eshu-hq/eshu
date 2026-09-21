@@ -14,4 +14,4 @@
 // adapter cannot read collected evidence, evidence finder records, change logs,
 // delegation comments, control narratives, or report URLs and cannot mutate
 // Audit Manager state.
-package awssdk
+package sdk

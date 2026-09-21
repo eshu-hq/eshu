@@ -31,7 +31,7 @@ type Scanner struct {
 // Scan observes CodeBuild build projects, report groups, and recent builds
 // through the configured client. It returns one aws_resource fact per resource
 // plus aws_relationship facts for the project edges CodeBuild reports directly.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codebuild scanner client is required")
 	}
@@ -39,10 +39,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codebuild scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeBuild:
+	case "", aws.ServiceCodeBuild:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeBuild
+		boundary.ServiceKind = aws.ServiceCodeBuild
 	default:
 		return nil, fmt.Errorf("codebuild scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -54,14 +54,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeBuild projects: %w", err)
 	}
 	for _, project := range projects {
-		resource, err := awscloud.NewResourceEnvelope(projectObservation(boundary, project))
+		resource, err := aws.NewResourceEnvelope(projectObservation(boundary, project))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 
 		for _, observation := range projectRelationships(boundary, project) {
-			relationship, err := awscloud.NewRelationshipEnvelope(observation)
+			relationship, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -74,7 +74,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeBuild report groups: %w", err)
 	}
 	for _, group := range reportGroups {
-		resource, err := awscloud.NewResourceEnvelope(reportGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(reportGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeBuild recent builds: %w", err)
 	}
 	for _, build := range builds {
-		resource, err := awscloud.NewResourceEnvelope(buildObservation(boundary, build))
+		resource, err := aws.NewResourceEnvelope(buildObservation(boundary, build))
 		if err != nil {
 			return nil, err
 		}

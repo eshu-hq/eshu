@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 // Shared resource-type constants that are not owned by a single AWS service
 // slice. These appear as relationship targets across multiple service scanners

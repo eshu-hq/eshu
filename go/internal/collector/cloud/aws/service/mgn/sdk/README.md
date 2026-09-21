@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mgn/awssdk` adapts AWS SDK for Go v2 MGN
+`internal/collector/cloud/aws/service/mgn/sdk` adapts AWS SDK for Go v2 MGN
 responses to the scanner-owned `Client` contract. It owns application
 pagination, source server pagination, per-source-server launch configuration
 reads, job pagination, throttle classification, and per-call AWS API telemetry.
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/mgn` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/mgn` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `mgn` and Smithy error contracts.
 

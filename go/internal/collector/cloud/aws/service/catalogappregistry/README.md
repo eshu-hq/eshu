@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/catalogappregistry` owns the AWS
+`internal/collector/cloud/aws/service/catalogappregistry` owns the AWS
 Service Catalog AppRegistry scanner contract for the AWS cloud collector. It
 converts AppRegistry application and attribute-group metadata into
 `aws_resource` facts and emits relationship evidence for
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records AppRegistry API call counts, throttles, and
+The `sdk` adapter records AppRegistry API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -76,7 +76,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/catalogappregistry/...`
+`go test ./internal/collector/cloud/aws/service/catalogappregistry/...`
 covers the bounded AppRegistry metadata path: one paginated ListApplications
 stream, one paginated ListAttributeGroups stream, one paginated
 ListAttributeGroupsForApplication and one paginated ListAssociatedResources
@@ -85,7 +85,7 @@ per attribute group, no content-body reads, and no graph writes in the
 collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/catalogappregistry/...`
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/catalogappregistry/...`
 green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle

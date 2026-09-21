@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "firehose".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceFirehose + "  "
+	boundary.ServiceKind = "  " + aws.ServiceFirehose + "  "
 	client := fakeClient{streams: []DeliveryStream{{
 		Name:   "padded",
 		ARN:    "arn:aws:firehose:us-east-1:123456789012:deliverystream/padded",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceFirehose; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceFirehose; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

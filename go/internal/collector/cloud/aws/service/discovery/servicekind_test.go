@@ -18,10 +18,10 @@ import (
 // joins/filters that key on the canonical "servicediscovery".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	scanner := Scanner{Client: fakeClient{namespaces: inventory()}}
-	envelopes, err := scanner.Scan(context.Background(), awscloud.Boundary{
+	envelopes, err := scanner.Scan(context.Background(), aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         "  " + awscloud.ServiceServiceDiscovery + "  ",
+		ServiceKind:         "  " + aws.ServiceServiceDiscovery + "  ",
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:servicediscovery:1",
 		CollectorInstanceID: "aws-prod",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceServiceDiscovery; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceServiceDiscovery; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

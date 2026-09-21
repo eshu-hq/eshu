@@ -24,15 +24,15 @@ type Scanner struct {
 // Scan observes Redshift clusters, parameter groups, subnet groups,
 // snapshots, scheduled actions, and Serverless namespaces and workgroups
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("redshift scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRedshift:
+	case "", aws.ServiceRedshift:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRedshift
+		boundary.ServiceKind = aws.ServiceRedshift
 	default:
 		return nil, fmt.Errorf("redshift scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -73,7 +73,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, group := range parameterGroups {
-		resource, err := awscloud.NewResourceEnvelope(parameterGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(parameterGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -125,18 +125,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func clusterEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	parameterGroupIDs map[string]string,
 	subnetGroupIDs map[string]string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range clusterRelationships(boundary, cluster, parameterGroupIDs, subnetGroupIDs) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -146,16 +146,16 @@ func clusterEnvelopes(
 }
 
 func subnetGroupEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ClusterSubnetGroup,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(subnetGroupObservation(boundary, group))
+	resource, err := aws.NewResourceEnvelope(subnetGroupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := subnetGroupVPCRelationship(boundary, group); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -165,17 +165,17 @@ func subnetGroupEnvelopes(
 }
 
 func snapshotEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot ClusterSnapshot,
 	clusterIDs map[string]string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
+	resource, err := aws.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range snapshotRelationships(boundary, snapshot, clusterIDs) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -185,17 +185,17 @@ func snapshotEnvelopes(
 }
 
 func scheduledActionEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action ScheduledAction,
 	clusterIDs map[string]string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(scheduledActionObservation(boundary, action))
+	resource, err := aws.NewResourceEnvelope(scheduledActionObservation(boundary, action))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range scheduledActionRelationships(boundary, action, clusterIDs) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -205,16 +205,16 @@ func scheduledActionEnvelopes(
 }
 
 func serverlessNamespaceEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	namespace ServerlessNamespace,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serverlessNamespaceObservation(boundary, namespace))
+	resource, err := aws.NewResourceEnvelope(serverlessNamespaceObservation(boundary, namespace))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range serverlessNamespaceRelationships(boundary, namespace) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -224,17 +224,17 @@ func serverlessNamespaceEnvelopes(
 }
 
 func serverlessWorkgroupEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workgroup ServerlessWorkgroup,
 	namespaceIDs map[string]string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serverlessWorkgroupObservation(boundary, workgroup))
+	resource, err := aws.NewResourceEnvelope(serverlessWorkgroupObservation(boundary, workgroup))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range serverlessWorkgroupRelationships(boundary, workgroup, namespaceIDs) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -243,15 +243,15 @@ func serverlessWorkgroupEnvelopes(
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	arn := strings.TrimSpace(cluster.ARN)
 	identifier := strings.TrimSpace(cluster.Identifier)
 	resourceID := firstNonEmpty(arn, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftCluster,
+		ResourceType: aws.ResourceTypeRedshiftCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.ClusterStatus),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -301,17 +301,17 @@ func clusterAttributes(cluster Cluster) map[string]any {
 }
 
 func parameterGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ClusterParameterGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterParameterGroup,
+		ResourceType: aws.ResourceTypeRedshiftClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -324,17 +324,17 @@ func parameterGroupObservation(
 }
 
 func subnetGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ClusterSubnetGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterSubnetGroup,
+		ResourceType: aws.ResourceTypeRedshiftClusterSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -349,17 +349,17 @@ func subnetGroupObservation(
 }
 
 func snapshotObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot ClusterSnapshot,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(snapshot.ARN)
 	identifier := strings.TrimSpace(snapshot.Identifier)
 	resourceID := firstNonEmpty(arn, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterSnapshot,
+		ResourceType: aws.ResourceTypeRedshiftClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -387,14 +387,14 @@ func snapshotObservation(
 }
 
 func scheduledActionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action ScheduledAction,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	name := strings.TrimSpace(action.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeRedshiftScheduledAction,
+		ResourceType: aws.ResourceTypeRedshiftScheduledAction,
 		Name:         name,
 		State:        strings.TrimSpace(action.State),
 		Attributes: map[string]any{
@@ -413,17 +413,17 @@ func scheduledActionObservation(
 }
 
 func serverlessNamespaceObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	namespace ServerlessNamespace,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(namespace.ARN)
 	name := strings.TrimSpace(namespace.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftServerlessNamespace,
+		ResourceType: aws.ResourceTypeRedshiftServerlessNamespace,
 		Name:         name,
 		State:        strings.TrimSpace(namespace.Status),
 		Tags:         cloneStringMap(namespace.Tags),
@@ -442,17 +442,17 @@ func serverlessNamespaceObservation(
 }
 
 func serverlessWorkgroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workgroup ServerlessWorkgroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(workgroup.ARN)
 	name := strings.TrimSpace(workgroup.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftServerlessWorkgroup,
+		ResourceType: aws.ResourceTypeRedshiftServerlessWorkgroup,
 		Name:         name,
 		State:        strings.TrimSpace(workgroup.Status),
 		Tags:         cloneStringMap(workgroup.Tags),

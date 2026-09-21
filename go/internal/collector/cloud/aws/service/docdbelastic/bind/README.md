@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/docdbelastic/runtimebind` registers the
-DocumentDB Elastic Clusters scanner with the awsruntime registry from a package
+`internal/collector/cloud/aws/service/docdbelastic/bind` registers the
+DocumentDB Elastic Clusters scanner with the runtime registry from a package
 `init()`. Importing this package for its blank side effect is the only way a
 runtime brings the DocumentDB Elastic scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceDocDBElastic` to the DocumentDB Elastic scanner builder. It
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceDocDBElastic` to the DocumentDB Elastic scanner builder. It
 does not own AWS API calls, DocumentDB Elastic domain types, redaction policy,
 or fact emission. Those belong to
-`internal/collector/awscloud/service/docdbelastic` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/docdbelastic` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceDocDBElastic` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceDocDBElastic` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/docdbelastic` for the scanner struct.
-- `internal/collector/awscloud/service/docdbelastic/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/docdbelastic` for the scanner struct.
+- `internal/collector/cloud/aws/service/docdbelastic/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The DocumentDB Elastic scanner and
 its SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ its SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the DocumentDB Elastic scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

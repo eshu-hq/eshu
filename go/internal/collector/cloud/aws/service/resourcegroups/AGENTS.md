@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/resourcegroups guidance
+# AGENTS.md - internal/collector/cloud/aws/service/resourcegroups guidance
 
 ## Read First
 
@@ -49,10 +49,10 @@
   scanner's `resource_id` shape, then map it exactly. Use `arnTarget` for
   ARN-keyed families and `bareTarget` for bare/prefixed-id families.
 - Add a new group metadata field by extending `Group`, writing a focused scanner
-  or adapter test first, then mapping it through the `awscloud` envelope
+  or adapter test first, then mapping it through the `aws` envelope
   builders. If the field can carry query-body or tag content, leave it out of
   the contract until an ADR documents a sanitized exception.
-- Extend SDK pagination and the query-body parse in the `awssdk` adapter, not
+- Extend SDK pagination and the query-body parse in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

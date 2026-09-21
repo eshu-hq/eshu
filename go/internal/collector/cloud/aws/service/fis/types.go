@@ -29,7 +29,7 @@ type Snapshot struct {
 	Templates []ExperimentTemplate
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ExperimentTemplate is the scanner-owned FIS experiment-template model. It

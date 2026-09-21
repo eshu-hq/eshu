@@ -11,4 +11,4 @@
 // every Create/Update/Delete/Start/Stop/Terminate/Mark mutation API, and the
 // replication-agent and connector control APIs, so the adapter cannot read
 // replication secrets or write MGN state.
-package awssdk
+package sdk

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/networkfirewall guidance
+# AGENTS.md - internal/collector/cloud/aws/service/networkfirewall guidance
 
 ## Read First
 
@@ -30,11 +30,11 @@
 
 - Add a new Network Firewall metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Never add a field that carries a rule source,
+  `aws` envelope builders. Never add a field that carries a rule source,
   Suricata signature body, policy rule body, or certificate body.
 - Add new relationship evidence only when the Network Firewall API reports both
   endpoints directly.
-- Extend SDK pagination and metadata reads in the `awssdk` adapter, not here.
+- Extend SDK pagination and metadata reads in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

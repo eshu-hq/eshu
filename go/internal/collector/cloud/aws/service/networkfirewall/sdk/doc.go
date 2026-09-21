@@ -17,4 +17,4 @@
 // ARNs, not the full policy rule body, and the TLS inspection read keeps only
 // response metadata, not certificate bodies. Network Firewall is regional, so
 // the adapter scans the boundary region directly.
-package awssdk
+package sdk

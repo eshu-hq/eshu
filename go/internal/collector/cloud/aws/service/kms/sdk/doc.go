@@ -19,4 +19,4 @@
 // TagResource, UntagResource). It never calls GetKeyPolicy, so key policy
 // Statement bodies stay outside the scanner's read surface; only the
 // bounded list of policy revision names from ListKeyPolicies is reported.
-package awssdk
+package sdk

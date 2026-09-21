@@ -22,14 +22,14 @@ const secretsManagerService = "secretsmanager"
 // the flow ARN observed in the same describe response so a GovCloud or China
 // flow joins the real bucket node instead of dangling on a hardcoded `aws`.
 // When the flow ARN is absent the boundary region supplies the partition.
-func bucketARN(boundary awscloud.Boundary, flowARN, bucket string) string {
+func bucketARN(boundary aws.Boundary, flowARN, bucket string) string {
 	bucket = strings.TrimSpace(bucket)
 	if bucket == "" {
 		return ""
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
+	partition := aws.PartitionForBoundary(boundary)
 	if arn := strings.TrimSpace(flowARN); arn != "" {
-		partition = awscloud.PartitionFromARN(arn)
+		partition = aws.PartitionFromARN(arn)
 	}
 	return "arn:" + partition + ":s3:::" + bucket
 }

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaas "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	awsaastypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/smithy-go"
@@ -71,7 +71,7 @@ var supportedNamespaces = []awsaastypes.ServiceNamespace{
 // a scaling action.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -79,8 +79,8 @@ type Client struct {
 // NewClient builds an Application Auto Scaling SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -127,7 +127,7 @@ func (c *Client) Snapshot(ctx context.Context) (aasservice.Snapshot, error) {
 func (c *Client) listScalableTargets(
 	ctx context.Context,
 	namespace awsaastypes.ServiceNamespace,
-) ([]aasservice.ScalableTarget, *awscloud.WarningObservation, error) {
+) ([]aasservice.ScalableTarget, *aws.WarningObservation, error) {
 	var targets []aasservice.ScalableTarget
 	var nextToken *string
 	for {
@@ -153,7 +153,7 @@ func (c *Client) listScalableTargets(
 			targets = append(targets, mapScalableTarget(target))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return targets, nil, nil
 		}
 	}
@@ -162,7 +162,7 @@ func (c *Client) listScalableTargets(
 func (c *Client) listScalingPolicies(
 	ctx context.Context,
 	namespace awsaastypes.ServiceNamespace,
-) ([]aasservice.ScalingPolicy, *awscloud.WarningObservation, error) {
+) ([]aasservice.ScalingPolicy, *aws.WarningObservation, error) {
 	var policies []aasservice.ScalingPolicy
 	var nextToken *string
 	for {
@@ -188,7 +188,7 @@ func (c *Client) listScalingPolicies(
 			policies = append(policies, mapScalingPolicy(policy))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return policies, nil, nil
 		}
 	}
@@ -197,7 +197,7 @@ func (c *Client) listScalingPolicies(
 func (c *Client) listScheduledActions(
 	ctx context.Context,
 	namespace awsaastypes.ServiceNamespace,
-) ([]aasservice.ScheduledAction, *awscloud.WarningObservation, error) {
+) ([]aasservice.ScheduledAction, *aws.WarningObservation, error) {
 	var actions []aasservice.ScheduledAction
 	var nextToken *string
 	for {
@@ -223,7 +223,7 @@ func (c *Client) listScheduledActions(
 			actions = append(actions, mapScheduledAction(action))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return actions, nil, nil
 		}
 	}
@@ -247,7 +247,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

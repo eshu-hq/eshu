@@ -15,7 +15,7 @@
 // stack-to-S3-template-URL relationship evidence.
 //
 // Secret-like stack output values are redacted by key through the shared
-// awscloud redaction policy before emission, so Scanner requires a non-zero
+// aws redaction policy before emission, so Scanner requires a non-zero
 // redaction key. TestClientInterfaceExcludesMutationAndTemplateAPIs proves the
 // Client interface can never reach a template body or any mutation API.
 package cloudformation

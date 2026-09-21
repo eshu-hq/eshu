@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/datasync/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/datasync/sdk` adapts AWS SDK for Go v2
 DataSync responses to the scanner-owned `Client` contract. It owns task
 pagination and per-task describe reads, location pagination with
 flavor-specific describe reads, agent pagination and describe reads, throttle
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/datasync` for scanner-owned result
+- `internal/collector/cloud/aws/service/datasync` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `datasync` and Smithy error contracts.

@@ -9,69 +9,69 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func dataStreamRelationships(boundary awscloud.Boundary, stream DataStream) []awscloud.RelationshipObservation {
+func dataStreamRelationships(boundary aws.Boundary, stream DataStream) []aws.RelationshipObservation {
 	streamID := firstNonEmpty(stream.ARN, stream.Name)
 	if streamID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if kmsARN := strings.TrimSpace(stream.KMSKeyID); isARN(kmsARN) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipKinesisDataStreamUsesKMSKey,
+			RelationshipType: aws.RelationshipKinesisDataStreamUsesKMSKey,
 			SourceResourceID: streamID,
 			SourceARN:        strings.TrimSpace(stream.ARN),
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       aws.ResourceTypeKMSKey,
 			SourceRecordID:   streamID + "#kms-key#" + kmsARN,
 		})
 	}
 	return observations
 }
 
-func videoStreamRelationships(boundary awscloud.Boundary, stream VideoStream) []awscloud.RelationshipObservation {
+func videoStreamRelationships(boundary aws.Boundary, stream VideoStream) []aws.RelationshipObservation {
 	streamID := firstNonEmpty(stream.ARN, stream.Name)
 	if streamID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if kmsARN := strings.TrimSpace(stream.KMSKeyID); isARN(kmsARN) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipKinesisVideoStreamUsesKMSKey,
+			RelationshipType: aws.RelationshipKinesisVideoStreamUsesKMSKey,
 			SourceResourceID: streamID,
 			SourceARN:        strings.TrimSpace(stream.ARN),
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       aws.ResourceTypeKMSKey,
 			SourceRecordID:   streamID + "#kms-key#" + kmsARN,
 		})
 	}
 	return observations
 }
 
-func deliveryStreamRelationships(boundary awscloud.Boundary, stream FirehoseDeliveryStream) []awscloud.RelationshipObservation {
+func deliveryStreamRelationships(boundary aws.Boundary, stream FirehoseDeliveryStream) []aws.RelationshipObservation {
 	streamID := firstNonEmpty(stream.ARN, stream.Name)
 	if streamID == "" {
 		return nil
 	}
 	streamARN := strings.TrimSpace(stream.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	seenRole := make(map[string]struct{})
 	seenLambda := make(map[string]struct{})
 	for _, destination := range stream.Destinations {
 		if roleARN := strings.TrimSpace(destination.RoleARN); isARN(roleARN) {
 			if _, ok := seenRole[roleARN]; !ok {
 				seenRole[roleARN] = struct{}{}
-				observations = append(observations, awscloud.RelationshipObservation{
+				observations = append(observations, aws.RelationshipObservation{
 					Boundary:         boundary,
-					RelationshipType: awscloud.RelationshipFirehoseDeliveryStreamUsesIAMRole,
+					RelationshipType: aws.RelationshipFirehoseDeliveryStreamUsesIAMRole,
 					SourceResourceID: streamID,
 					SourceARN:        streamARN,
 					TargetResourceID: roleARN,
 					TargetARN:        roleARN,
-					TargetType:       awscloud.ResourceTypeIAMRole,
+					TargetType:       aws.ResourceTypeIAMRole,
 					SourceRecordID:   streamID + "#role#" + roleARN,
 				})
 			}
@@ -85,14 +85,14 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream FirehoseDeli
 				continue
 			}
 			seenLambda[lambdaARN] = struct{}{}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipFirehoseDeliveryStreamUsesLambdaTransform,
+				RelationshipType: aws.RelationshipFirehoseDeliveryStreamUsesLambdaTransform,
 				SourceResourceID: streamID,
 				SourceARN:        streamARN,
 				TargetResourceID: lambdaARN,
 				TargetARN:        lambdaARN,
-				TargetType:       awscloud.ResourceTypeLambdaFunction,
+				TargetType:       aws.ResourceTypeLambdaFunction,
 				SourceRecordID:   streamID + "#lambda-transform#" + lambdaARN,
 			})
 		}
@@ -108,12 +108,12 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream FirehoseDeli
 // most specific reachable target identity for the destination kind. Endpoints
 // that report no usable target identity produce no edge.
 func destinationTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination FirehoseDestination,
-) (awscloud.RelationshipObservation, bool) {
-	base := awscloud.RelationshipObservation{
+) (aws.RelationshipObservation, bool) {
+	base := aws.RelationshipObservation{
 		Boundary:         boundary,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
@@ -122,59 +122,59 @@ func destinationTargetRelationship(
 	case FirehoseDestinationKindS3:
 		bucketARN := strings.TrimSpace(destination.S3BucketARN)
 		if !isARN(bucketARN) {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToS3
+		base.RelationshipType = aws.RelationshipFirehoseDeliveryStreamDeliversToS3
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
-		base.TargetType = awscloud.ResourceTypeS3Bucket
+		base.TargetType = aws.ResourceTypeS3Bucket
 		base.SourceRecordID = streamID + "#s3#" + bucketARN
 		return base, true
 	case FirehoseDestinationKindRedshift:
 		clusterID := strings.TrimSpace(destination.RedshiftClusterID)
 		if clusterID == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToRedshift
+		base.RelationshipType = aws.RelationshipFirehoseDeliveryStreamDeliversToRedshift
 		base.TargetResourceID = clusterID
-		base.TargetType = awscloud.ResourceTypeRedshiftCluster
+		base.TargetType = aws.ResourceTypeRedshiftCluster
 		base.SourceRecordID = streamID + "#redshift#" + clusterID
 		return base, true
 	case FirehoseDestinationKindOpenSearch:
 		domainARN := strings.TrimSpace(destination.OpenSearchDomainARN)
 		if !isARN(domainARN) {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToOpenSearch
+		base.RelationshipType = aws.RelationshipFirehoseDeliveryStreamDeliversToOpenSearch
 		base.TargetResourceID = domainARN
 		base.TargetARN = domainARN
-		base.TargetType = awscloud.ResourceTypeOpenSearchDomain
+		base.TargetType = aws.ResourceTypeOpenSearchDomain
 		base.SourceRecordID = streamID + "#opensearch#" + domainARN
 		return base, true
 	case FirehoseDestinationKindSplunk:
 		endpoint := strings.TrimSpace(destination.SplunkEndpoint)
 		if endpoint == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToSplunk
+		base.RelationshipType = aws.RelationshipFirehoseDeliveryStreamDeliversToSplunk
 		base.TargetResourceID = endpoint
-		base.TargetType = awscloud.ResourceTypeSplunkEndpoint
+		base.TargetType = aws.ResourceTypeSplunkEndpoint
 		base.SourceRecordID = streamID + "#splunk#" + endpoint
 		return base, true
 	case FirehoseDestinationKindHTTPEndpoint:
 		endpoint := firstNonEmpty(destination.HTTPEndpointURL, destination.HTTPEndpointName)
 		if endpoint == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToHTTPEndpoint
+		base.RelationshipType = aws.RelationshipFirehoseDeliveryStreamDeliversToHTTPEndpoint
 		base.TargetResourceID = endpoint
-		base.TargetType = awscloud.ResourceTypeFirehoseHTTPEndpoint
+		base.TargetType = aws.ResourceTypeFirehoseHTTPEndpoint
 		base.SourceRecordID = streamID + "#http-endpoint#" + endpoint
 		if name := strings.TrimSpace(destination.HTTPEndpointName); name != "" {
 			base.Attributes = map[string]any{"endpoint_name": name}
 		}
 		return base, true
 	default:
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }

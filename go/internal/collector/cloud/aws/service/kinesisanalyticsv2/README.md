@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kinesisanalyticsv2` owns the Amazon
+`internal/collector/cloud/aws/service/kinesisanalyticsv2` owns the Amazon
 Managed Service for Apache Flink (Kinesis Data Analytics v2) scanner contract
 for the AWS cloud collector. It converts application control-plane metadata into
 `aws_resource` facts and emits relationship evidence for the application's SQL
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Managed Flink API call counts, throttles, and
+The `sdk` adapter records Managed Flink API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -90,7 +90,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/kinesisanalyticsv2/...` covers
+`go test ./internal/collector/cloud/aws/service/kinesisanalyticsv2/...` covers
 the bounded Managed Flink metadata path: one paginated ListApplications stream,
 one DescribeApplication point read per application, one paginated
 ListApplicationSnapshots stream per application, one ListTagsForResource point
@@ -98,7 +98,7 @@ read per application, no code-body reads, no SQL reads, no mutations, and no
 graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/kinesisanalyticsv2/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/kinesisanalyticsv2/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

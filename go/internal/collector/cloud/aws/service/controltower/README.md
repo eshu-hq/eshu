@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/controltower` owns the AWS Control Tower
+`internal/collector/cloud/aws/service/controltower` owns the AWS Control Tower
 scanner contract for the AWS cloud collector. It converts landing-zone,
 enabled-control, and enabled-baseline metadata into `aws_resource` facts and
 emits relationship evidence for the Organizations targets a control or baseline
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Control Tower API call counts, throttles, and
+The `sdk` adapter records Control Tower API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -74,7 +74,7 @@ pagination spans.
   Organizations ARN, or names a family the organizations scanner does not
   publish.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from landing-zone, control,
@@ -83,7 +83,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/controltower/...` covers the
+`go test ./internal/collector/cloud/aws/service/controltower/...` covers the
 bounded Control Tower metadata path: one paginated ListLandingZones stream, one
 GetLandingZone point read (manifest body never read), one paginated
 ListEnabledBaselines stream, one paginated ListEnabledControls stream per
@@ -91,7 +91,7 @@ distinct OU target, one ListTagsForResource point read for the landing zone, no
 governance payload reads, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/controltower/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/controltower/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

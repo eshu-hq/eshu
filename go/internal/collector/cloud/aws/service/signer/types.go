@@ -29,7 +29,7 @@ type Snapshot struct {
 	Platforms []SigningPlatform
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // SigningProfile is the scanner-owned Signer signing-profile model. It carries

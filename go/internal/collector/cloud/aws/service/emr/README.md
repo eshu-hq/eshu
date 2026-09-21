@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/emr` owns the Amazon EMR scanner contract
+`internal/collector/cloud/aws/service/emr` owns the Amazon EMR scanner contract
 for the AWS cloud collector. One service kind (`emr`) covers three EMR
 surfaces: EMR on EC2 clusters, EMR Serverless applications, and EMR Studio. It
 converts clusters (running and recently terminated), uniform instance groups,
@@ -14,7 +14,7 @@ Studio session mappings into reported AWS facts and relationship evidence.
 This package owns scanner-level EMR fact selection and identity mapping. It
 does not own AWS SDK pagination, credential acquisition, workflow claims, fact
 persistence, graph writes, reducer admission, or query behavior. SDK behavior
-lives in the sibling `awssdk` adapter; the scanner depends only on the `Client`
+lives in the sibling `sdk` adapter; the scanner depends only on the `Client`
 interface declared in `types.go`.
 
 ```mermaid
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 - `Client` - minimal EMR + EMR Serverless metadata read surface consumed by
   `Scanner`. The interface exposes only List/Describe/Get-class reads; the
-  `awssdk` package tests assert no method name matches a mutation, job/step
+  `sdk` package tests assert no method name matches a mutation, job/step
   body reader, or security-configuration policy-body reader.
 - `Scanner` - emits EMR resource and relationship facts for one boundary.
 - `Cluster`, `InstanceGroup`, `InstanceFleet` - EMR on EC2 inventory and
@@ -88,7 +88,7 @@ Serverless API do not report a VPC id. EMR Studio does report its VPC id, so
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -97,9 +97,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records EMR API call counts, throttles, and pagination
+The `sdk` adapter records EMR API call counts, throttles, and pagination
 spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="emr"}` with the existing bounded
 AWS collector labels.
@@ -133,7 +133,7 @@ AWS collector labels.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/emr/... -race` covers the
+`go test ./internal/collector/cloud/aws/service/emr/... -race` covers the
 bounded EMR metadata path: ListClusters with bounded states and a recent
 CreatedAfter window, per-cluster DescribeCluster, instance group or fleet
 roll-up by collection type, ListSecurityConfigurations name-only mapping,
@@ -141,7 +141,7 @@ ListApplications plus GetApplication, and ListStudios plus DescribeStudio with
 ListStudioSessionMappings, all without mutation or sensitive-body calls.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers EMR
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers EMR
 resource and relationship fact emission, omission of step args, bootstrap
 bodies, security configuration policy bodies, and Serverless job-run arguments,
 the reflective SDK-adapter exclusion guards, runtime registration through the

@@ -14,7 +14,7 @@ import (
 
 func s3Contract() contract.CollectorContract {
 	return contract.CollectorContract{
-		CollectorKind: awscloud.CollectorKind,
+		CollectorKind: aws.CollectorKind,
 		FactKinds: []contract.FactKindShape{
 			{
 				Kind: facts.AWSResourceFactKind,
@@ -75,9 +75,9 @@ func TestContractShape(t *testing.T) {
 			KMSMasterKeyID: "arn:aws:kms:us-east-1:123456789012:key/orders",
 		}}},
 		ExternalPrincipalGrants: []ExternalPrincipalGrant{{
-			PrincipalKind:  awscloud.S3ExternalPrincipalKindPublic,
+			PrincipalKind:  aws.S3ExternalPrincipalKindPublic,
 			PrincipalValue: "*",
-			GrantOutcome:   awscloud.S3ExternalPrincipalGrantOutcomePublic,
+			GrantOutcome:   aws.S3ExternalPrincipalGrantOutcomePublic,
 			Public:         true,
 		}},
 		ResourcePolicyStatements: []ResourcePolicyStatement{{
@@ -106,11 +106,11 @@ func TestContractShape(t *testing.T) {
 func TestContractRejectsMismatchedServiceKind(t *testing.T) {
 	contract.AssertRejectsMismatchedServiceKind(
 		t,
-		func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+		func(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 			return (Scanner{Client: fakeClient{}}).Scan(ctx, boundary)
 		},
 		testBoundary(),
-		awscloud.ServiceSNS,
+		aws.ServiceSNS,
 	)
 }
 
@@ -119,7 +119,7 @@ func TestContractRejectsMismatchedServiceKind(t *testing.T) {
 func TestContractRequiresClient(t *testing.T) {
 	contract.AssertRequiresClient(
 		t,
-		func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+		func(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 			return (Scanner{}).Scan(ctx, boundary)
 		},
 		testBoundary(),

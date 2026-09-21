@@ -41,7 +41,7 @@ func TestLoadRuntimeConfigRequiresRedactionKeyForBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceBatch; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceBatch; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if config.AWSRedactionKey.IsZero() {

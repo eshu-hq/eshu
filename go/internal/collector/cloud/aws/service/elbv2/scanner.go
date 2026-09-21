@@ -20,15 +20,15 @@ type Scanner struct {
 }
 
 // Scan observes ELBv2 routing topology through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("elbv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceELBv2:
+	case "", aws.ServiceELBv2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceELBv2
+		boundary.ServiceKind = aws.ServiceELBv2
 	default:
 		return nil, fmt.Errorf("elbv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -62,10 +62,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) loadBalancerEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	loadBalancer LoadBalancer,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(loadBalancerObservation(boundary, loadBalancer))
+	resource, err := aws.NewResourceEnvelope(loadBalancerObservation(boundary, loadBalancer))
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +86,14 @@ func (s Scanner) loadBalancerEnvelopes(
 
 func (s Scanner) listenerEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listener Listener,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(listenerObservation(boundary, listener))
+	resource, err := aws.NewResourceEnvelope(listenerObservation(boundary, listener))
 	if err != nil {
 		return nil, err
 	}
-	relationship, err := awscloud.NewRelationshipEnvelope(loadBalancerListenerRelationship(boundary, listener))
+	relationship, err := aws.NewRelationshipEnvelope(loadBalancerListenerRelationship(boundary, listener))
 	if err != nil {
 		return nil, err
 	}
@@ -106,11 +106,11 @@ func (s Scanner) listenerEnvelopes(
 		return nil, fmt.Errorf("list ELBv2 rules for listener %q: %w", listener.ARN, err)
 	}
 	for _, rule := range rules {
-		ruleResource, err := awscloud.NewResourceEnvelope(ruleObservation(boundary, rule))
+		ruleResource, err := aws.NewResourceEnvelope(ruleObservation(boundary, rule))
 		if err != nil {
 			return nil, err
 		}
-		ruleRelationship, err := awscloud.NewRelationshipEnvelope(listenerRuleRelationship(boundary, rule))
+		ruleRelationship, err := aws.NewRelationshipEnvelope(listenerRuleRelationship(boundary, rule))
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func (s Scanner) listenerEnvelopes(
 		routeBuilder.addActions("rule_action", rule.ARN, rule.Priority, rule.Actions)
 	}
 	for _, observation := range routeBuilder.observations() {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +127,13 @@ func (s Scanner) listenerEnvelopes(
 	return envelopes, nil
 }
 
-func loadBalancerObservation(boundary awscloud.Boundary, loadBalancer LoadBalancer) awscloud.ResourceObservation {
+func loadBalancerObservation(boundary aws.Boundary, loadBalancer LoadBalancer) aws.ResourceObservation {
 	loadBalancerARN := strings.TrimSpace(loadBalancer.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          loadBalancerARN,
 		ResourceID:   loadBalancerARN,
-		ResourceType: awscloud.ResourceTypeELBv2LoadBalancer,
+		ResourceType: aws.ResourceTypeELBv2LoadBalancer,
 		Name:         loadBalancer.Name,
 		State:        loadBalancer.State,
 		Tags:         loadBalancer.Tags,
@@ -153,13 +153,13 @@ func loadBalancerObservation(boundary awscloud.Boundary, loadBalancer LoadBalanc
 	}
 }
 
-func listenerObservation(boundary awscloud.Boundary, listener Listener) awscloud.ResourceObservation {
+func listenerObservation(boundary aws.Boundary, listener Listener) aws.ResourceObservation {
 	listenerARN := strings.TrimSpace(listener.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          listenerARN,
 		ResourceID:   listenerARN,
-		ResourceType: awscloud.ResourceTypeELBv2Listener,
+		ResourceType: aws.ResourceTypeELBv2Listener,
 		Name:         listenerARN,
 		Tags:         listener.Tags,
 		Attributes: map[string]any{
@@ -176,13 +176,13 @@ func listenerObservation(boundary awscloud.Boundary, listener Listener) awscloud
 	}
 }
 
-func ruleObservation(boundary awscloud.Boundary, rule Rule) awscloud.ResourceObservation {
+func ruleObservation(boundary aws.Boundary, rule Rule) aws.ResourceObservation {
 	ruleARN := strings.TrimSpace(rule.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   ruleARN,
-		ResourceType: awscloud.ResourceTypeELBv2Rule,
+		ResourceType: aws.ResourceTypeELBv2Rule,
 		Name:         ruleARN,
 		Tags:         rule.Tags,
 		Attributes: map[string]any{
@@ -197,13 +197,13 @@ func ruleObservation(boundary awscloud.Boundary, rule Rule) awscloud.ResourceObs
 	}
 }
 
-func targetGroupObservation(boundary awscloud.Boundary, targetGroup TargetGroup) awscloud.ResourceObservation {
+func targetGroupObservation(boundary aws.Boundary, targetGroup TargetGroup) aws.ResourceObservation {
 	targetGroupARN := strings.TrimSpace(targetGroup.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          targetGroupARN,
 		ResourceID:   targetGroupARN,
-		ResourceType: awscloud.ResourceTypeELBv2TargetGroup,
+		ResourceType: aws.ResourceTypeELBv2TargetGroup,
 		Name:         targetGroup.Name,
 		Tags:         targetGroup.Tags,
 		Attributes: map[string]any{
@@ -221,14 +221,14 @@ func targetGroupObservation(boundary awscloud.Boundary, targetGroup TargetGroup)
 	}
 }
 
-func targetGroupEnvelopes(boundary awscloud.Boundary, targetGroup TargetGroup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(targetGroupObservation(boundary, targetGroup))
+func targetGroupEnvelopes(boundary aws.Boundary, targetGroup TargetGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(targetGroupObservation(boundary, targetGroup))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, loadBalancerARN := range targetGroup.LoadBalancerARNs {
-		relationship, err := awscloud.NewRelationshipEnvelope(
+		relationship, err := aws.NewRelationshipEnvelope(
 			targetGroupLoadBalancerRelationship(boundary, targetGroup, loadBalancerARN),
 		)
 		if err != nil {
@@ -240,34 +240,34 @@ func targetGroupEnvelopes(boundary awscloud.Boundary, targetGroup TargetGroup) (
 }
 
 func loadBalancerListenerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listener Listener,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	listenerARN := strings.TrimSpace(listener.ARN)
 	loadBalancerARN := strings.TrimSpace(listener.LoadBalancerARN)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2LoadBalancerHasListener,
+		RelationshipType: aws.RelationshipELBv2LoadBalancerHasListener,
 		SourceResourceID: loadBalancerARN,
 		SourceARN:        loadBalancerARN,
 		TargetResourceID: listenerARN,
 		TargetARN:        listenerARN,
-		TargetType:       awscloud.ResourceTypeELBv2Listener,
+		TargetType:       aws.ResourceTypeELBv2Listener,
 		SourceRecordID:   loadBalancerARN + "#listener#" + listenerARN,
 	}
 }
 
-func listenerRuleRelationship(boundary awscloud.Boundary, rule Rule) awscloud.RelationshipObservation {
+func listenerRuleRelationship(boundary aws.Boundary, rule Rule) aws.RelationshipObservation {
 	listenerARN := strings.TrimSpace(rule.ListenerARN)
 	ruleARN := strings.TrimSpace(rule.ARN)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2ListenerHasRule,
+		RelationshipType: aws.RelationshipELBv2ListenerHasRule,
 		SourceResourceID: listenerARN,
 		SourceARN:        listenerARN,
 		TargetResourceID: ruleARN,
 		TargetARN:        ruleARN,
-		TargetType:       awscloud.ResourceTypeELBv2Rule,
+		TargetType:       aws.ResourceTypeELBv2Rule,
 		Attributes: map[string]any{
 			"is_default": rule.IsDefault,
 			"priority":   strings.TrimSpace(rule.Priority),
@@ -277,20 +277,20 @@ func listenerRuleRelationship(boundary awscloud.Boundary, rule Rule) awscloud.Re
 }
 
 func targetGroupLoadBalancerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	targetGroup TargetGroup,
 	loadBalancerARN string,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	targetGroupARN := strings.TrimSpace(targetGroup.ARN)
 	loadBalancerARN = strings.TrimSpace(loadBalancerARN)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2TargetGroupAttachedToLoadBalancer,
+		RelationshipType: aws.RelationshipELBv2TargetGroupAttachedToLoadBalancer,
 		SourceResourceID: targetGroupARN,
 		SourceARN:        targetGroupARN,
 		TargetResourceID: loadBalancerARN,
 		TargetARN:        loadBalancerARN,
-		TargetType:       awscloud.ResourceTypeELBv2LoadBalancer,
+		TargetType:       aws.ResourceTypeELBv2LoadBalancer,
 		SourceRecordID:   targetGroupARN + "#load-balancer#" + loadBalancerARN,
 	}
 }

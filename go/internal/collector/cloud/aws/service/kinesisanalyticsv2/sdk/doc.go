@@ -12,4 +12,4 @@
 // mutation API and never copies application code bodies, SQL text, environment
 // property values, or run-configuration content, so the adapter cannot read
 // record payloads or mutate application state.
-package awssdk
+package sdk

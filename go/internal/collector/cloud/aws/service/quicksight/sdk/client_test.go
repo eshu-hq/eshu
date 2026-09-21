@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsquicksight "github.com/aws/aws-sdk-go-v2/service/quicksight"
 	awsquicksighttypes "github.com/aws/aws-sdk-go-v2/service/quicksight/types"
 
@@ -26,85 +26,85 @@ const (
 func TestClientSnapshotsQuickSightMetadataOnly(t *testing.T) {
 	api := &fakeQuickSightAPI{
 		dataSources: []awsquicksighttypes.DataSource{{
-			Arn:          aws.String(dataSourceARN),
-			DataSourceId: aws.String("redshift-prod"),
-			Name:         aws.String("Redshift Prod"),
+			Arn:          awsv2.String(dataSourceARN),
+			DataSourceId: awsv2.String("redshift-prod"),
+			Name:         awsv2.String("Redshift Prod"),
 			Type:         awsquicksighttypes.DataSourceTypeRedshift,
 			Status:       awsquicksighttypes.ResourceStatusCreationSuccessful,
-			SecretArn:    aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:qs-XYZ"),
+			SecretArn:    awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:qs-XYZ"),
 			VpcConnectionProperties: &awsquicksighttypes.VpcConnectionProperties{
-				VpcConnectionArn: aws.String("arn:aws:quicksight:us-east-1:123456789012:vpcConnection/vpc-conn-1"),
+				VpcConnectionArn: awsv2.String("arn:aws:quicksight:us-east-1:123456789012:vpcConnection/vpc-conn-1"),
 			},
 			DataSourceParameters: &awsquicksighttypes.DataSourceParametersMemberRedshiftParameters{
 				Value: awsquicksighttypes.RedshiftParameters{
-					Database:  aws.String("analytics"),
-					ClusterId: aws.String("analytics-cluster"),
+					Database:  awsv2.String("analytics"),
+					ClusterId: awsv2.String("analytics-cluster"),
 				},
 			},
 		}},
 		vpcConnections: []awsquicksighttypes.VPCConnectionSummary{{
-			VPCConnectionId:  aws.String("vpc-conn-1"),
+			VPCConnectionId:  awsv2.String("vpc-conn-1"),
 			SecurityGroupIds: []string{"sg-0a1b2c3d"},
 			NetworkInterfaces: []awsquicksighttypes.NetworkInterface{
-				{SubnetId: aws.String("subnet-1111")},
-				{SubnetId: aws.String("subnet-2222")},
+				{SubnetId: awsv2.String("subnet-1111")},
+				{SubnetId: awsv2.String("subnet-2222")},
 			},
 		}},
 		dataSets: []awsquicksighttypes.DataSetSummary{{
-			Arn:        aws.String(dataSetARN),
-			DataSetId:  aws.String("sales"),
-			Name:       aws.String("Sales"),
+			Arn:        awsv2.String(dataSetARN),
+			DataSetId:  awsv2.String("sales"),
+			Name:       awsv2.String("Sales"),
 			ImportMode: awsquicksighttypes.DataSetImportModeSpice,
 		}},
 		dataSetDetail: map[string]*awsquicksighttypes.DataSet{
 			"sales": {
-				Arn:       aws.String(dataSetARN),
-				DataSetId: aws.String("sales"),
+				Arn:       awsv2.String(dataSetARN),
+				DataSetId: awsv2.String("sales"),
 				PhysicalTableMap: map[string]awsquicksighttypes.PhysicalTable{
 					"t1": &awsquicksighttypes.PhysicalTableMemberRelationalTable{
 						Value: awsquicksighttypes.RelationalTable{
-							DataSourceArn: aws.String(dataSourceARN),
-							Name:          aws.String("public.sales"),
+							DataSourceArn: awsv2.String(dataSourceARN),
+							Name:          awsv2.String("public.sales"),
 						},
 					},
 					"t2": &awsquicksighttypes.PhysicalTableMemberCustomSql{
 						Value: awsquicksighttypes.CustomSql{
-							DataSourceArn: aws.String(dataSourceARN),
-							Name:          aws.String("custom"),
-							SqlQuery:      aws.String("SELECT secret FROM private.credentials"),
+							DataSourceArn: awsv2.String(dataSourceARN),
+							Name:          awsv2.String("custom"),
+							SqlQuery:      awsv2.String("SELECT secret FROM private.credentials"),
 						},
 					},
 				},
 			},
 		},
 		dashboards: []awsquicksighttypes.DashboardSummary{{
-			Arn:                    aws.String(dashboardARN),
-			DashboardId:            aws.String("exec"),
-			Name:                   aws.String("Exec"),
-			PublishedVersionNumber: aws.Int64(3),
+			Arn:                    awsv2.String(dashboardARN),
+			DashboardId:            awsv2.String("exec"),
+			Name:                   awsv2.String("Exec"),
+			PublishedVersionNumber: awsv2.Int64(3),
 		}},
 		dashboardDetail: map[string]*awsquicksighttypes.Dashboard{
 			"exec": {
-				Arn: aws.String(dashboardARN),
+				Arn: awsv2.String(dashboardARN),
 				Version: &awsquicksighttypes.DashboardVersion{
 					DataSetArns: []string{dataSetARN},
 				},
 			},
 		},
 		analyses: []awsquicksighttypes.AnalysisSummary{{
-			Arn:        aws.String(analysisARN),
-			AnalysisId: aws.String("explore"),
-			Name:       aws.String("Explore"),
+			Arn:        awsv2.String(analysisARN),
+			AnalysisId: awsv2.String("explore"),
+			Name:       awsv2.String("Explore"),
 			Status:     awsquicksighttypes.ResourceStatusCreationSuccessful,
 		}},
 		analysisDetail: map[string]*awsquicksighttypes.Analysis{
 			"explore": {
-				Arn:         aws.String(analysisARN),
+				Arn:         awsv2.String(analysisARN),
 				DataSetArns: []string{dataSetARN},
 			},
 		},
 		tags: map[string][]awsquicksighttypes.Tag{
-			dataSourceARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			dataSourceARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 
@@ -159,7 +159,7 @@ func TestClientSnapshotsQuickSightMetadataOnly(t *testing.T) {
 func TestClientNotSubscribedReturnsEmptyWithWarning(t *testing.T) {
 	api := &fakeQuickSightAPI{
 		listDataSourcesErr: &awsquicksighttypes.ResourceNotFoundException{
-			Message: aws.String("Account 123456789012 is not signed up for QuickSight"),
+			Message: awsv2.String("Account 123456789012 is not signed up for QuickSight"),
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary(), accountID: "123456789012"}
@@ -182,7 +182,7 @@ func TestClientNotSubscribedReturnsEmptyWithWarning(t *testing.T) {
 func TestClientGenuineAccessDeniedIsSurfaced(t *testing.T) {
 	api := &fakeQuickSightAPI{
 		listDataSourcesErr: &awsquicksighttypes.AccessDeniedException{
-			Message: aws.String("User is not authorized to perform quicksight:ListDataSources"),
+			Message: awsv2.String("User is not authorized to perform quicksight:ListDataSources"),
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary(), accountID: "123456789012"}
@@ -193,7 +193,7 @@ func TestClientGenuineAccessDeniedIsSurfaced(t *testing.T) {
 }
 
 func TestClientRequiresAccountID(t *testing.T) {
-	client := &Client{client: &fakeQuickSightAPI{}, boundary: awscloud.Boundary{}, accountID: ""}
+	client := &Client{client: &fakeQuickSightAPI{}, boundary: aws.Boundary{}, accountID: ""}
 	if _, err := client.Snapshot(context.Background()); err == nil {
 		t.Fatalf("Snapshot() error = nil, want account-id-required error")
 	}
@@ -202,11 +202,11 @@ func TestClientRequiresAccountID(t *testing.T) {
 func TestClientDescribeDataSetAccessDeniedKeepsSummary(t *testing.T) {
 	api := &fakeQuickSightAPI{
 		dataSets: []awsquicksighttypes.DataSetSummary{{
-			Arn:       aws.String(dataSetARN),
-			DataSetId: aws.String("sales"),
-			Name:      aws.String("Sales"),
+			Arn:       awsv2.String(dataSetARN),
+			DataSetId: awsv2.String("sales"),
+			Name:      awsv2.String("Sales"),
 		}},
-		describeDataSetErr: &awsquicksighttypes.AccessDeniedException{Message: aws.String("denied")},
+		describeDataSetErr: &awsquicksighttypes.AccessDeniedException{Message: awsv2.String("denied")},
 	}
 	client := &Client{client: api, boundary: testBoundary(), accountID: "123456789012"}
 
@@ -225,8 +225,8 @@ func TestClientDescribeDataSetAccessDeniedKeepsSummary(t *testing.T) {
 func TestClientPaginatesDataSources(t *testing.T) {
 	api := &fakeQuickSightAPI{
 		dataSourcePages: [][]awsquicksighttypes.DataSource{
-			{{Arn: aws.String(dataSourceARN + "-1"), DataSourceId: aws.String("ds1"), Type: awsquicksighttypes.DataSourceTypeS3}},
-			{{Arn: aws.String(dataSourceARN + "-2"), DataSourceId: aws.String("ds2"), Type: awsquicksighttypes.DataSourceTypeS3}},
+			{{Arn: awsv2.String(dataSourceARN + "-1"), DataSourceId: awsv2.String("ds1"), Type: awsquicksighttypes.DataSourceTypeS3}},
+			{{Arn: awsv2.String(dataSourceARN + "-2"), DataSourceId: awsv2.String("ds2"), Type: awsquicksighttypes.DataSourceTypeS3}},
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary(), accountID: "123456789012"}
@@ -241,7 +241,7 @@ func TestClientPaginatesDataSources(t *testing.T) {
 }
 
 func TestIsThrottleError(t *testing.T) {
-	throttle := &awsquicksighttypes.ThrottlingException{Message: aws.String("rate exceeded")}
+	throttle := &awsquicksighttypes.ThrottlingException{Message: awsv2.String("rate exceeded")}
 	if !isThrottleError(throttle) {
 		t.Fatalf("isThrottleError(ThrottlingException) = false, want true")
 	}
@@ -250,11 +250,11 @@ func TestIsThrottleError(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceQuickSight,
+		ServiceKind: aws.ServiceQuickSight,
 	}
 }
 
@@ -295,7 +295,7 @@ func (f *fakeQuickSightAPI) ListDataSources(
 		f.dataSourceCall++
 		out := &awsquicksight.ListDataSourcesOutput{DataSources: page}
 		if f.dataSourceCall < len(f.dataSourcePages) {
-			out.NextToken = aws.String("more")
+			out.NextToken = awsv2.String("more")
 		}
 		return out, nil
 	}
@@ -308,7 +308,7 @@ func (f *fakeQuickSightAPI) DescribeDataSource(
 	_ ...func(*awsquicksight.Options),
 ) (*awsquicksight.DescribeDataSourceOutput, error) {
 	for i := range f.dataSources {
-		if aws.ToString(f.dataSources[i].DataSourceId) == aws.ToString(input.DataSourceId) {
+		if awsv2.ToString(f.dataSources[i].DataSourceId) == awsv2.ToString(input.DataSourceId) {
 			return &awsquicksight.DescribeDataSourceOutput{DataSource: &f.dataSources[i]}, nil
 		}
 	}
@@ -339,7 +339,7 @@ func (f *fakeQuickSightAPI) DescribeDataSet(
 	if f.describeDataSetErr != nil {
 		return nil, f.describeDataSetErr
 	}
-	return &awsquicksight.DescribeDataSetOutput{DataSet: f.dataSetDetail[aws.ToString(input.DataSetId)]}, nil
+	return &awsquicksight.DescribeDataSetOutput{DataSet: f.dataSetDetail[awsv2.ToString(input.DataSetId)]}, nil
 }
 
 func (f *fakeQuickSightAPI) ListDashboards(
@@ -355,7 +355,7 @@ func (f *fakeQuickSightAPI) DescribeDashboard(
 	input *awsquicksight.DescribeDashboardInput,
 	_ ...func(*awsquicksight.Options),
 ) (*awsquicksight.DescribeDashboardOutput, error) {
-	return &awsquicksight.DescribeDashboardOutput{Dashboard: f.dashboardDetail[aws.ToString(input.DashboardId)]}, nil
+	return &awsquicksight.DescribeDashboardOutput{Dashboard: f.dashboardDetail[awsv2.ToString(input.DashboardId)]}, nil
 }
 
 func (f *fakeQuickSightAPI) ListAnalyses(
@@ -371,7 +371,7 @@ func (f *fakeQuickSightAPI) DescribeAnalysis(
 	input *awsquicksight.DescribeAnalysisInput,
 	_ ...func(*awsquicksight.Options),
 ) (*awsquicksight.DescribeAnalysisOutput, error) {
-	return &awsquicksight.DescribeAnalysisOutput{Analysis: f.analysisDetail[aws.ToString(input.AnalysisId)]}, nil
+	return &awsquicksight.DescribeAnalysisOutput{Analysis: f.analysisDetail[awsv2.ToString(input.AnalysisId)]}, nil
 }
 
 func (f *fakeQuickSightAPI) ListTagsForResource(
@@ -379,5 +379,5 @@ func (f *fakeQuickSightAPI) ListTagsForResource(
 	input *awsquicksight.ListTagsForResourceInput,
 	_ ...func(*awsquicksight.Options),
 ) (*awsquicksight.ListTagsForResourceOutput, error) {
-	return &awsquicksight.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(input.ResourceArn)]}, nil
+	return &awsquicksight.ListTagsForResourceOutput{Tags: f.tags[awsv2.ToString(input.ResourceArn)]}, nil
 }

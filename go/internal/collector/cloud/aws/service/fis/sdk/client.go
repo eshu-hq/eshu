@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfis "github.com/aws/aws-sdk-go-v2/service/fis"
 	awsfistypes "github.com/aws/aws-sdk-go-v2/service/fis/types"
 	"github.com/aws/smithy-go"
@@ -51,15 +51,15 @@ type apiClient interface {
 // never calls a Create/Update/Delete mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an FIS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -83,7 +83,7 @@ func (c *Client) Snapshot(ctx context.Context) (fisservice.Snapshot, error) {
 	}
 	templates := make([]fisservice.ExperimentTemplate, 0, len(summaries))
 	for _, summary := range summaries {
-		id := strings.TrimSpace(aws.ToString(summary.Id))
+		id := strings.TrimSpace(awsv2.ToString(summary.Id))
 		if id == "" {
 			continue
 		}
@@ -118,7 +118,7 @@ func (c *Client) listTemplates(ctx context.Context) ([]awsfistypes.ExperimentTem
 		}
 		summaries = append(summaries, page.ExperimentTemplates...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -129,7 +129,7 @@ func (c *Client) getTemplate(ctx context.Context, id string) (*fisservice.Experi
 	err := c.recordAPICall(ctx, "GetExperimentTemplate", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetExperimentTemplate(callCtx, &awsfis.GetExperimentTemplateInput{
-			Id: aws.String(id),
+			Id: awsv2.String(id),
 		})
 		return callErr
 	})
@@ -146,7 +146,7 @@ func (c *Client) mapTemplate(
 	ctx context.Context,
 	template *awsfistypes.ExperimentTemplate,
 ) (*fisservice.ExperimentTemplate, error) {
-	arn := strings.TrimSpace(aws.ToString(template.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(template.Arn))
 	tags := cloneTags(template.Tags)
 	if len(tags) == 0 {
 		fetched, err := c.listTags(ctx, arn)
@@ -157,19 +157,19 @@ func (c *Client) mapTemplate(
 	}
 	logGroupARN, s3Bucket, s3Prefix := logDestinations(template.LogConfiguration)
 	mapped := &fisservice.ExperimentTemplate{
-		ID:                     strings.TrimSpace(aws.ToString(template.Id)),
+		ID:                     strings.TrimSpace(awsv2.ToString(template.Id)),
 		ARN:                    arn,
 		Name:                   strings.TrimSpace(tags["Name"]),
-		Description:            strings.TrimSpace(aws.ToString(template.Description)),
-		RoleARN:                strings.TrimSpace(aws.ToString(template.RoleArn)),
+		Description:            strings.TrimSpace(awsv2.ToString(template.Description)),
+		RoleARN:                strings.TrimSpace(awsv2.ToString(template.RoleArn)),
 		Actions:                mapActions(template.Actions),
 		Targets:                mapTargets(template.Targets),
 		LogGroupARN:            logGroupARN,
 		LogS3Bucket:            s3Bucket,
 		LogS3Prefix:            s3Prefix,
 		StopConditionAlarmARNs: stopConditionAlarmARNs(template.StopConditions),
-		CreationTime:           aws.ToTime(template.CreationTime),
-		LastUpdateTime:         aws.ToTime(template.LastUpdateTime),
+		CreationTime:           awsv2.ToTime(template.CreationTime),
+		LastUpdateTime:         awsv2.ToTime(template.LastUpdateTime),
 		Tags:                   tags,
 	}
 	return mapped, nil
@@ -184,7 +184,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awsfis.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return callErr
 	})
@@ -212,7 +212,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

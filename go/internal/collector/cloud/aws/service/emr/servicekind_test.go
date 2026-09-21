@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "emr".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceEMR + "  "
+	boundary.ServiceKind = "  " + aws.ServiceEMR + "  "
 	client := fakeClient{
 		clusters: []Cluster{{
 			ARN:   "arn:aws:elasticmapreduce:us-east-1:123456789012:cluster/j-PADDED",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceEMR; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceEMR; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

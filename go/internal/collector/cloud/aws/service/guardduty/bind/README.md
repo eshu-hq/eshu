@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/guardduty/runtimebind` registers the
-GuardDuty scanner with the awsruntime registry from a package `init()`.
+`internal/collector/cloud/aws/service/guardduty/bind` registers the
+GuardDuty scanner with the runtime registry from a package `init()`.
 Importing this package for its blank side effect is the only way a runtime
 brings the GuardDuty scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceGuardDuty` to the GuardDuty scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceGuardDuty` to the GuardDuty scanner builder. It does not own
 AWS API calls, GuardDuty domain types, redaction policy, or fact emission.
-Those belong to `internal/collector/awscloud/service/guardduty` and its
-`awssdk` adapter.
+Those belong to `internal/collector/cloud/aws/service/guardduty` and its
+`sdk` adapter.
 
 ## Exported surface
 
@@ -22,18 +22,18 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceGuardDuty` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`,
+- `internal/collector/cloud/aws` for the `ServiceGuardDuty` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`,
   and `ScannerRegistration`.
-- `internal/collector/awscloud/service/guardduty` for the scanner struct.
-- `internal/collector/awscloud/service/guardduty/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/guardduty` for the scanner struct.
+- `internal/collector/cloud/aws/service/guardduty/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The GuardDuty scanner and its
 SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -47,6 +47,6 @@ SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the GuardDuty scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the
   user-facing coverage table.

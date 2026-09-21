@@ -8,4 +8,4 @@
 // and ListSubscriptionsByTopic. It must not call Publish, Subscribe,
 // Unsubscribe, SetTopicAttributes, or persist raw non-ARN subscription
 // endpoints.
-package awssdk
+package sdk

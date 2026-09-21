@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/acmpca guidance
+# AGENTS.md - internal/collector/cloud/aws/service/acmpca guidance
 
 ## Read First
 
@@ -28,12 +28,12 @@
 ## Common Changes
 
 - Add a new CA metadata field by extending `CertificateAuthority`, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders.
 - Add new relationship evidence only when the ACM Private CA API reports both
   sides directly as an ARN or a documented bucket name. Gate the edge on the
   reported value and add the absent-case test.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

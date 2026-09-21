@@ -40,7 +40,7 @@ func TestScannerEmitsFirewallMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	firewall := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkFirewallFirewall)
+	firewall := resourceByType(t, envelopes, aws.ResourceTypeNetworkFirewallFirewall)
 	attributes := attributesOf(t, firewall)
 	if got, want := attributes["vpc_id"], "vpc-aaa"; got != want {
 		t.Fatalf("vpc_id = %#v, want %q", got, want)
@@ -55,19 +55,19 @@ func TestScannerEmitsFirewallMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("subnet_count = %#v, want %d", got, want)
 	}
 
-	vpcEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallInVPC, "vpc-aaa")
-	if got, want := targetType(vpcEdge), awscloud.ResourceTypeEC2VPC; got != want {
+	vpcEdge := relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallFirewallInVPC, "vpc-aaa")
+	if got, want := targetType(vpcEdge), aws.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("firewall-to-VPC target_type = %q, want %q", got, want)
 	}
 
-	subnetEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-aaa")
-	if got, want := targetType(subnetEdge), awscloud.ResourceTypeEC2Subnet; got != want {
+	subnetEdge := relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-aaa")
+	if got, want := targetType(subnetEdge), aws.ResourceTypeEC2Subnet; got != want {
 		t.Fatalf("firewall-to-subnet target_type = %q, want %q", got, want)
 	}
-	relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-bbb")
+	relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-bbb")
 
-	policyEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallUsesPolicy, policyARN)
-	if got, want := targetType(policyEdge), awscloud.ResourceTypeNetworkFirewallPolicy; got != want {
+	policyEdge := relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallFirewallUsesPolicy, policyARN)
+	if got, want := targetType(policyEdge), aws.ResourceTypeNetworkFirewallPolicy; got != want {
 		t.Fatalf("firewall-to-policy target_type = %q, want %q", got, want)
 	}
 }
@@ -100,7 +100,7 @@ func TestScannerEmitsFirewallPolicyMetadataAndReferences(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkFirewallPolicy)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeNetworkFirewallPolicy)
 	attributes := attributesOf(t, policy)
 	if got, want := attributes["status"], "ACTIVE"; got != want {
 		t.Fatalf("status = %#v, want %q", got, want)
@@ -115,14 +115,14 @@ func TestScannerEmitsFirewallPolicyMetadataAndReferences(t *testing.T) {
 	}
 	assertNoForbiddenPolicyPayload(t, attributes)
 
-	statefulEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallPolicyUsesRuleGroup, statefulRGARN)
-	if got, want := targetType(statefulEdge), awscloud.ResourceTypeNetworkFirewallRuleGroup; got != want {
+	statefulEdge := relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallPolicyUsesRuleGroup, statefulRGARN)
+	if got, want := targetType(statefulEdge), aws.ResourceTypeNetworkFirewallRuleGroup; got != want {
 		t.Fatalf("policy-to-rule-group target_type = %q, want %q", got, want)
 	}
-	relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallPolicyUsesRuleGroup, statelessRGARN)
+	relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallPolicyUsesRuleGroup, statelessRGARN)
 
-	tlsEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallPolicyUsesTLSInspectionConfiguration, tlsARN)
-	if got, want := targetType(tlsEdge), awscloud.ResourceTypeNetworkFirewallTLSInspectionConfiguration; got != want {
+	tlsEdge := relationshipByTarget(t, envelopes, aws.RelationshipNetworkFirewallPolicyUsesTLSInspectionConfiguration, tlsARN)
+	if got, want := targetType(tlsEdge), aws.ResourceTypeNetworkFirewallTLSInspectionConfiguration; got != want {
 		t.Fatalf("policy-to-TLS target_type = %q, want %q", got, want)
 	}
 }
@@ -145,7 +145,7 @@ func TestScannerEmitsRuleGroupMetadataNeverRuleBodies(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	ruleGroup := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkFirewallRuleGroup)
+	ruleGroup := resourceByType(t, envelopes, aws.ResourceTypeNetworkFirewallRuleGroup)
 	attributes := attributesOf(t, ruleGroup)
 	if got, want := attributes["type"], "STATEFUL"; got != want {
 		t.Fatalf("type = %#v, want %q", got, want)
@@ -173,7 +173,7 @@ func TestScannerEmitsTLSInspectionConfigurationMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	tlsConfig := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkFirewallTLSInspectionConfiguration)
+	tlsConfig := resourceByType(t, envelopes, aws.ResourceTypeNetworkFirewallTLSInspectionConfiguration)
 	attributes := attributesOf(t, tlsConfig)
 	if got, want := attributes["status"], "ACTIVE"; got != want {
 		t.Fatalf("status = %#v, want %q", got, want)
@@ -187,7 +187,7 @@ func TestScannerEmitsTLSInspectionConfigurationMetadata(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceVPC
+	boundary.ServiceKind = aws.ServiceVPC
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -226,11 +226,11 @@ func assertNoForbiddenRuleGroupPayload(t *testing.T, attributes map[string]any) 
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceNetworkFirewall,
+		ServiceKind:         aws.ServiceNetworkFirewall,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:networkfirewall:1",
 		CollectorInstanceID: "aws-prod",

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssns "github.com/aws/aws-sdk-go-v2/service/sns"
 	awssnstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 
@@ -19,7 +19,7 @@ func TestClientListTopicsReadsSafeMetadataTagsAndARNSubscriptions(t *testing.T) 
 	queueARN := "arn:aws:sqs:us-east-1:123456789012:orders-events"
 	client := &fakeSNSAPI{
 		listTopicsPages: []*awssns.ListTopicsOutput{{
-			Topics: []awssnstypes.Topic{{TopicArn: aws.String(topicARN)}},
+			Topics: []awssnstypes.Topic{{TopicArn: awsv2.String(topicARN)}},
 		}},
 		attributes: map[string]string{
 			"TopicArn":                  topicARN,
@@ -38,26 +38,26 @@ func TestClientListTopicsReadsSafeMetadataTagsAndARNSubscriptions(t *testing.T) 
 			"EffectiveDeliveryPolicy":   `{"healthyRetryPolicy":{"numRetries":3}}`,
 			"DataProtectionPolicy":      `{"Name":"protect"}`,
 		},
-		tags: []awssnstypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		tags: []awssnstypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		subscriptionPages: []*awssns.ListSubscriptionsByTopicOutput{{
 			Subscriptions: []awssnstypes.Subscription{{
-				TopicArn:        aws.String(topicARN),
-				Protocol:        aws.String("sqs"),
-				SubscriptionArn: aws.String(topicARN + ":11111111-2222-3333-4444-555555555555"),
-				Owner:           aws.String("123456789012"),
-				Endpoint:        aws.String(queueARN),
+				TopicArn:        awsv2.String(topicARN),
+				Protocol:        awsv2.String("sqs"),
+				SubscriptionArn: awsv2.String(topicARN + ":11111111-2222-3333-4444-555555555555"),
+				Owner:           awsv2.String("123456789012"),
+				Endpoint:        awsv2.String(queueARN),
 			}, {
-				TopicArn:        aws.String(topicARN),
-				Protocol:        aws.String("email"),
-				SubscriptionArn: aws.String(topicARN + ":66666666-7777-8888-9999-000000000000"),
-				Owner:           aws.String("123456789012"),
-				Endpoint:        aws.String("owner@example.com"),
+				TopicArn:        awsv2.String(topicARN),
+				Protocol:        awsv2.String("email"),
+				SubscriptionArn: awsv2.String(topicARN + ":66666666-7777-8888-9999-000000000000"),
+				Owner:           awsv2.String("123456789012"),
+				Endpoint:        awsv2.String("owner@example.com"),
 			}},
 		}},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSNS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSNS},
 	}
 
 	topics, err := adapter.ListTopics(context.Background())
@@ -118,7 +118,7 @@ func (f *fakeSNSAPI) GetTopicAttributes(
 	input *awssns.GetTopicAttributesInput,
 	_ ...func(*awssns.Options),
 ) (*awssns.GetTopicAttributesOutput, error) {
-	if aws.ToString(input.TopicArn) == "" {
+	if awsv2.ToString(input.TopicArn) == "" {
 		return nil, nil
 	}
 	return &awssns.GetTopicAttributesOutput{Attributes: f.attributes}, nil
@@ -129,7 +129,7 @@ func (f *fakeSNSAPI) ListTagsForResource(
 	input *awssns.ListTagsForResourceInput,
 	_ ...func(*awssns.Options),
 ) (*awssns.ListTagsForResourceOutput, error) {
-	if aws.ToString(input.ResourceArn) == "" {
+	if awsv2.ToString(input.ResourceArn) == "" {
 		return nil, nil
 	}
 	return &awssns.ListTagsForResourceOutput{Tags: f.tags}, nil
@@ -140,7 +140,7 @@ func (f *fakeSNSAPI) ListSubscriptionsByTopic(
 	input *awssns.ListSubscriptionsByTopicInput,
 	_ ...func(*awssns.Options),
 ) (*awssns.ListSubscriptionsByTopicOutput, error) {
-	if aws.ToString(input.TopicArn) == "" {
+	if awsv2.ToString(input.TopicArn) == "" {
 		return nil, nil
 	}
 	if f.subscriptionCalls >= len(f.subscriptionPages) {

@@ -29,15 +29,15 @@ type Scanner struct {
 
 // Scan observes EC2 network, instance-posture, and volume metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ec2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEC2:
+	case "", aws.ServiceEC2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEC2
+		boundary.ServiceKind = aws.ServiceEC2
 	default:
 		return nil, fmt.Errorf("ec2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,7 +48,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list EC2 VPCs: %w", err)
 	}
 	for _, vpc := range vpcs {
-		resource, err := awscloud.NewResourceEnvelope(vpcObservation(boundary, vpc))
+		resource, err := aws.NewResourceEnvelope(vpcObservation(boundary, vpc))
 		if err != nil {
 			return nil, err
 		}
@@ -146,12 +146,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func vpcObservation(boundary awscloud.Boundary, vpc VPC) awscloud.ResourceObservation {
+func vpcObservation(boundary aws.Boundary, vpc VPC) aws.ResourceObservation {
 	vpcID := strings.TrimSpace(vpc.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   vpcID,
-		ResourceType: awscloud.ResourceTypeEC2VPC,
+		ResourceType: aws.ResourceTypeEC2VPC,
 		Name:         vpcID,
 		State:        vpc.State,
 		Tags:         vpc.Tags,
@@ -169,14 +169,14 @@ func vpcObservation(boundary awscloud.Boundary, vpc VPC) awscloud.ResourceObserv
 	}
 }
 
-func subnetEnvelopes(boundary awscloud.Boundary, subnet Subnet) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(subnetObservation(boundary, subnet))
+func subnetEnvelopes(boundary aws.Boundary, subnet Subnet) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(subnetObservation(boundary, subnet))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := subnetVPCRelationship(boundary, subnet); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -185,14 +185,14 @@ func subnetEnvelopes(boundary awscloud.Boundary, subnet Subnet) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func subnetObservation(boundary awscloud.Boundary, subnet Subnet) awscloud.ResourceObservation {
+func subnetObservation(boundary aws.Boundary, subnet Subnet) aws.ResourceObservation {
 	subnetID := strings.TrimSpace(subnet.ID)
 	subnetARN := strings.TrimSpace(subnet.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          subnetARN,
 		ResourceID:   subnetID,
-		ResourceType: awscloud.ResourceTypeEC2Subnet,
+		ResourceType: aws.ResourceTypeEC2Subnet,
 		Name:         subnetID,
 		State:        subnet.State,
 		Tags:         subnet.Tags,
@@ -215,14 +215,14 @@ func subnetObservation(boundary awscloud.Boundary, subnet Subnet) awscloud.Resou
 	}
 }
 
-func securityGroupEnvelopes(boundary awscloud.Boundary, group SecurityGroup) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(securityGroupObservation(boundary, group))
+func securityGroupEnvelopes(boundary aws.Boundary, group SecurityGroup) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(securityGroupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := securityGroupVPCRelationship(boundary, group); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -231,12 +231,12 @@ func securityGroupEnvelopes(boundary awscloud.Boundary, group SecurityGroup) ([]
 	return envelopes, nil
 }
 
-func securityGroupObservation(boundary awscloud.Boundary, group SecurityGroup) awscloud.ResourceObservation {
+func securityGroupObservation(boundary aws.Boundary, group SecurityGroup) aws.ResourceObservation {
 	groupID := strings.TrimSpace(group.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   groupID,
-		ResourceType: awscloud.ResourceTypeEC2SecurityGroup,
+		ResourceType: aws.ResourceTypeEC2SecurityGroup,
 		Name:         group.Name,
 		Tags:         group.Tags,
 		Attributes: map[string]any{
@@ -249,20 +249,20 @@ func securityGroupObservation(boundary awscloud.Boundary, group SecurityGroup) a
 	}
 }
 
-func securityGroupRuleEnvelopes(boundary awscloud.Boundary, rule SecurityGroupRule) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(securityGroupRuleObservation(boundary, rule))
+func securityGroupRuleEnvelopes(boundary aws.Boundary, rule SecurityGroupRule) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(securityGroupRuleObservation(boundary, rule))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := securityGroupRuleRelationship(boundary, rule); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
-	posture, err := awscloud.NewSecurityGroupRuleEnvelope(securityGroupRulePostureObservation(boundary, rule))
+	posture, err := aws.NewSecurityGroupRuleEnvelope(securityGroupRulePostureObservation(boundary, rule))
 	if err != nil {
 		return nil, err
 	}
@@ -275,12 +275,12 @@ func securityGroupRuleEnvelopes(boundary awscloud.Boundary, rule SecurityGroupRu
 // already fetched for the resource and relationship facts, so the posture fact
 // adds no AWS API calls. The referenced-group id is the only field flattened
 // here; the raw referenced-group metadata stays on the aws_resource fact.
-func securityGroupRulePostureObservation(boundary awscloud.Boundary, rule SecurityGroupRule) awscloud.SecurityGroupRuleObservation {
+func securityGroupRulePostureObservation(boundary aws.Boundary, rule SecurityGroupRule) aws.SecurityGroupRuleObservation {
 	referencedSG := ""
 	if rule.ReferencedGroup != nil {
 		referencedSG = strings.TrimSpace(rule.ReferencedGroup.GroupID)
 	}
-	return awscloud.SecurityGroupRuleObservation{
+	return aws.SecurityGroupRuleObservation{
 		Boundary:     boundary,
 		RuleID:       strings.TrimSpace(rule.ID),
 		GroupID:      strings.TrimSpace(rule.GroupID),
@@ -297,12 +297,12 @@ func securityGroupRulePostureObservation(boundary awscloud.Boundary, rule Securi
 	}
 }
 
-func securityGroupRuleObservation(boundary awscloud.Boundary, rule SecurityGroupRule) awscloud.ResourceObservation {
+func securityGroupRuleObservation(boundary aws.Boundary, rule SecurityGroupRule) aws.ResourceObservation {
 	ruleID := securityGroupRuleID(rule)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   ruleID,
-		ResourceType: awscloud.ResourceTypeEC2SecurityGroupRule,
+		ResourceType: aws.ResourceTypeEC2SecurityGroupRule,
 		Name:         ruleID,
 		Tags:         rule.Tags,
 		Attributes: map[string]any{
@@ -324,14 +324,14 @@ func securityGroupRuleObservation(boundary awscloud.Boundary, rule SecurityGroup
 	}
 }
 
-func networkInterfaceEnvelopes(boundary awscloud.Boundary, networkInterface NetworkInterface) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(networkInterfaceObservation(boundary, networkInterface))
+func networkInterfaceEnvelopes(boundary aws.Boundary, networkInterface NetworkInterface) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(networkInterfaceObservation(boundary, networkInterface))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range networkInterfaceRelationships(boundary, networkInterface) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -340,12 +340,12 @@ func networkInterfaceEnvelopes(boundary awscloud.Boundary, networkInterface Netw
 	return envelopes, nil
 }
 
-func networkInterfaceObservation(boundary awscloud.Boundary, networkInterface NetworkInterface) awscloud.ResourceObservation {
+func networkInterfaceObservation(boundary aws.Boundary, networkInterface NetworkInterface) aws.ResourceObservation {
 	networkInterfaceID := strings.TrimSpace(networkInterface.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   networkInterfaceID,
-		ResourceType: awscloud.ResourceTypeEC2NetworkInterface,
+		ResourceType: aws.ResourceTypeEC2NetworkInterface,
 		Name:         networkInterfaceID,
 		State:        networkInterface.Status,
 		Tags:         networkInterface.Tags,

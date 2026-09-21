@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/securityhub/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/securityhub/sdk` adapts AWS SDK for Go
 v2 Security Hub responses to the scanner-owned `Client` contract. It owns hub
 reads, administrator/member enumeration, standards and control pagination,
 action target pagination, insight pagination, safe insight result summaries,
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/securityhub` for scanner-owned result
+- `internal/collector/cloud/aws/service/securityhub` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `securityhub` and Smithy error contracts.

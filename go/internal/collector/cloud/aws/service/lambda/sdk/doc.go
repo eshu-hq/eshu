@@ -8,4 +8,4 @@
 // mapping for one claimed AWS boundary. It must not persist presigned package
 // download URLs returned by GetFunction; callers receive only stable reported
 // Lambda metadata for fact emission.
-package awssdk
+package sdk

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/neptune/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/neptune/sdk guidance
 
 ## Read First
 
@@ -8,7 +8,7 @@
 3. `graph_client.go` - Neptune Analytics graph and graph-snapshot reads.
 4. `mapper.go` - AWS SDK shape to scanner-owned metadata mapping.
 5. `../README.md` - scanner-level Neptune fact contract.
-6. `../../../awsruntime/README.md` - runtime registry and claim contract.
+6. `../../../runtime/README.md` - runtime registry and claim contract.
 7. `docs/public/services/collector-aws-cloud-scanners.md` - AWS collector
    service coverage and runtime requirements.
 

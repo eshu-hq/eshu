@@ -8,4 +8,4 @@
 // call telemetry, traverses roots/OUs/accounts, reads policy summaries and
 // target bindings, and lists delegated-administrator service bindings. It
 // never calls Organizations mutation APIs or policy body reads.
-package awssdk
+package sdk

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"go.opentelemetry.io/otel/trace"
@@ -48,15 +48,15 @@ type apiClient interface {
 // records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a KMS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -112,12 +112,12 @@ func (c *Client) listKeyIDs(ctx context.Context) ([]string, error) {
 			return ids, nil
 		}
 		for _, entry := range page.Keys {
-			if trimmed := strings.TrimSpace(aws.ToString(entry.KeyId)); trimmed != "" {
+			if trimmed := strings.TrimSpace(awsv2.ToString(entry.KeyId)); trimmed != "" {
 				ids = append(ids, trimmed)
 			}
 		}
 		marker = page.NextMarker
-		if !page.Truncated || aws.ToString(marker) == "" {
+		if !page.Truncated || awsv2.ToString(marker) == "" {
 			return ids, nil
 		}
 	}
@@ -142,19 +142,19 @@ func (c *Client) listAllAliasesByKey(ctx context.Context) (map[string][]kmsservi
 			return aliasesByKey, nil
 		}
 		for _, entry := range page.Aliases {
-			targetID := strings.TrimSpace(aws.ToString(entry.TargetKeyId))
+			targetID := strings.TrimSpace(awsv2.ToString(entry.TargetKeyId))
 			if targetID == "" {
 				continue
 			}
 			aliasesByKey[targetID] = append(aliasesByKey[targetID], kmsservice.Alias{
-				Name:        strings.TrimSpace(aws.ToString(entry.AliasName)),
-				ARN:         strings.TrimSpace(aws.ToString(entry.AliasArn)),
+				Name:        strings.TrimSpace(awsv2.ToString(entry.AliasName)),
+				ARN:         strings.TrimSpace(awsv2.ToString(entry.AliasArn)),
 				TargetKeyID: targetID,
 				LastUpdated: formatTime(entry.LastUpdatedDate),
 			})
 		}
 		marker = page.NextMarker
-		if !page.Truncated || aws.ToString(marker) == "" {
+		if !page.Truncated || awsv2.ToString(marker) == "" {
 			return aliasesByKey, nil
 		}
 	}
@@ -220,8 +220,8 @@ func (c *Client) getKeyPolicyDocument(ctx context.Context, keyID, policyName str
 	err := c.recordAPICall(ctx, "GetKeyPolicy", func(callCtx context.Context) error {
 		var getErr error
 		output, getErr = c.client.GetKeyPolicy(callCtx, &awskms.GetKeyPolicyInput{
-			KeyId:      aws.String(keyID),
-			PolicyName: aws.String(policyName),
+			KeyId:      awsv2.String(keyID),
+			PolicyName: awsv2.String(policyName),
 		})
 		return getErr
 	})
@@ -231,7 +231,7 @@ func (c *Client) getKeyPolicyDocument(ctx context.Context, keyID, policyName str
 	if output == nil {
 		return "", nil
 	}
-	return aws.ToString(output.Policy), nil
+	return awsv2.ToString(output.Policy), nil
 }
 
 func (c *Client) describeKey(ctx context.Context, keyID string) (*kmstypes.KeyMetadata, error) {
@@ -239,7 +239,7 @@ func (c *Client) describeKey(ctx context.Context, keyID string) (*kmstypes.KeyMe
 	err := c.recordAPICall(ctx, "DescribeKey", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeKey(callCtx, &awskms.DescribeKeyInput{
-			KeyId: aws.String(keyID),
+			KeyId: awsv2.String(keyID),
 		})
 		return err
 	})
@@ -247,7 +247,7 @@ func (c *Client) describeKey(ctx context.Context, keyID string) (*kmstypes.KeyMe
 		return nil, err
 	}
 	if output == nil || output.KeyMetadata == nil {
-		return &kmstypes.KeyMetadata{KeyId: aws.String(keyID)}, nil
+		return &kmstypes.KeyMetadata{KeyId: awsv2.String(keyID)}, nil
 	}
 	return output.KeyMetadata, nil
 }
@@ -260,7 +260,7 @@ func (c *Client) listKeyPolicies(ctx context.Context, keyID string) ([]string, e
 		err := c.recordAPICall(ctx, "ListKeyPolicies", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListKeyPolicies(callCtx, &awskms.ListKeyPoliciesInput{
-				KeyId:  aws.String(keyID),
+				KeyId:  awsv2.String(keyID),
 				Marker: marker,
 			})
 			return err
@@ -277,7 +277,7 @@ func (c *Client) listKeyPolicies(ctx context.Context, keyID string) ([]string, e
 			}
 		}
 		marker = page.NextMarker
-		if !page.Truncated || aws.ToString(marker) == "" {
+		if !page.Truncated || awsv2.ToString(marker) == "" {
 			return names, nil
 		}
 	}
@@ -299,7 +299,7 @@ func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *
 	err := c.recordAPICall(ctx, "GetKeyRotationStatus", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetKeyRotationStatus(callCtx, &awskms.GetKeyRotationStatusInput{
-			KeyId: aws.String(keyID),
+			KeyId: awsv2.String(keyID),
 		})
 		return err
 	})
@@ -323,7 +323,7 @@ func (c *Client) listGrants(ctx context.Context, keyID string) ([]kmsservice.Gra
 		err := c.recordAPICall(ctx, "ListGrants", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListGrants(callCtx, &awskms.ListGrantsInput{
-				KeyId:  aws.String(keyID),
+				KeyId:  awsv2.String(keyID),
 				Marker: marker,
 			})
 			return err
@@ -338,7 +338,7 @@ func (c *Client) listGrants(ctx context.Context, keyID string) ([]kmsservice.Gra
 			grants = append(grants, mapGrant(entry))
 		}
 		marker = page.NextMarker
-		if !page.Truncated || aws.ToString(marker) == "" {
+		if !page.Truncated || awsv2.ToString(marker) == "" {
 			return grants, nil
 		}
 	}
@@ -352,7 +352,7 @@ func (c *Client) listResourceTags(ctx context.Context, keyID string) (map[string
 		err := c.recordAPICall(ctx, "ListResourceTags", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListResourceTags(callCtx, &awskms.ListResourceTagsInput{
-				KeyId:  aws.String(keyID),
+				KeyId:  awsv2.String(keyID),
 				Marker: marker,
 			})
 			return err
@@ -367,14 +367,14 @@ func (c *Client) listResourceTags(ctx context.Context, keyID string) (map[string
 			return tags, nil
 		}
 		for _, tag := range page.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.TagKey))
+			key := strings.TrimSpace(awsv2.ToString(tag.TagKey))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.TagValue)
+			tags[key] = awsv2.ToString(tag.TagValue)
 		}
 		marker = page.NextMarker
-		if !page.Truncated || aws.ToString(marker) == "" {
+		if !page.Truncated || awsv2.ToString(marker) == "" {
 			if len(tags) == 0 {
 				return nil, nil
 			}

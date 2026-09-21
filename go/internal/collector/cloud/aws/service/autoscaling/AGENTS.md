@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/autoscaling guidance
+# AGENTS.md - internal/collector/cloud/aws/service/autoscaling guidance
 
 ## Read First
 
@@ -34,11 +34,11 @@
 ## Common Changes
 
 - Add a new Auto Scaling resource by extending the scanner-owned type, writing a
-  focused scanner test first, then mapping it through `awscloud` envelope
+  focused scanner test first, then mapping it through `aws` envelope
   builders.
 - Add new group fields only when the Auto Scaling API reports them directly and
   the field is safe for persistence.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

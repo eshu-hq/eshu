@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsprofiler "github.com/aws/aws-sdk-go-v2/service/codeguruprofiler"
 	awsreviewer "github.com/aws/aws-sdk-go-v2/service/codegurureviewer"
 	"github.com/aws/smithy-go"
@@ -62,7 +62,7 @@ type profilerAPIClient interface {
 type Client struct {
 	reviewer    reviewerAPIClient
 	profiler    profilerAPIClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -71,8 +71,8 @@ type Client struct {
 // both the CodeGuru Reviewer and CodeGuru Profiler clients from the shared
 // config so the single "codeguru" service_kind reads both control planes.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -121,7 +121,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

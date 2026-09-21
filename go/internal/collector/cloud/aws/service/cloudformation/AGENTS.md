@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cloudformation guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cloudformation guidance
 
 ## Read First
 
@@ -24,9 +24,9 @@
   forbidden surface is enforced by
   `TestClientInterfaceExcludesMutationAndTemplateAPIs`; keep that list current.
 - Redact every stack output value whose key is secret-like through
-  `awscloud.ClassifyStackOutput`. Never carry a raw output value into a fact
+  `aws.ClassifyStackOutput`. Never carry a raw output value into a fact
   payload without classifying it first.
-- `Scanner` requires a non-zero `RedactionKey`. The runtimebind builder returns a
+- `Scanner` requires a non-zero `RedactionKey`. The bind builder returns a
   typed error when the key is zero.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or deployable-unit truth from stack names or tags.
@@ -37,11 +37,11 @@
 ## Common Changes
 
 - Add a new metadata field by extending the relevant scanner type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders.
 - Add new relationship evidence only when the CloudFormation API reports both
   sides directly without reading a template body.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

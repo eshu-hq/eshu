@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/kinesisanalyticsv2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/kinesisanalyticsv2 guidance
 
 ## Read First
 
@@ -37,7 +37,7 @@
   never persisted, and the control-plane describe output exposes no structured
   MSK reference.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from application names or AWS
@@ -49,14 +49,14 @@
 
 - Add a new Managed Flink metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry code, SQL, environment
+  `aws` envelope builders. If the field can carry code, SQL, environment
   property values, or record content, leave it out of the scanner contract.
 - Add new relationship evidence only when the Managed Flink API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for streams, buckets, and roles; bare id for
   subnets and security groups; log group ARN for CloudWatch).
 - Extend SDK pagination and the log-stream-to-log-group ARN derivation in the
-  `awssdk` adapter, not here.
+  `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

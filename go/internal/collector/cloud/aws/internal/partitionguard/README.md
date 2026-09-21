@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/internal/partitionguard` is test-support code that
+`internal/collector/cloud/aws/internal/partitionguard` is test-support code that
 mechanizes the AWS scanner ARN-partition contract. An AWS ARN's second segment is
 its **partition** — `aws` (commercial), `aws-cn` (China), or `aws-us-gov`
 (GovCloud) — and it is not optional. A bucket in GovCloud has the ARN
@@ -19,18 +19,18 @@ test.
 ## The contract
 
 Scanner code must never synthesize an ARN with a hardcoded partition. The
-partition is derived from one of the shared helpers in `awscloud/partition.go`:
+partition is derived from one of the shared helpers in `aws/partition.go`:
 
-- `awscloud.PartitionForRegion(region)` — from an AWS region.
-- `awscloud.PartitionForBoundary(boundary)` — from the scan boundary's region
+- `aws.PartitionForRegion(region)` — from an AWS region.
+- `aws.PartitionForBoundary(boundary)` — from the scan boundary's region
   (the common case: a resource in the scanner's own claimed boundary).
-- `awscloud.PartitionFromARN(arn)` — from a source ARN observed in the same
+- `aws.PartitionFromARN(arn)` — from a source ARN observed in the same
   describe response (e.g. a model ARN that references an S3 bucket).
 
 ## How the guard works
 
 `ScanForHardcodedPartitions` AST-walks every non-test `.go` file under
-`services/` (recursively, including `awssdk/` adapters). It flags a string
+`services/` (recursively, including `sdk/` adapters). It flags a string
 literal whose value begins with the commercial prefix `arn:aws:` **only** when it
 is used to build an ARN:
 

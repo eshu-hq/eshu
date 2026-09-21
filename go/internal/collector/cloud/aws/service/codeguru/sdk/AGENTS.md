@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codeguru/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codeguru/sdk guidance
 
 ## Read First
 

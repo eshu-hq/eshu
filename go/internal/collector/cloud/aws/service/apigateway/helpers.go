@@ -91,7 +91,7 @@ func domainResourceID(domain DomainName) string {
 
 func apiResourceType(apiKind string) string {
 	if apiKind == APIKindV2 {
-		return awscloud.ResourceTypeAPIGatewayV2API
+		return aws.ResourceTypeAPIGatewayV2API
 	}
-	return awscloud.ResourceTypeAPIGatewayRESTAPI
+	return aws.ResourceTypeAPIGatewayRESTAPI
 }

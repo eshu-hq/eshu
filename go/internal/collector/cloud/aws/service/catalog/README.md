@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/catalog` owns the Service Catalog
+`internal/collector/cloud/aws/service/catalog` owns the Service Catalog
 scanner contract for the AWS cloud collector. It converts portfolio, product,
 and provisioned-product metadata into `aws_resource` facts and emits
 relationship evidence for provisioned-product-to-CloudFormation-stack
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Service Catalog API call counts, throttles, and
+The `sdk` adapter records Service Catalog API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -86,7 +86,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/catalog/...` covers the
+`go test ./internal/collector/cloud/aws/service/catalog/...` covers the
 bounded Service Catalog metadata path: one paginated `ListPortfolios` stream,
 one `ListPrincipalsForPortfolio` stream per portfolio, one paginated
 `SearchProductsAsAdmin` stream, one `ListPortfoliosForProduct` stream per
@@ -96,7 +96,7 @@ No provisioning, association, constraint-mutation, template-read, or
 record-output API is reachable, and there are no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/catalog/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/catalog/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers portfolio, product, and provisioned-product metadata fact emission,
 provisioned-product-to-CloudFormation-stack relationship emission gated on
 `CFN_STACK` type and stack-ARN shape, product-to-portfolio relationship

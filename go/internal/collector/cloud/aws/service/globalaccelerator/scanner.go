@@ -20,15 +20,15 @@ type Scanner struct {
 }
 
 // Scan observes Global Accelerator topology through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("globalaccelerator scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGlobalAccelerator:
+	case "", aws.ServiceGlobalAccelerator:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGlobalAccelerator
+		boundary.ServiceKind = aws.ServiceGlobalAccelerator
 	default:
 		return nil, fmt.Errorf("globalaccelerator scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,14 +49,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func acceleratorEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	accelerator Accelerator,
 ) ([]facts.Envelope, error) {
 	acceleratorARN := strings.TrimSpace(accelerator.ARN)
 	if acceleratorARN == "" {
 		return nil, fmt.Errorf("globalaccelerator accelerator missing arn for account %q", boundary.AccountID)
 	}
-	resource, err := awscloud.NewResourceEnvelope(acceleratorObservation(boundary, accelerator))
+	resource, err := aws.NewResourceEnvelope(acceleratorObservation(boundary, accelerator))
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func acceleratorEnvelopes(
 }
 
 func listenerEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	acceleratorARN string,
 	listener Listener,
 ) ([]facts.Envelope, error) {
@@ -80,11 +80,11 @@ func listenerEnvelopes(
 	if listenerARN == "" {
 		return nil, fmt.Errorf("globalaccelerator listener missing arn for accelerator %q", acceleratorARN)
 	}
-	resource, err := awscloud.NewResourceEnvelope(listenerObservation(boundary, acceleratorARN, listener))
+	resource, err := aws.NewResourceEnvelope(listenerObservation(boundary, acceleratorARN, listener))
 	if err != nil {
 		return nil, err
 	}
-	relationship, err := awscloud.NewRelationshipEnvelope(acceleratorListenerRelationship(boundary, acceleratorARN, listenerARN))
+	relationship, err := aws.NewRelationshipEnvelope(acceleratorListenerRelationship(boundary, acceleratorARN, listenerARN))
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func listenerEnvelopes(
 }
 
 func endpointGroupEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listenerARN string,
 	group EndpointGroup,
 ) ([]facts.Envelope, error) {
@@ -108,11 +108,11 @@ func endpointGroupEnvelopes(
 	if groupARN == "" {
 		return nil, fmt.Errorf("globalaccelerator endpoint group missing arn for listener %q", listenerARN)
 	}
-	resource, err := awscloud.NewResourceEnvelope(endpointGroupObservation(boundary, listenerARN, group))
+	resource, err := aws.NewResourceEnvelope(endpointGroupObservation(boundary, listenerARN, group))
 	if err != nil {
 		return nil, err
 	}
-	relationship, err := awscloud.NewRelationshipEnvelope(listenerEndpointGroupRelationship(boundary, listenerARN, groupARN, group.Region))
+	relationship, err := aws.NewRelationshipEnvelope(listenerEndpointGroupRelationship(boundary, listenerARN, groupARN, group.Region))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func endpointGroupEnvelopes(
 }
 
 func endpointEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	groupARN string,
 	index int,
 	endpoint Endpoint,
@@ -138,17 +138,17 @@ func endpointEnvelopes(
 		return nil, fmt.Errorf("globalaccelerator endpoint missing endpoint id for endpoint group %q", groupARN)
 	}
 	endpointResourceID := fmt.Sprintf("%s#endpoint#%s", groupARN, endpointID)
-	resource, err := awscloud.NewResourceEnvelope(endpointObservation(boundary, groupARN, endpointResourceID, endpoint))
+	resource, err := aws.NewResourceEnvelope(endpointObservation(boundary, groupARN, endpointResourceID, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	membership, err := awscloud.NewRelationshipEnvelope(endpointGroupEndpointRelationship(boundary, groupARN, endpointResourceID, endpoint))
+	membership, err := aws.NewRelationshipEnvelope(endpointGroupEndpointRelationship(boundary, groupARN, endpointResourceID, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	envelopes = append(envelopes, membership)
-	target, err := awscloud.NewRelationshipEnvelope(endpointTargetRelationship(boundary, endpointResourceID, endpoint))
+	target, err := aws.NewRelationshipEnvelope(endpointTargetRelationship(boundary, endpointResourceID, endpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -156,14 +156,14 @@ func endpointEnvelopes(
 	return envelopes, nil
 }
 
-func acceleratorObservation(boundary awscloud.Boundary, accelerator Accelerator) awscloud.ResourceObservation {
+func acceleratorObservation(boundary aws.Boundary, accelerator Accelerator) aws.ResourceObservation {
 	acceleratorARN := strings.TrimSpace(accelerator.ARN)
 	name := firstNonEmpty(accelerator.Name, acceleratorARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          acceleratorARN,
 		ResourceID:   acceleratorARN,
-		ResourceType: awscloud.ResourceTypeGlobalAcceleratorAccelerator,
+		ResourceType: aws.ResourceTypeGlobalAcceleratorAccelerator,
 		Name:         name,
 		State:        strings.TrimSpace(accelerator.Status),
 		Tags:         cloneStringMap(accelerator.Tags),
@@ -184,16 +184,16 @@ func acceleratorObservation(boundary awscloud.Boundary, accelerator Accelerator)
 }
 
 func listenerObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	acceleratorARN string,
 	listener Listener,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	listenerARN := strings.TrimSpace(listener.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          listenerARN,
 		ResourceID:   listenerARN,
-		ResourceType: awscloud.ResourceTypeGlobalAcceleratorListener,
+		ResourceType: aws.ResourceTypeGlobalAcceleratorListener,
 		Name:         listenerARN,
 		Attributes: map[string]any{
 			"accelerator_arn": acceleratorARN,
@@ -207,10 +207,10 @@ func listenerObservation(
 }
 
 func endpointGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listenerARN string,
 	group EndpointGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	attributes := map[string]any{
 		"listener_arn":          listenerARN,
@@ -231,11 +231,11 @@ func endpointGroupObservation(
 	if group.ThresholdCount != nil {
 		attributes["threshold_count"] = *group.ThresholdCount
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                groupARN,
 		ResourceID:         groupARN,
-		ResourceType:       awscloud.ResourceTypeGlobalAcceleratorEndpointGroup,
+		ResourceType:       aws.ResourceTypeGlobalAcceleratorEndpointGroup,
 		Name:               firstNonEmpty(group.Region, groupARN),
 		Attributes:         attributes,
 		CorrelationAnchors: []string{groupARN},
@@ -244,11 +244,11 @@ func endpointGroupObservation(
 }
 
 func endpointObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	groupARN string,
 	endpointResourceID string,
 	endpoint Endpoint,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	endpointID := strings.TrimSpace(endpoint.EndpointID)
 	attributes := map[string]any{
 		"endpoint_group_arn": groupARN,
@@ -262,10 +262,10 @@ func endpointObservation(
 	if endpoint.ClientIPPreservationEnabled != nil {
 		attributes["client_ip_preservation_enabled"] = *endpoint.ClientIPPreservationEnabled
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         endpointResourceID,
-		ResourceType:       awscloud.ResourceTypeGlobalAcceleratorEndpoint,
+		ResourceType:       aws.ResourceTypeGlobalAcceleratorEndpoint,
 		Name:               endpointID,
 		Attributes:         attributes,
 		CorrelationAnchors: []string{endpointResourceID, endpointID},

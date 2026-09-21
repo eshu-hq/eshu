@@ -33,7 +33,7 @@ type Snapshot struct {
 	ProfilingGroups []ProfilingGroup
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // RepositoryAssociation is the scanner-owned CodeGuru Reviewer repository

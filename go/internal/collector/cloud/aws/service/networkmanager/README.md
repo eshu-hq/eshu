@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/networkmanager` owns the AWS Network
+`internal/collector/cloud/aws/service/networkmanager` owns the AWS Network
 Manager scanner contract for the AWS cloud collector. It converts global-network
 and core-network control-plane metadata into `aws_resource` facts and emits
 relationship evidence for child-in-global-network membership, device/link
@@ -11,7 +11,7 @@ references, and transit gateway registrations.
 
 AWS Network Manager is a **global** service: its control plane is reachable only
 in one region per partition (us-west-2 commercial, us-gov-west-1 GovCloud,
-cn-north-1 China). The `awssdk` adapter pins that region while the scan boundary
+cn-north-1 China). The `sdk` adapter pins that region while the scan boundary
 keeps its claimed account and region for attribution.
 
 ## Ownership boundary
@@ -69,7 +69,7 @@ the registration ARN).
   carry **no region** segment because the service is global.
 - Child resources report only the parent id, so parent edges synthesize the
   partition-aware parent ARN (`arn:<partition>:networkmanager::<account>:...`)
-  via `awscloud.PartitionForBoundary` so GovCloud and China edges join the real
+  via `aws.PartitionForBoundary` so GovCloud and China edges join the real
   node instead of dangling.
 - The transit gateway scanner publishes its resource_id as the **bare** `tgw-`
   id, not an ARN. The registration edge extracts the bare id from the reported
@@ -81,7 +81,7 @@ the registration ARN).
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/networkmanager/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/networkmanager/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 ## Related docs

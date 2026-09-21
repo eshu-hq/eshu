@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssns "github.com/aws/aws-sdk-go-v2/service/sns"
 	awssnstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/smithy-go"
@@ -30,15 +30,15 @@ type apiClient interface {
 // Client adapts AWS SDK SNS pagination into scanner-owned topic metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an SNS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -67,7 +67,7 @@ func (c *Client) ListTopics(ctx context.Context) ([]snsservice.Topic, error) {
 			return nil, err
 		}
 		for _, topic := range page.Topics {
-			topicARN := aws.ToString(topic.TopicArn)
+			topicARN := awsv2.ToString(topic.TopicArn)
 			if strings.TrimSpace(topicARN) == "" {
 				continue
 			}
@@ -102,7 +102,7 @@ func (c *Client) getTopicAttributes(ctx context.Context, topicARN string) (map[s
 	err := c.recordAPICall(ctx, "GetTopicAttributes", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetTopicAttributes(callCtx, &awssns.GetTopicAttributesInput{
-			TopicArn: aws.String(topicARN),
+			TopicArn: awsv2.String(topicARN),
 		})
 		return err
 	})
@@ -120,7 +120,7 @@ func (c *Client) listTags(ctx context.Context, topicARN string) (map[string]stri
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awssns.ListTagsForResourceInput{
-			ResourceArn: aws.String(topicARN),
+			ResourceArn: awsv2.String(topicARN),
 		})
 		return err
 	})
@@ -135,7 +135,7 @@ func (c *Client) listTags(ctx context.Context, topicARN string) (map[string]stri
 
 func (c *Client) listSubscriptions(ctx context.Context, topicARN string) ([]snsservice.Subscription, error) {
 	paginator := awssns.NewListSubscriptionsByTopicPaginator(c.client, &awssns.ListSubscriptionsByTopicInput{
-		TopicArn: aws.String(topicARN),
+		TopicArn: awsv2.String(topicARN),
 	})
 	var subscriptions []snsservice.Subscription
 	for paginator.HasMorePages() {
@@ -190,11 +190,11 @@ func mapTopicAttributes(attributes map[string]string) snsservice.TopicAttributes
 }
 
 func mapSubscription(subscription awssnstypes.Subscription) snsservice.Subscription {
-	endpoint := aws.ToString(subscription.Endpoint)
+	endpoint := awsv2.ToString(subscription.Endpoint)
 	return snsservice.Subscription{
-		SubscriptionARN: aws.ToString(subscription.SubscriptionArn),
-		Protocol:        aws.ToString(subscription.Protocol),
-		Owner:           aws.ToString(subscription.Owner),
+		SubscriptionARN: awsv2.ToString(subscription.SubscriptionArn),
+		Protocol:        awsv2.ToString(subscription.Protocol),
+		Owner:           awsv2.ToString(subscription.Owner),
 		EndpointARN:     arnOnly(endpoint),
 	}
 }
@@ -205,11 +205,11 @@ func tagsMap(tags []awssnstypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil
@@ -286,7 +286,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

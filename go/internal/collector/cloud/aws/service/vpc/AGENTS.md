@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/vpc guidance
+# AGENTS.md - internal/collector/cloud/aws/service/vpc guidance
 
 ## Read First
 
@@ -29,7 +29,7 @@
   Those identities belong to the EC2 scanner.
   `scanner_test.go::TestVPCResourceTypesDisjointFromEC2` pins the boundary.
 - Cross-package relationship edges MUST reference the EC2-owned target type
-  by `awscloud.ResourceTypeEC2Xxx`, not by re-emitting the resource here.
+  by `aws.ResourceTypeEC2Xxx`, not by re-emitting the resource here.
 - Preserve stable resource identities (allocation IDs, gateway IDs, route
   table IDs, endpoint IDs) across repeated observations in the same AWS
   generation.
@@ -40,12 +40,12 @@
 
 - Add a new VPC metadata field by extending the scanner-owned record in
   `types.go`, writing a focused scanner or adapter test first, then mapping
-  it through `awscloud` envelope builders.
+  it through `aws` envelope builders.
 - Add new relationship evidence only when the AWS API reports both sides
   directly and the target type already exists (or you add a new
-  `awscloud.RelationshipVPCXxx` constant alphabetically).
+  `aws.RelationshipVPCXxx` constant alphabetically).
 - Extend SDK pagination, mutation guards, and the apiClient interface only in
-  the `awssdk` adapter, never here.
+  the `sdk` adapter, never here.
 
 ## What Not To Change Without An ADR
 

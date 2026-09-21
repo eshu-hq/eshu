@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func secretsIAMContext(boundary awscloud.Boundary) posture.EnvelopeContext {
+func secretsIAMContext(boundary aws.Boundary) posture.EnvelopeContext {
 	return posture.EnvelopeContext{
 		AccountID:           boundary.AccountID,
 		Region:              boundary.Region,

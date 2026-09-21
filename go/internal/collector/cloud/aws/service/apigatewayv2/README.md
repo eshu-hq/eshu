@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/apigatewayv2` owns the API Gateway v2
+`internal/collector/cloud/aws/service/apigatewayv2` owns the API Gateway v2
 scanner contract for the AWS cloud collector. It converts HTTP and WebSocket
 APIs, their stages, routes, integrations, authorizers, custom domains, and VPC
 links into reported AWS facts and relationship evidence for one claimed account
@@ -14,8 +14,8 @@ scanner.
 This package owns scanner-level API Gateway v2 fact selection, resource
 identity, and relationship shaping. It does not own AWS SDK pagination,
 credential acquisition, workflow claims, fact persistence, graph writes, reducer
-admission, or query behavior. SDK translation lives in the sibling `awssdk`
-package; registration lives in the sibling `runtimebind` package.
+admission, or query behavior. SDK translation lives in the sibling `sdk`
+package; registration lives in the sibling `bind` package.
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,7 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Client` - minimal API Gateway v2 metadata read surface consumed by `Scanner`.
-  It exposes a single `Snapshot` method; a reflection test in the `awssdk`
+  It exposes a single `Snapshot` method; a reflection test in the `sdk`
   adapter asserts no accepted SDK method reaches the OpenAPI export, an
   integration/route response reader, a model/template reader, or a mutation.
 - `Scanner` - emits API Gateway v2 metadata and relationship facts for one
@@ -53,7 +53,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource and relationship
+- `internal/collector/cloud/aws` for boundaries, resource and relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -62,9 +62,9 @@ Go v2 so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records API Gateway v2 API call counts, throttles, and
+The `sdk` adapter records API Gateway v2 API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="apigatewayv2"}` with the existing
 bounded AWS collector labels.
@@ -99,13 +99,13 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/apigatewayv2/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/apigatewayv2/...`
 covers the bounded API Gateway v2 metadata path: paginated GetApis discovery,
 per-API GetStages, GetRoutes, GetIntegrations, and GetAuthorizers, plus
 GetVpcLinks, GetDomainNames, and GetApiMappings, with no export, integration/
 route response, model/template, or mutation calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers API Gateway v2 resource and relationship fact emission, the Cognito user
 pool join key parsed from the JWT issuer, omission of mapping template, request
 model, authorizer URI, and credential payloads, runtime registration, and
@@ -125,11 +125,11 @@ Collector Deployment Evidence: API Gateway v2 runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/apigatewayv2/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/apigatewayv2/... -count=1`
 covers the new `TestAPIARNDerivesPartition` (commercial / `aws-us-gov` /
 `aws-cn` / blank-region-fallback) alongside the existing commercial assertions.
 The v2 API control-plane id carries no ARN, so `apiARN` now derives the
-partition from the region via `awscloud.PartitionForRegion` instead of
+partition from the region via `aws.PartitionForRegion` instead of
 hardcoding `aws`. Commercial output (`us-east-1`) is byte-for-byte unchanged;
 this is a metadata-only correctness fix with no graph-write, queue, or hot-path
 behavior change.

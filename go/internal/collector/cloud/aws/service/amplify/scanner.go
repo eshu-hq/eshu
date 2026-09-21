@@ -29,15 +29,15 @@ type Scanner struct {
 // app->IAM-role, app->custom-domain (Route 53 / CloudFront), and branch->app
 // edges Amplify reports. Environment variables, build-spec bodies, basic-auth
 // credentials, and repository access tokens stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("amplify scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAmplify:
+	case "", aws.ServiceAmplify:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAmplify
+		boundary.ServiceKind = aws.ServiceAmplify
 	default:
 		return nil, fmt.Errorf("amplify scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -61,12 +61,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) scanApp(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 ) ([]facts.Envelope, error) {
 	appID := appResourceID(boundary, app)
 
-	resource, err := awscloud.NewResourceEnvelope(appObservation(boundary, app))
+	resource, err := aws.NewResourceEnvelope(appObservation(boundary, app))
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (s Scanner) scanApp(
 		return nil, fmt.Errorf("list Amplify domain associations for %q: %w", app.ID, err)
 	}
 	for _, observation := range appRelationships(boundary, app, domains) {
-		relEnvelope, err := awscloud.NewRelationshipEnvelope(observation)
+		relEnvelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -92,13 +92,13 @@ func (s Scanner) scanApp(
 		if strings.TrimSpace(branch.AppID) == "" {
 			branch.AppID = app.ID
 		}
-		branchResource, err := awscloud.NewResourceEnvelope(branchObservation(boundary, branch))
+		branchResource, err := aws.NewResourceEnvelope(branchObservation(boundary, branch))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, branchResource)
 		if rel, ok := branchAppRelationship(boundary, branch, appID); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -109,14 +109,14 @@ func (s Scanner) scanApp(
 	return envelopes, nil
 }
 
-func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObservation {
+func appObservation(boundary aws.Boundary, app App) aws.ResourceObservation {
 	arn := firstNonEmpty(app.ARN, appARN(boundary, app.ID))
 	resourceID := appResourceID(boundary, app)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAmplifyApp,
+		ResourceType: aws.ResourceTypeAmplifyApp,
 		Name:         strings.TrimSpace(app.Name),
 		Tags:         cloneStringMap(app.Tags),
 		Attributes: map[string]any{
@@ -136,14 +136,14 @@ func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObserv
 	}
 }
 
-func branchObservation(boundary awscloud.Boundary, branch Branch) awscloud.ResourceObservation {
+func branchObservation(boundary aws.Boundary, branch Branch) aws.ResourceObservation {
 	arn := firstNonEmpty(branch.ARN, branchARN(boundary, branch.AppID, branch.Name))
 	resourceID := branchResourceID(boundary, branch)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAmplifyBranch,
+		ResourceType: aws.ResourceTypeAmplifyBranch,
 		Name:         strings.TrimSpace(branch.Name),
 		State:        strings.TrimSpace(branch.Stage),
 		Tags:         cloneStringMap(branch.Tags),

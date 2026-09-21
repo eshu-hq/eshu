@@ -82,11 +82,11 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 		resourceType string
 		wantID       string
 	}{
-		{awscloud.ResourceTypeLocationMap, testMapARN},
-		{awscloud.ResourceTypeLocationPlaceIndex, testIndexARN},
-		{awscloud.ResourceTypeLocationTracker, testTrackerARN},
-		{awscloud.ResourceTypeLocationGeofenceCollection, testCollectionARN},
-		{awscloud.ResourceTypeLocationRouteCalculator, testRouteARN},
+		{aws.ResourceTypeLocationMap, testMapARN},
+		{aws.ResourceTypeLocationPlaceIndex, testIndexARN},
+		{aws.ResourceTypeLocationTracker, testTrackerARN},
+		{aws.ResourceTypeLocationGeofenceCollection, testCollectionARN},
+		{aws.ResourceTypeLocationRouteCalculator, testRouteARN},
 	} {
 		node := resourceByType(t, envelopes, tc.resourceType)
 		if got := node.Payload["resource_id"]; got != tc.wantID {
@@ -98,23 +98,23 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Tracker attributes carry control-plane metadata only.
-	tracker := resourceByType(t, envelopes, awscloud.ResourceTypeLocationTracker)
+	tracker := resourceByType(t, envelopes, aws.ResourceTypeLocationTracker)
 	trackerAttrs := attributesOf(t, tracker)
 	assertAttribute(t, trackerAttrs, "position_filtering", "TimeBased")
 	assertAttribute(t, trackerAttrs, "event_bridge_enabled", true)
 	assertAttribute(t, trackerAttrs, "consumer_geofence_collection_count", 1)
 
-	collection := resourceByType(t, envelopes, awscloud.ResourceTypeLocationGeofenceCollection)
+	collection := resourceByType(t, envelopes, aws.ResourceTypeLocationGeofenceCollection)
 	assertAttribute(t, attributesOf(t, collection), "geofence_count", int32(7))
 
-	mapNode := resourceByType(t, envelopes, awscloud.ResourceTypeLocationMap)
+	mapNode := resourceByType(t, envelopes, aws.ResourceTypeLocationMap)
 	mapAttrs := attributesOf(t, mapNode)
 	assertAttribute(t, mapAttrs, "style", "VectorEsriStreets")
 	assertAttribute(t, mapAttrs, "custom_layers", []string{"POI"})
 
 	// tracker -> KMS key edge.
-	trackerKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerUsesKMSKey)
-	assertEdgeTarget(t, trackerKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	trackerKMS := relationshipByType(t, envelopes, aws.RelationshipLocationTrackerUsesKMSKey)
+	assertEdgeTarget(t, trackerKMS, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := trackerKMS.Payload["source_resource_id"], testTrackerARN; got != want {
 		t.Fatalf("tracker->kms source_resource_id = %#v, want %q", got, want)
 	}
@@ -123,16 +123,16 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// geofence collection -> KMS key edge.
-	collectionKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey)
-	assertEdgeTarget(t, collectionKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	collectionKMS := relationshipByType(t, envelopes, aws.RelationshipLocationGeofenceCollectionUsesKMSKey)
+	assertEdgeTarget(t, collectionKMS, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := collectionKMS.Payload["source_resource_id"], testCollectionARN; got != want {
 		t.Fatalf("collection->kms source_resource_id = %#v, want %q", got, want)
 	}
 
 	// tracker -> geofence collection consumer edge, keyed by the collection ARN
 	// the collection node publishes.
-	consumer := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerConsumesGeofenceCollection)
-	assertEdgeTarget(t, consumer, awscloud.ResourceTypeLocationGeofenceCollection, testCollectionARN)
+	consumer := relationshipByType(t, envelopes, aws.RelationshipLocationTrackerConsumesGeofenceCollection)
+	assertEdgeTarget(t, consumer, aws.ResourceTypeLocationGeofenceCollection, testCollectionARN)
 	if got, want := consumer.Payload["source_resource_id"], testTrackerARN; got != want {
 		t.Fatalf("tracker->collection source_resource_id = %#v, want %q", got, want)
 	}
@@ -169,7 +169,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	trackerKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerUsesKMSKey)
+	trackerKMS := relationshipByType(t, envelopes, aws.RelationshipLocationTrackerUsesKMSKey)
 	if got, want := trackerKMS.Payload["target_resource_id"], "alias/location-fleet"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -208,8 +208,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		ConsumerCollectionARNs: []string{testCollectionARN},
 	}
 	collection := GeofenceCollection{ARN: testCollectionARN, Name: "zones", KMSKeyID: testKMSARN}
-	var observations []awscloud.RelationshipObservation
-	rels := []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	rels := []*aws.RelationshipObservation{
 		trackerKMSRelationship(boundary, tracker),
 		geofenceCollectionKMSRelationship(boundary, collection),
 		trackerConsumerRelationship(boundary, tracker, testCollectionARN),
@@ -235,7 +235,7 @@ func TestScannerHandlesEmptyAccount(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -253,9 +253,9 @@ func TestScannerRequiresClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Maps: []Map{{ARN: testMapARN, Name: "store-map"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Location ListTrackers throttled after SDK retries; tracker metadata omitted for this scan",
 			SourceRecordID: "location_trackers_throttled",
@@ -266,17 +266,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLocation,
+		ServiceKind:         aws.ServiceLocation,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:location:1",
 		CollectorInstanceID: "aws-prod",

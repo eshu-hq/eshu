@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes the Control Tower landing zone, enabled controls, and enabled
 // baselines plus their Organizations and landing-zone relationships through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("controltower scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceControlTower:
+	case "", aws.ServiceControlTower:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceControlTower
+		boundary.ServiceKind = aws.ServiceControlTower
 	default:
 		return nil, fmt.Errorf("controltower scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -52,7 +52,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	landingZoneARN := ""
 	if snapshot.LandingZone != nil {
 		landingZoneARN = strings.TrimSpace(snapshot.LandingZone.ARN)
-		resource, err := awscloud.NewResourceEnvelope(landingZoneObservation(boundary, *snapshot.LandingZone))
+		resource, err := aws.NewResourceEnvelope(landingZoneObservation(boundary, *snapshot.LandingZone))
 		if err != nil {
 			return nil, err
 		}
@@ -80,12 +80,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func appendWarnings(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
-	warnings []awscloud.WarningObservation,
+	boundary aws.Boundary,
+	warnings []aws.WarningObservation,
 ) error {
 	for _, warning := range warnings {
 		warning.Boundary = boundary
-		envelope, err := awscloud.NewWarningEnvelope(warning)
+		envelope, err := aws.NewWarningEnvelope(warning)
 		if err != nil {
 			return err
 		}
@@ -94,14 +94,14 @@ func appendWarnings(
 	return nil
 }
 
-func controlEnvelopes(boundary awscloud.Boundary, control EnabledControl) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(controlObservation(boundary, control))
+func controlEnvelopes(boundary aws.Boundary, control EnabledControl) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(controlObservation(boundary, control))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := controlGovernsTargetRelationship(boundary, control); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -111,23 +111,23 @@ func controlEnvelopes(boundary awscloud.Boundary, control EnabledControl) ([]fac
 }
 
 func baselineEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	baseline EnabledBaseline,
 	landingZoneARN string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(baselineObservation(boundary, baseline))
+	resource, err := aws.NewResourceEnvelope(baselineObservation(boundary, baseline))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		baselineGovernsTargetRelationship(boundary, baseline),
 		baselineForLandingZoneRelationship(boundary, baseline, landingZoneARN),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -136,13 +136,13 @@ func baselineEnvelopes(
 	return envelopes, nil
 }
 
-func landingZoneObservation(boundary awscloud.Boundary, landingZone LandingZone) awscloud.ResourceObservation {
+func landingZoneObservation(boundary aws.Boundary, landingZone LandingZone) aws.ResourceObservation {
 	arn := strings.TrimSpace(landingZone.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerLandingZone,
+		ResourceType: aws.ResourceTypeControlTowerLandingZone,
 		State:        strings.TrimSpace(landingZone.Status),
 		Tags:         cloneStringMap(landingZone.Tags),
 		Attributes: map[string]any{
@@ -155,13 +155,13 @@ func landingZoneObservation(boundary awscloud.Boundary, landingZone LandingZone)
 	}
 }
 
-func controlObservation(boundary awscloud.Boundary, control EnabledControl) awscloud.ResourceObservation {
+func controlObservation(boundary aws.Boundary, control EnabledControl) aws.ResourceObservation {
 	arn := strings.TrimSpace(control.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerEnabledControl,
+		ResourceType: aws.ResourceTypeControlTowerEnabledControl,
 		State:        strings.TrimSpace(control.Status),
 		Attributes: map[string]any{
 			"control_identifier": strings.TrimSpace(control.ControlIdentifier),
@@ -174,13 +174,13 @@ func controlObservation(boundary awscloud.Boundary, control EnabledControl) awsc
 	}
 }
 
-func baselineObservation(boundary awscloud.Boundary, baseline EnabledBaseline) awscloud.ResourceObservation {
+func baselineObservation(boundary aws.Boundary, baseline EnabledBaseline) aws.ResourceObservation {
 	arn := strings.TrimSpace(baseline.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerEnabledBaseline,
+		ResourceType: aws.ResourceTypeControlTowerEnabledBaseline,
 		State:        strings.TrimSpace(baseline.Status),
 		Attributes: map[string]any{
 			"baseline_identifier": strings.TrimSpace(baseline.BaselineIdentifier),

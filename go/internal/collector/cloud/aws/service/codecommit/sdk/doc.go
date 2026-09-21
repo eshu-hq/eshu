@@ -11,4 +11,4 @@
 // bodies, or comment text, and exposes no mutation API; the exclusion
 // reflection guard test asserts the omission. Scanner packages own fact
 // selection and do not import the AWS SDK directly.
-package awssdk
+package sdk

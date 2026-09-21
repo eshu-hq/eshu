@@ -35,8 +35,8 @@ import (
 // deduplicated across every instance in the scan — because it is a
 // per-distinct-AMI fact, not a per-instance one. See
 // go/internal/collector/cloud/aws/constants_ec2.go's ResourceTypeEC2AMI doc.
-func instanceIdentityEnvelopes(boundary awscloud.Boundary, instance Instance) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(instanceIdentityObservation(boundary, instance))
+func instanceIdentityEnvelopes(boundary aws.Boundary, instance Instance) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(instanceIdentityObservation(boundary, instance))
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func instanceIdentityEnvelopes(boundary awscloud.Boundary, instance Instance) ([
 	if amiID == "" {
 		return envelopes, nil
 	}
-	relationship, err := awscloud.NewRelationshipEnvelope(instanceAMIRelationship(boundary, instance, amiID))
+	relationship, err := aws.NewRelationshipEnvelope(instanceAMIRelationship(boundary, instance, amiID))
 	if err != nil {
 		return nil, err
 	}
@@ -59,15 +59,15 @@ func instanceIdentityEnvelopes(boundary awscloud.Boundary, instance Instance) ([
 // the launch AMI id in Attributes; it never reads user-data content, tag
 // values, or any field the metadata-only posture contract does not already
 // read from the same DescribeInstances entry.
-func instanceIdentityObservation(boundary awscloud.Boundary, instance Instance) awscloud.ResourceObservation {
+func instanceIdentityObservation(boundary aws.Boundary, instance Instance) aws.ResourceObservation {
 	instanceID := strings.TrimSpace(instance.ID)
 	arn := strings.TrimSpace(instance.ARN)
 	resourceID := firstNonEmpty(instanceID, arn)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeEC2Instance,
+		ResourceType: aws.ResourceTypeEC2Instance,
 		// The identity fact carries no Name tag, mirroring the posture fact's
 		// own identity derivation: the instance id is the stable name and no
 		// tag value is ever read for identity.
@@ -87,15 +87,15 @@ func instanceIdentityObservation(boundary awscloud.Boundary, instance Instance) 
 // identity fact with the SAME resource_id, so the generic AWS relationship
 // edge join (go/internal/reducer/aws_relationship_join.go) resolves this
 // target by bare id against a real CloudResource node.
-func instanceAMIRelationship(boundary awscloud.Boundary, instance Instance, amiID string) awscloud.RelationshipObservation {
+func instanceAMIRelationship(boundary aws.Boundary, instance Instance, amiID string) aws.RelationshipObservation {
 	sourceID := firstNonEmpty(strings.TrimSpace(instance.ID), strings.TrimSpace(instance.ARN))
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2InstanceUsesAMI,
+		RelationshipType: aws.RelationshipEC2InstanceUsesAMI,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(instance.ARN),
 		TargetResourceID: amiID,
-		TargetType:       awscloud.ResourceTypeEC2AMI,
+		TargetType:       aws.ResourceTypeEC2AMI,
 		SourceRecordID:   sourceID + "#ami#" + amiID,
 	}
 }

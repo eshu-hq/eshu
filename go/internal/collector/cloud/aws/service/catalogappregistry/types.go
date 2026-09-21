@@ -32,7 +32,7 @@ type Snapshot struct {
 	AttributeGroups []AttributeGroup
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Application is the scanner-owned AppRegistry application model. It carries

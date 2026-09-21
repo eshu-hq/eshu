@@ -39,31 +39,31 @@ func emitterConformanceCases() []emitterConformanceCase {
 		{
 			name: facts.AWSSecurityGroupRuleFactKind,
 			build: func() (facts.Envelope, error) {
-				return awscloud.NewSecurityGroupRuleEnvelope(securityGroupRuleObservation())
+				return aws.NewSecurityGroupRuleEnvelope(securityGroupRuleObservation())
 			},
 		},
 		{
 			name: facts.EC2InstancePostureFactKind,
 			build: func() (facts.Envelope, error) {
-				return awscloud.NewEC2InstancePostureEnvelope(ec2InstancePostureObservation())
+				return aws.NewEC2InstancePostureEnvelope(ec2InstancePostureObservation())
 			},
 		},
 		{
 			name: facts.AWSIAMPermissionFactKind,
 			build: func() (facts.Envelope, error) {
-				return awscloud.NewIAMPermissionEnvelope(iamPermissionObservation())
+				return aws.NewIAMPermissionEnvelope(iamPermissionObservation())
 			},
 		},
 		{
 			name: facts.AWSResourcePolicyPermissionFactKind,
 			build: func() (facts.Envelope, error) {
-				return awscloud.NewResourcePolicyPermissionEnvelope(resourcePolicyPermissionObservation())
+				return aws.NewResourcePolicyPermissionEnvelope(resourcePolicyPermissionObservation())
 			},
 		},
 		{
 			name: facts.S3BucketPostureFactKind,
 			build: func() (facts.Envelope, error) {
-				return awscloud.NewS3BucketPostureEnvelope(s3BucketPostureObservation())
+				return aws.NewS3BucketPostureEnvelope(s3BucketPostureObservation())
 			},
 		},
 		{
@@ -181,10 +181,10 @@ func clonePayload(payload map[string]any) map[string]any {
 	return cloned
 }
 
-// awsBoundary builds a valid awscloud.Boundary for one AWS service kind, the
+// awsBoundary builds a valid aws.Boundary for one AWS service kind, the
 // common identity every awscloud emitter observation requires.
-func awsBoundary(serviceKind string, observedAt time.Time) awscloud.Boundary {
-	return awscloud.Boundary{
+func awsBoundary(serviceKind string, observedAt time.Time) aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
 		ServiceKind:         serviceKind,
@@ -196,11 +196,11 @@ func awsBoundary(serviceKind string, observedAt time.Time) awscloud.Boundary {
 	}
 }
 
-func securityGroupRuleObservation() awscloud.SecurityGroupRuleObservation {
+func securityGroupRuleObservation() aws.SecurityGroupRuleObservation {
 	fromPort := int32(443)
 	toPort := int32(443)
-	return awscloud.SecurityGroupRuleObservation{
-		Boundary:     awsBoundary(awscloud.ServiceEC2, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
+	return aws.SecurityGroupRuleObservation{
+		Boundary:     awsBoundary(aws.ServiceEC2, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
 		RuleID:       "sgr-123",
 		GroupID:      "sg-123",
 		GroupOwnerID: "123456789012",
@@ -213,13 +213,13 @@ func securityGroupRuleObservation() awscloud.SecurityGroupRuleObservation {
 	}
 }
 
-func ec2InstancePostureObservation() awscloud.EC2InstancePostureObservation {
+func ec2InstancePostureObservation() aws.EC2InstancePostureObservation {
 	imdsv2 := true
 	hopLimit := int32(1)
 	userData := true
 	volumeEncrypted := true
-	return awscloud.EC2InstancePostureObservation{
-		Boundary:                awsBoundary(awscloud.ServiceEC2, time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC)),
+	return aws.EC2InstancePostureObservation{
+		Boundary:                awsBoundary(aws.ServiceEC2, time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC)),
 		ARN:                     "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0",
 		InstanceID:              "i-1234567890abcdef0",
 		State:                   "running",
@@ -234,7 +234,7 @@ func ec2InstancePostureObservation() awscloud.EC2InstancePostureObservation {
 		InstanceProfileARN:      "arn:aws:iam::123456789012:instance-profile/app",
 		Tenancy:                 "default",
 		NitroEnclaveEnabled:     true,
-		BlockDevices: []awscloud.EC2BlockDevicePosture{{
+		BlockDevices: []aws.EC2BlockDevicePosture{{
 			DeviceName:          "/dev/xvda",
 			VolumeID:            "vol-0abc",
 			DeleteOnTermination: true,
@@ -244,12 +244,12 @@ func ec2InstancePostureObservation() awscloud.EC2InstancePostureObservation {
 	}
 }
 
-func iamPermissionObservation() awscloud.IAMPermissionObservation {
-	return awscloud.IAMPermissionObservation{
-		Boundary:      awsBoundary(awscloud.ServiceIAM, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
+func iamPermissionObservation() aws.IAMPermissionObservation {
+	return aws.IAMPermissionObservation{
+		Boundary:      awsBoundary(aws.ServiceIAM, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: awscloud.ResourceTypeIAMRole,
-		PolicySource:  awscloud.IAMPolicySourceInline,
+		PrincipalType: aws.ResourceTypeIAMRole,
+		PolicySource:  aws.IAMPolicySourceInline,
 		PolicyName:    "inline-escalate",
 		StatementSID:  "AllowPassRole",
 		Effect:        "Allow",
@@ -258,27 +258,27 @@ func iamPermissionObservation() awscloud.IAMPermissionObservation {
 	}
 }
 
-func resourcePolicyPermissionObservation() awscloud.ResourcePolicyPermissionObservation {
-	return awscloud.ResourcePolicyPermissionObservation{
-		Boundary:            awsBoundary(awscloud.ServiceS3, time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)),
+func resourcePolicyPermissionObservation() aws.ResourcePolicyPermissionObservation {
+	return aws.ResourcePolicyPermissionObservation{
+		Boundary:            awsBoundary(aws.ServiceS3, time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)),
 		ResourceARN:         "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType:        awscloud.ResourceTypeS3Bucket,
+		ResourceType:        aws.ResourceTypeS3Bucket,
 		StatementSID:        "AllowPartner",
 		Effect:              "Allow",
 		Actions:             []string{"s3:GetObject"},
 		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
 		PrincipalARNs:       []string{"arn:aws:iam::111122223333:role/partner"},
 		PrincipalAccountIDs: []string{"111122223333"},
-		PrincipalTypes:      []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes:      []string{aws.ResourcePolicyPrincipalTypeAWS},
 		IsCrossAccount:      true,
 	}
 }
 
-func s3BucketPostureObservation() awscloud.S3BucketPostureObservation {
+func s3BucketPostureObservation() aws.S3BucketPostureObservation {
 	trueVal := true
 	falseVal := false
-	return awscloud.S3BucketPostureObservation{
-		Boundary:                    awsBoundary(awscloud.ServiceS3, time.Date(2026, 5, 14, 17, 30, 0, 0, time.UTC)),
+	return aws.S3BucketPostureObservation{
+		Boundary:                    awsBoundary(aws.ServiceS3, time.Date(2026, 5, 14, 17, 30, 0, 0, time.UTC)),
 		BucketARN:                   "arn:aws:s3:::orders-artifacts",
 		BucketName:                  "orders-artifacts",
 		BlockPublicACLs:             &trueVal,

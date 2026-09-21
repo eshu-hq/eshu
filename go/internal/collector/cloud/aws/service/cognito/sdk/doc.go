@@ -14,4 +14,4 @@
 // and never calls a mutation. It maps DescribeUserPoolClient without ClientSecret
 // and identity providers without ProviderDetails. Reflection tests fail the build
 // if any forbidden method is added to the adapter's SDK interfaces.
-package awssdk
+package sdk

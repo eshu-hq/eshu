@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsvp "github.com/aws/aws-sdk-go-v2/service/verifiedpermissions"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -57,7 +57,7 @@ type apiClient interface {
 // and never calls a Create/Update/Delete/Put mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -65,8 +65,8 @@ type Client struct {
 // NewClient builds a Verified Permissions SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -131,7 +131,7 @@ func (c *Client) listPolicyStores(ctx context.Context) ([]vpservice.PolicyStore,
 			stores = append(stores, mapPolicyStoreItem(item))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return stores, nil
 		}
 	}
@@ -146,7 +146,7 @@ func (c *Client) getPolicyStore(ctx context.Context, storeID string) (*awsvp.Get
 	err := c.recordAPICall(ctx, "GetPolicyStore", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetPolicyStore(callCtx, &awsvp.GetPolicyStoreInput{
-			PolicyStoreId: aws.String(storeID),
+			PolicyStoreId: awsv2.String(storeID),
 			Tags:          true,
 		})
 		return err
@@ -169,7 +169,7 @@ func (c *Client) listPolicies(ctx context.Context, storeID string) ([]vpservice.
 		err := c.recordAPICall(ctx, "ListPolicies", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListPolicies(callCtx, &awsvp.ListPoliciesInput{
-				PolicyStoreId: aws.String(storeID),
+				PolicyStoreId: awsv2.String(storeID),
 				NextToken:     nextToken,
 			})
 			return err
@@ -184,7 +184,7 @@ func (c *Client) listPolicies(ctx context.Context, storeID string) ([]vpservice.
 			policies = append(policies, mapPolicyItem(item))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return policies, nil
 		}
 	}
@@ -202,7 +202,7 @@ func (c *Client) listIdentitySources(ctx context.Context, storeID string) ([]vps
 		err := c.recordAPICall(ctx, "ListIdentitySources", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListIdentitySources(callCtx, &awsvp.ListIdentitySourcesInput{
-				PolicyStoreId: aws.String(storeID),
+				PolicyStoreId: awsv2.String(storeID),
 				NextToken:     nextToken,
 			})
 			return err
@@ -217,7 +217,7 @@ func (c *Client) listIdentitySources(ctx context.Context, storeID string) ([]vps
 			sources = append(sources, mapIdentitySourceItem(item))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return sources, nil
 		}
 	}
@@ -241,7 +241,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

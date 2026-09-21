@@ -33,7 +33,7 @@ type Snapshot struct {
 	Tasks []ReplicationTask
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // ReplicationInstance is the scanner-owned DMS replication instance model. It

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsarc "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig"
 	awsarctypes "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig/types"
 	"github.com/aws/smithy-go"
@@ -62,7 +62,7 @@ type apiClient interface {
 // state and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -72,8 +72,8 @@ type Client struct {
 // (the SDK pins it to us-west-2), so a single claim observes every cluster
 // regardless of the boundary Region.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -139,7 +139,7 @@ func (c *Client) listClusters(ctx context.Context) ([]arcservice.Cluster, error)
 			clusters = append(clusters, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return clusters, nil
 		}
 	}
@@ -149,17 +149,17 @@ func (c *Client) mapCluster(
 	ctx context.Context,
 	cluster awsarctypes.Cluster,
 ) (arcservice.Cluster, error) {
-	arn := strings.TrimSpace(aws.ToString(cluster.ClusterArn))
+	arn := strings.TrimSpace(awsv2.ToString(cluster.ClusterArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return arcservice.Cluster{}, err
 	}
 	return arcservice.Cluster{
 		ARN:             arn,
-		Name:            strings.TrimSpace(aws.ToString(cluster.Name)),
+		Name:            strings.TrimSpace(awsv2.ToString(cluster.Name)),
 		Status:          strings.TrimSpace(string(cluster.Status)),
 		NetworkType:     strings.TrimSpace(string(cluster.NetworkType)),
-		Owner:           strings.TrimSpace(aws.ToString(cluster.Owner)),
+		Owner:           strings.TrimSpace(awsv2.ToString(cluster.Owner)),
 		EndpointRegions: endpointRegions(cluster.ClusterEndpoints),
 		Tags:            tags,
 	}, nil
@@ -177,7 +177,7 @@ func (c *Client) listControlPanels(ctx context.Context, clusterARN string) ([]ar
 		err := c.recordAPICall(ctx, "ListControlPanels", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListControlPanels(callCtx, &awsarc.ListControlPanelsInput{
-				ClusterArn: aws.String(clusterARN),
+				ClusterArn: awsv2.String(clusterARN),
 				NextToken:  nextToken,
 			})
 			return err
@@ -196,7 +196,7 @@ func (c *Client) listControlPanels(ctx context.Context, clusterARN string) ([]ar
 			panels = append(panels, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return panels, nil
 		}
 	}
@@ -206,19 +206,19 @@ func (c *Client) mapControlPanel(
 	ctx context.Context,
 	panel awsarctypes.ControlPanel,
 ) (arcservice.ControlPanel, error) {
-	arn := strings.TrimSpace(aws.ToString(panel.ControlPanelArn))
+	arn := strings.TrimSpace(awsv2.ToString(panel.ControlPanelArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return arcservice.ControlPanel{}, err
 	}
 	return arcservice.ControlPanel{
 		ARN:                 arn,
-		ClusterARN:          strings.TrimSpace(aws.ToString(panel.ClusterArn)),
-		Name:                strings.TrimSpace(aws.ToString(panel.Name)),
+		ClusterARN:          strings.TrimSpace(awsv2.ToString(panel.ClusterArn)),
+		Name:                strings.TrimSpace(awsv2.ToString(panel.Name)),
 		Status:              strings.TrimSpace(string(panel.Status)),
-		DefaultControlPanel: aws.ToBool(panel.DefaultControlPanel),
-		RoutingControlCount: aws.ToInt32(panel.RoutingControlCount),
-		Owner:               strings.TrimSpace(aws.ToString(panel.Owner)),
+		DefaultControlPanel: awsv2.ToBool(panel.DefaultControlPanel),
+		RoutingControlCount: awsv2.ToInt32(panel.RoutingControlCount),
+		Owner:               strings.TrimSpace(awsv2.ToString(panel.Owner)),
 		Tags:                tags,
 	}, nil
 }
@@ -235,7 +235,7 @@ func (c *Client) listRoutingControls(ctx context.Context, panelARN string) ([]ar
 		err := c.recordAPICall(ctx, "ListRoutingControls", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListRoutingControls(callCtx, &awsarc.ListRoutingControlsInput{
-				ControlPanelArn: aws.String(panelARN),
+				ControlPanelArn: awsv2.String(panelARN),
 				NextToken:       nextToken,
 			})
 			return err
@@ -254,7 +254,7 @@ func (c *Client) listRoutingControls(ctx context.Context, panelARN string) ([]ar
 			controls = append(controls, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return controls, nil
 		}
 	}
@@ -264,17 +264,17 @@ func (c *Client) mapRoutingControl(
 	ctx context.Context,
 	control awsarctypes.RoutingControl,
 ) (arcservice.RoutingControl, error) {
-	arn := strings.TrimSpace(aws.ToString(control.RoutingControlArn))
+	arn := strings.TrimSpace(awsv2.ToString(control.RoutingControlArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return arcservice.RoutingControl{}, err
 	}
 	return arcservice.RoutingControl{
 		ARN:             arn,
-		ControlPanelARN: strings.TrimSpace(aws.ToString(control.ControlPanelArn)),
-		Name:            strings.TrimSpace(aws.ToString(control.Name)),
+		ControlPanelARN: strings.TrimSpace(awsv2.ToString(control.ControlPanelArn)),
+		Name:            strings.TrimSpace(awsv2.ToString(control.Name)),
 		Status:          strings.TrimSpace(string(control.Status)),
-		Owner:           strings.TrimSpace(aws.ToString(control.Owner)),
+		Owner:           strings.TrimSpace(awsv2.ToString(control.Owner)),
 		Tags:            tags,
 	}, nil
 }
@@ -291,7 +291,7 @@ func (c *Client) listSafetyRules(ctx context.Context, panelARN string) ([]arcser
 		err := c.recordAPICall(ctx, "ListSafetyRules", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListSafetyRules(callCtx, &awsarc.ListSafetyRulesInput{
-				ControlPanelArn: aws.String(panelARN),
+				ControlPanelArn: awsv2.String(panelARN),
 				NextToken:       nextToken,
 			})
 			return err
@@ -312,7 +312,7 @@ func (c *Client) listSafetyRules(ctx context.Context, panelARN string) ([]arcser
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return rules, nil
 		}
 	}
@@ -327,7 +327,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsarc.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -369,7 +369,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

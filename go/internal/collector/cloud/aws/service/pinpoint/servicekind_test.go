@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "pinpoint".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServicePinpoint + "  "
+	boundary.ServiceKind = "  " + aws.ServicePinpoint + "  "
 	client := fakeClient{snapshot: Snapshot{Applications: []Application{{
 		ID:   testAppID,
 		ARN:  testAppARN,
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServicePinpoint; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServicePinpoint; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

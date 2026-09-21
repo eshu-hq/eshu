@@ -28,15 +28,15 @@ type Scanner struct {
 // application's SQL input/output Kinesis data streams and Firehose delivery
 // streams, its S3 code bucket, its VPC subnets and security groups, its service
 // execution IAM role, and its CloudWatch logging log groups.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("kinesisanalyticsv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKinesisAnalyticsV2:
+	case "", aws.ServiceKinesisAnalyticsV2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKinesisAnalyticsV2
+		boundary.ServiceKind = aws.ServiceKinesisAnalyticsV2
 	default:
 		return nil, fmt.Errorf("kinesisanalyticsv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,7 +48,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, application := range applications {
-		resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+		resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 		if err != nil {
 			return nil, err
 		}
@@ -65,13 +65,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // relationshipEnvelopes wraps each relationship observation in a fact envelope.
 // It returns a nil slice for an empty input so callers append nothing.
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if len(observations) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(observations))
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +85,7 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 // version counters, and lifecycle timestamps only. Application code bodies, SQL
 // text, environment property values, and run-configuration content stay outside
 // the contract.
-func applicationObservation(boundary awscloud.Boundary, application Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, application Application) aws.ResourceObservation {
 	arn := strings.TrimSpace(application.ARN)
 	name := strings.TrimSpace(application.Name)
 	resourceID := applicationResourceID(application)
@@ -125,11 +125,11 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		attributes["snapshot_count"] = len(snapshotNames)
 		attributes["snapshot_names"] = snapshotNames
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeManagedFlinkApplication,
+		ResourceType:       aws.ResourceTypeManagedFlinkApplication,
 		Name:               name,
 		State:              strings.TrimSpace(application.Status),
 		Tags:               cloneStringMap(application.Tags),

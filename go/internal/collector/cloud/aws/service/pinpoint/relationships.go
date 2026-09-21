@@ -14,23 +14,23 @@ import (
 // publishes (its application id), so the edge joins the application node
 // exactly. It returns nil when either endpoint identity is missing.
 func applicationHasSegmentRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	applicationID string,
 	segment Segment,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	segmentID := segmentResourceID(segment)
 	applicationID = strings.TrimSpace(applicationID)
 	if segmentID == "" || applicationID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointApplicationHasSegment,
+		RelationshipType: aws.RelationshipPinpointApplicationHasSegment,
 		SourceResourceID: applicationID,
 		TargetResourceID: segmentID,
 		TargetARN:        strings.TrimSpace(segment.ARN),
-		TargetType:       awscloud.ResourceTypePinpointSegment,
-		SourceRecordID:   applicationID + "->" + awscloud.RelationshipPinpointApplicationHasSegment + ":" + segmentID,
+		TargetType:       aws.ResourceTypePinpointSegment,
+		SourceRecordID:   applicationID + "->" + aws.RelationshipPinpointApplicationHasSegment + ":" + segmentID,
 	}
 }
 
@@ -39,22 +39,22 @@ func applicationHasSegmentRelationship(
 // publishes, so the edge joins the application node exactly. It returns nil when
 // either endpoint identity is missing.
 func channelInApplicationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	applicationID string,
 	channel Channel,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	channelID := channelResourceID(channel)
 	applicationID = strings.TrimSpace(applicationID)
 	if channelID == "" || applicationID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointChannelInApplication,
+		RelationshipType: aws.RelationshipPinpointChannelInApplication,
 		SourceResourceID: channelID,
 		TargetResourceID: applicationID,
-		TargetType:       awscloud.ResourceTypePinpointApplication,
-		SourceRecordID:   channelID + "->" + awscloud.RelationshipPinpointChannelInApplication + ":" + applicationID,
+		TargetType:       aws.ResourceTypePinpointApplication,
+		SourceRecordID:   channelID + "->" + aws.RelationshipPinpointChannelInApplication + ":" + applicationID,
 	}
 }
 
@@ -69,9 +69,9 @@ func channelInApplicationRelationship(
 // SES identity ARN, so the edge is skipped rather than keyed to a dangling
 // guess.
 func emailChannelSESIdentityRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	channel Channel,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	identityName := sesIdentityNameFromARN(channel.SESIdentityARN)
 	if identityName == "" {
 		return nil
@@ -80,16 +80,16 @@ func emailChannelSESIdentityRelationship(
 	if channelID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointEmailChannelUsesSESIdentity,
+		RelationshipType: aws.RelationshipPinpointEmailChannelUsesSESIdentity,
 		SourceResourceID: channelID,
 		TargetResourceID: identityName,
-		TargetType:       awscloud.ResourceTypeSESEmailIdentity,
+		TargetType:       aws.ResourceTypeSESEmailIdentity,
 		Attributes: map[string]any{
 			"ses_identity_arn": strings.TrimSpace(channel.SESIdentityARN),
 		},
-		SourceRecordID: channelID + "->" + awscloud.RelationshipPinpointEmailChannelUsesSESIdentity + ":" + identityName,
+		SourceRecordID: channelID + "->" + aws.RelationshipPinpointEmailChannelUsesSESIdentity + ":" + identityName,
 	}
 }
 
@@ -99,9 +99,9 @@ func emailChannelSESIdentityRelationship(
 // publishes, so the edge joins that node. It returns nil when no configuration
 // set is configured.
 func emailChannelSESConfigurationSetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	channel Channel,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	configSet := strings.TrimSpace(channel.SESConfigurationSet)
 	if configSet == "" {
 		return nil
@@ -110,12 +110,12 @@ func emailChannelSESConfigurationSetRelationship(
 	if channelID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet,
+		RelationshipType: aws.RelationshipPinpointEmailChannelUsesSESConfigurationSet,
 		SourceResourceID: channelID,
 		TargetResourceID: configSet,
-		TargetType:       awscloud.ResourceTypeSESConfigurationSet,
-		SourceRecordID:   channelID + "->" + awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet + ":" + configSet,
+		TargetType:       aws.ResourceTypeSESConfigurationSet,
+		SourceRecordID:   channelID + "->" + aws.RelationshipPinpointEmailChannelUsesSESConfigurationSet + ":" + configSet,
 	}
 }

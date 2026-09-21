@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes Proton environments, services, templates, and the service
 // placement and IAM-role dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("proton scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceProton:
+	case "", aws.ServiceProton:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceProton
+		boundary.ServiceKind = aws.ServiceProton
 	default:
 		return nil, fmt.Errorf("proton scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -61,7 +61,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, service := range snapshot.Services {
-		resource, err := awscloud.NewResourceEnvelope(serviceObservation(boundary, service))
+		resource, err := aws.NewResourceEnvelope(serviceObservation(boundary, service))
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +69,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, template := range snapshot.EnvironmentTemplates {
-		resource, err := awscloud.NewResourceEnvelope(templateObservation(boundary, template, awscloud.ResourceTypeProtonEnvironmentTemplate))
+		resource, err := aws.NewResourceEnvelope(templateObservation(boundary, template, aws.ResourceTypeProtonEnvironmentTemplate))
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 
 	for _, template := range snapshot.ServiceTemplates {
-		resource, err := awscloud.NewResourceEnvelope(templateObservation(boundary, template, awscloud.ResourceTypeProtonServiceTemplate))
+		resource, err := aws.NewResourceEnvelope(templateObservation(boundary, template, aws.ResourceTypeProtonServiceTemplate))
 		if err != nil {
 			return nil, err
 		}
@@ -95,14 +95,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // environmentEnvelopes builds the environment resource envelope plus the
 // environment-uses-IAM-role edge when a Proton service role is reported.
-func environmentEnvelopes(boundary awscloud.Boundary, environment Environment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(environmentObservation(boundary, environment))
+func environmentEnvelopes(boundary aws.Boundary, environment Environment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(environmentObservation(boundary, environment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := environmentRoleRelationship(boundary, environment); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func environmentEnvelopes(boundary awscloud.Boundary, environment Environment) (
 // one environment yield a single edge. A placement that names an environment the
 // scanner did not observe is skipped rather than dangled.
 func placementRelationshipEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot Snapshot,
 	environmentARNByName map[string]string,
 ) ([]facts.Envelope, error) {
@@ -154,7 +154,7 @@ func placementRelationshipEnvelopes(
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -163,9 +163,9 @@ func placementRelationshipEnvelopes(
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}

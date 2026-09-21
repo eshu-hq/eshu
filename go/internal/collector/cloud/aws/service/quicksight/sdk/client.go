@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsquicksight "github.com/aws/aws-sdk-go-v2/service/quicksight"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -84,7 +84,7 @@ type apiClient interface {
 // never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	accountID   string
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
@@ -94,8 +94,8 @@ type Client struct {
 // every QuickSight API requires the caller's AWS account id, which the adapter
 // threads from boundary.AccountID into each call.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -122,7 +122,7 @@ func (c *Client) Snapshot(ctx context.Context) (quicksightservice.Snapshot, erro
 	dataSources, err := c.listDataSources(ctx)
 	if err != nil {
 		if isNotSubscribed(err) {
-			return quicksightservice.Snapshot{Warnings: []awscloud.WarningObservation{c.notSubscribedWarning(err)}}, nil
+			return quicksightservice.Snapshot{Warnings: []aws.WarningObservation{c.notSubscribedWarning(err)}}, nil
 		}
 		return quicksightservice.Snapshot{}, err
 	}
@@ -160,7 +160,7 @@ func (c *Client) listDataSources(ctx context.Context) ([]quicksightservice.DataS
 		err := c.recordAPICall(ctx, "ListDataSources", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListDataSources(callCtx, &awsquicksight.ListDataSourcesInput{
-				AwsAccountId: aws.String(c.accountID),
+				AwsAccountId: awsv2.String(c.accountID),
 				NextToken:    nextToken,
 			})
 			return callErr
@@ -179,7 +179,7 @@ func (c *Client) listDataSources(ctx context.Context) ([]quicksightservice.DataS
 			dataSources = append(dataSources, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return dataSources, nil
 		}
 	}
@@ -193,7 +193,7 @@ func (c *Client) listVPCConnections(ctx context.Context) (map[string]quicksights
 		err := c.recordAPICall(ctx, "ListVPCConnections", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListVPCConnections(callCtx, &awsquicksight.ListVPCConnectionsInput{
-				AwsAccountId: aws.String(c.accountID),
+				AwsAccountId: awsv2.String(c.accountID),
 				NextToken:    nextToken,
 			})
 			return callErr
@@ -212,7 +212,7 @@ func (c *Client) listVPCConnections(ctx context.Context) (map[string]quicksights
 			connections[id] = resolved
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return connections, nil
 		}
 	}
@@ -226,7 +226,7 @@ func (c *Client) listDataSets(ctx context.Context) ([]quicksightservice.DataSet,
 		err := c.recordAPICall(ctx, "ListDataSets", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListDataSets(callCtx, &awsquicksight.ListDataSetsInput{
-				AwsAccountId: aws.String(c.accountID),
+				AwsAccountId: awsv2.String(c.accountID),
 				NextToken:    nextToken,
 			})
 			return callErr
@@ -245,7 +245,7 @@ func (c *Client) listDataSets(ctx context.Context) ([]quicksightservice.DataSet,
 			dataSets = append(dataSets, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return dataSets, nil
 		}
 	}
@@ -259,7 +259,7 @@ func (c *Client) listDashboards(ctx context.Context) ([]quicksightservice.Dashbo
 		err := c.recordAPICall(ctx, "ListDashboards", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListDashboards(callCtx, &awsquicksight.ListDashboardsInput{
-				AwsAccountId: aws.String(c.accountID),
+				AwsAccountId: awsv2.String(c.accountID),
 				NextToken:    nextToken,
 			})
 			return callErr
@@ -278,7 +278,7 @@ func (c *Client) listDashboards(ctx context.Context) ([]quicksightservice.Dashbo
 			dashboards = append(dashboards, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return dashboards, nil
 		}
 	}
@@ -292,7 +292,7 @@ func (c *Client) listAnalyses(ctx context.Context) ([]quicksightservice.Analysis
 		err := c.recordAPICall(ctx, "ListAnalyses", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListAnalyses(callCtx, &awsquicksight.ListAnalysesInput{
-				AwsAccountId: aws.String(c.accountID),
+				AwsAccountId: awsv2.String(c.accountID),
 				NextToken:    nextToken,
 			})
 			return callErr
@@ -311,7 +311,7 @@ func (c *Client) listAnalyses(ctx context.Context) ([]quicksightservice.Analysis
 			analyses = append(analyses, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return analyses, nil
 		}
 	}
@@ -326,7 +326,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awsquicksight.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return callErr
 	})
@@ -362,7 +362,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -387,8 +387,8 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 	return err
 }
 
-func (c *Client) notSubscribedWarning(err error) awscloud.WarningObservation {
-	return awscloud.WarningObservation{
+func (c *Client) notSubscribedWarning(err error) aws.WarningObservation {
+	return aws.WarningObservation{
 		Boundary:       c.boundary,
 		WarningKind:    "quicksight_not_subscribed",
 		ErrorClass:     errorClass(err),

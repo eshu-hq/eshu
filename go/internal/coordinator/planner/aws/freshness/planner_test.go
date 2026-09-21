@@ -25,8 +25,8 @@ func TestAWSFreshnessWorkPlannerPlansTargetedAWSClaims(t *testing.T) {
 		Kind:         awsfreshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-1",
 		ObservedAt:   observedAt,
 	}, observedAt)
@@ -108,7 +108,7 @@ func TestAWSFreshnessWorkPlannerRejectsUnauthorizedTarget(t *testing.T) {
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceLambda,
+		ServiceKind: aws.ServiceLambda,
 		ObservedAt:  observedAt,
 	}, observedAt)
 	if err != nil {
@@ -135,8 +135,8 @@ func testAWSPlannerTrigger(eventID string, observedAt time.Time) awsfreshness.Tr
 		Kind:         awsfreshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   eventID,
 		ObservedAt:   observedAt,
 	}

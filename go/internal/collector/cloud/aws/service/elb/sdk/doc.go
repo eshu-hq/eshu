@@ -10,4 +10,4 @@
 // DescribeInstanceHealth and exposes no mutation operation. A reflective guard
 // test fails the build if any create, delete, register, deregister, attach,
 // detach, or modify method becomes reachable.
-package awssdk
+package sdk

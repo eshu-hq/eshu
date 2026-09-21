@@ -33,7 +33,7 @@ type Snapshot struct {
 	TrustProviders []TrustProvider
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Instance is the scanner-owned Verified Access instance model. It carries

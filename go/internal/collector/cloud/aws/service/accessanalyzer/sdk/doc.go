@@ -8,4 +8,4 @@
 // detail pagination plus per-call AWS API telemetry. It maps only safe metadata:
 // aggregate finding counts, archive-rule names, analyzer bindings, and
 // per-resource unused-access timestamps.
-package awssdk
+package sdk

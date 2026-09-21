@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdocdb "github.com/aws/aws-sdk-go-v2/service/docdb"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -75,15 +75,15 @@ type apiClient interface {
 // cluster parameter values, or calls mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DocumentDB SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -106,7 +106,7 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]docdbservice.DBCluster, 
 			var err error
 			page, err = c.client.DescribeDBClusters(callCtx, &awsdocdb.DescribeDBClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -117,14 +117,14 @@ func (c *Client) ListDBClusters(ctx context.Context) ([]docdbservice.DBCluster, 
 			return clusters, nil
 		}
 		for _, raw := range page.DBClusters {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBClusterArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBClusterArn))
 			if err != nil {
 				return nil, err
 			}
 			clusters = append(clusters, mapDBCluster(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return clusters, nil
 		}
 	}
@@ -141,7 +141,7 @@ func (c *Client) ListClusterInstances(ctx context.Context) ([]docdbservice.Clust
 			var err error
 			page, err = c.client.DescribeDBInstances(callCtx, &awsdocdb.DescribeDBInstancesInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -152,14 +152,14 @@ func (c *Client) ListClusterInstances(ctx context.Context) ([]docdbservice.Clust
 			return instances, nil
 		}
 		for _, raw := range page.DBInstances {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBInstanceArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBInstanceArn))
 			if err != nil {
 				return nil, err
 			}
 			instances = append(instances, mapClusterInstance(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return instances, nil
 		}
 	}
@@ -177,7 +177,7 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]docdbservice
 			var err error
 			page, err = c.client.DescribeDBClusterParameterGroups(callCtx, &awsdocdb.DescribeDBClusterParameterGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -188,19 +188,19 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]docdbservice
 			return groups, nil
 		}
 		for _, raw := range page.DBClusterParameterGroups {
-			name := strings.TrimSpace(aws.ToString(raw.DBClusterParameterGroupName))
+			name := strings.TrimSpace(awsv2.ToString(raw.DBClusterParameterGroupName))
 			count, err := c.countParameters(ctx, name)
 			if err != nil {
 				return nil, err
 			}
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBClusterParameterGroupArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBClusterParameterGroupArn))
 			if err != nil {
 				return nil, err
 			}
 			groups = append(groups, mapClusterParameterGroup(raw, count, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -220,9 +220,9 @@ func (c *Client) countParameters(ctx context.Context, groupName string) (int, er
 		err := c.recordAPICall(ctx, "DescribeDBClusterParameters", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeDBClusterParameters(callCtx, &awsdocdb.DescribeDBClusterParametersInput{
-				DBClusterParameterGroupName: aws.String(groupName),
+				DBClusterParameterGroupName: awsv2.String(groupName),
 				Marker:                      marker,
-				MaxRecords:                  aws.Int32(describeMaxRecords),
+				MaxRecords:                  awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -234,7 +234,7 @@ func (c *Client) countParameters(ctx context.Context, groupName string) (int, er
 		}
 		count += len(page.Parameters)
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return count, nil
 		}
 	}
@@ -251,7 +251,7 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]docdbservice.Clust
 			var err error
 			page, err = c.client.DescribeDBClusterSnapshots(callCtx, &awsdocdb.DescribeDBClusterSnapshotsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -262,14 +262,14 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]docdbservice.Clust
 			return snapshots, nil
 		}
 		for _, raw := range page.DBClusterSnapshots {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBClusterSnapshotArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBClusterSnapshotArn))
 			if err != nil {
 				return nil, err
 			}
 			snapshots = append(snapshots, mapClusterSnapshot(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return snapshots, nil
 		}
 	}
@@ -286,7 +286,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]docdbservice.SubnetGro
 			var err error
 			page, err = c.client.DescribeDBSubnetGroups(callCtx, &awsdocdb.DescribeDBSubnetGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -297,14 +297,14 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]docdbservice.SubnetGro
 			return subnetGroups, nil
 		}
 		for _, raw := range page.DBSubnetGroups {
-			tags, err := c.listTags(ctx, aws.ToString(raw.DBSubnetGroupArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.DBSubnetGroupArn))
 			if err != nil {
 				return nil, err
 			}
 			subnetGroups = append(subnetGroups, mapSubnetGroup(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return subnetGroups, nil
 		}
 	}
@@ -321,7 +321,7 @@ func (c *Client) ListGlobalClusters(ctx context.Context) ([]docdbservice.GlobalC
 			var err error
 			page, err = c.client.DescribeGlobalClusters(callCtx, &awsdocdb.DescribeGlobalClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -335,7 +335,7 @@ func (c *Client) ListGlobalClusters(ctx context.Context) ([]docdbservice.GlobalC
 			globalClusters = append(globalClusters, mapGlobalCluster(raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return globalClusters, nil
 		}
 	}
@@ -352,7 +352,7 @@ func (c *Client) ListEventSubscriptions(ctx context.Context) ([]docdbservice.Eve
 			var err error
 			page, err = c.client.DescribeEventSubscriptions(callCtx, &awsdocdb.DescribeEventSubscriptionsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -363,14 +363,14 @@ func (c *Client) ListEventSubscriptions(ctx context.Context) ([]docdbservice.Eve
 			return subscriptions, nil
 		}
 		for _, raw := range page.EventSubscriptionsList {
-			tags, err := c.listTags(ctx, aws.ToString(raw.EventSubscriptionArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.EventSubscriptionArn))
 			if err != nil {
 				return nil, err
 			}
 			subscriptions = append(subscriptions, mapEventSubscription(raw, tags))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return subscriptions, nil
 		}
 	}
@@ -385,7 +385,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsdocdb.ListTagsForResourceInput{
-			ResourceName: aws.String(resourceARN),
+			ResourceName: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -413,7 +413,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

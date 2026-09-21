@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaoss "github.com/aws/aws-sdk-go-v2/service/opensearchserverless"
 	awsaosstypes "github.com/aws/aws-sdk-go-v2/service/opensearchserverless/types"
 	"go.opentelemetry.io/otel/trace"
@@ -68,7 +68,7 @@ type apiClient interface {
 // mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -76,8 +76,8 @@ type Client struct {
 // NewClient builds an OpenSearch Serverless SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -135,7 +135,7 @@ func (c *Client) listCollections(ctx context.Context) ([]aossservice.Collection,
 		}
 		summaries = append(summaries, page.CollectionSummaries...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -196,12 +196,12 @@ func (c *Client) listVPCEndpoints(ctx context.Context) ([]aossservice.VPCEndpoin
 			break
 		}
 		for _, summary := range page.VpcEndpointSummaries {
-			if id := aws.ToString(summary.Id); id != "" {
+			if id := awsv2.ToString(summary.Id); id != "" {
 				ids = append(ids, id)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -253,7 +253,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -1,4 +1,4 @@
-# services/xray/awssdk
+# services/xray/sdk
 
 AWS SDK v2 adapter that satisfies `xray.Client`. The adapter is built around a
 narrow `apiClient` interface so the compiler enforces the configuration-only

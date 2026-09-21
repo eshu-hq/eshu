@@ -16,7 +16,7 @@ import (
 
 // relationshipObservationType is the unqualified struct type name whose
 // TargetType field the static layer inspects. Scanner code constructs it as
-// awscloud.RelationshipObservation, so the selector's Sel name is matched.
+// aws.RelationshipObservation, so the selector's Sel name is matched.
 const relationshipObservationType = "RelationshipObservation"
 
 // targetTypeField is the struct field carrying the join type the guard checks.
@@ -33,7 +33,7 @@ var scannerSourceFiles = map[string]struct{}{
 
 // EmittedTargetType is one statically resolved target_type literal found in
 // scanner source. ConstBacked is true when the value came from a qualified
-// awscloud.ResourceType* selector, which the compiler already guarantees
+// aws.ResourceType* selector, which the compiler already guarantees
 // resolves to a declared constant; the guard records it for completeness but it
 // cannot be an unknown value.
 type EmittedTargetType struct {
@@ -41,7 +41,7 @@ type EmittedTargetType struct {
 	Value string
 	// File is the source file the literal was found in, for failure messages.
 	File string
-	// ConstBacked marks a value sourced from an awscloud.ResourceType* selector.
+	// ConstBacked marks a value sourced from an aws.ResourceType* selector.
 	ConstBacked bool
 }
 
@@ -51,7 +51,7 @@ type EmittedTargetType struct {
 //   - a basic string literal assigned to TargetType;
 //   - an identifier bound (by const or by a single literal assignment) to a
 //     string literal in the same package;
-//   - a qualified awscloud.ResourceType* selector (recorded as ConstBacked).
+//   - a qualified aws.ResourceType* selector (recorded as ConstBacked).
 //
 // It returns the count of TargetType expressions it could NOT resolve
 // (unresolved), which are helper calls and field reads that only the runtime
@@ -189,7 +189,7 @@ func resolveTargetTypes(
 }
 
 // resolveExpr resolves a TargetType expression to a string value. It returns
-// constBacked=true for awscloud.ResourceType* selectors, whose value is fixed
+// constBacked=true for aws.ResourceType* selectors, whose value is fixed
 // by the compiler. Helper calls, field selectors, and unknown identifiers
 // return resolved=false so the runtime layer handles them.
 func resolveExpr(
@@ -210,7 +210,7 @@ func resolveExpr(
 			return v, false, true
 		}
 	case *ast.SelectorExpr:
-		// awscloud.ResourceType* is compiler-guaranteed to be a declared
+		// aws.ResourceType* is compiler-guaranteed to be a declared
 		// constant; record the const-backed marker without a literal value.
 		if strings.HasPrefix(e.Sel.Name, resourceTypeConstPrefix) {
 			return "", true, true
@@ -263,8 +263,8 @@ func localStringAssignments(file *ast.File) map[string]string {
 }
 
 // isRelationshipObservation reports whether a composite-literal type names the
-// awscloud RelationshipObservation struct, qualified (awscloud.X) or bare (X)
-// for code inside the awscloud package itself.
+// aws RelationshipObservation struct, qualified (aws.X) or bare (X)
+// for code inside the aws package itself.
 func isRelationshipObservation(expr ast.Expr) bool {
 	switch t := expr.(type) {
 	case *ast.SelectorExpr:

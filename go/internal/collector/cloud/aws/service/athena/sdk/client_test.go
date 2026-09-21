@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsathena "github.com/aws/aws-sdk-go-v2/service/athena"
 	awsathenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 
@@ -24,33 +24,33 @@ func TestClientListWorkGroupsReadsSafeMetadataAndDiscardsForbiddenFields(t *test
 	api := &fakeAthenaAPI{
 		workGroupPages: []*awsathena.ListWorkGroupsOutput{{
 			WorkGroups: []awsathenatypes.WorkGroupSummary{{
-				Name:        aws.String("primary"),
-				Description: aws.String("default"),
+				Name:        awsv2.String("primary"),
+				Description: awsv2.String("default"),
 				State:       awsathenatypes.WorkGroupStateEnabled,
 			}},
 		}},
 		workGroupDetails: map[string]*awsathena.GetWorkGroupOutput{
 			"primary": {
 				WorkGroup: &awsathenatypes.WorkGroup{
-					Name:         aws.String("primary"),
-					Description:  aws.String("default workgroup"),
+					Name:         awsv2.String("primary"),
+					Description:  awsv2.String("default workgroup"),
 					State:        awsathenatypes.WorkGroupStateEnabled,
-					CreationTime: aws.Time(creation),
+					CreationTime: awsv2.Time(creation),
 					Configuration: &awsathenatypes.WorkGroupConfiguration{
-						BytesScannedCutoffPerQuery:      aws.Int64(10737418240),
-						EnforceWorkGroupConfiguration:   aws.Bool(true),
-						PublishCloudWatchMetricsEnabled: aws.Bool(true),
-						RequesterPaysEnabled:            aws.Bool(false),
+						BytesScannedCutoffPerQuery:      awsv2.Int64(10737418240),
+						EnforceWorkGroupConfiguration:   awsv2.Bool(true),
+						PublishCloudWatchMetricsEnabled: awsv2.Bool(true),
+						RequesterPaysEnabled:            awsv2.Bool(false),
 						EngineVersion: &awsathenatypes.EngineVersion{
-							EffectiveEngineVersion: aws.String("Athena engine version 3"),
-							SelectedEngineVersion:  aws.String("AUTO"),
+							EffectiveEngineVersion: awsv2.String("Athena engine version 3"),
+							SelectedEngineVersion:  awsv2.String("AUTO"),
 						},
 						ResultConfiguration: &awsathenatypes.ResultConfiguration{
-							OutputLocation:      aws.String("s3://athena-results-orders/queries/"),
-							ExpectedBucketOwner: aws.String("123456789012"),
+							OutputLocation:      awsv2.String("s3://athena-results-orders/queries/"),
+							ExpectedBucketOwner: awsv2.String("123456789012"),
 							EncryptionConfiguration: &awsathenatypes.EncryptionConfiguration{
 								EncryptionOption: awsathenatypes.EncryptionOptionSseKms,
-								KmsKey:           aws.String(kmsARN),
+								KmsKey:           awsv2.String(kmsARN),
 							},
 						},
 					},
@@ -58,17 +58,17 @@ func TestClientListWorkGroupsReadsSafeMetadataAndDiscardsForbiddenFields(t *test
 			},
 		},
 		workGroupTags: map[string][]awsathenatypes.Tag{
-			wgArn: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			wgArn: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: aws.ServiceAthena,
 		},
-		workGroupARN: func(_ awscloud.Boundary, name string) string {
+		workGroupARN: func(_ aws.Boundary, name string) string {
 			if name == "primary" {
 				return wgArn
 			}
@@ -126,40 +126,40 @@ func TestClientListDataCatalogsReadsSafeMetadata(t *testing.T) {
 	api := &fakeAthenaAPI{
 		dataCatalogPages: []*awsathena.ListDataCatalogsOutput{{
 			DataCatalogsSummary: []awsathenatypes.DataCatalogSummary{
-				{CatalogName: aws.String("AwsDataCatalog"), Type: awsathenatypes.DataCatalogTypeGlue},
-				{CatalogName: aws.String("external_orders"), Type: awsathenatypes.DataCatalogTypeLambda},
+				{CatalogName: awsv2.String("AwsDataCatalog"), Type: awsathenatypes.DataCatalogTypeGlue},
+				{CatalogName: awsv2.String("external_orders"), Type: awsathenatypes.DataCatalogTypeLambda},
 			},
 		}},
 		dataCatalogDetails: map[string]*awsathena.GetDataCatalogOutput{
 			"AwsDataCatalog": {
 				DataCatalog: &awsathenatypes.DataCatalog{
-					Name:        aws.String("AwsDataCatalog"),
+					Name:        awsv2.String("AwsDataCatalog"),
 					Type:        awsathenatypes.DataCatalogTypeGlue,
-					Description: aws.String("Glue catalog"),
+					Description: awsv2.String("Glue catalog"),
 				},
 			},
 			"external_orders": {
 				DataCatalog: &awsathenatypes.DataCatalog{
-					Name:        aws.String("external_orders"),
+					Name:        awsv2.String("external_orders"),
 					Type:        awsathenatypes.DataCatalogTypeLambda,
-					Description: aws.String("external orders catalog"),
+					Description: awsv2.String("external orders catalog"),
 				},
 			},
 		},
 		dataCatalogTags: map[string][]awsathenatypes.Tag{
 			"arn:aws:athena:us-east-1:123456789012:datacatalog/AwsDataCatalog": {
-				{Key: aws.String("Owner"), Value: aws.String("platform")},
+				{Key: awsv2.String("Owner"), Value: awsv2.String("platform")},
 			},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: aws.ServiceAthena,
 		},
-		dataCatalogARN: func(_ awscloud.Boundary, name string) string {
+		dataCatalogARN: func(_ aws.Boundary, name string) string {
 			return "arn:aws:athena:us-east-1:123456789012:datacatalog/" + name
 		},
 	}
@@ -200,18 +200,18 @@ func TestClientListPreparedStatementsReadsNamesAndNeverCallsGetPreparedStatement
 		preparedStatementPages: map[string][]*awsathena.ListPreparedStatementsOutput{
 			"primary": {{
 				PreparedStatements: []awsathenatypes.PreparedStatementSummary{{
-					StatementName:    aws.String("orders_by_day"),
-					LastModifiedTime: aws.Time(modified),
+					StatementName:    awsv2.String("orders_by_day"),
+					LastModifiedTime: awsv2.Time(modified),
 				}},
 			}},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: aws.ServiceAthena,
 		},
 	}
 
@@ -249,21 +249,21 @@ func TestClientListNamedQueriesStripsSQLBodyBeforeReturningToScanner(t *testing.
 		},
 		batchGetNamedQueryOutput: &awsathena.BatchGetNamedQueryOutput{
 			NamedQueries: []awsathenatypes.NamedQuery{{
-				NamedQueryId: aws.String("11111111-2222-3333-4444-555555555555"),
-				Name:         aws.String("daily-orders"),
-				Database:     aws.String("orders"),
-				Description:  aws.String("daily orders summary"),
-				WorkGroup:    aws.String("primary"),
-				QueryString:  aws.String("SELECT customer_email, ssn FROM orders WHERE ds = current_date"),
+				NamedQueryId: awsv2.String("11111111-2222-3333-4444-555555555555"),
+				Name:         awsv2.String("daily-orders"),
+				Database:     awsv2.String("orders"),
+				Description:  awsv2.String("daily orders summary"),
+				WorkGroup:    awsv2.String("primary"),
+				QueryString:  awsv2.String("SELECT customer_email, ssn FROM orders WHERE ds = current_date"),
 			}},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: aws.ServiceAthena,
 		},
 	}
 
@@ -311,20 +311,20 @@ func TestClientNeverCallsGetNamedQuery(t *testing.T) {
 		},
 		batchGetNamedQueryOutput: &awsathena.BatchGetNamedQueryOutput{
 			NamedQueries: []awsathenatypes.NamedQuery{{
-				NamedQueryId: aws.String("id-1"),
-				Name:         aws.String("daily-orders"),
-				Database:     aws.String("orders"),
-				WorkGroup:    aws.String("primary"),
-				QueryString:  aws.String("SELECT 1"),
+				NamedQueryId: awsv2.String("id-1"),
+				Name:         awsv2.String("daily-orders"),
+				Database:     awsv2.String("orders"),
+				WorkGroup:    awsv2.String("primary"),
+				QueryString:  awsv2.String("SELECT 1"),
 			}},
 		},
 	}
 	adapter := &Client{
 		client: api,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: aws.ServiceAthena,
 		},
 	}
 
@@ -394,7 +394,7 @@ func (f *fakeAthenaAPI) GetWorkGroup(
 	if input == nil {
 		return &awsathena.GetWorkGroupOutput{}, nil
 	}
-	if output, ok := f.workGroupDetails[aws.ToString(input.WorkGroup)]; ok {
+	if output, ok := f.workGroupDetails[awsv2.ToString(input.WorkGroup)]; ok {
 		return output, nil
 	}
 	return &awsathena.GetWorkGroupOutput{}, nil
@@ -421,7 +421,7 @@ func (f *fakeAthenaAPI) GetDataCatalog(
 	if input == nil {
 		return &awsathena.GetDataCatalogOutput{}, nil
 	}
-	if output, ok := f.dataCatalogDetails[aws.ToString(input.Name)]; ok {
+	if output, ok := f.dataCatalogDetails[awsv2.ToString(input.Name)]; ok {
 		return output, nil
 	}
 	return &awsathena.GetDataCatalogOutput{}, nil
@@ -435,7 +435,7 @@ func (f *fakeAthenaAPI) ListPreparedStatements(
 	if input == nil {
 		return &awsathena.ListPreparedStatementsOutput{}, nil
 	}
-	workGroup := aws.ToString(input.WorkGroup)
+	workGroup := awsv2.ToString(input.WorkGroup)
 	if f.preparedStatementCalls == nil {
 		f.preparedStatementCalls = make(map[string]int)
 	}
@@ -457,7 +457,7 @@ func (f *fakeAthenaAPI) ListNamedQueries(
 	if input == nil {
 		return &awsathena.ListNamedQueriesOutput{}, nil
 	}
-	workGroup := aws.ToString(input.WorkGroup)
+	workGroup := awsv2.ToString(input.WorkGroup)
 	if f.namedQueryCalls == nil {
 		f.namedQueryCalls = make(map[string]int)
 	}
@@ -490,7 +490,7 @@ func (f *fakeAthenaAPI) ListTagsForResource(
 	if input == nil {
 		return &awsathena.ListTagsForResourceOutput{}, nil
 	}
-	resource := aws.ToString(input.ResourceARN)
+	resource := awsv2.ToString(input.ResourceARN)
 	if tags, ok := f.workGroupTags[resource]; ok {
 		return &awsathena.ListTagsForResourceOutput{Tags: tags}, nil
 	}

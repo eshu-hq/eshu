@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsinspector2 "github.com/aws/aws-sdk-go-v2/service/inspector2"
 	i2types "github.com/aws/aws-sdk-go-v2/service/inspector2/types"
 	"go.opentelemetry.io/otel/trace"
@@ -35,15 +35,15 @@ type apiClient interface {
 // scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Inspector v2 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -82,7 +82,7 @@ func (c *Client) AccountStatus(ctx context.Context) (inspector2service.AccountSt
 				"inspector v2 BatchGetAccountStatus reported account %s as failed (%s): %s",
 				c.boundary.AccountID,
 				failure.ErrorCode,
-				aws.ToString(failure.ErrorMessage),
+				awsv2.ToString(failure.ErrorMessage),
 			)
 		}
 		return inspector2service.AccountStatus{AccountID: c.boundary.AccountID}, nil
@@ -96,7 +96,7 @@ func (c *Client) AccountStatus(ctx context.Context) (inspector2service.AccountSt
 // the requested account.
 func failedAccountFor(failures []i2types.FailedAccount, accountID string) (i2types.FailedAccount, bool) {
 	for _, failure := range failures {
-		if aws.ToString(failure.AccountId) == accountID {
+		if awsv2.ToString(failure.AccountId) == accountID {
 			return failure, true
 		}
 	}
@@ -116,7 +116,7 @@ func (c *Client) ListMembers(ctx context.Context) ([]inspector2service.MemberAcc
 		err := c.recordAPICall(ctx, "ListMembers", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListMembers(callCtx, &awsinspector2.ListMembersInput{
-				OnlyAssociated: aws.Bool(false),
+				OnlyAssociated: awsv2.Bool(false),
 				NextToken:      nextToken,
 			})
 			return err
@@ -131,7 +131,7 @@ func (c *Client) ListMembers(ctx context.Context) ([]inspector2service.MemberAcc
 			members = append(members, mapMember(member))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return members, nil
 		}
 	}
@@ -162,7 +162,7 @@ func (c *Client) ListFilters(ctx context.Context) ([]inspector2service.FilterSum
 			filters = append(filters, mapFilter(filter))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return filters, nil
 		}
 	}
@@ -192,7 +192,7 @@ func (c *Client) ListCisScanConfigurations(ctx context.Context) ([]inspector2ser
 			configs = append(configs, mapCisScanConfiguration(config))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return configs, nil
 		}
 	}
@@ -204,7 +204,7 @@ func mapAccountState(state i2types.AccountState) inspector2service.AccountStatus
 		status = string(state.State.Status)
 	}
 	return inspector2service.AccountStatus{
-		AccountID: strings.TrimSpace(aws.ToString(state.AccountId)),
+		AccountID: strings.TrimSpace(awsv2.ToString(state.AccountId)),
 		Status:    status,
 		Features:  mapResourceState(state.ResourceState),
 	}
@@ -237,8 +237,8 @@ func appendFeature(features []inspector2service.FeatureStatus, key string, state
 
 func mapMember(member i2types.Member) inspector2service.MemberAccount {
 	return inspector2service.MemberAccount{
-		AccountID:          strings.TrimSpace(aws.ToString(member.AccountId)),
-		AdministratorID:    strings.TrimSpace(aws.ToString(member.DelegatedAdminAccountId)),
+		AccountID:          strings.TrimSpace(awsv2.ToString(member.AccountId)),
+		AdministratorID:    strings.TrimSpace(awsv2.ToString(member.DelegatedAdminAccountId)),
 		RelationshipStatus: string(member.RelationshipStatus),
 		UpdatedAt:          formatTime(member.UpdatedAt),
 	}
@@ -246,18 +246,18 @@ func mapMember(member i2types.Member) inspector2service.MemberAccount {
 
 func mapFilter(filter i2types.Filter) inspector2service.FilterSummary {
 	return inspector2service.FilterSummary{
-		ARN:     strings.TrimSpace(aws.ToString(filter.Arn)),
-		Name:    strings.TrimSpace(aws.ToString(filter.Name)),
+		ARN:     strings.TrimSpace(awsv2.ToString(filter.Arn)),
+		Name:    strings.TrimSpace(awsv2.ToString(filter.Name)),
 		Action:  string(filter.Action),
-		OwnerID: strings.TrimSpace(aws.ToString(filter.OwnerId)),
+		OwnerID: strings.TrimSpace(awsv2.ToString(filter.OwnerId)),
 	}
 }
 
 func mapCisScanConfiguration(config i2types.CisScanConfiguration) inspector2service.CisScanConfiguration {
 	return inspector2service.CisScanConfiguration{
-		ARN:            strings.TrimSpace(aws.ToString(config.ScanConfigurationArn)),
-		Name:           strings.TrimSpace(aws.ToString(config.ScanName)),
-		OwnerID:        strings.TrimSpace(aws.ToString(config.OwnerId)),
+		ARN:            strings.TrimSpace(awsv2.ToString(config.ScanConfigurationArn)),
+		Name:           strings.TrimSpace(awsv2.ToString(config.ScanName)),
+		OwnerID:        strings.TrimSpace(awsv2.ToString(config.OwnerId)),
 		SecurityLevel:  string(config.SecurityLevel),
 		ScheduleKind:   scheduleKind(config.Schedule),
 		TargetAccounts: cisTargetAccounts(config.Targets),

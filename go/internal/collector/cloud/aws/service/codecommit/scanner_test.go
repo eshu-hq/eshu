@@ -52,7 +52,7 @@ func TestScannerEmitsRepositoryResourceWithMetadataOnly(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	resource := resourceEnvelope(t, envelopes, awscloud.ResourceTypeCodeCommitRepository)
+	resource := resourceEnvelope(t, envelopes, aws.ResourceTypeCodeCommitRepository)
 	if got, _ := resource.Payload["arn"].(string); got != testRepositoryARN {
 		t.Fatalf("repository arn = %q, want %q", got, testRepositoryARN)
 	}
@@ -82,7 +82,7 @@ func TestScannerPublishesCodeToCloudCorrelationAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	resource := resourceEnvelope(t, envelopes, awscloud.ResourceTypeCodeCommitRepository)
+	resource := resourceEnvelope(t, envelopes, aws.ResourceTypeCodeCommitRepository)
 	anchors := stringSlice(resource.Payload["correlation_anchors"])
 	// The repository name and full clone URLs are the join keys a CodeBuild
 	// project, CodePipeline source action, or Amplify app reports for its Git
@@ -100,9 +100,9 @@ func TestScannerEmitsKMSKeyEncryptionEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey)
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeKMSKey {
-		t.Fatalf("kms edge target_type = %q, want %q", got, awscloud.ResourceTypeKMSKey)
+	edge := relationshipEnvelope(t, envelopes, aws.RelationshipCodeCommitRepositoryEncryptedWithKMSKey)
+	if got, _ := edge.Payload["target_type"].(string); got != aws.ResourceTypeKMSKey {
+		t.Fatalf("kms edge target_type = %q, want %q", got, aws.ResourceTypeKMSKey)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != testKMSKeyARN {
 		t.Fatalf("kms edge target_resource_id = %q, want %q", got, testKMSKeyARN)
@@ -118,9 +118,9 @@ func TestScannerEmitsSNSTopicTriggerEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic)
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeSNSTopic {
-		t.Fatalf("sns edge target_type = %q, want %q", got, awscloud.ResourceTypeSNSTopic)
+	edge := relationshipEnvelope(t, envelopes, aws.RelationshipCodeCommitRepositoryTriggersSNSTopic)
+	if got, _ := edge.Payload["target_type"].(string); got != aws.ResourceTypeSNSTopic {
+		t.Fatalf("sns edge target_type = %q, want %q", got, aws.ResourceTypeSNSTopic)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != testSNSTopicARN {
 		t.Fatalf("sns edge target_resource_id = %q, want %q", got, testSNSTopicARN)
@@ -215,7 +215,7 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = aws.ServiceIAM
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatal("Scan() error = nil, want service kind mismatch")
 	}
@@ -227,11 +227,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeCommit,
+		ServiceKind:         aws.ServiceCodeCommit,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:codecommit:1",
 		CollectorInstanceID: "aws-prod",

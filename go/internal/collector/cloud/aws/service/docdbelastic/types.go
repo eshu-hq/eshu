@@ -27,7 +27,7 @@ type Snapshot struct {
 	Clusters []Cluster
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Cluster is the scanner-owned DocumentDB Elastic Clusters model. It carries

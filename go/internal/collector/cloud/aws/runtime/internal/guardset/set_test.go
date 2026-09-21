@@ -14,7 +14,7 @@ import (
 )
 
 // TestServiceFromImportPath covers the extraction of the service token from a
-// runtimebind blank-import path, including the non-runtimebind and malformed
+// bind blank-import path, including the non-bind and malformed
 // cases the parser must ignore.
 func TestServiceFromImportPath(t *testing.T) {
 	cases := []struct {
@@ -24,7 +24,7 @@ func TestServiceFromImportPath(t *testing.T) {
 		ok   bool
 	}{
 		{
-			name: "canonical runtimebind import",
+			name: "canonical bind import",
 			path: "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/iam/bind",
 			want: "iam",
 			ok:   true,
@@ -36,7 +36,7 @@ func TestServiceFromImportPath(t *testing.T) {
 			ok:   true,
 		},
 		{
-			name: "non-runtimebind service import is ignored",
+			name: "non-bind service import is ignored",
 			path: "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/iam",
 			want: "",
 			ok:   false,
@@ -48,7 +48,7 @@ func TestServiceFromImportPath(t *testing.T) {
 			ok:   false,
 		},
 		{
-			name: "deeper nested package under runtimebind is ignored",
+			name: "deeper nested package under bind is ignored",
 			path: "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/iam/bind/extra",
 			want: "",
 			ok:   false,
@@ -73,8 +73,8 @@ func TestServiceFromImportPath(t *testing.T) {
 // TestDiff is the core guard proof. It must report a difference whenever the
 // directory set and the import set disagree, and report none when they match.
 // The "dir present but not imported" case is the real failure mode the guard
-// protects against: a scanner author adds services/<x>/runtimebind/ but forgets
-// the bindings.go blank import.
+// protects against: a scanner author adds services/<x>/bind/ but forgets
+// the all.go blank import.
 func TestDiff(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -89,13 +89,13 @@ func TestDiff(t *testing.T) {
 			imports: []string{"ec2", "iam", "s3"},
 		},
 		{
-			name:        "runtimebind dir present but not imported is missing",
+			name:        "bind dir present but not imported is missing",
 			dirs:        []string{"iam", "s3", "newscanner"},
 			imports:     []string{"iam", "s3"},
 			wantMissing: []string{"newscanner"},
 		},
 		{
-			name:      "import present but no runtimebind dir is extra",
+			name:      "import present but no bind dir is extra",
 			dirs:      []string{"iam", "s3"},
 			imports:   []string{"iam", "s3", "ghost"},
 			wantExtra: []string{"ghost"},
@@ -132,25 +132,25 @@ func TestDiff(t *testing.T) {
 	}
 }
 
-// TestRuntimebindServiceDirs proves the filesystem reader finds the real
-// service runtimebind directories from the live tree, independent of any
+// TestBindServiceDirs proves the filesystem reader finds the real
+// service bind directories from the live tree, independent of any
 // hardcoded list or the registry.
-func TestRuntimebindServiceDirs(t *testing.T) {
+func TestBindServiceDirs(t *testing.T) {
 	serviceDir := liveServicesDir(t)
-	dirs, err := guardset.RuntimebindServiceDirs(serviceDir)
+	dirs, err := guardset.BindServiceDirs(serviceDir)
 	if err != nil {
-		t.Fatalf("RuntimebindServiceDirs() error = %v", err)
+		t.Fatalf("BindServiceDirs() error = %v", err)
 	}
 	if len(dirs) == 0 {
-		t.Fatalf("RuntimebindServiceDirs() = empty, want the live scanner set")
+		t.Fatalf("BindServiceDirs() = empty, want the live scanner set")
 	}
 	if !contains(dirs, "iam") {
-		t.Fatalf("RuntimebindServiceDirs() = %v, want it to include iam", dirs)
+		t.Fatalf("BindServiceDirs() = %v, want it to include iam", dirs)
 	}
 }
 
 // TestBindingsImportServices proves the source reader extracts the service set
-// from the live bindings.go and that it agrees with the directory walk. This is
+// from the live all.go and that it agrees with the directory walk. This is
 // the assertion the guard tests rely on, exercised here against real inputs so
 // the helpers are proven before the guard tests wire them together.
 func TestBindingsImportServices(t *testing.T) {
@@ -163,9 +163,9 @@ func TestBindingsImportServices(t *testing.T) {
 		t.Fatalf("BindingsImportServices() = empty, want the live import set")
 	}
 
-	dirs, err := guardset.RuntimebindServiceDirs(liveServicesDir(t))
+	dirs, err := guardset.BindServiceDirs(liveServicesDir(t))
 	if err != nil {
-		t.Fatalf("RuntimebindServiceDirs() error = %v", err)
+		t.Fatalf("BindServiceDirs() error = %v", err)
 	}
 	missing, extra := guardset.Diff(dirs, imports)
 	if len(missing) != 0 || len(extra) != 0 {
@@ -181,12 +181,12 @@ func liveServicesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// guardset_test.go -> guardset -> internal -> awsruntime -> awscloud
-	awscloudDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
-	return filepath.Join(awscloudDir, "service")
+	// guardset_test.go -> guardset -> internal -> runtime -> aws
+	awsDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
+	return filepath.Join(awsDir, "service")
 }
 
-// liveBindingsFile resolves the live bindings.go source from this test file's
+// liveBindingsFile resolves the live all.go source from this test file's
 // location.
 func liveBindingsFile(t *testing.T) string {
 	t.Helper()
@@ -194,9 +194,9 @@ func liveBindingsFile(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// guardset_test.go -> guardset -> internal -> awsruntime
-	awsruntimeDir := filepath.Join(filepath.Dir(currentFile), "..", "..")
-	return filepath.Join(awsruntimeDir, "bindings", "bindings.go")
+	// guardset_test.go -> guardset -> internal -> runtime
+	runtimeDir := filepath.Join(filepath.Dir(currentFile), "..", "..")
+	return filepath.Join(runtimeDir, "bindings", "all.go")
 }
 
 func contains(s []string, v string) bool {

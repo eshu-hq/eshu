@@ -14,7 +14,7 @@ import (
 // from the scan boundary and the load balancer name. The partition is derived
 // from the boundary region so GovCloud and China joins resolve instead of
 // dangling; the commercial partition is never hardcoded.
-func loadBalancerARN(boundary awscloud.Boundary, name string) string {
+func loadBalancerARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
@@ -28,19 +28,19 @@ func loadBalancerARN(boundary awscloud.Boundary, name string) string {
 // balancer: registered instances, subnets, security groups, the VPC, and
 // HTTPS/SSL listener certificates. Edges with no resolvable target are skipped.
 func loadBalancerRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	loadBalancer LoadBalancer,
 	loadBalancerARN string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	if loadBalancerARN == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	for _, instanceID := range dedupe(loadBalancer.InstanceIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerRegistersInstance,
+			RelationshipType: aws.RelationshipELBLoadBalancerRegistersInstance,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: instanceID,
@@ -50,37 +50,37 @@ func loadBalancerRelationships(
 	}
 
 	for _, subnetID := range dedupe(loadBalancer.Subnets) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerInSubnet,
+			RelationshipType: aws.RelationshipELBLoadBalancerInSubnet,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   loadBalancerARN + "#subnet#" + subnetID,
 		})
 	}
 
 	for _, groupID := range dedupe(loadBalancer.SecurityGroups) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerUsesSecurityGroup,
+			RelationshipType: aws.RelationshipELBLoadBalancerUsesSecurityGroup,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   loadBalancerARN + "#security-group#" + groupID,
 		})
 	}
 
 	if vpcID := strings.TrimSpace(loadBalancer.VPCID); vpcID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerInVPC,
+			RelationshipType: aws.RelationshipELBLoadBalancerInVPC,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			SourceRecordID:   loadBalancerARN + "#vpc#" + vpcID,
 		})
 	}
@@ -96,11 +96,11 @@ func loadBalancerRelationships(
 // forward reference). A listener with no certificate, or a certificate id that
 // is not ARN-shaped, is skipped so no edge dangles.
 func certificateRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	loadBalancer LoadBalancer,
 	loadBalancerARN string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	seen := make(map[string]struct{})
 	for _, listener := range loadBalancer.Listeners {
 		certificateARN := strings.TrimSpace(listener.SSLCertificateID)
@@ -121,7 +121,7 @@ func certificateRelationships(
 		// protocol are therefore omitted here — they would reflect only the
 		// first listener and silently misrepresent the rest. The full listener
 		// list (ports/protocols) is preserved on the load balancer resource.
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: relationshipType,
 			SourceResourceID: loadBalancerARN,
@@ -142,9 +142,9 @@ func certificateRelationships(
 func certificateEdgeKind(certificateARN string) (relationshipType, targetType string, ok bool) {
 	switch {
 	case arnService(certificateARN) == "acm":
-		return awscloud.RelationshipELBLoadBalancerUsesACMCertificate, awscloud.ResourceTypeACMCertificate, true
+		return aws.RelationshipELBLoadBalancerUsesACMCertificate, aws.ResourceTypeACMCertificate, true
 	case arnService(certificateARN) == "iam":
-		return awscloud.RelationshipELBLoadBalancerUsesIAMServerCertificate, iamServerCertificateTargetType, true
+		return aws.RelationshipELBLoadBalancerUsesIAMServerCertificate, iamServerCertificateTargetType, true
 	default:
 		return "", "", false
 	}
@@ -155,7 +155,7 @@ func certificateEdgeKind(certificateARN string) (relationshipType, targetType st
 // the partition source for the synthesized load balancer ARN; hardcoding the
 // commercial partition would mis-key the resource node and every edge in
 // GovCloud and China.
-func partition(boundary awscloud.Boundary) string {
+func partition(boundary aws.Boundary) string {
 	region := strings.TrimSpace(boundary.Region)
 	switch {
 	case strings.HasPrefix(region, "us-gov-"):

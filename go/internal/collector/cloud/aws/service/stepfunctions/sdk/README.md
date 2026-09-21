@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/stepfunctions/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/stepfunctions/sdk` adapts AWS SDK for
 Go v2 Step Functions responses to the scanner-owned `Client` contract. It
 owns state machine pagination, state machine description, activity
 pagination, tag reads (for both state machines and activities),
@@ -44,9 +44,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/stepfunctions` for scanner-owned
+- `internal/collector/cloud/aws/service/stepfunctions` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `sfn` and Smithy error contracts.

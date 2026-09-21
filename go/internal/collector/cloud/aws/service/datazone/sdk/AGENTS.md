@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/datazone/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/datazone/sdk guidance
 
 ## Read First
 

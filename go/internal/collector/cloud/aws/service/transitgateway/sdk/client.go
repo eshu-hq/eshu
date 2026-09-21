@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -39,18 +39,18 @@ type apiClient interface {
 
 // Client adapts AWS SDK EC2 Transit Gateway pagination into scanner-owned
 // records. It holds no mutable cross-call state; the AWS SDK client is
-// constructed per claim by the runtimebind builder.
+// constructed per claim by the bind builder.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Transit Gateway SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -66,7 +66,7 @@ func NewClient(
 // credentials.
 func (c *Client) ListTransitGateways(ctx context.Context) ([]tgwservice.TransitGateway, error) {
 	paginator := awsec2.NewDescribeTransitGatewaysPaginator(c.client, &awsec2.DescribeTransitGatewaysInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var gateways []tgwservice.TransitGateway
 	for paginator.HasMorePages() {
@@ -90,7 +90,7 @@ func (c *Client) ListTransitGateways(ctx context.Context) ([]tgwservice.TransitG
 // the configured AWS credentials.
 func (c *Client) ListTransitGatewayRouteTables(ctx context.Context) ([]tgwservice.RouteTable, error) {
 	paginator := awsec2.NewDescribeTransitGatewayRouteTablesPaginator(c.client, &awsec2.DescribeTransitGatewayRouteTablesInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var routeTables []tgwservice.RouteTable
 	for paginator.HasMorePages() {
@@ -115,7 +115,7 @@ func (c *Client) ListTransitGatewayRouteTables(ctx context.Context) ([]tgwservic
 // peering, and Connect attachments through this one API.
 func (c *Client) ListTransitGatewayAttachments(ctx context.Context) ([]tgwservice.Attachment, error) {
 	paginator := awsec2.NewDescribeTransitGatewayAttachmentsPaginator(c.client, &awsec2.DescribeTransitGatewayAttachmentsInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var attachments []tgwservice.Attachment
 	for paginator.HasMorePages() {
@@ -139,7 +139,7 @@ func (c *Client) ListTransitGatewayAttachments(ctx context.Context) ([]tgwservic
 // attachments visible to the configured AWS credentials.
 func (c *Client) ListTransitGatewayPeeringAttachments(ctx context.Context) ([]tgwservice.PeeringAttachment, error) {
 	paginator := awsec2.NewDescribeTransitGatewayPeeringAttachmentsPaginator(c.client, &awsec2.DescribeTransitGatewayPeeringAttachmentsInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var peerings []tgwservice.PeeringAttachment
 	for paginator.HasMorePages() {
@@ -163,7 +163,7 @@ func (c *Client) ListTransitGatewayPeeringAttachments(ctx context.Context) ([]tg
 // visible to the configured AWS credentials.
 func (c *Client) ListTransitGatewayMulticastDomains(ctx context.Context) ([]tgwservice.MulticastDomain, error) {
 	paginator := awsec2.NewDescribeTransitGatewayMulticastDomainsPaginator(c.client, &awsec2.DescribeTransitGatewayMulticastDomainsInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var domains []tgwservice.MulticastDomain
 	for paginator.HasMorePages() {
@@ -188,7 +188,7 @@ func (c *Client) ListTransitGatewayMulticastDomains(ctx context.Context) ([]tgws
 // GetTransitGatewayPolicyTableEntries; only identity and state are read.
 func (c *Client) ListTransitGatewayPolicyTables(ctx context.Context) ([]tgwservice.PolicyTable, error) {
 	paginator := awsec2.NewDescribeTransitGatewayPolicyTablesPaginator(c.client, &awsec2.DescribeTransitGatewayPolicyTablesInput{
-		MaxResults: aws.Int32(transitGatewayPageLimit),
+		MaxResults: awsv2.Int32(transitGatewayPageLimit),
 	})
 	var policyTables []tgwservice.PolicyTable
 	for paginator.HasMorePages() {
@@ -226,7 +226,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

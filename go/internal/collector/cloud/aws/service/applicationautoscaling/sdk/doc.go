@@ -13,4 +13,4 @@
 // the adapter cannot mutate or invoke scaling state. A namespace throttled after
 // SDK retries records a non-fatal sustained-throttle warning and is skipped
 // rather than failing the whole scan.
-package awssdk
+package sdk

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/appstream guidance
+# AGENTS.md - internal/collector/cloud/aws/service/appstream guidance
 
 ## Read First
 
@@ -31,12 +31,12 @@
 - IAM role and image edges key on the ARNs AppStream reports. Set `target_arn`
   on those edges.
 - Stack S3 edges synthesize the partition-aware bucket ARN with
-  `awscloud.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
+  `aws.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
   China must resolve to the real bucket node. Only the application-settings
   bucket and HOMEFOLDERS storage-connector buckets are S3 buckets; Google Drive
   and OneDrive connectors carry domains, not buckets.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Scope image reads to PRIVATE and SHARED visibility; do not scan the
   AWS-managed PUBLIC base-image catalog.
@@ -48,13 +48,13 @@
 
 - Add a new AppStream metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry session, user, or
+  `aws` envelope builders. If the field can carry session, user, or
   credential content, leave it out of the scanner contract.
 - Add new relationship evidence only when the AppStream API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (bare ids for subnets/security groups, ARNs for IAM roles
   and the synthesized S3 bucket, the stack/image node id for internal edges).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

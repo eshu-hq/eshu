@@ -39,7 +39,7 @@ func TestScannerEmitsCertificateAuthorityMetadataKeyedByARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	ca := resourceByType(t, envelopes, awscloud.ResourceTypeACMPCACertificateAuthority)
+	ca := resourceByType(t, envelopes, aws.ResourceTypeACMPCACertificateAuthority)
 	// The resource_id contract: the CA ARN. App Mesh virtual-node client TLS
 	// trust edges target aws_acmpca_certificate_authority keyed by this ARN.
 	if got, want := ca.Payload["resource_id"], caARN; got != want {
@@ -111,7 +111,7 @@ func TestScannerEmitsKMSKeyRelationshipWhenARNReported(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey)
+	relationships := relationshipsByType(envelopes, aws.RelationshipACMPCACertificateAuthorityUsesKMSKey)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("KMS relationship count = %d, want %d", got, want)
 	}
@@ -125,7 +125,7 @@ func TestScannerEmitsKMSKeyRelationshipWhenARNReported(t *testing.T) {
 	if got, want := rel.Payload["target_arn"], kmsKeyARN; got != want {
 		t.Fatalf("target_arn = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := rel.Payload["target_type"], aws.ResourceTypeKMSKey; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 }
@@ -142,7 +142,7 @@ func TestScannerSkipsKMSKeyRelationshipForNonARNValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if rels := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey); len(rels) != 0 {
+	if rels := relationshipsByType(envelopes, aws.RelationshipACMPCACertificateAuthorityUsesKMSKey); len(rels) != 0 {
 		t.Fatalf("KMS relationship emitted for non-ARN key value: %#v", rels)
 	}
 }
@@ -162,7 +162,7 @@ func TestScannerEmitsSubordinateToParentRelationshipWhenParentReported(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent)
+	relationships := relationshipsByType(envelopes, aws.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("parent relationship count = %d, want %d", got, want)
 	}
@@ -173,7 +173,7 @@ func TestScannerEmitsSubordinateToParentRelationshipWhenParentReported(t *testin
 	if got, want := rel.Payload["target_resource_id"], parentARN; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q (must match parent CA resource_id = CA ARN)", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeACMPCACertificateAuthority; got != want {
+	if got, want := rel.Payload["target_type"], aws.ResourceTypeACMPCACertificateAuthority; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 }
@@ -192,7 +192,7 @@ func TestScannerSkipsParentRelationshipForRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if rels := relationshipsByType(envelopes, awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent); len(rels) != 0 {
+	if rels := relationshipsByType(envelopes, aws.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent); len(rels) != 0 {
 		t.Fatalf("parent relationship emitted for ROOT CA: %#v", rels)
 	}
 }
@@ -212,7 +212,7 @@ func TestScannerEmitsCRLBucketRelationshipWhenConfigured(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket)
+	relationships := relationshipsByType(envelopes, aws.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("CRL relationship count = %d, want %d", got, want)
 	}
@@ -220,7 +220,7 @@ func TestScannerEmitsCRLBucketRelationshipWhenConfigured(t *testing.T) {
 	if got, want := rel.Payload["target_resource_id"], "eshu-crl-bucket"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q (must match S3 bucket name correlation anchor)", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := rel.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 	// The CRL bucket name is not an ARN, so target_arn stays empty.
@@ -259,7 +259,7 @@ func TestScannerSkipsAuthorityWithBlankARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceACM
+	boundary.ServiceKind = aws.ServiceACM
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -284,17 +284,17 @@ func TestScannerDefaultsServiceKindWhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	ca := resourceByType(t, envelopes, awscloud.ResourceTypeACMPCACertificateAuthority)
-	if got, want := ca.Payload["service_kind"], awscloud.ServiceACMPCA; got != want {
+	ca := resourceByType(t, envelopes, aws.ResourceTypeACMPCACertificateAuthority)
+	if got, want := ca.Payload["service_kind"], aws.ServiceACMPCA; got != want {
 		t.Fatalf("service_kind = %#v, want %q", got, want)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceACMPCA,
+		ServiceKind:         aws.ServiceACMPCA,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:acm-pca:1",
 		CollectorInstanceID: "aws-prod",

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "ecr".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceECR + "  "
+	boundary.ServiceKind = "  " + aws.ServiceECR + "  "
 	client := fakeClient{
 		repositories: []Repository{{
 			ARN:        "arn:aws:ecr:us-east-1:123456789012:repository/padded",
@@ -34,7 +34,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceECR; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceECR; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

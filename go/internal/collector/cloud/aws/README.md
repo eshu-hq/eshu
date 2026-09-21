@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud` owns AWS cloud source identity and fact-envelope
+`internal/collector/cloud/aws` owns AWS cloud source identity and fact-envelope
 construction for the `aws` collector family. It turns account, region, service,
 resource, relationship, and warning observations into reported-confidence
 facts that the shared fact store can persist.
@@ -110,7 +110,7 @@ See `doc.go` for the godoc contract.
   scanner-side and commit-side status records for admin visibility.
 - `ErrScanStatusStaleFence` - sentinel error returned by storage adapters when
   an AWS scan-status mutation is rejected by row count. Runtime classifiers
-  use `errors.Is(err, awscloud.ErrScanStatusStaleFence)` to route the failed
+  use `errors.Is(err, aws.ErrScanStatusStaleFence)` to route the failed
   claim to terminal so an orphaned `aws_scan_status` row cannot block every
   future generation for the same `(collector_instance_id, account_id, region,
   service_kind)` tuple (issue #612).
@@ -204,13 +204,13 @@ payload-usage manifest, scorecard conformance, accuracy, replay coverage,
 code-coverage generation, and race lanes before stopping on the missing tracked
 evidence markers this note supplies.
 
-No-Observability-Change: `go/internal/collector/awscloud/factschema_helpers.go`
+No-Observability-Change: `go/internal/collector/cloud/aws/factschema_helpers.go`
 contains pure in-process conversion helpers and emits no metric, span, or log
 of its own. The AWS runtime remains covered by
 `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
 `eshu_dp_aws_scan_duration_seconds`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, scan-status counters, and claim
-concurrency telemetry at `awsruntime/source.go`; downstream graph writes remain
+concurrency telemetry at `runtime/source.go`; downstream graph writes remain
 covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
 
 ## Gotchas / invariants
@@ -390,24 +390,24 @@ here so there is one place to correct when they move.
 ## Refactor Evidence (types.go Constants Split)
 
 The PR that splits the per-service `Service<X>`, `ResourceType<X>...`, and
-`Relationship<X>...` constants out of `awscloud/types.go` into one
+`Relationship<X>...` constants out of `aws/types.go` into one
 `constants_<service>.go` sibling per AWS service is a pure file-organization
 refactor. It moves identifier declarations across files inside the same Go
 package; values are byte-identical, type signatures are unchanged, and the
-exported API surface (`awscloud.ServiceXxx`, `awscloud.ResourceTypeXxx...`,
-`awscloud.RelationshipXxx...`) keeps the same identifiers and string values.
+exported API surface (`aws.ServiceXxx`, `aws.ResourceTypeXxx...`,
+`aws.RelationshipXxx...`) keeps the same identifiers and string values.
 `types.go` continues to own the shared observation contracts (`Boundary`,
 `ResourceObservation`, `RelationshipObservation`, `ImageReferenceObservation`,
 `DNSRecordObservation`, `DNSAliasTarget`, `DNSRoutingPolicy`,
 `DNSGeoLocation`, `WarningObservation`) plus `CollectorKind`, which is why
 it stays under the 500-line cap after the split.
 
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1 -race`
+No-Regression Evidence: `cd go && go test ./internal/collector/cloud/aws/... -count=1 -race`
 covers every existing scanner builder and the per-service constants used as
 fact-envelope identifiers, telemetry label values, and graph-resource-type
 strings. Tests pass without any test-source change because constant
 identifiers and string values are preserved across the move. `golangci-lint
-run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
+run ./internal/collector/cloud/aws/... ./cmd/collector-aws-cloud/...` reports
 zero issues after the split, confirming the package still type-checks with
 no orphaned imports or unused identifiers.
 
@@ -425,16 +425,16 @@ after the split.
 Every service scanner gates its work behind
 `switch strings.TrimSpace(boundary.ServiceKind)`. The switch trims only for the
 comparison, so a padded input such as `" sns "` matched the canonical
-`case awscloud.ServiceSNS` arm yet, because that arm was empty, kept its padding
+`case aws.ServiceSNS` arm yet, because that arm was empty, kept its padding
 in `boundary.ServiceKind`. `envelope.go` copies `boundary.ServiceKind` verbatim
 into every emitted fact's `service_kind`, so the padded string leaked into the
 graph and broke joins/filters that key on the canonical value. The fix merges
-the empty and canonical cases (`case "", awscloud.Service<X>:`) so the canonical
+the empty and canonical cases (`case "", aws.Service<X>:`) so the canonical
 constant is written back on the matched path. It covers the 91 scanners that
 carried the defect; the MWAA scanner that introduced the canonicalizing pattern
 was already correct.
 
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1`
+No-Regression Evidence: `cd go && go test ./internal/collector/cloud/aws/... -count=1`
 covers the per-scanner `TestScannerCanonicalizesPaddedServiceKind` regression in
 all 91 changed service packages (each feeds a whitespace-padded `service_kind`
 through `Scan` and asserts every emitted fact carries the canonical value) plus

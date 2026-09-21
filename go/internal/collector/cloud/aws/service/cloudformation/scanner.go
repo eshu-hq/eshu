@@ -25,7 +25,7 @@ import (
 type Scanner struct {
 	Client Client
 	// RedactionKey produces deterministic redaction markers for secret-like
-	// stack output values. The runtimebind builder requires a non-zero key.
+	// stack output values. The bind builder requires a non-zero key.
 	RedactionKey redact.Key
 }
 
@@ -34,7 +34,7 @@ type Scanner struct {
 // returns reported-confidence AWS facts. The scan only reaches read-only
 // list-and-describe paths and never reaches template-body, parameter-value,
 // change-set-body, or mutation surfaces.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudformation scanner client is required")
 	}
@@ -42,10 +42,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cloudformation scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudFormation:
+	case "", aws.ServiceCloudFormation:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudFormation
+		boundary.ServiceKind = aws.ServiceCloudFormation
 	default:
 		return nil, fmt.Errorf("cloudformation scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -79,7 +79,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CloudFormation types: %w", err)
 	}
 	for _, registeredType := range types {
-		envelope, err := awscloud.NewResourceEnvelope(typeObservation(boundary, registeredType))
+		envelope, err := aws.NewResourceEnvelope(typeObservation(boundary, registeredType))
 		if err != nil {
 			return nil, err
 		}
@@ -92,17 +92,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 func (s Scanner) appendStack(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stack Stack,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(stackObservation(boundary, stack, s.RedactionKey))
+	resource, err := aws.NewResourceEnvelope(stackObservation(boundary, stack, s.RedactionKey))
 	if err != nil {
 		return nil, err
 	}
 	envelopes = append(envelopes, resource)
 
 	for _, relationship := range stackRelationships(boundary, stack) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ func (s Scanner) appendStack(
 		return nil, fmt.Errorf("list stack resources for %q: %w", stackKey, err)
 	}
 	for _, relationship := range stackResourceTypeRelationships(boundary, stack, resources) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +133,7 @@ func (s Scanner) appendStack(
 		return nil, fmt.Errorf("list change sets for %q: %w", stackKey, err)
 	}
 	for _, changeSet := range changeSets {
-		envelope, err := awscloud.NewResourceEnvelope(changeSetObservation(boundary, changeSet))
+		envelope, err := aws.NewResourceEnvelope(changeSetObservation(boundary, changeSet))
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +145,7 @@ func (s Scanner) appendStack(
 		return nil, fmt.Errorf("list drift results for %q: %w", stackKey, err)
 	}
 	if drift.TotalChecked > 0 {
-		envelope, err := awscloud.NewResourceEnvelope(driftObservation(boundary, stack, drift))
+		envelope, err := aws.NewResourceEnvelope(driftObservation(boundary, stack, drift))
 		if err != nil {
 			return nil, err
 		}
@@ -158,10 +158,10 @@ func (s Scanner) appendStack(
 func (s Scanner) appendStackSet(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stackSet StackSet,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(stackSetObservation(boundary, stackSet))
+	resource, err := aws.NewResourceEnvelope(stackSetObservation(boundary, stackSet))
 	if err != nil {
 		return nil, err
 	}
@@ -172,14 +172,14 @@ func (s Scanner) appendStackSet(
 		return nil, fmt.Errorf("list stack instances for %q: %w", stackSet.Name, err)
 	}
 	for _, instance := range instances {
-		envelope, err := awscloud.NewResourceEnvelope(stackInstanceObservation(boundary, stackSet, instance))
+		envelope, err := aws.NewResourceEnvelope(stackInstanceObservation(boundary, stackSet, instance))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 
 		if relationship, ok := stackSetInstanceRelationship(boundary, stackSet, instance); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			relEnvelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}

@@ -15,7 +15,7 @@ import (
 // asserting each edge carries a declared target_type and a join-mode-consistent
 // ARN-keyed target.
 func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
-	boundary := boundaryFor(awscloud.ServiceServiceCatalog)
+	boundary := boundaryFor(aws.ServiceServiceCatalog)
 
 	stack := provisionedProductStackRelationship(boundary, ProvisionedProduct{
 		ID:         "pp-stack001",
@@ -45,7 +45,7 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 		t.Fatal("portfolioPrincipalRelationships returned no edges for an IAM role principal")
 	}
 
-	all := append([]awscloud.RelationshipObservation{*stack}, product...)
+	all := append([]aws.RelationshipObservation{*stack}, product...)
 	all = append(all, portfolio...)
 	relguard.AssertObservations(t, all...)
 }
@@ -80,7 +80,7 @@ func TestProvisionedProductStackEdgePreservesARNPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region}
+			boundary := aws.Boundary{Region: tc.region}
 			obs := provisionedProductStackRelationship(boundary, ProvisionedProduct{
 				ID:         "pp-stack001",
 				ARN:        "arn:" + partitionOf(tc.stackARN) + ":servicecatalog:" + tc.region + ":123456789012:stack/team/pp-stack001",
@@ -96,8 +96,8 @@ func TestProvisionedProductStackEdgePreservesARNPartition(t *testing.T) {
 			if obs.TargetARN != tc.stackARN {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.stackARN)
 			}
-			if obs.TargetType != awscloud.ResourceTypeCloudFormationStack {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeCloudFormationStack)
+			if obs.TargetType != aws.ResourceTypeCloudFormationStack {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeCloudFormationStack)
 			}
 		})
 	}
@@ -108,7 +108,7 @@ func TestProvisionedProductStackEdgePreservesARNPartition(t *testing.T) {
 // exactly so an identifier that merely contains a service-looking substring
 // cannot be misclassified.
 func TestPortfolioPrincipalEdgeRejectsNonRoleARNs(t *testing.T) {
-	boundary := boundaryFor(awscloud.ServiceServiceCatalog)
+	boundary := boundaryFor(aws.ServiceServiceCatalog)
 	portfolio := Portfolio{ID: "port-abc123", ARN: "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"}
 	rejected := []Principal{
 		{ARN: "arn:aws:iam::123456789012:user/alice", Type: "IAM"},
@@ -123,5 +123,5 @@ func TestPortfolioPrincipalEdgeRejectsNonRoleARNs(t *testing.T) {
 }
 
 func partitionOf(arn string) string {
-	return awscloud.PartitionFromARN(arn)
+	return aws.PartitionFromARN(arn)
 }

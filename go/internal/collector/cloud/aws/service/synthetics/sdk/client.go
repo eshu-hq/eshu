@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssynthetics "github.com/aws/aws-sdk-go-v2/service/synthetics"
 	awssyntheticstypes "github.com/aws/aws-sdk-go-v2/service/synthetics/types"
 	"github.com/aws/smithy-go"
@@ -40,15 +40,15 @@ type apiClient interface {
 // artifacts, or run results, and never calls a mutation or run-control API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Synthetics SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -93,24 +93,24 @@ func (c *Client) describeCanaries(ctx context.Context) ([]syntheticsservice.Cana
 			canaries = append(canaries, c.mapCanary(canary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return canaries, nil
 		}
 	}
 }
 
 func (c *Client) mapCanary(canary awssyntheticstypes.Canary) syntheticsservice.Canary {
-	name := strings.TrimSpace(aws.ToString(canary.Name))
+	name := strings.TrimSpace(awsv2.ToString(canary.Name))
 	mapped := syntheticsservice.Canary{
 		ARN:                          c.canaryARN(name),
-		ID:                           strings.TrimSpace(aws.ToString(canary.Id)),
+		ID:                           strings.TrimSpace(awsv2.ToString(canary.Id)),
 		Name:                         name,
-		RuntimeVersion:               strings.TrimSpace(aws.ToString(canary.RuntimeVersion)),
-		EngineARN:                    strings.TrimSpace(aws.ToString(canary.EngineArn)),
-		SuccessRetentionPeriodInDays: aws.ToInt32(canary.SuccessRetentionPeriodInDays),
-		FailureRetentionPeriodInDays: aws.ToInt32(canary.FailureRetentionPeriodInDays),
-		ArtifactS3Location:           strings.TrimSpace(aws.ToString(canary.ArtifactS3Location)),
-		ExecutionRoleARN:             strings.TrimSpace(aws.ToString(canary.ExecutionRoleArn)),
+		RuntimeVersion:               strings.TrimSpace(awsv2.ToString(canary.RuntimeVersion)),
+		EngineARN:                    strings.TrimSpace(awsv2.ToString(canary.EngineArn)),
+		SuccessRetentionPeriodInDays: awsv2.ToInt32(canary.SuccessRetentionPeriodInDays),
+		FailureRetentionPeriodInDays: awsv2.ToInt32(canary.FailureRetentionPeriodInDays),
+		ArtifactS3Location:           strings.TrimSpace(awsv2.ToString(canary.ArtifactS3Location)),
+		ExecutionRoleARN:             strings.TrimSpace(awsv2.ToString(canary.ExecutionRoleArn)),
 		Tags:                         cloneTags(canary.Tags),
 	}
 	if status := canary.Status; status != nil {
@@ -118,19 +118,19 @@ func (c *Client) mapCanary(canary awssyntheticstypes.Canary) syntheticsservice.C
 		mapped.StateReasonCode = strings.TrimSpace(string(status.StateReasonCode))
 	}
 	if schedule := canary.Schedule; schedule != nil {
-		mapped.ScheduleExpression = strings.TrimSpace(aws.ToString(schedule.Expression))
-		mapped.ScheduleDurationInSeconds = aws.ToInt64(schedule.DurationInSeconds)
+		mapped.ScheduleExpression = strings.TrimSpace(awsv2.ToString(schedule.Expression))
+		mapped.ScheduleDurationInSeconds = awsv2.ToInt64(schedule.DurationInSeconds)
 	}
 	if run := canary.RunConfig; run != nil {
-		mapped.RunTimeoutInSeconds = aws.ToInt32(run.TimeoutInSeconds)
-		mapped.RunMemoryInMB = aws.ToInt32(run.MemoryInMB)
-		mapped.RunActiveTracing = aws.ToBool(run.ActiveTracing)
+		mapped.RunTimeoutInSeconds = awsv2.ToInt32(run.TimeoutInSeconds)
+		mapped.RunMemoryInMB = awsv2.ToInt32(run.MemoryInMB)
+		mapped.RunActiveTracing = awsv2.ToBool(run.ActiveTracing)
 	}
 	applyArtifactEncryption(&mapped, canary.ArtifactConfig)
 	applyVPCConfig(&mapped, canary.VpcConfig)
 	if timeline := canary.Timeline; timeline != nil {
-		mapped.Created = aws.ToTime(timeline.Created)
-		mapped.LastModified = aws.ToTime(timeline.LastModified)
+		mapped.Created = awsv2.ToTime(timeline.Created)
+		mapped.LastModified = awsv2.ToTime(timeline.LastModified)
 	}
 	return mapped
 }
@@ -146,7 +146,7 @@ func (c *Client) canaryARN(name string) string {
 	if name == "" || account == "" || region == "" {
 		return ""
 	}
-	partition := awscloud.PartitionForBoundary(c.boundary)
+	partition := aws.PartitionForBoundary(c.boundary)
 	return "arn:" + partition + ":synthetics:" + region + ":" + account + ":canary:" + name
 }
 
@@ -162,7 +162,7 @@ func applyArtifactEncryption(
 	}
 	s3 := config.S3Encryption
 	canary.ArtifactEncryptionMode = strings.TrimSpace(string(s3.EncryptionMode))
-	canary.ArtifactKMSKeyARN = strings.TrimSpace(aws.ToString(s3.KmsKeyArn))
+	canary.ArtifactKMSKeyARN = strings.TrimSpace(awsv2.ToString(s3.KmsKeyArn))
 }
 
 // applyVPCConfig copies the canary VPC id, subnet ids, and security group ids
@@ -174,7 +174,7 @@ func applyVPCConfig(
 	if config == nil {
 		return
 	}
-	canary.VPCID = strings.TrimSpace(aws.ToString(config.VpcId))
+	canary.VPCID = strings.TrimSpace(awsv2.ToString(config.VpcId))
 	canary.SubnetIDs = trimAll(config.SubnetIds)
 	canary.SecurityGroupIDs = trimAll(config.SecurityGroupIds)
 }
@@ -231,7 +231,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

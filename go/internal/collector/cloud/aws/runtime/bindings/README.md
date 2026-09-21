@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/awsruntime/bindings` imports every AWS service
-runtimebind package so the awsruntime registry is populated by init side
-effects. The collector-aws-cloud command and the awsruntime tests blank-import
+`internal/collector/cloud/aws/runtime/bindings` imports every AWS service
+bind package so the runtime registry is populated by init side
+effects. The collector-aws-cloud command and the runtime tests blank-import
 this package to obtain the full production scanner set.
 
 ## Ownership boundary
 
 This package owns one thing: the canonical list of blank imports that pull
-every AWS service `runtimebind` into a binary. It does not own service
+every AWS service `bind` into a binary. It does not own service
 selection logic, configuration validation, or any runtime behavior. Each
-binding's behavior lives in its own service `runtimebind` package.
+binding's behavior lives in its own service `bind` package.
 
 ## Exported surface
 
@@ -21,14 +21,14 @@ for the godoc rendering of that contract.
 
 ## Dependencies
 
-One blank import per AWS service runtimebind package. Adding a new scanner
-appends one line. Removing a scanner removes one line. No file in awsruntime
+One blank import per AWS service bind package. Adding a new scanner
+appends one line. Removing a scanner removes one line. No file in runtime
 or any other consumer needs to change.
 
 ## Telemetry
 
 None of its own. Each registered scanner and its SDK adapter emits the
-per-service counters and spans documented in the awsruntime README.
+per-service counters and spans documented in the runtime README.
 
 ## Gotchas / invariants
 

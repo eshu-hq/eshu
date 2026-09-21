@@ -2,19 +2,19 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/catalogappregistry/runtimebind`
-registers the AppRegistry scanner with the awsruntime registry from a package
+`internal/collector/cloud/aws/service/catalogappregistry/bind`
+registers the AppRegistry scanner with the runtime registry from a package
 `init()`. Importing this package for its blank side effect is the only way a
 runtime brings the AppRegistry scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceServiceCatalogAppRegistry` to the AppRegistry scanner builder.
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceServiceCatalogAppRegistry` to the AppRegistry scanner builder.
 It does not own AWS API calls, AppRegistry domain types, or fact emission.
 Those belong to
-`internal/collector/awscloud/service/catalogappregistry` and its
-`awssdk` adapter.
+`internal/collector/cloud/aws/service/catalogappregistry` and its
+`sdk` adapter.
 
 ## Exported surface
 
@@ -23,20 +23,20 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceServiceCatalogAppRegistry`
+- `internal/collector/cloud/aws` for the `ServiceServiceCatalogAppRegistry`
   constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/catalogappregistry` for the
+- `internal/collector/cloud/aws/service/catalogappregistry` for the
   scanner struct.
-- `internal/collector/awscloud/service/catalogappregistry/awssdk` for
+- `internal/collector/cloud/aws/service/catalogappregistry/sdk` for
   the SDK adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The AppRegistry scanner and its SDK
 adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -50,6 +50,6 @@ and the awsruntime README.
 ## Related docs
 
 - `../README.md` for the AppRegistry scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

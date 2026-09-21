@@ -32,7 +32,7 @@ type Snapshot struct {
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling or a missing published application version that omitted a
 	// metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // App is the scanner-owned Resilience Hub application model. It carries

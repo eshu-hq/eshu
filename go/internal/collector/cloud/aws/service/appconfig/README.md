@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appconfig` owns the AWS AppConfig scanner
+`internal/collector/cloud/aws/service/appconfig` owns the AWS AppConfig scanner
 contract for the AWS cloud collector. It converts AppConfig application,
 environment, configuration profile, and deployment strategy metadata into
 `aws_resource` facts and emits relationship evidence for
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -50,9 +50,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records AppConfig API call counts, throttles, and
+The `sdk` adapter records AppConfig API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -63,7 +63,7 @@ pagination spans.
 - AppConfig list responses carry no ARN, so the scanner synthesizes the
   partition-aware application, environment, configuration profile, and
   deployment strategy ARNs (`arn:<partition>:appconfig:<region>:<account>:...`)
-  via `awscloud.PartitionForBoundary` and never hardcodes `arn:aws:` - GovCloud
+  via `aws.PartitionForBoundary` and never hardcodes `arn:aws:` - GovCloud
   and China must resolve to the real node. Each node publishes its synthesized
   ARN as its resource_id, and the environment/profile edges are sourced on that
   same ARN.
@@ -84,7 +84,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/appconfig/...` covers the
+`go test ./internal/collector/cloud/aws/service/appconfig/...` covers the
 bounded AppConfig metadata path: one paginated ListApplications stream, one
 paginated ListEnvironments and one paginated ListConfigurationProfiles stream
 per application, and one paginated ListDeploymentStrategies stream, with no
@@ -93,7 +93,7 @@ GetConfiguration/GetLatestConfiguration (the appconfigdata module is never
 imported), no deployment starts, no mutations, and no graph writes in the
 collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/appconfig/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/appconfig/...` green.
 
 Collector Observability Evidence: AppConfig uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,

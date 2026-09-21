@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "ec2".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceEC2 + "  "
+	boundary.ServiceKind = "  " + aws.ServiceEC2 + "  "
 	client := fakeClient{
 		vpcs: []VPC{{
 			ID:    "vpc-padded",
@@ -33,7 +33,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceEC2; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceEC2; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

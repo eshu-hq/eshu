@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/location/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/location/sdk` adapts AWS SDK for Go v2
 Location Service responses to the scanner-owned `Client` contract. It owns
 per-family list pagination, per-resource describe reads, per-tracker consumer
 pagination, throttle classification, and per-call AWS API telemetry.
@@ -32,9 +32,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/location` for scanner-owned result
+- `internal/collector/cloud/aws/service/location` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `location` and Smithy error contracts.

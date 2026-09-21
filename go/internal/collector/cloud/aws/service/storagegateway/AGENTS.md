@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/storagegateway guidance
+# AGENTS.md - internal/collector/cloud/aws/service/storagegateway guidance
 
 ## Read First
 
@@ -28,7 +28,7 @@
   resolves.
 - Emit file-share-to-S3-bucket edges only when `LocationARN` is an S3 bucket
   ARN. Reduce it to the bucket-only ARN the S3 scanner publishes and derive the
-  partition from the source ARN with `awscloud.PartitionFromARN`. Never hardcode
+  partition from the source ARN with `aws.PartitionFromARN`. Never hardcode
   `arn:aws:`. Skip S3 access-point `LocationARN`s.
 - Emit file-share-to-IAM-role, file-share-to-KMS-key, and
   file-share-to-CloudWatch-log-group edges only when AWS reports an ARN-shaped
@@ -48,13 +48,13 @@
 
 - Add a new Storage Gateway metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Leave any field that can carry object contents,
+  `aws` envelope builders. Leave any field that can carry object contents,
   client identity lists, or credential material out of the contract.
 - Add new relationship evidence only when the Storage Gateway API reports both
   sides directly and the target identity matches the resource_id the target
   scanner publishes (ARN-equality or bare-id, verified by reading that
   scanner).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

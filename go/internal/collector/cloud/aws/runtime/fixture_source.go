@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -73,7 +73,7 @@ type FixtureScope struct {
 	Relationships []FixtureRelationship
 }
 
-// FixtureResource mirrors awscloud.ResourceObservation minus the per-scope
+// FixtureResource mirrors aws.ResourceObservation minus the per-scope
 // Boundary, which FixtureSource supplies from the resolved scope identity.
 type FixtureResource struct {
 	ARN                string            `json:"arn"`
@@ -88,7 +88,7 @@ type FixtureResource struct {
 	SourceRecordID     string            `json:"source_record_id"`
 }
 
-// FixtureRelationship mirrors awscloud.RelationshipObservation minus the
+// FixtureRelationship mirrors aws.RelationshipObservation minus the
 // per-scope Boundary, which FixtureSource supplies from the resolved scope
 // identity.
 type FixtureRelationship struct {
@@ -201,7 +201,7 @@ func (s *FixtureSource) Next(_ context.Context) (collector.CollectedGeneration, 
 // collectScope builds the deterministic envelope set for one offline scope.
 func (s *FixtureSource) collectScope(scopeCfg FixtureScope) (collector.CollectedGeneration, error) {
 	observedAt := s.now()
-	boundary := awscloud.Boundary{
+	boundary := aws.Boundary{
 		AccountID:           strings.TrimSpace(scopeCfg.AccountID),
 		Region:              strings.TrimSpace(scopeCfg.Region),
 		ServiceKind:         strings.TrimSpace(scopeCfg.ServiceKind),
@@ -214,14 +214,14 @@ func (s *FixtureSource) collectScope(scopeCfg FixtureScope) (collector.Collected
 
 	envelopes := make([]facts.Envelope, 0, len(scopeCfg.Resources)+len(scopeCfg.Relationships))
 	for i := range scopeCfg.Resources {
-		envelope, err := awscloud.NewResourceEnvelope(scopeCfg.Resources[i].observation(boundary))
+		envelope, err := aws.NewResourceEnvelope(scopeCfg.Resources[i].observation(boundary))
 		if err != nil {
 			return collector.CollectedGeneration{}, fmt.Errorf("build aws fixture resource %d for scope %q: %w", i, boundary.ScopeID, err)
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for i := range scopeCfg.Relationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(scopeCfg.Relationships[i].observation(boundary))
+		envelope, err := aws.NewRelationshipEnvelope(scopeCfg.Relationships[i].observation(boundary))
 		if err != nil {
 			return collector.CollectedGeneration{}, fmt.Errorf("build aws fixture relationship %d for scope %q: %w", i, boundary.ScopeID, err)
 		}
@@ -232,8 +232,8 @@ func (s *FixtureSource) collectScope(scopeCfg FixtureScope) (collector.Collected
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), nil
 }
 
-func (r FixtureResource) observation(boundary awscloud.Boundary) awscloud.ResourceObservation {
-	return awscloud.ResourceObservation{
+func (r FixtureResource) observation(boundary aws.Boundary) aws.ResourceObservation {
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                r.ARN,
 		ResourceID:         r.ResourceID,
@@ -248,8 +248,8 @@ func (r FixtureResource) observation(boundary awscloud.Boundary) awscloud.Resour
 	}
 }
 
-func (r FixtureRelationship) observation(boundary awscloud.Boundary) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+func (r FixtureRelationship) observation(boundary aws.Boundary) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: r.RelationshipType,
 		SourceResourceID: r.SourceResourceID,
@@ -264,12 +264,12 @@ func (r FixtureRelationship) observation(boundary awscloud.Boundary) awscloud.Re
 }
 
 func (s *FixtureSource) scopeAndGeneration(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	observedAt time.Time,
 ) (scope.IngestionScope, scope.ScopeGeneration) {
 	scopeValue := scope.IngestionScope{
 		ScopeID:       boundary.ScopeID,
-		SourceSystem:  awscloud.CollectorKind,
+		SourceSystem:  aws.CollectorKind,
 		ScopeKind:     scope.KindRegion,
 		CollectorKind: scope.CollectorAWS,
 		PartitionKey:  boundary.ScopeID,

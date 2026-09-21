@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func TestClaimedSourceScansMatchedIAMClaim(t *testing.T) {
 			FactKind:         facts.AWSResourceFactKind,
 			StableFactKey:    "resource-1",
 			SchemaVersion:    facts.AWSResourceSchemaVersion,
-			CollectorKind:    awscloud.CollectorKind,
+			CollectorKind:    aws.CollectorKind,
 			FencingToken:     item.CurrentFencingToken,
 			SourceConfidence: facts.SourceConfidenceReported,
 			ObservedAt:       now,
@@ -45,7 +45,7 @@ func TestClaimedSourceScansMatchedIAMClaim(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode:       CredentialModeCentralAssumeRole,
 					RoleARN:    "arn:aws:iam::123456789012:role/eshu-readonly",
@@ -97,7 +97,7 @@ func TestClaimedSourceEmitsWarningWhenCredentialsFail(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode:       CredentialModeCentralAssumeRole,
 					RoleARN:    "arn:aws:iam::123456789012:role/eshu-readonly",
@@ -143,7 +143,7 @@ func TestClaimedSourceRejectsUnauthorizedClaimTarget(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 			}},
 		},
 		Credentials: &stubCredentialProvider{},
@@ -177,7 +177,7 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceECR},
+				AllowedServices: []string{aws.ServiceECR},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -188,13 +188,13 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 			{
 				FactKind: facts.AWSResourceFactKind,
 				Payload: map[string]any{
-					"resource_type": awscloud.ResourceTypeECRRepository,
+					"resource_type": aws.ResourceTypeECRRepository,
 				},
 			},
 			{
 				FactKind: facts.AWSResourceFactKind,
 				Payload: map[string]any{
-					"resource_type": awscloud.ResourceTypeECRLifecyclePolicy,
+					"resource_type": aws.ResourceTypeECRLifecyclePolicy,
 				},
 			},
 			{FactKind: facts.AWSRelationshipFactKind},
@@ -221,23 +221,23 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	targetAttrs := map[string]string{
-		telemetry.MetricDimensionService: awscloud.ServiceECR,
+		telemetry.MetricDimensionService: aws.ServiceECR,
 		telemetry.MetricDimensionAccount: "123456789012",
 		telemetry.MetricDimensionRegion:  "us-east-1",
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
-		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionService:      aws.ServiceECR,
 		telemetry.MetricDimensionAccount:      "123456789012",
 		telemetry.MetricDimensionRegion:       "us-east-1",
-		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRRepository,
+		telemetry.MetricDimensionResourceType: aws.ResourceTypeECRRepository,
 	}); got != 1 {
 		t.Fatalf("repository resource counter = %d, want 1", got)
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
-		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionService:      aws.ServiceECR,
 		telemetry.MetricDimensionAccount:      "123456789012",
 		telemetry.MetricDimensionRegion:       "us-east-1",
-		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRLifecyclePolicy,
+		telemetry.MetricDimensionResourceType: aws.ResourceTypeECRLifecyclePolicy,
 	}); got != 1 {
 		t.Fatalf("lifecycle policy resource counter = %d, want 1", got)
 	}
@@ -259,7 +259,7 @@ func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -297,7 +297,7 @@ func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
 		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
 	}
 	observation := statusStore.observations[0]
-	if observation.Status != awscloud.ScanStatusPartial {
+	if observation.Status != aws.ScanStatusPartial {
 		t.Fatalf("status = %q, want partial", observation.Status)
 	}
 	if observation.APICallCount != 2 || observation.ThrottleCount != 1 {
@@ -330,7 +330,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceOrganizations},
+				AllowedServices: []string{aws.ServiceOrganizations},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -340,7 +340,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 		Scanners: &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{{
 			FactKind: facts.AWSWarningFactKind,
 			Payload: map[string]any{
-				"warning_kind": awscloud.WarningOrganizationsOrgAccessSkipped,
+				"warning_kind": aws.WarningOrganizationsOrgAccessSkipped,
 				"attributes": map[string]any{
 					"skip_reason": "org_access_denied",
 				},
@@ -362,7 +362,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
 	}
 	observation := statusStore.observations[0]
-	if observation.Status != awscloud.ScanStatusPartial {
+	if observation.Status != aws.ScanStatusPartial {
 		t.Fatalf("status = %q, want partial", observation.Status)
 	}
 	if observation.FailureClass != "org_access_skipped" {
@@ -374,7 +374,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_org_access_skipped_total", map[string]string{
-		telemetry.MetricDimensionService: awscloud.ServiceOrganizations,
+		telemetry.MetricDimensionService: aws.ServiceOrganizations,
 		telemetry.MetricDimensionAccount: "123456789012",
 		telemetry.MetricDimensionRegion:  "us-east-1",
 		telemetry.MetricDimensionReason:  "org_access_denied",
@@ -483,13 +483,13 @@ func (l *stubCredentialLease) Release() error {
 type stubScannerFactory struct {
 	scanner  ServiceScanner
 	target   Target
-	boundary awscloud.Boundary
+	boundary aws.Boundary
 }
 
 func (f *stubScannerFactory) Scanner(
 	_ context.Context,
 	target Target,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	_ CredentialLease,
 ) (ServiceScanner, error) {
 	f.target = target
@@ -503,9 +503,9 @@ type stubScanner struct {
 	err       error
 }
 
-func (s stubScanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s stubScanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	for _, event := range s.apiEvents {
-		awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+		aws.RecordAPICall(ctx, aws.APICallEvent{
 			Boundary:  boundary,
 			Operation: event.operation,
 			Result:    event.result,
@@ -522,16 +522,16 @@ type stubAPICallEvent struct {
 }
 
 type stubScanStatusStore struct {
-	starts       []awscloud.ScanStatusStart
-	observations []awscloud.ScanStatusObservation
+	starts       []aws.ScanStatusStart
+	observations []aws.ScanStatusObservation
 }
 
-func (s *stubScanStatusStore) StartAWSScan(_ context.Context, start awscloud.ScanStatusStart) error {
+func (s *stubScanStatusStore) StartAWSScan(_ context.Context, start aws.ScanStatusStart) error {
 	s.starts = append(s.starts, start)
 	return nil
 }
 
-func (s *stubScanStatusStore) ObserveAWSScan(_ context.Context, observation awscloud.ScanStatusObservation) error {
+func (s *stubScanStatusStore) ObserveAWSScan(_ context.Context, observation aws.ScanStatusObservation) error {
 	s.observations = append(s.observations, observation)
 	return nil
 }

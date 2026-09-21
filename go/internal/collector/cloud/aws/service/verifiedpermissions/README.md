@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/verifiedpermissions` owns the Amazon
+`internal/collector/cloud/aws/service/verifiedpermissions` owns the Amazon
 Verified Permissions scanner contract for the AWS cloud collector. It converts
 policy store, policy, and identity source metadata into `aws_resource` facts and
 emits relationship evidence for policy-in-store and identity-source-in-store
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Verified Permissions API call counts, throttles,
+The `sdk` adapter records Verified Permissions API call counts, throttles,
 and pagination spans.
 
 ## Gotchas / invariants
@@ -85,13 +85,13 @@ and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/verifiedpermissions/...` covers
+`go test ./internal/collector/cloud/aws/service/verifiedpermissions/...` covers
 the bounded Verified Permissions metadata path: one paginated ListPolicyStores
 stream, one GetPolicyStore point read per store, one paginated ListPolicies
 stream and one paginated ListIdentitySources stream per store, no Cedar body
 reads, no schema reads, no authorization evaluation, and no graph writes in the
 collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/verifiedpermissions/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/verifiedpermissions/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

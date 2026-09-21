@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codedeploy` owns the CodeDeploy scanner
+`internal/collector/cloud/aws/service/codedeploy` owns the CodeDeploy scanner
 contract for the AWS cloud collector. It converts application, deployment-group,
 deployment-config, and recent-deployment metadata into `aws_resource` facts and
 emits `aws_relationship` facts for the deployment-group edges CodeDeploy reports
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and the shared `RedactString`
   redaction helper.
 - `internal/facts` for emitted fact envelope kinds.
@@ -50,9 +50,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
-(`eshu_dp_aws_resources_emitted_total{service="codedeploy"}`). The `awssdk`
+(`eshu_dp_aws_resources_emitted_total{service="codedeploy"}`). The `sdk`
 adapter records CodeDeploy API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -75,14 +75,14 @@ adapter records CodeDeploy API call counts, throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codedeploy/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/codedeploy/... -count=1 -race`
 covers the bounded CodeDeploy metadata path: paginated application, deployment
 group, deployment config, and deployment listings; one batch resolve per name
 group; one tag read per resource; recent deployments bounded to the
 `BatchGetDeployments` cap of 25; no revision-body reads; no mutations.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers CodeDeploy resource and relationship emission, on-premises tag value
 redaction, appspec-body exclusion, runtime registration through the derived
 service guard, and command configuration requiring a redaction key.
@@ -108,14 +108,14 @@ Collector Deployment Evidence: CodeDeploy runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/codedeploy/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/codedeploy/... -count=1`
 covers the new `TestCodeDeploySynthesizedARNsDerivePartition` and
 `TestClientSynthesizedARNsDerivePartition` (commercial / `aws-us-gov` /
 `aws-cn` / blank-region-fallback) alongside the existing assertions. The
 CodeDeploy list/batch APIs return no ARNs, so every synthesized ARN
 (application, deployment group, deployment config, deployment, and the ECS
 service / Lambda function deployment targets) now derives the partition from the
-scan boundary via `awscloud.PartitionForBoundary` instead of hardcoding `aws`.
+scan boundary via `aws.PartitionForBoundary` instead of hardcoding `aws`.
 Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
 metadata-only correctness fix with no graph-write, queue, or hot-path behavior
 change.

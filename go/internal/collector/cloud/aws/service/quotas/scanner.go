@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes the applied service quotas for the claimed account/region
 // through the configured client and emits one resource fact per quota plus any
 // non-fatal warning facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("servicequotas scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceServiceQuotas:
+	case "", aws.ServiceServiceQuotas:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceServiceQuotas
+		boundary.ServiceKind = aws.ServiceServiceQuotas
 	default:
 		return nil, fmt.Errorf("servicequotas scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,7 +48,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, quota := range snapshot.Quotas {
-		envelope, err := awscloud.NewResourceEnvelope(quotaObservation(boundary, quota))
+		envelope, err := aws.NewResourceEnvelope(quotaObservation(boundary, quota))
 		if err != nil {
 			return nil, err
 		}
@@ -57,9 +57,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func quotaObservation(boundary awscloud.Boundary, quota ServiceQuota) awscloud.ResourceObservation {
+func quotaObservation(boundary aws.Boundary, quota ServiceQuota) aws.ResourceObservation {
 	arn := strings.TrimSpace(quota.ARN)
 	serviceCode := strings.TrimSpace(quota.ServiceCode)
 	quotaCode := strings.TrimSpace(quota.QuotaCode)
@@ -99,11 +99,11 @@ func quotaObservation(boundary awscloud.Boundary, quota ServiceQuota) awscloud.R
 		anchors = append(anchors, serviceCode+"/"+quotaCode)
 	}
 
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeServiceQuotasServiceQuota,
+		ResourceType:       aws.ResourceTypeServiceQuotasServiceQuota,
 		Name:               quotaName,
 		Tags:               nil,
 		Attributes:         attributes,

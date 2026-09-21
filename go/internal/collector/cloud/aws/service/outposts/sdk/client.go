@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsoutposts "github.com/aws/aws-sdk-go-v2/service/outposts"
 	awsoutpoststypes "github.com/aws/aws-sdk-go-v2/service/outposts/types"
 	"github.com/aws/smithy-go"
@@ -66,15 +66,15 @@ type apiClient interface {
 // calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Outposts SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -134,7 +134,7 @@ func (c *Client) listOutposts(ctx context.Context) ([]outpostsservice.Outpost, e
 			outposts = append(outposts, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return outposts, nil
 		}
 	}
@@ -144,7 +144,7 @@ func (c *Client) mapOutpost(
 	ctx context.Context,
 	outpost awsoutpoststypes.Outpost,
 ) (outpostsservice.Outpost, error) {
-	arn := strings.TrimSpace(aws.ToString(outpost.OutpostArn))
+	arn := strings.TrimSpace(awsv2.ToString(outpost.OutpostArn))
 	// GetOutpost confirms the per-outpost control-plane record; the list view
 	// already carries identity, so a confirmed record only enriches it.
 	if id := identifierForType(outpost); id != "" {
@@ -152,7 +152,7 @@ func (c *Client) mapOutpost(
 		err := c.recordAPICall(ctx, "GetOutpost", func(callCtx context.Context) error {
 			var err error
 			detail, err = c.client.GetOutpost(callCtx, &awsoutposts.GetOutpostInput{
-				OutpostId: aws.String(id),
+				OutpostId: awsv2.String(id),
 			})
 			return err
 		})
@@ -161,7 +161,7 @@ func (c *Client) mapOutpost(
 		}
 		if detail != nil && detail.Outpost != nil {
 			outpost = *detail.Outpost
-			arn = strings.TrimSpace(aws.ToString(outpost.OutpostArn))
+			arn = strings.TrimSpace(awsv2.ToString(outpost.OutpostArn))
 		}
 	}
 	tags, err := c.listTags(ctx, arn)
@@ -173,15 +173,15 @@ func (c *Client) mapOutpost(
 	}
 	return outpostsservice.Outpost{
 		ARN:                   arn,
-		OutpostID:             strings.TrimSpace(aws.ToString(outpost.OutpostId)),
-		Name:                  strings.TrimSpace(aws.ToString(outpost.Name)),
-		Description:           strings.TrimSpace(aws.ToString(outpost.Description)),
-		LifeCycleStatus:       strings.TrimSpace(aws.ToString(outpost.LifeCycleStatus)),
-		AvailabilityZone:      strings.TrimSpace(aws.ToString(outpost.AvailabilityZone)),
-		AvailabilityZoneID:    strings.TrimSpace(aws.ToString(outpost.AvailabilityZoneId)),
-		OwnerID:               strings.TrimSpace(aws.ToString(outpost.OwnerId)),
-		SiteID:                strings.TrimSpace(aws.ToString(outpost.SiteId)),
-		SiteARN:               strings.TrimSpace(aws.ToString(outpost.SiteArn)),
+		OutpostID:             strings.TrimSpace(awsv2.ToString(outpost.OutpostId)),
+		Name:                  strings.TrimSpace(awsv2.ToString(outpost.Name)),
+		Description:           strings.TrimSpace(awsv2.ToString(outpost.Description)),
+		LifeCycleStatus:       strings.TrimSpace(awsv2.ToString(outpost.LifeCycleStatus)),
+		AvailabilityZone:      strings.TrimSpace(awsv2.ToString(outpost.AvailabilityZone)),
+		AvailabilityZoneID:    strings.TrimSpace(awsv2.ToString(outpost.AvailabilityZoneId)),
+		OwnerID:               strings.TrimSpace(awsv2.ToString(outpost.OwnerId)),
+		SiteID:                strings.TrimSpace(awsv2.ToString(outpost.SiteId)),
+		SiteARN:               strings.TrimSpace(awsv2.ToString(outpost.SiteArn)),
 		SupportedHardwareType: strings.TrimSpace(string(outpost.SupportedHardwareType)),
 		Tags:                  tags,
 	}, nil
@@ -213,7 +213,7 @@ func (c *Client) listSites(ctx context.Context) ([]outpostsservice.Site, error) 
 			sites = append(sites, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return sites, nil
 		}
 	}
@@ -223,8 +223,8 @@ func (c *Client) mapSite(
 	ctx context.Context,
 	site awsoutpoststypes.Site,
 ) (outpostsservice.Site, error) {
-	arn := strings.TrimSpace(aws.ToString(site.SiteArn))
-	id := strings.TrimSpace(aws.ToString(site.SiteId))
+	arn := strings.TrimSpace(awsv2.ToString(site.SiteArn))
+	id := strings.TrimSpace(awsv2.ToString(site.SiteId))
 	// GetSite confirms the operational identity record. Only the name, id, and
 	// account id are copied; AWS address, country code, notes, and rack
 	// physical-property fields are intentionally never read into the model.
@@ -233,7 +233,7 @@ func (c *Client) mapSite(
 		err := c.recordAPICall(ctx, "GetSite", func(callCtx context.Context) error {
 			var err error
 			detail, err = c.client.GetSite(callCtx, &awsoutposts.GetSiteInput{
-				SiteId: aws.String(confirmID),
+				SiteId: awsv2.String(confirmID),
 			})
 			return err
 		})
@@ -242,8 +242,8 @@ func (c *Client) mapSite(
 		}
 		if detail != nil && detail.Site != nil {
 			site = *detail.Site
-			arn = strings.TrimSpace(aws.ToString(site.SiteArn))
-			id = strings.TrimSpace(aws.ToString(site.SiteId))
+			arn = strings.TrimSpace(awsv2.ToString(site.SiteArn))
+			id = strings.TrimSpace(awsv2.ToString(site.SiteId))
 		}
 	}
 	tags, err := c.listTags(ctx, arn)
@@ -256,8 +256,8 @@ func (c *Client) mapSite(
 	return outpostsservice.Site{
 		ARN:       arn,
 		SiteID:    id,
-		Name:      strings.TrimSpace(aws.ToString(site.Name)),
-		AccountID: strings.TrimSpace(aws.ToString(site.AccountId)),
+		Name:      strings.TrimSpace(awsv2.ToString(site.Name)),
+		AccountID: strings.TrimSpace(awsv2.ToString(site.AccountId)),
 		Tags:      tags,
 	}, nil
 }
@@ -274,7 +274,7 @@ func (c *Client) listAssets(ctx context.Context, outpostIdentifier string) ([]ou
 		err := c.recordAPICall(ctx, "ListAssets", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListAssets(callCtx, &awsoutposts.ListAssetsInput{
-				OutpostIdentifier: aws.String(outpostIdentifier),
+				OutpostIdentifier: awsv2.String(outpostIdentifier),
 				NextToken:         nextToken,
 			})
 			return err
@@ -289,7 +289,7 @@ func (c *Client) listAssets(ctx context.Context, outpostIdentifier string) ([]ou
 			assets = append(assets, mapAsset(asset))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return assets, nil
 		}
 	}
@@ -300,9 +300,9 @@ func (c *Client) listAssets(ctx context.Context, outpostIdentifier string) ([]ou
 // or capacity inventory; only operational asset identity is metadata.
 func mapAsset(asset awsoutpoststypes.AssetInfo) outpostsservice.Asset {
 	mapped := outpostsservice.Asset{
-		AssetID:   strings.TrimSpace(aws.ToString(asset.AssetId)),
+		AssetID:   strings.TrimSpace(awsv2.ToString(asset.AssetId)),
 		AssetType: strings.TrimSpace(string(asset.AssetType)),
-		RackID:    strings.TrimSpace(aws.ToString(asset.RackId)),
+		RackID:    strings.TrimSpace(awsv2.ToString(asset.RackId)),
 	}
 	if asset.ComputeAttributes != nil {
 		mapped.ComputeState = strings.TrimSpace(string(asset.ComputeAttributes.State))
@@ -323,7 +323,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsoutposts.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -351,7 +351,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -397,8 +397,8 @@ func identifierFor(outpost outpostsservice.Outpost) string {
 // preferring the ARN and falling back to the short id.
 func identifierForType(outpost awsoutpoststypes.Outpost) string {
 	return firstNonEmpty(
-		strings.TrimSpace(aws.ToString(outpost.OutpostArn)),
-		strings.TrimSpace(aws.ToString(outpost.OutpostId)),
+		strings.TrimSpace(awsv2.ToString(outpost.OutpostArn)),
+		strings.TrimSpace(awsv2.ToString(outpost.OutpostId)),
 	)
 }
 

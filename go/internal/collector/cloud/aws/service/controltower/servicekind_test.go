@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "controltower".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceControlTower + "  "
+	boundary.ServiceKind = "  " + aws.ServiceControlTower + "  "
 	client := fakeClient{snapshot: Snapshot{LandingZone: &LandingZone{
 		ARN:    testLandingZoneARN,
 		Status: "ACTIVE",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceControlTower; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceControlTower; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

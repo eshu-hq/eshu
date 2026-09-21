@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awstimestreamwrite "github.com/aws/aws-sdk-go-v2/service/timestreamwrite"
 	awstimestreamwritetypes "github.com/aws/aws-sdk-go-v2/service/timestreamwrite/types"
 
@@ -24,38 +24,38 @@ func TestClientSnapshotsTimestreamMetadataOnly(t *testing.T) {
 	api := &fakeTimestreamAPI{
 		databasePages: []*awstimestreamwrite.ListDatabasesOutput{{
 			Databases: []awstimestreamwritetypes.Database{{
-				Arn:             aws.String(databaseARN),
-				DatabaseName:    aws.String("metrics"),
-				KmsKeyId:        aws.String(kmsARN),
+				Arn:             awsv2.String(databaseARN),
+				DatabaseName:    awsv2.String("metrics"),
+				KmsKeyId:        awsv2.String(kmsARN),
 				TableCount:      1,
-				CreationTime:    aws.Time(createdAt),
-				LastUpdatedTime: aws.Time(createdAt),
+				CreationTime:    awsv2.Time(createdAt),
+				LastUpdatedTime: awsv2.Time(createdAt),
 			}},
 		}},
 		tablePages: map[string][]*awstimestreamwrite.ListTablesOutput{
 			"metrics": {{
 				Tables: []awstimestreamwritetypes.Table{{
-					Arn:          aws.String(tableARN),
-					TableName:    aws.String("cpu"),
-					DatabaseName: aws.String("metrics"),
+					Arn:          awsv2.String(tableARN),
+					TableName:    awsv2.String("cpu"),
+					DatabaseName: awsv2.String("metrics"),
 					TableStatus:  awstimestreamwritetypes.TableStatusActive,
 					RetentionProperties: &awstimestreamwritetypes.RetentionProperties{
-						MemoryStoreRetentionPeriodInHours:  aws.Int64(24),
-						MagneticStoreRetentionPeriodInDays: aws.Int64(365),
+						MemoryStoreRetentionPeriodInHours:  awsv2.Int64(24),
+						MagneticStoreRetentionPeriodInDays: awsv2.Int64(365),
 					},
 					MagneticStoreWriteProperties: &awstimestreamwritetypes.MagneticStoreWriteProperties{
-						EnableMagneticStoreWrites: aws.Bool(true),
+						EnableMagneticStoreWrites: awsv2.Bool(true),
 						MagneticStoreRejectedDataLocation: &awstimestreamwritetypes.MagneticStoreRejectedDataLocation{
 							S3Configuration: &awstimestreamwritetypes.S3Configuration{
-								BucketName:       aws.String("rejected-data-bucket"),
-								ObjectKeyPrefix:  aws.String("errors/"),
+								BucketName:       awsv2.String("rejected-data-bucket"),
+								ObjectKeyPrefix:  awsv2.String("errors/"),
 								EncryptionOption: awstimestreamwritetypes.S3EncryptionOptionSseKms,
 							},
 						},
 					},
 					Schema: &awstimestreamwritetypes.Schema{
 						CompositePartitionKey: []awstimestreamwritetypes.PartitionKey{{
-							Name: aws.String("host"),
+							Name: awsv2.String("host"),
 							Type: awstimestreamwritetypes.PartitionKeyTypeDimension,
 						}},
 					},
@@ -63,8 +63,8 @@ func TestClientSnapshotsTimestreamMetadataOnly(t *testing.T) {
 			}},
 		},
 		tags: map[string][]awstimestreamwritetypes.Tag{
-			databaseARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			tableARN:    {{Key: aws.String("Team"), Value: aws.String("observability")}},
+			databaseARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			tableARN:    {{Key: awsv2.String("Team"), Value: awsv2.String("observability")}},
 		},
 	}
 
@@ -145,7 +145,7 @@ func (f *fakeTimestreamAPI) ListTables(
 	if f.tableCalls == nil {
 		f.tableCalls = map[string]int{}
 	}
-	name := aws.ToString(input.DatabaseName)
+	name := awsv2.ToString(input.DatabaseName)
 	pages := f.tablePages[name]
 	idx := f.tableCalls[name]
 	if idx >= len(pages) {
@@ -161,14 +161,14 @@ func (f *fakeTimestreamAPI) ListTagsForResource(
 	_ ...func(*awstimestreamwrite.Options),
 ) (*awstimestreamwrite.ListTagsForResourceOutput, error) {
 	return &awstimestreamwrite.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceARN)],
+		Tags: f.tags[awsv2.ToString(input.ResourceARN)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceTimestream,
+		ServiceKind: aws.ServiceTimestream,
 	}
 }

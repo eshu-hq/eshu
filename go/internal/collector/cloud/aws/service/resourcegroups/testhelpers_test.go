@@ -12,11 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceResourceGroups,
+		ServiceKind:         aws.ServiceResourceGroups,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:resourcegroups:1",
 		CollectorInstanceID: "aws-prod",
@@ -50,8 +50,8 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 	return facts.Envelope{}
 }
 
-func relationships(envelopes []facts.Envelope) []awscloud.RelationshipObservation {
-	var out []awscloud.RelationshipObservation
+func relationships(envelopes []facts.Envelope) []aws.RelationshipObservation {
+	var out []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
@@ -65,12 +65,12 @@ func relationships(envelopes []facts.Envelope) []awscloud.RelationshipObservatio
 // relguard runtime helper checks from an emitted relationship payload, so the
 // scanner test enforces the graph-join contract on the data the scanner
 // actually produced.
-func observationFromPayload(payload map[string]any) awscloud.RelationshipObservation {
+func observationFromPayload(payload map[string]any) aws.RelationshipObservation {
 	str := func(key string) string {
 		value, _ := payload[key].(string)
 		return value
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		RelationshipType: str("relationship_type"),
 		SourceResourceID: str("source_resource_id"),
 		SourceARN:        str("source_arn"),
@@ -84,7 +84,7 @@ func relationshipTo(
 	t *testing.T,
 	envelopes []facts.Envelope,
 	relationshipType, targetResourceID string,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	t.Helper()
 	for _, obs := range relationships(envelopes) {
 		if obs.RelationshipType == relationshipType && obs.TargetResourceID == targetResourceID {
@@ -92,7 +92,7 @@ func relationshipTo(
 		}
 	}
 	t.Fatalf("missing relationship %q -> %q", relationshipType, targetResourceID)
-	return awscloud.RelationshipObservation{}
+	return aws.RelationshipObservation{}
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {

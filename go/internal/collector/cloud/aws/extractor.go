@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud
+package aws
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// This file is the awscloud half of the typed-depth extractor registry, mirroring
+// This file is the aws half of the typed-depth extractor registry, mirroring
 // go/internal/collector/gcpcloud/extractor.go: one resource type per file,
 // registered from that file's init, dispatched through a map rather than a
 // shared switch.
@@ -144,13 +144,13 @@ var resourceExtractors = map[string]ResourceAttributeExtractor{}
 func RegisterResourceExtractor(resourceType string, extractor ResourceAttributeExtractor) {
 	trimmed := strings.TrimSpace(resourceType)
 	if trimmed == "" {
-		panic("awscloud: RegisterResourceExtractor requires a non-blank resource type")
+		panic("aws: RegisterResourceExtractor requires a non-blank resource type")
 	}
 	if extractor == nil {
-		panic(fmt.Sprintf("awscloud: RegisterResourceExtractor for %q requires a non-nil extractor", trimmed))
+		panic(fmt.Sprintf("aws: RegisterResourceExtractor for %q requires a non-nil extractor", trimmed))
 	}
 	if _, exists := resourceExtractors[trimmed]; exists {
-		panic(fmt.Sprintf("awscloud: duplicate extractor registration for resource type %q", trimmed))
+		panic(fmt.Sprintf("aws: duplicate extractor registration for resource type %q", trimmed))
 	}
 	resourceExtractors[trimmed] = extractor
 }

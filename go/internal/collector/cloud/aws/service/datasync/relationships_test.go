@@ -31,7 +31,7 @@ func TestLocationS3RelationshipDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{AccountID: "123456789012", Region: tc.region}
+			boundary := aws.Boundary{AccountID: "123456789012", Region: tc.region}
 			location := Location{
 				ARN:          "arn:aws:datasync:us-east-1:123456789012:location/loc-0s3",
 				Type:         "S3",
@@ -48,8 +48,8 @@ func TestLocationS3RelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetARN != tc.want {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeS3Bucket {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeS3Bucket)
+			if obs.TargetType != aws.ResourceTypeS3Bucket {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeS3Bucket)
 			}
 		})
 	}
@@ -71,7 +71,7 @@ func TestLocationEFSRelationshipDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{AccountID: "123456789012", Region: tc.region}
+			boundary := aws.Boundary{AccountID: "123456789012", Region: tc.region}
 			location := Location{
 				ARN:             "arn:aws:datasync:us-east-1:123456789012:location/loc-0efs",
 				Type:            "EFS",
@@ -85,8 +85,8 @@ func TestLocationEFSRelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetResourceID != tc.want {
 				t.Fatalf("target_resource_id = %q, want %q", obs.TargetResourceID, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeEFSFileSystem {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeEFSFileSystem)
+			if obs.TargetType != aws.ResourceTypeEFSFileSystem {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeEFSFileSystem)
 			}
 		})
 	}
@@ -107,7 +107,7 @@ func TestLocationFSxRelationshipSynthesizesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{AccountID: "123456789012", Region: tc.region}
+			boundary := aws.Boundary{AccountID: "123456789012", Region: tc.region}
 			location := Location{
 				ARN:             "arn:aws:datasync:us-east-1:123456789012:location/loc-0fsx",
 				Type:            "FSX_LUSTRE",
@@ -121,8 +121,8 @@ func TestLocationFSxRelationshipSynthesizesPartition(t *testing.T) {
 			if obs.TargetResourceID != tc.want {
 				t.Fatalf("target_resource_id = %q, want %q", obs.TargetResourceID, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeFSxFileSystem {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeFSxFileSystem)
+			if obs.TargetType != aws.ResourceTypeFSxFileSystem {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeFSxFileSystem)
 			}
 		})
 	}
@@ -166,9 +166,9 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 // relationshipObservations rebuilds RelationshipObservation values from the
 // emitted relationship envelopes so the relguard runtime layer can re-check the
 // data-dependent target_type and ARN join keys the scanner produced.
-func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []awscloud.RelationshipObservation {
+func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []aws.RelationshipObservation {
 	t.Helper()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
@@ -177,7 +177,7 @@ func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []awsclo
 		targetType, _ := envelope.Payload["target_type"].(string)
 		targetID, _ := envelope.Payload["target_resource_id"].(string)
 		targetARN, _ := envelope.Payload["target_arn"].(string)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			RelationshipType: relationshipType,
 			TargetType:       targetType,
 			TargetResourceID: targetID,

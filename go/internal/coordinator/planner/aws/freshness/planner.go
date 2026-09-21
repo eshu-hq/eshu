@@ -163,7 +163,7 @@ func normalizeTargetScope(target TargetScope) (TargetScope, error) {
 	if err != nil {
 		return TargetScope{}, err
 	}
-	services, err := normalizeList(target.AllowedServices, "allowed_services", awsruntime.SupportsServiceKind)
+	services, err := normalizeList(target.AllowedServices, "allowed_services", runtime.SupportsServiceKind)
 	if err != nil {
 		return TargetScope{}, err
 	}

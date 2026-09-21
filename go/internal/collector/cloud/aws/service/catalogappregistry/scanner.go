@@ -25,15 +25,15 @@ type Scanner struct {
 // Scan observes AppRegistry applications, attribute groups, and the application
 // associations (attribute groups and CloudFormation stacks) through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("servicecatalogappregistry scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceServiceCatalogAppRegistry:
+	case "", aws.ServiceServiceCatalogAppRegistry:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceServiceCatalogAppRegistry
+		boundary.ServiceKind = aws.ServiceServiceCatalogAppRegistry
 	default:
 		return nil, fmt.Errorf(
 			"servicecatalogappregistry scanner received service_kind %q",
@@ -50,7 +50,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, group := range snapshot.AttributeGroups {
-		envelope, err := awscloud.NewResourceEnvelope(attributeGroupObservation(boundary, group))
+		envelope, err := aws.NewResourceEnvelope(attributeGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -66,9 +66,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -77,8 +77,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func applicationEnvelopes(boundary awscloud.Boundary, application Application) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+func applicationEnvelopes(boundary aws.Boundary, application Application) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func applicationEnvelopes(boundary awscloud.Boundary, application Application) (
 	relationships := applicationAttributeGroupRelationships(boundary, application)
 	relationships = append(relationships, applicationStackRelationships(boundary, application)...)
 	for _, relationship := range relationships {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -95,15 +95,15 @@ func applicationEnvelopes(boundary awscloud.Boundary, application Application) (
 	return envelopes, nil
 }
 
-func applicationObservation(boundary awscloud.Boundary, application Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, application Application) aws.ResourceObservation {
 	arn := strings.TrimSpace(application.ARN)
 	name := strings.TrimSpace(application.Name)
 	resourceID := applicationResourceID(application)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogAppRegistryApplication,
+		ResourceType: aws.ResourceTypeServiceCatalogAppRegistryApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -119,15 +119,15 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 	}
 }
 
-func attributeGroupObservation(boundary awscloud.Boundary, group AttributeGroup) awscloud.ResourceObservation {
+func attributeGroupObservation(boundary aws.Boundary, group AttributeGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := attributeGroupResourceID(group)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
+		ResourceType: aws.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssg "github.com/aws/aws-sdk-go-v2/service/storagegateway"
 	sgtypes "github.com/aws/aws-sdk-go-v2/service/storagegateway/types"
 
@@ -55,56 +55,56 @@ func TestClientReadsStorageGatewayMetadata(t *testing.T) {
 	gatewayARN := "arn:aws:storagegateway:us-east-1:123456789012:gateway/sgw-1"
 	api := &fakeAPI{
 		gateways: &awssg.ListGatewaysOutput{Gateways: []sgtypes.GatewayInfo{{
-			GatewayARN:              aws.String(gatewayARN),
-			GatewayId:               aws.String("sgw-1"),
-			GatewayName:             aws.String("file-gw"),
-			GatewayType:             aws.String("FILE_S3"),
-			GatewayOperationalState: aws.String("ACTIVE"),
+			GatewayARN:              awsv2.String(gatewayARN),
+			GatewayId:               awsv2.String("sgw-1"),
+			GatewayName:             awsv2.String("file-gw"),
+			GatewayType:             awsv2.String("FILE_S3"),
+			GatewayOperationalState: awsv2.String("ACTIVE"),
 		}}},
 		gatewayInfo: &awssg.DescribeGatewayInformationOutput{
-			GatewayARN:            aws.String(gatewayARN),
-			GatewayState:          aws.String("RUNNING"),
-			EndpointType:          aws.String("STANDARD"),
-			VPCEndpoint:           aws.String("vpce-abc123"),
-			CloudWatchLogGroupARN: aws.String("arn:aws:logs:us-east-1:123456789012:log-group:/g:*"),
+			GatewayARN:            awsv2.String(gatewayARN),
+			GatewayState:          awsv2.String("RUNNING"),
+			EndpointType:          awsv2.String("STANDARD"),
+			VPCEndpoint:           awsv2.String("vpce-abc123"),
+			CloudWatchLogGroupARN: awsv2.String("arn:aws:logs:us-east-1:123456789012:log-group:/g:*"),
 			HostEnvironment:       sgtypes.HostEnvironmentEc2,
 			GatewayNetworkInterfaces: []sgtypes.NetworkInterface{
-				{Ipv4Address: aws.String("10.0.0.5")},
+				{Ipv4Address: awsv2.String("10.0.0.5")},
 			},
-			Tags: []sgtypes.Tag{{Key: aws.String("env"), Value: aws.String("prod")}},
+			Tags: []sgtypes.Tag{{Key: awsv2.String("env"), Value: awsv2.String("prod")}},
 		},
 		volumes: &awssg.ListVolumesOutput{VolumeInfos: []sgtypes.VolumeInfo{{
-			VolumeARN:         aws.String(gatewayARN + "/volume/vol-1"),
-			VolumeId:          aws.String("vol-1"),
-			VolumeType:        aws.String("CACHED"),
+			VolumeARN:         awsv2.String(gatewayARN + "/volume/vol-1"),
+			VolumeId:          awsv2.String("vol-1"),
+			VolumeType:        awsv2.String("CACHED"),
 			VolumeSizeInBytes: 100,
-			GatewayARN:        aws.String(gatewayARN),
+			GatewayARN:        awsv2.String(gatewayARN),
 		}}},
 		fileShares: &awssg.ListFileSharesOutput{FileShareInfoList: []sgtypes.FileShareInfo{
-			{FileShareARN: aws.String("arn:aws:storagegateway:us-east-1:123456789012:share/nfs-1"), FileShareType: sgtypes.FileShareTypeNfs},
-			{FileShareARN: aws.String("arn:aws:storagegateway:us-east-1:123456789012:share/smb-1"), FileShareType: sgtypes.FileShareTypeSmb},
+			{FileShareARN: awsv2.String("arn:aws:storagegateway:us-east-1:123456789012:share/nfs-1"), FileShareType: sgtypes.FileShareTypeNfs},
+			{FileShareARN: awsv2.String("arn:aws:storagegateway:us-east-1:123456789012:share/smb-1"), FileShareType: sgtypes.FileShareTypeSmb},
 		}},
 		nfs: &awssg.DescribeNFSFileSharesOutput{NFSFileShareInfoList: []sgtypes.NFSFileShareInfo{{
-			FileShareARN:        aws.String("arn:aws:storagegateway:us-east-1:123456789012:share/nfs-1"),
-			FileShareId:         aws.String("nfs-1"),
-			FileShareStatus:     aws.String("AVAILABLE"),
-			GatewayARN:          aws.String(gatewayARN),
-			LocationARN:         aws.String("arn:aws:s3:::archive/data/"),
-			Role:                aws.String("arn:aws:iam::123456789012:role/r"),
-			KMSKey:              aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
-			AuditDestinationARN: aws.String("arn:aws:logs:us-east-1:123456789012:log-group:/g:*"),
+			FileShareARN:        awsv2.String("arn:aws:storagegateway:us-east-1:123456789012:share/nfs-1"),
+			FileShareId:         awsv2.String("nfs-1"),
+			FileShareStatus:     awsv2.String("AVAILABLE"),
+			GatewayARN:          awsv2.String(gatewayARN),
+			LocationARN:         awsv2.String("arn:aws:s3:::archive/data/"),
+			Role:                awsv2.String("arn:aws:iam::123456789012:role/r"),
+			KMSKey:              awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+			AuditDestinationARN: awsv2.String("arn:aws:logs:us-east-1:123456789012:log-group:/g:*"),
 			ClientList:          []string{"10.0.0.0/24"},
 		}}},
 		smb: &awssg.DescribeSMBFileSharesOutput{SMBFileShareInfoList: []sgtypes.SMBFileShareInfo{{
-			FileShareARN:    aws.String("arn:aws:storagegateway:us-east-1:123456789012:share/smb-1"),
-			FileShareId:     aws.String("smb-1"),
-			FileShareStatus: aws.String("AVAILABLE"),
-			GatewayARN:      aws.String(gatewayARN),
-			LocationARN:     aws.String("arn:aws:s3:::smb-archive"),
+			FileShareARN:    awsv2.String("arn:aws:storagegateway:us-east-1:123456789012:share/smb-1"),
+			FileShareId:     awsv2.String("smb-1"),
+			FileShareStatus: awsv2.String("AVAILABLE"),
+			GatewayARN:      awsv2.String(gatewayARN),
+			LocationARN:     awsv2.String("arn:aws:s3:::smb-archive"),
 			AdminUserList:   []string{"admin"},
 		}}},
 	}
-	client := &Client{client: api, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceStorageGateway, Region: "us-east-1"}}
+	client := &Client{client: api, boundary: aws.Boundary{ServiceKind: aws.ServiceStorageGateway, Region: "us-east-1"}}
 
 	gateways, err := client.ListGateways(context.Background())
 	if err != nil {

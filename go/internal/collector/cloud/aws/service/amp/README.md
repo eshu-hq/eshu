@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/amp` owns the Amazon Managed Service for
+`internal/collector/cloud/aws/service/amp` owns the Amazon Managed Service for
 Prometheus (AMP) scanner contract for the AWS cloud collector. It converts AMP
 workspace, rule-groups namespace (names only), and managed-collector (scraper)
 metadata into `aws_resource` facts and emits relationship evidence for the
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records AMP API call counts, throttles, and pagination
+The `sdk` adapter records AMP API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -84,14 +84,14 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/amp/...` covers the bounded AMP
+`go test ./internal/collector/cloud/aws/service/amp/...` covers the bounded AMP
 metadata path: one paginated ListWorkspaces stream, one paginated
 ListRuleGroupsNamespaces stream per workspace, one paginated ListScrapers
 stream, no rule-definition body reads, no scrape-configuration reads, no
 queries, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/amp/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/amp/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

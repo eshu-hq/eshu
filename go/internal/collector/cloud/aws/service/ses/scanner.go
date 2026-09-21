@@ -29,13 +29,13 @@ type Scanner struct {
 // Scan observes SES email identities, configuration sets and their event
 // destinations, dedicated IP pools, and the direct cross-service dependency
 // metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ses scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSES:
-		boundary.ServiceKind = awscloud.ServiceSES
+	case "", aws.ServiceSES:
+		boundary.ServiceKind = aws.ServiceSES
 	default:
 		return nil, fmt.Errorf("ses scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -63,7 +63,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, pool := range snapshot.DedicatedIPPools {
-		envelope, err := awscloud.NewResourceEnvelope(dedicatedIPPoolObservation(boundary, pool))
+		envelope, err := aws.NewResourceEnvelope(dedicatedIPPoolObservation(boundary, pool))
 		if err != nil {
 			return nil, err
 		}
@@ -72,9 +72,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -83,20 +83,20 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func identityEnvelopes(boundary awscloud.Boundary, identity EmailIdentity) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(identityObservation(boundary, identity))
+func identityEnvelopes(boundary aws.Boundary, identity EmailIdentity) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(identityObservation(boundary, identity))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		identityConfigurationSetRelationship(boundary, identity),
 		identityDKIMKMSRelationship(boundary, identity),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -105,14 +105,14 @@ func identityEnvelopes(boundary awscloud.Boundary, identity EmailIdentity) ([]fa
 	return envelopes, nil
 }
 
-func configurationSetEnvelopes(boundary awscloud.Boundary, set ConfigurationSet) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(configurationSetObservation(boundary, set))
+func configurationSetEnvelopes(boundary aws.Boundary, set ConfigurationSet) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(configurationSetObservation(boundary, set))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := configurationSetDedicatedIPPoolRelationship(boundary, set); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -130,23 +130,23 @@ func configurationSetEnvelopes(boundary awscloud.Boundary, set ConfigurationSet)
 }
 
 func eventDestinationEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configurationSet string,
 	destination EventDestination,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(eventDestinationObservation(boundary, configurationSet, destination))
+	resource, err := aws.NewResourceEnvelope(eventDestinationObservation(boundary, configurationSet, destination))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		eventDestinationSNSTopicRelationship(boundary, configurationSet, destination),
 		eventDestinationFirehoseRelationship(boundary, configurationSet, destination),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -155,15 +155,15 @@ func eventDestinationEnvelopes(
 	return envelopes, nil
 }
 
-func identityObservation(boundary awscloud.Boundary, identity EmailIdentity) awscloud.ResourceObservation {
+func identityObservation(boundary aws.Boundary, identity EmailIdentity) aws.ResourceObservation {
 	name := strings.TrimSpace(identity.Name)
 	resourceID := identityResourceID(identity)
 	arn := identityARN(boundary, identity)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESEmailIdentity,
+		ResourceType: aws.ResourceTypeSESEmailIdentity,
 		Name:         name,
 		State:        strings.TrimSpace(identity.VerificationStatus),
 		Tags:         cloneStringMap(identity.Tags),
@@ -188,15 +188,15 @@ func identityObservation(boundary awscloud.Boundary, identity EmailIdentity) aws
 	}
 }
 
-func configurationSetObservation(boundary awscloud.Boundary, set ConfigurationSet) awscloud.ResourceObservation {
+func configurationSetObservation(boundary aws.Boundary, set ConfigurationSet) aws.ResourceObservation {
 	name := strings.TrimSpace(set.Name)
 	resourceID := configurationSetResourceID(set)
 	arn := configurationSetARN(boundary, set)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESConfigurationSet,
+		ResourceType: aws.ResourceTypeSESConfigurationSet,
 		Name:         name,
 		Tags:         cloneStringMap(set.Tags),
 		Attributes: map[string]any{
@@ -213,16 +213,16 @@ func configurationSetObservation(boundary awscloud.Boundary, set ConfigurationSe
 }
 
 func eventDestinationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configurationSet string,
 	destination EventDestination,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	name := strings.TrimSpace(destination.Name)
 	resourceID := eventDestinationResourceID(configurationSet, destination)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESEventDestination,
+		ResourceType: aws.ResourceTypeSESEventDestination,
 		Name:         name,
 		Attributes: map[string]any{
 			"configuration_set_name":       strings.TrimSpace(configurationSet),
@@ -240,15 +240,15 @@ func eventDestinationObservation(
 	}
 }
 
-func dedicatedIPPoolObservation(boundary awscloud.Boundary, pool DedicatedIPPool) awscloud.ResourceObservation {
+func dedicatedIPPoolObservation(boundary aws.Boundary, pool DedicatedIPPool) aws.ResourceObservation {
 	name := strings.TrimSpace(pool.Name)
 	resourceID := dedicatedIPPoolResourceID(pool)
 	arn := dedicatedIPPoolARN(boundary, pool)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESDedicatedIPPool,
+		ResourceType: aws.ResourceTypeSESDedicatedIPPool,
 		Name:         name,
 		Attributes: map[string]any{
 			"pool_name": name,

@@ -1,4 +1,4 @@
-# AGENTS.md - computeoptimizer/awssdk guidance
+# AGENTS.md - computeoptimizer/sdk guidance
 
 ## Read First
 

@@ -12,4 +12,4 @@
 // DescribeConfigurationRevision (which would expose the configuration XML
 // body). DescribeBroker returns broker usernames (UserSummary) but no
 // passwords; the adapter records usernames only.
-package awssdk
+package sdk

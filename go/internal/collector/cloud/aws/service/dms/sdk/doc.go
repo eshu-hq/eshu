@@ -14,4 +14,4 @@
 // Manager secret id) from endpoint settings and never persists server names
 // used as credentials, usernames, passwords, connection attributes, external
 // table definitions, or SSL key material.
-package awssdk
+package sdk

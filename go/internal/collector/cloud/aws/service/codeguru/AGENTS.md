@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codeguru guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codeguru guidance
 
 ## Read First
 
@@ -35,7 +35,7 @@
   is CodeCommit. CodeGuru reports only the repo name and owning account, so
   synthesize the CodeCommit repository ARN
   (`arn:<partition>:codecommit:<region>:<owner>:<name>`) with
-  `awscloud.PartitionForBoundary` and never hardcode `arn:aws:`; GovCloud and
+  `aws.PartitionForBoundary` and never hardcode `arn:aws:`; GovCloud and
   China must resolve to the real repository node. Skip the edge when the owner
   account or region is missing rather than dangling it.
 - Non-CodeCommit providers and the CodeStar connection ARN / S3 bucket name are
@@ -44,7 +44,7 @@
 - The profiling-group compute platform is a resource attribute; CodeGuru reports
   no structured compute resource identifier to key an edge on.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from names or AWS tags.
@@ -53,13 +53,13 @@
 ## Common Changes
 
 - Add a new CodeGuru metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry findings, recommendation, profiling
   sample, or source content, leave it out of the scanner contract.
 - Add new relationship evidence only when the CodeGuru API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

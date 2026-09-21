@@ -1300,7 +1300,7 @@
       "category": "collector",
       "name": "aws",
       "readiness": "implemented",
-      "owner": "internal/collector/awscloud",
+      "owner": "internal/collector/cloud/aws",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
@@ -1345,11 +1345,11 @@
           "list_secrets_iam_identity_trust_chains"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer/... ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws ./internal/reducer/... ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "go/cmd/collector-aws-cloud/testdata",
-          "go/internal/collector/awscloud/service"
+          "go/internal/collector/cloud/aws/service"
         ],
         "truth_profile": "provider_gated"
       }

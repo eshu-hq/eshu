@@ -11,4 +11,4 @@
 // AssociateLicense, and DescribeWorkspaceAuthentication (which returns SAML and
 // IAM Identity Center configuration), so the adapter cannot mutate a workspace,
 // mint an API key or token, or read an authentication secret.
-package awssdk
+package sdk

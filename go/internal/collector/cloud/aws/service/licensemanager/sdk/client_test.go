@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslicensemanager "github.com/aws/aws-sdk-go-v2/service/licensemanager"
 	awslicensemanagertypes "github.com/aws/aws-sdk-go-v2/service/licensemanager/types"
 
@@ -21,33 +21,33 @@ func TestClientSnapshotsLicenseManagerMetadataOnly(t *testing.T) {
 	api := &fakeLicenseManagerAPI{
 		configPages: []*awslicensemanager.ListLicenseConfigurationsOutput{{
 			LicenseConfigurations: []awslicensemanagertypes.LicenseConfiguration{{
-				LicenseConfigurationArn: aws.String(configARN),
-				LicenseConfigurationId:  aws.String("lic-0abc123"),
-				Name:                    aws.String("windows-server"),
-				Status:                  aws.String("AVAILABLE"),
+				LicenseConfigurationArn: awsv2.String(configARN),
+				LicenseConfigurationId:  awsv2.String("lic-0abc123"),
+				Name:                    awsv2.String("windows-server"),
+				Status:                  awsv2.String("AVAILABLE"),
 				LicenseCountingType:     awslicensemanagertypes.LicenseCountingTypeInstance,
-				LicenseCount:            aws.Int64(100),
-				LicenseCountHardLimit:   aws.Bool(true),
-				ConsumedLicenses:        aws.Int64(12),
-				OwnerAccountId:          aws.String("123456789012"),
-				LicenseExpiry:           aws.Int64(1798761600),
+				LicenseCount:            awsv2.Int64(100),
+				LicenseCountHardLimit:   awsv2.Bool(true),
+				ConsumedLicenses:        awsv2.Int64(12),
+				OwnerAccountId:          awsv2.String("123456789012"),
+				LicenseExpiry:           awsv2.Int64(1798761600),
 				LicenseRules:            []string{"#minimumVcpus=2"},
 				ProductInformationList: []awslicensemanagertypes.ProductInformation{{
-					ResourceType: aws.String("SSM_MANAGED"),
+					ResourceType: awsv2.String("SSM_MANAGED"),
 				}},
 			}},
 		}},
 		associationPages: map[string][]*awslicensemanager.ListAssociationsForLicenseConfigurationOutput{
 			configARN: {{
 				LicenseConfigurationAssociations: []awslicensemanagertypes.LicenseConfigurationAssociation{{
-					ResourceArn:     aws.String(instanceARN),
+					ResourceArn:     awsv2.String(instanceARN),
 					ResourceType:    awslicensemanagertypes.ResourceTypeEc2Instance,
-					ResourceOwnerId: aws.String("123456789012"),
+					ResourceOwnerId: awsv2.String("123456789012"),
 				}},
 			}},
 		},
 		tags: map[string][]awslicensemanagertypes.Tag{
-			configARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			configARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 
@@ -101,9 +101,9 @@ func TestClientLeavesLicenseCountUnconfiguredWhenNil(t *testing.T) {
 	api := &fakeLicenseManagerAPI{
 		configPages: []*awslicensemanager.ListLicenseConfigurationsOutput{{
 			LicenseConfigurations: []awslicensemanagertypes.LicenseConfiguration{{
-				LicenseConfigurationArn: aws.String(configARN),
-				LicenseConfigurationId:  aws.String("lic-no-count"),
-				Name:                    aws.String("no-count"),
+				LicenseConfigurationArn: awsv2.String(configARN),
+				LicenseConfigurationId:  awsv2.String("lic-no-count"),
+				Name:                    awsv2.String("no-count"),
 			}},
 		}},
 	}
@@ -147,7 +147,7 @@ func (f *fakeLicenseManagerAPI) ListAssociationsForLicenseConfiguration(
 	if f.associationCalls == nil {
 		f.associationCalls = map[string]int{}
 	}
-	arn := aws.ToString(input.LicenseConfigurationArn)
+	arn := awsv2.ToString(input.LicenseConfigurationArn)
 	pages := f.associationPages[arn]
 	idx := f.associationCalls[arn]
 	if idx >= len(pages) {
@@ -163,14 +163,14 @@ func (f *fakeLicenseManagerAPI) ListTagsForResource(
 	_ ...func(*awslicensemanager.Options),
 ) (*awslicensemanager.ListTagsForResourceOutput, error) {
 	return &awslicensemanager.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLicenseManager,
+		ServiceKind: aws.ServiceLicenseManager,
 	}
 }

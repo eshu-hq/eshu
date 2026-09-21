@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kinesisanalyticsv2/awssdk` adapts AWS SDK
+`internal/collector/cloud/aws/service/kinesisanalyticsv2/sdk` adapts AWS SDK
 for Go v2 Managed Service for Apache Flink (Kinesis Data Analytics v2) responses
 to the scanner-owned `Client` contract. It owns application pagination,
 per-application describe and snapshot reads, resource-tag reads, throttle
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/kinesisanalyticsv2` for scanner-owned
+- `internal/collector/cloud/aws/service/kinesisanalyticsv2` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `kinesisanalyticsv2` and Smithy error contracts.

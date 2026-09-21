@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/opensearchserverless/awssdk` adapts AWS SDK
+`internal/collector/cloud/aws/service/opensearchserverless/sdk` adapts AWS SDK
 for Go v2 OpenSearch Serverless (aoss) control-plane calls into the scanner-owned
 metadata model. It paginates `ListCollections`, `ListSecurityPolicies`, and
 `ListVpcEndpoints`, hydrates details through `BatchGetCollection`,
@@ -52,7 +52,7 @@ operation, and result.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/opensearchserverless/...` green.
+No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/opensearchserverless/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

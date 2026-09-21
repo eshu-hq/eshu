@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/config guidance
+# AGENTS.md - internal/collector/cloud/aws/service/config guidance
 
 ## Read First
 
@@ -43,11 +43,11 @@
 
 - Add a new safe Config metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when AWS Config directly reports both sides
   and the target is a real emitted node or a cross-service account/Lambda target
   following the existing convention.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

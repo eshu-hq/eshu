@@ -1,6 +1,6 @@
-# services/cloudwatch/runtimebind
+# services/cloudwatch/bind
 
-Self-registers the CloudWatch metadata scanner into the `awsruntime` registry
+Self-registers the CloudWatch metadata scanner into the `runtime` registry
 via `init()`. The collector main and the bindings aggregate package both
 import this package as a blank import; nothing else in the runtime needs to
 change to make CloudWatch reachable.
@@ -11,7 +11,7 @@ without it.
 
 ## Tests
 
-- `bind_test.go` asserts `awsruntime.LookupBuilder(awscloud.ServiceCloudWatch)`
+- `bind_test.go` asserts `runtime.LookupBuilder(aws.ServiceCloudWatch)`
   returns a non-nil builder after the package is imported.
 - It also asserts the builder returns a typed error when `RedactionKey` is
   zero.

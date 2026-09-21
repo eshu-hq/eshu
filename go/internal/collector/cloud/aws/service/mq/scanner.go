@@ -23,15 +23,15 @@ type Scanner struct {
 
 // Scan observes Amazon MQ brokers and broker configurations through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("mq scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMQ:
+	case "", aws.ServiceMQ:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMQ
+		boundary.ServiceKind = aws.ServiceMQ
 	default:
 		return nil, fmt.Errorf("mq scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,13 +48,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, broker := range brokers {
-		resource, err := awscloud.NewResourceEnvelope(brokerObservation(boundary, broker))
+		resource, err := aws.NewResourceEnvelope(brokerObservation(boundary, broker))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, observation := range brokerRelationships(boundary, broker, configurationARNs) {
-			relationship, err := awscloud.NewRelationshipEnvelope(observation)
+			relationship, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -62,7 +62,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, configuration := range configurations {
-		resource, err := awscloud.NewResourceEnvelope(configurationObservation(boundary, configuration))
+		resource, err := aws.NewResourceEnvelope(configurationObservation(boundary, configuration))
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func brokerObservation(boundary awscloud.Boundary, broker Broker) awscloud.ResourceObservation {
+func brokerObservation(boundary aws.Boundary, broker Broker) aws.ResourceObservation {
 	brokerARN := strings.TrimSpace(broker.ARN)
 	attributes := map[string]any{
 		"broker_id":                  strings.TrimSpace(broker.ID),
@@ -96,11 +96,11 @@ func brokerObservation(boundary awscloud.Boundary, broker Broker) awscloud.Resou
 			"revision": broker.Configuration.Revision,
 		}
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                brokerARN,
 		ResourceID:         firstNonEmpty(brokerARN, broker.ID, broker.Name),
-		ResourceType:       awscloud.ResourceTypeMQBroker,
+		ResourceType:       aws.ResourceTypeMQBroker,
 		Name:               strings.TrimSpace(broker.Name),
 		State:              strings.TrimSpace(broker.State),
 		Tags:               cloneStringMap(broker.Tags),
@@ -110,13 +110,13 @@ func brokerObservation(boundary awscloud.Boundary, broker Broker) awscloud.Resou
 	}
 }
 
-func configurationObservation(boundary awscloud.Boundary, configuration Configuration) awscloud.ResourceObservation {
+func configurationObservation(boundary aws.Boundary, configuration Configuration) aws.ResourceObservation {
 	configurationARN := strings.TrimSpace(configuration.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   firstNonEmpty(configurationARN, configuration.ID, configuration.Name),
-		ResourceType: awscloud.ResourceTypeMQConfiguration,
+		ResourceType: aws.ResourceTypeMQConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		Tags:         cloneStringMap(configuration.Tags),
 		Attributes: map[string]any{

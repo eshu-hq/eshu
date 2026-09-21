@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fis/runtimebind` registers the FIS scanner
-with the awsruntime registry from a package `init()`. Importing this package for
+`internal/collector/cloud/aws/service/fis/bind` registers the FIS scanner
+with the runtime registry from a package `init()`. Importing this package for
 its blank side effect is the only way a runtime brings the FIS scanner into the
 production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceFIS` to the FIS scanner builder. It does not own AWS API calls,
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceFIS` to the FIS scanner builder. It does not own AWS API calls,
 FIS domain types, redaction policy, or fact emission. Those belong to
-`internal/collector/awscloud/service/fis` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/fis` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceFIS` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceFIS` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/fis` for the scanner struct.
-- `internal/collector/awscloud/service/fis/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/fis` for the scanner struct.
+- `internal/collector/cloud/aws/service/fis/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The FIS scanner and its SDK adapter
 emit the per-service counters and spans documented in `../README.md` and the
-awsruntime README.
+runtime README.
 
 ## Gotchas / invariants
 
@@ -46,6 +46,6 @@ awsruntime README.
 ## Related docs
 
 - `../README.md` for the FIS scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

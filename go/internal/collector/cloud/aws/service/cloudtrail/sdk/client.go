@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudtrail "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"go.opentelemetry.io/otel/trace"
@@ -48,15 +48,15 @@ type apiClient interface {
 // scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CloudTrail SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -109,14 +109,14 @@ func (c *Client) listTrailInfos(ctx context.Context) ([]cttypes.TrailInfo, error
 		}
 		infos = append(infos, page.Trails...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return infos, nil
 		}
 	}
 }
 
 func (c *Client) trailMetadata(ctx context.Context, info cttypes.TrailInfo) (cloudtrailservice.Trail, error) {
-	trailARN := strings.TrimSpace(aws.ToString(info.TrailARN))
+	trailARN := strings.TrimSpace(awsv2.ToString(info.TrailARN))
 	detail, err := c.getTrail(ctx, trailARN)
 	if err != nil {
 		return cloudtrailservice.Trail{}, err
@@ -145,7 +145,7 @@ func (c *Client) getTrail(ctx context.Context, trailARN string) (*cttypes.Trail,
 	err := c.recordAPICall(ctx, "GetTrail", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetTrail(callCtx, &awscloudtrail.GetTrailInput{
-			Name: aws.String(trailARN),
+			Name: awsv2.String(trailARN),
 		})
 		return err
 	})
@@ -169,7 +169,7 @@ func (c *Client) getTrailStatus(ctx context.Context, trailARN string) (bool, str
 	err := c.recordAPICall(ctx, "GetTrailStatus", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetTrailStatus(callCtx, &awscloudtrail.GetTrailStatusInput{
-			Name: aws.String(trailARN),
+			Name: awsv2.String(trailARN),
 		})
 		return err
 	})
@@ -179,9 +179,9 @@ func (c *Client) getTrailStatus(ctx context.Context, trailARN string) (bool, str
 	if output == nil {
 		return false, "", "", nil
 	}
-	return aws.ToBool(output.IsLogging),
-		strings.TrimSpace(aws.ToString(output.LatestDeliveryError)),
-		strings.TrimSpace(aws.ToString(output.LatestNotificationError)),
+	return awsv2.ToBool(output.IsLogging),
+		strings.TrimSpace(awsv2.ToString(output.LatestDeliveryError)),
+		strings.TrimSpace(awsv2.ToString(output.LatestNotificationError)),
 		nil
 }
 
@@ -198,8 +198,8 @@ func mapTrail(
 ) cloudtrailservice.Trail {
 	trail := cloudtrailservice.Trail{
 		ARN:                     trailARN,
-		Name:                    strings.TrimSpace(aws.ToString(info.Name)),
-		HomeRegion:              strings.TrimSpace(aws.ToString(info.HomeRegion)),
+		Name:                    strings.TrimSpace(awsv2.ToString(info.Name)),
+		HomeRegion:              strings.TrimSpace(awsv2.ToString(info.HomeRegion)),
 		LoggingEnabled:          loggingEnabled,
 		LatestDeliveryError:     latestDeliveryError,
 		LatestNotificationError: latestNotificationError,
@@ -210,20 +210,20 @@ func mapTrail(
 	if detail == nil {
 		return trail
 	}
-	trail.Name = firstNonEmpty(trail.Name, strings.TrimSpace(aws.ToString(detail.Name)))
-	trail.HomeRegion = firstNonEmpty(trail.HomeRegion, strings.TrimSpace(aws.ToString(detail.HomeRegion)))
-	trail.S3BucketName = strings.TrimSpace(aws.ToString(detail.S3BucketName))
-	trail.S3KeyPrefix = strings.TrimSpace(aws.ToString(detail.S3KeyPrefix))
-	trail.SNSTopicARN = strings.TrimSpace(aws.ToString(detail.SnsTopicARN))
-	trail.CloudWatchLogsLogGroupARN = strings.TrimSpace(aws.ToString(detail.CloudWatchLogsLogGroupArn))
-	trail.CloudWatchLogsRoleARN = strings.TrimSpace(aws.ToString(detail.CloudWatchLogsRoleArn))
-	trail.KMSKeyID = strings.TrimSpace(aws.ToString(detail.KmsKeyId))
-	trail.IncludeGlobalServiceEvents = aws.ToBool(detail.IncludeGlobalServiceEvents)
-	trail.IsMultiRegionTrail = aws.ToBool(detail.IsMultiRegionTrail)
-	trail.IsOrganizationTrail = aws.ToBool(detail.IsOrganizationTrail)
-	trail.LogFileValidationEnabled = aws.ToBool(detail.LogFileValidationEnabled)
-	trail.HasCustomEventSelectors = aws.ToBool(detail.HasCustomEventSelectors)
-	trail.HasInsightSelectors = aws.ToBool(detail.HasInsightSelectors)
+	trail.Name = firstNonEmpty(trail.Name, strings.TrimSpace(awsv2.ToString(detail.Name)))
+	trail.HomeRegion = firstNonEmpty(trail.HomeRegion, strings.TrimSpace(awsv2.ToString(detail.HomeRegion)))
+	trail.S3BucketName = strings.TrimSpace(awsv2.ToString(detail.S3BucketName))
+	trail.S3KeyPrefix = strings.TrimSpace(awsv2.ToString(detail.S3KeyPrefix))
+	trail.SNSTopicARN = strings.TrimSpace(awsv2.ToString(detail.SnsTopicARN))
+	trail.CloudWatchLogsLogGroupARN = strings.TrimSpace(awsv2.ToString(detail.CloudWatchLogsLogGroupArn))
+	trail.CloudWatchLogsRoleARN = strings.TrimSpace(awsv2.ToString(detail.CloudWatchLogsRoleArn))
+	trail.KMSKeyID = strings.TrimSpace(awsv2.ToString(detail.KmsKeyId))
+	trail.IncludeGlobalServiceEvents = awsv2.ToBool(detail.IncludeGlobalServiceEvents)
+	trail.IsMultiRegionTrail = awsv2.ToBool(detail.IsMultiRegionTrail)
+	trail.IsOrganizationTrail = awsv2.ToBool(detail.IsOrganizationTrail)
+	trail.LogFileValidationEnabled = awsv2.ToBool(detail.LogFileValidationEnabled)
+	trail.HasCustomEventSelectors = awsv2.ToBool(detail.HasCustomEventSelectors)
+	trail.HasInsightSelectors = awsv2.ToBool(detail.HasInsightSelectors)
 	return trail
 }
 

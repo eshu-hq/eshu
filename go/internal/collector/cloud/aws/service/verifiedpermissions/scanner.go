@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes Verified Permissions policy stores, their policies and identity
 // sources, and the Cognito user pool dependency metadata through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("verifiedpermissions scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVerifiedPermissions:
+	case "", aws.ServiceVerifiedPermissions:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVerifiedPermissions
+		boundary.ServiceKind = aws.ServiceVerifiedPermissions
 	default:
 		return nil, fmt.Errorf("verifiedpermissions scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -57,9 +57,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -68,8 +68,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func policyStoreEnvelopes(boundary awscloud.Boundary, store PolicyStore) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(policyStoreObservation(boundary, store))
+func policyStoreEnvelopes(boundary aws.Boundary, store PolicyStore) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(policyStoreObservation(boundary, store))
 	if err != nil {
 		return nil, err
 	}
@@ -92,14 +92,14 @@ func policyStoreEnvelopes(boundary awscloud.Boundary, store PolicyStore) ([]fact
 	return envelopes, nil
 }
 
-func policyEnvelopes(boundary awscloud.Boundary, storeID string, policy Policy) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
+func policyEnvelopes(boundary aws.Boundary, storeID string, policy Policy) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(policyObservation(boundary, policy))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := policyInStoreRelationship(boundary, storeID, policy); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -108,20 +108,20 @@ func policyEnvelopes(boundary awscloud.Boundary, storeID string, policy Policy) 
 	return envelopes, nil
 }
 
-func identitySourceEnvelopes(boundary awscloud.Boundary, storeID string, source IdentitySource) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(identitySourceObservation(boundary, source))
+func identitySourceEnvelopes(boundary aws.Boundary, storeID string, source IdentitySource) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(identitySourceObservation(boundary, source))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		identitySourceInStoreRelationship(boundary, storeID, source),
 		identitySourceCognitoRelationship(boundary, source),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -130,15 +130,15 @@ func identitySourceEnvelopes(boundary awscloud.Boundary, storeID string, source 
 	return envelopes, nil
 }
 
-func policyStoreObservation(boundary awscloud.Boundary, store PolicyStore) awscloud.ResourceObservation {
+func policyStoreObservation(boundary aws.Boundary, store PolicyStore) aws.ResourceObservation {
 	storeARN := strings.TrimSpace(store.ARN)
 	storeID := strings.TrimSpace(store.ID)
 	resourceID := policyStoreResourceID(store)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          storeARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
+		ResourceType: aws.ResourceTypeVerifiedPermissionsPolicyStore,
 		Name:         storeID,
 		Tags:         cloneStringMap(store.Tags),
 		Attributes: map[string]any{
@@ -156,13 +156,13 @@ func policyStoreObservation(boundary awscloud.Boundary, store PolicyStore) awscl
 	}
 }
 
-func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.ResourceObservation {
+func policyObservation(boundary aws.Boundary, policy Policy) aws.ResourceObservation {
 	policyID := strings.TrimSpace(policy.ID)
 	resourceID := policyResourceID(policy)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsPolicy,
+		ResourceType: aws.ResourceTypeVerifiedPermissionsPolicy,
 		Name:         policyID,
 		Attributes: map[string]any{
 			"policy_id":         policyID,
@@ -177,13 +177,13 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 	}
 }
 
-func identitySourceObservation(boundary awscloud.Boundary, source IdentitySource) awscloud.ResourceObservation {
+func identitySourceObservation(boundary aws.Boundary, source IdentitySource) aws.ResourceObservation {
 	sourceID := strings.TrimSpace(source.ID)
 	resourceID := identitySourceResourceID(source)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsIdentitySource,
+		ResourceType: aws.ResourceTypeVerifiedPermissionsIdentitySource,
 		Name:         sourceID,
 		Attributes: map[string]any{
 			"identity_source_id":    sourceID,

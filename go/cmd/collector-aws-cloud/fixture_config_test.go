@@ -62,7 +62,7 @@ func TestLoadFixtureConfigRejectsEmpty(t *testing.T) {
 }
 
 // TestBuildCollectorServiceWiresFixtureSource proves the binary constructs a
-// fixture-backed awsruntime.FixtureSource from the declarative config and that
+// fixture-backed runtime.FixtureSource from the declarative config and that
 // the source replays the expected offline facts with no credentials.
 func TestBuildCollectorServiceWiresFixtureSource(t *testing.T) {
 	t.Parallel()
@@ -80,9 +80,9 @@ func TestBuildCollectorServiceWiresFixtureSource(t *testing.T) {
 	if got, want := service.PollInterval, 30*time.Minute; got != want {
 		t.Fatalf("poll interval = %v, want %v", got, want)
 	}
-	source, ok := service.Source.(*awsruntime.FixtureSource)
+	source, ok := service.Source.(*runtime.FixtureSource)
 	if !ok {
-		t.Fatalf("source type = %T, want *awsruntime.FixtureSource", service.Source)
+		t.Fatalf("source type = %T, want *runtime.FixtureSource", service.Source)
 	}
 
 	collected, ok, err := source.Next(context.Background())

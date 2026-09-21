@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "wafv2".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceWAFv2 + "  "
+	boundary.ServiceKind = "  " + aws.ServiceWAFv2 + "  "
 	client := fakeClient{
 		webACLs: []WebACL{{
 			ARN:   "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/edge/abc",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceWAFv2; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceWAFv2; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

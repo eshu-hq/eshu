@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbackup "github.com/aws/aws-sdk-go-v2/service/backup"
 	awsbackuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 
@@ -52,22 +52,22 @@ func TestClientListBackupSelectionsMapsNonEqualsListOfTagsOperator(t *testing.T)
 	fake := &fakeBackupAPI{
 		listBackupSelections: []*awsbackup.ListBackupSelectionsOutput{{
 			BackupSelectionsList: []awsbackuptypes.BackupSelectionsListMember{{
-				BackupPlanId:  aws.String(planID),
-				SelectionId:   aws.String("sel-neq"),
-				SelectionName: aws.String("not-prod"),
-				IamRoleArn:    aws.String(roleARN),
-				CreationDate:  aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				BackupPlanId:  awsv2.String(planID),
+				SelectionId:   awsv2.String("sel-neq"),
+				SelectionName: awsv2.String("not-prod"),
+				IamRoleArn:    awsv2.String(roleARN),
+				CreationDate:  awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
 			}},
 		}},
 		getBackupSelections: map[string]*awsbackup.GetBackupSelectionOutput{
 			"sel-neq": {
 				BackupSelection: &awsbackuptypes.BackupSelection{
-					IamRoleArn:    aws.String(roleARN),
-					SelectionName: aws.String("not-prod"),
+					IamRoleArn:    awsv2.String(roleARN),
+					SelectionName: awsv2.String("not-prod"),
 					ListOfTags: []awsbackuptypes.Condition{{
 						ConditionType:  awsbackuptypes.ConditionType("STRINGNOTLIKE"),
-						ConditionKey:   aws.String("aws:ResourceTag/env"),
-						ConditionValue: aws.String("prod*"),
+						ConditionKey:   awsv2.String("aws:ResourceTag/env"),
+						ConditionValue: awsv2.String("prod*"),
 					}},
 				},
 			},
@@ -75,7 +75,7 @@ func TestClientListBackupSelectionsMapsNonEqualsListOfTagsOperator(t *testing.T)
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBackup},
 	}
 	selections, err := adapter.ListBackupSelections(context.Background(), planID)
 	if err != nil {

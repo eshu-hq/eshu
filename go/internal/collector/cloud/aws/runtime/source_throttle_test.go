@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestClaimedSourceMarksThrottleWarningAsPartial(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{aws.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -56,7 +56,7 @@ func TestClaimedSourceMarksThrottleWarningAsPartial(t *testing.T) {
 		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
 	}
 	observation := statusStore.observations[0]
-	if observation.Status != awscloud.ScanStatusPartial {
+	if observation.Status != aws.ScanStatusPartial {
 		t.Fatalf("status = %q, want partial", observation.Status)
 	}
 	if observation.FailureClass != "throttled" {

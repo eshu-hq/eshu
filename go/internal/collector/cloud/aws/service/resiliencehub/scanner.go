@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes Resilience Hub applications, their policies, components, input
 // sources, protected physical resources, and assessments through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("resiliencehub scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceResilienceHub:
+	case "", aws.ServiceResilienceHub:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceResilienceHub
+		boundary.ServiceKind = aws.ServiceResilienceHub
 	default:
 		return nil, fmt.Errorf("resiliencehub scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -64,9 +64,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -75,16 +75,16 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func policyEnvelopes(boundary awscloud.Boundary, policy ResiliencyPolicy) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
+func policyEnvelopes(boundary aws.Boundary, policy ResiliencyPolicy) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(policyObservation(boundary, policy))
 	if err != nil {
 		return nil, err
 	}
 	return []facts.Envelope{resource}, nil
 }
 
-func appEnvelopes(boundary awscloud.Boundary, app App) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(appObservation(boundary, app))
+func appEnvelopes(boundary aws.Boundary, app App) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(appObservation(boundary, app))
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +121,8 @@ func appEnvelopes(boundary awscloud.Boundary, app App) ([]facts.Envelope, error)
 // appRelationships returns the relationships sourced directly on the application
 // node: its policy edge and one protects-resource edge per ARN-keyable physical
 // resource. Unresolvable physical resources are skipped, not dangled.
-func appRelationships(boundary awscloud.Boundary, app App) []*awscloud.RelationshipObservation {
-	relationships := []*awscloud.RelationshipObservation{
+func appRelationships(boundary aws.Boundary, app App) []*aws.RelationshipObservation {
+	relationships := []*aws.RelationshipObservation{
 		appUsesPolicyRelationship(boundary, app),
 	}
 	for _, resource := range app.ProtectedResources {
@@ -132,11 +132,11 @@ func appRelationships(boundary awscloud.Boundary, app App) []*awscloud.Relations
 }
 
 func componentEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	component AppComponent,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(componentObservation(boundary, app, component))
+	resource, err := aws.NewResourceEnvelope(componentObservation(boundary, app, component))
 	if err != nil {
 		return nil, err
 	}
@@ -148,11 +148,11 @@ func componentEnvelopes(
 }
 
 func inputSourceEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	source InputSource,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(inputSourceObservation(boundary, app, source))
+	resource, err := aws.NewResourceEnvelope(inputSourceObservation(boundary, app, source))
 	if err != nil {
 		return nil, err
 	}
@@ -163,8 +163,8 @@ func inputSourceEnvelopes(
 	return envelopes, nil
 }
 
-func assessmentEnvelopes(boundary awscloud.Boundary, assessment Assessment) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(assessmentObservation(boundary, assessment))
+func assessmentEnvelopes(boundary aws.Boundary, assessment Assessment) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(assessmentObservation(boundary, assessment))
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +179,13 @@ func assessmentEnvelopes(boundary awscloud.Boundary, assessment Assessment) ([]f
 // skipping nil entries so callers can pass optional edges inline.
 func appendRelationships(
 	envelopes *[]facts.Envelope,
-	relationships ...*awscloud.RelationshipObservation,
+	relationships ...*aws.RelationshipObservation,
 ) error {
 	for _, relationship := range relationships {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return err
 		}

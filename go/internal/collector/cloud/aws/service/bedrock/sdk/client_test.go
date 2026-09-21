@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbedrock "github.com/aws/aws-sdk-go-v2/service/bedrock"
 	awsbedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
 	awsbedrockagent "github.com/aws/aws-sdk-go-v2/service/bedrockagent"
@@ -20,20 +20,20 @@ import (
 func TestClientListCustomModelsReadsJobAndOutputNotHyperParameters(t *testing.T) {
 	bedrockAPI := &fakeBedrockAPI{
 		customModels: []awsbedrocktypes.CustomModelSummary{{
-			ModelArn:     aws.String("arn:aws:bedrock:us-east-1:123456789012:custom-model/cm"),
-			ModelName:    aws.String("cm"),
-			BaseModelArn: aws.String("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3"),
+			ModelArn:     awsv2.String("arn:aws:bedrock:us-east-1:123456789012:custom-model/cm"),
+			ModelName:    awsv2.String("cm"),
+			BaseModelArn: awsv2.String("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3"),
 		}},
 		getCustomModel: &awsbedrock.GetCustomModelOutput{
-			ModelArn:         aws.String("arn:aws:bedrock:us-east-1:123456789012:custom-model/cm"),
-			ModelName:        aws.String("cm"),
-			BaseModelArn:     aws.String("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3"),
-			JobArn:           aws.String("arn:aws:bedrock:us-east-1:123456789012:model-customization-job/job-1"),
-			OutputDataConfig: &awsbedrocktypes.OutputDataConfig{S3Uri: aws.String("s3://custom-model-output/cm/")},
+			ModelArn:         awsv2.String("arn:aws:bedrock:us-east-1:123456789012:custom-model/cm"),
+			ModelName:        awsv2.String("cm"),
+			BaseModelArn:     awsv2.String("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3"),
+			JobArn:           awsv2.String("arn:aws:bedrock:us-east-1:123456789012:model-customization-job/job-1"),
+			OutputDataConfig: &awsbedrocktypes.OutputDataConfig{S3Uri: awsv2.String("s3://custom-model-output/cm/")},
 			// HyperParameters and TrainingDataConfig are populated to prove the
 			// adapter ignores them; the scanner-owned type has no field for either.
 			HyperParameters:    map[string]string{"learning_rate": "secret-hyperparameter"},
-			TrainingDataConfig: &awsbedrocktypes.TrainingDataConfig{S3Uri: aws.String("s3://training/custom-model/input")},
+			TrainingDataConfig: &awsbedrocktypes.TrainingDataConfig{S3Uri: awsv2.String("s3://training/custom-model/input")},
 		},
 	}
 	adapter := newTestClient(bedrockAPI, &fakeBedrockAgentAPI{})
@@ -59,10 +59,10 @@ func TestClientListCustomModelsReadsJobAndOutputNotHyperParameters(t *testing.T)
 func TestClientListGuardrailsNeverCallsGetGuardrail(t *testing.T) {
 	bedrockAPI := &fakeBedrockAPI{
 		guardrails: []awsbedrocktypes.GuardrailSummary{{
-			Arn:     aws.String("arn:aws:bedrock:us-east-1:123456789012:guardrail/gr"),
-			Id:      aws.String("gr-1"),
-			Name:    aws.String("content-guardrail"),
-			Version: aws.String("DRAFT"),
+			Arn:     awsv2.String("arn:aws:bedrock:us-east-1:123456789012:guardrail/gr"),
+			Id:      awsv2.String("gr-1"),
+			Name:    awsv2.String("content-guardrail"),
+			Version: awsv2.String("DRAFT"),
 			Status:  awsbedrocktypes.GuardrailStatusReady,
 		}},
 	}
@@ -86,29 +86,29 @@ func TestClientListGuardrailsNeverCallsGetGuardrail(t *testing.T) {
 func TestClientListAgentsReadsFoundationModelNotInstruction(t *testing.T) {
 	agentAPI := &fakeBedrockAgentAPI{
 		agents: []awsbedrockagenttypes.AgentSummary{{
-			AgentId:     aws.String("AG1"),
-			AgentName:   aws.String("order-agent"),
+			AgentId:     awsv2.String("AG1"),
+			AgentName:   awsv2.String("order-agent"),
 			AgentStatus: awsbedrockagenttypes.AgentStatusPrepared,
-			Description: aws.String("handles orders"),
+			Description: awsv2.String("handles orders"),
 		}},
 		getAgent: &awsbedrockagent.GetAgentOutput{
 			Agent: &awsbedrockagenttypes.Agent{
-				AgentArn:        aws.String("arn:aws:bedrock:us-east-1:123456789012:agent/AG1"),
-				AgentId:         aws.String("AG1"),
-				AgentName:       aws.String("order-agent"),
-				FoundationModel: aws.String("anthropic.claude-3"),
+				AgentArn:        awsv2.String("arn:aws:bedrock:us-east-1:123456789012:agent/AG1"),
+				AgentId:         awsv2.String("AG1"),
+				AgentName:       awsv2.String("order-agent"),
+				FoundationModel: awsv2.String("anthropic.claude-3"),
 				// Instruction and PromptOverrideConfiguration are populated to prove
 				// the adapter ignores them; the scanner-owned Agent type has no field.
-				Instruction: aws.String("you-are-a-helpful-secret-agent-prompt"),
+				Instruction: awsv2.String("you-are-a-helpful-secret-agent-prompt"),
 				PromptOverrideConfiguration: &awsbedrockagenttypes.PromptOverrideConfiguration{
 					PromptConfigurations: []awsbedrockagenttypes.PromptConfiguration{{
-						BasePromptTemplate: aws.String("prompt-override-template-body"),
+						BasePromptTemplate: awsv2.String("prompt-override-template-body"),
 					}},
 				},
 			},
 		},
 		agentKnowledgeRefs: []awsbedrockagenttypes.AgentKnowledgeBaseSummary{{
-			KnowledgeBaseId: aws.String("KB1"),
+			KnowledgeBaseId: awsv2.String("KB1"),
 		}},
 	}
 	adapter := newTestClient(&fakeBedrockAPI{}, agentAPI)
@@ -134,19 +134,19 @@ func TestClientListAgentsReadsFoundationModelNotInstruction(t *testing.T) {
 func TestClientListAgentActionGroupsReadsLambdaNotApiSchema(t *testing.T) {
 	agentAPI := &fakeBedrockAgentAPI{
 		agents: []awsbedrockagenttypes.AgentSummary{{
-			AgentId:     aws.String("AG1"),
-			AgentName:   aws.String("order-agent"),
+			AgentId:     awsv2.String("AG1"),
+			AgentName:   awsv2.String("order-agent"),
 			AgentStatus: awsbedrockagenttypes.AgentStatusPrepared,
 		}},
 		actionGroups: []awsbedrockagenttypes.ActionGroupSummary{{
-			ActionGroupId:    aws.String("ACT1"),
-			ActionGroupName:  aws.String("order-tools"),
+			ActionGroupId:    awsv2.String("ACT1"),
+			ActionGroupName:  awsv2.String("order-tools"),
 			ActionGroupState: awsbedrockagenttypes.ActionGroupStateEnabled,
 		}},
 		getActionGroup: &awsbedrockagent.GetAgentActionGroupOutput{
 			AgentActionGroup: &awsbedrockagenttypes.AgentActionGroup{
-				ActionGroupId:   aws.String("ACT1"),
-				ActionGroupName: aws.String("order-tools"),
+				ActionGroupId:   awsv2.String("ACT1"),
+				ActionGroupName: awsv2.String("order-tools"),
 				ActionGroupExecutor: &awsbedrockagenttypes.ActionGroupExecutorMemberLambda{
 					Value: "arn:aws:lambda:us-east-1:123456789012:function:order-tool",
 				},
@@ -178,36 +178,36 @@ func TestClientListAgentActionGroupsReadsLambdaNotApiSchema(t *testing.T) {
 func TestClientListKnowledgeBasesReadsEmbeddingAndDataSourcesNotContent(t *testing.T) {
 	agentAPI := &fakeBedrockAgentAPI{
 		knowledgeBases: []awsbedrockagenttypes.KnowledgeBaseSummary{{
-			KnowledgeBaseId: aws.String("KB1"),
-			Name:            aws.String("docs-kb"),
+			KnowledgeBaseId: awsv2.String("KB1"),
+			Name:            awsv2.String("docs-kb"),
 			Status:          awsbedrockagenttypes.KnowledgeBaseStatusActive,
 		}},
 		getKnowledgeBase: &awsbedrockagent.GetKnowledgeBaseOutput{
 			KnowledgeBase: &awsbedrockagenttypes.KnowledgeBase{
-				KnowledgeBaseArn: aws.String("arn:aws:bedrock:us-east-1:123456789012:knowledge-base/KB1"),
-				KnowledgeBaseId:  aws.String("KB1"),
-				Name:             aws.String("docs-kb"),
+				KnowledgeBaseArn: awsv2.String("arn:aws:bedrock:us-east-1:123456789012:knowledge-base/KB1"),
+				KnowledgeBaseId:  awsv2.String("KB1"),
+				Name:             awsv2.String("docs-kb"),
 				KnowledgeBaseConfiguration: &awsbedrockagenttypes.KnowledgeBaseConfiguration{
 					Type: awsbedrockagenttypes.KnowledgeBaseTypeVector,
 					VectorKnowledgeBaseConfiguration: &awsbedrockagenttypes.VectorKnowledgeBaseConfiguration{
-						EmbeddingModelArn: aws.String("arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed"),
+						EmbeddingModelArn: awsv2.String("arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed"),
 					},
 				},
 			},
 		},
 		dataSources: []awsbedrockagenttypes.DataSourceSummary{{
-			DataSourceId:    aws.String("DS-S3"),
-			KnowledgeBaseId: aws.String("KB1"),
-			Name:            aws.String("s3-docs"),
+			DataSourceId:    awsv2.String("DS-S3"),
+			KnowledgeBaseId: awsv2.String("KB1"),
+			Name:            awsv2.String("s3-docs"),
 		}},
 		getDataSource: &awsbedrockagent.GetDataSourceOutput{
 			DataSource: &awsbedrockagenttypes.DataSource{
-				DataSourceId:    aws.String("DS-S3"),
-				KnowledgeBaseId: aws.String("KB1"),
-				Name:            aws.String("s3-docs"),
+				DataSourceId:    awsv2.String("DS-S3"),
+				KnowledgeBaseId: awsv2.String("KB1"),
+				Name:            awsv2.String("s3-docs"),
 				DataSourceConfiguration: &awsbedrockagenttypes.DataSourceConfiguration{
 					Type:            awsbedrockagenttypes.DataSourceTypeS3,
-					S3Configuration: &awsbedrockagenttypes.S3DataSourceConfiguration{BucketArn: aws.String("arn:aws:s3:::kb-docs")},
+					S3Configuration: &awsbedrockagenttypes.S3DataSourceConfiguration{BucketArn: awsv2.String("arn:aws:s3:::kb-docs")},
 				},
 			},
 		},
@@ -245,29 +245,29 @@ func TestClientListKnowledgeBasesReadsEmbeddingAndDataSourcesNotContent(t *testi
 func TestClientWebDataSourceResolvesSeedURL(t *testing.T) {
 	agentAPI := &fakeBedrockAgentAPI{
 		knowledgeBases: []awsbedrockagenttypes.KnowledgeBaseSummary{{
-			KnowledgeBaseId: aws.String("KB1"),
-			Name:            aws.String("docs-kb"),
+			KnowledgeBaseId: awsv2.String("KB1"),
+			Name:            awsv2.String("docs-kb"),
 		}},
 		getKnowledgeBase: &awsbedrockagent.GetKnowledgeBaseOutput{
 			KnowledgeBase: &awsbedrockagenttypes.KnowledgeBase{
-				KnowledgeBaseArn: aws.String("arn:aws:bedrock:us-east-1:123456789012:knowledge-base/KB1"),
-				KnowledgeBaseId:  aws.String("KB1"),
+				KnowledgeBaseArn: awsv2.String("arn:aws:bedrock:us-east-1:123456789012:knowledge-base/KB1"),
+				KnowledgeBaseId:  awsv2.String("KB1"),
 			},
 		},
 		dataSources: []awsbedrockagenttypes.DataSourceSummary{{
-			DataSourceId:    aws.String("DS-WEB"),
-			KnowledgeBaseId: aws.String("KB1"),
-			Name:            aws.String("web"),
+			DataSourceId:    awsv2.String("DS-WEB"),
+			KnowledgeBaseId: awsv2.String("KB1"),
+			Name:            awsv2.String("web"),
 		}},
 		getDataSource: &awsbedrockagent.GetDataSourceOutput{
 			DataSource: &awsbedrockagenttypes.DataSource{
-				DataSourceId: aws.String("DS-WEB"),
+				DataSourceId: awsv2.String("DS-WEB"),
 				DataSourceConfiguration: &awsbedrockagenttypes.DataSourceConfiguration{
 					Type: awsbedrockagenttypes.DataSourceTypeWeb,
 					WebConfiguration: &awsbedrockagenttypes.WebDataSourceConfiguration{
 						SourceConfiguration: &awsbedrockagenttypes.WebSourceConfiguration{
 							UrlConfiguration: &awsbedrockagenttypes.UrlConfiguration{
-								SeedUrls: []awsbedrockagenttypes.SeedUrl{{Url: aws.String("https://docs.example.com")}},
+								SeedUrls: []awsbedrockagenttypes.SeedUrl{{Url: awsv2.String("https://docs.example.com")}},
 							},
 						},
 					},
@@ -293,6 +293,6 @@ func newTestClient(bedrockAPI bedrockAPIClient, agentAPI bedrockAgentAPIClient) 
 	return &Client{
 		bedrock:  bedrockAPI,
 		agent:    agentAPI,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBedrock},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceBedrock},
 	}
 }

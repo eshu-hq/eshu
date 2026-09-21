@@ -12,4 +12,4 @@
 // Cancel mutation APIs, so the adapter cannot read physical site street
 // addresses, shipping or contact details, or rack physical-property logistics,
 // and cannot mutate Outposts state.
-package awssdk
+package sdk

@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func kmsRelationship(boundary awscloud.Boundary, secret Secret) *awscloud.RelationshipObservation {
+func kmsRelationship(boundary aws.Boundary, secret Secret) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(secret.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -19,34 +19,34 @@ func kmsRelationship(boundary awscloud.Boundary, secret Secret) *awscloud.Relati
 	if strings.HasPrefix(targetID, "arn:") {
 		targetARN = targetID
 	}
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecretsManagerSecretUsesKMSKey,
+		RelationshipType: aws.RelationshipSecretsManagerSecretUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(secret.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       "aws_kms_key",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecretsManagerSecretUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipSecretsManagerSecretUsesKMSKey + ":" + targetID,
 	}
 	return &relationship
 }
 
-func rotationLambdaRelationship(boundary awscloud.Boundary, secret Secret) *awscloud.RelationshipObservation {
+func rotationLambdaRelationship(boundary aws.Boundary, secret Secret) *aws.RelationshipObservation {
 	targetARN := strings.TrimSpace(secret.RotationLambdaARN)
 	if targetARN == "" {
 		return nil
 	}
 	sourceID := secretResourceID(secret)
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecretsManagerSecretUsesRotationLambda,
+		RelationshipType: aws.RelationshipSecretsManagerSecretUsesRotationLambda,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(secret.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecretsManagerSecretUsesRotationLambda + ":" + targetARN,
+		TargetType:       aws.ResourceTypeLambdaFunction,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipSecretsManagerSecretUsesRotationLambda + ":" + targetARN,
 	}
 	return &relationship
 }

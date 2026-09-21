@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/sagemaker guidance
+# AGENTS.md - internal/collector/cloud/aws/service/sagemaker guidance
 
 ## Read First
 
@@ -34,10 +34,10 @@
 
 - Add a SageMaker metadata field by extending the matching scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through the
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when the SageMaker API reports both sides
   directly, with a guarded target.
-- Extend SDK pagination or Describe fanout in the `awssdk` adapter, not here.
+- Extend SDK pagination or Describe fanout in the `sdk` adapter, not here.
   Keep new Describe fanout bounded and recorded in the README performance note.
 
 ## What Not To Change Without An ADR

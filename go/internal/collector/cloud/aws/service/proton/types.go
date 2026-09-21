@@ -40,7 +40,7 @@ type Snapshot struct {
 	ServicePlacements []ServicePlacement
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Environment is the scanner-owned Proton environment model. It carries

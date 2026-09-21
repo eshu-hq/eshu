@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes DocumentDB clusters, cluster instances, cluster parameter
 // groups, cluster snapshots, subnet groups, global clusters, and event
 // subscriptions, plus the direct dependency relationships DocumentDB reports.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("docdb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDocDB:
+	case "", aws.ServiceDocDB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDocDB
+		boundary.ServiceKind = aws.ServiceDocDB
 	default:
 		return nil, fmt.Errorf("docdb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -91,18 +91,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func appendClusters(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	clusters []DBCluster,
 	subnets map[string]subnetGroupIdentity,
 ) ([]facts.Envelope, error) {
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range clusterRelationships(boundary, cluster, subnets) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -114,19 +114,19 @@ func appendClusters(
 
 func appendInstances(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instances []ClusterInstance,
 	clusterIDs map[string]string,
 	memberships map[string]clusterMembership,
 ) ([]facts.Envelope, error) {
 	for _, instance := range instances {
-		resource, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
+		resource, err := aws.NewResourceEnvelope(instanceObservation(boundary, instance))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range instanceRelationships(boundary, instance, clusterIDs, memberships) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -138,13 +138,13 @@ func appendInstances(
 
 func appendResources(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	parameterGroups []ClusterParameterGroup,
 	snapshots []ClusterSnapshot,
 	subnetGroups []SubnetGroup,
 	eventSubscriptions []EventSubscription,
 ) ([]facts.Envelope, error) {
-	observations := make([]awscloud.ResourceObservation, 0,
+	observations := make([]aws.ResourceObservation, 0,
 		len(parameterGroups)+len(snapshots)+len(subnetGroups)+len(eventSubscriptions))
 	for _, group := range parameterGroups {
 		observations = append(observations, parameterGroupObservation(boundary, group))
@@ -159,7 +159,7 @@ func appendResources(
 		observations = append(observations, eventSubscriptionObservation(boundary, subscription))
 	}
 	for _, observation := range observations {
-		resource, err := awscloud.NewResourceEnvelope(observation)
+		resource, err := aws.NewResourceEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -170,17 +170,17 @@ func appendResources(
 
 func appendGlobalClusters(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	globalClusters []GlobalCluster,
 ) ([]facts.Envelope, error) {
 	for _, globalCluster := range globalClusters {
-		resource, err := awscloud.NewResourceEnvelope(globalClusterObservation(boundary, globalCluster))
+		resource, err := aws.NewResourceEnvelope(globalClusterObservation(boundary, globalCluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range globalClusterRelationships(boundary, globalCluster) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -190,15 +190,15 @@ func appendGlobalClusters(
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster DBCluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	identifier := strings.TrimSpace(cluster.Identifier)
 	resourceID := firstNonEmpty(clusterARN, cluster.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBCluster,
+		ResourceType: aws.ResourceTypeDocDBCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -234,15 +234,15 @@ func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.
 	}
 }
 
-func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) awscloud.ResourceObservation {
+func instanceObservation(boundary aws.Boundary, instance ClusterInstance) aws.ResourceObservation {
 	instanceARN := strings.TrimSpace(instance.ARN)
 	identifier := strings.TrimSpace(instance.Identifier)
 	resourceID := firstNonEmpty(instanceARN, instance.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterInstance,
+		ResourceType: aws.ResourceTypeDocDBClusterInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -270,15 +270,15 @@ func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) a
 	}
 }
 
-func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParameterGroup) awscloud.ResourceObservation {
+func parameterGroupObservation(boundary aws.Boundary, group ClusterParameterGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterParameterGroup,
+		ResourceType: aws.ResourceTypeDocDBClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -291,15 +291,15 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParamete
 	}
 }
 
-func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) awscloud.ResourceObservation {
+func snapshotObservation(boundary aws.Boundary, snapshot ClusterSnapshot) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	identifier := strings.TrimSpace(snapshot.Identifier)
 	resourceID := firstNonEmpty(snapshotARN, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterSnapshot,
+		ResourceType: aws.ResourceTypeDocDBClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -317,15 +317,15 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) a
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, subnetGroup SubnetGroup) aws.ResourceObservation {
 	subnetGroupARN := strings.TrimSpace(subnetGroup.ARN)
 	name := strings.TrimSpace(subnetGroup.Name)
 	resourceID := firstNonEmpty(subnetGroupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          subnetGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBSubnetGroup,
+		ResourceType: aws.ResourceTypeDocDBSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(subnetGroup.Status),
 		Tags:         cloneStringMap(subnetGroup.Tags),
@@ -339,15 +339,15 @@ func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup)
 	}
 }
 
-func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCluster) awscloud.ResourceObservation {
+func globalClusterObservation(boundary aws.Boundary, globalCluster GlobalCluster) aws.ResourceObservation {
 	globalARN := strings.TrimSpace(globalCluster.ARN)
 	identifier := strings.TrimSpace(globalCluster.Identifier)
 	resourceID := firstNonEmpty(globalARN, globalCluster.ResourceID, identifier)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          globalARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBGlobalCluster,
+		ResourceType: aws.ResourceTypeDocDBGlobalCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(globalCluster.Status),
 		Tags:         cloneStringMap(globalCluster.Tags),
@@ -364,7 +364,7 @@ func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCl
 	}
 }
 
-func eventSubscriptionObservation(boundary awscloud.Boundary, subscription EventSubscription) awscloud.ResourceObservation {
+func eventSubscriptionObservation(boundary aws.Boundary, subscription EventSubscription) aws.ResourceObservation {
 	subscriptionARN := strings.TrimSpace(subscription.ARN)
 	name := strings.TrimSpace(subscription.Name)
 	resourceID := firstNonEmpty(subscriptionARN, name)
@@ -372,11 +372,11 @@ func eventSubscriptionObservation(boundary awscloud.Boundary, subscription Event
 	if subscription.Enabled {
 		state = "enabled"
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          subscriptionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBEventSubscription,
+		ResourceType: aws.ResourceTypeDocDBEventSubscription,
 		Name:         name,
 		State:        firstNonEmpty(strings.TrimSpace(subscription.Status), state),
 		Tags:         cloneStringMap(subscription.Tags),

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/route53resolver guidance
+# AGENTS.md - internal/collector/cloud/aws/service/route53resolver guidance
 
 ## Read First
 
@@ -40,12 +40,12 @@
 ## Common Changes
 
 - Add a new Route 53 Resolver resource by extending the scanner-owned type,
-  writing a focused scanner test first, then mapping it through `awscloud`
+  writing a focused scanner test first, then mapping it through `aws`
   envelope builders.
 - Add new endpoint or rule fields only when the AWS API reports them directly
   and the field is safe for persistence (never domains, rule bodies, IP
   strings, forwarded targets, or query log records).
-- Extend SDK pagination and count derivation in the `awssdk` adapter, not here.
+- Extend SDK pagination and count derivation in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

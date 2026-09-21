@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/glue` owns the Glue scanner contract for
+`internal/collector/cloud/aws/service/glue` owns the Glue scanner contract for
 the AWS cloud collector. It converts Data Catalog database and table metadata,
 crawler metadata, job metadata, trigger metadata, workflow metadata, and
 connection metadata into `aws_resource` facts and emits relationship evidence
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Glue API call counts, throttles, and pagination
+The `sdk` adapter records Glue API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -83,7 +83,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/glue/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/glue/...` covers the bounded
 Glue metadata path: one paginated GetDatabases stream, one paginated GetTables
 stream per database, one paginated GetCrawlers stream, one paginated GetJobs
 stream, one paginated GetTriggers stream, one paginated ListWorkflows stream
@@ -92,7 +92,7 @@ paginated GetConnections stream with `HidePassword=true`, no StartCrawler or
 StartJobRun calls, no mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Glue database, table, crawler, job, trigger, workflow, and connection metadata
 fact emission, table-in-database and table-to-S3-location relationship
 emission, crawler-to-database and crawler-to-IAM-role relationship emission,
@@ -115,7 +115,7 @@ counters, and `aws_scan_status`.
 
 ### Partition-aware S3 location join (#816)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/glue/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/glue/... -count=1`
 covers the new `TestTableS3LocationRelationshipDerivesPartition` (commercial /
 `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the existing
 table-to-S3-location commercial assertions. Glue tables carry no ARN, so the
@@ -137,11 +137,11 @@ runtime.
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/glue/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/glue/... -count=1`
 keeps `TestTableS3LocationRelationshipDerivesPartition` (commercial /
 `aws-us-gov` / `aws-cn` / blank-region-fallback) green after the table->S3
 bucket-ARN synthesis was switched from the package-local `partition` helper to
-the shared `awscloud.PartitionForBoundary`. The derivation logic is identical;
+the shared `aws.PartitionForBoundary`. The derivation logic is identical;
 commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
 metadata-only consolidation with no graph-write, queue, or hot-path behavior
 change.

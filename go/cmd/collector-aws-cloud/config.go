@@ -26,7 +26,7 @@ type runtimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	AWS               awsruntime.Config
+	AWS               runtime.Config
 	AWSRedactionKey   redact.Key
 }
 
@@ -144,55 +144,55 @@ func validateAWSInstance(instance workflow.DesiredCollectorInstance) error {
 	return nil
 }
 
-func parseAWSRuntimeConfiguration(instance workflow.DesiredCollectorInstance) (awsruntime.Config, error) {
+func parseAWSRuntimeConfiguration(instance workflow.DesiredCollectorInstance) (runtime.Config, error) {
 	var decoded awsRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return awsruntime.Config{}, fmt.Errorf("decode AWS collector configuration: %w", err)
+		return runtime.Config{}, fmt.Errorf("decode AWS collector configuration: %w", err)
 	}
 	if len(decoded.TargetScopes) == 0 {
-		return awsruntime.Config{}, fmt.Errorf("AWS collector configuration requires target_scopes")
+		return runtime.Config{}, fmt.Errorf("AWS collector configuration requires target_scopes")
 	}
-	targets := make([]awsruntime.TargetScope, 0, len(decoded.TargetScopes))
+	targets := make([]runtime.TargetScope, 0, len(decoded.TargetScopes))
 	for i, target := range decoded.TargetScopes {
 		mapped, err := mapTargetScope(target)
 		if err != nil {
-			return awsruntime.Config{}, fmt.Errorf("target_scopes[%d]: %w", i, err)
+			return runtime.Config{}, fmt.Errorf("target_scopes[%d]: %w", i, err)
 		}
 		targets = append(targets, mapped)
 	}
-	return awsruntime.Config{
+	return runtime.Config{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
 	}, nil
 }
 
-func mapTargetScope(target awsTargetScopeConfiguration) (awsruntime.TargetScope, error) {
+func mapTargetScope(target awsTargetScopeConfiguration) (runtime.TargetScope, error) {
 	accountID := strings.TrimSpace(target.AccountID)
 	if accountID == "" {
-		return awsruntime.TargetScope{}, fmt.Errorf("account_id is required")
+		return runtime.TargetScope{}, fmt.Errorf("account_id is required")
 	}
 	if !isAWSAccountID(accountID) {
-		return awsruntime.TargetScope{}, fmt.Errorf("account_id must be a 12 digit AWS account ID")
+		return runtime.TargetScope{}, fmt.Errorf("account_id must be a 12 digit AWS account ID")
 	}
 	allowedRegions, err := validateAllowedRegions(target.AllowedRegions)
 	if err != nil {
-		return awsruntime.TargetScope{}, err
+		return runtime.TargetScope{}, err
 	}
 	allowedServices, err := validateAllowedServices(target.AllowedServices)
 	if err != nil {
-		return awsruntime.TargetScope{}, err
+		return runtime.TargetScope{}, err
 	}
 	if err := validateServiceRegionCompatibility(allowedServices, allowedRegions); err != nil {
-		return awsruntime.TargetScope{}, err
+		return runtime.TargetScope{}, err
 	}
 	if target.MaxConcurrentClaims < 0 {
-		return awsruntime.TargetScope{}, fmt.Errorf("max_concurrent_claims must be zero or positive")
+		return runtime.TargetScope{}, fmt.Errorf("max_concurrent_claims must be zero or positive")
 	}
 	credentials, err := mapCredentialConfig(target.Credentials, accountID)
 	if err != nil {
-		return awsruntime.TargetScope{}, err
+		return runtime.TargetScope{}, err
 	}
-	return awsruntime.TargetScope{
+	return runtime.TargetScope{
 		AccountID:           accountID,
 		AllowedRegions:      allowedRegions,
 		AllowedServices:     allowedServices,
@@ -204,38 +204,38 @@ func mapTargetScope(target awsTargetScopeConfiguration) (awsruntime.TargetScope,
 func mapCredentialConfig(
 	config awsCredentialConfiguration,
 	accountID string,
-) (awsruntime.CredentialConfig, error) {
+) (runtime.CredentialConfig, error) {
 	if strings.TrimSpace(config.AccessKeyID) != "" ||
 		strings.TrimSpace(config.SecretAccessKey) != "" ||
 		strings.TrimSpace(config.SessionToken) != "" {
-		return awsruntime.CredentialConfig{}, fmt.Errorf("static AWS credential fields are not allowed")
+		return runtime.CredentialConfig{}, fmt.Errorf("static AWS credential fields are not allowed")
 	}
-	mode := awsruntime.CredentialMode(strings.TrimSpace(config.Mode))
+	mode := runtime.CredentialMode(strings.TrimSpace(config.Mode))
 	roleARN := strings.TrimSpace(config.RoleARN)
 	externalID := strings.TrimSpace(config.ExternalID)
 	switch mode {
-	case awsruntime.CredentialModeCentralAssumeRole:
+	case runtime.CredentialModeCentralAssumeRole:
 		if roleARN == "" {
-			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require role_arn")
+			return runtime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require role_arn")
 		}
 		roleAccountID, err := accountIDFromIAMRoleARN(roleARN)
 		if err != nil {
-			return awsruntime.CredentialConfig{}, err
+			return runtime.CredentialConfig{}, err
 		}
 		if roleAccountID != accountID {
-			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role role_arn account %q must match account_id %q", roleAccountID, accountID)
+			return runtime.CredentialConfig{}, fmt.Errorf("central_assume_role role_arn account %q must match account_id %q", roleAccountID, accountID)
 		}
 		if externalID == "" {
-			return awsruntime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require external_id")
+			return runtime.CredentialConfig{}, fmt.Errorf("central_assume_role credentials require external_id")
 		}
-	case awsruntime.CredentialModeLocalWorkloadIdentity:
+	case runtime.CredentialModeLocalWorkloadIdentity:
 		if roleARN != "" || externalID != "" {
-			return awsruntime.CredentialConfig{}, fmt.Errorf("local_workload_identity credentials must not set role_arn or external_id")
+			return runtime.CredentialConfig{}, fmt.Errorf("local_workload_identity credentials must not set role_arn or external_id")
 		}
 	default:
-		return awsruntime.CredentialConfig{}, fmt.Errorf("unsupported AWS credential mode %q", config.Mode)
+		return runtime.CredentialConfig{}, fmt.Errorf("unsupported AWS credential mode %q", config.Mode)
 	}
-	return awsruntime.CredentialConfig{
+	return runtime.CredentialConfig{
 		Mode:       mode,
 		RoleARN:    roleARN,
 		ExternalID: externalID,
@@ -275,7 +275,7 @@ func validateAllowedServices(values []string) ([]string, error) {
 			return nil, fmt.Errorf("allowed_services must not contain empty entries")
 		case service == "*":
 			return nil, fmt.Errorf("allowed_services must not contain wildcard entries")
-		case !awsruntime.SupportsServiceKind(service):
+		case !runtime.SupportsServiceKind(service):
 			return nil, fmt.Errorf("unsupported allowed service %q", service)
 		default:
 			services = append(services, service)
@@ -287,11 +287,11 @@ func validateAllowedServices(values []string) ([]string, error) {
 func validateServiceRegionCompatibility(services []string, regions []string) error {
 	for _, service := range services {
 		switch strings.TrimSpace(service) {
-		case awscloud.ServiceOrganizations:
+		case aws.ServiceOrganizations:
 			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
 				return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
 			}
-		case awscloud.ServiceSSOAdmin:
+		case aws.ServiceSSOAdmin:
 			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
 				return fmt.Errorf(`ssoadmin scans require allowed_regions ["us-east-1"]`)
 			}
@@ -354,7 +354,7 @@ func loadRecordPseudonymKey(getenv func(string) string) (recordpseudo.Key, error
 
 func loadAWSRedactionKeyIfNeeded(
 	getenv func(string) string,
-	config awsruntime.Config,
+	config runtime.Config,
 ) (redact.Key, error) {
 	if !awsConfigNeedsRedactionKey(config) {
 		return redact.Key{}, nil
@@ -371,15 +371,15 @@ func loadAWSRedactionKeyIfNeeded(
 }
 
 // awsConfigNeedsRedactionKey reports whether any allowed service in the
-// configuration declared RequiresRedactionKey in its runtimebind registration.
-// The requirement is derived from the awsruntime registry instead of a
+// configuration declared RequiresRedactionKey in its bind registration.
+// The requirement is derived from the runtime registry instead of a
 // hand-maintained switch, so adding a redaction-requiring scanner touches no
 // line in this command: it declares the requirement only in its own
-// runtimebind Register call.
-func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
+// bind Register call.
+func awsConfigNeedsRedactionKey(config runtime.Config) bool {
 	for _, target := range config.Targets {
 		for _, service := range target.AllowedServices {
-			if awsruntime.ServiceRequiresRedactionKey(strings.TrimSpace(service)) {
+			if runtime.ServiceRequiresRedactionKey(strings.TrimSpace(service)) {
 				return true
 			}
 		}
@@ -390,9 +390,9 @@ func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 // redactionKeyServicesPhrase renders the sorted set of registered
 // redaction-requiring service kinds as a human list ("a, b, or c") for the
 // missing-key error. The set comes from the registry, so the message stays in
-// lockstep with the runtimebind registrations.
+// lockstep with the bind registrations.
 func redactionKeyServicesPhrase() string {
-	kinds := awsruntime.ServiceKindsRequiringRedactionKey()
+	kinds := runtime.ServiceKindsRequiringRedactionKey()
 	switch len(kinds) {
 	case 0:
 		// Defensive: no scanner declared the requirement, yet a target tripped

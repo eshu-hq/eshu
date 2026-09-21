@@ -23,39 +23,39 @@ const cloudFrontDomainSuffix = ".cloudfront.net"
 // ARN is absent. The partition is derived from the scan boundary, never
 // hardcoded, so a GovCloud or China app id resolves to an ARN in its own
 // partition instead of dangling the app node and its outgoing edges.
-func appARN(boundary awscloud.Boundary, appID string) string {
+func appARN(boundary aws.Boundary, appID string) string {
 	appID = strings.TrimSpace(appID)
 	if appID == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:amplify:%s:%s:apps/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, appID)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, appID)
 }
 
 // branchARN builds the canonical Amplify branch ARN. ListBranches already
 // returns the ARN, so this is only the synthesis fallback. The partition is
 // derived from the scan boundary, never hardcoded.
-func branchARN(boundary awscloud.Boundary, appID, branchName string) string {
+func branchARN(boundary aws.Boundary, appID, branchName string) string {
 	appID = strings.TrimSpace(appID)
 	branchName = strings.TrimSpace(branchName)
 	if appID == "" || branchName == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:amplify:%s:%s:apps/%s/branches/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, appID, branchName)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, appID, branchName)
 }
 
 // appResourceID returns the identity an app node publishes and every one of the
 // app's own outgoing edges sources from. It prefers the API-reported ARN and
 // falls back to the partition-aware synthesized ARN, then the bare app id.
-func appResourceID(boundary awscloud.Boundary, app App) string {
+func appResourceID(boundary aws.Boundary, app App) string {
 	return firstNonEmpty(app.ARN, appARN(boundary, app.ID), app.ID)
 }
 
 // branchResourceID returns the identity a branch node publishes. It prefers the
 // API-reported ARN and falls back to the partition-aware synthesized ARN, then
 // a stable app#branch composite.
-func branchResourceID(boundary awscloud.Boundary, branch Branch) string {
+func branchResourceID(boundary aws.Boundary, branch Branch) string {
 	synthesized := branchARN(boundary, branch.AppID, branch.Name)
 	composite := ""
 	if appID := strings.TrimSpace(branch.AppID); appID != "" && strings.TrimSpace(branch.Name) != "" {

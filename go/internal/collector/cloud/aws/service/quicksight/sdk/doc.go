@@ -15,4 +15,4 @@
 // passwords, secret connection parameters, SQL query bodies, or visual
 // definitions. An account that is not signed up for QuickSight is mapped to an
 // empty snapshot with a warning rather than a failed scan.
-package awssdk
+package sdk

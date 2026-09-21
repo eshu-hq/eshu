@@ -11,4 +11,4 @@
 // imports), every deployment Start/Stop API, and all Create/Update/Delete
 // mutation APIs, so the adapter cannot read configuration content or mutate
 // AppConfig state.
-package awssdk
+package sdk

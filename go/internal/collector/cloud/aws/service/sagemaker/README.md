@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sagemaker` owns the SageMaker scanner
+`internal/collector/cloud/aws/service/sagemaker` owns the SageMaker scanner
 contract for the AWS cloud collector. It converts control-plane metadata for
 fifteen SageMaker resource types into `aws_resource` facts and emits the
 reported relationships that tie models, endpoints, jobs, notebooks, and Studio
@@ -18,7 +18,7 @@ components.
 This package owns scanner-level SageMaker fact selection and identity mapping.
 It does not own AWS SDK pagination, STS credentials, workflow claims, fact
 persistence, graph writes, reducer admission, or query behavior. The SDK
-adapter in `awssdk` owns every AWS call; this package consumes the small
+adapter in `sdk` owns every AWS call; this package consumes the small
 `Client` interface only.
 
 ```mermaid
@@ -46,7 +46,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -55,10 +55,10 @@ so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns,
 labeled `service="sagemaker"` on `eshu_dp_aws_resources_emitted_total` and
-`eshu_dp_aws_relationships_emitted_total`. The `awssdk` adapter records
+`eshu_dp_aws_relationships_emitted_total`. The `sdk` adapter records
 SageMaker API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -80,7 +80,7 @@ SageMaker API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... -count=1 -race`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/sagemaker/... -count=1 -race`
 covers the bounded SageMaker metadata path. The SDK adapter API fanout per
 claim is: one paginated `List*` per resource type (15 lists), one targeted
 `Describe*` per resource that owns a required relationship (notebook, model,
@@ -91,7 +91,7 @@ list summaries with no Describe fanout. There is no graph write, queue, lease,
 or worker change: the scanner returns a fact slice for the existing claim
 runtime to commit, so this slice adds no new concurrency surface.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... ./internal/collector/awscloud/awsruntime/... ./cmd/collector-aws-cloud/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/sagemaker/... ./internal/collector/cloud/aws/runtime/... ./cmd/collector-aws-cloud/... -count=1`
 covers resource fact emission for all 15 types, the eight required
 relationships, sensitive-payload omission, the reflection gate proving
 InvokeEndpoint and mutation methods are unreachable, runtime self-registration
@@ -110,7 +110,7 @@ counters, and `aws_scan_status`. This scanner adds no new instrument.
 
 ### Partition-aware S3 artifact join (#816)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/sagemaker/... -count=1`
 covers the new `TestModelArtifactRelationshipDerivesPartition` (commercial /
 `aws-us-gov` / `aws-cn` / missing-ARN-fallback) alongside the existing
 `TestScannerModelRelationshipsTargetTypes` commercial assertion. The
@@ -131,10 +131,10 @@ Collector Deployment Evidence: SageMaker runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/sagemaker/... -count=1`
 keeps the `#816` model-artifact partition assertions green after the synthesized
 S3 bucket ARN was switched from the package-local `arnPartition` helper to the
-shared `awscloud.PartitionFromARN`. The derivation logic is identical; the
+shared `aws.PartitionFromARN`. The derivation logic is identical; the
 bucket ARN still inherits the partition of the referencing model ARN.
 Commercial output is byte-for-byte unchanged; this is a metadata-only
 consolidation with no graph-write, queue, or hot-path behavior change.

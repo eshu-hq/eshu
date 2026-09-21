@@ -48,7 +48,7 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	certificate := resourceByType(t, envelopes, awscloud.ResourceTypeACMCertificate)
+	certificate := resourceByType(t, envelopes, aws.ResourceTypeACMCertificate)
 	attributes := attributesOf(t, certificate)
 	if got, want := attributes["domain_name"], "example.com"; got != want {
 		t.Fatalf("domain_name = %#v, want %q", got, want)
@@ -93,14 +93,14 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 		t.Fatalf("resource ARN = %#v, want %q", got, want)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMCertificateUsedByResource)
+	relationships := relationshipsByType(envelopes, aws.RelationshipACMCertificateUsedByResource)
 	if got, want := len(relationships), 5; got != want {
 		t.Fatalf("relationship count = %d, want %d", got, want)
 	}
 	wantTargets := map[string]string{
-		loadBalancerARN: awscloud.ResourceTypeELBv2LoadBalancer,
-		cloudFrontARN:   awscloud.ResourceTypeCloudFrontDistribution,
-		apiGatewayARN:   awscloud.ResourceTypeAPIGatewayDomainName,
+		loadBalancerARN: aws.ResourceTypeELBv2LoadBalancer,
+		cloudFrontARN:   aws.ResourceTypeCloudFrontDistribution,
+		apiGatewayARN:   aws.ResourceTypeAPIGatewayDomainName,
 		appSyncARN:      "aws_appsync_api",
 		appRunnerARN:    "aws_apprunner_service",
 	}
@@ -159,7 +159,7 @@ func TestScannerSkipsRelationshipForUnshapedInUseByEntry(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -174,11 +174,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceACM,
+		ServiceKind:         aws.ServiceACM,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:acm:1",
 		CollectorInstanceID: "aws-prod",

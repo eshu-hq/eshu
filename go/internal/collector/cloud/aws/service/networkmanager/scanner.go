@@ -28,13 +28,13 @@ type Scanner struct {
 
 // Scan observes Network Manager global networks, their child resources, core
 // networks, and the relationships among them through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("networkmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceNetworkManager:
-		boundary.ServiceKind = awscloud.ServiceNetworkManager
+	case "", aws.ServiceNetworkManager:
+		boundary.ServiceKind = aws.ServiceNetworkManager
 	default:
 		return nil, fmt.Errorf("networkmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -65,9 +65,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -78,8 +78,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 
 // globalNetworkEnvelopes emits the global-network node and every child node and
 // edge it owns.
-func globalNetworkEnvelopes(boundary awscloud.Boundary, network GlobalNetwork) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(globalNetworkObservation(boundary, network))
+func globalNetworkEnvelopes(boundary aws.Boundary, network GlobalNetwork) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(globalNetworkObservation(boundary, network))
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func globalNetworkEnvelopes(boundary awscloud.Boundary, network GlobalNetwork) (
 	}
 	for _, association := range network.LinkAssociations {
 		if rel := deviceUsesLinkRelationship(boundary, association); rel != nil {
-			envelope, err := awscloud.NewRelationshipEnvelope(*rel)
+			envelope, err := aws.NewRelationshipEnvelope(*rel)
 			if err != nil {
 				return nil, err
 			}
@@ -125,7 +125,7 @@ func globalNetworkEnvelopes(boundary awscloud.Boundary, network GlobalNetwork) (
 	}
 	for _, registration := range network.TransitGatewayRegistrations {
 		if rel := registrationRelationship(boundary, gnID, registration); rel != nil {
-			envelope, err := awscloud.NewRelationshipEnvelope(*rel)
+			envelope, err := aws.NewRelationshipEnvelope(*rel)
 			if err != nil {
 				return nil, err
 			}
@@ -135,16 +135,16 @@ func globalNetworkEnvelopes(boundary awscloud.Boundary, network GlobalNetwork) (
 	return envelopes, nil
 }
 
-func siteEnvelopes(boundary awscloud.Boundary, gnID string, site Site) ([]facts.Envelope, error) {
+func siteEnvelopes(boundary aws.Boundary, gnID string, site Site) ([]facts.Envelope, error) {
 	site.GlobalNetworkID = preferGlobalNetworkID(site.GlobalNetworkID, gnID)
-	resource, err := awscloud.NewResourceEnvelope(siteObservation(boundary, site))
+	resource, err := aws.NewResourceEnvelope(siteObservation(boundary, site))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	rel := parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerSiteInGlobalNetwork,
+		aws.RelationshipNetworkManagerSiteInGlobalNetwork,
 		siteResourceID(boundary, site),
 		site.ARN,
 		site.GlobalNetworkID,
@@ -152,17 +152,17 @@ func siteEnvelopes(boundary awscloud.Boundary, gnID string, site Site) ([]facts.
 	return appendRelationship(envelopes, rel)
 }
 
-func deviceEnvelopes(boundary awscloud.Boundary, gnID string, device Device) ([]facts.Envelope, error) {
+func deviceEnvelopes(boundary aws.Boundary, gnID string, device Device) ([]facts.Envelope, error) {
 	device.GlobalNetworkID = preferGlobalNetworkID(device.GlobalNetworkID, gnID)
-	resource, err := awscloud.NewResourceEnvelope(deviceObservation(boundary, device))
+	resource, err := aws.NewResourceEnvelope(deviceObservation(boundary, device))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, rel := range []*awscloud.RelationshipObservation{
+	for _, rel := range []*aws.RelationshipObservation{
 		parentGlobalNetworkRelationship(
 			boundary,
-			awscloud.RelationshipNetworkManagerDeviceInGlobalNetwork,
+			aws.RelationshipNetworkManagerDeviceInGlobalNetwork,
 			deviceResourceID(boundary, device),
 			device.ARN,
 			device.GlobalNetworkID,
@@ -177,17 +177,17 @@ func deviceEnvelopes(boundary awscloud.Boundary, gnID string, device Device) ([]
 	return envelopes, nil
 }
 
-func linkEnvelopes(boundary awscloud.Boundary, gnID string, link Link) ([]facts.Envelope, error) {
+func linkEnvelopes(boundary aws.Boundary, gnID string, link Link) ([]facts.Envelope, error) {
 	link.GlobalNetworkID = preferGlobalNetworkID(link.GlobalNetworkID, gnID)
-	resource, err := awscloud.NewResourceEnvelope(linkObservation(boundary, link))
+	resource, err := aws.NewResourceEnvelope(linkObservation(boundary, link))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, rel := range []*awscloud.RelationshipObservation{
+	for _, rel := range []*aws.RelationshipObservation{
 		parentGlobalNetworkRelationship(
 			boundary,
-			awscloud.RelationshipNetworkManagerLinkInGlobalNetwork,
+			aws.RelationshipNetworkManagerLinkInGlobalNetwork,
 			linkResourceID(boundary, link),
 			link.ARN,
 			link.GlobalNetworkID,
@@ -202,16 +202,16 @@ func linkEnvelopes(boundary awscloud.Boundary, gnID string, link Link) ([]facts.
 	return envelopes, nil
 }
 
-func connectionEnvelopes(boundary awscloud.Boundary, gnID string, connection Connection) ([]facts.Envelope, error) {
+func connectionEnvelopes(boundary aws.Boundary, gnID string, connection Connection) ([]facts.Envelope, error) {
 	connection.GlobalNetworkID = preferGlobalNetworkID(connection.GlobalNetworkID, gnID)
-	resource, err := awscloud.NewResourceEnvelope(connectionObservation(boundary, connection))
+	resource, err := aws.NewResourceEnvelope(connectionObservation(boundary, connection))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	envelopes, err = appendRelationship(envelopes, parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerConnectionInGlobalNetwork,
+		aws.RelationshipNetworkManagerConnectionInGlobalNetwork,
 		connectionResourceID(boundary, connection),
 		connection.ARN,
 		connection.GlobalNetworkID,
@@ -220,7 +220,7 @@ func connectionEnvelopes(boundary awscloud.Boundary, gnID string, connection Con
 		return nil, err
 	}
 	for _, rel := range connectionDeviceRelationships(boundary, connection) {
-		envelope, err := awscloud.NewRelationshipEnvelope(rel)
+		envelope, err := aws.NewRelationshipEnvelope(rel)
 		if err != nil {
 			return nil, err
 		}
@@ -229,8 +229,8 @@ func connectionEnvelopes(boundary awscloud.Boundary, gnID string, connection Con
 	return envelopes, nil
 }
 
-func coreNetworkEnvelopes(boundary awscloud.Boundary, core CoreNetwork) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(coreNetworkObservation(boundary, core))
+func coreNetworkEnvelopes(boundary aws.Boundary, core CoreNetwork) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(coreNetworkObservation(boundary, core))
 	if err != nil {
 		return nil, err
 	}
@@ -239,11 +239,11 @@ func coreNetworkEnvelopes(boundary awscloud.Boundary, core CoreNetwork) ([]facts
 
 // appendRelationship appends a relationship envelope when rel is non-nil,
 // returning the (possibly unchanged) slice.
-func appendRelationship(envelopes []facts.Envelope, rel *awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func appendRelationship(envelopes []facts.Envelope, rel *aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if rel == nil {
 		return envelopes, nil
 	}
-	envelope, err := awscloud.NewRelationshipEnvelope(*rel)
+	envelope, err := aws.NewRelationshipEnvelope(*rel)
 	if err != nil {
 		return nil, err
 	}

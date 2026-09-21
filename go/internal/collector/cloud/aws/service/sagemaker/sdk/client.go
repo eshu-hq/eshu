@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssagemaker "github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -55,15 +55,15 @@ type apiClient interface {
 // references, lifecycle-config script bodies, or pipeline definition bodies.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a SageMaker SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -85,7 +85,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := map[string]string{}
 	paginator := awssagemaker.NewListTagsPaginator(c.client, &awssagemaker.ListTagsInput{
-		ResourceArn: aws.String(arn),
+		ResourceArn: awsv2.String(arn),
 	})
 	for paginator.HasMorePages() {
 		var page *awssagemaker.ListTagsOutput
@@ -98,11 +98,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 			return nil, err
 		}
 		for _, tag := range page.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 		}
 	}
 	if len(tags) == 0 {
@@ -132,7 +132,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

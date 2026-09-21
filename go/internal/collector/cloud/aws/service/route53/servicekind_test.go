@@ -18,7 +18,7 @@ import (
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	ttl := int64(60)
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceRoute53 + "  "
+	boundary.ServiceKind = "  " + aws.ServiceRoute53 + "  "
 	client := fakeClient{
 		hostedZones: []HostedZone{{
 			ID:      "/hostedzone/ZPADDED",
@@ -43,7 +43,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceRoute53; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceRoute53; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

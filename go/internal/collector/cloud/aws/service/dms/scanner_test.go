@@ -99,7 +99,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Replication instance node.
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeDMSReplicationInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeDMSReplicationInstance)
 	if got, want := instance.Payload["resource_id"], testInstanceARN; got != want {
 		t.Fatalf("instance resource_id = %#v, want %q", got, want)
 	}
@@ -109,72 +109,72 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "kms_key_id", testKMSARN)
 
 	// Subnet group node.
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeDMSReplicationSubnetGroup)
+	group := resourceByType(t, envelopes, aws.ResourceTypeDMSReplicationSubnetGroup)
 	if got, want := group.Payload["resource_id"], testSubnetGroupName; got != want {
 		t.Fatalf("subnet group resource_id = %#v, want %q", got, want)
 	}
 
 	// instance -> subnet group edge.
-	inGroup := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceInSubnetGroup)
-	assertEdgeTarget(t, inGroup, awscloud.ResourceTypeDMSReplicationSubnetGroup, testSubnetGroupName)
+	inGroup := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationInstanceInSubnetGroup)
+	assertEdgeTarget(t, inGroup, aws.ResourceTypeDMSReplicationSubnetGroup, testSubnetGroupName)
 
 	// instance -> subnet edges (bare subnet ids the EC2 scanner publishes).
-	subnetEdges := relationshipsByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceInSubnet)
+	subnetEdges := relationshipsByType(t, envelopes, aws.RelationshipDMSReplicationInstanceInSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("instance->subnet edge count = %d, want 2", len(subnetEdges))
 	}
 	for _, edge := range subnetEdges {
-		if got := edge.Payload["target_type"]; got != awscloud.ResourceTypeEC2Subnet {
-			t.Fatalf("instance->subnet target_type = %#v, want %q", got, awscloud.ResourceTypeEC2Subnet)
+		if got := edge.Payload["target_type"]; got != aws.ResourceTypeEC2Subnet {
+			t.Fatalf("instance->subnet target_type = %#v, want %q", got, aws.ResourceTypeEC2Subnet)
 		}
 	}
 
 	// instance -> security group edges (bare sg ids).
-	sgEdges := relationshipsByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceUsesSecurityGroup)
+	sgEdges := relationshipsByType(t, envelopes, aws.RelationshipDMSReplicationInstanceUsesSecurityGroup)
 	if len(sgEdges) != 2 {
 		t.Fatalf("instance->sg edge count = %d, want 2", len(sgEdges))
 	}
 
 	// instance -> KMS edge keyed by the reported key ARN.
-	instKMS := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceUsesKMSKey)
-	assertEdgeTarget(t, instKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	instKMS := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationInstanceUsesKMSKey)
+	assertEdgeTarget(t, instKMS, aws.ResourceTypeKMSKey, testKMSARN)
 
 	// subnet group -> VPC edge (bare vpc id).
-	groupVPC := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationSubnetGroupInVPC)
-	assertEdgeTarget(t, groupVPC, awscloud.ResourceTypeEC2VPC, "vpc-0abc1234")
+	groupVPC := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationSubnetGroupInVPC)
+	assertEdgeTarget(t, groupVPC, aws.ResourceTypeEC2VPC, "vpc-0abc1234")
 	if got := groupVPC.Payload["source_resource_id"]; got != testSubnetGroupName {
 		t.Fatalf("subnet group->vpc source_resource_id = %#v, want %q", got, testSubnetGroupName)
 	}
 
 	// subnet group -> subnet edges.
-	groupSubnets := relationshipsByType(t, envelopes, awscloud.RelationshipDMSReplicationSubnetGroupHasSubnet)
+	groupSubnets := relationshipsByType(t, envelopes, aws.RelationshipDMSReplicationSubnetGroupHasSubnet)
 	if len(groupSubnets) != 2 {
 		t.Fatalf("subnet group->subnet edge count = %d, want 2", len(groupSubnets))
 	}
 
 	// endpoint -> KMS edge.
-	epKMS := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointUsesKMSKey)
-	assertEdgeTarget(t, epKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	epKMS := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointUsesKMSKey)
+	assertEdgeTarget(t, epKMS, aws.ResourceTypeKMSKey, testKMSARN)
 
 	// endpoint -> secret edge keyed by the secret ARN.
-	epSecret := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointUsesSecret)
-	assertEdgeTarget(t, epSecret, awscloud.ResourceTypeSecretsManagerSecret, testSecretARN)
+	epSecret := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointUsesSecret)
+	assertEdgeTarget(t, epSecret, aws.ResourceTypeSecretsManagerSecret, testSecretARN)
 
 	// endpoint -> Kinesis stream edge.
-	epStream := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsKinesisStream)
-	assertEdgeTarget(t, epStream, awscloud.ResourceTypeKinesisDataStream, testStreamARN)
+	epStream := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointTargetsKinesisStream)
+	assertEdgeTarget(t, epStream, aws.ResourceTypeKinesisDataStream, testStreamARN)
 
 	// endpoint -> S3 bucket edge keyed by the synthesized partition-aware ARN.
-	epS3 := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsS3Bucket)
-	assertEdgeTarget(t, epS3, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::dms-cdc-bucket")
+	epS3 := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointTargetsS3Bucket)
+	assertEdgeTarget(t, epS3, aws.ResourceTypeS3Bucket, "arn:aws:s3:::dms-cdc-bucket")
 
 	// task -> source/target endpoint and runs-on-instance edges.
-	taskSrc := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationTaskUsesSourceEndpoint)
-	assertEdgeTarget(t, taskSrc, awscloud.ResourceTypeDMSEndpoint, testEndpointSrcARN)
-	taskDst := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationTaskUsesTargetEndpoint)
-	assertEdgeTarget(t, taskDst, awscloud.ResourceTypeDMSEndpoint, testEndpointDstARN)
-	taskInstance := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationTaskRunsOnInstance)
-	assertEdgeTarget(t, taskInstance, awscloud.ResourceTypeDMSReplicationInstance, testInstanceARN)
+	taskSrc := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationTaskUsesSourceEndpoint)
+	assertEdgeTarget(t, taskSrc, aws.ResourceTypeDMSEndpoint, testEndpointSrcARN)
+	taskDst := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationTaskUsesTargetEndpoint)
+	assertEdgeTarget(t, taskDst, aws.ResourceTypeDMSEndpoint, testEndpointDstARN)
+	taskInstance := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationTaskRunsOnInstance)
+	assertEdgeTarget(t, taskInstance, aws.ResourceTypeDMSReplicationInstance, testInstanceARN)
 
 	// No credential / secret-value / connection-string leakage in any payload.
 	for _, envelope := range envelopes {
@@ -210,7 +210,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	epS3 := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsS3Bucket)
+	epS3 := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointTargetsS3Bucket)
 	wantARN := "arn:aws-us-gov:s3:::gov-cdc-bucket"
 	if got := epS3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud endpoint->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -235,7 +235,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	epS3 := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsS3Bucket)
+	epS3 := relationshipByType(t, envelopes, aws.RelationshipDMSEndpointTargetsS3Bucket)
 	wantARN := "arn:aws-cn:s3:::cn-cdc-bucket"
 	if got := epS3.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China endpoint->s3 target_arn = %#v, want %q", got, wantARN)
@@ -285,7 +285,7 @@ func TestScannerOmitsKMSEdgeArnForNonARNKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	instKMS := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceUsesKMSKey)
+	instKMS := relationshipByType(t, envelopes, aws.RelationshipDMSReplicationInstanceUsesKMSKey)
 	if got, want := instKMS.Payload["target_resource_id"], "1234abcd-12ab-34cd-56ef-1234567890ab"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -297,7 +297,7 @@ func TestScannerOmitsKMSEdgeArnForNonARNKey(t *testing.T) {
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
 	snapshot := fullSnapshot()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	observations = append(observations, instanceRelationships(boundary, snapshot.ReplicationInstances[0])...)
 	observations = append(observations, subnetGroupRelationships(boundary, snapshot.SubnetGroups[0])...)
 	for _, endpoint := range snapshot.Endpoints {
@@ -312,7 +312,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -323,9 +323,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		ReplicationInstances: []ReplicationInstance{{ARN: testInstanceARN, Identifier: "dms-prod"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "DMS DescribeEndpoints throttled after SDK retries; endpoint metadata omitted for this scan",
 			SourceRecordID: "dms_endpoints_throttled",
@@ -336,7 +336,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -349,11 +349,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDMS,
+		ServiceKind:         aws.ServiceDMS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:dms:1",
 		CollectorInstanceID: "aws-prod",

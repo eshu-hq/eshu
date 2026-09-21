@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudfront "github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	awscloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 	"github.com/aws/smithy-go"
@@ -40,15 +40,15 @@ type apiClient interface {
 // calls CloudFront mutation APIs.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CloudFront SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -71,7 +71,7 @@ func (c *Client) ListDistributions(ctx context.Context) ([]cloudfrontservice.Dis
 			var err error
 			page, err = c.client.ListDistributions(callCtx, &awscloudfront.ListDistributionsInput{
 				Marker:   marker,
-				MaxItems: aws.Int32(listDistributionsLimit),
+				MaxItems: awsv2.Int32(listDistributionsLimit),
 			})
 			return err
 		})
@@ -89,7 +89,7 @@ func (c *Client) ListDistributions(ctx context.Context) ([]cloudfrontservice.Dis
 			distributions = append(distributions, mapped)
 		}
 		marker = page.DistributionList.NextMarker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return distributions, nil
 		}
 	}
@@ -99,7 +99,7 @@ func (c *Client) distributionMetadata(
 	ctx context.Context,
 	distribution awscloudfronttypes.DistributionSummary,
 ) (cloudfrontservice.Distribution, error) {
-	distributionARN := aws.ToString(distribution.ARN)
+	distributionARN := awsv2.ToString(distribution.ARN)
 	tags, err := c.listTags(ctx, distributionARN)
 	if err != nil {
 		return cloudfrontservice.Distribution{}, err
@@ -116,7 +116,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awscloudfront.ListTagsForResourceInput{
-			Resource: aws.String(resourceARN),
+			Resource: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -144,7 +144,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

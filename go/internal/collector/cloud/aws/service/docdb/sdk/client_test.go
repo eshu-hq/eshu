@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdocdb "github.com/aws/aws-sdk-go-v2/service/docdb"
 	awsdocdbtypes "github.com/aws/aws-sdk-go-v2/service/docdb/types"
 
@@ -21,119 +21,119 @@ func TestClientListsDocDBMetadataOnly(t *testing.T) {
 	api := &fakeDocDBAPI{
 		clusterPages: []*awsdocdb.DescribeDBClustersOutput{{
 			DBClusters: []awsdocdbtypes.DBCluster{{
-				DBClusterArn:                 aws.String(clusterARN),
-				DBClusterIdentifier:          aws.String("orders-docdb"),
-				DbClusterResourceId:          aws.String("cluster-ORDERSDOCDB"),
-				Engine:                       aws.String("docdb"),
-				EngineVersion:                aws.String("5.0.0"),
-				Status:                       aws.String("available"),
-				Endpoint:                     aws.String("orders.cluster.docdb.amazonaws.com"),
-				ReaderEndpoint:               aws.String("orders.cluster-ro.docdb.amazonaws.com"),
-				HostedZoneId:                 aws.String("Z2"),
-				Port:                         aws.Int32(27017),
-				MultiAZ:                      aws.Bool(true),
-				StorageEncrypted:             aws.Bool(true),
-				KmsKeyId:                     aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
-				DeletionProtection:           aws.Bool(true),
-				BackupRetentionPeriod:        aws.Int32(7),
-				DBSubnetGroup:                aws.String("orders-docdb-subnets"),
-				DBClusterParameterGroup:      aws.String("orders-docdb-params"),
+				DBClusterArn:                 awsv2.String(clusterARN),
+				DBClusterIdentifier:          awsv2.String("orders-docdb"),
+				DbClusterResourceId:          awsv2.String("cluster-ORDERSDOCDB"),
+				Engine:                       awsv2.String("docdb"),
+				EngineVersion:                awsv2.String("5.0.0"),
+				Status:                       awsv2.String("available"),
+				Endpoint:                     awsv2.String("orders.cluster.docdb.amazonaws.com"),
+				ReaderEndpoint:               awsv2.String("orders.cluster-ro.docdb.amazonaws.com"),
+				HostedZoneId:                 awsv2.String("Z2"),
+				Port:                         awsv2.Int32(27017),
+				MultiAZ:                      awsv2.Bool(true),
+				StorageEncrypted:             awsv2.Bool(true),
+				KmsKeyId:                     awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
+				DeletionProtection:           awsv2.Bool(true),
+				BackupRetentionPeriod:        awsv2.Int32(7),
+				DBSubnetGroup:                awsv2.String("orders-docdb-subnets"),
+				DBClusterParameterGroup:      awsv2.String("orders-docdb-params"),
 				EnabledCloudwatchLogsExports: []string{"audit"},
-				VpcSecurityGroups:            []awsdocdbtypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
-				DBClusterMembers:             []awsdocdbtypes.DBClusterMember{{DBInstanceIdentifier: aws.String("orders-docdb-1"), IsClusterWriter: aws.Bool(true)}},
-				AssociatedRoles:              []awsdocdbtypes.DBClusterRole{{RoleArn: aws.String("arn:aws:iam::123456789012:role/docdb")}},
+				VpcSecurityGroups:            []awsdocdbtypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: awsv2.String("sg-123")}},
+				DBClusterMembers:             []awsdocdbtypes.DBClusterMember{{DBInstanceIdentifier: awsv2.String("orders-docdb-1"), IsClusterWriter: awsv2.Bool(true)}},
+				AssociatedRoles:              []awsdocdbtypes.DBClusterRole{{RoleArn: awsv2.String("arn:aws:iam::123456789012:role/docdb")}},
 				// Forbidden fields the mapper must drop:
-				MasterUsername:   aws.String("do-not-copy"),
-				MasterUserSecret: &awsdocdbtypes.ClusterMasterUserSecret{SecretArn: aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:do-not-copy")},
+				MasterUsername:   awsv2.String("do-not-copy"),
+				MasterUserSecret: &awsdocdbtypes.ClusterMasterUserSecret{SecretArn: awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:do-not-copy")},
 			}},
 		}},
 		instancePages: []*awsdocdb.DescribeDBInstancesOutput{{
 			DBInstances: []awsdocdbtypes.DBInstance{{
-				DBInstanceArn:        aws.String(instanceARN),
-				DBInstanceIdentifier: aws.String("orders-docdb-1"),
-				DbiResourceId:        aws.String("db-ORDERSDOCDB1"),
-				DBInstanceClass:      aws.String("db.r6g.large"),
-				Engine:               aws.String("docdb"),
-				EngineVersion:        aws.String("5.0.0"),
-				DBInstanceStatus:     aws.String("available"),
-				Endpoint:             &awsdocdbtypes.Endpoint{Address: aws.String("orders-docdb-1.docdb.amazonaws.com"), Port: aws.Int32(27017), HostedZoneId: aws.String("Z2")},
-				AvailabilityZone:     aws.String("us-east-1a"),
-				StorageEncrypted:     aws.Bool(true),
-				KmsKeyId:             aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
-				DBClusterIdentifier:  aws.String("orders-docdb"),
-				PromotionTier:        aws.Int32(1),
+				DBInstanceArn:        awsv2.String(instanceARN),
+				DBInstanceIdentifier: awsv2.String("orders-docdb-1"),
+				DbiResourceId:        awsv2.String("db-ORDERSDOCDB1"),
+				DBInstanceClass:      awsv2.String("db.r6g.large"),
+				Engine:               awsv2.String("docdb"),
+				EngineVersion:        awsv2.String("5.0.0"),
+				DBInstanceStatus:     awsv2.String("available"),
+				Endpoint:             &awsdocdbtypes.Endpoint{Address: awsv2.String("orders-docdb-1.docdb.amazonaws.com"), Port: awsv2.Int32(27017), HostedZoneId: awsv2.String("Z2")},
+				AvailabilityZone:     awsv2.String("us-east-1a"),
+				StorageEncrypted:     awsv2.Bool(true),
+				KmsKeyId:             awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
+				DBClusterIdentifier:  awsv2.String("orders-docdb"),
+				PromotionTier:        awsv2.Int32(1),
 			}},
 		}},
 		parameterGroupPages: []*awsdocdb.DescribeDBClusterParameterGroupsOutput{{
 			DBClusterParameterGroups: []awsdocdbtypes.DBClusterParameterGroup{{
-				DBClusterParameterGroupArn:  aws.String(paramGroupARN),
-				DBClusterParameterGroupName: aws.String("orders-docdb-params"),
-				DBParameterGroupFamily:      aws.String("docdb5.0"),
-				Description:                 aws.String("orders docdb cluster parameters"),
+				DBClusterParameterGroupArn:  awsv2.String(paramGroupARN),
+				DBClusterParameterGroupName: awsv2.String("orders-docdb-params"),
+				DBParameterGroupFamily:      awsv2.String("docdb5.0"),
+				Description:                 awsv2.String("orders docdb cluster parameters"),
 			}},
 		}},
 		parameterPages: map[string][]*awsdocdb.DescribeDBClusterParametersOutput{
 			"orders-docdb-params": {{
 				Parameters: []awsdocdbtypes.Parameter{
-					{ParameterName: aws.String("tls"), ParameterValue: aws.String("do-not-copy")},
-					{ParameterName: aws.String("audit_logs"), ParameterValue: aws.String("do-not-copy")},
+					{ParameterName: awsv2.String("tls"), ParameterValue: awsv2.String("do-not-copy")},
+					{ParameterName: awsv2.String("audit_logs"), ParameterValue: awsv2.String("do-not-copy")},
 				},
 			}},
 		},
 		snapshotPages: []*awsdocdb.DescribeDBClusterSnapshotsOutput{{
 			DBClusterSnapshots: []awsdocdbtypes.DBClusterSnapshot{{
-				DBClusterSnapshotArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster-snapshot:orders-docdb-2026-05-01"),
-				DBClusterSnapshotIdentifier: aws.String("orders-docdb-2026-05-01"),
-				DBClusterIdentifier:         aws.String("orders-docdb"),
-				Engine:                      aws.String("docdb"),
-				EngineVersion:               aws.String("5.0.0"),
-				Status:                      aws.String("available"),
-				SnapshotType:                aws.String("manual"),
-				StorageEncrypted:            aws.Bool(true),
-				KmsKeyId:                    aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
-				VpcId:                       aws.String("vpc-123"),
-				MasterUsername:              aws.String("do-not-copy"),
+				DBClusterSnapshotArn:        awsv2.String("arn:aws:rds:us-east-1:123456789012:cluster-snapshot:orders-docdb-2026-05-01"),
+				DBClusterSnapshotIdentifier: awsv2.String("orders-docdb-2026-05-01"),
+				DBClusterIdentifier:         awsv2.String("orders-docdb"),
+				Engine:                      awsv2.String("docdb"),
+				EngineVersion:               awsv2.String("5.0.0"),
+				Status:                      awsv2.String("available"),
+				SnapshotType:                awsv2.String("manual"),
+				StorageEncrypted:            awsv2.Bool(true),
+				KmsKeyId:                    awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-docdb"),
+				VpcId:                       awsv2.String("vpc-123"),
+				MasterUsername:              awsv2.String("do-not-copy"),
 			}},
 		}},
 		subnetGroupPages: []*awsdocdb.DescribeDBSubnetGroupsOutput{{
 			DBSubnetGroups: []awsdocdbtypes.DBSubnetGroup{{
-				DBSubnetGroupArn:         aws.String("arn:aws:rds:us-east-1:123456789012:subgrp:orders-docdb-subnets"),
-				DBSubnetGroupName:        aws.String("orders-docdb-subnets"),
-				DBSubnetGroupDescription: aws.String("orders docdb subnets"),
-				SubnetGroupStatus:        aws.String("Complete"),
-				VpcId:                    aws.String("vpc-123"),
-				Subnets:                  []awsdocdbtypes.Subnet{{SubnetIdentifier: aws.String("subnet-a")}},
+				DBSubnetGroupArn:         awsv2.String("arn:aws:rds:us-east-1:123456789012:subgrp:orders-docdb-subnets"),
+				DBSubnetGroupName:        awsv2.String("orders-docdb-subnets"),
+				DBSubnetGroupDescription: awsv2.String("orders docdb subnets"),
+				SubnetGroupStatus:        awsv2.String("Complete"),
+				VpcId:                    awsv2.String("vpc-123"),
+				Subnets:                  []awsdocdbtypes.Subnet{{SubnetIdentifier: awsv2.String("subnet-a")}},
 			}},
 		}},
 		globalClusterPages: []*awsdocdb.DescribeGlobalClustersOutput{{
 			GlobalClusters: []awsdocdbtypes.GlobalCluster{{
-				GlobalClusterArn:        aws.String("arn:aws:rds::123456789012:global-cluster:orders-global"),
-				GlobalClusterIdentifier: aws.String("orders-global"),
-				GlobalClusterResourceId: aws.String("global-ORDERS"),
-				Engine:                  aws.String("docdb"),
-				EngineVersion:           aws.String("5.0.0"),
-				Status:                  aws.String("available"),
-				StorageEncrypted:        aws.Bool(true),
-				DeletionProtection:      aws.Bool(true),
-				GlobalClusterMembers:    []awsdocdbtypes.GlobalClusterMember{{DBClusterArn: aws.String(clusterARN), IsWriter: aws.Bool(true)}},
-				TagList:                 []awsdocdbtypes.Tag{{Key: aws.String("Scope"), Value: aws.String("global")}},
+				GlobalClusterArn:        awsv2.String("arn:aws:rds::123456789012:global-cluster:orders-global"),
+				GlobalClusterIdentifier: awsv2.String("orders-global"),
+				GlobalClusterResourceId: awsv2.String("global-ORDERS"),
+				Engine:                  awsv2.String("docdb"),
+				EngineVersion:           awsv2.String("5.0.0"),
+				Status:                  awsv2.String("available"),
+				StorageEncrypted:        awsv2.Bool(true),
+				DeletionProtection:      awsv2.Bool(true),
+				GlobalClusterMembers:    []awsdocdbtypes.GlobalClusterMember{{DBClusterArn: awsv2.String(clusterARN), IsWriter: awsv2.Bool(true)}},
+				TagList:                 []awsdocdbtypes.Tag{{Key: awsv2.String("Scope"), Value: awsv2.String("global")}},
 			}},
 		}},
 		eventSubscriptionPages: []*awsdocdb.DescribeEventSubscriptionsOutput{{
 			EventSubscriptionsList: []awsdocdbtypes.EventSubscription{{
-				EventSubscriptionArn: aws.String("arn:aws:rds:us-east-1:123456789012:es:orders-docdb-events"),
-				CustSubscriptionId:   aws.String("orders-docdb-events"),
-				CustomerAwsId:        aws.String("123456789012"),
-				Enabled:              aws.Bool(true),
-				Status:               aws.String("active"),
-				SourceType:           aws.String("db-cluster"),
-				SnsTopicArn:          aws.String("arn:aws:sns:us-east-1:123456789012:docdb-alerts"),
+				EventSubscriptionArn: awsv2.String("arn:aws:rds:us-east-1:123456789012:es:orders-docdb-events"),
+				CustSubscriptionId:   awsv2.String("orders-docdb-events"),
+				CustomerAwsId:        awsv2.String("123456789012"),
+				Enabled:              awsv2.Bool(true),
+				Status:               awsv2.String("active"),
+				SourceType:           awsv2.String("db-cluster"),
+				SnsTopicArn:          awsv2.String("arn:aws:sns:us-east-1:123456789012:docdb-alerts"),
 				SourceIdsList:        []string{"orders-docdb"},
 				EventCategoriesList:  []string{"failover"},
 			}},
 		}},
 		tags: map[string]*awsdocdb.ListTagsForResourceOutput{
-			clusterARN: {TagList: []awsdocdbtypes.Tag{{Key: aws.String("Tier"), Value: aws.String("data")}}},
+			clusterARN: {TagList: []awsdocdbtypes.Tag{{Key: awsv2.String("Tier"), Value: awsv2.String("data")}}},
 		},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -214,10 +214,10 @@ func TestClientListsDocDBMetadataOnly(t *testing.T) {
 func TestClientUsesMarkersAndMaxRecords(t *testing.T) {
 	api := &fakeDocDBAPI{
 		clusterPages: []*awsdocdb.DescribeDBClustersOutput{{
-			DBClusters: []awsdocdbtypes.DBCluster{{DBClusterIdentifier: aws.String("first")}},
-			Marker:     aws.String("next-clusters"),
+			DBClusters: []awsdocdbtypes.DBCluster{{DBClusterIdentifier: awsv2.String("first")}},
+			Marker:     awsv2.String("next-clusters"),
 		}, {
-			DBClusters: []awsdocdbtypes.DBCluster{{DBClusterIdentifier: aws.String("second")}},
+			DBClusters: []awsdocdbtypes.DBCluster{{DBClusterIdentifier: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{client: api, boundary: testBoundary()}
@@ -237,11 +237,11 @@ func TestClientUsesMarkersAndMaxRecords(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDocDB,
+		ServiceKind: aws.ServiceDocDB,
 	}
 }
 

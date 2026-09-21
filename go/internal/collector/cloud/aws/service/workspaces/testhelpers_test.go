@@ -14,11 +14,11 @@ import (
 
 // testBoundary returns a fully populated WorkSpaces scan boundary the package
 // tests reuse so emitted facts carry stable account/region/service identity.
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           testAccount,
 		Region:              testRegion,
-		ServiceKind:         awscloud.ServiceWorkSpaces,
+		ServiceKind:         aws.ServiceWorkSpaces,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:workspaces:1",
 		CollectorInstanceID: "aws-prod",

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/databrew guidance
+# AGENTS.md - internal/collector/cloud/aws/service/databrew guidance
 
 ## Read First
 
@@ -32,7 +32,7 @@
   name).
 - Emit the dataset-to-S3 and job-to-S3 edges only when an S3 bucket is
   configured. DataBrew reports a bucket NAME, so synthesize the bucket ARN with
-  `awscloud.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
+  `aws.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
   China must resolve to the real bucket node.
 - Emit the dataset-to-Glue-table edge only when the dataset reads a Data Catalog
   table, keyed by the `<database>/<table>` identity the Glue table scanner
@@ -45,7 +45,7 @@
   only when the identifier is ARN-shaped, matching the IAM scanner's published
   role resource_id.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from DataBrew names or AWS
@@ -58,14 +58,14 @@
 ## Common Changes
 
 - Add a new DataBrew metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry a step expression, SQL string,
   parameter value, or sample data, leave it out of the scanner contract.
 - Add new relationship evidence only when the DataBrew API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for IAM roles and S3 buckets, `<db>/<table>`
   for Glue tables, the resource name for internal DataBrew nodes).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

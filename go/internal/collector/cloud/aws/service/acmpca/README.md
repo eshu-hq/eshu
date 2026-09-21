@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/acmpca` owns the ACM Private CA
+`internal/collector/cloud/aws/service/acmpca` owns the ACM Private CA
 (acm-pca) scanner contract for the AWS cloud collector. It converts certificate
 authority metadata into `aws_resource` facts keyed by the CA ARN and emits
 ARN-driven relationship evidence. The CA resource_id is the CA ARN, which is the
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, the
+- `internal/collector/cloud/aws` for boundaries, the
   `ResourceTypeACMPCACertificateAuthority` resource constant, relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
@@ -49,9 +49,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records ACM Private CA API call counts, throttles, and
+`sdk` adapter records ACM Private CA API call counts, throttles, and
 pagination spans through the shared `aws.service.pagination.page` span and
 `eshu_dp_aws_api_calls_total` / `eshu_dp_aws_throttle_total` counters.
 
@@ -77,12 +77,12 @@ pagination spans through the shared `aws.service.pagination.page` span and
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/acmpca/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/acmpca/...`
 covers the bounded ACM Private CA metadata path: one paginated CA listing, one
 DescribeCertificateAuthority per CA, one paginated tag read per CA, no
 certificate issuance, no chain/CSR/key reads, and no CA mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers CA metadata fact emission keyed by the CA ARN, ARN-gated KMS/parent/CRL
 relationship emission, omission of sensitive bodies, runtime registration,
 command configuration, and the SDK adapter's reflective exclusion of forbidden

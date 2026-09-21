@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appstream` owns the Amazon AppStream 2.0
+`internal/collector/cloud/aws/service/appstream` owns the Amazon AppStream 2.0
 scanner contract for the AWS cloud collector. It converts fleet, stack, image
 builder, and image control-plane metadata into `aws_resource` facts and emits
 relationship evidence for fleet and image-builder VPC, IAM, and image
@@ -67,7 +67,7 @@ Edges:
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -77,9 +77,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records AppStream API call counts, throttles, and
+The `sdk` adapter records AppStream API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -97,7 +97,7 @@ pagination spans.
 - The IAM role and image edges key on the ARNs AppStream reports, matching the
   IAM scanner's role resource_id and this scanner's image node resource_id.
 - The stack S3 edges synthesize the partition-aware bucket ARN via
-  `awscloud.PartitionForBoundary` so the target matches the S3 scanner's
+  `aws.PartitionForBoundary` so the target matches the S3 scanner's
   published bucket node identity in GovCloud and China, not just commercial.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from fleet, stack, image, or
@@ -106,7 +106,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/appstream/...` covers the
+`go test ./internal/collector/cloud/aws/service/appstream/...` covers the
 bounded AppStream metadata path: one paginated DescribeFleets stream, one
 paginated DescribeStacks stream, one paginated DescribeImageBuilders stream, two
 paginated DescribeImages streams (PRIVATE and SHARED), one paginated
@@ -115,7 +115,7 @@ per resource, with no session reads, no user reads, no streaming-URL minting,
 and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/appstream/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/appstream/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

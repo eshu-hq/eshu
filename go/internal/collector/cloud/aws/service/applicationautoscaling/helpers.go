@@ -60,7 +60,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "dynamodb", reg, account) + ":table/" + name,
-			awscloud.ResourceTypeDynamoDBTable
+			aws.ResourceTypeDynamoDBTable
 	case "ecs":
 		// service/<cluster>/<service> -> the long-format ECS service ARN.
 		path, ok := strings.CutPrefix(resource, "service/")
@@ -68,7 +68,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "ecs", reg, account) + ":service/" + path,
-			awscloud.ResourceTypeECSService
+			aws.ResourceTypeECSService
 	case "rds":
 		// cluster:<name> -> the Aurora DB cluster ARN.
 		name, ok := strings.CutPrefix(resource, "cluster:")
@@ -76,7 +76,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "rds", reg, account) + ":cluster:" + name,
-			awscloud.ResourceTypeRDSDBCluster
+			aws.ResourceTypeRDSDBCluster
 	case "lambda":
 		// function:<name>[:<qualifier>] -> the base function ARN the Lambda node
 		// publishes (the version/alias qualifier is dropped).
@@ -85,7 +85,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "lambda", reg, account) + ":function:" + name,
-			awscloud.ResourceTypeLambdaFunction
+			aws.ResourceTypeLambdaFunction
 	default:
 		return "", ""
 	}

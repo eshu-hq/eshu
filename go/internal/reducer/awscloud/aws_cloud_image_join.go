@@ -18,7 +18,7 @@ import (
 // lambdaFunctionUsesImageRelationshipType and
 // ecsTaskDefinitionUsesImageRelationshipType are the two "uses image"
 // aws_relationship verbs issue #5450 disposes of. They duplicate
-// awscloud.RelationshipLambdaFunctionUsesImage /
+// aws.RelationshipLambdaFunctionUsesImage /
 // RelationshipECSTaskDefinitionUsesImage (go/internal/collector/cloud/aws/
 // constants_lambda.go, constants_ecs.go) as literals rather than importing the
 // collector package: the reducer package does not depend on collector

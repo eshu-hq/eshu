@@ -23,7 +23,7 @@ type Client interface {
 type Snapshot struct {
 	Keyspaces []Keyspace
 	Tables    []Table
-	Warnings  []awscloud.WarningObservation
+	Warnings  []aws.WarningObservation
 }
 
 // Keyspace is the scanner-owned Amazon Keyspaces keyspace model. It contains

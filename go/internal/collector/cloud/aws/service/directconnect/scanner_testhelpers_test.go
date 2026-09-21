@@ -21,11 +21,11 @@ func scanFixture(t *testing.T, client fakeClient) []facts.Envelope {
 	return envelopes
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDirectConnect,
+		ServiceKind:         aws.ServiceDirectConnect,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:directconnect:1",
 		CollectorInstanceID: "aws-prod",

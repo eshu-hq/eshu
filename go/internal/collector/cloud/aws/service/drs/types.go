@@ -32,7 +32,7 @@ type Snapshot struct {
 	ReplicationConfigurationTemplates []ReplicationConfigurationTemplate
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // SourceServer is the scanner-owned DRS source server model. It carries

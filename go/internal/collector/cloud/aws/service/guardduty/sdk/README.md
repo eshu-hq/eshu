@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/guardduty/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/guardduty/sdk` adapts AWS SDK for Go v2
 GuardDuty responses to the scanner-owned `guardduty.Client` contract. It owns
 GuardDuty pagination, point metadata reads, aggregate finding statistics,
 throttle classification, and per-call AWS API telemetry.
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/guardduty` for scanner-owned result
+- `internal/collector/cloud/aws/service/guardduty` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `guardduty` and Smithy error contracts.

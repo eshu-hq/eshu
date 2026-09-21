@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sns` owns the SNS scanner contract for the
+`internal/collector/cloud/aws/service/sns` owns the SNS scanner contract for the
 AWS cloud collector. It converts topic metadata into `aws_resource` facts and
 emits subscription relationship evidence only when AWS reports an
 ARN-addressable endpoint such as SQS or Lambda.
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records SNS API call counts, throttles, and pagination
+The `sdk` adapter records SNS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -67,13 +67,13 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/sns/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/sns/...`
 covers the bounded SNS metadata path: one paginated topic listing, one metadata
 attribute read per topic, one tag read per topic, one paginated subscription
 listing per topic, no message publishes, no subscription mutations, and no graph
 writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers SNS topic metadata fact emission, ARN-only subscription relationship
 emission, omission of topic policy/data-protection/message payload fields,
 runtime registration, command configuration, and the SDK adapter's safe

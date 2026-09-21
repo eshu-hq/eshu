@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsidentity "github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 	awsidentitytypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentity/types"
 	awsidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
@@ -89,44 +89,44 @@ func TestIdentityPoolAPINeverIncludesIdentityRecordOrMutationMethods(t *testing.
 func TestClientListUserPoolsMapsMetadataAndDropsSecrets(t *testing.T) {
 	now := time.Date(2026, 5, 14, 14, 30, 0, 0, time.UTC)
 	fake := &fakeUserPoolClient{
-		userPools: []awsidptypes.UserPoolDescriptionType{{Id: aws.String("us-east-1_abc")}},
+		userPools: []awsidptypes.UserPoolDescriptionType{{Id: awsv2.String("us-east-1_abc")}},
 		pool: &awsidptypes.UserPoolType{
-			Id:               aws.String("us-east-1_abc"),
-			Arn:              aws.String("arn:aws:cognito-idp:us-east-1:123456789012:userpool/us-east-1_abc"),
-			Name:             aws.String("orders"),
+			Id:               awsv2.String("us-east-1_abc"),
+			Arn:              awsv2.String("arn:aws:cognito-idp:us-east-1:123456789012:userpool/us-east-1_abc"),
+			Name:             awsv2.String("orders"),
 			MfaConfiguration: awsidptypes.UserPoolMfaTypeOptional,
 			Policies: &awsidptypes.UserPoolPolicyType{PasswordPolicy: &awsidptypes.PasswordPolicyType{
-				MinimumLength:    aws.Int32(12),
+				MinimumLength:    awsv2.Int32(12),
 				RequireUppercase: true,
 			}},
 			LambdaConfig: &awsidptypes.LambdaConfigType{
-				PreSignUp: aws.String("arn:aws:lambda:us-east-1:123456789012:function:pre-signup"),
+				PreSignUp: awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:pre-signup"),
 			},
-			CreationDate: aws.Time(now),
+			CreationDate: awsv2.Time(now),
 		},
 		clientIDs: []string{"client-1"},
 		client: &awsidptypes.UserPoolClientType{
-			ClientId:          aws.String("client-1"),
-			ClientName:        aws.String("web"),
-			UserPoolId:        aws.String("us-east-1_abc"),
-			ClientSecret:      aws.String("super-secret-value"),
+			ClientId:          awsv2.String("client-1"),
+			ClientName:        awsv2.String("web"),
+			UserPoolId:        awsv2.String("us-east-1_abc"),
+			ClientSecret:      awsv2.String("super-secret-value"),
 			AllowedOAuthFlows: []awsidptypes.OAuthFlowType{awsidptypes.OAuthFlowTypeCode},
 			CallbackURLs:      []string{"https://app.example.com/callback"},
 		},
 		providers: []awsidptypes.ProviderDescription{{
-			ProviderName: aws.String("Google"),
+			ProviderName: awsv2.String("Google"),
 			ProviderType: awsidptypes.IdentityProviderTypeTypeGoogle,
 		}},
 		resourceServers: []awsidptypes.ResourceServerType{{
-			UserPoolId: aws.String("us-east-1_abc"),
-			Identifier: aws.String("https://api.example.com"),
-			Name:       aws.String("orders-api"),
-			Scopes:     []awsidptypes.ResourceServerScopeType{{ScopeName: aws.String("orders.read")}},
+			UserPoolId: awsv2.String("us-east-1_abc"),
+			Identifier: awsv2.String("https://api.example.com"),
+			Name:       awsv2.String("orders-api"),
+			Scopes:     []awsidptypes.ResourceServerScopeType{{ScopeName: awsv2.String("orders.read")}},
 		}},
 		groups: []awsidptypes.GroupType{{
-			UserPoolId: aws.String("us-east-1_abc"),
-			GroupName:  aws.String("admins"),
-			RoleArn:    aws.String("arn:aws:iam::123456789012:role/cognito-admins"),
+			UserPoolId: awsv2.String("us-east-1_abc"),
+			GroupName:  awsv2.String("admins"),
+			RoleArn:    awsv2.String("arn:aws:iam::123456789012:role/cognito-admins"),
 		}},
 	}
 	client := &Client{userPoolClient: fake, boundary: testBoundary()}
@@ -195,15 +195,15 @@ func TestClientListUserPoolsMapsMetadataAndDropsSecrets(t *testing.T) {
 func TestClientListIdentityPoolsSynthesizesARNAndRoleSummary(t *testing.T) {
 	fake := &fakeIdentityPoolClient{
 		summaries: []awsidentitytypes.IdentityPoolShortDescription{{
-			IdentityPoolId: aws.String("us-east-1:pool-1"),
+			IdentityPoolId: awsv2.String("us-east-1:pool-1"),
 		}},
 		pool: &awsidentity.DescribeIdentityPoolOutput{
-			IdentityPoolId:                 aws.String("us-east-1:pool-1"),
-			IdentityPoolName:               aws.String("orders-identity"),
+			IdentityPoolId:                 awsv2.String("us-east-1:pool-1"),
+			IdentityPoolName:               awsv2.String("orders-identity"),
 			AllowUnauthenticatedIdentities: true,
 			CognitoIdentityProviders: []awsidentitytypes.CognitoIdentityProvider{{
-				ProviderName: aws.String("cognito-idp.us-east-1.amazonaws.com/us-east-1_abc"),
-				ClientId:     aws.String("client-1"),
+				ProviderName: awsv2.String("cognito-idp.us-east-1.amazonaws.com/us-east-1_abc"),
+				ClientId:     awsv2.String("client-1"),
 			}},
 			SamlProviderARNs: []string{"arn:aws:iam::123456789012:saml-provider/corp"},
 		},
@@ -231,11 +231,11 @@ func TestClientListIdentityPoolsSynthesizesARNAndRoleSummary(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCognito,
+		ServiceKind: aws.ServiceCognito,
 	}
 }
 
@@ -260,7 +260,7 @@ func (c *fakeUserPoolClient) DescribeUserPool(context.Context, *awsidp.DescribeU
 func (c *fakeUserPoolClient) ListUserPoolClients(context.Context, *awsidp.ListUserPoolClientsInput, ...func(*awsidp.Options)) (*awsidp.ListUserPoolClientsOutput, error) {
 	clients := make([]awsidptypes.UserPoolClientDescription, 0, len(c.clientIDs))
 	for _, id := range c.clientIDs {
-		clients = append(clients, awsidptypes.UserPoolClientDescription{ClientId: aws.String(id)})
+		clients = append(clients, awsidptypes.UserPoolClientDescription{ClientId: awsv2.String(id)})
 	}
 	return &awsidp.ListUserPoolClientsOutput{UserPoolClients: clients}, nil
 }

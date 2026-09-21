@@ -13,19 +13,19 @@ import (
 // CloudHSM reports the bare VPC id (vpc-…), which is exactly the resource_id the
 // EC2 scanner publishes for a VPC node, so the edge keys the bare id and never
 // synthesizes an ARN. It returns nil when no VPC id is reported.
-func clusterVPCRelationship(boundary awscloud.Boundary, cluster Cluster) *awscloud.RelationshipObservation {
+func clusterVPCRelationship(boundary aws.Boundary, cluster Cluster) *aws.RelationshipObservation {
 	sourceID := clusterResourceID(cluster)
 	vpcID := strings.TrimSpace(cluster.VPCID)
 	if sourceID == "" || vpcID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInVPC,
+		RelationshipType: aws.RelationshipCloudHSMV2ClusterInVPC,
 		SourceResourceID: sourceID,
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInVPC + ":" + vpcID,
+		TargetType:       aws.ResourceTypeEC2VPC,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipCloudHSMV2ClusterInVPC + ":" + vpcID,
 	}
 }
 
@@ -33,19 +33,19 @@ func clusterVPCRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 // group CloudHSM reports for a cluster. The bare security-group id (sg-…) is the
 // resource_id the EC2 scanner publishes for a security-group node, so the edge
 // keys the bare id. It returns nil when CloudHSM reports no security group.
-func clusterSecurityGroupRelationship(boundary awscloud.Boundary, cluster Cluster) *awscloud.RelationshipObservation {
+func clusterSecurityGroupRelationship(boundary aws.Boundary, cluster Cluster) *aws.RelationshipObservation {
 	sourceID := clusterResourceID(cluster)
 	groupID := strings.TrimSpace(cluster.SecurityGroupID)
 	if sourceID == "" || groupID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup,
+		RelationshipType: aws.RelationshipCloudHSMV2ClusterUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup + ":" + groupID,
+		TargetType:       aws.ResourceTypeEC2SecurityGroup,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipCloudHSMV2ClusterUsesSecurityGroup + ":" + groupID,
 	}
 }
 
@@ -54,12 +54,12 @@ func clusterSecurityGroupRelationship(boundary awscloud.Boundary, cluster Cluste
 // resource_id the EC2 scanner publishes for a subnet node, so every edge keys
 // the bare id. Duplicate subnet ids across zones are de-duplicated so a cluster
 // does not emit two identical edges. It returns nil when no subnet is reported.
-func clusterSubnetRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
+func clusterSubnetRelationships(boundary aws.Boundary, cluster Cluster) []aws.RelationshipObservation {
 	sourceID := clusterResourceID(cluster)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	seen := map[string]struct{}{}
 	for _, mapping := range cluster.SubnetMappings {
 		subnetID := strings.TrimSpace(mapping.SubnetID)
@@ -74,14 +74,14 @@ func clusterSubnetRelationships(boundary awscloud.Boundary, cluster Cluster) []a
 		if zone := strings.TrimSpace(mapping.AvailabilityZone); zone != "" {
 			attributes["availability_zone"] = zone
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInSubnet,
+			RelationshipType: aws.RelationshipCloudHSMV2ClusterInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes:       attributes,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipCloudHSMV2ClusterInSubnet + ":" + subnetID,
 		})
 	}
 	return relationships
@@ -92,19 +92,19 @@ func clusterSubnetRelationships(boundary awscloud.Boundary, cluster Cluster) []a
 // cluster node's resource_id, so the internal edge resolves once both the backup
 // and its cluster are scanned. It returns nil when AWS reports no source cluster
 // id (for example a backup whose cluster was deleted).
-func backupClusterRelationship(boundary awscloud.Boundary, backup Backup) *awscloud.RelationshipObservation {
+func backupClusterRelationship(boundary aws.Boundary, backup Backup) *aws.RelationshipObservation {
 	sourceID := backupResourceID(backup)
 	clusterID := strings.TrimSpace(backup.ClusterID)
 	if sourceID == "" || clusterID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2BackupOfCluster,
+		RelationshipType: aws.RelationshipCloudHSMV2BackupOfCluster,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(backup.ARN),
 		TargetResourceID: clusterID,
-		TargetType:       awscloud.ResourceTypeCloudHSMV2Cluster,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2BackupOfCluster + ":" + clusterID,
+		TargetType:       aws.ResourceTypeCloudHSMV2Cluster,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipCloudHSMV2BackupOfCluster + ":" + clusterID,
 	}
 }

@@ -16,4 +16,4 @@
 // Firehose processing-configuration Lambda body, HTTP endpoint access key,
 // Splunk HEC token, or Redshift password; only safe identity fields are
 // mapped.
-package awssdk
+package sdk

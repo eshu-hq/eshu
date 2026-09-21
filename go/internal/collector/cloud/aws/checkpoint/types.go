@@ -58,7 +58,7 @@ type Store interface {
 
 // ScopeFromBoundary copies the durable claim identity out of an AWS fact
 // boundary so service adapters cannot accidentally omit generation fencing.
-func ScopeFromBoundary(boundary awscloud.Boundary) Scope {
+func ScopeFromBoundary(boundary aws.Boundary) Scope {
 	return Scope{
 		CollectorInstanceID: boundary.CollectorInstanceID,
 		AccountID:           boundary.AccountID,

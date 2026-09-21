@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/route53/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/route53/sdk guidance
 
 ## Read First
 

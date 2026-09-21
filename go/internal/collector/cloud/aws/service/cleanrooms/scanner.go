@@ -24,15 +24,15 @@ type Scanner struct {
 
 // Scan observes Clean Rooms collaborations, configured tables, and memberships
 // plus their direct dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cleanrooms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCleanRooms:
+	case "", aws.ServiceCleanRooms:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCleanRooms
+		boundary.ServiceKind = aws.ServiceCleanRooms
 	default:
 		return nil, fmt.Errorf("cleanrooms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -46,7 +46,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, collaboration := range snapshot.Collaborations {
-		envelope, err := awscloud.NewResourceEnvelope(collaborationObservation(boundary, collaboration))
+		envelope, err := aws.NewResourceEnvelope(collaborationObservation(boundary, collaboration))
 		if err != nil {
 			return nil, err
 		}
@@ -69,9 +69,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -80,14 +80,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func configuredTableEnvelopes(boundary awscloud.Boundary, table ConfiguredTable) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(configuredTableObservation(boundary, table))
+func configuredTableEnvelopes(boundary aws.Boundary, table ConfiguredTable) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(configuredTableObservation(boundary, table))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := configuredTableGlueRelationship(boundary, table); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -96,14 +96,14 @@ func configuredTableEnvelopes(boundary awscloud.Boundary, table ConfiguredTable)
 	return envelopes, nil
 }
 
-func membershipEnvelopes(boundary awscloud.Boundary, membership Membership) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(membershipObservation(boundary, membership))
+func membershipEnvelopes(boundary aws.Boundary, membership Membership) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(membershipObservation(boundary, membership))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := membershipCollaborationRelationship(boundary, membership); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -112,15 +112,15 @@ func membershipEnvelopes(boundary awscloud.Boundary, membership Membership) ([]f
 	return envelopes, nil
 }
 
-func collaborationObservation(boundary awscloud.Boundary, collaboration Collaboration) awscloud.ResourceObservation {
+func collaborationObservation(boundary aws.Boundary, collaboration Collaboration) aws.ResourceObservation {
 	arn := strings.TrimSpace(collaboration.ARN)
 	name := strings.TrimSpace(collaboration.Name)
 	resourceID := collaborationResourceID(collaboration)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsCollaboration,
+		ResourceType: aws.ResourceTypeCleanRoomsCollaboration,
 		Name:         name,
 		State:        strings.TrimSpace(collaboration.MemberStatus),
 		Tags:         cloneStringMap(collaboration.Tags),
@@ -138,15 +138,15 @@ func collaborationObservation(boundary awscloud.Boundary, collaboration Collabor
 	}
 }
 
-func configuredTableObservation(boundary awscloud.Boundary, table ConfiguredTable) awscloud.ResourceObservation {
+func configuredTableObservation(boundary aws.Boundary, table ConfiguredTable) aws.ResourceObservation {
 	arn := strings.TrimSpace(table.ARN)
 	name := strings.TrimSpace(table.Name)
 	resourceID := configuredTableResourceID(table)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsConfiguredTable,
+		ResourceType: aws.ResourceTypeCleanRoomsConfiguredTable,
 		Name:         name,
 		Tags:         cloneStringMap(table.Tags),
 		Attributes: map[string]any{
@@ -165,15 +165,15 @@ func configuredTableObservation(boundary awscloud.Boundary, table ConfiguredTabl
 	}
 }
 
-func membershipObservation(boundary awscloud.Boundary, membership Membership) awscloud.ResourceObservation {
+func membershipObservation(boundary aws.Boundary, membership Membership) aws.ResourceObservation {
 	arn := strings.TrimSpace(membership.ARN)
 	resourceID := membershipResourceID(membership)
 	collaborationName := strings.TrimSpace(membership.CollaborationName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsMembership,
+		ResourceType: aws.ResourceTypeCleanRoomsMembership,
 		Name:         collaborationName,
 		State:        strings.TrimSpace(membership.Status),
 		Tags:         cloneStringMap(membership.Tags),

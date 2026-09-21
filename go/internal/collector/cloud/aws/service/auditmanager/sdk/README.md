@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/auditmanager/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/auditmanager/sdk` adapts AWS SDK for Go
 v2 Audit Manager responses to the scanner-owned `Client` contract. It owns the
 account-status gate, assessment pagination plus per-assessment `GetAssessment`
 detail, framework pagination across framework types, control pagination across
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary labels
+- `internal/collector/cloud/aws` for account, region, and service boundary labels
   plus the API-call event recorder.
-- `internal/collector/awscloud/service/auditmanager` for scanner-owned result
+- `internal/collector/cloud/aws/service/auditmanager` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `auditmanager` and Smithy error contracts.

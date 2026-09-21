@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfirehose "github.com/aws/aws-sdk-go-v2/service/firehose"
 	awsfirehosetypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
 
@@ -70,44 +70,44 @@ func TestClientListDeliveryStreamsMapsSafeMetadata(t *testing.T) {
 	client := &fakeFirehoseAPI{
 		namePages: []*awsfirehose.ListDeliveryStreamsOutput{{
 			DeliveryStreamNames:    []string{"orders-firehose"},
-			HasMoreDeliveryStreams: aws.Bool(false),
+			HasMoreDeliveryStreams: awsv2.Bool(false),
 		}},
 		describe: map[string]*awsfirehose.DescribeDeliveryStreamOutput{
 			"orders-firehose": {
 				DeliveryStreamDescription: &awsfirehosetypes.DeliveryStreamDescription{
-					DeliveryStreamName:   aws.String("orders-firehose"),
-					DeliveryStreamARN:    aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/orders-firehose"),
+					DeliveryStreamName:   awsv2.String("orders-firehose"),
+					DeliveryStreamARN:    awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/orders-firehose"),
 					DeliveryStreamStatus: awsfirehosetypes.DeliveryStreamStatusActive,
 					DeliveryStreamType:   awsfirehosetypes.DeliveryStreamTypeKinesisStreamAsSource,
-					CreateTimestamp:      aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
+					CreateTimestamp:      awsv2.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
 					Source: &awsfirehosetypes.SourceDescription{
 						KinesisStreamSourceDescription: &awsfirehosetypes.KinesisStreamSourceDescription{
-							KinesisStreamARN: aws.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders-raw"),
-							RoleARN:          aws.String("arn:aws:iam::123456789012:role/firehose-source"),
+							KinesisStreamARN: awsv2.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders-raw"),
+							RoleARN:          awsv2.String("arn:aws:iam::123456789012:role/firehose-source"),
 						},
 					},
 					DeliveryStreamEncryptionConfiguration: &awsfirehosetypes.DeliveryStreamEncryptionConfiguration{
 						KeyType: awsfirehosetypes.KeyTypeCustomerManagedCmk,
 						Status:  awsfirehosetypes.DeliveryStreamEncryptionStatusEnabled,
-						KeyARN:  aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+						KeyARN:  awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 					},
 					Destinations: []awsfirehosetypes.DestinationDescription{{
-						DestinationId: aws.String("destinationId-1"),
+						DestinationId: awsv2.String("destinationId-1"),
 						ExtendedS3DestinationDescription: &awsfirehosetypes.ExtendedS3DestinationDescription{
-							BucketARN: aws.String("arn:aws:s3:::orders-firehose-dest"),
-							RoleARN:   aws.String("arn:aws:iam::123456789012:role/firehose-delivery"),
+							BucketARN: awsv2.String("arn:aws:s3:::orders-firehose-dest"),
+							RoleARN:   awsv2.String("arn:aws:iam::123456789012:role/firehose-delivery"),
 							CloudWatchLoggingOptions: &awsfirehosetypes.CloudWatchLoggingOptions{
-								Enabled:       aws.Bool(true),
-								LogGroupName:  aws.String("/aws/kinesisfirehose/orders-firehose"),
-								LogStreamName: aws.String("DestinationDelivery"),
+								Enabled:       awsv2.Bool(true),
+								LogGroupName:  awsv2.String("/aws/kinesisfirehose/orders-firehose"),
+								LogStreamName: awsv2.String("DestinationDelivery"),
 							},
 							ProcessingConfiguration: &awsfirehosetypes.ProcessingConfiguration{
-								Enabled: aws.Bool(true),
+								Enabled: awsv2.Bool(true),
 								Processors: []awsfirehosetypes.Processor{{
 									Type: awsfirehosetypes.ProcessorTypeLambda,
 									Parameters: []awsfirehosetypes.ProcessorParameter{{
 										ParameterName:  awsfirehosetypes.ProcessorParameterNameLambdaArn,
-										ParameterValue: aws.String("arn:aws:lambda:us-east-1:123456789012:function:orders-transform"),
+										ParameterValue: awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:orders-transform"),
 									}},
 								}},
 							},
@@ -164,18 +164,18 @@ func TestClientMapsAWSOwnedKeyWithoutKMSKeyARN(t *testing.T) {
 	client := &fakeFirehoseAPI{
 		namePages: []*awsfirehose.ListDeliveryStreamsOutput{{
 			DeliveryStreamNames:    []string{"aws-owned"},
-			HasMoreDeliveryStreams: aws.Bool(false),
+			HasMoreDeliveryStreams: awsv2.Bool(false),
 		}},
 		describe: map[string]*awsfirehose.DescribeDeliveryStreamOutput{
 			"aws-owned": {
 				DeliveryStreamDescription: &awsfirehosetypes.DeliveryStreamDescription{
-					DeliveryStreamName: aws.String("aws-owned"),
-					DeliveryStreamARN:  aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/aws-owned"),
+					DeliveryStreamName: awsv2.String("aws-owned"),
+					DeliveryStreamARN:  awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/aws-owned"),
 					DeliveryStreamType: awsfirehosetypes.DeliveryStreamTypeDirectPut,
 					DeliveryStreamEncryptionConfiguration: &awsfirehosetypes.DeliveryStreamEncryptionConfiguration{
 						KeyType: awsfirehosetypes.KeyTypeAwsOwnedCmk,
 						Status:  awsfirehosetypes.DeliveryStreamEncryptionStatusEnabled,
-						KeyARN:  aws.String("arn:aws:kms:us-east-1:123456789012:key/should-not-be-mapped"),
+						KeyARN:  awsv2.String("arn:aws:kms:us-east-1:123456789012:key/should-not-be-mapped"),
 					},
 				},
 			},
@@ -199,18 +199,18 @@ func TestClientParsesRedshiftClusterIdentifierFromJDBCURL(t *testing.T) {
 	client := &fakeFirehoseAPI{
 		namePages: []*awsfirehose.ListDeliveryStreamsOutput{{
 			DeliveryStreamNames:    []string{"to-redshift"},
-			HasMoreDeliveryStreams: aws.Bool(false),
+			HasMoreDeliveryStreams: awsv2.Bool(false),
 		}},
 		describe: map[string]*awsfirehose.DescribeDeliveryStreamOutput{
 			"to-redshift": {
 				DeliveryStreamDescription: &awsfirehosetypes.DeliveryStreamDescription{
-					DeliveryStreamName: aws.String("to-redshift"),
-					DeliveryStreamARN:  aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/to-redshift"),
+					DeliveryStreamName: awsv2.String("to-redshift"),
+					DeliveryStreamARN:  awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/to-redshift"),
 					DeliveryStreamType: awsfirehosetypes.DeliveryStreamTypeDirectPut,
 					Destinations: []awsfirehosetypes.DestinationDescription{{
 						RedshiftDestinationDescription: &awsfirehosetypes.RedshiftDestinationDescription{
-							RoleARN:        aws.String("arn:aws:iam::123456789012:role/firehose-redshift"),
-							ClusterJDBCURL: aws.String("jdbc:redshift://warehouse-prod.abc123.us-east-1.redshift.amazonaws.com:5439/analytics"),
+							RoleARN:        awsv2.String("arn:aws:iam::123456789012:role/firehose-redshift"),
+							ClusterJDBCURL: awsv2.String("jdbc:redshift://warehouse-prod.abc123.us-east-1.redshift.amazonaws.com:5439/analytics"),
 						},
 					}},
 				},
@@ -232,11 +232,11 @@ func TestClientParsesRedshiftClusterIdentifierFromJDBCURL(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFirehose,
+		ServiceKind:         aws.ServiceFirehose,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:firehose:1",
 		CollectorInstanceID: "aws-prod",
@@ -258,7 +258,7 @@ func (f *fakeFirehoseAPI) ListDeliveryStreams(
 	_ ...func(*awsfirehose.Options),
 ) (*awsfirehose.ListDeliveryStreamsOutput, error) {
 	if f.nameCalls >= len(f.namePages) {
-		return &awsfirehose.ListDeliveryStreamsOutput{HasMoreDeliveryStreams: aws.Bool(false)}, nil
+		return &awsfirehose.ListDeliveryStreamsOutput{HasMoreDeliveryStreams: awsv2.Bool(false)}, nil
 	}
 	page := f.namePages[f.nameCalls]
 	f.nameCalls++
@@ -273,7 +273,7 @@ func (f *fakeFirehoseAPI) DescribeDeliveryStream(
 	if f.describe == nil {
 		return &awsfirehose.DescribeDeliveryStreamOutput{}, nil
 	}
-	if output, ok := f.describe[aws.ToString(input.DeliveryStreamName)]; ok {
+	if output, ok := f.describe[awsv2.ToString(input.DeliveryStreamName)]; ok {
 		return output, nil
 	}
 	return &awsfirehose.DescribeDeliveryStreamOutput{}, nil
@@ -285,11 +285,11 @@ func (f *fakeFirehoseAPI) ListTagsForDeliveryStream(
 	_ ...func(*awsfirehose.Options),
 ) (*awsfirehose.ListTagsForDeliveryStreamOutput, error) {
 	if f.tags != nil {
-		if output, ok := f.tags[aws.ToString(input.DeliveryStreamName)]; ok {
+		if output, ok := f.tags[awsv2.ToString(input.DeliveryStreamName)]; ok {
 			return output, nil
 		}
 	}
-	return &awsfirehose.ListTagsForDeliveryStreamOutput{HasMoreTags: aws.Bool(false)}, nil
+	return &awsfirehose.ListTagsForDeliveryStreamOutput{HasMoreTags: awsv2.Bool(false)}, nil
 }
 
 var _ apiClient = (*fakeFirehoseAPI)(nil)

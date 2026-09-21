@@ -40,7 +40,7 @@ type Snapshot struct {
 	RouteCalculators []RouteCalculator
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Map is the scanner-owned Location Service map model. It carries control-plane

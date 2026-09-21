@@ -99,7 +99,7 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeRDSDBInstance)
 	if got, want := instance.Payload["arn"], instanceARN; got != want {
 		t.Fatalf("instance arn = %#v, want %q", got, want)
 	}
@@ -132,7 +132,7 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeRDSDBCluster)
 	clusterAttributes := attributesOf(t, cluster)
 	assertAttribute(t, clusterAttributes, "endpoint_address", "orders.cluster.example.us-east-1.rds.amazonaws.com")
 	assertAttribute(t, clusterAttributes, "reader_endpoint_address", "orders.cluster-ro.example.us-east-1.rds.amazonaws.com")
@@ -141,27 +141,27 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("master_username attribute persisted; RDS cluster scanner must stay metadata-only")
 	}
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, aws.ResourceTypeRDSDBSubnetGroup)
 	subnetAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 	assertAttribute(t, subnetAttributes, "vpc_id", "vpc-123")
 
-	memberRelationship := relationshipByType(t, envelopes, awscloud.RelationshipRDSDBInstanceMemberOfCluster)
+	memberRelationship := relationshipByType(t, envelopes, aws.RelationshipRDSDBInstanceMemberOfCluster)
 	if got, want := memberRelationship.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("cluster membership target_arn = %#v, want %q", got, want)
 	}
 	assertAttribute(t, attributesOf(t, memberRelationship), "is_writer", true)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesKMSKey, kmsARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesKMSKey, kmsARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesMonitoringRole, monitoringRoleARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesIAMRole, "arn:aws:iam::123456789012:role/rds-s3-import")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesParameterGroup, "orders-postgres16")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesParameterGroup, "orders-cluster-params")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesOptionGroup, "orders-options")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBClusterUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceUsesMonitoringRole, monitoringRoleARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBClusterUsesIAMRole, "arn:aws:iam::123456789012:role/rds-s3-import")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceUsesParameterGroup, "orders-postgres16")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBClusterUsesParameterGroup, "orders-cluster-params")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRDSDBInstanceUsesOptionGroup, "orders-options")
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -191,7 +191,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipRDSDBInstanceUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -223,9 +223,9 @@ func TestScannerDoesNotTreatFallbackTargetIDsAsARNs(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipRDSDBInstanceMemberOfCluster,
-		awscloud.RelationshipRDSDBInstanceInSubnetGroup,
-		awscloud.RelationshipRDSDBClusterInSubnetGroup,
+		aws.RelationshipRDSDBInstanceMemberOfCluster,
+		aws.RelationshipRDSDBInstanceInSubnetGroup,
+		aws.RelationshipRDSDBClusterInSubnetGroup,
 	} {
 		relationship := relationshipByType(t, envelopes, relationshipType)
 		if got := relationship.Payload["target_arn"]; got != "" {
@@ -236,7 +236,7 @@ func TestScannerDoesNotTreatFallbackTargetIDsAsARNs(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -244,11 +244,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRDS,
+		ServiceKind:         aws.ServiceRDS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:rds:1",
 		CollectorInstanceID: "aws-prod",

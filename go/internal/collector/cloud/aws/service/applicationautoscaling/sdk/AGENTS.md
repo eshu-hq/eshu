@@ -1,4 +1,4 @@
-# AGENTS.md - applicationautoscaling/awssdk guidance
+# AGENTS.md - applicationautoscaling/sdk guidance
 
 ## Read First
 
@@ -26,6 +26,6 @@
 ## Verification
 
 ```
-go test ./internal/collector/awscloud/service/applicationautoscaling/awssdk/... -count=1
-golangci-lint run ./internal/collector/awscloud/service/applicationautoscaling/awssdk/...
+go test ./internal/collector/cloud/aws/service/applicationautoscaling/sdk/... -count=1
+golangci-lint run ./internal/collector/cloud/aws/service/applicationautoscaling/sdk/...
 ```

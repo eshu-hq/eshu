@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes OpenSearch Serverless collections, security policies, managed VPC
 // endpoints, and their direct KMS and EC2 dependency metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("opensearchserverless scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOpenSearchServerless:
+	case "", aws.ServiceOpenSearchServerless:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOpenSearchServerless
+		boundary.ServiceKind = aws.ServiceOpenSearchServerless
 	default:
 		return nil, fmt.Errorf("opensearchserverless scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -74,9 +74,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -86,17 +86,17 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 }
 
 func collectionEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection Collection,
 	bindings []EncryptionKeyBinding,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(collectionObservation(boundary, collection))
+	resource, err := aws.NewResourceEnvelope(collectionObservation(boundary, collection))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := collectionKMSRelationship(boundary, collection, bindings); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -105,14 +105,14 @@ func collectionEnvelopes(
 	return envelopes, nil
 }
 
-func vpcEndpointEnvelopes(boundary awscloud.Boundary, endpoint VPCEndpoint) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
+func vpcEndpointEnvelopes(boundary aws.Boundary, endpoint VPCEndpoint) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(vpcEndpointObservation(boundary, endpoint))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range vpcEndpointRelationships(boundary, endpoint) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -121,15 +121,15 @@ func vpcEndpointEnvelopes(boundary awscloud.Boundary, endpoint VPCEndpoint) ([]f
 	return envelopes, nil
 }
 
-func collectionObservation(boundary awscloud.Boundary, collection Collection) awscloud.ResourceObservation {
+func collectionObservation(boundary aws.Boundary, collection Collection) aws.ResourceObservation {
 	collectionARN := strings.TrimSpace(collection.ARN)
 	name := strings.TrimSpace(collection.Name)
 	resourceID := collectionResourceID(collection)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          collectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessAOSSCollection,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessAOSSCollection,
 		Name:         name,
 		State:        strings.TrimSpace(collection.Status),
 		Tags:         cloneStringMap(collection.Tags),
@@ -146,15 +146,15 @@ func collectionObservation(boundary awscloud.Boundary, collection Collection) aw
 	}
 }
 
-func securityPolicyEnvelope(boundary awscloud.Boundary, policy SecurityPolicy) (*facts.Envelope, error) {
+func securityPolicyEnvelope(boundary aws.Boundary, policy SecurityPolicy) (*facts.Envelope, error) {
 	resourceID := securityPolicyResourceID(policy)
 	if resourceID == "" {
 		return nil, nil
 	}
-	envelope, err := awscloud.NewResourceEnvelope(awscloud.ResourceObservation{
+	envelope, err := aws.NewResourceEnvelope(aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessSecurityPolicy,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessSecurityPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		Attributes: map[string]any{
 			"policy_type":        strings.TrimSpace(policy.Type),
@@ -172,13 +172,13 @@ func securityPolicyEnvelope(boundary awscloud.Boundary, policy SecurityPolicy) (
 	return &envelope, nil
 }
 
-func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) awscloud.ResourceObservation {
+func vpcEndpointObservation(boundary aws.Boundary, endpoint VPCEndpoint) aws.ResourceObservation {
 	name := strings.TrimSpace(endpoint.Name)
 	resourceID := vpcEndpointResourceID(endpoint)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint,
+		ResourceType: aws.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint,
 		Name:         name,
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{

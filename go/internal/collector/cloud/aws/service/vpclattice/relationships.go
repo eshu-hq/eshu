@@ -14,10 +14,10 @@ import (
 // publishes for a VPC node, so the edge joins the VPC node exactly. It returns
 // nil when either endpoint identity is missing.
 func serviceNetworkVPCRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	network ServiceNetwork,
 	association VPCAssociation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := serviceNetworkResourceID(network)
 	vpcID := strings.TrimSpace(association.VPCID)
 	if sourceID == "" || vpcID == "" {
@@ -30,15 +30,15 @@ func serviceNetworkVPCRelationship(
 	if id := strings.TrimSpace(association.ID); id != "" {
 		attributes["association_id"] = id
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC,
+		RelationshipType: aws.RelationshipVPCLatticeServiceNetworkAssociatesVPC,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(network.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       aws.ResourceTypeEC2VPC,
 		Attributes:       attributesOrNil(attributes),
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC + ":" + vpcID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeServiceNetworkAssociatesVPC + ":" + vpcID,
 	}
 }
 
@@ -47,10 +47,10 @@ func serviceNetworkVPCRelationship(
 // resource_id this scanner publishes for a service node. It returns nil when
 // either endpoint identity is missing.
 func serviceNetworkServiceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	network ServiceNetwork,
 	association ServiceAssociation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := serviceNetworkResourceID(network)
 	targetID := firstNonEmpty(association.ServiceARN, association.ServiceID)
 	if sourceID == "" || targetID == "" {
@@ -67,16 +67,16 @@ func serviceNetworkServiceRelationship(
 	if id := strings.TrimSpace(association.ID); id != "" {
 		attributes["association_id"] = id
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceNetworkAssociatesService,
+		RelationshipType: aws.RelationshipVPCLatticeServiceNetworkAssociatesService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(network.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
+		TargetType:       aws.ResourceTypeVPCLatticeService,
 		Attributes:       attributesOrNil(attributes),
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceNetworkAssociatesService + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeServiceNetworkAssociatesService + ":" + targetID,
 	}
 }
 
@@ -85,10 +85,10 @@ func serviceNetworkServiceRelationship(
 // the edge joins the service node exactly. It returns nil when either endpoint
 // identity is missing.
 func listenerInServiceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	service Service,
 	listener Listener,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := listenerResourceID(listener)
 	targetID := serviceResourceID(service)
 	if sourceID == "" || targetID == "" {
@@ -98,15 +98,15 @@ func listenerInServiceRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeListenerInService,
+		RelationshipType: aws.RelationshipVPCLatticeListenerInService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(listener.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeListenerInService + ":" + targetID,
+		TargetType:       aws.ResourceTypeVPCLatticeService,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeListenerInService + ":" + targetID,
 	}
 }
 
@@ -115,9 +115,9 @@ func listenerInServiceRelationship(
 // scanner publishes for a certificate. It returns nil when no certificate is
 // configured.
 func serviceCertificateRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	service Service,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	certARN := strings.TrimSpace(service.CertificateARN)
 	if certARN == "" {
 		return nil
@@ -130,15 +130,15 @@ func serviceCertificateRelationship(
 	if isARN(certARN) {
 		targetARN = certARN
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceUsesCertificate,
+		RelationshipType: aws.RelationshipVPCLatticeServiceUsesCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(service.ARN),
 		TargetResourceID: certARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceUsesCertificate + ":" + certARN,
+		TargetType:       aws.ResourceTypeACMCertificate,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeServiceUsesCertificate + ":" + certARN,
 	}
 }
 
@@ -146,9 +146,9 @@ func serviceCertificateRelationship(
 // the bare VPC id, which is the resource_id the EC2 scanner publishes. It
 // returns nil when no VPC is reported (for example LAMBDA target groups).
 func targetGroupVPCRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group TargetGroup,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	vpcID := strings.TrimSpace(group.VPCID)
 	if vpcID == "" {
 		return nil
@@ -157,14 +157,14 @@ func targetGroupVPCRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeTargetGroupInVPC,
+		RelationshipType: aws.RelationshipVPCLatticeTargetGroupInVPC,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(group.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeTargetGroupInVPC + ":" + vpcID,
+		TargetType:       aws.ResourceTypeEC2VPC,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeTargetGroupInVPC + ":" + vpcID,
 	}
 }
 
@@ -172,10 +172,10 @@ func targetGroupVPCRelationship(
 // reports the service ARN, the resource_id the service node publishes. It
 // returns nil when either endpoint identity is missing.
 func targetGroupServiceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group TargetGroup,
 	serviceARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := targetGroupResourceID(group)
 	targetID := strings.TrimSpace(serviceARN)
 	if sourceID == "" || targetID == "" {
@@ -185,15 +185,15 @@ func targetGroupServiceRelationship(
 	if isARN(targetID) {
 		targetARNValue = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeTargetGroupServesService,
+		RelationshipType: aws.RelationshipVPCLatticeTargetGroupServesService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(group.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARNValue,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeTargetGroupServesService + ":" + targetID,
+		TargetType:       aws.ResourceTypeVPCLatticeService,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipVPCLatticeTargetGroupServesService + ":" + targetID,
 	}
 }
 
@@ -203,10 +203,10 @@ func targetGroupServiceRelationship(
 // target whose id does not resolve to the form the target group type implies,
 // so the scanner never keys a dangling edge.
 func targetGroupTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group TargetGroup,
 	target Target,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := targetGroupResourceID(group)
 	targetID := strings.TrimSpace(target.ID)
 	if sourceID == "" || targetID == "" {
@@ -223,7 +223,7 @@ func targetGroupTargetRelationship(
 	if target.Port != 0 {
 		attributes["port"] = target.Port
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
@@ -248,20 +248,20 @@ func resolveTargetEdge(groupType, targetID string) (relationshipType, targetType
 		if !isARN(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsLambda,
-			awscloud.ResourceTypeLambdaFunction, targetID, true
+		return aws.RelationshipVPCLatticeTargetGroupTargetsLambda,
+			aws.ResourceTypeLambdaFunction, targetID, true
 	case "INSTANCE":
 		if !isInstanceID(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsInstance,
+		return aws.RelationshipVPCLatticeTargetGroupTargetsInstance,
 			ec2InstanceTargetType, "", true
 	case "ALB":
 		if !isARN(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer,
-			awscloud.ResourceTypeELBv2LoadBalancer, targetID, true
+		return aws.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer,
+			aws.ResourceTypeELBv2LoadBalancer, targetID, true
 	default:
 		// IP target groups register raw IP addresses, which are not a scanned
 		// resource family; skip rather than dangle the edge.

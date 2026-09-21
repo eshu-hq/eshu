@@ -16,9 +16,9 @@ import (
 // the target cannot be resolved to a known Organizations family, so the edge is
 // skipped rather than dangled.
 func controlGovernsTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	control EnabledControl,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(control.ARN)
 	if sourceID == "" {
 		return nil
@@ -33,9 +33,9 @@ func controlGovernsTargetRelationship(
 	if controlID := strings.TrimSpace(control.ControlIdentifier); controlID != "" {
 		attributes["control_identifier"] = controlID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerControlGovernsTarget,
+		RelationshipType: aws.RelationshipControlTowerControlGovernsTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		// The organizations scanner keys OU/account/root nodes by their bare id,
@@ -46,7 +46,7 @@ func controlGovernsTargetRelationship(
 		TargetType:       target.ResourceType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerControlGovernsTarget + ":" + target.ResourceID,
+			aws.RelationshipControlTowerControlGovernsTarget + ":" + target.ResourceID,
 	}
 }
 
@@ -56,9 +56,9 @@ func controlGovernsTargetRelationship(
 // returns nil when the baseline identity or the target cannot be resolved, so
 // the edge is skipped rather than dangled.
 func baselineGovernsTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	baseline EnabledBaseline,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(baseline.ARN)
 	if sourceID == "" {
 		return nil
@@ -73,9 +73,9 @@ func baselineGovernsTargetRelationship(
 	if baselineID := strings.TrimSpace(baseline.BaselineIdentifier); baselineID != "" {
 		attributes["baseline_identifier"] = baselineID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerBaselineGovernsTarget,
+		RelationshipType: aws.RelationshipControlTowerBaselineGovernsTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		// The organizations scanner keys OU/account/root nodes by their bare id,
@@ -85,7 +85,7 @@ func baselineGovernsTargetRelationship(
 		TargetType:       target.ResourceType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerBaselineGovernsTarget + ":" + target.ResourceID,
+			aws.RelationshipControlTowerBaselineGovernsTarget + ":" + target.ResourceID,
 	}
 }
 
@@ -96,24 +96,24 @@ func baselineGovernsTargetRelationship(
 // when no landing zone is present or either identity is missing, so the edge is
 // skipped rather than dangled.
 func baselineForLandingZoneRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	baseline EnabledBaseline,
 	landingZoneARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(baseline.ARN)
 	landingZoneARN = strings.TrimSpace(landingZoneARN)
 	if sourceID == "" || landingZoneARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerBaselineForLandingZone,
+		RelationshipType: aws.RelationshipControlTowerBaselineForLandingZone,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: landingZoneARN,
 		TargetARN:        landingZoneARN,
-		TargetType:       awscloud.ResourceTypeControlTowerLandingZone,
+		TargetType:       aws.ResourceTypeControlTowerLandingZone,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerBaselineForLandingZone + ":" + landingZoneARN,
+			aws.RelationshipControlTowerBaselineForLandingZone + ":" + landingZoneARN,
 	}
 }

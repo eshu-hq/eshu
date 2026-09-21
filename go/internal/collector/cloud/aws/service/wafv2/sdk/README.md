@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/wafv2/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/wafv2/sdk` adapts AWS SDK for Go v2
 WAFv2 reads into the scanner-owned types defined in the parent package. It owns
 WAFv2 list/get pagination, scope selection, tag reads, regional protected
 resource resolution, the rule-reference walk, and API-call telemetry.
@@ -10,7 +10,7 @@ resource resolution, the rule-reference walk, and API-call telemetry.
 ## Ownership boundary
 
 This package owns WAFv2 SDK access only. It does not own scanner-level fact
-selection (parent package), credential acquisition (awsruntime), or fact
+selection (parent package), credential acquisition (runtime), or fact
 persistence. It never calls a WAFv2 mutation API and never reads sensitive
 bodies.
 
@@ -30,9 +30,9 @@ if any mutation or data-plane method appears.
 ## Dependencies
 
 - `github.com/aws/aws-sdk-go-v2/service/wafv2` and its `types` package.
-- `internal/collector/awscloud` for the boundary, API-call recorder, and
+- `internal/collector/cloud/aws` for the boundary, API-call recorder, and
   throttle classification.
-- `internal/collector/awscloud/service/wafv2` for scanner-owned types.
+- `internal/collector/cloud/aws/service/wafv2` for scanner-owned types.
 - `internal/telemetry` for spans and instruments.
 
 ## Telemetry

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "imagebuilder".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceImageBuilder + "  "
+	boundary.ServiceKind = "  " + aws.ServiceImageBuilder + "  "
 	client := fakeClient{snapshot: Snapshot{Pipelines: []ImagePipeline{{
 		ARN:  testPipelineARN,
 		Name: "web-pipeline",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceImageBuilder; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceImageBuilder; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

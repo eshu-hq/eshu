@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdrs "github.com/aws/aws-sdk-go-v2/service/drs"
 	awsdrstypes "github.com/aws/aws-sdk-go-v2/service/drs/types"
 	"github.com/aws/smithy-go"
@@ -52,15 +52,15 @@ type apiClient interface {
 // calls a recover, start, stop, or mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DRS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -118,7 +118,7 @@ func (c *Client) describeSourceServers(ctx context.Context) ([]drsservice.Source
 			servers = append(servers, mapSourceServer(server))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return servers, nil
 		}
 	}
@@ -146,7 +146,7 @@ func (c *Client) describeRecoveryInstances(ctx context.Context) ([]drsservice.Re
 			instances = append(instances, mapRecoveryInstance(instance))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return instances, nil
 		}
 	}
@@ -177,7 +177,7 @@ func (c *Client) describeReplicationConfigurationTemplates(
 			templates = append(templates, mapTemplate(template))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return templates, nil
 		}
 	}
@@ -185,9 +185,9 @@ func (c *Client) describeReplicationConfigurationTemplates(
 
 func mapSourceServer(server awsdrstypes.SourceServer) drsservice.SourceServer {
 	mapped := drsservice.SourceServer{
-		SourceServerID:       strings.TrimSpace(aws.ToString(server.SourceServerID)),
-		ARN:                  strings.TrimSpace(aws.ToString(server.Arn)),
-		RecoveryInstanceID:   strings.TrimSpace(aws.ToString(server.RecoveryInstanceId)),
+		SourceServerID:       strings.TrimSpace(awsv2.ToString(server.SourceServerID)),
+		ARN:                  strings.TrimSpace(awsv2.ToString(server.Arn)),
+		RecoveryInstanceID:   strings.TrimSpace(awsv2.ToString(server.RecoveryInstanceId)),
 		ReplicationDirection: strings.TrimSpace(string(server.ReplicationDirection)),
 		LastLaunchResult:     strings.TrimSpace(string(server.LastLaunchResult)),
 		Tags:                 trimTags(server.Tags),
@@ -197,9 +197,9 @@ func mapSourceServer(server awsdrstypes.SourceServer) drsservice.SourceServer {
 	}
 	applySourceProperties(&mapped, server.SourceProperties)
 	if cloud := server.SourceCloudProperties; cloud != nil {
-		mapped.OriginAccountID = strings.TrimSpace(aws.ToString(cloud.OriginAccountID))
-		mapped.OriginRegion = strings.TrimSpace(aws.ToString(cloud.OriginRegion))
-		mapped.OriginAvailabilityZone = strings.TrimSpace(aws.ToString(cloud.OriginAvailabilityZone))
+		mapped.OriginAccountID = strings.TrimSpace(awsv2.ToString(cloud.OriginAccountID))
+		mapped.OriginRegion = strings.TrimSpace(awsv2.ToString(cloud.OriginRegion))
+		mapped.OriginAvailabilityZone = strings.TrimSpace(awsv2.ToString(cloud.OriginAvailabilityZone))
 	}
 	return mapped
 }
@@ -212,24 +212,24 @@ func applySourceProperties(server *drsservice.SourceServer, props *awsdrstypes.S
 	if props == nil {
 		return
 	}
-	server.RecommendedInstanceType = strings.TrimSpace(aws.ToString(props.RecommendedInstanceType))
+	server.RecommendedInstanceType = strings.TrimSpace(awsv2.ToString(props.RecommendedInstanceType))
 	if os := props.Os; os != nil {
-		server.OperatingSystem = strings.TrimSpace(aws.ToString(os.FullString))
+		server.OperatingSystem = strings.TrimSpace(awsv2.ToString(os.FullString))
 	}
 	if hints := props.IdentificationHints; hints != nil {
-		server.Hostname = strings.TrimSpace(aws.ToString(hints.Hostname))
-		server.FQDN = strings.TrimSpace(aws.ToString(hints.Fqdn))
+		server.Hostname = strings.TrimSpace(awsv2.ToString(hints.Hostname))
+		server.FQDN = strings.TrimSpace(awsv2.ToString(hints.Fqdn))
 	}
 }
 
 func mapRecoveryInstance(instance awsdrstypes.RecoveryInstance) drsservice.RecoveryInstance {
 	return drsservice.RecoveryInstance{
-		RecoveryInstanceID: strings.TrimSpace(aws.ToString(instance.RecoveryInstanceID)),
-		ARN:                strings.TrimSpace(aws.ToString(instance.Arn)),
-		EC2InstanceID:      strings.TrimSpace(aws.ToString(instance.Ec2InstanceID)),
+		RecoveryInstanceID: strings.TrimSpace(awsv2.ToString(instance.RecoveryInstanceID)),
+		ARN:                strings.TrimSpace(awsv2.ToString(instance.Arn)),
+		EC2InstanceID:      strings.TrimSpace(awsv2.ToString(instance.Ec2InstanceID)),
 		EC2InstanceState:   strings.TrimSpace(string(instance.Ec2InstanceState)),
-		SourceServerID:     strings.TrimSpace(aws.ToString(instance.SourceServerID)),
-		IsDrill:            aws.ToBool(instance.IsDrill),
+		SourceServerID:     strings.TrimSpace(awsv2.ToString(instance.SourceServerID)),
+		IsDrill:            awsv2.ToBool(instance.IsDrill),
 		OriginEnvironment:  strings.TrimSpace(string(instance.OriginEnvironment)),
 		Tags:               trimTags(instance.Tags),
 	}
@@ -237,13 +237,13 @@ func mapRecoveryInstance(instance awsdrstypes.RecoveryInstance) drsservice.Recov
 
 func mapTemplate(template awsdrstypes.ReplicationConfigurationTemplate) drsservice.ReplicationConfigurationTemplate {
 	return drsservice.ReplicationConfigurationTemplate{
-		TemplateID:                    strings.TrimSpace(aws.ToString(template.ReplicationConfigurationTemplateID)),
-		ARN:                           strings.TrimSpace(aws.ToString(template.Arn)),
+		TemplateID:                    strings.TrimSpace(awsv2.ToString(template.ReplicationConfigurationTemplateID)),
+		ARN:                           strings.TrimSpace(awsv2.ToString(template.Arn)),
 		EBSEncryption:                 strings.TrimSpace(string(template.EbsEncryption)),
-		StagingAreaSubnetID:           strings.TrimSpace(aws.ToString(template.StagingAreaSubnetId)),
-		ReplicationServerInstanceType: strings.TrimSpace(aws.ToString(template.ReplicationServerInstanceType)),
-		UseDedicatedReplicationServer: aws.ToBool(template.UseDedicatedReplicationServer),
-		AssociateDefaultSecurityGroup: aws.ToBool(template.AssociateDefaultSecurityGroup),
+		StagingAreaSubnetID:           strings.TrimSpace(awsv2.ToString(template.StagingAreaSubnetId)),
+		ReplicationServerInstanceType: strings.TrimSpace(awsv2.ToString(template.ReplicationServerInstanceType)),
+		UseDedicatedReplicationServer: awsv2.ToBool(template.UseDedicatedReplicationServer),
+		AssociateDefaultSecurityGroup: awsv2.ToBool(template.AssociateDefaultSecurityGroup),
 		Tags:                          trimTags(template.Tags),
 	}
 }
@@ -285,7 +285,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

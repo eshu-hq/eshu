@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/route53recoverycontrolconfig/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/route53recoverycontrolconfig/sdk guidance
 
 ## Read First
 

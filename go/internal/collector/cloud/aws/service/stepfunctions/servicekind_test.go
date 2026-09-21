@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "states".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceStepFunctions + "  "
+	boundary.ServiceKind = "  " + aws.ServiceStepFunctions + "  "
 	client := fakeClient{
 		stateMachines: []StateMachine{{
 			ARN:    "arn:aws:states:us-east-1:123456789012:stateMachine:order-fulfillment",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceStepFunctions; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceStepFunctions; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

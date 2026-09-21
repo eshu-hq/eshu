@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskav2 "github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2"
 	awskav2types "github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2/types"
 
@@ -27,64 +27,64 @@ func TestClientListsManagedFlinkMetadataOnly(t *testing.T) {
 		appPages: []*awskav2.ListApplicationsOutput{
 			{
 				ApplicationSummaries: []awskav2types.ApplicationSummary{{
-					ApplicationName: aws.String("orders-flink"),
-					ApplicationARN:  aws.String(appARN),
+					ApplicationName: awsv2.String("orders-flink"),
+					ApplicationARN:  awsv2.String(appARN),
 				}},
-				NextToken: aws.String("page-2"),
+				NextToken: awsv2.String("page-2"),
 			},
 			{ApplicationSummaries: nil},
 		},
 		describe: map[string]*awskav2types.ApplicationDetail{
 			"orders-flink": {
-				ApplicationName:      aws.String("orders-flink"),
-				ApplicationARN:       aws.String(appARN),
+				ApplicationName:      awsv2.String("orders-flink"),
+				ApplicationARN:       awsv2.String(appARN),
 				ApplicationStatus:    awskav2types.ApplicationStatusRunning,
 				RuntimeEnvironment:   awskav2types.RuntimeEnvironmentFlink118,
 				ApplicationMode:      awskav2types.ApplicationModeStreaming,
-				ApplicationVersionId: aws.Int64(7),
-				ServiceExecutionRole: aws.String(roleARN),
+				ApplicationVersionId: awsv2.Int64(7),
+				ServiceExecutionRole: awsv2.String(roleARN),
 				CloudWatchLoggingOptionDescriptions: []awskav2types.CloudWatchLoggingOptionDescription{{
-					LogStreamARN: aws.String(logStreamARN),
+					LogStreamARN: awsv2.String(logStreamARN),
 				}},
 				ApplicationConfigurationDescription: &awskav2types.ApplicationConfigurationDescription{
 					ApplicationSnapshotConfigurationDescription: &awskav2types.ApplicationSnapshotConfigurationDescription{
-						SnapshotsEnabled: aws.Bool(true),
+						SnapshotsEnabled: awsv2.Bool(true),
 					},
 					ApplicationCodeConfigurationDescription: &awskav2types.ApplicationCodeConfigurationDescription{
 						CodeContentType: awskav2types.CodeContentTypeZipfile,
 						CodeContentDescription: &awskav2types.CodeContentDescription{
-							TextContent: aws.String("SECRET FLINK JOB SQL SHOULD NOT LEAK"),
+							TextContent: awsv2.String("SECRET FLINK JOB SQL SHOULD NOT LEAK"),
 							S3ApplicationCodeLocationDescription: &awskav2types.S3ApplicationCodeLocationDescription{
-								BucketARN: aws.String(bucketARN),
-								FileKey:   aws.String("code/orders-flink.zip"),
+								BucketARN: awsv2.String(bucketARN),
+								FileKey:   awsv2.String("code/orders-flink.zip"),
 							},
 						},
 					},
 					FlinkApplicationConfigurationDescription: &awskav2types.FlinkApplicationConfigurationDescription{
-						JobPlanDescription: aws.String("SECRET JOB PLAN SHOULD NOT LEAK"),
+						JobPlanDescription: awsv2.String("SECRET JOB PLAN SHOULD NOT LEAK"),
 						ParallelismConfigurationDescription: &awskav2types.ParallelismConfigurationDescription{
-							AutoScalingEnabled: aws.Bool(true),
+							AutoScalingEnabled: awsv2.Bool(true),
 							ConfigurationType:  awskav2types.ConfigurationTypeCustom,
-							Parallelism:        aws.Int32(4),
-							ParallelismPerKPU:  aws.Int32(2),
-							CurrentParallelism: aws.Int32(4),
+							Parallelism:        awsv2.Int32(4),
+							ParallelismPerKPU:  awsv2.Int32(2),
+							CurrentParallelism: awsv2.Int32(4),
 						},
 					},
 					SqlApplicationConfigurationDescription: &awskav2types.SqlApplicationConfigurationDescription{
 						InputDescriptions: []awskav2types.InputDescription{{
 							KinesisStreamsInputDescription: &awskav2types.KinesisStreamsInputDescription{
-								ResourceARN: aws.String(inputKDS),
+								ResourceARN: awsv2.String(inputKDS),
 							},
 						}},
 						OutputDescriptions: []awskav2types.OutputDescription{{
 							KinesisFirehoseOutputDescription: &awskav2types.KinesisFirehoseOutputDescription{
-								ResourceARN: aws.String(outputFH),
+								ResourceARN: awsv2.String(outputFH),
 							},
 						}},
 					},
 					VpcConfigurationDescriptions: []awskav2types.VpcConfigurationDescription{{
-						VpcConfigurationId: aws.String("1.1"),
-						VpcId:              aws.String("vpc-0a1b2c3d"),
+						VpcConfigurationId: awsv2.String("1.1"),
+						VpcId:              awsv2.String("vpc-0a1b2c3d"),
 						SubnetIds:          []string{"subnet-0a1b2c3d"},
 						SecurityGroupIds:   []string{"sg-0a1b2c3d"},
 					}},
@@ -93,13 +93,13 @@ func TestClientListsManagedFlinkMetadataOnly(t *testing.T) {
 		},
 		snapshots: map[string][]awskav2types.SnapshotDetails{
 			"orders-flink": {{
-				SnapshotName:         aws.String("snapshot-001"),
+				SnapshotName:         awsv2.String("snapshot-001"),
 				SnapshotStatus:       awskav2types.SnapshotStatusReady,
-				ApplicationVersionId: aws.Int64(6),
+				ApplicationVersionId: awsv2.Int64(6),
 			}},
 		},
 		tags: map[string][]awskav2types.Tag{
-			appARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			appARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 
@@ -207,7 +207,7 @@ func (f *fakeKAV2API) DescribeApplication(
 	_ ...func(*awskav2.Options),
 ) (*awskav2.DescribeApplicationOutput, error) {
 	return &awskav2.DescribeApplicationOutput{
-		ApplicationDetail: f.describe[aws.ToString(input.ApplicationName)],
+		ApplicationDetail: f.describe[awsv2.ToString(input.ApplicationName)],
 	}, nil
 }
 
@@ -219,7 +219,7 @@ func (f *fakeKAV2API) ListApplicationSnapshots(
 	if f.snapCalls == nil {
 		f.snapCalls = map[string]int{}
 	}
-	name := aws.ToString(input.ApplicationName)
+	name := awsv2.ToString(input.ApplicationName)
 	if f.snapCalls[name] > 0 {
 		return &awskav2.ListApplicationSnapshotsOutput{}, nil
 	}
@@ -233,14 +233,14 @@ func (f *fakeKAV2API) ListTagsForResource(
 	_ ...func(*awskav2.Options),
 ) (*awskav2.ListTagsForResourceOutput, error) {
 	return &awskav2.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceARN)],
+		Tags: f.tags[awsv2.ToString(input.ResourceARN)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceKinesisAnalyticsV2,
+		ServiceKind: aws.ServiceKinesisAnalyticsV2,
 	}
 }

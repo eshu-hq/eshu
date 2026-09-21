@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfsx "github.com/aws/aws-sdk-go-v2/service/fsx"
 	awsfsxtypes "github.com/aws/aws-sdk-go-v2/service/fsx/types"
 
@@ -69,73 +69,73 @@ func TestClientListFileSystemsMapsEveryFlavor(t *testing.T) {
 	fake := &fakeFSxAPI{
 		fileSystems: []awsfsxtypes.FileSystem{
 			{
-				FileSystemId:    aws.String("fs-windows01"),
-				ResourceARN:     aws.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-windows01"),
+				FileSystemId:    awsv2.String("fs-windows01"),
+				ResourceARN:     awsv2.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-windows01"),
 				FileSystemType:  awsfsxtypes.FileSystemTypeWindows,
 				StorageType:     awsfsxtypes.StorageTypeSsd,
 				Lifecycle:       awsfsxtypes.FileSystemLifecycleAvailable,
-				VpcId:           aws.String("vpc-aaa"),
+				VpcId:           awsv2.String("vpc-aaa"),
 				SubnetIds:       []string{"subnet-1", "subnet-2"},
-				StorageCapacity: aws.Int32(2048),
-				KmsKeyId:        aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
-				DNSName:         aws.String("fs-windows01.example.com"),
+				StorageCapacity: awsv2.Int32(2048),
+				KmsKeyId:        awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+				DNSName:         awsv2.String("fs-windows01.example.com"),
 				WindowsConfiguration: &awsfsxtypes.WindowsFileSystemConfiguration{
 					DeploymentType:     awsfsxtypes.WindowsDeploymentTypeMultiAz1,
 					ThroughputCapacity: &tput,
-					PreferredSubnetId:  aws.String("subnet-1"),
-					ActiveDirectoryId:  aws.String("d-1234567890"),
+					PreferredSubnetId:  awsv2.String("subnet-1"),
+					ActiveDirectoryId:  awsv2.String("d-1234567890"),
 					// SelfManagedActiveDirectoryConfiguration carries the
 					// FileSystemAdministratorsGroup and UserName; the adapter
 					// must never read them.
 					SelfManagedActiveDirectoryConfiguration: &awsfsxtypes.SelfManagedActiveDirectoryAttributes{
-						DomainName:                     aws.String("corp.example.com"),
-						FileSystemAdministratorsGroup:  aws.String("Domain Admins"),
-						UserName:                       aws.String("svc-fsx"),
+						DomainName:                     awsv2.String("corp.example.com"),
+						FileSystemAdministratorsGroup:  awsv2.String("Domain Admins"),
+						UserName:                       awsv2.String("svc-fsx"),
 						DnsIps:                         []string{"10.0.0.10", "10.0.0.11"},
-						DomainJoinServiceAccountSecret: aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:ad-join"),
+						DomainJoinServiceAccountSecret: awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:ad-join"),
 					},
 				},
 			},
 			{
-				FileSystemId:          aws.String("fs-lustre01"),
-				ResourceARN:           aws.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-lustre01"),
+				FileSystemId:          awsv2.String("fs-lustre01"),
+				ResourceARN:           awsv2.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-lustre01"),
 				FileSystemType:        awsfsxtypes.FileSystemTypeLustre,
 				Lifecycle:             awsfsxtypes.FileSystemLifecycleAvailable,
-				VpcId:                 aws.String("vpc-aaa"),
+				VpcId:                 awsv2.String("vpc-aaa"),
 				SubnetIds:             []string{"subnet-1"},
-				FileSystemTypeVersion: aws.String("2.15"),
+				FileSystemTypeVersion: awsv2.String("2.15"),
 				LustreConfiguration: &awsfsxtypes.LustreFileSystemConfiguration{
 					DeploymentType:           awsfsxtypes.LustreDeploymentTypePersistent2,
 					PerUnitStorageThroughput: &perUnit,
 				},
 			},
 			{
-				FileSystemId:   aws.String("fs-ontap01"),
-				ResourceARN:    aws.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-ontap01"),
+				FileSystemId:   awsv2.String("fs-ontap01"),
+				ResourceARN:    awsv2.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-ontap01"),
 				FileSystemType: awsfsxtypes.FileSystemTypeOntap,
 				Lifecycle:      awsfsxtypes.FileSystemLifecycleAvailable,
-				VpcId:          aws.String("vpc-aaa"),
+				VpcId:          awsv2.String("vpc-aaa"),
 				SubnetIds:      []string{"subnet-1", "subnet-2"},
 				OntapConfiguration: &awsfsxtypes.OntapFileSystemConfiguration{
 					DeploymentType:     awsfsxtypes.OntapDeploymentTypeMultiAz1,
 					ThroughputCapacity: &tput,
-					PreferredSubnetId:  aws.String("subnet-1"),
+					PreferredSubnetId:  awsv2.String("subnet-1"),
 					// FsxAdminPassword is always redacted by AWS; the adapter
 					// must never map it regardless.
-					FsxAdminPassword: aws.String("REDACTED-BUT-NEVER-MAP"),
+					FsxAdminPassword: awsv2.String("REDACTED-BUT-NEVER-MAP"),
 				},
 			},
 			{
-				FileSystemId:   aws.String("fs-zfs01"),
-				ResourceARN:    aws.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-zfs01"),
+				FileSystemId:   awsv2.String("fs-zfs01"),
+				ResourceARN:    awsv2.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-zfs01"),
 				FileSystemType: awsfsxtypes.FileSystemTypeOpenzfs,
 				Lifecycle:      awsfsxtypes.FileSystemLifecycleAvailable,
-				VpcId:          aws.String("vpc-aaa"),
+				VpcId:          awsv2.String("vpc-aaa"),
 				SubnetIds:      []string{"subnet-1"},
 				OpenZFSConfiguration: &awsfsxtypes.OpenZFSFileSystemConfiguration{
 					DeploymentType:     awsfsxtypes.OpenZFSDeploymentTypeSingleAz2,
 					ThroughputCapacity: &tput,
-					PreferredSubnetId:  aws.String("subnet-1"),
+					PreferredSubnetId:  awsv2.String("subnet-1"),
 				},
 			},
 		},
@@ -193,18 +193,18 @@ func TestClientListFileSystemsMapsEveryFlavor(t *testing.T) {
 func TestClientListStorageVirtualMachinesNeverMapsAdminPassword(t *testing.T) {
 	fake := &fakeFSxAPI{
 		storageVirtualMachines: []awsfsxtypes.StorageVirtualMachine{{
-			StorageVirtualMachineId: aws.String("svm-0001"),
-			ResourceARN:             aws.String("arn:aws:fsx:us-east-1:123456789012:storage-virtual-machine/svm-0001"),
-			Name:                    aws.String("svm1"),
-			FileSystemId:            aws.String("fs-ontap01"),
+			StorageVirtualMachineId: awsv2.String("svm-0001"),
+			ResourceARN:             awsv2.String("arn:aws:fsx:us-east-1:123456789012:storage-virtual-machine/svm-0001"),
+			Name:                    awsv2.String("svm1"),
+			FileSystemId:            awsv2.String("fs-ontap01"),
 			Lifecycle:               awsfsxtypes.StorageVirtualMachineLifecycleCreated,
 			Subtype:                 awsfsxtypes.StorageVirtualMachineSubtypeDefault,
-			UUID:                    aws.String("uuid-1"),
+			UUID:                    awsv2.String("uuid-1"),
 			ActiveDirectoryConfiguration: &awsfsxtypes.SvmActiveDirectoryConfiguration{
-				NetBiosName: aws.String("SVM1"),
+				NetBiosName: awsv2.String("SVM1"),
 				SelfManagedActiveDirectoryConfiguration: &awsfsxtypes.SelfManagedActiveDirectoryAttributes{
-					DomainName: aws.String("corp.example.com"),
-					UserName:   aws.String("svc-fsx"),
+					DomainName: awsv2.String("corp.example.com"),
+					UserName:   awsv2.String("svc-fsx"),
 					DnsIps:     []string{"10.0.0.10"},
 				},
 			},
@@ -238,27 +238,27 @@ func TestClientListVolumesMapsOntapAndOpenZFS(t *testing.T) {
 	fake := &fakeFSxAPI{
 		volumes: []awsfsxtypes.Volume{
 			{
-				VolumeId:     aws.String("fsvol-ontap01"),
-				ResourceARN:  aws.String("arn:aws:fsx:us-east-1:123456789012:volume/fsvol-ontap01"),
-				Name:         aws.String("ontapvol"),
-				FileSystemId: aws.String("fs-ontap01"),
+				VolumeId:     awsv2.String("fsvol-ontap01"),
+				ResourceARN:  awsv2.String("arn:aws:fsx:us-east-1:123456789012:volume/fsvol-ontap01"),
+				Name:         awsv2.String("ontapvol"),
+				FileSystemId: awsv2.String("fs-ontap01"),
 				VolumeType:   awsfsxtypes.VolumeTypeOntap,
 				Lifecycle:    awsfsxtypes.VolumeLifecycleCreated,
 				OntapConfiguration: &awsfsxtypes.OntapVolumeConfiguration{
-					StorageVirtualMachineId: aws.String("svm-0001"),
-					JunctionPath:            aws.String("/vol1"),
+					StorageVirtualMachineId: awsv2.String("svm-0001"),
+					JunctionPath:            awsv2.String("/vol1"),
 					SizeInMegabytes:         &volSize,
 				},
 			},
 			{
-				VolumeId:     aws.String("fsvol-zfs01"),
-				ResourceARN:  aws.String("arn:aws:fsx:us-east-1:123456789012:volume/fsvol-zfs01"),
-				Name:         aws.String("zfsvol"),
-				FileSystemId: aws.String("fs-zfs01"),
+				VolumeId:     awsv2.String("fsvol-zfs01"),
+				ResourceARN:  awsv2.String("arn:aws:fsx:us-east-1:123456789012:volume/fsvol-zfs01"),
+				Name:         awsv2.String("zfsvol"),
+				FileSystemId: awsv2.String("fs-zfs01"),
 				VolumeType:   awsfsxtypes.VolumeTypeOpenzfs,
 				Lifecycle:    awsfsxtypes.VolumeLifecycleCreated,
 				OpenZFSConfiguration: &awsfsxtypes.OpenZFSVolumeConfiguration{
-					VolumePath:              aws.String("/fsx/zfs"),
+					VolumePath:              awsv2.String("/fsx/zfs"),
 					StorageCapacityQuotaGiB: &quota,
 				},
 			},
@@ -290,16 +290,16 @@ func TestClientListBackupsMapsSourceFileSystem(t *testing.T) {
 	size := int64(4096)
 	fake := &fakeFSxAPI{
 		backups: []awsfsxtypes.Backup{{
-			BackupId:     aws.String("backup-0001"),
-			ResourceARN:  aws.String("arn:aws:fsx:us-east-1:123456789012:backup/backup-0001"),
+			BackupId:     awsv2.String("backup-0001"),
+			ResourceARN:  awsv2.String("arn:aws:fsx:us-east-1:123456789012:backup/backup-0001"),
 			Type:         awsfsxtypes.BackupTypeAutomatic,
 			Lifecycle:    awsfsxtypes.BackupLifecycleAvailable,
-			KmsKeyId:     aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+			KmsKeyId:     awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
 			SizeInBytes:  &size,
 			ResourceType: awsfsxtypes.ResourceTypeFileSystem,
 			FileSystem: &awsfsxtypes.FileSystem{
-				FileSystemId: aws.String("fs-windows01"),
-				ResourceARN:  aws.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-windows01"),
+				FileSystemId: awsv2.String("fs-windows01"),
+				ResourceARN:  awsv2.String("arn:aws:fsx:us-east-1:123456789012:file-system/fs-windows01"),
 			},
 		}},
 	}
@@ -324,8 +324,8 @@ func TestClientListBackupsMapsSourceFileSystem(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceFSx}
+func testBoundary() aws.Boundary {
+	return aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceFSx}
 }
 
 type fakeFSxAPI struct {

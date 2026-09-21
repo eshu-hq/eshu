@@ -26,15 +26,15 @@ type Scanner struct {
 // groups, cluster snapshots, subnet groups, global clusters, Neptune Analytics
 // graphs, and graph snapshots, plus the direct dependency relationships
 // Neptune reports.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("neptune scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceNeptune:
+	case "", aws.ServiceNeptune:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceNeptune
+		boundary.ServiceKind = aws.ServiceNeptune
 	default:
 		return nil, fmt.Errorf("neptune scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -106,18 +106,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func appendClusters(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	clusters []DBCluster,
 	subnets map[string]subnetGroupIdentity,
 ) ([]facts.Envelope, error) {
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range clusterRelationships(boundary, cluster, subnets) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -129,19 +129,19 @@ func appendClusters(
 
 func appendInstances(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instances []ClusterInstance,
 	clusterIDs map[string]string,
 	memberships map[string]clusterMembership,
 ) ([]facts.Envelope, error) {
 	for _, instance := range instances {
-		resource, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
+		resource, err := aws.NewResourceEnvelope(instanceObservation(boundary, instance))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range instanceRelationships(boundary, instance, clusterIDs, memberships) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -153,12 +153,12 @@ func appendInstances(
 
 func appendResources(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	parameterGroups []ClusterParameterGroup,
 	snapshots []ClusterSnapshot,
 	subnetGroups []SubnetGroup,
 ) ([]facts.Envelope, error) {
-	observations := make([]awscloud.ResourceObservation, 0,
+	observations := make([]aws.ResourceObservation, 0,
 		len(parameterGroups)+len(snapshots)+len(subnetGroups))
 	for _, group := range parameterGroups {
 		observations = append(observations, parameterGroupObservation(boundary, group))
@@ -170,7 +170,7 @@ func appendResources(
 		observations = append(observations, subnetGroupObservation(boundary, subnetGroup))
 	}
 	for _, observation := range observations {
-		resource, err := awscloud.NewResourceEnvelope(observation)
+		resource, err := aws.NewResourceEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -181,17 +181,17 @@ func appendResources(
 
 func appendGlobalClusters(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	globalClusters []GlobalCluster,
 ) ([]facts.Envelope, error) {
 	for _, globalCluster := range globalClusters {
-		resource, err := awscloud.NewResourceEnvelope(globalClusterObservation(boundary, globalCluster))
+		resource, err := aws.NewResourceEnvelope(globalClusterObservation(boundary, globalCluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range globalClusterRelationships(boundary, globalCluster) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -203,17 +203,17 @@ func appendGlobalClusters(
 
 func appendGraphs(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graphs []Graph,
 ) ([]facts.Envelope, error) {
 	for _, graph := range graphs {
-		resource, err := awscloud.NewResourceEnvelope(graphObservation(boundary, graph))
+		resource, err := aws.NewResourceEnvelope(graphObservation(boundary, graph))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range graphRelationships(boundary, graph) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -225,11 +225,11 @@ func appendGraphs(
 
 func appendGraphSnapshots(
 	envelopes []facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	graphSnapshots []GraphSnapshot,
 ) ([]facts.Envelope, error) {
 	for _, snapshot := range graphSnapshots {
-		resource, err := awscloud.NewResourceEnvelope(graphSnapshotObservation(boundary, snapshot))
+		resource, err := aws.NewResourceEnvelope(graphSnapshotObservation(boundary, snapshot))
 		if err != nil {
 			return nil, err
 		}

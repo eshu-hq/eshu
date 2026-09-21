@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53` owns scanner-side Route 53 fact
+`internal/collector/cloud/aws/service/route53` owns scanner-side Route 53 fact
 selection for the AWS cloud collector. It converts hosted zones and selected
 DNS records into `aws_resource` and `aws_dns_record` facts.
 
@@ -29,7 +29,7 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Scanner` - emits Route 53 facts for one claimed AWS boundary.
-- `Client` - scanner-owned read surface implemented by `awssdk.Client`.
+- `Client` - scanner-owned read surface implemented by `sdk.Client`.
 - `HostedZone` - scanner-owned hosted-zone record, including private/public
   visibility and raw tags.
 - `RecordSet` - scanner-owned DNS record set for A, AAAA, CNAME, and alias
@@ -39,12 +39,12 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
+This package emits no metrics or spans directly. The `sdk` adapter emits AWS
 API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants

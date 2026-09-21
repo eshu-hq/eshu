@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/athena/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/athena/sdk` adapts AWS SDK for Go v2
 Athena responses to the scanner-owned `Client` contract. It owns workgroup
 pagination, workgroup detail reads, data catalog pagination, data catalog
 detail reads, prepared-statement pagination, named-query pagination,
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/athena` for scanner-owned result
+- `internal/collector/cloud/aws/service/athena` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `athena` and Smithy error contracts.

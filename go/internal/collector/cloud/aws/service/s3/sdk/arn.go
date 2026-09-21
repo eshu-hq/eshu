@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"strings"
@@ -19,5 +19,5 @@ func bucketARN(region, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForRegion(region) + ":s3:::" + name
+	return "arn:" + aws.PartitionForRegion(region) + ":s3:::" + name
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fis` owns the AWS Fault Injection Service
+`internal/collector/cloud/aws/service/fis` owns the AWS Fault Injection Service
 scanner contract for the AWS cloud collector. It converts FIS experiment-template
 metadata into `aws_resource` facts and emits relationship evidence for the
 execution IAM role, the explicit resource targets (EC2 instance, ECS cluster,
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records FIS API call counts, throttles, and pagination
+The `sdk` adapter records FIS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -74,7 +74,7 @@ spans.
 - The template-to-CloudWatch-log-group edge trims the trailing `:*` wildcard
   from the reported log group ARN so it joins the cloudwatchlogs node.
 - The template-to-S3 edge synthesizes the partition-aware bucket ARN
-  (`arn:<partition>:s3:::<bucket>`) via `awscloud.PartitionForBoundary` so it
+  (`arn:<partition>:s3:::<bucket>`) via `aws.PartitionForBoundary` so it
   joins the S3 bucket node in GovCloud and China, not just commercial.
 - The template-to-CloudWatch-alarm stop-condition edge is emitted only for
   `aws:cloudwatch:alarm` stop conditions whose Value is an alarm ARN; the
@@ -85,7 +85,7 @@ spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/fis/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/fis/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

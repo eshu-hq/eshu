@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/glue guidance
+# AGENTS.md - internal/collector/cloud/aws/service/glue guidance
 
 ## Read First
 
@@ -49,7 +49,7 @@
 ## Common Changes
 
 - Add a new Glue metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry credential or sample-value
   material, leave it out of the scanner contract until an ADR documents a
   sanitized exception.
@@ -58,7 +58,7 @@
   catalog-stable name).
 - Add a new secret-shaped key fragment to `secretKeyFragments` when AWS
   exposes a new credential-bearing argument or property name family.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

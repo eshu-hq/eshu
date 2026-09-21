@@ -15,82 +15,82 @@ import (
 // CodeDeploy list/batch APIs do not return ARNs, so the scanner derives a
 // stable identity from the boundary account and region plus the application
 // name, matching the documented AWS ARN format.
-func applicationARN(boundary awscloud.Boundary, name string) string {
+func applicationARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // deploymentGroupARN builds the canonical CodeDeploy deployment-group ARN from
 // the application and group names.
-func deploymentGroupARN(boundary awscloud.Boundary, application, group string) string {
+func deploymentGroupARN(boundary aws.Boundary, application, group string) string {
 	application = strings.TrimSpace(application)
 	group = strings.TrimSpace(group)
 	if application == "" || group == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentgroup:%s/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
 }
 
 // deploymentConfigARN builds the canonical CodeDeploy deployment-config ARN.
-func deploymentConfigARN(boundary awscloud.Boundary, name string) string {
+func deploymentConfigARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentconfig:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // ecsServiceARN builds the canonical Amazon ECS service ARN for a CodeDeploy
 // ECS deployment target. CodeDeploy reports the target as a cluster/service
 // name pair, but the ECS scanner emits its service resource_id as this ARN, so
 // the relationship must target the same ARN to join the ECS service node.
-func ecsServiceARN(boundary awscloud.Boundary, cluster, service string) string {
+func ecsServiceARN(boundary aws.Boundary, cluster, service string) string {
 	cluster = strings.TrimSpace(cluster)
 	service = strings.TrimSpace(service)
 	if cluster == "" || service == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:ecs:%s:%s:service/%s/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
 }
 
 // lambdaFunctionARN builds the canonical AWS Lambda function ARN for a
 // CodeDeploy Lambda deployment target. CodeDeploy names the target by function
 // name, but the Lambda scanner emits its function resource_id as this ARN, so
 // the relationship must target the same ARN to join the function node.
-func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
+func lambdaFunctionARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // deploymentARN builds the canonical CodeDeploy deployment ARN from the
 // deployment ID.
-func deploymentARN(boundary awscloud.Boundary, id string) string {
+func deploymentARN(boundary aws.Boundary, id string) string {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deployment:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, id)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, id)
 }
 
-func applicationObservation(boundary awscloud.Boundary, app Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, app Application) aws.ResourceObservation {
 	arn := applicationARN(boundary, app.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, app.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployApplication,
+		ResourceType: aws.ResourceTypeCodeDeployApplication,
 		Name:         strings.TrimSpace(app.Name),
 		Tags:         cloneStringMap(app.Tags),
 		Attributes: map[string]any{
@@ -105,13 +105,13 @@ func applicationObservation(boundary awscloud.Boundary, app Application) awsclou
 	}
 }
 
-func deploymentGroupObservation(boundary awscloud.Boundary, group DeploymentGroup) awscloud.ResourceObservation {
+func deploymentGroupObservation(boundary aws.Boundary, group DeploymentGroup) aws.ResourceObservation {
 	arn := deploymentGroupARN(boundary, group.ApplicationName, group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, group.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeploymentGroup,
+		ResourceType: aws.ResourceTypeCodeDeployDeploymentGroup,
 		Name:         strings.TrimSpace(group.Name),
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -135,13 +135,13 @@ func deploymentGroupObservation(boundary awscloud.Boundary, group DeploymentGrou
 	}
 }
 
-func deploymentConfigObservation(boundary awscloud.Boundary, config DeploymentConfig) awscloud.ResourceObservation {
+func deploymentConfigObservation(boundary aws.Boundary, config DeploymentConfig) aws.ResourceObservation {
 	arn := deploymentConfigARN(boundary, config.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, config.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeploymentConfig,
+		ResourceType: aws.ResourceTypeCodeDeployDeploymentConfig,
 		Name:         strings.TrimSpace(config.Name),
 		Attributes: map[string]any{
 			"deployment_config_id":       strings.TrimSpace(config.ID),
@@ -155,13 +155,13 @@ func deploymentConfigObservation(boundary awscloud.Boundary, config DeploymentCo
 	}
 }
 
-func deploymentObservation(boundary awscloud.Boundary, deployment Deployment) awscloud.ResourceObservation {
+func deploymentObservation(boundary aws.Boundary, deployment Deployment) aws.ResourceObservation {
 	arn := deploymentARN(boundary, deployment.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, deployment.ID),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeployment,
+		ResourceType: aws.ResourceTypeCodeDeployDeployment,
 		Name:         strings.TrimSpace(deployment.ID),
 		State:        strings.TrimSpace(deployment.Status),
 		Attributes: map[string]any{

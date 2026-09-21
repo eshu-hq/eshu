@@ -11,11 +11,11 @@ import (
 )
 
 func nodegroupEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	nodegroup Nodegroup,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(nodegroupObservation(boundary, nodegroup))
+	resource, err := aws.NewResourceEnvelope(nodegroupObservation(boundary, nodegroup))
 	if err != nil {
 		return nil, err
 	}
@@ -43,22 +43,22 @@ func nodegroupEnvelopes(
 
 func appendRelationship(
 	envelopes []facts.Envelope,
-	observation awscloud.RelationshipObservation,
+	observation aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
-	envelope, err := awscloud.NewRelationshipEnvelope(observation)
+	envelope, err := aws.NewRelationshipEnvelope(observation)
 	if err != nil {
 		return nil, err
 	}
 	return append(envelopes, envelope), nil
 }
 
-func nodegroupObservation(boundary awscloud.Boundary, nodegroup Nodegroup) awscloud.ResourceObservation {
+func nodegroupObservation(boundary aws.Boundary, nodegroup Nodegroup) aws.ResourceObservation {
 	nodegroupID := firstNonEmpty(nodegroup.ARN, nodegroup.ClusterName+"/"+nodegroup.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(nodegroup.ARN),
 		ResourceID:   nodegroupID,
-		ResourceType: awscloud.ResourceTypeEKSNodegroup,
+		ResourceType: aws.ResourceTypeEKSNodegroup,
 		Name:         strings.TrimSpace(nodegroup.Name),
 		State:        strings.TrimSpace(nodegroup.Status),
 		Tags:         nodegroup.Tags,
@@ -79,11 +79,11 @@ func nodegroupObservation(boundary awscloud.Boundary, nodegroup Nodegroup) awscl
 }
 
 func addonEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	addon Addon,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(addonObservation(boundary, addon))
+	resource, err := aws.NewResourceEnvelope(addonObservation(boundary, addon))
 	if err != nil {
 		return nil, err
 	}
@@ -103,13 +103,13 @@ func addonEnvelopes(
 	return envelopes, nil
 }
 
-func addonObservation(boundary awscloud.Boundary, addon Addon) awscloud.ResourceObservation {
+func addonObservation(boundary aws.Boundary, addon Addon) aws.ResourceObservation {
 	addonID := firstNonEmpty(addon.ARN, addon.ClusterName+"/"+addon.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(addon.ARN),
 		ResourceID:   addonID,
-		ResourceType: awscloud.ResourceTypeEKSAddon,
+		ResourceType: aws.ResourceTypeEKSAddon,
 		Name:         strings.TrimSpace(addon.Name),
 		State:        strings.TrimSpace(addon.Status),
 		Tags:         addon.Tags,
@@ -126,44 +126,44 @@ func addonObservation(boundary awscloud.Boundary, addon Addon) awscloud.Resource
 }
 
 func clusterAddonRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	addon Addon,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	clusterID := firstNonEmpty(cluster.ARN, cluster.Name)
 	addonID := firstNonEmpty(addon.ARN, addon.ClusterName+"/"+addon.Name)
 	if clusterID == "" || addonID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSClusterHasAddon,
+		RelationshipType: aws.RelationshipEKSClusterHasAddon,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: addonID,
 		TargetARN:        strings.TrimSpace(addon.ARN),
-		TargetType:       awscloud.ResourceTypeEKSAddon,
+		TargetType:       aws.ResourceTypeEKSAddon,
 		SourceRecordID:   clusterID + "#addon#" + addonID,
 	}, true
 }
 
 func addonRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	addon Addon,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	addonID := firstNonEmpty(addon.ARN, addon.ClusterName+"/"+addon.Name)
 	roleARN := strings.TrimSpace(addon.ServiceAccountRoleARN)
 	if addonID == "" || roleARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSAddonUsesIAMRole,
+		RelationshipType: aws.RelationshipEKSAddonUsesIAMRole,
 		SourceResourceID: addonID,
 		SourceARN:        strings.TrimSpace(addon.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   addonID + "#role#" + roleARN,
 	}, true
 }

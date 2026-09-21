@@ -14,4 +14,4 @@
 // User.Passwords and User.AccessString fields before scanner code sees them so
 // AUTH tokens, user passwords, and ACL grant strings can never reach facts or
 // logs.
-package awssdk
+package sdk

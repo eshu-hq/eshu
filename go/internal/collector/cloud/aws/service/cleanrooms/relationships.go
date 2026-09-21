@@ -19,9 +19,9 @@ import (
 // table or when the Glue table name is missing, so the edge is skipped rather
 // than dangled.
 func configuredTableGlueRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	table ConfiguredTable,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	if !strings.EqualFold(strings.TrimSpace(table.TableReferenceKind), "glue") {
 		return nil
 	}
@@ -37,17 +37,17 @@ func configuredTableGlueRelationship(
 		"glue_database_name": strings.TrimSpace(table.GlueDatabaseName),
 		"glue_table_name":    strings.TrimSpace(table.GlueTableName),
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable,
+		RelationshipType: aws.RelationshipCleanRoomsConfiguredTableUsesGlueTable,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: targetID,
 		// The Glue table node publishes a "<database>/<table>" resource_id, not an
 		// ARN, so target_arn is left empty.
-		TargetType:     awscloud.ResourceTypeGlueTable,
+		TargetType:     aws.ResourceTypeGlueTable,
 		Attributes:     attributes,
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable + ":" + targetID,
+		SourceRecordID: sourceID + "->" + aws.RelationshipCleanRoomsConfiguredTableUsesGlueTable + ":" + targetID,
 	}
 }
 
@@ -57,9 +57,9 @@ func configuredTableGlueRelationship(
 // resource_id, so the internal edge joins the collaboration node exactly. It
 // returns nil when either endpoint identity is missing.
 func membershipCollaborationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	membership Membership,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := membershipResourceID(membership)
 	targetID := strings.TrimSpace(membership.CollaborationARN)
 	if targetID == "" {
@@ -82,15 +82,15 @@ func membershipCollaborationRelationship(
 	if len(attributes) == 0 {
 		attributes = nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCleanRoomsMembershipInCollaboration,
+		RelationshipType: aws.RelationshipCleanRoomsMembershipInCollaboration,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(membership.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeCleanRoomsCollaboration,
+		TargetType:       aws.ResourceTypeCleanRoomsCollaboration,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCleanRoomsMembershipInCollaboration + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipCleanRoomsMembershipInCollaboration + ":" + targetID,
 	}
 }

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/apprunner guidance
+# AGENTS.md - internal/collector/cloud/aws/service/apprunner guidance
 
 ## Read First
 
@@ -32,16 +32,16 @@
   scanner's `resource_id` form. Do not emit empty target types.
 - Wrap client errors with `%w`; never swallow partial failures.
 - Do not add a redaction key requirement. Environment values are dropped, not
-  redacted, so the runtimebind registration leaves `RequiresRedactionKey` unset.
+  redacted, so the bind registration leaves `RequiresRedactionKey` unset.
 
 ## Common Changes
 
 - Add a new App Runner resource by extending the scanner-owned type, writing a
-  focused scanner test first, then mapping it through `awscloud` envelope
+  focused scanner test first, then mapping it through `aws` envelope
   builders.
 - Add new service or configuration fields only when the App Runner API reports
   them directly and the field is safe for persistence.
-- Extend SDK pagination and describe enrichment in the `awssdk` adapter, not
+- Extend SDK pagination and describe enrichment in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

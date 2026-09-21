@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/verifiedpermissions guidance
+# AGENTS.md - internal/collector/cloud/aws/service/verifiedpermissions guidance
 
 ## Read First
 
@@ -39,7 +39,7 @@
   encryption context. Never persist application client id values; record only
   their count.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from policy store, policy, or
@@ -51,13 +51,13 @@
 
 - Add a new Verified Permissions metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a Cedar body, schema
+  `aws` envelope builders. If the field can carry a Cedar body, schema
   body, template body, or client secret, leave it out of the scanner contract.
 - Add new relationship evidence only when the Verified Permissions API reports
   both sides directly and the target identity matches an existing scanner's
   published resource_id shape (the bare user pool id for Cognito, the store ARN
   for the parent store).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

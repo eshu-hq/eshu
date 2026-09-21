@@ -49,7 +49,7 @@ func s3BucketARNFromLocation(location string) (bucketARN string, bucket string, 
 	if idx < 0 {
 		return "", "", "", false
 	}
-	partition := awscloud.PartitionFromARN(trimmed)
+	partition := aws.PartitionFromARN(trimmed)
 	remainder := trimmed[idx+len(marker):]
 	if remainder == "" {
 		return "", "", "", false

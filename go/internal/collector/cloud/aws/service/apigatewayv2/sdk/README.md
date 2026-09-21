@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/apigatewayv2/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/apigatewayv2/sdk` adapts AWS SDK for Go
 v2 API Gateway v2 control-plane responses into the scanner-owned metadata model
 defined by the parent `apigatewayv2` package. It pages read-only list operations
 and maps SDK shapes into safe metadata records.
@@ -12,7 +12,7 @@ and maps SDK shapes into safe metadata records.
 This package owns API Gateway v2 SDK pagination, response mapping, and per-call
 telemetry. It does not own fact envelope shaping, relationship logic, or
 registration. Fact shaping lives in the parent `apigatewayv2` package;
-registration lives in the sibling `runtimebind` package.
+registration lives in the sibling `bind` package.
 
 ## Exported surface
 
@@ -28,8 +28,8 @@ readers, model/template readers, or mutation operations.
 ## Dependencies
 
 - `github.com/aws/aws-sdk-go-v2/service/apigatewayv2` and its `types` package.
-- `internal/collector/awscloud` for the boundary and shared API-call telemetry.
-- `internal/collector/awscloud/service/apigatewayv2` for the scanner-owned
+- `internal/collector/cloud/aws` for the boundary and shared API-call telemetry.
+- `internal/collector/cloud/aws/service/apigatewayv2` for the scanner-owned
   types.
 - `internal/telemetry` for spans and instruments.
 
@@ -58,12 +58,12 @@ Each AWS operation runs inside `recordAPICall`, which starts the
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/apigatewayv2/awssdk/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/apigatewayv2/sdk/...`
 covers paginated API discovery, per-API stage/route/integration/authorizer
 listing, VPC link, domain, and API mapping listing, the nil-page guard, and the
 forbidden-method interface contract.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/...` covers the
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/...` covers the
 adapter together with the scanner and runtime registration.
 
 Collector Observability Evidence: the adapter records the

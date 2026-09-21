@@ -22,15 +22,15 @@ type Scanner struct {
 
 // Scan observes ACM certificates through the configured client and emits
 // metadata-only resource facts plus ACM-reported in-use-by relationships.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("acm scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceACM:
+	case "", aws.ServiceACM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceACM
+		boundary.ServiceKind = aws.ServiceACM
 	default:
 		return nil, fmt.Errorf("acm scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -41,13 +41,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, certificate := range certificates {
-		resource, err := awscloud.NewResourceEnvelope(certificateObservation(boundary, certificate))
+		resource, err := aws.NewResourceEnvelope(certificateObservation(boundary, certificate))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, observation := range inUseByRelationships(boundary, certificate) {
-			envelope, err := awscloud.NewRelationshipEnvelope(observation)
+			envelope, err := aws.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err
 			}
@@ -57,15 +57,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func certificateObservation(boundary awscloud.Boundary, certificate Certificate) awscloud.ResourceObservation {
+func certificateObservation(boundary aws.Boundary, certificate Certificate) aws.ResourceObservation {
 	certificateARN := strings.TrimSpace(certificate.ARN)
 	subjectAlternativeNames := cloneStrings(certificate.SubjectAlternativeNames)
 	inUseBy := cloneStrings(certificate.InUseBy)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          certificateARN,
 		ResourceID:   firstNonEmpty(certificateARN, certificate.DomainName),
-		ResourceType: awscloud.ResourceTypeACMCertificate,
+		ResourceType: aws.ResourceTypeACMCertificate,
 		Name:         strings.TrimSpace(certificate.DomainName),
 		State:        strings.TrimSpace(certificate.Status),
 		Tags:         cloneStringMap(certificate.Tags),
@@ -86,20 +86,20 @@ func certificateObservation(boundary awscloud.Boundary, certificate Certificate)
 	}
 }
 
-func inUseByRelationships(boundary awscloud.Boundary, certificate Certificate) []awscloud.RelationshipObservation {
+func inUseByRelationships(boundary aws.Boundary, certificate Certificate) []aws.RelationshipObservation {
 	certificateARN := strings.TrimSpace(certificate.ARN)
 	if certificateARN == "" {
 		return nil
 	}
-	relationships := make([]awscloud.RelationshipObservation, 0, len(certificate.InUseBy))
+	relationships := make([]aws.RelationshipObservation, 0, len(certificate.InUseBy))
 	for _, entry := range certificate.InUseBy {
 		targetARN := strings.TrimSpace(entry)
 		if !looksLikeARN(targetARN) {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipACMCertificateUsedByResource,
+			RelationshipType: aws.RelationshipACMCertificateUsedByResource,
 			SourceResourceID: certificateARN,
 			SourceARN:        certificateARN,
 			TargetResourceID: targetARN,
@@ -126,11 +126,11 @@ func looksLikeARN(value string) bool {
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return aws.ResourceTypeELBv2LoadBalancer
 	case strings.Contains(arn, ":cloudfront:"):
-		return awscloud.ResourceTypeCloudFrontDistribution
+		return aws.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
-		return awscloud.ResourceTypeAPIGatewayDomainName
+		return aws.ResourceTypeAPIGatewayDomainName
 	case strings.Contains(arn, ":appsync:"):
 		return "aws_appsync_api"
 	case strings.Contains(arn, ":apprunner:"):

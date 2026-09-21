@@ -101,14 +101,14 @@ func TestScanRejectsForeignServiceKind(t *testing.T) {
 
 func TestScanRequiresClient(t *testing.T) {
 	scanner := Scanner{}
-	if _, err := scanner.Scan(context.Background(), boundaryFor(awscloud.ServiceCloudFormation)); err == nil {
+	if _, err := scanner.Scan(context.Background(), boundaryFor(aws.ServiceCloudFormation)); err == nil {
 		t.Fatalf("Scan() error = nil, want client-required error")
 	}
 }
 
 func TestScanRequiresRedactionKey(t *testing.T) {
 	scanner := Scanner{Client: &fakeClient{}}
-	if _, err := scanner.Scan(context.Background(), boundaryFor(awscloud.ServiceCloudFormation)); err == nil {
+	if _, err := scanner.Scan(context.Background(), boundaryFor(aws.ServiceCloudFormation)); err == nil {
 		t.Fatalf("Scan() error = nil, want redaction-key-required error")
 	}
 }
@@ -143,12 +143,12 @@ func TestScanEmitsStackResourceWithMetadataAndRelationships(t *testing.T) {
 	}
 	scanner := Scanner{Client: client, RedactionKey: testRedactionKey(t)}
 
-	envelopes, err := scanner.Scan(context.Background(), boundaryFor(awscloud.ServiceCloudFormation))
+	envelopes, err := scanner.Scan(context.Background(), boundaryFor(aws.ServiceCloudFormation))
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStack)
+	resource := findResource(t, envelopes, aws.ResourceTypeCloudFormationStack)
 	if resource.Payload["arn"] != stackID {
 		t.Fatalf("stack arn = %v, want %q", resource.Payload["arn"], stackID)
 	}
@@ -166,13 +166,13 @@ func TestScanEmitsStackResourceWithMetadataAndRelationships(t *testing.T) {
 	}
 
 	relationships := findRelationships(t, envelopes)
-	if !hasRelationship(relationships, awscloud.RelationshipCloudFormationStackUsesIAMRole, roleARN) {
+	if !hasRelationship(relationships, aws.RelationshipCloudFormationStackUsesIAMRole, roleARN) {
 		t.Fatalf("missing stack-to-IAM-role relationship for %q", roleARN)
 	}
-	if !hasRelationship(relationships, awscloud.RelationshipCloudFormationStackUsesS3TemplateURL, "https://s3.amazonaws.com/cfn-templates/prod-app.yaml") {
+	if !hasRelationship(relationships, aws.RelationshipCloudFormationStackUsesS3TemplateURL, "https://s3.amazonaws.com/cfn-templates/prod-app.yaml") {
 		t.Fatalf("missing stack-to-S3-template-URL relationship")
 	}
-	if !hasRelationship(relationships, awscloud.RelationshipCloudFormationStackUsesResourceType, "AWS::SQS::Queue") {
+	if !hasRelationship(relationships, aws.RelationshipCloudFormationStackUsesResourceType, "AWS::SQS::Queue") {
 		t.Fatalf("missing stack-to-resource-type relationship")
 	}
 }
@@ -195,11 +195,11 @@ func TestScanRedactsSecretLikeStackOutputs(t *testing.T) {
 	}
 	scanner := Scanner{Client: client, RedactionKey: testRedactionKey(t)}
 
-	envelopes, err := scanner.Scan(context.Background(), boundaryFor(awscloud.ServiceCloudFormation))
+	envelopes, err := scanner.Scan(context.Background(), boundaryFor(aws.ServiceCloudFormation))
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resource := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStack)
+	resource := findResource(t, envelopes, aws.ResourceTypeCloudFormationStack)
 	attributes := resource.Payload["attributes"].(map[string]any)
 	outputs, ok := attributes["outputs"].([]map[string]any)
 	if !ok || len(outputs) != 3 {
@@ -261,12 +261,12 @@ func TestScanEmitsStackSetInstanceChangeSetDriftAndType(t *testing.T) {
 	}
 	scanner := Scanner{Client: client, RedactionKey: testRedactionKey(t)}
 
-	envelopes, err := scanner.Scan(context.Background(), boundaryFor(awscloud.ServiceCloudFormation))
+	envelopes, err := scanner.Scan(context.Background(), boundaryFor(aws.ServiceCloudFormation))
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stackSet := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStackSet)
+	stackSet := findResource(t, envelopes, aws.ResourceTypeCloudFormationStackSet)
 	if stackSet.Payload["name"] != "org-baseline" {
 		t.Fatalf("stack set name = %v, want org-baseline", stackSet.Payload["name"])
 	}
@@ -274,34 +274,34 @@ func TestScanEmitsStackSetInstanceChangeSetDriftAndType(t *testing.T) {
 		t.Fatalf("stack set attributes carry template_body; must never be persisted")
 	}
 
-	instance := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStackInstance)
+	instance := findResource(t, envelopes, aws.ResourceTypeCloudFormationStackInstance)
 	if attrs := instance.Payload["attributes"].(map[string]any); attrs["account"] != "222222222222" {
 		t.Fatalf("stack instance account = %v, want 222222222222", attrs["account"])
 	}
 
-	changeSet := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationChangeSet)
+	changeSet := findResource(t, envelopes, aws.ResourceTypeCloudFormationChangeSet)
 	if changeSet.Payload["name"] != "deploy-1" {
 		t.Fatalf("change set name = %v, want deploy-1", changeSet.Payload["name"])
 	}
 
-	drift := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStackDrift)
+	drift := findResource(t, envelopes, aws.ResourceTypeCloudFormationStackDrift)
 	if attrs := drift.Payload["attributes"].(map[string]any); attrs["drifted_count"] != 1 {
 		t.Fatalf("drift drifted_count = %v, want 1", attrs["drifted_count"])
 	}
 
-	regType := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationType)
+	regType := findResource(t, envelopes, aws.ResourceTypeCloudFormationType)
 	if regType.Payload["name"] != "My::Org::Widget" {
 		t.Fatalf("type name = %v, want My::Org::Widget", regType.Payload["name"])
 	}
 
 	relationships := findRelationships(t, envelopes)
-	if !hasRelationship(relationships, awscloud.RelationshipCloudFormationStackSetContainsStackInstance, "222222222222") {
+	if !hasRelationship(relationships, aws.RelationshipCloudFormationStackSetContainsStackInstance, "222222222222") {
 		t.Fatalf("missing stack-set-to-instance relationship")
 	}
 }
 
-func boundaryFor(serviceKind string) awscloud.Boundary {
-	return awscloud.Boundary{
+func boundaryFor(serviceKind string) aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
 		ServiceKind:         serviceKind,

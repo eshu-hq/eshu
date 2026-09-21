@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codecommit/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/codecommit/sdk` adapts AWS SDK for Go
 v2 CodeCommit responses to the scanner-owned `codecommit.Client` contract. It
 owns CodeCommit API pagination, `BatchGetRepositories` chunking, repository
 trigger reads, repository tag reads, throttle classification, and per-call AWS
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels and API-call recording.
-- `internal/collector/awscloud/service/codecommit` for scanner-owned result
+- `internal/collector/cloud/aws/service/codecommit` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `codecommit` and Smithy error contracts.

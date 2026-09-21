@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/elasticbeanstalk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/elasticbeanstalk guidance
 
 ## Read First
 
@@ -29,13 +29,13 @@
 ## Common Changes
 
 - Add a new Elastic Beanstalk resource by extending the scanner-owned type,
-  writing a focused scanner test first, then mapping it through `awscloud`
+  writing a focused scanner test first, then mapping it through `aws`
   envelope builders.
 - Add a new relationship only when the Elastic Beanstalk API reports the target
   identity directly; key the join on the grepped target resource_type constant.
 - Add new fields only when the API reports them directly and the field is safe
   for persistence.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

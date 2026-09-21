@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/dms` owns the AWS Database Migration
+`internal/collector/cloud/aws/service/dms` owns the AWS Database Migration
 Service (DMS) scanner contract for the AWS cloud collector. It converts DMS
 replication instance, replication subnet group, endpoint, and replication task
 metadata into `aws_resource` facts and emits relationship evidence for instance
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records DMS API call counts, throttles, and pagination
+The `sdk` adapter records DMS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -79,7 +79,7 @@ spans.
 - The endpoint-to-S3 edge is emitted only when an S3 endpoint reports a bucket
   name. DMS reports a bucket NAME, so the scanner synthesizes the
   partition-aware bucket ARN (`arn:<partition>:s3:::<bucket>`) via
-  `awscloud.PartitionForBoundary` to match the S3 scanner's published bucket
+  `aws.PartitionForBoundary` to match the S3 scanner's published bucket
   node identity in GovCloud and China, not just commercial.
 - The endpoint-to-Kinesis and endpoint-to-secret edges are emitted only when DMS
   reports a resolvable stream ARN or secret reference, so an endpoint to an
@@ -94,7 +94,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/dms/...` covers the bounded DMS
+`go test ./internal/collector/cloud/aws/service/dms/...` covers the bounded DMS
 metadata path: one paginated DescribeReplicationSubnetGroups stream, one
 paginated DescribeReplicationInstances stream, one paginated DescribeEndpoints
 stream, one paginated DescribeReplicationTasks stream, one ListTagsForResource
@@ -102,7 +102,7 @@ point read per tagged resource, no migrated-row reads, no test-connection calls,
 no mutations, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/dms/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/dms/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

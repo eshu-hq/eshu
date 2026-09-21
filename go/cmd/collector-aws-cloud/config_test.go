@@ -61,13 +61,13 @@ func TestLoadRuntimeConfigMapsAWSTargetScopes(t *testing.T) {
 	if target.AllowedRegions[0] != "us-east-1" {
 		t.Fatalf("AllowedRegions = %v", target.AllowedRegions)
 	}
-	if target.AllowedServices[0] != awscloud.ServiceIAM {
+	if target.AllowedServices[0] != aws.ServiceIAM {
 		t.Fatalf("AllowedServices = %v", target.AllowedServices)
 	}
 	if target.MaxConcurrentClaims != 2 {
 		t.Fatalf("MaxConcurrentClaims = %d, want 2", target.MaxConcurrentClaims)
 	}
-	if target.Credentials.Mode != awsruntime.CredentialModeCentralAssumeRole {
+	if target.Credentials.Mode != runtime.CredentialModeCentralAssumeRole {
 		t.Fatalf("Credential mode = %q", target.Credentials.Mode)
 	}
 	if target.Credentials.ExternalID != "external-1" {
@@ -101,7 +101,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForSQS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceSQS; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceSQS; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -135,7 +135,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForSNS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceSNS; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceSNS; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -169,7 +169,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForEventBridge(t *testing.T)
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceEventBridge; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceEventBridge; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -203,7 +203,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForGlue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceGlue; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceGlue; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -237,7 +237,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForMSK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceMSK; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceMSK; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -271,7 +271,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForStepFunctions(t *testing.
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceStepFunctions; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceStepFunctions; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -305,7 +305,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForAccessAnalyzer(t *testing
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceAccessAnalyzer; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceAccessAnalyzer; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -374,7 +374,7 @@ func TestLoadRuntimeConfigMapsOrganizationsWithRedactionKey(t *testing.T) {
 		t.Fatalf("loadRuntimeConfig() error = %v", err)
 	}
 	target := config.AWS.Targets[0]
-	if got, want := target.AllowedServices[0], awscloud.ServiceOrganizations; got != want {
+	if got, want := target.AllowedServices[0], aws.ServiceOrganizations; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if got, want := target.AllowedRegions[0], "us-east-1"; got != want {
@@ -443,7 +443,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForS3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceS3; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceS3; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -477,7 +477,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForRDS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceRDS; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceRDS; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -511,7 +511,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDynamoDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceDynamoDB; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceDynamoDB; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -545,7 +545,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForRedshift(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceRedshift; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceRedshift; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -579,7 +579,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForCloudWatchLogs(t *testing
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceCloudWatchLogs; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceCloudWatchLogs; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

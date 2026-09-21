@@ -18,7 +18,7 @@ type Client interface {
 // Snapshot captures DynamoDB table metadata plus non-fatal scan warnings.
 type Snapshot struct {
 	Tables   []Table
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Table is the scanner-owned DynamoDB table model. It contains control-plane

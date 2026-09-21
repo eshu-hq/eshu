@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdrs "github.com/aws/aws-sdk-go-v2/service/drs"
 	awsdrstypes "github.com/aws/aws-sdk-go-v2/service/drs/types"
 	"github.com/aws/smithy-go"
@@ -20,56 +20,56 @@ func TestClientSnapshotsDRSMetadataOnly(t *testing.T) {
 		sourceServerPages: []*awsdrs.DescribeSourceServersOutput{
 			{
 				Items: []awsdrstypes.SourceServer{{
-					SourceServerID:     aws.String("s-1234567890abcdef0"),
-					Arn:                aws.String("arn:aws:drs:us-east-1:123456789012:source-server/s-1234567890abcdef0"),
-					RecoveryInstanceId: aws.String("i-0fedcba9876543210"),
+					SourceServerID:     awsv2.String("s-1234567890abcdef0"),
+					Arn:                awsv2.String("arn:aws:drs:us-east-1:123456789012:source-server/s-1234567890abcdef0"),
+					RecoveryInstanceId: awsv2.String("i-0fedcba9876543210"),
 					DataReplicationInfo: &awsdrstypes.DataReplicationInfo{
 						DataReplicationState: awsdrstypes.DataReplicationStateContinuous,
 					},
 					SourceProperties: &awsdrstypes.SourceProperties{
-						RecommendedInstanceType: aws.String("m5.large"),
-						Os:                      &awsdrstypes.OS{FullString: aws.String("Ubuntu 22.04")},
+						RecommendedInstanceType: awsv2.String("m5.large"),
+						Os:                      &awsdrstypes.OS{FullString: awsv2.String("Ubuntu 22.04")},
 						IdentificationHints: &awsdrstypes.IdentificationHints{
-							Hostname: aws.String("web-01"),
-							Fqdn:     aws.String("web-01.example.com"),
+							Hostname: awsv2.String("web-01"),
+							Fqdn:     awsv2.String("web-01.example.com"),
 						},
 					},
 					SourceCloudProperties: &awsdrstypes.SourceCloudProperties{
-						OriginAccountID: aws.String("123456789012"),
-						OriginRegion:    aws.String("us-west-2"),
+						OriginAccountID: awsv2.String("123456789012"),
+						OriginRegion:    awsv2.String("us-west-2"),
 					},
 					Tags: map[string]string{"Environment": "prod"},
 				}},
-				NextToken: aws.String("page2"),
+				NextToken: awsv2.String("page2"),
 			},
 			{
 				Items: []awsdrstypes.SourceServer{{
-					SourceServerID: aws.String("s-aaaaaaaaaaaaaaaaa"),
-					Arn:            aws.String("arn:aws:drs:us-east-1:123456789012:source-server/s-aaaaaaaaaaaaaaaaa"),
+					SourceServerID: awsv2.String("s-aaaaaaaaaaaaaaaaa"),
+					Arn:            awsv2.String("arn:aws:drs:us-east-1:123456789012:source-server/s-aaaaaaaaaaaaaaaaa"),
 				}},
 			},
 		},
 		recoveryInstancePages: []*awsdrs.DescribeRecoveryInstancesOutput{{
 			Items: []awsdrstypes.RecoveryInstance{{
-				RecoveryInstanceID: aws.String("i-0fedcba9876543210"),
-				Arn:                aws.String("arn:aws:drs:us-east-1:123456789012:recovery-instance/i-0fedcba9876543210"),
-				Ec2InstanceID:      aws.String("i-0123456789abcdef0"),
+				RecoveryInstanceID: awsv2.String("i-0fedcba9876543210"),
+				Arn:                awsv2.String("arn:aws:drs:us-east-1:123456789012:recovery-instance/i-0fedcba9876543210"),
+				Ec2InstanceID:      awsv2.String("i-0123456789abcdef0"),
 				Ec2InstanceState:   awsdrstypes.EC2InstanceStateRunning,
-				SourceServerID:     aws.String("s-1234567890abcdef0"),
-				IsDrill:            aws.Bool(true),
+				SourceServerID:     awsv2.String("s-1234567890abcdef0"),
+				IsDrill:            awsv2.Bool(true),
 				OriginEnvironment:  awsdrstypes.OriginEnvironmentOnPremises,
 				Tags:               map[string]string{"Team": "dr"},
 			}},
 		}},
 		templatePages: []*awsdrs.DescribeReplicationConfigurationTemplatesOutput{{
 			Items: []awsdrstypes.ReplicationConfigurationTemplate{{
-				ReplicationConfigurationTemplateID: aws.String("rct-0123456789abcdef0"),
-				Arn:                                aws.String("arn:aws:drs:us-east-1:123456789012:replication-configuration-template/rct-0123456789abcdef0"),
+				ReplicationConfigurationTemplateID: awsv2.String("rct-0123456789abcdef0"),
+				Arn:                                awsv2.String("arn:aws:drs:us-east-1:123456789012:replication-configuration-template/rct-0123456789abcdef0"),
 				EbsEncryption:                      awsdrstypes.ReplicationConfigurationEbsEncryptionDefault,
-				StagingAreaSubnetId:                aws.String("subnet-0abc1234"),
-				ReplicationServerInstanceType:      aws.String("t3.small"),
-				UseDedicatedReplicationServer:      aws.Bool(false),
-				AssociateDefaultSecurityGroup:      aws.Bool(true),
+				StagingAreaSubnetId:                awsv2.String("subnet-0abc1234"),
+				ReplicationServerInstanceType:      awsv2.String("t3.small"),
+				UseDedicatedReplicationServer:      awsv2.Bool(false),
+				AssociateDefaultSecurityGroup:      awsv2.Bool(true),
 				Tags:                               map[string]string{"Owner": "platform"},
 			}},
 		}},
@@ -207,10 +207,10 @@ func (f *fakeDRSAPI) DescribeReplicationConfigurationTemplates(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDRS,
+		ServiceKind: aws.ServiceDRS,
 	}
 }

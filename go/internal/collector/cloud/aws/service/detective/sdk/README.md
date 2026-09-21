@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/detective/awssdk` adapts the AWS SDK for
+`internal/collector/cloud/aws/service/detective/sdk` adapts the AWS SDK for
 Go v2 Amazon Detective client into the metadata-only `detective.Client`
 interface. It owns Detective pagination, the safe metadata mapping, throttle
 classification, and per-call AWS API telemetry.
@@ -15,7 +15,7 @@ investigation, indicator, finding-datasource, and mutation API by construction.
 
 This package owns AWS SDK access for Detective. It does not own scanner-level
 fact selection, Detective domain identity decisions, or fact emission. Those
-belong to `internal/collector/awscloud/service/detective`.
+belong to `internal/collector/cloud/aws/service/detective`.
 
 ## Exported surface
 
@@ -28,8 +28,8 @@ See `doc.go` for the godoc contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/detective` and its `types` package for
   the Detective control-plane client and response shapes.
-- `internal/collector/awscloud` for the boundary and shared API-call recorder.
-- `internal/collector/awscloud/service/detective` for the scanner-owned types.
+- `internal/collector/cloud/aws` for the boundary and shared API-call recorder.
+- `internal/collector/cloud/aws/service/detective` for the scanner-owned types.
 - `internal/telemetry` for spans and bounded metric attributes.
 
 ## Telemetry

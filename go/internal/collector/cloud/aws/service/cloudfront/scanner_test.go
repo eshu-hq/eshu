@@ -75,7 +75,7 @@ func TestScannerEmitsCloudFrontDistributionMetadataOnlyFactsAndRelationships(t *
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeCloudFrontDistribution)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeCloudFrontDistribution)
 	if got, want := resource.Payload["arn"], distributionARN; got != want {
 		t.Fatalf("distribution arn = %#v, want %q", got, want)
 	}
@@ -148,14 +148,14 @@ func TestScannerEmitsCloudFrontDistributionMetadataOnlyFactsAndRelationships(t *
 		}
 	}
 
-	certificate := relationshipByType(t, envelopes, awscloud.RelationshipCloudFrontDistributionUsesACMCertificate)
+	certificate := relationshipByType(t, envelopes, aws.RelationshipCloudFrontDistributionUsesACMCertificate)
 	if got, want := certificate.Payload["target_resource_id"], certificateARN; got != want {
 		t.Fatalf("certificate target_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := certificate.Payload["target_arn"], certificateARN; got != want {
 		t.Fatalf("certificate target_arn = %#v, want %q", got, want)
 	}
-	webACL := relationshipByType(t, envelopes, awscloud.RelationshipCloudFrontDistributionUsesWAFWebACL)
+	webACL := relationshipByType(t, envelopes, aws.RelationshipCloudFrontDistributionUsesWAFWebACL)
 	if got, want := webACL.Payload["target_resource_id"], webACLARN; got != want {
 		t.Fatalf("waf target_resource_id = %#v, want %q", got, want)
 	}
@@ -179,7 +179,7 @@ func TestScannerDoesNotTreatClassicWAFIDAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipCloudFrontDistributionUsesWAFWebACL)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipCloudFrontDistributionUsesWAFWebACL)
 	if got, want := relationship.Payload["target_resource_id"], "classic-waf-id"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -208,7 +208,7 @@ func TestScannerOmitsEmptyNestedCloudFrontSelectors(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeCloudFrontDistribution)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeCloudFrontDistribution)
 	attributes := attributesOf(t, resource)
 	for _, absent := range []string{"default_cache_behavior", "viewer_certificate"} {
 		if got, exists := attributes[absent]; exists {
@@ -223,7 +223,7 @@ func TestScannerOmitsEmptyNestedCloudFrontSelectors(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -231,11 +231,11 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "aws-global",
-		ServiceKind:         awscloud.ServiceCloudFront,
+		ServiceKind:         aws.ServiceCloudFront,
 		ScopeID:             "aws:123456789012:aws-global",
 		GenerationID:        "aws:123456789012:aws-global:cloudfront:1",
 		CollectorInstanceID: "aws-prod",

@@ -17,4 +17,4 @@
 // DnsIps, DomainJoinServiceAccountSecret), the ONTAP fsxadmin password, or the
 // SVM admin password. Only the AWS Managed Microsoft AD directory ID is read,
 // for relationship join keys.
-package awssdk
+package sdk

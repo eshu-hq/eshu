@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes FSx file systems, backups, storage virtual machines, volumes,
 // and snapshots through the configured client, then emits resource facts and
 // VPC, subnet, KMS-key, AD-directory, backup, SVM, and volume relationships.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("fsx scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFSx:
+	case "", aws.ServiceFSx:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFSx
+		boundary.ServiceKind = aws.ServiceFSx
 	default:
 		return nil, fmt.Errorf("fsx scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -62,7 +62,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, fs := range systems {
-		resource, err := awscloud.NewResourceEnvelope(fileSystemObservation(boundary, fs))
+		resource, err := aws.NewResourceEnvelope(fileSystemObservation(boundary, fs))
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, rels...)
 	}
 	for _, svm := range svms {
-		resource, err := awscloud.NewResourceEnvelope(svmObservation(boundary, svm))
+		resource, err := aws.NewResourceEnvelope(svmObservation(boundary, svm))
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, rels...)
 	}
 	for _, volume := range volumes {
-		resource, err := awscloud.NewResourceEnvelope(volumeObservation(boundary, volume))
+		resource, err := aws.NewResourceEnvelope(volumeObservation(boundary, volume))
 		if err != nil {
 			return nil, err
 		}
@@ -98,14 +98,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, rels...)
 	}
 	for _, snapshot := range snapshots {
-		resource, err := awscloud.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
+		resource, err := aws.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, backup := range backups {
-		resource, err := awscloud.NewResourceEnvelope(backupObservation(boundary, backup))
+		resource, err := aws.NewResourceEnvelope(backupObservation(boundary, backup))
 		if err != nil {
 			return nil, err
 		}
@@ -119,13 +119,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if len(observations) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(observations))
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -134,15 +134,15 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 	return envelopes, nil
 }
 
-func fileSystemObservation(boundary awscloud.Boundary, fs FileSystem) awscloud.ResourceObservation {
+func fileSystemObservation(boundary aws.Boundary, fs FileSystem) aws.ResourceObservation {
 	fsARN := strings.TrimSpace(fs.ARN)
 	id := strings.TrimSpace(fs.ID)
 	resourceID := firstNonEmpty(fsARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          fsARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxFileSystem,
+		ResourceType: aws.ResourceTypeFSxFileSystem,
 		Name:         id,
 		State:        strings.TrimSpace(fs.Lifecycle),
 		Tags:         cloneStringMap(fs.Tags),
@@ -169,15 +169,15 @@ func fileSystemObservation(boundary awscloud.Boundary, fs FileSystem) awscloud.R
 	}
 }
 
-func svmObservation(boundary awscloud.Boundary, svm StorageVirtualMachine) awscloud.ResourceObservation {
+func svmObservation(boundary aws.Boundary, svm StorageVirtualMachine) aws.ResourceObservation {
 	svmARN := strings.TrimSpace(svm.ARN)
 	id := strings.TrimSpace(svm.ID)
 	resourceID := firstNonEmpty(svmARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          svmARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxStorageVirtualMachine,
+		ResourceType: aws.ResourceTypeFSxStorageVirtualMachine,
 		Name:         strings.TrimSpace(svm.Name),
 		State:        strings.TrimSpace(svm.Lifecycle),
 		Tags:         cloneStringMap(svm.Tags),
@@ -194,15 +194,15 @@ func svmObservation(boundary awscloud.Boundary, svm StorageVirtualMachine) awscl
 	}
 }
 
-func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.ResourceObservation {
+func volumeObservation(boundary aws.Boundary, volume Volume) aws.ResourceObservation {
 	volumeARN := strings.TrimSpace(volume.ARN)
 	id := strings.TrimSpace(volume.ID)
 	resourceID := firstNonEmpty(volumeARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          volumeARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxVolume,
+		ResourceType: aws.ResourceTypeFSxVolume,
 		Name:         strings.TrimSpace(volume.Name),
 		State:        strings.TrimSpace(volume.Lifecycle),
 		Tags:         cloneStringMap(volume.Tags),
@@ -221,15 +221,15 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 	}
 }
 
-func snapshotObservation(boundary awscloud.Boundary, snapshot Snapshot) awscloud.ResourceObservation {
+func snapshotObservation(boundary aws.Boundary, snapshot Snapshot) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	id := strings.TrimSpace(snapshot.ID)
 	resourceID := firstNonEmpty(snapshotARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxSnapshot,
+		ResourceType: aws.ResourceTypeFSxSnapshot,
 		Name:         strings.TrimSpace(snapshot.Name),
 		State:        strings.TrimSpace(snapshot.Lifecycle),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -242,15 +242,15 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot Snapshot) awscloud
 	}
 }
 
-func backupObservation(boundary awscloud.Boundary, backup Backup) awscloud.ResourceObservation {
+func backupObservation(boundary aws.Boundary, backup Backup) aws.ResourceObservation {
 	backupARN := strings.TrimSpace(backup.ARN)
 	id := strings.TrimSpace(backup.ID)
 	resourceID := firstNonEmpty(backupARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          backupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxBackup,
+		ResourceType: aws.ResourceTypeFSxBackup,
 		Name:         id,
 		State:        strings.TrimSpace(backup.Lifecycle),
 		Tags:         cloneStringMap(backup.Tags),

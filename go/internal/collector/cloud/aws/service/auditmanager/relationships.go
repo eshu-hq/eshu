@@ -14,9 +14,9 @@ import (
 // which matches how the framework node publishes its resource_id. It returns nil
 // when either endpoint identity is missing.
 func assessmentFrameworkRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := assessmentResourceID(assessment)
 	targetID := firstNonEmpty(assessment.FrameworkARN, assessment.FrameworkID)
 	if sourceID == "" || targetID == "" {
@@ -26,15 +26,15 @@ func assessmentFrameworkRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentUsesFramework,
+		RelationshipType: aws.RelationshipAuditManagerAssessmentUsesFramework,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeAuditManagerFramework,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentUsesFramework + ":" + targetID,
+		TargetType:       aws.ResourceTypeAuditManagerFramework,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipAuditManagerAssessmentUsesFramework + ":" + targetID,
 	}
 }
 
@@ -44,9 +44,9 @@ func assessmentFrameworkRelationship(
 // scanner's published bucket resource_id (arn:<partition>:s3:::<bucket>). It
 // returns nil when no S3 destination is configured.
 func assessmentReportsS3Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	bucket := bucketNameFromS3URI(assessment.ReportsS3Destination)
 	if bucket == "" {
 		return nil
@@ -55,20 +55,20 @@ func assessmentReportsS3Relationship(
 	if sourceID == "" {
 		return nil
 	}
-	bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), bucket)
+	bucketARN := arnForBucket(aws.PartitionForBoundary(boundary), bucket)
 	if bucketARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentReportsToS3,
+		RelationshipType: aws.RelationshipAuditManagerAssessmentReportsToS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket": bucket},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentReportsToS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipAuditManagerAssessmentReportsToS3 + ":" + bucketARN,
 	}
 }
 
@@ -78,10 +78,10 @@ func assessmentReportsS3Relationship(
 // the KMS scanner publishes its key resource_id. It returns nil when no customer
 // managed key is configured (AWS-owned key) or no assessment identity exists.
 func assessmentKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
 	kmsKeyARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(kmsKeyARN)
 	if targetID == "" {
 		return nil
@@ -94,15 +94,15 @@ func assessmentKMSRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey,
+		RelationshipType: aws.RelationshipAuditManagerAssessmentEncryptedWithKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipAuditManagerAssessmentEncryptedWithKMSKey + ":" + targetID,
 	}
 }
 
@@ -112,28 +112,28 @@ func assessmentKMSRelationship(
 // config, access-analyzer, and ds scanners target, so the edge does not dangle.
 // It returns nil when the account id or assessment identity is missing.
 func assessmentAccountRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
 	accountID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	accountID = strings.TrimSpace(accountID)
 	sourceID := assessmentResourceID(assessment)
 	if accountID == "" || sourceID == "" {
 		return nil
 	}
-	accountARN := accountRootARN(awscloud.PartitionForBoundary(boundary), accountID)
+	accountARN := accountRootARN(aws.PartitionForBoundary(boundary), accountID)
 	if accountARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentInAccount,
+		RelationshipType: aws.RelationshipAuditManagerAssessmentInAccount,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       aws.ResourceTypeAWSAccount,
 		Attributes:       map[string]any{"account_id": accountID},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentInAccount + ":" + accountID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipAuditManagerAssessmentInAccount + ":" + accountID,
 	}
 }

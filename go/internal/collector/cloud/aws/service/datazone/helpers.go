@@ -26,7 +26,7 @@ func domainResourceID(domain Domain) string {
 // data source reports a bare cluster name plus an optional backing account and
 // region; account and region default to the scan boundary. It returns "" when
 // the cluster name is empty.
-func redshiftClusterARN(boundary awscloud.Boundary, clusterName, account, region string) string {
+func redshiftClusterARN(boundary aws.Boundary, clusterName, account, region string) string {
 	clusterName = strings.TrimSpace(clusterName)
 	if clusterName == "" {
 		return ""
@@ -39,9 +39,9 @@ func redshiftClusterARN(boundary awscloud.Boundary, clusterName, account, region
 	if region == "" {
 		region = strings.TrimSpace(boundary.Region)
 	}
-	partition := awscloud.PartitionForRegion(region)
+	partition := aws.PartitionForRegion(region)
 	if partition == "" {
-		partition = awscloud.PartitionForBoundary(boundary)
+		partition = aws.PartitionForBoundary(boundary)
 	}
 	return "arn:" + partition + ":redshift:" + region + ":" + account + ":cluster:" + clusterName
 }

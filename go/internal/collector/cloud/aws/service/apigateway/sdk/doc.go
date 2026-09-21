@@ -10,4 +10,4 @@
 // It does not call API execution, export, API key, authorizer secret, or
 // mutation APIs. Callers must handle AWS authorization, throttling, and partial
 // service failures as normal scanner errors.
-package awssdk
+package sdk

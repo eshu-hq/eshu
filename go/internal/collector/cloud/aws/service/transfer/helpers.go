@@ -21,7 +21,7 @@ func isARN(value string) bool {
 // paths, so the boundary region is the partition source for the synthesized
 // bucket and file-system ARNs. Hardcoding the commercial partition would dangle
 // the user->S3-bucket and user->EFS-file-system edges in GovCloud and China.
-func partition(boundary awscloud.Boundary) string {
+func partition(boundary aws.Boundary) string {
 	region := strings.TrimSpace(boundary.Region)
 	switch {
 	case strings.HasPrefix(region, "us-gov-"):

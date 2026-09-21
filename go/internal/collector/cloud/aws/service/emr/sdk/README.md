@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/emr/awssdk` adapts AWS SDK for Go v2 EMR
+`internal/collector/cloud/aws/service/emr/sdk` adapts AWS SDK for Go v2 EMR
 and EMR Serverless responses into scanner-owned records. It handles
 Marker-based EMR pagination, NextToken-based EMR Serverless pagination,
 `Describe*`/`Get*` enrichment, telemetry, and response normalization for one
@@ -19,7 +19,7 @@ behavior live outside this package.
 
 ```mermaid
 flowchart LR
-  A["AWS SDK EMR client"] --> B["awssdk.Client"]
+  A["AWS SDK EMR client"] --> B["sdk.Client"]
   C["AWS SDK EMR Serverless client"] --> B
   B --> D["emr.Cluster (+ groups/fleets)"]
   B --> E["emr.SecurityConfiguration"]
@@ -47,8 +47,8 @@ configuration policy-body, or job-run reader method is reachable.
 
 - AWS SDK for Go v2 EMR client and EMR types.
 - AWS SDK for Go v2 EMR Serverless client and EMR Serverless types.
-- `internal/collector/awscloud` for the claimed boundary and API-call recording.
-- `internal/collector/awscloud/service/emr` for scanner-owned records.
+- `internal/collector/cloud/aws` for the claimed boundary and API-call recording.
+- `internal/collector/cloud/aws/service/emr` for scanner-owned records.
 - `internal/telemetry` for AWS API call counters, throttle counters, and
   pagination spans.
 

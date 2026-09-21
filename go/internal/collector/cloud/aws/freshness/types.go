@@ -103,7 +103,7 @@ func (t Trigger) Validate() error {
 	if strings.Contains(t.ServiceKind, "*") {
 		return fmt.Errorf("service_kind must not contain wildcard")
 	}
-	if !awsruntime.SupportsServiceKind(t.ServiceKind) {
+	if !runtime.SupportsServiceKind(t.ServiceKind) {
 		return fmt.Errorf("unsupported service_kind %q", t.ServiceKind)
 	}
 	if t.ObservedAt.IsZero() {

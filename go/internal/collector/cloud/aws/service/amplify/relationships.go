@@ -24,17 +24,17 @@ const repositorySourceTargetType = "git_repository"
 // resolves the target node. The domain associations are passed in because they
 // come from a separate API read.
 func appRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	domains []DomainAssociation,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	appID := appResourceID(boundary, app)
 	appArnValue := firstNonEmpty(app.ARN, appARN(boundary, app.ID))
 	if appID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := repositoryRelationship(boundary, app, appArnValue, appID); ok {
 		observations = append(observations, rel)
@@ -50,17 +50,17 @@ func appRelationships(
 // key never carries a userinfo token. CodeCommit, GitHub, GitLab, and Bitbucket
 // all flow through the same external git_repository anchor.
 func repositoryRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	appArnValue, appID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	repo := strings.TrimSpace(app.RepositoryURL)
 	if repo == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAmplifyAppDeploysFromRepository,
+		RelationshipType: aws.RelationshipAmplifyAppDeploysFromRepository,
 		SourceResourceID: appID,
 		SourceARN:        appArnValue,
 		TargetResourceID: repo,
@@ -77,11 +77,11 @@ func repositoryRelationship(
 // role ARN, so each edge targets the role ARN directly. Both roles are emitted
 // when present because they are distinct grants.
 func roleRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	appArnValue, appID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, role := range []struct {
 		arn  string
 		kind string
@@ -93,14 +93,14 @@ func roleRelationships(
 		if roleARN == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAmplifyAppUsesIAMRole,
+			RelationshipType: aws.RelationshipAmplifyAppUsesIAMRole,
 			SourceResourceID: appID,
 			SourceARN:        appArnValue,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       aws.ResourceTypeIAMRole,
 			Attributes:       map[string]any{"role_kind": role.kind},
 			SourceRecordID:   appID + "#role#" + role.kind + "#" + roleARN,
 		})
@@ -116,22 +116,22 @@ func roleRelationships(
 // Neither edge carries a target ARN because Amplify reports only a domain name,
 // not an ARN; a fabricated ARN would dangle in any partition.
 func domainRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	domains []DomainAssociation,
 	appArnValue, appID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	seenCloudFront := map[string]struct{}{}
 	for _, domain := range domains {
 		domainName := normalizedDomain(domain.DomainName)
 		if domainName != "" {
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAmplifyAppServesCustomDomainViaHostedZone,
+				RelationshipType: aws.RelationshipAmplifyAppServesCustomDomainViaHostedZone,
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: domainName,
-				TargetType:       awscloud.ResourceTypeRoute53HostedZone,
+				TargetType:       aws.ResourceTypeRoute53HostedZone,
 				Attributes: map[string]any{
 					"domain_name":   domainName,
 					"domain_status": strings.TrimSpace(domain.Status),
@@ -148,13 +148,13 @@ func domainRelationships(
 				continue
 			}
 			seenCloudFront[cf] = struct{}{}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAmplifyAppServesCustomDomainViaCloudFront,
+				RelationshipType: aws.RelationshipAmplifyAppServesCustomDomainViaCloudFront,
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: cf,
-				TargetType:       awscloud.ResourceTypeCloudFrontDistribution,
+				TargetType:       aws.ResourceTypeCloudFrontDistribution,
 				Attributes: map[string]any{
 					"domain_name":  domainName,
 					"subdomain":    strings.TrimSpace(sub.Prefix),
@@ -171,27 +171,27 @@ func domainRelationships(
 // app node's published resource_id (the app ARN), so the edge joins the app node
 // the app scan emits. The branch's own resource_id is the source.
 func branchAppRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	branch Branch,
 	appResourceIDValue string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	branchID := branchResourceID(boundary, branch)
 	appResourceIDValue = strings.TrimSpace(appResourceIDValue)
 	if branchID == "" || appResourceIDValue == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	appArnValue := ""
 	if strings.HasPrefix(appResourceIDValue, "arn:") {
 		appArnValue = appResourceIDValue
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAmplifyBranchBelongsToApp,
+		RelationshipType: aws.RelationshipAmplifyBranchBelongsToApp,
 		SourceResourceID: branchID,
 		SourceARN:        strings.TrimSpace(branch.ARN),
 		TargetResourceID: appResourceIDValue,
 		TargetARN:        appArnValue,
-		TargetType:       awscloud.ResourceTypeAmplifyApp,
+		TargetType:       aws.ResourceTypeAmplifyApp,
 		Attributes:       map[string]any{"branch_name": strings.TrimSpace(branch.Name)},
 		SourceRecordID:   branchID + "#belongs-to#" + appResourceIDValue,
 	}, true

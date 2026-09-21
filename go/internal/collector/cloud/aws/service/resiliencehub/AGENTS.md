@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/resiliencehub guidance
+# AGENTS.md - internal/collector/cloud/aws/service/resiliencehub guidance
 
 ## Read First
 
@@ -16,7 +16,7 @@
 ## Invariants
 
 - Keep Resilience Hub API access behind `Client`; do not import the AWS SDK into
-  this package (the adapter lives in `awssdk/`).
+  this package (the adapter lives in `sdk/`).
 - Metadata-only. Never read or persist assessment result bodies, drift detail,
   alarm/SOP/test recommendation contents, resolution status payloads, or any
   data-plane payload. Never call a mutation, resource-import, or assessment-start
@@ -37,7 +37,7 @@
 - Never synthesize an ARN. Forward the ARNs AWS reports so GovCloud
   (`aws-us-gov`) and China (`aws-cn`) partitions are preserved.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or environment truth from app, policy, or resource names or tags.
@@ -50,10 +50,10 @@
   `scanner.go` and read its `ResourceID`). Extend `protectedResourceTargetType`
   and add a focused test asserting the new edge joins.
 - Add a new metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through the `awscloud`
+  focused scanner or adapter test first, then mapping it through the `aws`
   envelope builders. If the field can carry assessment-result or recommendation
   content, leave it out of the contract.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

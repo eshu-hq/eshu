@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdocdbelastic "github.com/aws/aws-sdk-go-v2/service/docdbelastic"
 	awsdocdbelastictypes "github.com/aws/aws-sdk-go-v2/service/docdbelastic/types"
 	"github.com/aws/smithy-go"
@@ -52,7 +52,7 @@ type apiClient interface {
 // mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -60,8 +60,8 @@ type Client struct {
 // NewClient builds a DocumentDB Elastic Clusters SDK adapter for one claimed
 // AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -85,7 +85,7 @@ func (c *Client) Snapshot(ctx context.Context) (docdbelasticservice.Snapshot, er
 	}
 	clusters := make([]docdbelasticservice.Cluster, 0, len(summaries))
 	for _, summary := range summaries {
-		arn := strings.TrimSpace(aws.ToString(summary.ClusterArn))
+		arn := strings.TrimSpace(awsv2.ToString(summary.ClusterArn))
 		if arn == "" {
 			continue
 		}
@@ -118,7 +118,7 @@ func (c *Client) listClusters(ctx context.Context) ([]awsdocdbelastictypes.Clust
 		}
 		summaries = append(summaries, page.Clusters...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summaries, nil
 		}
 	}
@@ -129,7 +129,7 @@ func (c *Client) getCluster(ctx context.Context, arn string) (docdbelasticservic
 	err := c.recordAPICall(ctx, "GetCluster", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetCluster(callCtx, &awsdocdbelastic.GetClusterInput{
-			ClusterArn: aws.String(arn),
+			ClusterArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -156,24 +156,24 @@ func (c *Client) getCluster(ctx context.Context, arn string) (docdbelasticservic
 func mapCluster(cluster *awsdocdbelastictypes.Cluster, tags map[string]string) docdbelasticservice.Cluster {
 	authType := strings.TrimSpace(string(cluster.AuthType))
 	mapped := docdbelasticservice.Cluster{
-		ARN:                        strings.TrimSpace(aws.ToString(cluster.ClusterArn)),
-		Name:                       strings.TrimSpace(aws.ToString(cluster.ClusterName)),
+		ARN:                        strings.TrimSpace(awsv2.ToString(cluster.ClusterArn)),
+		Name:                       strings.TrimSpace(awsv2.ToString(cluster.ClusterName)),
 		Status:                     strings.TrimSpace(string(cluster.Status)),
 		AuthType:                   authType,
-		KMSKeyID:                   strings.TrimSpace(aws.ToString(cluster.KmsKeyId)),
-		ShardCapacity:              aws.ToInt32(cluster.ShardCapacity),
-		ShardCount:                 aws.ToInt32(cluster.ShardCount),
-		ShardInstanceCount:         aws.ToInt32(cluster.ShardInstanceCount),
-		BackupRetentionPeriod:      aws.ToInt32(cluster.BackupRetentionPeriod),
-		PreferredBackupWindow:      strings.TrimSpace(aws.ToString(cluster.PreferredBackupWindow)),
-		PreferredMaintenanceWindow: strings.TrimSpace(aws.ToString(cluster.PreferredMaintenanceWindow)),
+		KMSKeyID:                   strings.TrimSpace(awsv2.ToString(cluster.KmsKeyId)),
+		ShardCapacity:              awsv2.ToInt32(cluster.ShardCapacity),
+		ShardCount:                 awsv2.ToInt32(cluster.ShardCount),
+		ShardInstanceCount:         awsv2.ToInt32(cluster.ShardInstanceCount),
+		BackupRetentionPeriod:      awsv2.ToInt32(cluster.BackupRetentionPeriod),
+		PreferredBackupWindow:      strings.TrimSpace(awsv2.ToString(cluster.PreferredBackupWindow)),
+		PreferredMaintenanceWindow: strings.TrimSpace(awsv2.ToString(cluster.PreferredMaintenanceWindow)),
 		SubnetIDs:                  trimmedStrings(cluster.SubnetIds),
 		SecurityGroupIDs:           trimmedStrings(cluster.VpcSecurityGroupIds),
-		CreateTime:                 parseTime(aws.ToString(cluster.CreateTime)),
+		CreateTime:                 parseTime(awsv2.ToString(cluster.CreateTime)),
 		Tags:                       tags,
 	}
 	if authType == string(awsdocdbelastictypes.AuthSecretArn) {
-		mapped.AdminSecretARN = secretARN(aws.ToString(cluster.AdminUserName))
+		mapped.AdminSecretARN = secretARN(awsv2.ToString(cluster.AdminUserName))
 	}
 	return mapped
 }
@@ -198,7 +198,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsdocdbelastic.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -240,7 +240,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/acm` owns the ACM scanner contract for the
+`internal/collector/cloud/aws/service/acm` owns the ACM scanner contract for the
 AWS cloud collector. It converts AWS Certificate Manager certificate metadata
 into `aws_resource` facts and emits ACM-reported in-use-by evidence as
 `certificate-to-using-resource` relationships.
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records ACM API call counts, throttles, and pagination spans.
+`sdk` adapter records ACM API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
 
@@ -67,12 +67,12 @@ scan duration and emitted resource counts after `Scanner.Scan` returns. The
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/acm/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/acm/...`
 covers the bounded ACM metadata path: one paginated certificate listing, one
 DescribeCertificate per certificate, one ListTagsForCertificate per certificate,
 no GetCertificate calls, and no ExportCertificate calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers ACM metadata fact emission, in-use-by relationship emission, runtime
 registration, command configuration, and the SDK adapter's exclusion of the
 forbidden body/export APIs.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime_test
+package runtime_test
 
 import (
 	"context"
@@ -16,15 +16,15 @@ import (
 // fixtureConfig returns a deterministic two-resource, one-relationship AWS
 // estate config with no credentials and no derived scope/generation ids so the
 // source must derive both.
-func fixtureConfig() awsruntime.FixtureConfig {
-	return awsruntime.FixtureConfig{
+func fixtureConfig() runtime.FixtureConfig {
+	return runtime.FixtureConfig{
 		CollectorInstanceID: "aws-fixture-instance",
-		Scopes: []awsruntime.FixtureScope{
+		Scopes: []runtime.FixtureScope{
 			{
 				AccountID:   "111122223333",
 				Region:      "us-east-1",
 				ServiceKind: "s3",
-				Resources: []awsruntime.FixtureResource{
+				Resources: []runtime.FixtureResource{
 					{
 						ARN:          "arn:aws:s3:::eshu-fixture-managed",
 						ResourceID:   "eshu-fixture-managed",
@@ -41,7 +41,7 @@ func fixtureConfig() awsruntime.FixtureConfig {
 						State:        "available",
 					},
 				},
-				Relationships: []awsruntime.FixtureRelationship{
+				Relationships: []runtime.FixtureRelationship{
 					{
 						RelationshipType: "contains",
 						SourceResourceID: "eshu-fixture-managed",
@@ -62,7 +62,7 @@ func fixtureConfig() awsruntime.FixtureConfig {
 func TestFixtureSourceNextEmitsExpectedFacts(t *testing.T) {
 	t.Parallel()
 
-	source := &awsruntime.FixtureSource{Config: fixtureConfig()}
+	source := &runtime.FixtureSource{Config: fixtureConfig()}
 
 	collected, ok, err := source.Next(context.Background())
 	if err != nil {
@@ -82,8 +82,8 @@ func TestFixtureSourceNextEmitsExpectedFacts(t *testing.T) {
 	if collected.Scope.ScopeKind != scope.KindRegion {
 		t.Fatalf("scope kind = %q, want %q", collected.Scope.ScopeKind, scope.KindRegion)
 	}
-	if collected.Scope.SourceSystem != awscloud.CollectorKind {
-		t.Fatalf("source system = %q, want %q", collected.Scope.SourceSystem, awscloud.CollectorKind)
+	if collected.Scope.SourceSystem != aws.CollectorKind {
+		t.Fatalf("source system = %q, want %q", collected.Scope.SourceSystem, aws.CollectorKind)
 	}
 	if collected.Generation.ScopeID != wantScopeID {
 		t.Fatalf("generation scope id = %q, want %q", collected.Generation.ScopeID, wantScopeID)
@@ -140,7 +140,7 @@ func TestFixtureSourceNextEmitsExpectedFacts(t *testing.T) {
 func TestFixtureSourceDrainsThenRestarts(t *testing.T) {
 	t.Parallel()
 
-	source := &awsruntime.FixtureSource{Config: fixtureConfig()}
+	source := &runtime.FixtureSource{Config: fixtureConfig()}
 
 	if _, ok, err := source.Next(context.Background()); err != nil || !ok {
 		t.Fatalf("first Next ok=%v err=%v, want ok=true err=nil", ok, err)
@@ -159,8 +159,8 @@ func TestFixtureSourceDrainsThenRestarts(t *testing.T) {
 func TestFixtureSourceGenerationsAreDeterministic(t *testing.T) {
 	t.Parallel()
 
-	first := &awsruntime.FixtureSource{Config: fixtureConfig()}
-	second := &awsruntime.FixtureSource{Config: fixtureConfig()}
+	first := &runtime.FixtureSource{Config: fixtureConfig()}
+	second := &runtime.FixtureSource{Config: fixtureConfig()}
 
 	firstCollected, _, err := first.Next(context.Background())
 	if err != nil {
@@ -201,7 +201,7 @@ func envelopeFactIDs(t *testing.T, stream <-chan facts.Envelope) []string {
 func TestFixtureSourceValidateRejectsEmptyConfig(t *testing.T) {
 	t.Parallel()
 
-	source := &awsruntime.FixtureSource{Config: awsruntime.FixtureConfig{}}
+	source := &runtime.FixtureSource{Config: runtime.FixtureConfig{}}
 	if _, _, err := source.Next(context.Background()); err == nil {
 		t.Fatalf("Next() error = nil, want validation error for empty config")
 	}

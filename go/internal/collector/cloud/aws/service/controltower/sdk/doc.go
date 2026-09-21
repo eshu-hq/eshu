@@ -12,4 +12,4 @@
 // excludes every EnableControl/DisableControl, EnableBaseline/
 // ResetEnabledBaseline, CreateLandingZone, and Update/Delete mutation API, so
 // the adapter cannot read a governance payload or change Control Tower state.
-package awssdk
+package sdk

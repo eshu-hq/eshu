@@ -82,7 +82,7 @@ func TestScannerEmitsQuickSightMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	dataSource := resourceByID(t, envelopes, awscloud.ResourceTypeQuickSightDataSource, testRedshiftDataSourceARN)
+	dataSource := resourceByID(t, envelopes, aws.ResourceTypeQuickSightDataSource, testRedshiftDataSourceARN)
 	if got, want := dataSource.Payload["state"], "CREATION_SUCCESSFUL"; got != want {
 		t.Fatalf("data source state = %#v, want %q", got, want)
 	}
@@ -92,50 +92,50 @@ func TestScannerEmitsQuickSightMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, dsAttrs, "backing_store_kind", "redshift_cluster")
 	assertAttribute(t, dsAttrs, "backing_store_identifier", "analytics-cluster")
 
-	dataSet := resourceByType(t, envelopes, awscloud.ResourceTypeQuickSightDataSet)
+	dataSet := resourceByType(t, envelopes, aws.ResourceTypeQuickSightDataSet)
 	assertAttribute(t, attributesOf(t, dataSet), "import_mode", "SPICE")
-	dashboard := resourceByType(t, envelopes, awscloud.ResourceTypeQuickSightDashboard)
+	dashboard := resourceByType(t, envelopes, aws.ResourceTypeQuickSightDashboard)
 	assertAttribute(t, attributesOf(t, dashboard), "published_version_number", int64(3))
-	resourceByType(t, envelopes, awscloud.ResourceTypeQuickSightAnalysis)
+	resourceByType(t, envelopes, aws.ResourceTypeQuickSightAnalysis)
 
 	// data source -> Redshift cluster, keyed by the bare cluster id the Redshift
 	// scanner publishes as a fallback resource_id.
-	redshiftEdge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDataSourceUsesRedshiftCluster)
-	assertEdgeTarget(t, redshiftEdge, awscloud.ResourceTypeRedshiftCluster, "analytics-cluster")
+	redshiftEdge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDataSourceUsesRedshiftCluster)
+	assertEdgeTarget(t, redshiftEdge, aws.ResourceTypeRedshiftCluster, "analytics-cluster")
 	if got, want := redshiftEdge.Payload["source_resource_id"], testRedshiftDataSourceARN; got != want {
 		t.Fatalf("redshift edge source_resource_id = %#v, want %q", got, want)
 	}
 
 	// data source -> S3 bucket, keyed by the synthesized partition-aware ARN.
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDataSourceUsesS3Bucket)
-	assertEdgeTarget(t, s3Edge, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::analytics-manifests")
+	s3Edge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDataSourceUsesS3Bucket)
+	assertEdgeTarget(t, s3Edge, aws.ResourceTypeS3Bucket, "arn:aws:s3:::analytics-manifests")
 	if got, want := s3Edge.Payload["target_arn"], "arn:aws:s3:::analytics-manifests"; got != want {
 		t.Fatalf("s3 edge target_arn = %#v, want %q", got, want)
 	}
 
 	// data source -> security group / subnet (deduped, bare ids).
-	sgEdges := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSourceUsesSecurityGroup)
+	sgEdges := relationshipsByType(envelopes, aws.RelationshipQuickSightDataSourceUsesSecurityGroup)
 	if len(sgEdges) != 1 {
 		t.Fatalf("security group edges = %d, want 1 (deduped)", len(sgEdges))
 	}
-	assertEdgeTarget(t, sgEdges[0], awscloud.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d")
-	subnetEdges := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSourceUsesSubnet)
+	assertEdgeTarget(t, sgEdges[0], aws.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d")
+	subnetEdges := relationshipsByType(envelopes, aws.RelationshipQuickSightDataSourceUsesSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("subnet edges = %d, want 2", len(subnetEdges))
 	}
 
 	// data set -> data source (internal), deduped to one despite duplicate input.
-	dsEdges := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSetReadsDataSource)
+	dsEdges := relationshipsByType(envelopes, aws.RelationshipQuickSightDataSetReadsDataSource)
 	if len(dsEdges) != 1 {
 		t.Fatalf("data set -> data source edges = %d, want 1 (deduped)", len(dsEdges))
 	}
-	assertEdgeTarget(t, dsEdges[0], awscloud.ResourceTypeQuickSightDataSource, testRedshiftDataSourceARN)
+	assertEdgeTarget(t, dsEdges[0], aws.ResourceTypeQuickSightDataSource, testRedshiftDataSourceARN)
 
 	// dashboard/analysis -> data set (internal).
-	dashEdge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDashboardReadsDataSet)
-	assertEdgeTarget(t, dashEdge, awscloud.ResourceTypeQuickSightDataSet, testDataSetARN)
-	analysisEdge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightAnalysisReadsDataSet)
-	assertEdgeTarget(t, analysisEdge, awscloud.ResourceTypeQuickSightDataSet, testDataSetARN)
+	dashEdge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDashboardReadsDataSet)
+	assertEdgeTarget(t, dashEdge, aws.ResourceTypeQuickSightDataSet, testDataSetARN)
+	analysisEdge := relationshipByType(t, envelopes, aws.RelationshipQuickSightAnalysisReadsDataSet)
+	assertEdgeTarget(t, analysisEdge, aws.ResourceTypeQuickSightDataSet, testDataSetARN)
 
 	// Metadata-only: no secrets, SQL, or visual definitions leak into payloads.
 	for _, envelope := range envelopes {
@@ -169,7 +169,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDataSourceUsesS3Bucket)
+	s3Edge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDataSourceUsesS3Bucket)
 	if got, want := s3Edge.Payload["target_resource_id"], "arn:aws-us-gov:s3:::gov-manifests"; got != want {
 		t.Fatalf("GovCloud s3 edge target_resource_id = %#v, want %q", got, want)
 	}
@@ -195,10 +195,10 @@ func TestScannerEmitsRDSAndAthenaBackingEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rdsEdge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDataSourceUsesRDSInstance)
-	assertEdgeTarget(t, rdsEdge, awscloud.ResourceTypeRDSDBInstance, "prod-db")
-	athenaEdge := relationshipByType(t, envelopes, awscloud.RelationshipQuickSightDataSourceUsesAthenaWorkGroup)
-	assertEdgeTarget(t, athenaEdge, awscloud.ResourceTypeAthenaWorkGroup, "analytics-wg")
+	rdsEdge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDataSourceUsesRDSInstance)
+	assertEdgeTarget(t, rdsEdge, aws.ResourceTypeRDSDBInstance, "prod-db")
+	athenaEdge := relationshipByType(t, envelopes, aws.RelationshipQuickSightDataSourceUsesAthenaWorkGroup)
+	assertEdgeTarget(t, athenaEdge, aws.ResourceTypeAthenaWorkGroup, "analytics-wg")
 }
 
 func TestScannerOmitsBackingEdgeForUnscannedConnector(t *testing.T) {
@@ -234,10 +234,10 @@ func TestScannerOmitsVPCEdgesWhenConnectionUnresolved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSourceUsesSecurityGroup); len(got) != 0 {
+	if got := relationshipsByType(envelopes, aws.RelationshipQuickSightDataSourceUsesSecurityGroup); len(got) != 0 {
 		t.Fatalf("security group edges = %d, want 0 when connection unresolved", len(got))
 	}
-	if got := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSourceUsesSubnet); len(got) != 0 {
+	if got := relationshipsByType(envelopes, aws.RelationshipQuickSightDataSourceUsesSubnet); len(got) != 0 {
 		t.Fatalf("subnet edges = %d, want 0 when connection unresolved", len(got))
 	}
 }
@@ -253,7 +253,7 @@ func TestScannerEmptyAccountReturnsNoEnvelopes(t *testing.T) {
 }
 
 func TestScannerSurfacesNotSubscribedWarning(t *testing.T) {
-	snapshot := Snapshot{Warnings: []awscloud.WarningObservation{{
+	snapshot := Snapshot{Warnings: []aws.WarningObservation{{
 		Boundary:       testBoundary(),
 		WarningKind:    "quicksight_not_subscribed",
 		ErrorClass:     "ResourceNotFoundException",
@@ -273,7 +273,7 @@ func TestScannerSurfacesNotSubscribedWarning(t *testing.T) {
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, dataSource := range fullSnapshot().DataSources {
 		if rel := dataSourceBackingRelationship(boundary, dataSource); rel != nil {
 			observations = append(observations, *rel)
@@ -297,7 +297,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -312,11 +312,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceQuickSight,
+		ServiceKind:         aws.ServiceQuickSight,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:quicksight:1",
 		CollectorInstanceID: "aws-prod",

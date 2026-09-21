@@ -10,15 +10,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func projectObservation(boundary awscloud.Boundary, project Project) awscloud.ResourceObservation {
+func projectObservation(boundary aws.Boundary, project Project) aws.ResourceObservation {
 	arn := strings.TrimSpace(project.ARN)
 	name := strings.TrimSpace(project.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildProject,
+		ResourceType: aws.ResourceTypeCodeBuildProject,
 		Name:         name,
 		Tags:         cloneStringMap(project.Tags),
 		Attributes: map[string]any{
@@ -42,15 +42,15 @@ func projectObservation(boundary awscloud.Boundary, project Project) awscloud.Re
 	}
 }
 
-func reportGroupObservation(boundary awscloud.Boundary, group ReportGroup) awscloud.ResourceObservation {
+func reportGroupObservation(boundary aws.Boundary, group ReportGroup) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(arn, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildReportGroup,
+		ResourceType: aws.ResourceTypeCodeBuildReportGroup,
 		Name:         name,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -67,15 +67,15 @@ func reportGroupObservation(boundary awscloud.Boundary, group ReportGroup) awscl
 	}
 }
 
-func buildObservation(boundary awscloud.Boundary, build Build) awscloud.ResourceObservation {
+func buildObservation(boundary aws.Boundary, build Build) aws.ResourceObservation {
 	arn := strings.TrimSpace(build.ARN)
 	id := strings.TrimSpace(build.ID)
 	resourceID := firstNonEmpty(arn, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildBuild,
+		ResourceType: aws.ResourceTypeCodeBuildBuild,
 		Name:         id,
 		State:        strings.TrimSpace(build.Status),
 		Attributes: map[string]any{

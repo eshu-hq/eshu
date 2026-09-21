@@ -16,13 +16,13 @@ import (
 // only when AWS reports a non-empty, well-shaped target identifier that matches
 // how the target scanner publishes its resource_id, otherwise the edge is
 // skipped rather than dangled.
-func environmentRelationships(boundary awscloud.Boundary, environment Environment) []awscloud.RelationshipObservation {
+func environmentRelationships(boundary aws.Boundary, environment Environment) []aws.RelationshipObservation {
 	sourceID := environmentResourceID(environment)
 	if sourceID == "" {
 		return nil
 	}
 	sourceARN := strings.TrimSpace(environment.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := environmentS3Relationship(boundary, environment, sourceID, sourceARN); ok {
 		observations = append(observations, rel)
@@ -41,58 +41,58 @@ func environmentRelationships(boundary awscloud.Boundary, environment Environmen
 }
 
 func environmentS3Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	bucketARN := s3BucketARN(boundary, environment.SourceBucketARN)
 	if bucketARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesS3Bucket,
+		RelationshipType: aws.RelationshipMWAAEnvironmentUsesS3Bucket,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesS3Bucket + ":" + bucketARN,
+		TargetType:       aws.ResourceTypeS3Bucket,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentUsesS3Bucket + ":" + bucketARN,
 	}, true
 }
 
 func environmentIAMRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(environment.ExecutionRoleARN)
 	if !isARN(roleARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesIAMRole,
+		RelationshipType: aws.RelationshipMWAAEnvironmentUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentUsesIAMRole + ":" + roleARN,
 	}, true
 }
 
 func environmentKMSKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	kmsKey := strings.TrimSpace(environment.KMSKey)
 	if kmsKey == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	// The kms scanner publishes resource_id as the bare key id when present and
 	// the key ARN otherwise. MWAA reports an ARN, so target both the resource_id
@@ -102,25 +102,25 @@ func environmentKMSKeyRelationship(
 	if isARN(kmsKey) {
 		targetARN = kmsKey
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesKMSKey,
+		RelationshipType: aws.RelationshipMWAAEnvironmentUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesKMSKey + ":" + kmsKey,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentUsesKMSKey + ":" + kmsKey,
 	}, true
 }
 
 func environmentSubnetRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) []awscloud.RelationshipObservation {
-	observations := make([]awscloud.RelationshipObservation, 0, len(environment.SubnetIDs))
+) []aws.RelationshipObservation {
+	observations := make([]aws.RelationshipObservation, 0, len(environment.SubnetIDs))
 	seen := make(map[string]struct{}, len(environment.SubnetIDs))
 	for _, subnetID := range environment.SubnetIDs {
 		subnetID = strings.TrimSpace(subnetID)
@@ -131,26 +131,26 @@ func environmentSubnetRelationships(
 			continue
 		}
 		seen[subnetID] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesSubnet,
+			RelationshipType: aws.RelationshipMWAAEnvironmentUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSubnet + ":" + subnetID,
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentUsesSubnet + ":" + subnetID,
 		})
 	}
 	return observations
 }
 
 func environmentSecurityGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) []awscloud.RelationshipObservation {
-	observations := make([]awscloud.RelationshipObservation, 0, len(environment.SecurityGroupIDs))
+) []aws.RelationshipObservation {
+	observations := make([]aws.RelationshipObservation, 0, len(environment.SecurityGroupIDs))
 	seen := make(map[string]struct{}, len(environment.SecurityGroupIDs))
 	for _, groupID := range environment.SecurityGroupIDs {
 		groupID = strings.TrimSpace(groupID)
@@ -161,26 +161,26 @@ func environmentSecurityGroupRelationships(
 			continue
 		}
 		seen[groupID] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup,
+			RelationshipType: aws.RelationshipMWAAEnvironmentUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup + ":" + groupID,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return observations
 }
 
 func environmentLogGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	sourceID string,
 	sourceARN string,
-) []awscloud.RelationshipObservation {
-	observations := make([]awscloud.RelationshipObservation, 0, len(environment.LogGroups))
+) []aws.RelationshipObservation {
+	observations := make([]aws.RelationshipObservation, 0, len(environment.LogGroups))
 	seen := make(map[string]struct{}, len(environment.LogGroups))
 	for _, logGroup := range environment.LogGroups {
 		// AWS reports a log group ARN even for disabled modules. A disabled
@@ -204,16 +204,16 @@ func environmentLogGroupRelationships(
 		if level := strings.TrimSpace(logGroup.LogLevel); level != "" {
 			attributes["log_level"] = level
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
+			RelationshipType: aws.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
 			Attributes:       attributes,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup + ":" + logGroupARN,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup + ":" + logGroupARN,
 		})
 	}
 	return observations

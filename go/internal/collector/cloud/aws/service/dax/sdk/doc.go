@@ -12,4 +12,4 @@
 // list response to exhaustion, and wraps each call in the shared AWS pagination
 // span plus API-call and throttle counters. Cached DynamoDB item data, query
 // results, and node endpoint payloads are never read.
-package awssdk
+package sdk

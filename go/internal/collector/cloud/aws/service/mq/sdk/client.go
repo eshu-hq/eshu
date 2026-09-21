@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmq "github.com/aws/aws-sdk-go-v2/service/mq"
 	"go.opentelemetry.io/otel/trace"
 
@@ -32,15 +32,15 @@ type apiClient interface {
 // contract for both ActiveMQ and RabbitMQ broker engine types.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Amazon MQ SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -75,7 +75,7 @@ func (c *Client) ListBrokers(ctx context.Context) ([]mqservice.Broker, error) {
 			return brokers, nil
 		}
 		for _, summary := range page.BrokerSummaries {
-			brokerID := strings.TrimSpace(aws.ToString(summary.BrokerId))
+			brokerID := strings.TrimSpace(awsv2.ToString(summary.BrokerId))
 			if brokerID == "" {
 				continue
 			}
@@ -86,7 +86,7 @@ func (c *Client) ListBrokers(ctx context.Context) ([]mqservice.Broker, error) {
 			brokers = append(brokers, mapBrokerDescription(description))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return brokers, nil
 		}
 	}
@@ -117,7 +117,7 @@ func (c *Client) ListConfigurations(ctx context.Context) ([]mqservice.Configurat
 			configurations = append(configurations, mapConfiguration(configuration))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return configurations, nil
 		}
 	}
@@ -128,7 +128,7 @@ func (c *Client) describeBroker(ctx context.Context, brokerID string) (*awsmq.De
 	err := c.recordAPICall(ctx, "DescribeBroker", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeBroker(callCtx, &awsmq.DescribeBrokerInput{
-			BrokerId: aws.String(brokerID),
+			BrokerId: awsv2.String(brokerID),
 		})
 		return err
 	})

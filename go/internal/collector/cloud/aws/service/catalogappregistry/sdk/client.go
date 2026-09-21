@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappregistry "github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry"
 	awsappregistrytypes "github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry/types"
 	"github.com/aws/smithy-go"
@@ -62,15 +62,15 @@ type apiClient interface {
 // associated-resource tag values and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AppRegistry SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -149,7 +149,7 @@ func (c *Client) listApplications(ctx context.Context) ([]appregistryservice.App
 			applications = append(applications, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return applications, nil
 		}
 	}
@@ -159,18 +159,18 @@ func (c *Client) mapApplication(
 	ctx context.Context,
 	summary awsappregistrytypes.ApplicationSummary,
 ) (appregistryservice.Application, error) {
-	arn := strings.TrimSpace(aws.ToString(summary.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(summary.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return appregistryservice.Application{}, err
 	}
 	return appregistryservice.Application{
-		ID:             strings.TrimSpace(aws.ToString(summary.Id)),
+		ID:             strings.TrimSpace(awsv2.ToString(summary.Id)),
 		ARN:            arn,
-		Name:           strings.TrimSpace(aws.ToString(summary.Name)),
-		Description:    strings.TrimSpace(aws.ToString(summary.Description)),
-		CreationTime:   aws.ToTime(summary.CreationTime),
-		LastUpdateTime: aws.ToTime(summary.LastUpdateTime),
+		Name:           strings.TrimSpace(awsv2.ToString(summary.Name)),
+		Description:    strings.TrimSpace(awsv2.ToString(summary.Description)),
+		CreationTime:   awsv2.ToTime(summary.CreationTime),
+		LastUpdateTime: awsv2.ToTime(summary.LastUpdateTime),
 		Tags:           tags,
 	}, nil
 }
@@ -201,7 +201,7 @@ func (c *Client) listAttributeGroups(ctx context.Context) ([]appregistryservice.
 			groups = append(groups, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return groups, nil
 		}
 	}
@@ -211,18 +211,18 @@ func (c *Client) mapAttributeGroup(
 	ctx context.Context,
 	summary awsappregistrytypes.AttributeGroupSummary,
 ) (appregistryservice.AttributeGroup, error) {
-	arn := strings.TrimSpace(aws.ToString(summary.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(summary.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return appregistryservice.AttributeGroup{}, err
 	}
 	return appregistryservice.AttributeGroup{
-		ID:             strings.TrimSpace(aws.ToString(summary.Id)),
+		ID:             strings.TrimSpace(awsv2.ToString(summary.Id)),
 		ARN:            arn,
-		Name:           strings.TrimSpace(aws.ToString(summary.Name)),
-		Description:    strings.TrimSpace(aws.ToString(summary.Description)),
-		CreationTime:   aws.ToTime(summary.CreationTime),
-		LastUpdateTime: aws.ToTime(summary.LastUpdateTime),
+		Name:           strings.TrimSpace(awsv2.ToString(summary.Name)),
+		Description:    strings.TrimSpace(awsv2.ToString(summary.Description)),
+		CreationTime:   awsv2.ToTime(summary.CreationTime),
+		LastUpdateTime: awsv2.ToTime(summary.LastUpdateTime),
 		Tags:           tags,
 	}, nil
 }
@@ -241,7 +241,7 @@ func (c *Client) listApplicationAttributeGroups(ctx context.Context, application
 			page, err = c.client.ListAttributeGroupsForApplication(
 				callCtx,
 				&awsappregistry.ListAttributeGroupsForApplicationInput{
-					Application: aws.String(application),
+					Application: awsv2.String(application),
 					NextToken:   nextToken,
 				},
 			)
@@ -254,12 +254,12 @@ func (c *Client) listApplicationAttributeGroups(ctx context.Context, application
 			return arns, nil
 		}
 		for _, detail := range page.AttributeGroupsDetails {
-			if arn := strings.TrimSpace(aws.ToString(detail.Arn)); arn != "" {
+			if arn := strings.TrimSpace(awsv2.ToString(detail.Arn)); arn != "" {
 				arns = append(arns, arn)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return arns, nil
 		}
 	}
@@ -280,7 +280,7 @@ func (c *Client) listAssociatedResources(
 		err := c.recordAPICall(ctx, "ListAssociatedResources", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListAssociatedResources(callCtx, &awsappregistry.ListAssociatedResourcesInput{
-				Application: aws.String(application),
+				Application: awsv2.String(application),
 				NextToken:   nextToken,
 			})
 			return err
@@ -296,13 +296,13 @@ func (c *Client) listAssociatedResources(
 			// ResourceDetails.TagValue and any content detail are intentionally
 			// never read so the adapter stays metadata-only.
 			resources = append(resources, appregistryservice.AssociatedResource{
-				ARN:          strings.TrimSpace(aws.ToString(info.Arn)),
-				Name:         strings.TrimSpace(aws.ToString(info.Name)),
+				ARN:          strings.TrimSpace(awsv2.ToString(info.Arn)),
+				Name:         strings.TrimSpace(awsv2.ToString(info.Name)),
 				ResourceType: strings.TrimSpace(string(info.ResourceType)),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return resources, nil
 		}
 	}
@@ -317,7 +317,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsappregistry.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -359,7 +359,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

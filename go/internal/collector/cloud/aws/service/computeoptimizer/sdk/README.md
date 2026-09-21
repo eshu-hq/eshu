@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/computeoptimizer/awssdk` adapts the AWS
+`internal/collector/cloud/aws/service/computeoptimizer/sdk` adapts the AWS
 SDK for Go v2 Compute Optimizer client into the metadata-only `Client` interface
 the scanner consumes. It pages the recommendation get APIs, maps SDK types into
 scanner-owned metadata, and records API-call/throttle telemetry.
@@ -57,7 +57,7 @@ added.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/computeoptimizer/...` green.
+No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/computeoptimizer/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

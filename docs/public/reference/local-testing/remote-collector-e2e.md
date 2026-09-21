@@ -475,14 +475,14 @@ Focused local gate:
 
 ```bash
 cd go
-go test ./internal/collector ./internal/collector/awscloud/awsruntime \
+go test ./internal/collector ./internal/collector/cloud/aws/runtime \
   ./internal/storage/postgres -count=1
 ```
 
 ## Focused Regression Gates
 
 Run package tests before spending remote runtime. AWS throttle changes use
-`cd go && go test ./internal/collector/awscloud/... -count=1`; scheduled AWS
+`cd go && go test ./internal/collector/cloud/aws/... -count=1`; scheduled AWS
 planning and Terraform-state readiness use
 `cd go && go test ./internal/coordinator/... ./internal/storage/postgres -count=1`.
 Throttle proof must show AWS API-call/throttle counters, `aws_warning`, and

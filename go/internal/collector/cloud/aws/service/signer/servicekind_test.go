@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "signer".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceSigner + "  "
+	boundary.ServiceKind = "  " + aws.ServiceSigner + "  "
 	client := fakeClient{snapshot: Snapshot{
 		Platforms: []SigningPlatform{{PlatformID: testPlatformID, DisplayName: "AWS Lambda"}},
 		Profiles: []SigningProfile{{
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceSigner; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceSigner; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

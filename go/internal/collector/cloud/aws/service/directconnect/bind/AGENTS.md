@@ -1,24 +1,24 @@
-# AGENTS.md - services/directconnect/runtimebind guidance
+# AGENTS.md - services/directconnect/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - Direct Connect scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceDirectConnect`.
+- Register exactly once from `init()` with `aws.ServiceDirectConnect`.
 - Leave `RequiresRedactionKey` unset. Direct Connect drops the BGP auth key and
   MACsec key material by exclusion, so it has no redaction dependency. Do not
   add a redaction-key guard or set the flag without first adding a redaction
   surface to the scanner and a focused test.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
-- Do not validate or transform claims here. Validation belongs to awsruntime and
+- Do not validate or transform claims here. Validation belongs to runtime and
   the scanner.
-- Do not import anything else from `internal/collector/awscloud/service`.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

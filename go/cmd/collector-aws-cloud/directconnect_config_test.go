@@ -12,7 +12,7 @@ import (
 // TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDirectConnect confirms a
 // Direct-Connect-only target loads without ESHU_AWS_REDACTION_KEY. Direct
 // Connect drops the BGP authentication key and MACsec key material by never
-// mapping them, so the scanner has no redaction dependency and its runtimebind
+// mapping them, so the scanner has no redaction dependency and its bind
 // registration leaves RequiresRedactionKey unset.
 func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDirectConnect(t *testing.T) {
 	getenv := mapEnv(map[string]string{
@@ -40,7 +40,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForDirectConnect(t *testing.
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceDirectConnect; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], aws.ServiceDirectConnect; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

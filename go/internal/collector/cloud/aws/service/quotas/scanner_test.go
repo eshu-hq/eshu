@@ -47,7 +47,7 @@ func TestScannerEmitsAppliedQuotaMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	quota := resourceByType(t, envelopes, awscloud.ResourceTypeServiceQuotasServiceQuota)
+	quota := resourceByType(t, envelopes, aws.ResourceTypeServiceQuotasServiceQuota)
 	if got, want := quota.Payload["resource_id"], testQuotaARN; got != want {
 		t.Fatalf("quota resource_id = %#v, want %q", got, want)
 	}
@@ -151,7 +151,7 @@ func TestScannerOmitsUnknownValuesAndOptionalAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	quota := resourceByType(t, envelopes, awscloud.ResourceTypeServiceQuotasServiceQuota)
+	quota := resourceByType(t, envelopes, aws.ResourceTypeServiceQuotasServiceQuota)
 	attrs := attributesOf(t, quota)
 	if got := attrs["applied_value"]; got != nil {
 		t.Fatalf("applied_value = %#v, want nil for unknown value", got)
@@ -193,7 +193,7 @@ func TestScannerEmitsResourceLevelQuotaContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	quota := resourceByType(t, envelopes, awscloud.ResourceTypeServiceQuotasServiceQuota)
+	quota := resourceByType(t, envelopes, aws.ResourceTypeServiceQuotasServiceQuota)
 	attrs := attributesOf(t, quota)
 	assertAttribute(t, attrs, "period_unit", "SECOND")
 	assertAttribute(t, attrs, "period_value", int32(1))
@@ -217,7 +217,7 @@ func TestScannerFallsBackToServiceQuotaKeyWhenARNMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	quota := resourceByType(t, envelopes, awscloud.ResourceTypeServiceQuotasServiceQuota)
+	quota := resourceByType(t, envelopes, aws.ResourceTypeServiceQuotasServiceQuota)
 	if got, want := quota.Payload["resource_id"], "lambda/L-B99A9384"; got != want {
 		t.Fatalf("resource_id = %#v, want %q", got, want)
 	}
@@ -228,7 +228,7 @@ func TestScannerFallsBackToServiceQuotaKeyWhenARNMissing(t *testing.T) {
 
 func TestScannerCanonicalizesServiceKindForPaddedInput(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceServiceQuotas
+	boundary.ServiceKind = aws.ServiceServiceQuotas
 	client := fakeClient{}
 	if _, err := (Scanner{Client: client}).Scan(context.Background(), boundary); err != nil {
 		t.Fatalf("Scan() error = %v, want nil for canonical service_kind", err)
@@ -237,7 +237,7 @@ func TestScannerCanonicalizesServiceKindForPaddedInput(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -255,9 +255,9 @@ func TestScannerRequiresClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Quotas: []ServiceQuota{{ARN: testQuotaARN, ServiceCode: "ec2", QuotaCode: "L-1216C47A"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Service Quotas ListServiceQuotas throttled after SDK retries; quota metadata omitted for this scan",
 			SourceRecordID: "servicequotas_throttled",
@@ -268,17 +268,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceServiceQuotas,
+		ServiceKind:         aws.ServiceServiceQuotas,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:servicequotas:1",
 		CollectorInstanceID: "aws-prod",

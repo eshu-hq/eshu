@@ -22,15 +22,15 @@ type Scanner struct {
 
 // Scan observes Athena workgroups, data catalogs, prepared-statement names, and
 // named-query identities through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("athena scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAthena:
+	case "", aws.ServiceAthena:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAthena
+		boundary.ServiceKind = aws.ServiceAthena
 	default:
 		return nil, fmt.Errorf("athena scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,19 +47,19 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			continue
 		}
 		workGroupNames = append(workGroupNames, name)
-		envelope, err := awscloud.NewResourceEnvelope(workGroupObservation(boundary, workGroup))
+		envelope, err := aws.NewResourceEnvelope(workGroupObservation(boundary, workGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
-		for _, relationship := range []*awscloud.RelationshipObservation{
+		for _, relationship := range []*aws.RelationshipObservation{
 			workGroupResultBucketRelationship(boundary, workGroup),
 			workGroupKMSRelationship(boundary, workGroup),
 		} {
 			if relationship == nil {
 				continue
 			}
-			relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+			relationshipEnvelope, err := aws.NewRelationshipEnvelope(*relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -75,7 +75,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if strings.TrimSpace(catalog.Name) == "" {
 			continue
 		}
-		envelope, err := awscloud.NewResourceEnvelope(dataCatalogObservation(boundary, catalog))
+		envelope, err := aws.NewResourceEnvelope(dataCatalogObservation(boundary, catalog))
 		if err != nil {
 			return nil, err
 		}
@@ -87,13 +87,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Athena prepared statements: %w", err)
 	}
 	for _, statement := range statements {
-		envelope, err := awscloud.NewResourceEnvelope(preparedStatementObservation(boundary, statement))
+		envelope, err := aws.NewResourceEnvelope(preparedStatementObservation(boundary, statement))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		if relationship := preparedStatementWorkGroupRelationship(boundary, statement); relationship != nil {
-			relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+			relationshipEnvelope, err := aws.NewRelationshipEnvelope(*relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -106,13 +106,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Athena named queries: %w", err)
 	}
 	for _, query := range queries {
-		envelope, err := awscloud.NewResourceEnvelope(namedQueryObservation(boundary, query))
+		envelope, err := aws.NewResourceEnvelope(namedQueryObservation(boundary, query))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 		if relationship := namedQueryWorkGroupRelationship(boundary, query); relationship != nil {
-			relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+			relationshipEnvelope, err := aws.NewRelationshipEnvelope(*relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -123,12 +123,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func workGroupObservation(boundary awscloud.Boundary, workGroup WorkGroup) awscloud.ResourceObservation {
+func workGroupObservation(boundary aws.Boundary, workGroup WorkGroup) aws.ResourceObservation {
 	name := strings.TrimSpace(workGroup.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAthenaWorkGroup,
+		ResourceType: aws.ResourceTypeAthenaWorkGroup,
 		Name:         name,
 		State:        strings.TrimSpace(workGroup.State),
 		Tags:         cloneStringMap(workGroup.Tags),
@@ -151,12 +151,12 @@ func workGroupObservation(boundary awscloud.Boundary, workGroup WorkGroup) awscl
 	}
 }
 
-func dataCatalogObservation(boundary awscloud.Boundary, catalog DataCatalog) awscloud.ResourceObservation {
+func dataCatalogObservation(boundary aws.Boundary, catalog DataCatalog) aws.ResourceObservation {
 	name := strings.TrimSpace(catalog.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAthenaDataCatalog,
+		ResourceType: aws.ResourceTypeAthenaDataCatalog,
 		Name:         name,
 		Tags:         cloneStringMap(catalog.Tags),
 		Attributes: map[string]any{
@@ -168,12 +168,12 @@ func dataCatalogObservation(boundary awscloud.Boundary, catalog DataCatalog) aws
 	}
 }
 
-func preparedStatementObservation(boundary awscloud.Boundary, statement PreparedStatement) awscloud.ResourceObservation {
+func preparedStatementObservation(boundary aws.Boundary, statement PreparedStatement) aws.ResourceObservation {
 	resourceID := preparedStatementResourceID(statement)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAthenaPreparedStatement,
+		ResourceType: aws.ResourceTypeAthenaPreparedStatement,
 		Name:         strings.TrimSpace(statement.StatementName),
 		Attributes: map[string]any{
 			"statement_name":     strings.TrimSpace(statement.StatementName),
@@ -185,12 +185,12 @@ func preparedStatementObservation(boundary awscloud.Boundary, statement Prepared
 	}
 }
 
-func namedQueryObservation(boundary awscloud.Boundary, query NamedQuery) awscloud.ResourceObservation {
+func namedQueryObservation(boundary aws.Boundary, query NamedQuery) aws.ResourceObservation {
 	resourceID := namedQueryResourceID(query)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAthenaNamedQuery,
+		ResourceType: aws.ResourceTypeAthenaNamedQuery,
 		Name:         strings.TrimSpace(query.Name),
 		Attributes: map[string]any{
 			"named_query_id": strings.TrimSpace(query.NamedQueryID),

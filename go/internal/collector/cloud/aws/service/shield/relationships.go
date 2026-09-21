@@ -20,9 +20,9 @@ import (
 // carries only the bare target_resource_id and leaves target_arn unset so the
 // relguard join-mode check stays satisfied.
 func protectionRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	protection Protection,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := firstNonEmpty(protection.ARN, protection.ID, protection.Name)
 	if sourceID == "" {
 		return nil
@@ -32,9 +32,9 @@ func protectionRelationship(
 		return nil
 	}
 	protectedARN := strings.TrimSpace(protection.ResourceARN)
-	observation := &awscloud.RelationshipObservation{
+	observation := &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipShieldProtectionProtectsResource,
+		RelationshipType: aws.RelationshipShieldProtectionProtectsResource,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(protection.ARN),
 		TargetResourceID: target.TargetResourceID,
@@ -43,7 +43,7 @@ func protectionRelationship(
 			"protected_resource_arn": protectedARN,
 		},
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipShieldProtectionProtectsResource + ":" +
+			aws.RelationshipShieldProtectionProtectsResource + ":" +
 			target.TargetResourceID,
 	}
 	if target.ARNKeyed {

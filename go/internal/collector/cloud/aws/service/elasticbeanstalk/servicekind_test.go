@@ -22,7 +22,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceElasticBeanstalk + "  "
+	boundary.ServiceKind = "  " + aws.ServiceElasticBeanstalk + "  "
 	client := fakeClient{
 		applications: []Application{{
 			ARN:  "arn:aws:elasticbeanstalk:us-east-1:123456789012:application/padded",
@@ -38,7 +38,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceElasticBeanstalk; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceElasticBeanstalk; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

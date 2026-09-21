@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "secretsmanager".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceSecretsManager + "  "
+	boundary.ServiceKind = "  " + aws.ServiceSecretsManager + "  "
 	client := fakeClient{secrets: []Secret{{
 		ARN:  "arn:aws:secretsmanager:us-east-1:123456789012:secret:orders-db-a1b2c3",
 		Name: "orders/db",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceSecretsManager; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceSecretsManager; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

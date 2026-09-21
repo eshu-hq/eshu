@@ -13,7 +13,7 @@ import (
 // KMS encryption key dependency. AWS reports a key ARN, which matches how the
 // KMS scanner publishes its key resource_id, so the edge targets aws_kms_key. It
 // returns nil when no key is reported.
-func workspaceKMSRelationship(boundary awscloud.Boundary, workspace Workspace) *awscloud.RelationshipObservation {
+func workspaceKMSRelationship(boundary aws.Boundary, workspace Workspace) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(workspace.KMSKeyARN)
 	if targetID == "" {
 		return nil
@@ -26,15 +26,15 @@ func workspaceKMSRelationship(boundary awscloud.Boundary, workspace Workspace) *
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAMPWorkspaceUsesKMSKey,
+		RelationshipType: aws.RelationshipAMPWorkspaceUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(workspace.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAMPWorkspaceUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipAMPWorkspaceUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -43,10 +43,10 @@ func workspaceKMSRelationship(boundary awscloud.Boundary, workspace Workspace) *
 // publishes (its ARN when available), so the edge joins the workspace node
 // exactly. It returns nil when either endpoint identity is missing.
 func namespaceInWorkspaceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workspaceID string,
 	namespace RuleGroupsNamespace,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	namespaceID := namespaceResourceID(namespace)
 	workspaceID = strings.TrimSpace(workspaceID)
 	if namespaceID == "" || workspaceID == "" {
@@ -56,15 +56,15 @@ func namespaceInWorkspaceRelationship(
 	if isARN(workspaceID) {
 		targetARN = workspaceID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAMPRuleGroupsNamespaceInWorkspace,
+		RelationshipType: aws.RelationshipAMPRuleGroupsNamespaceInWorkspace,
 		SourceResourceID: namespaceID,
 		SourceARN:        strings.TrimSpace(namespace.ARN),
 		TargetResourceID: workspaceID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeAMPWorkspace,
-		SourceRecordID:   namespaceID + "->" + awscloud.RelationshipAMPRuleGroupsNamespaceInWorkspace + ":" + workspaceID,
+		TargetType:       aws.ResourceTypeAMPWorkspace,
+		SourceRecordID:   namespaceID + "->" + aws.RelationshipAMPRuleGroupsNamespaceInWorkspace + ":" + workspaceID,
 	}
 }
 
@@ -74,24 +74,24 @@ func namespaceInWorkspaceRelationship(
 // dependency, so absent endpoints never dangle the graph. The EKS cluster ARN,
 // destination workspace ARN, bare subnet ids, and bare security-group ids each
 // match the resource_id their owning scanner publishes.
-func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awscloud.RelationshipObservation {
+func scraperRelationships(boundary aws.Boundary, scraper Scraper) []aws.RelationshipObservation {
 	scraperID := scraperResourceID(scraper)
 	if scraperID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	scraperARN := strings.TrimSpace(scraper.ARN)
 
 	if clusterARN := strings.TrimSpace(scraper.SourceEKSClusterARN); clusterARN != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperScrapesEKSCluster,
+			RelationshipType: aws.RelationshipAMPScraperScrapesEKSCluster,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: clusterARN,
 			TargetARN:        clusterARN,
-			TargetType:       awscloud.ResourceTypeEKSCluster,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperScrapesEKSCluster + ":" + clusterARN,
+			TargetType:       aws.ResourceTypeEKSCluster,
+			SourceRecordID:   scraperID + "->" + aws.RelationshipAMPScraperScrapesEKSCluster + ":" + clusterARN,
 		})
 	}
 
@@ -100,39 +100,39 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 		if isARN(workspaceARN) {
 			targetARN = workspaceARN
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperSendsToWorkspace,
+			RelationshipType: aws.RelationshipAMPScraperSendsToWorkspace,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: workspaceARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeAMPWorkspace,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperSendsToWorkspace + ":" + workspaceARN,
+			TargetType:       aws.ResourceTypeAMPWorkspace,
+			SourceRecordID:   scraperID + "->" + aws.RelationshipAMPScraperSendsToWorkspace + ":" + workspaceARN,
 		})
 	}
 
 	for _, subnetID := range cloneStrings(scraper.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperUsesSubnet,
+			RelationshipType: aws.RelationshipAMPScraperUsesSubnet,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSubnet + ":" + subnetID,
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   scraperID + "->" + aws.RelationshipAMPScraperUsesSubnet + ":" + subnetID,
 		})
 	}
 
 	for _, groupID := range cloneStrings(scraper.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperUsesSecurityGroup,
+			RelationshipType: aws.RelationshipAMPScraperUsesSecurityGroup,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSecurityGroup + ":" + groupID,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   scraperID + "->" + aws.RelationshipAMPScraperUsesSecurityGroup + ":" + groupID,
 		})
 	}
 

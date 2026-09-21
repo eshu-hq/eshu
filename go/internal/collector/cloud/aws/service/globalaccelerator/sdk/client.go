@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsga "github.com/aws/aws-sdk-go-v2/service/globalaccelerator"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -59,7 +59,7 @@ type apiClient interface {
 // exposes only List operations.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -68,8 +68,8 @@ type Client struct {
 // boundary. The client region is pinned to us-west-2 because the Global
 // Accelerator control plane is reachable only there.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -95,7 +95,7 @@ func (c *Client) ListAccelerators(ctx context.Context) ([]gaservice.Accelerator,
 			var err error
 			page, err = c.client.ListAccelerators(callCtx, &awsga.ListAcceleratorsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(listAcceleratorsLimit),
+				MaxResults: awsv2.Int32(listAcceleratorsLimit),
 			})
 			return err
 		})
@@ -113,7 +113,7 @@ func (c *Client) ListAccelerators(ctx context.Context) ([]gaservice.Accelerator,
 			accelerators = append(accelerators, mapped)
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return accelerators, nil
 		}
 	}
@@ -123,7 +123,7 @@ func (c *Client) acceleratorMetadata(
 	ctx context.Context,
 	accelerator awsgaAccelerator,
 ) (gaservice.Accelerator, error) {
-	acceleratorARN := aws.ToString(accelerator.AcceleratorArn)
+	acceleratorARN := awsv2.ToString(accelerator.AcceleratorArn)
 	tags, err := c.listTags(ctx, acceleratorARN)
 	if err != nil {
 		return gaservice.Accelerator{}, err
@@ -147,9 +147,9 @@ func (c *Client) listListeners(ctx context.Context, acceleratorARN string) ([]ga
 		err := c.recordAPICall(ctx, "ListListeners", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListListeners(callCtx, &awsga.ListListenersInput{
-				AcceleratorArn: aws.String(acceleratorARN),
+				AcceleratorArn: awsv2.String(acceleratorARN),
 				NextToken:      token,
-				MaxResults:     aws.Int32(listListenersLimit),
+				MaxResults:     awsv2.Int32(listListenersLimit),
 			})
 			return err
 		})
@@ -160,14 +160,14 @@ func (c *Client) listListeners(ctx context.Context, acceleratorARN string) ([]ga
 			return listeners, nil
 		}
 		for _, listener := range page.Listeners {
-			groups, err := c.listEndpointGroups(ctx, aws.ToString(listener.ListenerArn))
+			groups, err := c.listEndpointGroups(ctx, awsv2.ToString(listener.ListenerArn))
 			if err != nil {
 				return nil, err
 			}
 			listeners = append(listeners, mapListener(listener, groups))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return listeners, nil
 		}
 	}
@@ -185,9 +185,9 @@ func (c *Client) listEndpointGroups(ctx context.Context, listenerARN string) ([]
 		err := c.recordAPICall(ctx, "ListEndpointGroups", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListEndpointGroups(callCtx, &awsga.ListEndpointGroupsInput{
-				ListenerArn: aws.String(listenerARN),
+				ListenerArn: awsv2.String(listenerARN),
 				NextToken:   token,
-				MaxResults:  aws.Int32(listEndpointGroupsLimit),
+				MaxResults:  awsv2.Int32(listEndpointGroupsLimit),
 			})
 			return err
 		})
@@ -201,7 +201,7 @@ func (c *Client) listEndpointGroups(ctx context.Context, listenerARN string) ([]
 			groups = append(groups, mapEndpointGroup(group))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return groups, nil
 		}
 	}
@@ -216,7 +216,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsga.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -244,7 +244,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

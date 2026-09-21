@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lightsail/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/lightsail/sdk` adapts AWS SDK for Go v2
 Lightsail responses to the scanner-owned `Client` contract. It owns instance,
 relational database, load balancer, disk, and static IP pagination, throttle
 classification, and per-call AWS API telemetry.
@@ -42,9 +42,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/lightsail` for scanner-owned result
+- `internal/collector/cloud/aws/service/lightsail` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `lightsail` and Smithy error contracts.

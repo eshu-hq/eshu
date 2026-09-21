@@ -133,7 +133,7 @@ func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
 	assertAWSCheckpointCounter(t, rm, map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   aws.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "DescribeImages",
@@ -141,7 +141,7 @@ func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
 		telemetry.MetricDimensionResult:    "success",
 	})
 	assertAWSCheckpointCounter(t, rm, map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   aws.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "all",
@@ -168,7 +168,7 @@ func testAWSCheckpointKey() checkpoint.Key {
 			CollectorInstanceID: "aws-prod",
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceECR,
+			ServiceKind:         aws.ServiceECR,
 			GenerationID:        "generation-1",
 			FencingToken:        4,
 		},

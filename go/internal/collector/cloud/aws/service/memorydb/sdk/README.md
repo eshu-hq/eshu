@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/memorydb/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/memorydb/sdk` adapts AWS SDK for Go v2
 MemoryDB responses to the scanner-owned `Client` contract. It owns cluster
 pagination, subnet group pagination, parameter group pagination, user
 pagination, ACL pagination, snapshot pagination, tag reads, per-shard replica
@@ -43,9 +43,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/memorydb` for scanner-owned result
+- `internal/collector/cloud/aws/service/memorydb` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `memorydb` and Smithy error contracts.

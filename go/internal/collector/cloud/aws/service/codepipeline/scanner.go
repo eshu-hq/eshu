@@ -31,7 +31,7 @@ type Scanner struct {
 // custom action types through the configured client. It returns one
 // aws_resource fact per resource plus aws_relationship facts for the pipeline,
 // stage, and action edges CodePipeline reports.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codepipeline scanner client is required")
 	}
@@ -39,10 +39,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codepipeline scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodePipeline:
+	case "", aws.ServiceCodePipeline:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodePipeline
+		boundary.ServiceKind = aws.ServiceCodePipeline
 	default:
 		return nil, fmt.Errorf("codepipeline scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -66,13 +66,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodePipeline webhooks: %w", err)
 	}
 	for _, webhook := range webhooks {
-		resource, err := awscloud.NewResourceEnvelope(webhookObservation(boundary, webhook))
+		resource, err := aws.NewResourceEnvelope(webhookObservation(boundary, webhook))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if rel, ok := webhookRelationship(boundary, webhook); ok {
-			relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+			relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 			if err != nil {
 				return nil, err
 			}
@@ -85,7 +85,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodePipeline custom action types: %w", err)
 	}
 	for _, actionType := range actionTypes {
-		resource, err := awscloud.NewResourceEnvelope(actionTypeObservation(boundary, actionType))
+		resource, err := aws.NewResourceEnvelope(actionTypeObservation(boundary, actionType))
 		if err != nil {
 			return nil, err
 		}
@@ -97,17 +97,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) scanPipeline(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(pipelineObservation(boundary, pipeline))
+	resource, err := aws.NewResourceEnvelope(pipelineObservation(boundary, pipeline))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	for _, observation := range pipelineRelationships(boundary, pipeline) {
-		relEnvelope, err := awscloud.NewRelationshipEnvelope(observation)
+		relEnvelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (s Scanner) scanPipeline(
 		return nil, fmt.Errorf("list CodePipeline executions for %q: %w", pipeline.Name, err)
 	}
 	for _, execution := range executions {
-		executionResource, err := awscloud.NewResourceEnvelope(executionObservation(boundary, pipeline, execution))
+		executionResource, err := aws.NewResourceEnvelope(executionObservation(boundary, pipeline, execution))
 		if err != nil {
 			return nil, err
 		}

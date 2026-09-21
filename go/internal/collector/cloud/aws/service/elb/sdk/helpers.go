@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 // cloneStrings returns a defensive copy of input, or nil when input is empty, so
 // scanner-owned records do not alias AWS SDK response slices.

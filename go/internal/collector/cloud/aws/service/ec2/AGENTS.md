@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ec2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ec2 guidance
 
 ## Read First
 
@@ -10,11 +10,11 @@
 6. `ami_identity.go` - AMI resource identity fact, deduplicated per scan (#5717).
 7. `volume.go` - EBS volume metadata and KMS relationship fact construction.
 8. `relationships.go` - EC2 topology relationship construction.
-9. `awssdk/README.md` - AWS SDK pagination and response mapping.
+9. `sdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
-- Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
+- Do not call AWS APIs from this package. The `sdk` adapter owns AWS SDK
   calls and telemetry.
 - The scanner emits an `aws_ec2_instance` resource fact (#5448), but it is
   SCOPED NARROWLY to identity + the launch `ami_id`. Never add a posture, IMDS,
@@ -62,12 +62,12 @@
 
 ## Common Changes
 
-- Add a new EC2 field in `types.go`, `scanner.go`, and `awssdk/mapper.go`
+- Add a new EC2 field in `types.go`, `scanner.go`, and `sdk/mapper.go`
   together.
 - Add a focused scanner test before changing emitted resource or relationship
   shapes.
 - Add EBS volume metadata fields in `types.go`, `volume.go`, and
-  `awssdk/mapper.go` together.
+  `sdk/mapper.go` together.
 - Keep instance inventory, live reachability, exposure analysis, the
   USES_PROFILE/KMS joins, and per-volume encryption resolution in later
   reducer/query slices, not this scanner package.

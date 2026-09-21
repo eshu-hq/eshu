@@ -1,4 +1,4 @@
-# resiliencehub/awssdk adapter
+# resiliencehub/sdk adapter
 
 Adapts the AWS SDK Resilience Hub control-plane API into the resiliencehub
 scanner's metadata-only `Client` port. All Resilience Hub SDK access lives here;
@@ -41,5 +41,5 @@ Metric labels stay bounded to service, account, region, operation, and result.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/resiliencehub/...` green.
+No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/resiliencehub/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

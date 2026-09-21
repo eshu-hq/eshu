@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/outposts/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/outposts/sdk` adapts AWS SDK for Go v2
 Outposts responses to the scanner-owned `Client` contract. It owns outpost
 pagination, per-outpost asset pagination, site pagination, identity-confirming
 point reads, resource-tag reads, throttle classification, and per-call AWS API
@@ -38,9 +38,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/outposts` for scanner-owned result
+- `internal/collector/cloud/aws/service/outposts` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `outposts` and Smithy error contracts.

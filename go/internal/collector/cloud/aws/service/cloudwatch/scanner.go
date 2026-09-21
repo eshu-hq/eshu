@@ -25,7 +25,7 @@ type Scanner struct {
 // Scan observes CloudWatch metric alarms, composite alarms, dashboards,
 // Contributor Insights rules, and metric streams through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("cloudwatch scanner client is required")
 	}
@@ -33,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cloudwatch scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudWatch:
+	case "", aws.ServiceCloudWatch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudWatch
+		boundary.ServiceKind = aws.ServiceCloudWatch
 	default:
 		return nil, fmt.Errorf("cloudwatch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -72,7 +72,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CloudWatch dashboards: %w", err)
 	}
 	for _, dashboard := range dashboards {
-		envelope, err := awscloud.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
+		envelope, err := aws.NewResourceEnvelope(dashboardObservation(boundary, dashboard))
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CloudWatch insight rules: %w", err)
 	}
 	for _, rule := range rules {
-		envelope, err := awscloud.NewResourceEnvelope(insightRuleObservation(boundary, rule))
+		envelope, err := aws.NewResourceEnvelope(insightRuleObservation(boundary, rule))
 		if err != nil {
 			return nil, err
 		}
@@ -107,10 +107,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func (s Scanner) metricAlarmEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	alarm MetricAlarm,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(metricAlarmObservation(boundary, alarm))
+	resource, err := aws.NewResourceEnvelope(metricAlarmObservation(boundary, alarm))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s Scanner) metricAlarmEnvelopes(
 		alarm.OKActions,
 		alarm.InsufficientDataActions,
 	) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +131,7 @@ func (s Scanner) metricAlarmEnvelopes(
 	}
 	metric, ok := alarmMetricRelationship(boundary, alarm, s.RedactionKey)
 	if ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(metric)
+		envelope, err := aws.NewRelationshipEnvelope(metric)
 		if err != nil {
 			return nil, err
 		}
@@ -140,13 +140,13 @@ func (s Scanner) metricAlarmEnvelopes(
 	return envelopes, nil
 }
 
-func metricAlarmObservation(boundary awscloud.Boundary, alarm MetricAlarm) awscloud.ResourceObservation {
+func metricAlarmObservation(boundary aws.Boundary, alarm MetricAlarm) aws.ResourceObservation {
 	alarmARN := strings.TrimSpace(alarm.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          alarmARN,
 		ResourceID:   firstNonEmpty(alarmARN, alarm.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchAlarm,
+		ResourceType: aws.ResourceTypeCloudWatchAlarm,
 		Name:         strings.TrimSpace(alarm.Name),
 		State:        strings.TrimSpace(alarm.State),
 		Tags:         cloneStringMap(alarm.Tags),
@@ -178,10 +178,10 @@ func metricAlarmObservation(boundary awscloud.Boundary, alarm MetricAlarm) awscl
 }
 
 func compositeAlarmEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	alarm CompositeAlarm,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(compositeAlarmObservation(boundary, alarm))
+	resource, err := aws.NewResourceEnvelope(compositeAlarmObservation(boundary, alarm))
 	if err != nil {
 		return nil, err
 	}
@@ -194,14 +194,14 @@ func compositeAlarmEnvelopes(
 		alarm.OKActions,
 		alarm.InsufficientDataActions,
 	) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, relationship := range compositeChildRelationships(boundary, alarm) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -210,13 +210,13 @@ func compositeAlarmEnvelopes(
 	return envelopes, nil
 }
 
-func compositeAlarmObservation(boundary awscloud.Boundary, alarm CompositeAlarm) awscloud.ResourceObservation {
+func compositeAlarmObservation(boundary aws.Boundary, alarm CompositeAlarm) aws.ResourceObservation {
 	alarmARN := strings.TrimSpace(alarm.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          alarmARN,
 		ResourceID:   firstNonEmpty(alarmARN, alarm.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchCompositeAlarm,
+		ResourceType: aws.ResourceTypeCloudWatchCompositeAlarm,
 		Name:         strings.TrimSpace(alarm.Name),
 		State:        strings.TrimSpace(alarm.State),
 		Tags:         cloneStringMap(alarm.Tags),
@@ -237,13 +237,13 @@ func compositeAlarmObservation(boundary awscloud.Boundary, alarm CompositeAlarm)
 	}
 }
 
-func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscloud.ResourceObservation {
+func dashboardObservation(boundary aws.Boundary, dashboard Dashboard) aws.ResourceObservation {
 	dashboardARN := strings.TrimSpace(dashboard.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          dashboardARN,
 		ResourceID:   firstNonEmpty(dashboardARN, dashboard.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchDashboard,
+		ResourceType: aws.ResourceTypeCloudWatchDashboard,
 		Name:         strings.TrimSpace(dashboard.Name),
 		Attributes: map[string]any{
 			// Body / widgets / definition are intentionally absent: the SDK
@@ -258,12 +258,12 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 	}
 }
 
-func insightRuleObservation(boundary awscloud.Boundary, rule InsightRule) awscloud.ResourceObservation {
+func insightRuleObservation(boundary aws.Boundary, rule InsightRule) aws.ResourceObservation {
 	name := strings.TrimSpace(rule.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeCloudWatchInsightRule,
+		ResourceType: aws.ResourceTypeCloudWatchInsightRule,
 		Name:         name,
 		State:        strings.TrimSpace(rule.State),
 		Attributes: map[string]any{
@@ -277,17 +277,17 @@ func insightRuleObservation(boundary awscloud.Boundary, rule InsightRule) awsclo
 }
 
 func metricStreamEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stream MetricStream,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(metricStreamObservation(boundary, stream))
+	resource, err := aws.NewResourceEnvelope(metricStreamObservation(boundary, stream))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	relationship, ok := metricStreamFirehoseRelationship(boundary, stream)
 	if ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -296,13 +296,13 @@ func metricStreamEnvelopes(
 	return envelopes, nil
 }
 
-func metricStreamObservation(boundary awscloud.Boundary, stream MetricStream) awscloud.ResourceObservation {
+func metricStreamObservation(boundary aws.Boundary, stream MetricStream) aws.ResourceObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchMetricStream,
+		ResourceType: aws.ResourceTypeCloudWatchMetricStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.State),
 		Tags:         cloneStringMap(stream.Tags),

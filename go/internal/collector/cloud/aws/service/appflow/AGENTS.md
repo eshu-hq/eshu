@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/appflow guidance
+# AGENTS.md - internal/collector/cloud/aws/service/appflow guidance
 
 ## Read First
 
@@ -33,7 +33,7 @@
 - Emit flow-to-S3 edges only when the connector is Amazon S3 and AWS reports a
   bucket name. Derive the synthesized bucket ARN partition from the flow ARN
   (or the boundary region when the flow ARN is absent) via
-  `awscloud.PartitionFromARN` / `awscloud.PartitionForBoundary`. Never hardcode
+  `aws.PartitionFromARN` / `aws.PartitionForBoundary`. Never hardcode
   `arn:aws:`.
 - Emit the flow-to-KMS-key edge only when AWS reports a customer KMS key ARN.
 - Emit the connector-profile-to-secret edge only when the credentials ARN parses
@@ -50,12 +50,12 @@
 ## Common Changes
 
 - Add a new AppFlow metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry transferred data values or
   credential material, leave it out of the scanner contract.
 - Add new relationship evidence only when the AppFlow API reports both sides
   directly and the target identity is not sensitive (an ARN or a stable name).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/grafana guidance
+# AGENTS.md - internal/collector/cloud/aws/service/grafana guidance
 
 ## Read First
 
@@ -33,10 +33,10 @@
   resource_ids as the BARE ids, so target the bare ids (no ARN) and de-duplicate
   repeated ids.
 - Never hardcode `arn:aws:`. Synthesize the workspace ARN with
-  `awscloud.PartitionForBoundary` so GovCloud and China resolve to the real
+  `aws.PartitionForBoundary` so GovCloud and China resolve to the real
   partition.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Record data sources, notification destinations, and authentication providers
   as enum names only; never connection strings, endpoints, or secrets.
@@ -49,14 +49,14 @@
 ## Common Changes
 
 - Add a new Grafana metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry an authentication secret, API key,
   token, or data-plane payload, leave it out of the scanner contract.
 - Add new relationship evidence only when the Grafana API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (role ARN for IAM roles, bare ids for VPC subnets and
   security groups).
-- Extend SDK pagination and point reads in the `awssdk` adapter, not here.
+- Extend SDK pagination and point reads in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

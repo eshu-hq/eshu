@@ -53,7 +53,7 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	account := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2Account)
+	account := resourceByType(t, envelopes, aws.ResourceTypeInspector2Account)
 	accountAttrs := attributesOf(t, account)
 	if got, want := accountAttrs["status"], "ENABLED"; got != want {
 		t.Fatalf("account status = %#v, want %q", got, want)
@@ -63,14 +63,14 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 		t.Fatalf("account features = %#v, want 4 entries", accountAttrs["features"])
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2MemberAccount)
+	member := resourceByType(t, envelopes, aws.ResourceTypeInspector2MemberAccount)
 	memberAttrs := attributesOf(t, member)
 	if got, want := memberAttrs["account_id"], "111122223333"; got != want {
 		t.Fatalf("member account_id = %#v, want %q", got, want)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipInspector2MemberManagedByAdministrator)
+	assertRelationship(t, envelopes, aws.RelationshipInspector2MemberManagedByAdministrator)
 
-	filter := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2Filter)
+	filter := resourceByType(t, envelopes, aws.ResourceTypeInspector2Filter)
 	filterAttrs := attributesOf(t, filter)
 	if got, want := filter.Payload["name"], "suppress-known-benign"; got != want {
 		t.Fatalf("filter name = %#v, want %q", got, want)
@@ -91,7 +91,7 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 		}
 	}
 
-	cis := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2CisScanConfiguration)
+	cis := resourceByType(t, envelopes, aws.ResourceTypeInspector2CisScanConfiguration)
 	cisAttrs := attributesOf(t, cis)
 	if got, want := cisAttrs["security_level"], "LEVEL_1"; got != want {
 		t.Fatalf("cis security_level = %#v, want %q", got, want)
@@ -100,7 +100,7 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 		t.Fatalf("cis schedule_kind = %#v, want %q", got, want)
 	}
 	// One relationship per target account (CIS-config-to-target-account-set).
-	assertRelationshipCount(t, envelopes, awscloud.RelationshipInspector2CisScanConfigurationTargetsAccount, 2)
+	assertRelationshipCount(t, envelopes, aws.RelationshipInspector2CisScanConfigurationTargetsAccount, 2)
 
 	// No finding-detail fields may appear anywhere in the emitted payloads.
 	for _, envelope := range envelopes {
@@ -131,7 +131,7 @@ func TestScannerFeatureStatusStaysAccountAttributeOnly(t *testing.T) {
 	}
 
 	// Feature status remains on the account resource.
-	account := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2Account)
+	account := resourceByType(t, envelopes, aws.ResourceTypeInspector2Account)
 	features, ok := attributesOf(t, account)["features"].([]map[string]any)
 	if !ok || len(features) != 2 {
 		t.Fatalf("account features = %#v, want 2 entries", attributesOf(t, account)["features"])
@@ -172,7 +172,7 @@ func TestScannerEmitsNoMemberRelationshipsForStandaloneAccount(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipInspector2MemberManagedByAdministrator {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipInspector2MemberManagedByAdministrator {
 			t.Fatalf("standalone account emitted a member relationship: %#v", envelope)
 		}
 	}
@@ -180,7 +180,7 @@ func TestScannerEmitsNoMemberRelationshipsForStandaloneAccount(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGuardDuty
+	boundary.ServiceKind = aws.ServiceGuardDuty
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -195,11 +195,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceInspector2,
+		ServiceKind:         aws.ServiceInspector2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:inspector2:1",
 		CollectorInstanceID: "aws-prod",

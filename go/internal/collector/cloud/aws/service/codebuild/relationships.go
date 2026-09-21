@@ -33,16 +33,16 @@ const (
 // Store environment-variable references. Each edge names a concrete target with
 // a non-empty target type so the graph join resolves the target node.
 func projectRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	projectARN := strings.TrimSpace(project.ARN)
 	projectID := firstNonEmpty(projectARN, project.Name)
 	if projectID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := serviceRoleRelationship(boundary, project, projectARN, projectID); ok {
 		observations = append(observations, rel)
@@ -59,34 +59,34 @@ func projectRelationships(
 }
 
 func serviceRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(project.ServiceRoleARN)
 	if roleARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectUsesIAMRole,
+		RelationshipType: aws.RelationshipCodeBuildProjectUsesIAMRole,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   projectID + "#service-role#" + roleARN,
 	}, true
 }
 
 func kmsKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	keyID := strings.TrimSpace(project.EncryptionKeyID)
 	if keyID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	// The KMS scanner emits its key resource_id as firstNonEmpty(keyID, keyARN),
 	// so a key ARN joins the key node directly and a bare key id or alias joins
@@ -96,33 +96,33 @@ func kmsKeyRelationship(
 	if strings.HasPrefix(keyID, "arn:") {
 		targetARN = keyID
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectUsesKMSKey,
+		RelationshipType: aws.RelationshipCodeBuildProjectUsesKMSKey,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   projectID + "#kms#" + keyID,
 	}, true
 }
 
 func vpcRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	vpcID := strings.TrimSpace(project.VPCConfig.VPCID)
 	if vpcID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesVPC,
+			RelationshipType: aws.RelationshipCodeBuildProjectUsesVPC,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			SourceRecordID:   projectID + "#vpc#" + vpcID,
 		})
 	}
@@ -131,13 +131,13 @@ func vpcRelationships(
 		if subnetID == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesSubnet,
+			RelationshipType: aws.RelationshipCodeBuildProjectUsesSubnet,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   projectID + "#subnet#" + subnetID,
 		})
@@ -147,13 +147,13 @@ func vpcRelationships(
 		if groupID == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesSecurityGroup,
+			RelationshipType: aws.RelationshipCodeBuildProjectUsesSecurityGroup,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   projectID + "#security-group#" + groupID,
 		})
@@ -162,11 +162,11 @@ func vpcRelationships(
 }
 
 func sourceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, source := range append([]ProjectSource{project.Source}, project.SecondarySources...) {
 		if rel, ok := sourceRelationship(boundary, source, projectARN, projectID); ok {
 			observations = append(observations, rel)
@@ -181,25 +181,25 @@ func sourceRelationships(
 // repository target labeled with a stable non-AWS-resource target type. A
 // CODEPIPELINE or NO_SOURCE source names no concrete resource and is skipped.
 func sourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	source ProjectSource,
 	projectARN, projectID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	sourceType := strings.TrimSpace(source.Type)
 	location := strings.TrimSpace(source.Location)
 	if location == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if strings.EqualFold(sourceType, projectSourceTypeS3) {
 		bucketARN := s3BucketARNFromLocation(boundary, location)
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectSourcedFromS3,
+			RelationshipType: aws.RelationshipCodeBuildProjectSourcedFromS3,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       aws.ResourceTypeS3Bucket,
 			Attributes: map[string]any{
 				"source_type":       sourceType,
 				"source_location":   location,
@@ -210,11 +210,11 @@ func sourceRelationship(
 	}
 	switch strings.ToUpper(sourceType) {
 	case "CODEPIPELINE", "NO_SOURCE", "":
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectSourcedFromRepository,
+		RelationshipType: aws.RelationshipCodeBuildProjectSourcedFromRepository,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: location,
@@ -228,11 +228,11 @@ func sourceRelationship(
 }
 
 func artifactRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, artifact := range append([]ProjectArtifacts{project.Artifacts}, project.SecondaryArtifacts...) {
 		if rel, ok := artifactRelationship(boundary, artifact, projectARN, projectID); ok {
 			observations = append(observations, rel)
@@ -245,26 +245,26 @@ func artifactRelationships(
 // relationship. Only S3 artifacts name a concrete bucket; NO_ARTIFACTS and
 // CODEPIPELINE artifact types are skipped.
 func artifactRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	artifact ProjectArtifacts,
 	projectARN, projectID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	if !strings.EqualFold(strings.TrimSpace(artifact.Type), projectSourceTypeS3) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	location := strings.TrimSpace(artifact.Location)
 	if location == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	bucketARN := s3BucketARNFromLocation(boundary, location)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectArtifactsToS3,
+		RelationshipType: aws.RelationshipCodeBuildProjectArtifactsToS3,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"artifact_location":   location,
 			"artifact_identifier": strings.TrimSpace(artifact.ArtifactIdentifier),
@@ -280,11 +280,11 @@ func artifactRelationship(
 // is firstNonEmpty(ARN, name). PLAINTEXT variables name no resource and are
 // excluded here.
 func environmentReferenceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	project Project,
 	projectARN, projectID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, variable := range project.Environment.EnvironmentVariables {
 		reference := strings.TrimSpace(variable.Reference)
 		if reference == "" {
@@ -292,26 +292,26 @@ func environmentReferenceRelationships(
 		}
 		switch strings.ToUpper(strings.TrimSpace(variable.Type)) {
 		case environmentVariableTypeSecretsManager:
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodeBuildProjectReferencesSecret,
+				RelationshipType: aws.RelationshipCodeBuildProjectReferencesSecret,
 				SourceResourceID: projectID,
 				SourceARN:        projectARN,
 				TargetResourceID: reference,
 				TargetARN:        secretARNOrEmpty(reference),
-				TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
+				TargetType:       aws.ResourceTypeSecretsManagerSecret,
 				Attributes:       map[string]any{"environment_variable": strings.TrimSpace(variable.Name)},
 				SourceRecordID:   projectID + "#secret#" + reference,
 			})
 		case environmentVariableTypeParameterStore:
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodeBuildProjectReferencesSSMParameter,
+				RelationshipType: aws.RelationshipCodeBuildProjectReferencesSSMParameter,
 				SourceResourceID: projectID,
 				SourceARN:        projectARN,
 				TargetResourceID: reference,
 				TargetARN:        ssmParameterARNOrEmpty(reference),
-				TargetType:       awscloud.ResourceTypeSSMParameter,
+				TargetType:       aws.ResourceTypeSSMParameter,
 				Attributes:       map[string]any{"environment_variable": strings.TrimSpace(variable.Name)},
 				SourceRecordID:   projectID + "#ssm#" + reference,
 			})
@@ -327,7 +327,7 @@ func environmentReferenceRelationships(
 // is derived from the scan boundary's region; when it is already an S3 ARN, the
 // source ARN's partition is preserved. A hardcoded commercial partition would
 // dangle the project->S3 edge in GovCloud and China.
-func s3BucketARNFromLocation(boundary awscloud.Boundary, location string) string {
+func s3BucketARNFromLocation(boundary aws.Boundary, location string) string {
 	location = strings.TrimSpace(location)
 	if location == "" {
 		return ""
@@ -344,7 +344,7 @@ func s3BucketARNFromLocation(boundary awscloud.Boundary, location string) string
 	if bucket == "" {
 		return ""
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":s3:::" + bucket
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":s3:::" + bucket
 }
 
 // bucketARNFromObjectARN trims an S3 object ARN down to the bucket ARN so the

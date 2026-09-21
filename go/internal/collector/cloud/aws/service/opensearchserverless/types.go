@@ -37,7 +37,7 @@ type Snapshot struct {
 	EncryptionKeyBindings []EncryptionKeyBinding
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Collection is the scanner-owned OpenSearch Serverless collection model. It

@@ -11,20 +11,20 @@ import (
 )
 
 // apiHasStageRelationship records stage membership on a v2 API.
-func apiHasStageRelationship(boundary awscloud.Boundary, api API, stage Stage) (awscloud.RelationshipObservation, bool) {
+func apiHasStageRelationship(boundary aws.Boundary, api API, stage Stage) (aws.RelationshipObservation, bool) {
 	apiID := strings.TrimSpace(api.ID)
 	stageID := stageResourceID(stage.APIID, stage.Name)
 	if apiID == "" || strings.TrimSpace(stage.Name) == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayV2APIHasStage,
+		RelationshipType: aws.RelationshipAPIGatewayV2APIHasStage,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN(boundary.Region, apiID),
 		TargetResourceID: stageID,
 		TargetARN:        stageARN(boundary.Region, stage.APIID, stage.Name),
-		TargetType:       awscloud.ResourceTypeAPIGatewayStage,
+		TargetType:       aws.ResourceTypeAPIGatewayStage,
 		Attributes: map[string]any{
 			"stage_name": strings.TrimSpace(stage.Name),
 		},
@@ -38,7 +38,7 @@ func apiHasStageRelationship(boundary awscloud.Boundary, api API, stage Stage) (
 // publishes for the user pool node; targeting the full issuer URL or the
 // "cognito-idp.<region>.amazonaws.com/<poolId>" string would dangle, the same
 // defect fixed in the Cognito and AppSync scanners.
-func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.RelationshipObservation {
+func apiAuthRelationships(boundary aws.Boundary, api API) []aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	if apiID == "" {
 		return nil
@@ -46,7 +46,7 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 	apiARNValue := apiARN(boundary.Region, apiID)
 	seenPools := make(map[string]struct{})
 	seenIssuers := make(map[string]struct{})
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, authorizer := range api.Authorizers {
 		issuer := strings.TrimSpace(authorizer.JWTIssuer)
 		if issuer == "" {
@@ -57,13 +57,13 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 				continue
 			}
 			seenPools[poolID] = struct{}{}
-			relationships = append(relationships, awscloud.RelationshipObservation{
+			relationships = append(relationships, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAPIGatewayV2APIUsesUserPool,
+				RelationshipType: aws.RelationshipAPIGatewayV2APIUsesUserPool,
 				SourceResourceID: apiID,
 				SourceARN:        apiARNValue,
 				TargetResourceID: poolID,
-				TargetType:       awscloud.ResourceTypeCognitoUserPool,
+				TargetType:       aws.ResourceTypeCognitoUserPool,
 				Attributes: map[string]any{
 					"authorizer_id": strings.TrimSpace(authorizer.AuthorizerID),
 					"issuer":        issuer,
@@ -76,13 +76,13 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 			continue
 		}
 		seenIssuers[issuer] = struct{}{}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2APIUsesJWTIssuer,
+			RelationshipType: aws.RelationshipAPIGatewayV2APIUsesJWTIssuer,
 			SourceResourceID: apiID,
 			SourceARN:        apiARNValue,
 			TargetResourceID: issuer,
-			TargetType:       awscloud.APIGatewayV2JWTIssuerTargetType,
+			TargetType:       aws.APIGatewayV2JWTIssuerTargetType,
 			Attributes: map[string]any{
 				"authorizer_id": strings.TrimSpace(authorizer.AuthorizerID),
 			},
@@ -94,19 +94,19 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 
 // routeRelationships records the API-to-route edge and the route-to-integration
 // edge derived from the route target reference.
-func routeRelationships(boundary awscloud.Boundary, api API, route Route) []awscloud.RelationshipObservation {
+func routeRelationships(boundary aws.Boundary, api API, route Route) []aws.RelationshipObservation {
 	apiID := strings.TrimSpace(api.ID)
 	routeID := routeResourceID(route.APIID, route.RouteID)
 	if apiID == "" || strings.TrimSpace(route.RouteID) == "" {
 		return nil
 	}
-	relationships := []awscloud.RelationshipObservation{{
+	relationships := []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayV2APIHasRoute,
+		RelationshipType: aws.RelationshipAPIGatewayV2APIHasRoute,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN(boundary.Region, apiID),
 		TargetResourceID: routeID,
-		TargetType:       awscloud.ResourceTypeAPIGatewayV2Route,
+		TargetType:       aws.ResourceTypeAPIGatewayV2Route,
 		Attributes: map[string]any{
 			"route_key": strings.TrimSpace(route.RouteKey),
 		},
@@ -114,12 +114,12 @@ func routeRelationships(boundary awscloud.Boundary, api API, route Route) []awsc
 	}}
 	if integrationID := integrationTargetFromRoute(route.Target); integrationID != "" {
 		integrationRes := integrationResourceID(route.APIID, integrationID)
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2RouteUsesIntegration,
+			RelationshipType: aws.RelationshipAPIGatewayV2RouteUsesIntegration,
 			SourceResourceID: routeID,
 			TargetResourceID: integrationRes,
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2Integration,
+			TargetType:       aws.ResourceTypeAPIGatewayV2Integration,
 			Attributes: map[string]any{
 				"route_key":      strings.TrimSpace(route.RouteKey),
 				"integration_id": integrationID,
@@ -133,33 +133,33 @@ func routeRelationships(boundary awscloud.Boundary, api API, route Route) []awsc
 // integrationRelationships records the backing target an integration dispatches
 // to: a Lambda function (joined by function ARN), an external HTTP endpoint, or
 // a VPC link for private integrations.
-func integrationRelationships(boundary awscloud.Boundary, api API, integration Integration) []awscloud.RelationshipObservation {
+func integrationRelationships(boundary aws.Boundary, api API, integration Integration) []aws.RelationshipObservation {
 	integrationRes := integrationResourceID(integration.APIID, integration.IntegrationID)
 	if strings.TrimSpace(integration.IntegrationID) == "" {
 		return nil
 	}
 	_ = api
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if lambdaARN := lambdaARNFromIntegrationURI(integration.URI); lambdaARN != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationTargetsLambda,
+			RelationshipType: aws.RelationshipAPIGatewayV2IntegrationTargetsLambda,
 			SourceResourceID: integrationRes,
 			TargetResourceID: lambdaARN,
 			TargetARN:        lambdaARN,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       aws.ResourceTypeLambdaFunction,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
 			SourceRecordID: integrationRes + "#targets-lambda#" + lambdaARN,
 		})
 	} else if endpoint := httpEndpointFromIntegrationURI(integration.URI); endpoint != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationTargetsHTTP,
+			RelationshipType: aws.RelationshipAPIGatewayV2IntegrationTargetsHTTP,
 			SourceResourceID: integrationRes,
 			TargetResourceID: endpoint,
-			TargetType:       awscloud.APIGatewayV2HTTPEndpointTargetType,
+			TargetType:       aws.APIGatewayV2HTTPEndpointTargetType,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
@@ -168,12 +168,12 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 	}
 	if linkID := strings.TrimSpace(integration.ConnectionID); linkID != "" &&
 		strings.EqualFold(strings.TrimSpace(integration.ConnectionType), "VPC_LINK") {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationUsesVPCLink,
+			RelationshipType: aws.RelationshipAPIGatewayV2IntegrationUsesVPCLink,
 			SourceResourceID: integrationRes,
 			TargetResourceID: linkID,
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2VPCLink,
+			TargetType:       aws.ResourceTypeAPIGatewayV2VPCLink,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
@@ -185,29 +185,29 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 
 // vpcLinkRelationships records the subnets and security groups a VPC link spans,
 // joined by the bare subnet and group ids the EC2 scanner publishes.
-func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.RelationshipObservation {
+func vpcLinkRelationships(boundary aws.Boundary, link VPCLink) []aws.RelationshipObservation {
 	linkID := strings.TrimSpace(link.ID)
 	if linkID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, subnetID := range cloneStrings(link.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSubnet,
+			RelationshipType: aws.RelationshipAPIGatewayV2VPCLinkUsesSubnet,
 			SourceResourceID: linkID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   linkID + "#subnet#" + subnetID,
 		})
 	}
 	for _, groupID := range cloneStrings(link.SecurityGroupIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup,
+			RelationshipType: aws.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup,
 			SourceResourceID: linkID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   linkID + "#security-group#" + groupID,
 		})
 	}
@@ -216,24 +216,24 @@ func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.R
 
 // domainRelationships records the custom-domain ACM certificate dependencies and
 // the API mappings a custom domain routes to.
-func domainRelationships(boundary awscloud.Boundary, domain DomainName) []awscloud.RelationshipObservation {
+func domainRelationships(boundary aws.Boundary, domain DomainName) []aws.RelationshipObservation {
 	sourceID := domainResourceID(domain)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, certificateARN := range cloneStrings(domain.CertificateARNs) {
 		if !isARN(certificateARN) {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2DomainUsesACMCertificate,
+			RelationshipType: aws.RelationshipAPIGatewayV2DomainUsesACMCertificate,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: certificateARN,
 			TargetARN:        certificateARN,
-			TargetType:       awscloud.ResourceTypeACMCertificate,
+			TargetType:       aws.ResourceTypeACMCertificate,
 			Attributes: map[string]any{
 				"domain": strings.TrimSpace(domain.Name),
 			},
@@ -244,14 +244,14 @@ func domainRelationships(boundary awscloud.Boundary, domain DomainName) []awsclo
 		if group.apiID == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2DomainMapsToAPI,
+			RelationshipType: aws.RelationshipAPIGatewayV2DomainMapsToAPI,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: group.apiID,
 			TargetARN:        apiARN(boundary.Region, group.apiID),
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2API,
+			TargetType:       aws.ResourceTypeAPIGatewayV2API,
 			Attributes: map[string]any{
 				"mappings": group.attributes,
 			},

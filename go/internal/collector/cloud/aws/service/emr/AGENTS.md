@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/emr guidance
+# AGENTS.md - internal/collector/cloud/aws/service/emr guidance
 
 ## Read First
 
@@ -50,15 +50,15 @@
 
 - Add a new safe EMR metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when EMR directly reports both sides as
   identity.
-- Extend SDK pagination and mapping in the `awssdk` adapter, not here.
+- Extend SDK pagination and mapping in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 
 - Do not add any mutation, step-body, bootstrap-body, security-config
-  policy-body, or job-run reader to `Client`. The `awssdk` exclusion tests
+  policy-body, or job-run reader to `Client`. The `sdk` exclusion tests
   refuse to compile or fail if such a method name appears.
 - Do not fabricate cluster-to-VPC or application-to-VPC edges; the EMR cluster
   and Serverless APIs do not report a VPC id. The VPC join is derived from

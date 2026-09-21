@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/shield/runtimebind` registers the Shield
-Advanced scanner with the awsruntime registry from a package `init()`. Importing
+`internal/collector/cloud/aws/service/shield/bind` registers the Shield
+Advanced scanner with the runtime registry from a package `init()`. Importing
 this package for its blank side effect is the only way a runtime brings the
 Shield Advanced scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceShield` to the Shield Advanced scanner builder. It does not own
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceShield` to the Shield Advanced scanner builder. It does not own
 AWS API calls, Shield domain types, or fact emission. Those belong to
-`internal/collector/awscloud/service/shield` and its `awssdk` adapter.
+`internal/collector/cloud/aws/service/shield` and its `sdk` adapter.
 
 ## Exported surface
 
@@ -21,18 +21,18 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceShield` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceShield` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/shield` for the scanner struct.
-- `internal/collector/awscloud/service/shield/awssdk` for the SDK adapter
+- `internal/collector/cloud/aws/service/shield` for the scanner struct.
+- `internal/collector/cloud/aws/service/shield/sdk` for the SDK adapter
   constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Shield Advanced scanner and its
 SDK adapter emit the per-service counters and spans documented in `../README.md`
-and the awsruntime README.
+and the runtime README.
 
 ## Gotchas / invariants
 
@@ -43,12 +43,12 @@ and the awsruntime README.
   construction at init time. Builders construct clients per claim, using the
   runtime-provided `ScannerDeps`.
 - The matching blank import lives in
-  `internal/collector/awscloud/awsruntime/bindings/bindings.go`. The derived
+  `internal/collector/cloud/aws/runtime/bindings/bindings.go`. The derived
   supported-service guard fails if this directory exists without that import.
 
 ## Related docs
 
 - `../README.md` for the Shield Advanced scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/rolesanywhere guidance
+# AGENTS.md - internal/collector/cloud/aws/service/rolesanywhere guidance
 
 ## Read First
 
@@ -33,7 +33,7 @@
 - Never synthesize an ARN. Forward reported ARNs verbatim so GovCloud and China
   partitions are preserved and never rewritten to a literal `arn:aws:`.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from trust anchor, profile,
@@ -44,14 +44,14 @@
 
 - Add a new Roles Anywhere metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry certificate material, a
+  `aws` envelope builders. If the field can carry certificate material, a
   CRL body, a policy document, or credentials, leave it out of the contract or
   record only a boolean presence flag.
 - Add new relationship evidence only when the Roles Anywhere API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for IAM roles and ACM PCA certificate
   authorities, the trust-anchor ARN for the parent trust anchor).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

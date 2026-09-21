@@ -92,7 +92,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeDynamoDBTable)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeDynamoDBTable)
 	if got, want := resource.Payload["arn"], tableARN; got != want {
 		t.Fatalf("table arn = %#v, want %q", got, want)
 	}
@@ -148,7 +148,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipDynamoDBTableUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipDynamoDBTableUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -172,7 +172,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipDynamoDBTableUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipDynamoDBTableUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -183,7 +183,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -198,9 +198,9 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 			Name:   "orders",
 			Status: "ACTIVE",
 		}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "DynamoDB DescribeTimeToLive throttled after SDK retries; TTL metadata omitted for this scan",
 			SourceRecordID: "dynamodb_ttl_throttled",
@@ -215,21 +215,21 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeDynamoDBTable)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeDynamoDBTable)
 	if got := resource.Payload["state"]; got != "ACTIVE" {
 		t.Fatalf("table state = %#v, want ACTIVE", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDynamoDB,
+		ServiceKind:         aws.ServiceDynamoDB,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:dynamodb:1",
 		CollectorInstanceID: "aws-prod",

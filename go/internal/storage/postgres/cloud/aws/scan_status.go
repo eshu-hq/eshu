@@ -245,7 +245,7 @@ func (s AWSScanStatusStore) EnsureSchema(ctx context.Context) error {
 }
 
 // StartAWSScan records a running AWS claim before credentials or API calls.
-func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.ScanStatusStart) error {
+func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start aws.ScanStatusStart) error {
 	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
@@ -266,8 +266,8 @@ func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.Sca
 		start.Boundary.ScopeID,
 		start.Boundary.GenerationID,
 		start.Boundary.FencingToken,
-		awscloud.ScanStatusRunning,
-		awscloud.ScanCommitPending,
+		aws.ScanStatusRunning,
+		aws.ScanCommitPending,
 		startedAt,
 	)
 	if err != nil {
@@ -277,7 +277,7 @@ func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.Sca
 }
 
 // ObserveAWSScan records scanner-side completion evidence for a claim.
-func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awscloud.ScanStatusObservation) error {
+func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation aws.ScanStatusObservation) error {
 	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
@@ -299,7 +299,7 @@ func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awsc
 		observation.Boundary.FencingToken,
 		strings.TrimSpace(observation.Status),
 		strings.TrimSpace(observation.FailureClass),
-		awscloud.SanitizeScanStatusMessage(observation.FailureMessage),
+		aws.SanitizeScanStatusMessage(observation.FailureMessage),
 		observation.APICallCount,
 		observation.ThrottleCount,
 		observation.WarningCount,
@@ -317,7 +317,7 @@ func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awsc
 }
 
 // CommitAWSScan records the durable fact-commit outcome for a claim.
-func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.ScanStatusCommit) error {
+func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit aws.ScanStatusCommit) error {
 	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
@@ -339,7 +339,7 @@ func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.S
 		commit.Boundary.FencingToken,
 		strings.TrimSpace(commit.CommitStatus),
 		strings.TrimSpace(commit.FailureClass),
-		awscloud.SanitizeScanStatusMessage(commit.FailureMessage),
+		aws.SanitizeScanStatusMessage(commit.FailureMessage),
 		completedAt,
 	)
 	if err != nil {
@@ -348,7 +348,7 @@ func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.S
 	return validateAWSScanStatusMutation(result)
 }
 
-func validateAWSScanBoundary(boundary awscloud.Boundary) error {
+func validateAWSScanBoundary(boundary aws.Boundary) error {
 	switch {
 	case strings.TrimSpace(boundary.CollectorInstanceID) == "":
 		return fmt.Errorf("aws scan status requires collector_instance_id")
@@ -373,7 +373,7 @@ func validateAWSScanStatusMutation(result sql.Result) error {
 		return fmt.Errorf("read AWS scan status mutation result: %w", err)
 	}
 	if rowsAffected == 0 {
-		return awscloud.ErrScanStatusStaleFence
+		return aws.ErrScanStatusStaleFence
 	}
 	return nil
 }

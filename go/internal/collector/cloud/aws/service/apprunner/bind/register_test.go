@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -16,13 +16,13 @@ import (
 // TestAppRunnerRuntimeBindRegisters confirms importing the binding installs the
 // App Runner scanner builder and that the builder needs no redaction key.
 func TestAppRunnerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAppRunner)
+	build, ok := runtime.LookupBuilder(aws.ServiceAppRunner)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAppRunner)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceAppRunner)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppRunner},
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary:  aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAppRunner},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -30,7 +30,7 @@ func TestAppRunnerRuntimeBindRegisters(t *testing.T) {
 	if scanner == nil {
 		t.Fatalf("build() returned nil scanner")
 	}
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceAppRunner) {
+	if runtime.ServiceRequiresRedactionKey(aws.ServiceAppRunner) {
 		t.Fatalf("App Runner must not require a redaction key; environment values are dropped, not redacted")
 	}
 }

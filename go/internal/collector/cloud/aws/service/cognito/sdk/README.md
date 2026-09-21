@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cognito/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/cognito/sdk` adapts AWS SDK for Go v2
 Cognito responses to the scanner-owned `cognito.Client` contract. It owns
 Cognito user-pool and identity-pool API pagination, describe calls, response
 mapping, throttle classification, and per-call telemetry across both the
@@ -16,7 +16,7 @@ reducer admission, or query behavior.
 
 ```mermaid
 flowchart LR
-  A["awsruntime.DefaultScannerFactory"] --> B["Client"]
+  A["runtime.DefaultScannerFactory"] --> B["Client"]
   B --> C["ListUserPools / DescribeUserPool"]
   B --> D["ListUserPoolClients / DescribeUserPoolClient"]
   B --> E["ListIdentityProviders"]
@@ -41,8 +41,8 @@ See `doc.go` for the godoc contract.
 
 - AWS SDK for Go v2 `service/cognitoidentityprovider` and
   `service/cognitoidentity`.
-- `internal/collector/awscloud` for claim boundary labels and API-call recording.
-- `internal/collector/awscloud/service/cognito` for scanner-owned target types.
+- `internal/collector/cloud/aws` for claim boundary labels and API-call recording.
+- `internal/collector/cloud/aws/service/cognito` for scanner-owned target types.
 - `internal/telemetry` for AWS API counters, throttle counters, and pagination
   spans.
 

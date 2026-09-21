@@ -14,4 +14,4 @@
 // GetWorkUnitResults, StartQueryPlanning). It drops every permission condition
 // (LF-Tag) expression, LF-Tag value, and AdditionalDetails payload so only grant
 // identities, principal identifiers, and resource ARNs leave the adapter.
-package awssdk
+package sdk

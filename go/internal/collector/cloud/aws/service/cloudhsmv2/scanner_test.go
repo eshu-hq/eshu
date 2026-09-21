@@ -76,7 +76,7 @@ func TestScannerEmitsCloudHSMMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Cluster resource node keyed by the bare cluster id (no API ARN).
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeCloudHSMV2Cluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeCloudHSMV2Cluster)
 	if got, want := cluster.Payload["resource_id"], testClusterID; got != want {
 		t.Fatalf("cluster resource_id = %#v, want %q", got, want)
 	}
@@ -93,7 +93,7 @@ func TestScannerEmitsCloudHSMMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, clusterAttrs, "cluster_csr_present", false)
 
 	// Backup resource node keyed by the bare backup id, ARN carried separately.
-	backup := resourceByType(t, envelopes, awscloud.ResourceTypeCloudHSMV2Backup)
+	backup := resourceByType(t, envelopes, aws.ResourceTypeCloudHSMV2Backup)
 	if got, want := backup.Payload["resource_id"], testBackupID; got != want {
 		t.Fatalf("backup resource_id = %#v, want %q", got, want)
 	}
@@ -104,18 +104,18 @@ func TestScannerEmitsCloudHSMMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, backupAttrs, "never_expires", true)
 
 	// cluster -> VPC edge keyed by the bare vpc id.
-	clusterVPC := relationshipByType(t, envelopes, awscloud.RelationshipCloudHSMV2ClusterInVPC)
-	assertEdgeTarget(t, clusterVPC, awscloud.ResourceTypeEC2VPC, testVPCID)
+	clusterVPC := relationshipByType(t, envelopes, aws.RelationshipCloudHSMV2ClusterInVPC)
+	assertEdgeTarget(t, clusterVPC, aws.ResourceTypeEC2VPC, testVPCID)
 	if got, want := clusterVPC.Payload["source_resource_id"], testClusterID; got != want {
 		t.Fatalf("cluster->vpc source_resource_id = %#v, want %q", got, want)
 	}
 
 	// cluster -> security group edge keyed by the bare sg id.
-	clusterSG := relationshipByType(t, envelopes, awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup)
-	assertEdgeTarget(t, clusterSG, awscloud.ResourceTypeEC2SecurityGroup, testGroupID)
+	clusterSG := relationshipByType(t, envelopes, aws.RelationshipCloudHSMV2ClusterUsesSecurityGroup)
+	assertEdgeTarget(t, clusterSG, aws.ResourceTypeEC2SecurityGroup, testGroupID)
 
 	// cluster -> subnet edges: one per distinct subnet id.
-	subnetTargets := relationshipTargets(envelopes, awscloud.RelationshipCloudHSMV2ClusterInSubnet)
+	subnetTargets := relationshipTargets(envelopes, aws.RelationshipCloudHSMV2ClusterInSubnet)
 	if len(subnetTargets) != 2 {
 		t.Fatalf("subnet edge count = %d, want 2 (%v)", len(subnetTargets), subnetTargets)
 	}
@@ -127,8 +127,8 @@ func TestScannerEmitsCloudHSMMetadataAndRelationships(t *testing.T) {
 	}
 
 	// backup -> source cluster edge keyed by the bare cluster id this scanner publishes.
-	backupCluster := relationshipByType(t, envelopes, awscloud.RelationshipCloudHSMV2BackupOfCluster)
-	assertEdgeTarget(t, backupCluster, awscloud.ResourceTypeCloudHSMV2Cluster, testClusterID)
+	backupCluster := relationshipByType(t, envelopes, aws.RelationshipCloudHSMV2BackupOfCluster)
+	assertEdgeTarget(t, backupCluster, aws.ResourceTypeCloudHSMV2Cluster, testClusterID)
 	if got, want := backupCluster.Payload["source_resource_id"], testBackupID; got != want {
 		t.Fatalf("backup->cluster source_resource_id = %#v, want %q", got, want)
 	}
@@ -164,7 +164,7 @@ func TestScannerDeduplicatesSubnetEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	targets := relationshipTargets(envelopes, awscloud.RelationshipCloudHSMV2ClusterInSubnet)
+	targets := relationshipTargets(envelopes, aws.RelationshipCloudHSMV2ClusterInSubnet)
 	if len(targets) != 1 {
 		t.Fatalf("subnet edge count = %d, want 1 deduplicated edge (%v)", len(targets), targets)
 	}
@@ -199,7 +199,7 @@ func TestScannerOmitsBackupClusterEdgeWhenClusterUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resourceByType(t, envelopes, awscloud.ResourceTypeCloudHSMV2Backup)
+	resourceByType(t, envelopes, aws.ResourceTypeCloudHSMV2Backup)
 	for _, envelope := range envelopes {
 		if envelope.FactKind == facts.AWSRelationshipFactKind {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
@@ -227,8 +227,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	}
 	backup := Backup{ID: testBackupID, ARN: testBackupARN, ClusterID: testClusterID}
 
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		clusterVPCRelationship(boundary, cluster),
 		clusterSecurityGroupRelationship(boundary, cluster),
 		backupClusterRelationship(boundary, backup),
@@ -247,7 +247,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -258,9 +258,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Clusters: []Cluster{{ID: testClusterID}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "CloudHSM DescribeBackups throttled after SDK retries; backup metadata omitted for this scan",
 			SourceRecordID: "cloudhsmv2_backups_throttled",
@@ -271,17 +271,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCloudHSMV2,
+		ServiceKind:         aws.ServiceCloudHSMV2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cloudhsmv2:1",
 		CollectorInstanceID: "aws-prod",

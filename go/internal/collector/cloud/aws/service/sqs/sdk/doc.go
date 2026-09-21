@@ -7,4 +7,4 @@
 // The adapter only calls ListQueues, GetQueueAttributes with an explicit safe
 // metadata allowlist, and ListQueueTags. It must not call ReceiveMessage and
 // must not request or persist the queue Policy attribute.
-package awssdk
+package sdk

@@ -28,15 +28,15 @@ type Scanner struct {
 // trigger destinations through the configured client. It returns one
 // aws_resource fact per repository plus aws_relationship facts for the
 // repository-to-KMS-key and repository-to-SNS-topic edges CodeCommit reports.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codecommit scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeCommit:
+	case "", aws.ServiceCodeCommit:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeCommit
+		boundary.ServiceKind = aws.ServiceCodeCommit
 	default:
 		return nil, fmt.Errorf("codecommit scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,22 +58,22 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // repositoryEnvelopes builds the repository resource fact plus its KMS-key and
 // SNS-topic relationship facts.
-func repositoryEnvelopes(boundary awscloud.Boundary, repository Repository) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(repositoryObservation(boundary, repository))
+func repositoryEnvelopes(boundary aws.Boundary, repository Repository) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(repositoryObservation(boundary, repository))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	if relationship := kmsKeyRelationship(boundary, repository); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, relationship := range triggerRelationships(boundary, repository) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -87,16 +87,16 @@ func repositoryEnvelopes(boundary awscloud.Boundary, repository Repository) ([]f
 // paths, or userinfo a clone URL string could carry never persist as
 // attributes, while the full clone URLs are published as correlation anchors so
 // CI Git-source edges keyed by clone URL join this repository.
-func repositoryObservation(boundary awscloud.Boundary, repository Repository) awscloud.ResourceObservation {
+func repositoryObservation(boundary aws.Boundary, repository Repository) aws.ResourceObservation {
 	repositoryARN := strings.TrimSpace(repository.ARN)
 	repositoryName := strings.TrimSpace(repository.Name)
 	cloneURLHTTP := strings.TrimSpace(repository.CloneURLHTTP)
 	cloneURLSSH := strings.TrimSpace(repository.CloneURLSSH)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   firstNonEmpty(repositoryARN, repositoryName),
-		ResourceType: awscloud.ResourceTypeCodeCommitRepository,
+		ResourceType: aws.ResourceTypeCodeCommitRepository,
 		Name:         repositoryName,
 		Tags:         cloneStringMap(repository.Tags),
 		Attributes: map[string]any{

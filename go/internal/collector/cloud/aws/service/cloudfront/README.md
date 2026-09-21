@@ -15,7 +15,7 @@ workload, environment, repository, or deployable-unit truth.
 
 ```mermaid
 flowchart LR
-    Runtime[awsruntime target] --> Scanner[cloudfront.Scanner]
+    Runtime[runtime target] --> Scanner[cloudfront.Scanner]
     Scanner --> Client[CloudFront client port]
     Scanner --> Facts[AWS resource and relationship facts]
 ```
@@ -38,7 +38,7 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, service constants, and
+- `internal/collector/cloud/aws` for boundaries, service constants, and
   resource and relationship observation contracts.
 - `internal/facts` for the fact envelope returned by `Scanner`.
 

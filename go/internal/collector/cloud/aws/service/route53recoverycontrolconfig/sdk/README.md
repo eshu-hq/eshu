@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53recoverycontrolconfig/awssdk`
+`internal/collector/cloud/aws/service/route53recoverycontrolconfig/sdk`
 adapts AWS SDK for Go v2 Route 53 Application Recovery Controller
 recovery-control configuration responses to the scanner-owned `Client` contract.
 It owns cluster pagination, per-cluster control-panel pagination, per-panel
@@ -40,9 +40,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/route53recoverycontrolconfig` for
+- `internal/collector/cloud/aws/service/route53recoverycontrolconfig` for
   scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `route53recoverycontrolconfig` and Smithy error contracts.

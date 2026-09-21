@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "licensemanager".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceLicenseManager + "  "
+	boundary.ServiceKind = "  " + aws.ServiceLicenseManager + "  "
 	client := fakeClient{snapshot: Snapshot{Configurations: []Configuration{{
 		ARN:  testConfigARN,
 		ID:   testConfigID,
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceLicenseManager; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceLicenseManager; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

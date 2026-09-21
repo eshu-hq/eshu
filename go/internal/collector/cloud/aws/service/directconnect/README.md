@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/directconnect` owns the Direct Connect
+`internal/collector/cloud/aws/service/directconnect` owns the Direct Connect
 scanner contract for the AWS cloud collector. It converts connection, virtual
 interface, Direct Connect gateway, and link aggregation group (LAG) metadata
 into `aws_resource` facts and emits `aws_relationship` facts for the
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
-(`eshu_dp_aws_resources_emitted_total{service="directconnect"}`). The `awssdk`
+(`eshu_dp_aws_resources_emitted_total{service="directconnect"}`). The `sdk`
 adapter records Direct Connect API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -81,7 +81,7 @@ adapter records Direct Connect API call counts, throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/directconnect/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/directconnect/... -count=1 -race`
 covers the bounded Direct Connect metadata path: one NextToken loop each over
 `DescribeConnections`, `DescribeLags`, `DescribeDirectConnectGateways`,
 `DescribeVirtualInterfaces`, and `DescribeDirectConnectGatewayAssociations`; no
@@ -90,7 +90,7 @@ Cardinality is bounded by the connection, virtual interface, gateway, LAG, and
 association counts Direct Connect returns for the claimed account and region.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers Direct Connect resource and relationship emission, the
 `aws_direct_connect_gateway` join key that closes the transit-gateway edge,
 gateway-to-transit-gateway and gateway-to-virtual-private-gateway association

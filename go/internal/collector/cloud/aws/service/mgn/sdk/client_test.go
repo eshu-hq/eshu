@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmgn "github.com/aws/aws-sdk-go-v2/service/mgn"
 	awsmgntypes "github.com/aws/aws-sdk-go-v2/service/mgn/types"
 	"github.com/aws/smithy-go"
@@ -32,10 +32,10 @@ func TestClientSnapshotsMGNMetadataOnly(t *testing.T) {
 	api := &fakeMGNAPI{
 		applicationPages: []*awsmgn.ListApplicationsOutput{{
 			Items: []awsmgntypes.Application{{
-				Arn:           aws.String(appARN),
-				ApplicationID: aws.String(appID),
-				Name:          aws.String("payments"),
-				WaveID:        aws.String("wave-1"),
+				Arn:           awsv2.String(appARN),
+				ApplicationID: awsv2.String(appID),
+				Name:          awsv2.String("payments"),
+				WaveID:        awsv2.String("wave-1"),
 				ApplicationAggregatedStatus: &awsmgntypes.ApplicationAggregatedStatus{
 					HealthStatus:       awsmgntypes.ApplicationHealthStatusHealthy,
 					ProgressStatus:     awsmgntypes.ApplicationProgressStatusInProgress,
@@ -45,50 +45,50 @@ func TestClientSnapshotsMGNMetadataOnly(t *testing.T) {
 		}},
 		serverPages: []*awsmgn.DescribeSourceServersOutput{
 			{
-				NextToken: aws.String(nextToken),
+				NextToken: awsv2.String(nextToken),
 				Items: []awsmgntypes.SourceServer{{
-					Arn:            aws.String(serverARN),
-					SourceServerID: aws.String(serverID),
-					ApplicationID:  aws.String(appID),
+					Arn:            awsv2.String(serverARN),
+					SourceServerID: awsv2.String(serverID),
+					ApplicationID:  awsv2.String(appID),
 					LifeCycle:      &awsmgntypes.LifeCycle{State: awsmgntypes.LifeCycleStateReadyForCutover},
 					DataReplicationInfo: &awsmgntypes.DataReplicationInfo{
 						DataReplicationState: awsmgntypes.DataReplicationStateContinuous,
 						// A replicator id is present on the wire but must never be mapped.
-						ReplicatorId: aws.String("i-secretreplicator"),
+						ReplicatorId: awsv2.String("i-secretreplicator"),
 					},
-					LaunchedInstance: &awsmgntypes.LaunchedInstance{Ec2InstanceID: aws.String(instanceID)},
+					LaunchedInstance: &awsmgntypes.LaunchedInstance{Ec2InstanceID: awsv2.String(instanceID)},
 					SourceProperties: &awsmgntypes.SourceProperties{
-						RecommendedInstanceType: aws.String("m5.large"),
-						Os:                      &awsmgntypes.OS{FullString: aws.String("Ubuntu 22.04")},
-						IdentificationHints:     &awsmgntypes.IdentificationHints{Hostname: aws.String("web01")},
+						RecommendedInstanceType: awsv2.String("m5.large"),
+						Os:                      &awsmgntypes.OS{FullString: awsv2.String("Ubuntu 22.04")},
+						IdentificationHints:     &awsmgntypes.IdentificationHints{Hostname: awsv2.String("web01")},
 					},
 				}},
 			},
 			{
 				Items: []awsmgntypes.SourceServer{{
-					Arn:            aws.String("arn:aws:mgn:us-east-1:123456789012:source-server/s-2"),
-					SourceServerID: aws.String(serverIDTwo),
+					Arn:            awsv2.String("arn:aws:mgn:us-east-1:123456789012:source-server/s-2"),
+					SourceServerID: awsv2.String(serverIDTwo),
 				}},
 			},
 		},
 		launchConfigs: map[string]*awsmgn.GetLaunchConfigurationOutput{
 			serverID: {
-				Name:                aws.String("web01-launch"),
+				Name:                awsv2.String("web01-launch"),
 				LaunchDisposition:   awsmgntypes.LaunchDispositionStarted,
 				BootMode:            awsmgntypes.BootModeLegacyBios,
-				Ec2LaunchTemplateID: aws.String(templateID),
-				CopyTags:            aws.Bool(true),
+				Ec2LaunchTemplateID: awsv2.String(templateID),
+				CopyTags:            awsv2.Bool(true),
 			},
 			// serverIDTwo has no launch configuration: a not-found error.
 		},
 		jobPages: []*awsmgn.DescribeJobsOutput{{
 			Items: []awsmgntypes.Job{{
-				Arn:                  aws.String(jobARN),
-				JobID:                aws.String(jobID),
+				Arn:                  awsv2.String(jobARN),
+				JobID:                awsv2.String(jobID),
 				Type:                 awsmgntypes.JobTypeLaunch,
 				Status:               awsmgntypes.JobStatusCompleted,
 				InitiatedBy:          awsmgntypes.InitiatedByStartCutover,
-				ParticipatingServers: []awsmgntypes.ParticipatingServer{{SourceServerID: aws.String(serverID)}},
+				ParticipatingServers: []awsmgntypes.ParticipatingServer{{SourceServerID: awsv2.String(serverID)}},
 			}},
 		}},
 	}
@@ -180,7 +180,7 @@ func (f *fakeMGNAPI) GetLaunchConfiguration(
 	input *awsmgn.GetLaunchConfigurationInput,
 	_ ...func(*awsmgn.Options),
 ) (*awsmgn.GetLaunchConfigurationOutput, error) {
-	output, ok := f.launchConfigs[aws.ToString(input.SourceServerID)]
+	output, ok := f.launchConfigs[awsv2.ToString(input.SourceServerID)]
 	if !ok {
 		return nil, &smithy.GenericAPIError{Code: "ResourceNotFoundException", Message: "no launch configuration"}
 	}
@@ -200,10 +200,10 @@ func (f *fakeMGNAPI) DescribeJobs(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceMGN,
+		ServiceKind: aws.ServiceMGN,
 	}
 }

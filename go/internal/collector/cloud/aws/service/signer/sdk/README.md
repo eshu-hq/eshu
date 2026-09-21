@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/signer/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/signer/sdk` adapts AWS SDK for Go v2
 Signer responses to the scanner-owned `Client` contract. It owns signing-profile
 pagination, per-profile metadata enrichment (image format), signing-platform
 pagination, throttle classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/signer` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/signer` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `signer` and Smithy error contracts.
 

@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes CodeGuru Reviewer repository associations and CodeGuru Profiler
 // profiling groups plus the CodeCommit repository edge through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codeguru scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeGuru:
+	case "", aws.ServiceCodeGuru:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeGuru
+		boundary.ServiceKind = aws.ServiceCodeGuru
 	default:
 		return nil, fmt.Errorf("codeguru scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -55,7 +55,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, group := range snapshot.ProfilingGroups {
-		resource, err := awscloud.NewResourceEnvelope(profilingGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(profilingGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -64,9 +64,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -76,16 +76,16 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 }
 
 func associationEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association RepositoryAssociation,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(associationObservation(boundary, association))
+	resource, err := aws.NewResourceEnvelope(associationObservation(boundary, association))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := associationCodeCommitRelationship(boundary, association); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -95,17 +95,17 @@ func associationEnvelopes(
 }
 
 func associationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association RepositoryAssociation,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(association.ARN)
 	name := strings.TrimSpace(association.Name)
 	resourceID := associationResourceID(association)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeGuruRepositoryAssociation,
+		ResourceType: aws.ResourceTypeCodeGuruRepositoryAssociation,
 		Name:         name,
 		State:        strings.TrimSpace(association.State),
 		Tags:         cloneStringMap(association.Tags),
@@ -126,17 +126,17 @@ func associationObservation(
 }
 
 func profilingGroupObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ProfilingGroup,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	arn := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := profilingGroupResourceID(group)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeGuruProfilingGroup,
+		ResourceType: aws.ResourceTypeCodeGuruProfilingGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

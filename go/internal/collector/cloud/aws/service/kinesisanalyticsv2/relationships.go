@@ -15,37 +15,37 @@ import (
 // execution IAM role, and CloudWatch logging log groups. Each helper keys the
 // target by the exact resource_id the target scanner publishes so no edge
 // dangles. Duplicate targets are emitted once.
-func applicationRelationships(boundary awscloud.Boundary, application Application) []awscloud.RelationshipObservation {
+func applicationRelationships(boundary aws.Boundary, application Application) []aws.RelationshipObservation {
 	sourceID := applicationResourceID(application)
 	if sourceID == "" {
 		return nil
 	}
 	sourceARN := strings.TrimSpace(application.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.InputKinesisStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream,
+		aws.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
+		aws.ResourceTypeKinesisDataStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.OutputKinesisStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationWritesToKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream,
+		aws.RelationshipManagedFlinkApplicationWritesToKinesisStream,
+		aws.ResourceTypeKinesisDataStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.InputFirehoseStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream,
+		aws.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
+		aws.ResourceTypeFirehoseDeliveryStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.OutputFirehoseStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream,
+		aws.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
+		aws.ResourceTypeFirehoseDeliveryStream,
 	)
 
 	if edge, ok := codeBucketRelationship(boundary, sourceID, sourceARN, application); ok {
@@ -63,12 +63,12 @@ func applicationRelationships(boundary awscloud.Boundary, application Applicatio
 // data stream / delivery stream ARN, which is the resource_id the kinesis and
 // firehose scanners publish, so the edge keys the stream node by its ARN.
 func appendStreamEdges(
-	observations []awscloud.RelationshipObservation,
-	boundary awscloud.Boundary,
+	observations []aws.RelationshipObservation,
+	boundary aws.Boundary,
 	sourceID, sourceARN string,
 	streamARNs []string,
 	relationshipType, targetType string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	seen := make(map[string]struct{}, len(streamARNs))
 	for _, streamARN := range streamARNs {
 		streamARN = strings.TrimSpace(streamARN)
@@ -83,7 +83,7 @@ func appendStreamEdges(
 		if isARN(streamARN) {
 			targetARN = streamARN
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: relationshipType,
 			SourceResourceID: sourceID,
@@ -102,13 +102,13 @@ func appendStreamEdges(
 // the edge keys the bucket node by its ARN. Only the bucket identity and object
 // key are recorded; the application code body is never read.
 func codeBucketRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID, sourceARN string,
 	application Application,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	bucketARN := strings.TrimSpace(application.CodeS3BucketARN)
 	if bucketARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	targetARN := ""
 	if isARN(bucketARN) {
@@ -121,16 +121,16 @@ func codeBucketRelationship(
 	if len(attributes) == 0 {
 		attributes = nil
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
+		RelationshipType: aws.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipManagedFlinkApplicationUsesS3CodeBucket + ":" + bucketARN,
 	}, true
 }
 
@@ -139,11 +139,11 @@ func codeBucketRelationship(
 // bare AWS id, so the edges key those nodes by the bare subnet-…/sg-… id. Each
 // distinct id is emitted once across all VPC configurations.
 func networkRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID, sourceARN string,
 	application Application,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	seenSubnets := make(map[string]struct{})
 	seenGroups := make(map[string]struct{})
 	for _, config := range application.VPCConfigurations {
@@ -157,13 +157,13 @@ func networkRelationships(
 				continue
 			}
 			seenSubnets[subnetID] = struct{}{}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesSubnet,
+				RelationshipType: aws.RelationshipManagedFlinkApplicationUsesSubnet,
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: subnetID,
-				TargetType:       awscloud.ResourceTypeEC2Subnet,
+				TargetType:       aws.ResourceTypeEC2Subnet,
 				Attributes:       vpcAttribute(vpcID),
 				SourceRecordID:   sourceID + "#subnet#" + subnetID,
 			})
@@ -177,13 +177,13 @@ func networkRelationships(
 				continue
 			}
 			seenGroups[groupID] = struct{}{}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup,
+				RelationshipType: aws.RelationshipManagedFlinkApplicationUsesSecurityGroup,
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: groupID,
-				TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+				TargetType:       aws.ResourceTypeEC2SecurityGroup,
 				Attributes:       vpcAttribute(vpcID),
 				SourceRecordID:   sourceID + "#security-group#" + groupID,
 			})
@@ -196,22 +196,22 @@ func networkRelationships(
 // reports the role ARN, which is the resource_id the IAM scanner publishes for
 // its roles, so the edge keys the role node by its ARN.
 func iamRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID, sourceARN string,
 	application Application,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(application.ServiceExecutionRoleARN)
 	if roleARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,
+		RelationshipType: aws.RelationshipManagedFlinkApplicationUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "#role#" + roleARN,
 	}, true
 }
@@ -221,11 +221,11 @@ func iamRoleRelationship(
 // client maps each to the non-wildcard log group ARN the cloudwatchlogs scanner
 // publishes as its log group resource_id, so the edge keys that node by its ARN.
 func appendLogGroupEdges(
-	observations []awscloud.RelationshipObservation,
-	boundary awscloud.Boundary,
+	observations []aws.RelationshipObservation,
+	boundary aws.Boundary,
 	sourceID, sourceARN string,
 	logGroupARNs []string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	seen := make(map[string]struct{}, len(logGroupARNs))
 	for _, logGroupARN := range logGroupARNs {
 		logGroupARN = strings.TrimSpace(logGroupARN)
@@ -240,14 +240,14 @@ func appendLogGroupEdges(
 		if isARN(logGroupARN) {
 			targetARN = logGroupARN
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
+			RelationshipType: aws.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
 			SourceRecordID:   sourceID + "#log-group#" + logGroupARN,
 		})
 	}

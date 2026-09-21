@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslambda "github.com/aws/aws-sdk-go-v2/service/lambda"
 	awslambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/smithy-go"
@@ -31,15 +31,15 @@ type apiClient interface {
 // Client adapts AWS SDK Lambda pagination into scanner-owned Lambda records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Lambda SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -71,7 +71,7 @@ func (c *Client) ListFunctions(ctx context.Context) ([]lambdaservice.Function, e
 	}
 	functions := make([]lambdaservice.Function, 0, len(listed))
 	for _, configuration := range listed {
-		functionName := firstNonEmpty(aws.ToString(configuration.FunctionArn), aws.ToString(configuration.FunctionName))
+		functionName := firstNonEmpty(awsv2.ToString(configuration.FunctionArn), awsv2.ToString(configuration.FunctionName))
 		if functionName == "" {
 			continue
 		}
@@ -79,7 +79,7 @@ func (c *Client) ListFunctions(ctx context.Context) ([]lambdaservice.Function, e
 		err := c.recordAPICall(ctx, "GetFunction", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.GetFunction(callCtx, &awslambda.GetFunctionInput{
-				FunctionName: aws.String(functionName),
+				FunctionName: awsv2.String(functionName),
 			})
 			return err
 		})
@@ -107,7 +107,7 @@ func (c *Client) ListAliases(
 		return nil, nil
 	}
 	paginator := awslambda.NewListAliasesPaginator(c.client, &awslambda.ListAliasesInput{
-		FunctionName: aws.String(functionIdentifier),
+		FunctionName: awsv2.String(functionIdentifier),
 	})
 	var aliases []lambdaservice.Alias
 	for paginator.HasMorePages() {
@@ -139,7 +139,7 @@ func (c *Client) ListEventSourceMappings(
 	}
 	paginator := awslambda.NewListEventSourceMappingsPaginator(
 		c.client,
-		&awslambda.ListEventSourceMappingsInput{FunctionName: aws.String(functionIdentifier)},
+		&awslambda.ListEventSourceMappingsInput{FunctionName: awsv2.String(functionIdentifier)},
 	)
 	var mappings []lambdaservice.EventSourceMapping
 	for paginator.HasMorePages() {
@@ -172,25 +172,25 @@ func mapFunction(output *awslambda.GetFunctionOutput) lambdaservice.Function {
 		code = &awslambdatypes.FunctionCodeLocation{}
 	}
 	return lambdaservice.Function{
-		ARN:              aws.ToString(configuration.FunctionArn),
-		Name:             aws.ToString(configuration.FunctionName),
+		ARN:              awsv2.ToString(configuration.FunctionArn),
+		Name:             awsv2.ToString(configuration.FunctionName),
 		Runtime:          string(configuration.Runtime),
-		RoleARN:          aws.ToString(configuration.Role),
-		Handler:          aws.ToString(configuration.Handler),
-		Description:      aws.ToString(configuration.Description),
+		RoleARN:          awsv2.ToString(configuration.Role),
+		Handler:          awsv2.ToString(configuration.Handler),
+		Description:      awsv2.ToString(configuration.Description),
 		State:            string(configuration.State),
 		LastUpdateStatus: string(configuration.LastUpdateStatus),
 		PackageType:      string(configuration.PackageType),
-		Version:          aws.ToString(configuration.Version),
-		CodeSHA256:       aws.ToString(configuration.CodeSha256),
+		Version:          awsv2.ToString(configuration.Version),
+		CodeSHA256:       awsv2.ToString(configuration.CodeSha256),
 		CodeSize:         configuration.CodeSize,
-		ImageURI:         aws.ToString(code.ImageUri),
-		ResolvedImageURI: aws.ToString(code.ResolvedImageUri),
-		KMSKeyARN:        aws.ToString(configuration.KMSKeyArn),
-		SourceKMSKeyARN:  aws.ToString(code.SourceKMSKeyArn),
-		MemorySize:       aws.ToInt32(configuration.MemorySize),
-		TimeoutSeconds:   aws.ToInt32(configuration.Timeout),
-		LastModified:     parseLambdaTime(aws.ToString(configuration.LastModified)),
+		ImageURI:         awsv2.ToString(code.ImageUri),
+		ResolvedImageURI: awsv2.ToString(code.ResolvedImageUri),
+		KMSKeyARN:        awsv2.ToString(configuration.KMSKeyArn),
+		SourceKMSKeyARN:  awsv2.ToString(code.SourceKMSKeyArn),
+		MemorySize:       awsv2.ToInt32(configuration.MemorySize),
+		TimeoutSeconds:   awsv2.ToInt32(configuration.Timeout),
+		LastModified:     parseLambdaTime(awsv2.ToString(configuration.LastModified)),
 		Architectures:    architectureStrings(configuration.Architectures),
 		Environment:      environmentVariables(configuration.Environment),
 		VPCConfig:        mapVPCConfig(configuration.VpcConfig),
@@ -201,28 +201,28 @@ func mapFunction(output *awslambda.GetFunctionOutput) lambdaservice.Function {
 
 func mapAlias(functionARN string, alias awslambdatypes.AliasConfiguration) lambdaservice.Alias {
 	return lambdaservice.Alias{
-		ARN:             aws.ToString(alias.AliasArn),
-		Name:            aws.ToString(alias.Name),
+		ARN:             awsv2.ToString(alias.AliasArn),
+		Name:            awsv2.ToString(alias.Name),
 		FunctionARN:     strings.TrimSpace(functionARN),
-		FunctionVersion: aws.ToString(alias.FunctionVersion),
-		Description:     aws.ToString(alias.Description),
-		RevisionID:      aws.ToString(alias.RevisionId),
+		FunctionVersion: awsv2.ToString(alias.FunctionVersion),
+		Description:     awsv2.ToString(alias.Description),
+		RevisionID:      awsv2.ToString(alias.RevisionId),
 		RoutingWeights:  routingWeights(alias.RoutingConfig),
 	}
 }
 
 func mapEventSourceMapping(mapping awslambdatypes.EventSourceMappingConfiguration) lambdaservice.EventSourceMapping {
 	return lambdaservice.EventSourceMapping{
-		ARN:                   aws.ToString(mapping.EventSourceMappingArn),
-		UUID:                  aws.ToString(mapping.UUID),
-		FunctionARN:           aws.ToString(mapping.FunctionArn),
-		EventSourceARN:        aws.ToString(mapping.EventSourceArn),
-		State:                 aws.ToString(mapping.State),
-		LastProcessingResult:  aws.ToString(mapping.LastProcessingResult),
+		ARN:                   awsv2.ToString(mapping.EventSourceMappingArn),
+		UUID:                  awsv2.ToString(mapping.UUID),
+		FunctionARN:           awsv2.ToString(mapping.FunctionArn),
+		EventSourceARN:        awsv2.ToString(mapping.EventSourceArn),
+		State:                 awsv2.ToString(mapping.State),
+		LastProcessingResult:  awsv2.ToString(mapping.LastProcessingResult),
 		StartingPosition:      string(mapping.StartingPosition),
-		BatchSize:             aws.ToInt32(mapping.BatchSize),
-		MaximumRetryAttempts:  aws.ToInt32(mapping.MaximumRetryAttempts),
-		ParallelizationFactor: aws.ToInt32(mapping.ParallelizationFactor),
+		BatchSize:             awsv2.ToInt32(mapping.BatchSize),
+		MaximumRetryAttempts:  awsv2.ToInt32(mapping.MaximumRetryAttempts),
+		ParallelizationFactor: awsv2.ToInt32(mapping.ParallelizationFactor),
 	}
 }
 
@@ -238,10 +238,10 @@ func mapVPCConfig(config *awslambdatypes.VpcConfigResponse) lambdaservice.VPCCon
 		return lambdaservice.VPCConfig{}
 	}
 	return lambdaservice.VPCConfig{
-		VPCID:            aws.ToString(config.VpcId),
+		VPCID:            awsv2.ToString(config.VpcId),
 		SubnetIDs:        cloneStrings(config.SubnetIds),
 		SecurityGroupIDs: cloneStrings(config.SecurityGroupIds),
-		IPv6AllowedForDS: aws.ToBool(config.Ipv6AllowedForDualStack),
+		IPv6AllowedForDS: awsv2.ToBool(config.Ipv6AllowedForDualStack),
 	}
 }
 
@@ -250,7 +250,7 @@ func mapLoggingConfig(config *awslambdatypes.LoggingConfig) lambdaservice.Loggin
 		return lambdaservice.LoggingConfig{}
 	}
 	return lambdaservice.LoggingConfig{
-		LogGroup:            aws.ToString(config.LogGroup),
+		LogGroup:            awsv2.ToString(config.LogGroup),
 		LogFormat:           string(config.LogFormat),
 		ApplicationLogLevel: string(config.ApplicationLogLevel),
 		SystemLogLevel:      string(config.SystemLogLevel),
@@ -352,7 +352,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codepipeline guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codepipeline guidance
 
 ## Read First
 
@@ -34,11 +34,11 @@
 
 - Add a new CodePipeline metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add a new build/deploy/invoke target by extending the provider classifier and
-  the non-secret identifier-key allowlist in the `awssdk` adapter, plus the
+  the non-secret identifier-key allowlist in the `sdk` adapter, plus the
   target switch in `relationships.go`. Never add a key that can carry a secret.
-- Extend SDK pagination and mapping in the `awssdk` adapter, not here.
+- Extend SDK pagination and mapping in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

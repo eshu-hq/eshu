@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscfn "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/smithy-go"
@@ -49,15 +49,15 @@ type apiClient interface {
 // body, stack policy, or drift property document.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CloudFormation SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -136,7 +136,7 @@ func (c *Client) listDeletedStacks(ctx context.Context) ([]cfnservice.Stack, err
 // resource property body is read.
 func (c *Client) ListStackResources(ctx context.Context, stackID string) ([]cfnservice.StackResource, error) {
 	paginator := awscfn.NewListStackResourcesPaginator(c.client, &awscfn.ListStackResourcesInput{
-		StackName: aws.String(stackID),
+		StackName: awsv2.String(stackID),
 	})
 	var resources []cfnservice.StackResource
 	for paginator.HasMorePages() {
@@ -185,12 +185,12 @@ func (c *Client) ListStackSets(ctx context.Context) ([]cfnservice.StackSet, erro
 }
 
 func (c *Client) describeStackSet(ctx context.Context, summary cfntypes.StackSetSummary) (cfnservice.StackSet, error) {
-	name := strings.TrimSpace(aws.ToString(summary.StackSetName))
+	name := strings.TrimSpace(awsv2.ToString(summary.StackSetName))
 	var output *awscfn.DescribeStackSetOutput
 	err := c.recordAPICall(ctx, "DescribeStackSet", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeStackSet(callCtx, &awscfn.DescribeStackSetInput{
-			StackSetName: aws.String(name),
+			StackSetName: awsv2.String(name),
 		})
 		return err
 	})
@@ -205,7 +205,7 @@ func (c *Client) describeStackSet(ctx context.Context, summary cfntypes.StackSet
 // body is never read.
 func (c *Client) ListChangeSets(ctx context.Context, stackID string) ([]cfnservice.ChangeSet, error) {
 	paginator := awscfn.NewListChangeSetsPaginator(c.client, &awscfn.ListChangeSetsInput{
-		StackName: aws.String(stackID),
+		StackName: awsv2.String(stackID),
 	})
 	var changeSets []cfnservice.ChangeSet
 	for paginator.HasMorePages() {
@@ -232,7 +232,7 @@ func (c *Client) ListChangeSets(ctx context.Context, stackID string) ([]cfnservi
 // discarded during mapping.
 func (c *Client) ListStackResourceDrifts(ctx context.Context, stackID string) (cfnservice.StackDriftResult, error) {
 	paginator := awscfn.NewDescribeStackResourceDriftsPaginator(c.client, &awscfn.DescribeStackResourceDriftsInput{
-		StackName: aws.String(stackID),
+		StackName: awsv2.String(stackID),
 	})
 	result := cfnservice.StackDriftResult{StackID: strings.TrimSpace(stackID)}
 	for paginator.HasMorePages() {
@@ -255,7 +255,7 @@ func (c *Client) ListStackResourceDrifts(ctx context.Context, stackID string) (c
 // ListStackInstances returns stack-instance metadata for one stack set.
 func (c *Client) ListStackInstances(ctx context.Context, stackSetName string) ([]cfnservice.StackInstance, error) {
 	paginator := awscfn.NewListStackInstancesPaginator(c.client, &awscfn.ListStackInstancesInput{
-		StackSetName: aws.String(stackSetName),
+		StackSetName: awsv2.String(stackSetName),
 	})
 	var instances []cfnservice.StackInstance
 	for paginator.HasMorePages() {
@@ -316,7 +316,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

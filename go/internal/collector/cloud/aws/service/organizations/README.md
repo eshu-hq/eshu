@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/organizations` owns the AWS
+`internal/collector/cloud/aws/service/organizations` owns the AWS
 Organizations scanner contract for the AWS cloud collector. It converts
 organization root, OU, account, policy summary, policy target, and delegated
 administrator metadata into `aws_resource`, `aws_relationship`, and
@@ -32,7 +32,7 @@ See `doc.go` for the godoc contract.
 - `Client` - minimal Organizations metadata read surface consumed by
   `Scanner`.
 - `Scanner` - emits Organizations metadata facts and redacts account email/name
-  values through `awscloud.RedactString`.
+  values through `aws.RedactString`.
 - `Snapshot` - one metadata-only Organizations view for a claimed account.
 - `Organization`, `Root`, `OrganizationalUnit`, `Account`, `Policy`,
   `PolicyTarget`, and `DelegatedAdministrator` - scanner-owned representations
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, warning constants, redaction helper, and envelope
   builders.
 - `internal/facts` for emitted fact envelope kinds.
@@ -51,9 +51,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration, emitted resource counts, relationship counts, and
-Organizations org-aware skip counts after `Scanner.Scan` returns. The `awssdk`
+Organizations org-aware skip counts after `Scanner.Scan` returns. The `sdk`
 adapter records Organizations API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -80,7 +80,7 @@ adapter records Organizations API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Performance Evidence: `go test ./internal/collector/awscloud/service/organizations/... -count=1`
+Performance Evidence: `go test ./internal/collector/cloud/aws/service/organizations/... -count=1`
 passed on 2026-05-27 after rebasing onto `origin/main` commit `73a9fa27`.
 The fixture input is one in-memory Organizations snapshot with one root, nested
 OU/account placement, policy summaries and target bindings, delegated
@@ -89,7 +89,7 @@ rows and no graph backend. The scanner emits in-memory fact envelopes only, so
 there is no added graph write, worker claim fanout, lease contention, or reducer
 queue pressure in this package.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Organizations metadata fact emission, policy body redaction, account
 email/name redaction, org-aware skipped warning behavior, runtime registration,
 command configuration, and the SDK adapter's safe metadata mapping.

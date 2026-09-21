@@ -27,7 +27,7 @@ type Snapshot struct {
 	Domains []Domain
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Domain is the scanner-owned Amazon DataZone domain model. It carries

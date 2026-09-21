@@ -81,7 +81,7 @@ func resourceTypeAndID(resource string) (resourceType, id string) {
 // ARN-keyed; bare-id and prefixed-id targets carry the published id form and
 // leave ARN=false so the relationship is not falsely marked ARN-keyed.
 type memberTarget struct {
-	// Type is a declared awscloud.ResourceType* value (or an allowlisted
+	// Type is a declared aws.ResourceType* value (or an allowlisted
 	// forward-reference target_type) naming the member's resource family.
 	Type string
 	// ResourceID is the identity the target family's scanner publishes for this
@@ -117,76 +117,76 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 	switch fields.Service {
 	case "s3":
 		// arn:p:s3:::bucket-name. The s3 scanner keys the bucket by its ARN.
-		return arnTarget(awscloud.ResourceTypeS3Bucket, arn), true
+		return arnTarget(aws.ResourceTypeS3Bucket, arn), true
 	case "lambda":
 		// arn:p:lambda:region:acct:function:name. The lambda scanner keys the
 		// function by its ARN.
 		if resourceType == "function" {
-			return arnTarget(awscloud.ResourceTypeLambdaFunction, arn), true
+			return arnTarget(aws.ResourceTypeLambdaFunction, arn), true
 		}
 	case "dynamodb":
 		if resourceType == "table" {
-			return arnTarget(awscloud.ResourceTypeDynamoDBTable, arn), true
+			return arnTarget(aws.ResourceTypeDynamoDBTable, arn), true
 		}
 	case "sqs":
 		// SQS queue ARNs have no resource-type token; the resource segment is the
 		// queue name. The sqs scanner keys the queue by its ARN.
-		return arnTarget(awscloud.ResourceTypeSQSQueue, arn), true
+		return arnTarget(aws.ResourceTypeSQSQueue, arn), true
 	case "sns":
 		// SNS topic ARNs have no resource-type token; the resource segment is the
 		// topic name. The sns scanner keys the topic by its ARN.
-		return arnTarget(awscloud.ResourceTypeSNSTopic, arn), true
+		return arnTarget(aws.ResourceTypeSNSTopic, arn), true
 	case "kinesis":
 		if resourceType == "stream" {
-			return arnTarget(awscloud.ResourceTypeKinesisDataStream, arn), true
+			return arnTarget(aws.ResourceTypeKinesisDataStream, arn), true
 		}
 	case "rds":
 		switch resourceType {
 		case "cluster":
-			return arnTarget(awscloud.ResourceTypeRDSDBCluster, arn), true
+			return arnTarget(aws.ResourceTypeRDSDBCluster, arn), true
 		case "db":
-			return arnTarget(awscloud.ResourceTypeRDSDBInstance, arn), true
+			return arnTarget(aws.ResourceTypeRDSDBInstance, arn), true
 		}
 	case "ecs":
 		switch resourceType {
 		case "cluster":
-			return arnTarget(awscloud.ResourceTypeECSCluster, arn), true
+			return arnTarget(aws.ResourceTypeECSCluster, arn), true
 		case "service":
-			return arnTarget(awscloud.ResourceTypeECSService, arn), true
+			return arnTarget(aws.ResourceTypeECSService, arn), true
 		case "task":
-			return arnTarget(awscloud.ResourceTypeECSTask, arn), true
+			return arnTarget(aws.ResourceTypeECSTask, arn), true
 		}
 	case "eks":
 		if resourceType == "cluster" {
-			return arnTarget(awscloud.ResourceTypeEKSCluster, arn), true
+			return arnTarget(aws.ResourceTypeEKSCluster, arn), true
 		}
 	case "elasticloadbalancing":
 		// arn:p:elasticloadbalancing:region:acct:loadbalancer/app/name/id. The
 		// elbv2 scanner keys the load balancer by its ARN.
 		if resourceType == "loadbalancer" {
-			return arnTarget(awscloud.ResourceTypeELBv2LoadBalancer, arn), true
+			return arnTarget(aws.ResourceTypeELBv2LoadBalancer, arn), true
 		}
 	case "secretsmanager":
 		if resourceType == "secret" {
-			return arnTarget(awscloud.ResourceTypeSecretsManagerSecret, arn), true
+			return arnTarget(aws.ResourceTypeSecretsManagerSecret, arn), true
 		}
 	case "cloudformation":
 		// arn:p:cloudformation:region:acct:stack/name/guid. The cloudformation
 		// scanner keys the stack by its StackId, which is this ARN.
 		if resourceType == "stack" {
-			return arnTarget(awscloud.ResourceTypeCloudFormationStack, arn), true
+			return arnTarget(aws.ResourceTypeCloudFormationStack, arn), true
 		}
 	case "kms":
 		// arn:p:kms:region:acct:key/<key-id>. The kms scanner keys the key by its
 		// bare key id, NOT the ARN, so this target is not ARN-keyed.
 		if resourceType == "key" && id != "" {
-			return bareTarget(awscloud.ResourceTypeKMSKey, id), true
+			return bareTarget(aws.ResourceTypeKMSKey, id), true
 		}
 	case "route53":
 		// arn:p:route53:::hostedzone/<id>. The route53 scanner keys the hosted
 		// zone by the "/hostedzone/<id>" prefixed id, so reconstruct that form.
 		if resourceType == "hostedzone" && id != "" {
-			return bareTarget(awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/"+id), true
+			return bareTarget(aws.ResourceTypeRoute53HostedZone, "/hostedzone/"+id), true
 		}
 	case "ec2":
 		return classifyEC2Member(resourceType, id)
@@ -210,17 +210,17 @@ func classifyEC2Member(resourceType, id string) (memberTarget, bool) {
 		// bare instance id (see relguard.KnownTargetTypeAllowlist).
 		return bareTarget("aws_ec2_instance", id), true
 	case "vpc":
-		return bareTarget(awscloud.ResourceTypeEC2VPC, id), true
+		return bareTarget(aws.ResourceTypeEC2VPC, id), true
 	case "subnet":
-		return bareTarget(awscloud.ResourceTypeEC2Subnet, id), true
+		return bareTarget(aws.ResourceTypeEC2Subnet, id), true
 	case "security-group":
-		return bareTarget(awscloud.ResourceTypeEC2SecurityGroup, id), true
+		return bareTarget(aws.ResourceTypeEC2SecurityGroup, id), true
 	case "network-interface":
-		return bareTarget(awscloud.ResourceTypeEC2NetworkInterface, id), true
+		return bareTarget(aws.ResourceTypeEC2NetworkInterface, id), true
 	case "launch-template":
-		return bareTarget(awscloud.ResourceTypeEC2LaunchTemplate, id), true
+		return bareTarget(aws.ResourceTypeEC2LaunchTemplate, id), true
 	case "elastic-ip":
-		return bareTarget(awscloud.ResourceTypeVPCElasticIP, id), true
+		return bareTarget(aws.ResourceTypeVPCElasticIP, id), true
 	default:
 		return memberTarget{}, false
 	}

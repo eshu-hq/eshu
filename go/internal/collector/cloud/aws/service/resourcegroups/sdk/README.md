@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/resourcegroups/awssdk` adapts the AWS SDK
+`internal/collector/cloud/aws/service/resourcegroups/sdk` adapts the AWS SDK
 for Go v2 Resource Groups client into the metadata-only `Client` interface the
 scanner consumes. It paginates `ListGroups`, enriches each group with its query
 type via `GetGroupQuery`, and lists members via `ListGroupResources`.
@@ -21,8 +21,8 @@ the membership classifier, STS credentials, fact persistence, or graph writes.
 ## Dependencies
 
 - `github.com/aws/aws-sdk-go-v2/service/resourcegroups` and its `types` package.
-- `internal/collector/awscloud` for the boundary and API-call recorder.
-- `internal/collector/awscloud/service/resourcegroups` for the scanner-owned
+- `internal/collector/cloud/aws` for the boundary and API-call recorder.
+- `internal/collector/cloud/aws/service/resourcegroups` for the scanner-owned
   domain types and `Client` interface.
 - `internal/telemetry` for spans and instruments.
 
@@ -51,6 +51,6 @@ bounded labels (service, account, region, operation, result).
 ## Related docs
 
 - `../README.md` for the Resource Groups scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

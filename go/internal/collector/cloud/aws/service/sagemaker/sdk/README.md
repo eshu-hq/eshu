@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sagemaker/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/sagemaker/sdk` adapts AWS SDK for Go v2
 SageMaker control-plane responses to the scanner-owned `sagemaker.Client`
 contract. It owns SageMaker `List*` pagination, the bounded `Describe*` reads
 that resolve required relationships, `ListTags` reads, throttle classification,
@@ -39,9 +39,9 @@ inference or mutation method ever appears on it.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/sagemaker` for scanner-owned result
+- `internal/collector/cloud/aws/service/sagemaker` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `sagemaker` and Smithy error contracts. The adapter never

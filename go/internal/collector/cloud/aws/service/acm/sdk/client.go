@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsacm "github.com/aws/aws-sdk-go-v2/service/acm"
 	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
 	"go.opentelemetry.io/otel/trace"
@@ -34,15 +34,15 @@ type apiClient interface {
 // ExportCertificate.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an ACM SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -93,11 +93,11 @@ func (c *Client) listCertificateARNs(ctx context.Context) ([]string, error) {
 			return arns, nil
 		}
 		for _, summary := range page.CertificateSummaryList {
-			if arn := strings.TrimSpace(aws.ToString(summary.CertificateArn)); arn != "" {
+			if arn := strings.TrimSpace(awsv2.ToString(summary.CertificateArn)); arn != "" {
 				arns = append(arns, arn)
 			}
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return arns, nil
 		}
 		nextToken = page.NextToken
@@ -121,7 +121,7 @@ func (c *Client) describeCertificate(ctx context.Context, arn string) (*acmtypes
 	err := c.recordAPICall(ctx, "DescribeCertificate", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeCertificate(callCtx, &awsacm.DescribeCertificateInput{
-			CertificateArn: aws.String(arn),
+			CertificateArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -139,7 +139,7 @@ func (c *Client) listCertificateTags(ctx context.Context, arn string) ([]acmtype
 	err := c.recordAPICall(ctx, "ListTagsForCertificate", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForCertificate(callCtx, &awsacm.ListTagsForCertificateInput{
-			CertificateArn: aws.String(arn),
+			CertificateArn: awsv2.String(arn),
 		})
 		return err
 	})
@@ -160,11 +160,11 @@ func mapCertificate(arn string, detail *acmtypes.CertificateDetail, tags []acmty
 	if detail == nil {
 		return certificate
 	}
-	certificate.DomainName = strings.TrimSpace(aws.ToString(detail.DomainName))
+	certificate.DomainName = strings.TrimSpace(awsv2.ToString(detail.DomainName))
 	certificate.SubjectAlternativeNames = cloneStrings(detail.SubjectAlternativeNames)
 	certificate.Status = string(detail.Status)
 	certificate.Type = string(detail.Type)
-	certificate.Issuer = strings.TrimSpace(aws.ToString(detail.Issuer))
+	certificate.Issuer = strings.TrimSpace(awsv2.ToString(detail.Issuer))
 	if detail.NotBefore != nil {
 		certificate.NotBefore = detail.NotBefore.UTC()
 	}
@@ -172,7 +172,7 @@ func mapCertificate(arn string, detail *acmtypes.CertificateDetail, tags []acmty
 		certificate.NotAfter = detail.NotAfter.UTC()
 	}
 	certificate.KeyAlgorithm = string(detail.KeyAlgorithm)
-	certificate.SignatureAlgorithm = strings.TrimSpace(aws.ToString(detail.SignatureAlgorithm))
+	certificate.SignatureAlgorithm = strings.TrimSpace(awsv2.ToString(detail.SignatureAlgorithm))
 	certificate.InUseBy = cloneStrings(detail.InUseBy)
 	return certificate
 }
@@ -183,11 +183,11 @@ func tagsToMap(tags []acmtypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil

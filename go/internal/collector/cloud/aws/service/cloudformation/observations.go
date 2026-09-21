@@ -11,16 +11,16 @@ import (
 )
 
 // resourceTypeIAMRole is the relationship target type CloudFormation emits for
-// stack IAM service-role references, matching the shared awscloud convention.
+// stack IAM service-role references, matching the shared aws convention.
 const resourceTypeIAMRole = "aws_iam_role"
 
-func stackObservation(boundary awscloud.Boundary, stack Stack, redactionKey redact.Key) awscloud.ResourceObservation {
+func stackObservation(boundary aws.Boundary, stack Stack, redactionKey redact.Key) aws.ResourceObservation {
 	stackID := strings.TrimSpace(stack.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          stackID,
 		ResourceID:   firstNonEmpty(stackID, stack.Name),
-		ResourceType: awscloud.ResourceTypeCloudFormationStack,
+		ResourceType: aws.ResourceTypeCloudFormationStack,
 		Name:         strings.TrimSpace(stack.Name),
 		State:        strings.TrimSpace(stack.Status),
 		Tags:         cloneStringMap(stack.Tags),
@@ -66,7 +66,7 @@ func stackOutputs(outputs []StackOutput, redactionKey redact.Key) []map[string]a
 			"export_name": strings.TrimSpace(output.ExportName),
 			"description": strings.TrimSpace(output.Description),
 		}
-		if redacted, marker := awscloud.ClassifyStackOutput(key, output.Value, redactionKey); redacted {
+		if redacted, marker := aws.ClassifyStackOutput(key, output.Value, redactionKey); redacted {
 			entry["redacted"] = marker
 		} else {
 			entry["value"] = output.Value
@@ -76,13 +76,13 @@ func stackOutputs(outputs []StackOutput, redactionKey redact.Key) []map[string]a
 	return out
 }
 
-func stackSetObservation(boundary awscloud.Boundary, stackSet StackSet) awscloud.ResourceObservation {
+func stackSetObservation(boundary aws.Boundary, stackSet StackSet) aws.ResourceObservation {
 	stackSetARN := strings.TrimSpace(stackSet.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          stackSetARN,
 		ResourceID:   firstNonEmpty(stackSetARN, stackSet.ID, stackSet.Name),
-		ResourceType: awscloud.ResourceTypeCloudFormationStackSet,
+		ResourceType: aws.ResourceTypeCloudFormationStackSet,
 		Name:         strings.TrimSpace(stackSet.Name),
 		State:        strings.TrimSpace(stackSet.Status),
 		Tags:         cloneStringMap(stackSet.Tags),
@@ -105,16 +105,16 @@ func stackSetObservation(boundary awscloud.Boundary, stackSet StackSet) awscloud
 }
 
 func stackInstanceObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stackSet StackSet,
 	instance StackInstance,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	resourceID := stackInstanceResourceID(stackSet, instance)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(instance.StackID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCloudFormationStackInstance,
+		ResourceType: aws.ResourceTypeCloudFormationStackInstance,
 		Name:         resourceID,
 		State:        strings.TrimSpace(instance.Status),
 		Attributes: map[string]any{
@@ -132,13 +132,13 @@ func stackInstanceObservation(
 	}
 }
 
-func changeSetObservation(boundary awscloud.Boundary, changeSet ChangeSet) awscloud.ResourceObservation {
+func changeSetObservation(boundary aws.Boundary, changeSet ChangeSet) aws.ResourceObservation {
 	changeSetID := strings.TrimSpace(changeSet.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          changeSetID,
 		ResourceID:   firstNonEmpty(changeSetID, changeSet.Name),
-		ResourceType: awscloud.ResourceTypeCloudFormationChangeSet,
+		ResourceType: aws.ResourceTypeCloudFormationChangeSet,
 		Name:         strings.TrimSpace(changeSet.Name),
 		State:        strings.TrimSpace(changeSet.Status),
 		Attributes: map[string]any{
@@ -157,16 +157,16 @@ func changeSetObservation(boundary awscloud.Boundary, changeSet ChangeSet) awscl
 }
 
 func driftObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stack Stack,
 	drift StackDriftResult,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	stackID := firstNonEmpty(stack.ID, drift.StackID)
 	driftID := stackID + "#drift"
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   driftID,
-		ResourceType: awscloud.ResourceTypeCloudFormationStackDrift,
+		ResourceType: aws.ResourceTypeCloudFormationStackDrift,
 		Name:         strings.TrimSpace(stack.Name) + " drift",
 		State:        strings.TrimSpace(stack.DriftStatus),
 		Attributes: map[string]any{
@@ -184,13 +184,13 @@ func driftObservation(
 	}
 }
 
-func typeObservation(boundary awscloud.Boundary, registeredType RegisteredType) awscloud.ResourceObservation {
+func typeObservation(boundary aws.Boundary, registeredType RegisteredType) aws.ResourceObservation {
 	typeARN := strings.TrimSpace(registeredType.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          typeARN,
 		ResourceID:   firstNonEmpty(typeARN, registeredType.TypeName),
-		ResourceType: awscloud.ResourceTypeCloudFormationType,
+		ResourceType: aws.ResourceTypeCloudFormationType,
 		Name:         strings.TrimSpace(registeredType.TypeName),
 		Attributes: map[string]any{
 			"type_name":          strings.TrimSpace(registeredType.TypeName),
@@ -206,17 +206,17 @@ func typeObservation(boundary awscloud.Boundary, registeredType RegisteredType) 
 	}
 }
 
-func stackRelationships(boundary awscloud.Boundary, stack Stack) []awscloud.RelationshipObservation {
+func stackRelationships(boundary aws.Boundary, stack Stack) []aws.RelationshipObservation {
 	stackID := strings.TrimSpace(stack.ID)
 	sourceID := firstNonEmpty(stackID, stack.Name)
 	if sourceID == "" {
 		return nil
 	}
-	var out []awscloud.RelationshipObservation
+	var out []aws.RelationshipObservation
 	if role := strings.TrimSpace(stack.RoleARN); role != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudFormationStackUsesIAMRole,
+			RelationshipType: aws.RelationshipCloudFormationStackUsesIAMRole,
 			SourceResourceID: sourceID,
 			SourceARN:        stackID,
 			TargetResourceID: role,
@@ -226,13 +226,13 @@ func stackRelationships(boundary awscloud.Boundary, stack Stack) []awscloud.Rela
 		})
 	}
 	if templateURL := strings.TrimSpace(stack.TemplateURL); templateURL != "" {
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudFormationStackUsesS3TemplateURL,
+			RelationshipType: aws.RelationshipCloudFormationStackUsesS3TemplateURL,
 			SourceResourceID: sourceID,
 			SourceARN:        stackID,
 			TargetResourceID: templateURL,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       aws.ResourceTypeS3Bucket,
 			SourceRecordID:   sourceID + "->template:" + templateURL,
 		})
 	}
@@ -240,16 +240,16 @@ func stackRelationships(boundary awscloud.Boundary, stack Stack) []awscloud.Rela
 }
 
 func stackResourceTypeRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stack Stack,
 	resources []StackResource,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	stackID := strings.TrimSpace(stack.ID)
 	sourceID := firstNonEmpty(stackID, stack.Name)
 	if sourceID == "" {
 		return nil
 	}
-	var out []awscloud.RelationshipObservation
+	var out []aws.RelationshipObservation
 	for _, resource := range resources {
 		resourceType := strings.TrimSpace(resource.ResourceType)
 		if resourceType == "" {
@@ -257,9 +257,9 @@ func stackResourceTypeRelationships(
 		}
 		physical := strings.TrimSpace(resource.PhysicalID)
 		target := firstNonEmpty(physical, strings.TrimSpace(resource.LogicalID))
-		out = append(out, awscloud.RelationshipObservation{
+		out = append(out, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudFormationStackUsesResourceType,
+			RelationshipType: aws.RelationshipCloudFormationStackUsesResourceType,
 			SourceResourceID: sourceID,
 			SourceARN:        stackID,
 			TargetResourceID: firstNonEmpty(target, resourceType),
@@ -277,23 +277,23 @@ func stackResourceTypeRelationships(
 }
 
 func stackSetInstanceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	stackSet StackSet,
 	instance StackInstance,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	stackSetID := firstNonEmpty(stackSet.ARN, stackSet.ID, stackSet.Name)
 	resourceID := stackInstanceResourceID(stackSet, instance)
 	if stackSetID == "" || resourceID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudFormationStackSetContainsStackInstance,
+		RelationshipType: aws.RelationshipCloudFormationStackSetContainsStackInstance,
 		SourceResourceID: stackSetID,
 		SourceARN:        strings.TrimSpace(stackSet.ARN),
 		TargetResourceID: resourceID,
 		TargetARN:        strings.TrimSpace(instance.StackID),
-		TargetType:       awscloud.ResourceTypeCloudFormationStackInstance,
+		TargetType:       aws.ResourceTypeCloudFormationStackInstance,
 		Attributes: map[string]any{
 			"account": strings.TrimSpace(instance.Account),
 			"region":  strings.TrimSpace(instance.Region),

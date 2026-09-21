@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscfn "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 
@@ -87,24 +87,24 @@ func TestClientListStacksDropsParameterValuesAndNeverReadsTemplate(t *testing.T)
 	api := &fakeCFNAPI{
 		describeStacksPages: []*awscfn.DescribeStacksOutput{{
 			Stacks: []cfntypes.Stack{{
-				StackId:      aws.String(stackID),
-				StackName:    aws.String("prod"),
+				StackId:      awsv2.String(stackID),
+				StackName:    awsv2.String("prod"),
 				StackStatus:  cfntypes.StackStatusCreateComplete,
-				CreationTime: aws.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
-				RoleARN:      aws.String("arn:aws:iam::123456789012:role/cfn"),
+				CreationTime: awsv2.Time(time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)),
+				RoleARN:      awsv2.String("arn:aws:iam::123456789012:role/cfn"),
 				Capabilities: []cfntypes.Capability{cfntypes.CapabilityCapabilityNamedIam},
 				DriftInformation: &cfntypes.StackDriftInformation{
 					StackDriftStatus: cfntypes.StackDriftStatusInSync,
 				},
 				Parameters: []cfntypes.Parameter{
-					{ParameterKey: aws.String("DBPassword"), ParameterValue: aws.String("super-secret-value")},
-					{ParameterKey: aws.String("InstanceType"), ParameterValue: aws.String("m5.large")},
+					{ParameterKey: awsv2.String("DBPassword"), ParameterValue: awsv2.String("super-secret-value")},
+					{ParameterKey: awsv2.String("InstanceType"), ParameterValue: awsv2.String("m5.large")},
 				},
 				Outputs: []cfntypes.Output{
-					{OutputKey: aws.String("ServiceEndpoint"), OutputValue: aws.String("https://api.example.com")},
-					{OutputKey: aws.String("DatabasePassword"), OutputValue: aws.String("hunter2-leaked")},
+					{OutputKey: awsv2.String("ServiceEndpoint"), OutputValue: awsv2.String("https://api.example.com")},
+					{OutputKey: awsv2.String("DatabasePassword"), OutputValue: awsv2.String("hunter2-leaked")},
 				},
-				Tags: []cfntypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+				Tags: []cfntypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 			}},
 		}},
 	}
@@ -154,23 +154,23 @@ func TestClientListStackSetsNeverCarriesTemplateBody(t *testing.T) {
 	api := &fakeCFNAPI{
 		listStackSetsPages: []*awscfn.ListStackSetsOutput{{
 			Summaries: []cfntypes.StackSetSummary{{
-				StackSetId:   aws.String("ss-1"),
-				StackSetName: aws.String("baseline"),
+				StackSetId:   awsv2.String("ss-1"),
+				StackSetName: awsv2.String("baseline"),
 				Status:       cfntypes.StackSetStatusActive,
 			}},
 		}},
 		describeStackSet: map[string]*awscfn.DescribeStackSetOutput{
 			"baseline": {
 				StackSet: &cfntypes.StackSet{
-					StackSetId:            aws.String("ss-1"),
-					StackSetName:          aws.String("baseline"),
-					StackSetARN:           aws.String("arn:aws:cloudformation:us-east-1:123456789012:stackset/baseline:ss-1"),
+					StackSetId:            awsv2.String("ss-1"),
+					StackSetName:          awsv2.String("baseline"),
+					StackSetARN:           awsv2.String("arn:aws:cloudformation:us-east-1:123456789012:stackset/baseline:ss-1"),
 					Status:                cfntypes.StackSetStatusActive,
 					PermissionModel:       cfntypes.PermissionModelsServiceManaged,
-					AdministrationRoleARN: aws.String("arn:aws:iam::123456789012:role/admin"),
-					TemplateBody:          aws.String(`{"Resources":{"Secret":{"Type":"AWS::SecretsManager::Secret"}}}`),
+					AdministrationRoleARN: awsv2.String("arn:aws:iam::123456789012:role/admin"),
+					TemplateBody:          awsv2.String(`{"Resources":{"Secret":{"Type":"AWS::SecretsManager::Secret"}}}`),
 					Parameters: []cfntypes.Parameter{
-						{ParameterKey: aws.String("AdminPassword"), ParameterValue: aws.String("leak-me")},
+						{ParameterKey: awsv2.String("AdminPassword"), ParameterValue: awsv2.String("leak-me")},
 					},
 				},
 			},
@@ -206,8 +206,8 @@ func TestClientListStackResourceDriftsSummarizesCountsOnly(t *testing.T) {
 			StackResourceDrifts: []cfntypes.StackResourceDrift{
 				{
 					StackResourceDriftStatus: cfntypes.StackResourceDriftStatusModified,
-					ActualProperties:         aws.String(`{"BucketName":"actual"}`),
-					ExpectedProperties:       aws.String(`{"BucketName":"expected"}`),
+					ActualProperties:         awsv2.String(`{"BucketName":"actual"}`),
+					ExpectedProperties:       awsv2.String(`{"BucketName":"expected"}`),
 				},
 				{StackResourceDriftStatus: cfntypes.StackResourceDriftStatusInSync},
 				{StackResourceDriftStatus: cfntypes.StackResourceDriftStatusDeleted},
@@ -242,7 +242,7 @@ func TestClientListStackResourceDriftsSummarizesCountsOnly(t *testing.T) {
 func newTestClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudFormation},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceCloudFormation},
 	}
 }
 

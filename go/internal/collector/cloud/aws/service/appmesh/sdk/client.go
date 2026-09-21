@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappmesh "github.com/aws/aws-sdk-go-v2/service/appmesh"
 	appmeshtypes "github.com/aws/aws-sdk-go-v2/service/appmesh/types"
 	"go.opentelemetry.io/otel/trace"
@@ -48,15 +48,15 @@ type apiClient interface {
 // certificate bodies are never read.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an App Mesh SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -78,7 +78,7 @@ func (c *Client) ListMeshInventory(ctx context.Context) ([]appmeshservice.Mesh, 
 	}
 	meshes := make([]appmeshservice.Mesh, 0, len(refs))
 	for _, ref := range refs {
-		meshName := strings.TrimSpace(aws.ToString(ref.MeshName))
+		meshName := strings.TrimSpace(awsv2.ToString(ref.MeshName))
 		if meshName == "" {
 			continue
 		}
@@ -108,7 +108,7 @@ func (c *Client) listMeshes(ctx context.Context) ([]appmeshtypes.MeshRef, error)
 			return refs, nil
 		}
 		refs = append(refs, page.Meshes...)
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			return refs, nil
 		}
 		nextToken = page.NextToken
@@ -142,7 +142,7 @@ func (c *Client) describeMesh(ctx context.Context, meshName string) (*appmeshtyp
 	var output *awsappmesh.DescribeMeshOutput
 	err := c.recordAPICall(ctx, "DescribeMesh", func(callCtx context.Context) error {
 		var callErr error
-		output, callErr = c.client.DescribeMesh(callCtx, &awsappmesh.DescribeMeshInput{MeshName: aws.String(meshName)})
+		output, callErr = c.client.DescribeMesh(callCtx, &awsappmesh.DescribeMeshInput{MeshName: awsv2.String(meshName)})
 		return callErr
 	})
 	if err != nil {
@@ -162,7 +162,7 @@ func (c *Client) virtualServices(ctx context.Context, meshName string) ([]appmes
 		err := c.recordAPICall(ctx, "ListVirtualServices", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListVirtualServices(callCtx, &awsappmesh.ListVirtualServicesInput{
-				MeshName:  aws.String(meshName),
+				MeshName:  awsv2.String(meshName),
 				NextToken: nextToken,
 			})
 			return callErr
@@ -174,7 +174,7 @@ func (c *Client) virtualServices(ctx context.Context, meshName string) ([]appmes
 			break
 		}
 		refs = append(refs, page.VirtualServices...)
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -182,7 +182,7 @@ func (c *Client) virtualServices(ctx context.Context, meshName string) ([]appmes
 
 	services := make([]appmeshservice.VirtualService, 0, len(refs))
 	for _, ref := range refs {
-		name := strings.TrimSpace(aws.ToString(ref.VirtualServiceName))
+		name := strings.TrimSpace(awsv2.ToString(ref.VirtualServiceName))
 		if name == "" {
 			continue
 		}
@@ -202,8 +202,8 @@ func (c *Client) describeVirtualService(ctx context.Context, meshName, name stri
 	err := c.recordAPICall(ctx, "DescribeVirtualService", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.DescribeVirtualService(callCtx, &awsappmesh.DescribeVirtualServiceInput{
-			MeshName:           aws.String(meshName),
-			VirtualServiceName: aws.String(name),
+			MeshName:           awsv2.String(meshName),
+			VirtualServiceName: awsv2.String(name),
 		})
 		return callErr
 	})
@@ -241,7 +241,7 @@ func (c *Client) resourceTags(ctx context.Context, arn string) (map[string]strin
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListTagsForResource(callCtx, &awsappmesh.ListTagsForResourceInput{
-				ResourceArn: aws.String(arn),
+				ResourceArn: awsv2.String(arn),
 				NextToken:   nextToken,
 			})
 			return callErr
@@ -253,7 +253,7 @@ func (c *Client) resourceTags(ctx context.Context, arn string) (map[string]strin
 			break
 		}
 		tags = append(tags, page.Tags...)
-		if aws.ToString(page.NextToken) == "" {
+		if awsv2.ToString(page.NextToken) == "" {
 			break
 		}
 		nextToken = page.NextToken

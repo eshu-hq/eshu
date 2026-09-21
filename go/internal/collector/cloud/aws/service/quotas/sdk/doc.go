@@ -12,4 +12,4 @@
 // template association, the requested-change-history reads, and all Put/Delete
 // mutation APIs, so the adapter cannot change quota state. The accepted surface
 // is List-only by construction, enforced by exclusion_test.
-package awssdk
+package sdk

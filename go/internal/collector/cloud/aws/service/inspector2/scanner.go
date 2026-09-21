@@ -22,15 +22,15 @@ type Scanner struct {
 // Scan observes Inspector v2 account status, enabled scan features, member
 // accounts, findings filter names, and CIS scan configuration metadata through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("inspector2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceInspector2:
+	case "", aws.ServiceInspector2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceInspector2
+		boundary.ServiceKind = aws.ServiceInspector2
 	default:
 		return nil, fmt.Errorf("inspector2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -67,7 +67,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Inspector v2 filters: %w", err)
 	}
 	for _, filter := range filters {
-		envelope, err := awscloud.NewResourceEnvelope(filterObservation(boundary, filter))
+		envelope, err := aws.NewResourceEnvelope(filterObservation(boundary, filter))
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Inspector v2 CIS scan configurations: %w", err)
 	}
 	for _, config := range cisConfigs {
-		resource, err := awscloud.NewResourceEnvelope(cisConfigObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(cisConfigObservation(boundary, config))
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +89,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -103,8 +103,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 // accountEnvelopes emits the account-status resource. Feature enablement stays
 // on the account resource's "features" attribute rather than fanning out into
 // relationships to synthetic feature-status targets that no resource backs.
-func accountEnvelopes(boundary awscloud.Boundary, account AccountStatus) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(accountObservation(boundary, account))
+func accountEnvelopes(boundary aws.Boundary, account AccountStatus) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(accountObservation(boundary, account))
 	if err != nil {
 		return nil, err
 	}
@@ -113,26 +113,26 @@ func accountEnvelopes(boundary awscloud.Boundary, account AccountStatus) ([]fact
 
 func appendResourceAndRelationship(
 	envelopes []facts.Envelope,
-	resource awscloud.ResourceObservation,
-	relationship awscloud.RelationshipObservation,
+	resource aws.ResourceObservation,
+	relationship aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
-	resourceEnvelope, err := awscloud.NewResourceEnvelope(resource)
+	resourceEnvelope, err := aws.NewResourceEnvelope(resource)
 	if err != nil {
 		return nil, err
 	}
-	relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+	relationshipEnvelope, err := aws.NewRelationshipEnvelope(relationship)
 	if err != nil {
 		return nil, err
 	}
 	return append(envelopes, resourceEnvelope, relationshipEnvelope), nil
 }
 
-func accountObservation(boundary awscloud.Boundary, account AccountStatus) awscloud.ResourceObservation {
+func accountObservation(boundary aws.Boundary, account AccountStatus) aws.ResourceObservation {
 	accountID := firstNonEmpty(account.AccountID, boundary.AccountID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   accountResourceID(accountID),
-		ResourceType: awscloud.ResourceTypeInspector2Account,
+		ResourceType: aws.ResourceTypeInspector2Account,
 		Name:         accountID,
 		State:        strings.TrimSpace(account.Status),
 		Attributes: map[string]any{
@@ -145,12 +145,12 @@ func accountObservation(boundary awscloud.Boundary, account AccountStatus) awscl
 	}
 }
 
-func memberObservation(boundary awscloud.Boundary, member MemberAccount) awscloud.ResourceObservation {
+func memberObservation(boundary aws.Boundary, member MemberAccount) aws.ResourceObservation {
 	memberID := strings.TrimSpace(member.AccountID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(memberID),
-		ResourceType: awscloud.ResourceTypeInspector2MemberAccount,
+		ResourceType: aws.ResourceTypeInspector2MemberAccount,
 		Name:         memberID,
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Attributes: map[string]any{
@@ -164,13 +164,13 @@ func memberObservation(boundary awscloud.Boundary, member MemberAccount) awsclou
 	}
 }
 
-func filterObservation(boundary awscloud.Boundary, filter FilterSummary) awscloud.ResourceObservation {
+func filterObservation(boundary aws.Boundary, filter FilterSummary) aws.ResourceObservation {
 	filterARN := strings.TrimSpace(filter.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          filterARN,
 		ResourceID:   firstNonEmpty(filterARN, filter.Name),
-		ResourceType: awscloud.ResourceTypeInspector2Filter,
+		ResourceType: aws.ResourceTypeInspector2Filter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"action":   strings.TrimSpace(filter.Action),
@@ -181,13 +181,13 @@ func filterObservation(boundary awscloud.Boundary, filter FilterSummary) awsclou
 	}
 }
 
-func cisConfigObservation(boundary awscloud.Boundary, config CisScanConfiguration) awscloud.ResourceObservation {
+func cisConfigObservation(boundary aws.Boundary, config CisScanConfiguration) aws.ResourceObservation {
 	configARN := strings.TrimSpace(config.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          configARN,
 		ResourceID:   firstNonEmpty(configARN, config.Name),
-		ResourceType: awscloud.ResourceTypeInspector2CisScanConfiguration,
+		ResourceType: aws.ResourceTypeInspector2CisScanConfiguration,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{

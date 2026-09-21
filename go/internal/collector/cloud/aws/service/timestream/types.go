@@ -27,7 +27,7 @@ type Snapshot struct {
 	Databases []Database
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Database is the scanner-owned Timestream database model. It carries

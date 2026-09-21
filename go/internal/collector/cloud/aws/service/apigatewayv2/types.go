@@ -27,7 +27,7 @@ type Client interface {
 // WebSocket APIs, their stages, routes, integrations, authorizers, custom
 // domains, and VPC links.
 type Snapshot struct {
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 	APIs     []API
 	Domains  []DomainName
 	VPCLinks []VPCLink

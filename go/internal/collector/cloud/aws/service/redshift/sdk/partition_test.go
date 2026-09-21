@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"testing"
@@ -29,7 +29,7 @@ func TestRedshiftSynthesizedARNsDerivePartition(t *testing.T) {
 	const account = "123456789012"
 	for _, r := range regions {
 		t.Run(r.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: r.region, AccountID: account}
+			boundary := aws.Boundary{Region: r.region, AccountID: account}
 			p := r.partition
 			reg := r.region
 			checks := []struct {

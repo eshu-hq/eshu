@@ -25,15 +25,15 @@ type Scanner struct {
 // encryption configuration through the configured client, emitting one
 // resource fact per configuration object plus the encryption-config-to-KMS-key
 // and sampling-rule-to-service correlation relationships.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("xray scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceXRay:
+	case "", aws.ServiceXRay:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceXRay
+		boundary.ServiceKind = aws.ServiceXRay
 	default:
 		return nil, fmt.Errorf("xray scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -45,7 +45,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("get X-Ray groups: %w", err)
 	}
 	for _, group := range groups {
-		envelope, err := awscloud.NewResourceEnvelope(groupObservation(boundary, group))
+		envelope, err := aws.NewResourceEnvelope(groupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -80,16 +80,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func samplingRuleEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rule SamplingRule,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(samplingRuleObservation(boundary, rule))
+	resource, err := aws.NewResourceEnvelope(samplingRuleObservation(boundary, rule))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := samplingRuleServiceRelationship(boundary, rule); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -99,16 +99,16 @@ func samplingRuleEnvelopes(
 }
 
 func encryptionConfigEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	config EncryptionConfig,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(encryptionConfigObservation(boundary, config))
+	resource, err := aws.NewResourceEnvelope(encryptionConfigObservation(boundary, config))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship, ok := encryptionConfigKMSRelationship(boundary, config); ok {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -117,14 +117,14 @@ func encryptionConfigEnvelopes(
 	return envelopes, nil
 }
 
-func groupObservation(boundary awscloud.Boundary, group Group) awscloud.ResourceObservation {
+func groupObservation(boundary aws.Boundary, group Group) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	groupName := strings.TrimSpace(group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   firstNonEmpty(groupARN, groupName),
-		ResourceType: awscloud.ResourceTypeXRayGroup,
+		ResourceType: aws.ResourceTypeXRayGroup,
 		Name:         groupName,
 		Attributes: map[string]any{
 			// The filter expression is group configuration (which traces the
@@ -139,14 +139,14 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 	}
 }
 
-func samplingRuleObservation(boundary awscloud.Boundary, rule SamplingRule) awscloud.ResourceObservation {
+func samplingRuleObservation(boundary aws.Boundary, rule SamplingRule) aws.ResourceObservation {
 	ruleARN := strings.TrimSpace(rule.ARN)
 	ruleName := strings.TrimSpace(rule.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   firstNonEmpty(ruleARN, ruleName),
-		ResourceType: awscloud.ResourceTypeXRaySamplingRule,
+		ResourceType: aws.ResourceTypeXRaySamplingRule,
 		Name:         ruleName,
 		Attributes: map[string]any{
 			"priority":       int32OrNil(rule.Priority),
@@ -165,12 +165,12 @@ func samplingRuleObservation(boundary awscloud.Boundary, rule SamplingRule) awsc
 	}
 }
 
-func encryptionConfigObservation(boundary awscloud.Boundary, config EncryptionConfig) awscloud.ResourceObservation {
+func encryptionConfigObservation(boundary aws.Boundary, config EncryptionConfig) aws.ResourceObservation {
 	resourceID := encryptionConfigResourceID(boundary)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeXRayEncryptionConfig,
+		ResourceType: aws.ResourceTypeXRayEncryptionConfig,
 		Name:         resourceID,
 		State:        strings.TrimSpace(config.Status),
 		Attributes: map[string]any{

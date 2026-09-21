@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/vpclattice guidance
+# AGENTS.md - internal/collector/cloud/aws/service/vpclattice guidance
 
 ## Read First
 
@@ -35,7 +35,7 @@
   bare `i-` id, ALB → load balancer ARN). Skip IP targets and any id that does
   not match; never key a dangling edge.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant or the documented `aws_ec2_instance`
+  `aws.ResourceType*` constant or the documented `aws_ec2_instance`
   forward-reference allowlist anchor, and a `target_resource_id` matching how
   the target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -50,14 +50,14 @@
 
 - Add a new VPC Lattice metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a policy body or
+  `aws` envelope builders. If the field can carry a policy body or
   data-plane payload, leave it out of the scanner contract.
 - Add new relationship evidence only when the VPC Lattice API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (the bare `vpc-` id for VPCs, the service ARN for VPC
   Lattice services, the function/load-balancer ARN for Lambda/ALB targets, the
   bare `i-` id for instances, the certificate ARN for ACM).
-- Extend SDK pagination and per-resource Get enrichment in the `awssdk` adapter,
+- Extend SDK pagination and per-resource Get enrichment in the `sdk` adapter,
   not here.
 
 ## What Not To Change Without An ADR

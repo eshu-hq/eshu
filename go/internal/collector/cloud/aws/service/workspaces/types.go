@@ -34,7 +34,7 @@ type Snapshot struct {
 	IPGroups []IPGroup
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Workspace is the scanner-owned Amazon WorkSpaces virtual-desktop model. It

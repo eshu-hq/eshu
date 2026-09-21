@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awswafv2 "github.com/aws/aws-sdk-go-v2/service/wafv2"
 	awswafv2types "github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 	"github.com/aws/smithy-go"
@@ -70,7 +70,7 @@ type apiClient interface {
 // bodies, and it never calls a WAFv2 mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	scope       awswafv2types.Scope
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
@@ -80,8 +80,8 @@ type Client struct {
 // boundary region selects the CLOUDFRONT scope and rebinds the SDK config to
 // the us-east-1 control-plane endpoint; a concrete region selects REGIONAL.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -103,7 +103,7 @@ func NewClient(
 // canonical global region label (or an empty region) selects CLOUDFRONT; every
 // concrete region selects REGIONAL. Matching the exact label keeps a regional
 // boundary from being misrouted to the global control plane.
-func scopeForBoundary(boundary awscloud.Boundary) awswafv2types.Scope {
+func scopeForBoundary(boundary aws.Boundary) awswafv2types.Scope {
 	switch strings.TrimSpace(boundary.Region) {
 	case globalRegionLabel, "":
 		return awswafv2types.ScopeCloudfront
@@ -124,7 +124,7 @@ func (c *Client) ListWebACLs(ctx context.Context) ([]wafv2service.WebACL, error)
 			var err error
 			page, err = c.client.ListWebACLs(callCtx, &awswafv2.ListWebACLsInput{
 				Scope:      c.scope,
-				Limit:      aws.Int32(listLimit),
+				Limit:      awsv2.Int32(listLimit),
 				NextMarker: marker,
 			})
 			return err
@@ -163,12 +163,12 @@ func (c *Client) webACLMetadata(ctx context.Context, summary awswafv2types.WebAC
 		return wafv2service.WebACL{}, err
 	}
 	webACL := mapWebACL(string(c.scope), summary, output)
-	tags, err := c.listTags(ctx, aws.ToString(summary.ARN))
+	tags, err := c.listTags(ctx, awsv2.ToString(summary.ARN))
 	if err != nil {
 		return wafv2service.WebACL{}, err
 	}
 	webACL.Tags = tags
-	protected, err := c.protectedResources(ctx, aws.ToString(summary.ARN))
+	protected, err := c.protectedResources(ctx, awsv2.ToString(summary.ARN))
 	if err != nil {
 		return wafv2service.WebACL{}, err
 	}
@@ -189,7 +189,7 @@ func (c *Client) protectedResources(ctx context.Context, webACLARN string) ([]wa
 		err := c.recordAPICall(ctx, "ListResourcesForWebACL", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListResourcesForWebACL(callCtx, &awswafv2.ListResourcesForWebACLInput{
-				WebACLArn:    aws.String(webACLARN),
+				WebACLArn:    awsv2.String(webACLARN),
 				ResourceType: resourceType,
 			})
 			return err
@@ -221,7 +221,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awswafv2.ListTagsForResourceInput{
-			ResourceARN: aws.String(resourceARN),
+			ResourceARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -232,7 +232,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 }
 
 func nextMarker(marker *string) *string {
-	if aws.ToString(marker) == "" {
+	if awsv2.ToString(marker) == "" {
 		return nil
 	}
 	return marker
@@ -256,7 +256,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

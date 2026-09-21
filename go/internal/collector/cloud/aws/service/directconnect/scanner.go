@@ -30,15 +30,15 @@ type Scanner struct {
 }
 
 // Scan observes Direct Connect metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("direct connect scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDirectConnect:
+	case "", aws.ServiceDirectConnect:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDirectConnect
+		boundary.ServiceKind = aws.ServiceDirectConnect
 	default:
 		return nil, fmt.Errorf("direct connect scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -62,7 +62,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list direct connect lags: %w", err)
 	}
 	for _, lag := range lags {
-		resource, err := awscloud.NewResourceEnvelope(lagObservation(boundary, lag))
+		resource, err := aws.NewResourceEnvelope(lagObservation(boundary, lag))
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list direct connect gateways: %w", err)
 	}
 	for _, gateway := range gateways {
-		resource, err := awscloud.NewResourceEnvelope(gatewayObservation(boundary, gateway))
+		resource, err := aws.NewResourceEnvelope(gatewayObservation(boundary, gateway))
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +102,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !ok {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -112,14 +112,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func connectionEnvelopes(boundary awscloud.Boundary, connection Connection) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(connectionObservation(boundary, connection))
+func connectionEnvelopes(boundary aws.Boundary, connection Connection) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(connectionObservation(boundary, connection))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range connectionRelationships(boundary, connection) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -128,14 +128,14 @@ func connectionEnvelopes(boundary awscloud.Boundary, connection Connection) ([]f
 	return envelopes, nil
 }
 
-func virtualInterfaceEnvelopes(boundary awscloud.Boundary, vif VirtualInterface) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(virtualInterfaceObservation(boundary, vif))
+func virtualInterfaceEnvelopes(boundary aws.Boundary, vif VirtualInterface) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(virtualInterfaceObservation(boundary, vif))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range virtualInterfaceRelationships(boundary, vif) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}

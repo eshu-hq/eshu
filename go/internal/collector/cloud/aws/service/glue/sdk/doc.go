@@ -11,4 +11,4 @@
 // CreateDatabase, DeleteDatabase, GetUserDefinedFunctions, classifier custom
 // pattern reads, column statistics with sample values, and any other mutation
 // or sensitive-payload API.
-package awssdk
+package sdk

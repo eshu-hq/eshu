@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/awsruntime` adapts AWS service scanners to the
+`internal/collector/cloud/aws/runtime` adapts AWS service scanners to the
 workflow-claimed collector runtime. It parses `(account_id, region,
 service_kind)` claim targets, authorizes them against configured target scopes,
 acquires claim-scoped credentials, records durable scanner-side status, and
@@ -60,7 +60,7 @@ See `doc.go` for the godoc contract.
   dispatches every claim through the init-time scanner registry. It has no
   compile-time dependency on individual service packages.
 - `Register`, `LookupBuilder`, `RegisteredServiceKinds` - the scanner
-  registry primitive. Service `runtimebind` sub-packages call `Register` from
+  registry primitive. Service `bind` sub-packages call `Register` from
   `init()` so new scanners stay pure-additive.
 - `ScannerDeps`, `ScannerRegistration`, `ScannerBuilder` - the registry
   contract. Builders consume `ScannerDeps`; bindings install
@@ -84,7 +84,7 @@ See `doc.go` for the godoc contract.
 - `FixtureSource` - offline `collector.Source` for fixture/replay mode. It needs
   no credentials, no AWS SDK, and no network: it converts a `FixtureConfig` into
   the same `aws_resource` / `aws_relationship` envelopes the live scanners emit
-  via `awscloud.NewResourceEnvelope` / `awscloud.NewRelationshipEnvelope`.
+  via `aws.NewResourceEnvelope` / `aws.NewRelationshipEnvelope`.
 - `FixtureConfig`, `FixtureScope`, `FixtureResource`, `FixtureRelationship` -
   the declarative offline estate `FixtureSource` replays. `FixtureScope` derives
   a stable `aws:<account>:<region>:<service>` scope id and a clock-independent
@@ -107,8 +107,8 @@ estate and its drift intent live in
 ## Dependencies
 
 - `internal/collector` for `CollectedGeneration` and `FactsFromSlice`.
-- `internal/collector/awscloud` for claim boundaries and warning envelopes.
-- `internal/collector/awscloud/checkpoint` for durable pagination checkpoint
+- `internal/collector/cloud/aws` for claim boundaries and warning envelopes.
+- `internal/collector/cloud/aws/checkpoint` for durable pagination checkpoint
   scope and store contracts.
 - `internal/facts` for warning fact types.
 - `internal/redact` for the runtime-shared redaction key carried in
@@ -118,16 +118,16 @@ estate and its drift intent live in
 - `internal/workflow` for durable work item claims.
 - AWS SDK for Go v2 `config`, `sts`, and credential cache support.
 
-This package no longer imports individual `services/<svc>` or `awssdk`
+This package no longer imports individual `services/<svc>` or `sdk`
 packages directly. Each scanner registers itself from
-`services/<svc>/runtimebind/init()`, and the command pulls every binding
-through `awsruntime/bindings`. That keeps adding a new AWS scanner additive:
+`services/<svc>/bind/init()`, and the command pulls every binding
+through `runtime/bindings`. That keeps adding a new AWS scanner additive:
 no file in this package changes.
 
 ## Telemetry
 
 This package starts claim, credential, and scan spans through `ClaimedSource`.
-Service `awssdk` adapters emit per-API call counters, throttle counters, and
+Service `sdk` adapters emit per-API call counters, throttle counters, and
 pagination spans. The command registers the instruments:
 
 - `eshu_dp_aws_api_calls_total`
@@ -162,7 +162,7 @@ the AWS scan-status conflict domain against stale older starts.
 
 No-Regression Evidence:
 
-- `cd go && go test ./internal/collector/awscloud/awsruntime -run 'TestClaimedSource(ClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps|KeepsTransportFailureRetryable)|TestStartScanStatus(ClassifiesStaleFenceAsTerminal|IncrementsStaleFenceCounter)' -count=1`
+- `cd go && go test ./internal/collector/cloud/aws/runtime -run 'TestClaimedSource(ClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps|KeepsTransportFailureRetryable)|TestStartScanStatus(ClassifiesStaleFenceAsTerminal|IncrementsStaleFenceCounter)' -count=1`
 - `cd go && go test ./internal/storage/postgres -run 'TestAWSScanStatusStore(AllowsNewGenerationAfterTerminalPermissionGap|AllowsNewGenerationOverOrphanedRunningRow|ReturnsTypedStaleFenceError)' -count=1`
 
 These cover denied IAM-style, EC2 unauthorized, unsupported-operation,
@@ -180,32 +180,32 @@ API pressure counters (`eshu_dp_aws_api_calls_total`,
 
 The init-time scanner registry refactor (#762) replaces the central switch
 in `registry.go` with `Register`/`LookupBuilder` plus per-service
-`runtimebind` packages. Plumbing only; no per-claim path changes.
+`bind` packages. Plumbing only; no per-claim path changes.
 
 Collector Performance Evidence: `cd go && go test
-./internal/collector/awscloud/... -count=1 -race` covers every scanner
-builder through `awsruntime.DefaultScannerFactory.Scanner`. The path the
-runtime now executes for each claim is one `awsruntime.LookupBuilder`
+./internal/collector/cloud/aws/... -count=1 -race` covers every scanner
+builder through `runtime.DefaultScannerFactory.Scanner`. The path the
+runtime now executes for each claim is one `runtime.LookupBuilder`
 call — a `sync.RWMutex.RLock` around a single map read — followed by the
 same builder call the legacy switch executed. The RLock is uncontended in
 production because every `Register` call completes during `init()` before
 `main` runs; after process start the registry is effectively read-only,
 so RLock acquisition is a handful of atomic operations per claim with no
 writer to wait on (nanosecond-scale). No new I/O is introduced. `go test
-./internal/collector/awscloud/awsruntime -count=1 -race -run
+./internal/collector/cloud/aws/runtime -count=1 -race -run
 TestConcurrentRegister` proves the registry stays race-free even under 32
 concurrent Register calls, which is well beyond the production pattern.
 
 Collector Observability Evidence: every per-service telemetry instrument
-listed above keeps emitting from the same SDK adapters. The runtimebind
-init wires the same `awssdk.NewClient`/`awssdk.NewClientWithCheckpoints`
+listed above keeps emitting from the same SDK adapters. The bind
+init wires the same `sdk.NewClient`/`sdk.NewClientWithCheckpoints`
 constructors, so `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_pagination_checkpoint_events_total`,
 `eshu_dp_aws_resources_emitted_total`,
 `aws.service.scan`, and `aws.service.pagination.page` retain identical
 labels, cardinality, and span shape.
 
-No-Observability-Change: the awscloud runtime telemetry contract is
+No-Observability-Change: the aws runtime telemetry contract is
 untouched. Init-time registration emits no metrics, spans, or logs of
 its own. Failure modes are programmer errors (duplicate registration,
 empty service_kind, nil builder) and surface as process-start panics, which
@@ -216,7 +216,7 @@ service, Helm chart, ConfigMap, environment variable, port, or readiness
 gate. The `collector-aws-cloud` binary keeps the same `/healthz`,
 `/readyz`, `/metrics`, and `/admin/status` surfaces and the same
 ServiceMonitor configuration. The only deployment-visible change is one
-new blank import in each binary that calls `awsruntime.SupportsServiceKind`
+new blank import in each binary that calls `runtime.SupportsServiceKind`
 (collector-aws-cloud, workflow-coordinator, webhook-listener).
 
 ## Refactor Evidence (Derived Supported-Service Guard)
@@ -224,8 +224,8 @@ new blank import in each binary that calls `awsruntime.SupportsServiceKind`
 The supported-service guard refactor (#785) replaces the two hardcoded
 want-lists in `registry_supported_services_test.go` and
 `bindings/bindings_test.go` with a derived check. The expected scanner set is
-computed at test time from the `services/<svc>/runtimebind/` directories on
-disk and the runtimebind blank imports parsed from `bindings.go` (see
+computed at test time from the `services/<svc>/bind/` directories on
+disk and the bind blank imports parsed from `bindings.go` (see
 `internal/guardset`). Adding a scanner now touches zero want-lists; it appends
 one `merge=union` line to `bindings.go` and adds its own files.
 
@@ -234,15 +234,15 @@ non-test runtime file changed. The production scanner registry, the
 `DefaultScannerFactory` dispatch path, and the per-claim `LookupBuilder` read
 are byte-for-byte unchanged from the #762 self-registration refactor. The
 guard's value is preserved and proven: `go test
-./internal/collector/awscloud/awsruntime/... -count=1 -race` passes, and the
+./internal/collector/cloud/aws/runtime/... -count=1 -race` passes, and the
 `Diff` helper has a unit-tested negative case ("dir present but not imported")
 in `internal/guardset/guardset_test.go`. Manually removing one blank import
 from `bindings.go` makes both guard tests fail with
-`services/<svc>/runtimebind/ exists but bindings.go does not blank-import it`
+`services/<svc>/bind/ exists but bindings.go does not blank-import it`
 and `len(SupportedServiceKinds()) = N-1, want N`, then passes again once the
 import is restored.
 
-No-Observability-Change: the awscloud runtime telemetry contract is untouched.
+No-Observability-Change: the aws runtime telemetry contract is untouched.
 The change adds only test-support code and documentation; it emits no metrics,
 spans, or logs and alters no existing signal. The instruments listed under
 Telemetry above keep their identical names, labels, cardinality, and span

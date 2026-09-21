@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/keyspaces/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/keyspaces/sdk` adapts AWS SDK for Go v2
 Amazon Keyspaces (for Apache Cassandra) responses to the scanner-owned `Client`
 contract. It owns keyspace and table pagination, keyspace and table point reads,
 resource tag reads, throttle classification, and per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/keyspaces` for scanner-owned result
+- `internal/collector/cloud/aws/service/keyspaces` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `keyspaces` and Smithy error contracts.

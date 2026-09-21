@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cloudhsmv2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cloudhsmv2 guidance
 
 ## Read First
 
@@ -31,7 +31,7 @@
   EC2 scanner publishes. Never synthesize an ARN for these edges.
 - De-duplicate subnet edges across availability zones.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from cluster, backup, or tag
@@ -43,14 +43,14 @@
 
 - Add a new CloudHSM v2 metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry key material, a
+  `aws` envelope builders. If the field can carry key material, a
   certificate body, a CSR body, or the PRECO password, leave it out of the
   scanner contract.
 - Add new relationship evidence only when the CloudHSM v2 API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (bare AWS id for VPC/subnet/security group, bare cluster id
   for the parent cluster).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

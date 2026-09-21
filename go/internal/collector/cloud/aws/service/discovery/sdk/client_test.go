@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssd "github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	sdtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 
@@ -74,13 +74,13 @@ func (f *fakeAPI) ListServices(_ context.Context, input *awssd.ListServicesInput
 }
 
 func (f *fakeAPI) ListTagsForResource(_ context.Context, input *awssd.ListTagsForResourceInput, _ ...func(*awssd.Options)) (*awssd.ListTagsForResourceOutput, error) {
-	return &awssd.ListTagsForResourceOutput{Tags: f.tagsByARN[aws.ToString(input.ResourceARN)]}, nil
+	return &awssd.ListTagsForResourceOutput{Tags: f.tagsByARN[awsv2.ToString(input.ResourceARN)]}, nil
 }
 
 func newClientWithFake(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceServiceDiscovery},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceServiceDiscovery},
 	}
 }
 
@@ -94,22 +94,22 @@ func TestListNamespaceInventoryResolvesServicesWithCountOnly(t *testing.T) {
 	api := &fakeAPI{
 		namespacePages: []*awssd.ListNamespacesOutput{{
 			Namespaces: []sdtypes.NamespaceSummary{{
-				Id:           aws.String("ns-1"),
-				Arn:          aws.String(nsARN),
-				Name:         aws.String("apps.local"),
+				Id:           awsv2.String("ns-1"),
+				Arn:          awsv2.String(nsARN),
+				Name:         awsv2.String("apps.local"),
 				Type:         sdtypes.NamespaceTypeDnsPrivate,
-				ServiceCount: aws.Int32(1),
+				ServiceCount: awsv2.Int32(1),
 				Properties: &sdtypes.NamespaceProperties{
-					DnsProperties: &sdtypes.DnsProperties{HostedZoneId: aws.String("Z123")},
+					DnsProperties: &sdtypes.DnsProperties{HostedZoneId: awsv2.String("Z123")},
 				},
 			}},
 		}},
 		servicesByNS: map[string][]sdtypes.ServiceSummary{
 			"ns-1": {{
-				Id:            aws.String("srv-1"),
-				Arn:           aws.String(svcARN),
-				Name:          aws.String("checkout"),
-				InstanceCount: aws.Int32(3),
+				Id:            awsv2.String("srv-1"),
+				Arn:           awsv2.String(svcARN),
+				Name:          awsv2.String("checkout"),
+				InstanceCount: awsv2.Int32(3),
 				DnsConfig: &sdtypes.DnsConfig{
 					RoutingPolicy: sdtypes.RoutingPolicyMultivalue,
 					DnsRecords:    []sdtypes.DnsRecord{{Type: sdtypes.RecordTypeA, TTL: &ttl}},
@@ -117,8 +117,8 @@ func TestListNamespaceInventoryResolvesServicesWithCountOnly(t *testing.T) {
 			}},
 		},
 		tagsByARN: map[string][]sdtypes.Tag{
-			nsARN:  {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			svcARN: {{Key: aws.String("team"), Value: aws.String("payments")}},
+			nsARN:  {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			svcARN: {{Key: awsv2.String("team"), Value: awsv2.String("payments")}},
 		},
 	}
 
@@ -172,17 +172,17 @@ func TestListNamespaceInventoryTrimsNamespaceIDForServiceFilter(t *testing.T) {
 	api := &fakeAPI{
 		namespacePages: []*awssd.ListNamespacesOutput{{
 			Namespaces: []sdtypes.NamespaceSummary{{
-				Id:   aws.String("  ns-1  "),
-				Arn:  aws.String(nsARN),
-				Name: aws.String("  apps.local  "),
+				Id:   awsv2.String("  ns-1  "),
+				Arn:  awsv2.String(nsARN),
+				Name: awsv2.String("  apps.local  "),
 				Type: sdtypes.NamespaceTypeDnsPrivate,
 			}},
 		}},
 		servicesByNS: map[string][]sdtypes.ServiceSummary{
 			trimmedID: {{
-				Id:   aws.String("srv-1"),
-				Arn:  aws.String(svcARN),
-				Name: aws.String("checkout"),
+				Id:   awsv2.String("srv-1"),
+				Arn:  awsv2.String(svcARN),
+				Name: awsv2.String("checkout"),
 			}},
 		},
 	}

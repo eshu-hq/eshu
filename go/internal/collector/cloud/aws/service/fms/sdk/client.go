@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfms "github.com/aws/aws-sdk-go-v2/service/fms"
 	awsfmstypes "github.com/aws/aws-sdk-go-v2/service/fms/types"
 	"github.com/aws/smithy-go"
@@ -42,7 +42,7 @@ type apiClient interface {
 // every policy field the scanner records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -52,8 +52,8 @@ type Client struct {
 // claim region selects the FMS endpoint; the adapter does not rebind the
 // region.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -77,7 +77,7 @@ func (c *Client) ListPolicies(ctx context.Context) ([]fmsservice.Policy, error) 
 		err := c.recordAPICall(ctx, "ListPolicies", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListPolicies(callCtx, &awsfms.ListPoliciesInput{
-				MaxResults: aws.Int32(listLimit),
+				MaxResults: awsv2.Int32(listLimit),
 				NextToken:  token,
 			})
 			return err
@@ -114,8 +114,8 @@ func (c *Client) ListPolicyMemberAccounts(ctx context.Context, policyID string) 
 		err := c.recordAPICall(ctx, "ListComplianceStatus", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListComplianceStatus(callCtx, &awsfms.ListComplianceStatusInput{
-				PolicyId:   aws.String(policyID),
-				MaxResults: aws.Int32(listLimit),
+				PolicyId:   awsv2.String(policyID),
+				MaxResults: awsv2.Int32(listLimit),
 				NextToken:  token,
 			})
 			return err
@@ -127,7 +127,7 @@ func (c *Client) ListPolicyMemberAccounts(ctx context.Context, policyID string) 
 			return accounts, nil
 		}
 		for _, status := range page.PolicyComplianceStatusList {
-			account := strings.TrimSpace(aws.ToString(status.MemberAccount))
+			account := strings.TrimSpace(awsv2.ToString(status.MemberAccount))
 			if account == "" {
 				continue
 			}
@@ -148,11 +148,11 @@ func (c *Client) ListPolicyMemberAccounts(ctx context.Context, policyID string) 
 // and is never requested.
 func mapPolicy(summary awsfmstypes.PolicySummary) fmsservice.Policy {
 	return fmsservice.Policy{
-		ARN:                            strings.TrimSpace(aws.ToString(summary.PolicyArn)),
-		ID:                             strings.TrimSpace(aws.ToString(summary.PolicyId)),
-		Name:                           strings.TrimSpace(aws.ToString(summary.PolicyName)),
+		ARN:                            strings.TrimSpace(awsv2.ToString(summary.PolicyArn)),
+		ID:                             strings.TrimSpace(awsv2.ToString(summary.PolicyId)),
+		Name:                           strings.TrimSpace(awsv2.ToString(summary.PolicyName)),
 		SecurityServiceType:            string(summary.SecurityServiceType),
-		ResourceType:                   strings.TrimSpace(aws.ToString(summary.ResourceType)),
+		ResourceType:                   strings.TrimSpace(awsv2.ToString(summary.ResourceType)),
 		RemediationEnabled:             summary.RemediationEnabled,
 		DeleteUnusedFMManagedResources: summary.DeleteUnusedFMManagedResources,
 		PolicyStatus:                   string(summary.PolicyStatus),
@@ -160,7 +160,7 @@ func mapPolicy(summary awsfmstypes.PolicySummary) fmsservice.Policy {
 }
 
 func nextToken(token *string) *string {
-	if aws.ToString(token) == "" {
+	if awsv2.ToString(token) == "" {
 		return nil
 	}
 	return token
@@ -184,7 +184,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -23,7 +23,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsForeignServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceVPC
+	boundary.ServiceKind = aws.ServiceVPC
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatal("Scan() error = nil, want error for foreign service_kind")
@@ -59,7 +59,7 @@ func TestScannerEmitsTransitGateway(t *testing.T) {
 		}},
 	})
 
-	tgw := resourceByType(t, envelopes, awscloud.ResourceTypeTransitGateway)
+	tgw := resourceByType(t, envelopes, aws.ResourceTypeTransitGateway)
 	if got, _ := tgw.Payload["resource_id"].(string); got != "tgw-1" {
 		t.Fatalf("transit gateway resource_id = %q", got)
 	}
@@ -86,11 +86,11 @@ func TestScannerEmitsRouteTableInTransitGateway(t *testing.T) {
 		}},
 	})
 
-	rt := resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayRouteTable)
+	rt := resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayRouteTable)
 	if got, _ := rt.Payload["resource_id"].(string); got != "tgw-rtb-1" {
 		t.Fatalf("route table resource_id = %q", got)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayRouteTableInTransitGateway)
+	edge := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayRouteTableInTransitGateway)
 	if got, _ := edge.Payload["target_resource_id"].(string); got != "tgw-1" {
 		t.Fatalf("route table -> tgw target = %q", got)
 	}
@@ -111,16 +111,16 @@ func TestScannerEmitsVPCAttachmentRelationshipsAndRouteTableAssociation(t *testi
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayAttachment)
-	toTGW := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayAttachmentToTransitGateway)
+	resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayAttachment)
+	toTGW := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayAttachmentToTransitGateway)
 	if got, _ := toTGW.Payload["target_resource_id"].(string); got != "tgw-1" {
 		t.Fatalf("attachment -> tgw target = %q", got)
 	}
-	toVPC := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayAttachmentToVPC)
-	if got, _ := toVPC.Payload["target_type"].(string); got != awscloud.ResourceTypeEC2VPC {
+	toVPC := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayAttachmentToVPC)
+	if got, _ := toVPC.Payload["target_type"].(string); got != aws.ResourceTypeEC2VPC {
 		t.Fatalf("attachment -> vpc target_type = %q", got)
 	}
-	rtToAttachment := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayRouteTableToAttachment)
+	rtToAttachment := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayRouteTableToAttachment)
 	if got, _ := rtToAttachment.Payload["source_resource_id"].(string); got != "tgw-rtb-1" {
 		t.Fatalf("route-table -> attachment source = %q", got)
 	}
@@ -137,11 +137,11 @@ func TestScannerEmitsVPNAndDirectConnectAttachments(t *testing.T) {
 		},
 	})
 
-	vpn := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayAttachmentToVPNConnection)
-	if got, _ := vpn.Payload["target_type"].(string); got != awscloud.ResourceTypeVPCVPNConnection {
+	vpn := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayAttachmentToVPNConnection)
+	if got, _ := vpn.Payload["target_type"].(string); got != aws.ResourceTypeVPCVPNConnection {
 		t.Fatalf("vpn attachment target_type = %q", got)
 	}
-	dx := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayAttachmentToDirectConnectGateway)
+	dx := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayAttachmentToDirectConnectGateway)
 	if got, _ := dx.Payload["target_resource_id"].(string); got != "dxgw-1" {
 		t.Fatalf("dx attachment target = %q", got)
 	}
@@ -162,15 +162,15 @@ func TestScannerDoesNotEmitResourceEdgeForUnknownAttachmentType(t *testing.T) {
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayAttachment)
-	if !hasRelationship(envelopes, awscloud.RelationshipTransitGatewayAttachmentToTransitGateway) {
+	resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayAttachment)
+	if !hasRelationship(envelopes, aws.RelationshipTransitGatewayAttachmentToTransitGateway) {
 		t.Fatal("connect attachment must still emit attachment -> tgw edge")
 	}
 	for _, forbidden := range []string{
-		awscloud.RelationshipTransitGatewayAttachmentToVPC,
-		awscloud.RelationshipTransitGatewayAttachmentToVPNConnection,
-		awscloud.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
-		awscloud.RelationshipTransitGatewayAttachmentToPeer,
+		aws.RelationshipTransitGatewayAttachmentToVPC,
+		aws.RelationshipTransitGatewayAttachmentToVPNConnection,
+		aws.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
+		aws.RelationshipTransitGatewayAttachmentToPeer,
 	} {
 		if hasRelationship(envelopes, forbidden) {
 			t.Fatalf("connect attachment fabricated resource edge %q", forbidden)
@@ -202,15 +202,15 @@ func TestScannerSurfacesCrossAccountPeerWithoutResolving(t *testing.T) {
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayPeeringAttachment)
+	resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayPeeringAttachment)
 
-	requester := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayPeeringRequestsTransitGateway)
+	requester := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayPeeringRequestsTransitGateway)
 	requesterAttrs, _ := requester.Payload["attributes"].(map[string]any)
 	if got := requesterAttrs["cross_account"]; got != false {
 		t.Fatalf("requester cross_account = %#v, want false (same account)", got)
 	}
 
-	accepter := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayPeeringAcceptsTransitGateway)
+	accepter := relationshipByType(t, envelopes, aws.RelationshipTransitGatewayPeeringAcceptsTransitGateway)
 	if got, _ := accepter.Payload["target_resource_id"].(string); got != "tgw-remote" {
 		t.Fatalf("accepter target = %q, want remote tgw as reported", got)
 	}
@@ -223,7 +223,7 @@ func TestScannerSurfacesCrossAccountPeerWithoutResolving(t *testing.T) {
 	}
 	// The scanner must not invent an aws_account node or resolve the remote
 	// identity; the relationship target stays the bare remote transit gateway.
-	if got, _ := accepter.Payload["target_type"].(string); got != awscloud.ResourceTypeTransitGateway {
+	if got, _ := accepter.Payload["target_type"].(string); got != aws.ResourceTypeTransitGateway {
 		t.Fatalf("accepter target_type = %q, want bare transit gateway", got)
 	}
 }
@@ -243,10 +243,10 @@ func TestScannerEmitsMulticastDomainAndPolicyTable(t *testing.T) {
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayMulticastDomain)
-	resourceByType(t, envelopes, awscloud.ResourceTypeTransitGatewayPolicyTable)
-	relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayMulticastDomainInTransitGateway)
-	relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayPolicyTableInTransitGateway)
+	resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayMulticastDomain)
+	resourceByType(t, envelopes, aws.ResourceTypeTransitGatewayPolicyTable)
+	relationshipByType(t, envelopes, aws.RelationshipTransitGatewayMulticastDomainInTransitGateway)
+	relationshipByType(t, envelopes, aws.RelationshipTransitGatewayPolicyTableInTransitGateway)
 }
 
 // TestClientInterfaceIsReadOnly pins the scanner-owned Client contract to
@@ -281,16 +281,16 @@ func TestClientInterfaceIsReadOnly(t *testing.T) {
 // two scanners would claim the same node.
 func TestResourceTypesDisjointFromVPC(t *testing.T) {
 	vpcOwned := map[string]struct{}{
-		awscloud.ResourceTypeVPCRouteTable:    {},
-		awscloud.ResourceTypeVPCVPNConnection: {},
+		aws.ResourceTypeVPCRouteTable:    {},
+		aws.ResourceTypeVPCVPNConnection: {},
 	}
 	emitted := []string{
-		awscloud.ResourceTypeTransitGateway,
-		awscloud.ResourceTypeTransitGatewayRouteTable,
-		awscloud.ResourceTypeTransitGatewayAttachment,
-		awscloud.ResourceTypeTransitGatewayPeeringAttachment,
-		awscloud.ResourceTypeTransitGatewayMulticastDomain,
-		awscloud.ResourceTypeTransitGatewayPolicyTable,
+		aws.ResourceTypeTransitGateway,
+		aws.ResourceTypeTransitGatewayRouteTable,
+		aws.ResourceTypeTransitGatewayAttachment,
+		aws.ResourceTypeTransitGatewayPeeringAttachment,
+		aws.ResourceTypeTransitGatewayMulticastDomain,
+		aws.ResourceTypeTransitGatewayPolicyTable,
 	}
 	seen := map[string]struct{}{}
 	for _, resourceType := range emitted {

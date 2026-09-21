@@ -7,4 +7,4 @@
 // The adapter pages ListSecrets only and records bounded AWS API telemetry for
 // each page. It deliberately avoids value, version, resource-policy, and
 // mutation APIs so the service package never receives secret material.
-package awssdk
+package sdk

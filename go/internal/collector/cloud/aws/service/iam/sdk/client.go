@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
 	awsiamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/smithy-go"
@@ -35,15 +35,15 @@ const maxPolicyDocumentsPerPrincipal = 25
 // Client adapts AWS SDK IAM pagination into scanner-owned IAM records.
 type Client struct {
 	client      *awsiam.Client
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an IAM SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -99,11 +99,11 @@ func (c *Client) ListPolicies(ctx context.Context) ([]iamservice.Policy, error) 
 		}
 		for _, policy := range page.Policies {
 			policies = append(policies, iamservice.Policy{
-				ARN:              aws.ToString(policy.Arn),
-				Name:             aws.ToString(policy.PolicyName),
-				Path:             aws.ToString(policy.Path),
-				DefaultVersionID: aws.ToString(policy.DefaultVersionId),
-				AttachmentCount:  aws.ToInt32(policy.AttachmentCount),
+				ARN:              awsv2.ToString(policy.Arn),
+				Name:             awsv2.ToString(policy.PolicyName),
+				Path:             awsv2.ToString(policy.Path),
+				DefaultVersionID: awsv2.ToString(policy.DefaultVersionId),
+				AttachmentCount:  awsv2.ToInt32(policy.AttachmentCount),
 			})
 		}
 	}
@@ -128,12 +128,12 @@ func (c *Client) ListInstanceProfiles(ctx context.Context) ([]iamservice.Instanc
 		for _, profile := range page.InstanceProfiles {
 			roleARNs := make([]string, 0, len(profile.Roles))
 			for _, role := range profile.Roles {
-				roleARNs = append(roleARNs, aws.ToString(role.Arn))
+				roleARNs = append(roleARNs, awsv2.ToString(role.Arn))
 			}
 			profiles = append(profiles, iamservice.InstanceProfile{
-				ARN:      aws.ToString(profile.Arn),
-				Name:     aws.ToString(profile.InstanceProfileName),
-				Path:     aws.ToString(profile.Path),
+				ARN:      awsv2.ToString(profile.Arn),
+				Name:     awsv2.ToString(profile.InstanceProfileName),
+				Path:     awsv2.ToString(profile.Path),
 				RoleARNs: roleARNs,
 			})
 		}
@@ -159,14 +159,14 @@ func (c *Client) ListOIDCProviders(ctx context.Context) ([]iamservice.OIDCProvid
 	}
 	providers := make([]iamservice.OIDCProvider, 0, len(page.OpenIDConnectProviderList))
 	for _, entry := range page.OpenIDConnectProviderList {
-		providerARN := aws.ToString(entry.Arn)
+		providerARN := awsv2.ToString(entry.Arn)
 		detail, err := c.getOIDCProvider(ctx, providerARN)
 		if err != nil {
 			return nil, err
 		}
 		provider := iamservice.OIDCProvider{ARN: providerARN}
 		if detail != nil {
-			provider.URLFingerprint = fingerprintString(aws.ToString(detail.Url))
+			provider.URLFingerprint = fingerprintString(awsv2.ToString(detail.Url))
 			provider.ClientIDCount = len(detail.ClientIDList)
 			provider.ThumbprintCount = len(detail.ThumbprintList)
 		}
@@ -183,7 +183,7 @@ func (c *Client) ListCoverageWarnings(context.Context) ([]iamservice.CoverageWar
 }
 
 func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice.Role, error) {
-	roleName := aws.ToString(role.RoleName)
+	roleName := awsv2.ToString(role.RoleName)
 	detail, err := c.getRoleDetail(ctx, roleName)
 	if err != nil {
 		return iamservice.Role{}, err
@@ -192,7 +192,7 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 	if detail != nil {
 		roleDetail = *detail
 	}
-	rawTrust := aws.ToString(roleDetail.AssumeRolePolicyDocument)
+	rawTrust := awsv2.ToString(roleDetail.AssumeRolePolicyDocument)
 	trustPolicy, trustPrincipals, err := parseTrustPolicy(rawTrust)
 	if err != nil {
 		return iamservice.Role{}, fmt.Errorf("parse IAM trust policy for role %q: %w", roleName, err)
@@ -213,9 +213,9 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 	}
 
 	return iamservice.Role{
-		ARN:                  firstNonBlank(aws.ToString(roleDetail.Arn), aws.ToString(role.Arn)),
+		ARN:                  firstNonBlank(awsv2.ToString(roleDetail.Arn), awsv2.ToString(role.Arn)),
 		Name:                 roleName,
-		Path:                 firstNonBlank(aws.ToString(roleDetail.Path), aws.ToString(role.Path)),
+		Path:                 firstNonBlank(awsv2.ToString(roleDetail.Path), awsv2.ToString(role.Path)),
 		AssumeRolePolicy:     trustPolicy,
 		TrustPrincipals:      trustPrincipals,
 		PermissionBoundary:   boundary,
@@ -230,7 +230,7 @@ func (c *Client) getRoleDetail(ctx context.Context, roleName string) (*awsiamtyp
 	err := c.recordAPICall(ctx, "GetRole", func(callCtx context.Context) error {
 		var err error
 		out, err = c.client.GetRole(callCtx, &awsiam.GetRoleInput{
-			RoleName: aws.String(roleName),
+			RoleName: awsv2.String(roleName),
 		})
 		return err
 	})
@@ -245,7 +245,7 @@ func (c *Client) getRoleDetail(ctx context.Context, roleName string) (*awsiamtyp
 
 func (c *Client) listAttachedRolePolicies(ctx context.Context, roleName string) ([]string, error) {
 	paginator := awsiam.NewListAttachedRolePoliciesPaginator(c.client, &awsiam.ListAttachedRolePoliciesInput{
-		RoleName: aws.String(roleName),
+		RoleName: awsv2.String(roleName),
 	})
 	var policyARNs []string
 	for paginator.HasMorePages() {
@@ -259,7 +259,7 @@ func (c *Client) listAttachedRolePolicies(ctx context.Context, roleName string) 
 			return nil, err
 		}
 		for _, policy := range page.AttachedPolicies {
-			policyARNs = append(policyARNs, aws.ToString(policy.PolicyArn))
+			policyARNs = append(policyARNs, awsv2.ToString(policy.PolicyArn))
 		}
 	}
 	return policyARNs, nil
@@ -267,7 +267,7 @@ func (c *Client) listAttachedRolePolicies(ctx context.Context, roleName string) 
 
 func (c *Client) listRolePolicies(ctx context.Context, roleName string) ([]string, error) {
 	paginator := awsiam.NewListRolePoliciesPaginator(c.client, &awsiam.ListRolePoliciesInput{
-		RoleName: aws.String(roleName),
+		RoleName: awsv2.String(roleName),
 	})
 	var names []string
 	for paginator.HasMorePages() {
@@ -303,7 +303,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -429,7 +429,7 @@ func (c *Client) getOIDCProvider(ctx context.Context, providerARN string) (*awsi
 	err := c.recordAPICall(ctx, "GetOpenIDConnectProvider", func(callCtx context.Context) error {
 		var err error
 		out, err = c.client.GetOpenIDConnectProvider(callCtx, &awsiam.GetOpenIDConnectProviderInput{
-			OpenIDConnectProviderArn: aws.String(providerARN),
+			OpenIDConnectProviderArn: awsv2.String(providerARN),
 		})
 		return err
 	})
@@ -444,7 +444,7 @@ func permissionBoundary(boundary *awsiamtypes.AttachedPermissionsBoundary) iamse
 		return iamservice.PermissionBoundary{}
 	}
 	return iamservice.PermissionBoundary{
-		PolicyARN: aws.ToString(boundary.PermissionsBoundaryArn),
+		PolicyARN: awsv2.ToString(boundary.PermissionsBoundaryArn),
 		Type:      string(boundary.PermissionsBoundaryType),
 	}
 }

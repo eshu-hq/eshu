@@ -13,4 +13,4 @@
 // reaches GetPermission, so the permission policy document body never crosses
 // the adapter boundary. A reflective guard test fails the build if any
 // forbidden operation becomes reachable.
-package awssdk
+package sdk

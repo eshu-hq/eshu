@@ -14,13 +14,13 @@ import (
 // lock state, recovery point count, and a boolean signalling whether the
 // vault has an access policy attached. The access policy body itself is
 // NEVER persisted because it encodes cross-account trust.
-func vaultObservation(boundary awscloud.Boundary, vault Vault) awscloud.ResourceObservation {
+func vaultObservation(boundary aws.Boundary, vault Vault) aws.ResourceObservation {
 	vaultARN := strings.TrimSpace(vault.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          vaultARN,
 		ResourceID:   firstNonEmpty(vaultARN, vault.Name),
-		ResourceType: awscloud.ResourceTypeBackupVault,
+		ResourceType: aws.ResourceTypeBackupVault,
 		Name:         strings.TrimSpace(vault.Name),
 		Attributes: map[string]any{
 			"encryption_key_arn":        strings.TrimSpace(vault.EncryptionKeyARN),
@@ -38,13 +38,13 @@ func vaultObservation(boundary awscloud.Boundary, vault Vault) awscloud.Resource
 	}
 }
 
-func planObservation(boundary awscloud.Boundary, plan Plan) awscloud.ResourceObservation {
+func planObservation(boundary aws.Boundary, plan Plan) aws.ResourceObservation {
 	planARN := strings.TrimSpace(plan.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.ID, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupPlan,
+		ResourceType: aws.ResourceTypeBackupPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"plan_id":             strings.TrimSpace(plan.ID),
@@ -77,14 +77,14 @@ func planRuleNodes(rules []PlanRule) []map[string]any {
 }
 
 func selectionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	selection Selection,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	selID := strings.TrimSpace(selection.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   firstNonEmpty(selID, selection.Name),
-		ResourceType: awscloud.ResourceTypeBackupSelection,
+		ResourceType: aws.ResourceTypeBackupSelection,
 		Name:         strings.TrimSpace(selection.Name),
 		Attributes: map[string]any{
 			"selection_id":   selID,
@@ -119,15 +119,15 @@ func tagConditionNodes(conditions []TagCondition) []map[string]any {
 // resource observation. Snapshot contents and recovery-point restore metadata
 // values are NEVER read; only identity and timing metadata is persisted.
 func recoveryPointObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rp RecoveryPoint,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	rpARN := strings.TrimSpace(rp.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          rpARN,
 		ResourceID:   rpARN,
-		ResourceType: awscloud.ResourceTypeBackupRecoveryPoint,
+		ResourceType: aws.ResourceTypeBackupRecoveryPoint,
 		State:        strings.TrimSpace(rp.Status),
 		Attributes: map[string]any{
 			"vault_name":           strings.TrimSpace(rp.VaultName),
@@ -150,15 +150,15 @@ func recoveryPointObservation(
 }
 
 func reportPlanObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	plan ReportPlan,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	planARN := strings.TrimSpace(plan.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupReportPlan,
+		ResourceType: aws.ResourceTypeBackupReportPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"deployment_status":              strings.TrimSpace(plan.DeploymentStatus),
@@ -176,15 +176,15 @@ func reportPlanObservation(
 }
 
 func restoreTestingPlanObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	plan RestoreTestingPlan,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	planARN := strings.TrimSpace(plan.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupRestoreTestingPlan,
+		ResourceType: aws.ResourceTypeBackupRestoreTestingPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"schedule_expression": strings.TrimSpace(plan.ScheduleExpression),
@@ -202,15 +202,15 @@ func restoreTestingPlanObservation(
 // observation. Framework control input parameter values are NEVER persisted
 // because they may carry compliance-sensitive scope data.
 func frameworkObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	framework Framework,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	frameworkARN := strings.TrimSpace(framework.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          frameworkARN,
 		ResourceID:   firstNonEmpty(frameworkARN, framework.Name),
-		ResourceType: awscloud.ResourceTypeBackupFramework,
+		ResourceType: aws.ResourceTypeBackupFramework,
 		Name:         strings.TrimSpace(framework.Name),
 		Attributes: map[string]any{
 			"description":        strings.TrimSpace(framework.Description),
@@ -224,17 +224,17 @@ func frameworkObservation(
 }
 
 func frameworkControlObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	framework Framework,
 	control FrameworkControl,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	frameworkARN := strings.TrimSpace(framework.ARN)
 	controlName := strings.TrimSpace(control.Name)
 	resourceID := frameworkARN + "/" + controlName
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBackupFrameworkControl,
+		ResourceType: aws.ResourceTypeBackupFrameworkControl,
 		Name:         controlName,
 		Attributes: map[string]any{
 			"control_name":              controlName,

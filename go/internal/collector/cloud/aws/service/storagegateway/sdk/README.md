@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/storagegateway/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/storagegateway/sdk` adapts AWS SDK for
 Go v2 Storage Gateway responses to the scanner-owned `Client` contract. It owns
 gateway pagination and per-gateway DescribeGatewayInformation enrichment, volume
 pagination, file-share listing with batched NFS/SMB describe reads, throttle
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/storagegateway` for scanner-owned
+- `internal/collector/cloud/aws/service/storagegateway` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `storagegateway` and Smithy error contracts.

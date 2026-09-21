@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/synthetics guidance
+# AGENTS.md - internal/collector/cloud/aws/service/synthetics guidance
 
 ## Read First
 
@@ -22,7 +22,7 @@
   call `GetCanaryRuns`, `DescribeCanariesLastRun`, `GetCanary` (code read), or
   any `Create*`, `Update*`, `Delete*`, `Start*`, `Stop*` mutation/control API.
 - `DescribeCanaries` returns no ARN, so the adapter synthesizes the canary ARN
-  with `awscloud.PartitionForBoundary` and never hardcodes `arn:aws:`. The
+  with `aws.PartitionForBoundary` and never hardcodes `arn:aws:`. The
   canary node publishes that ARN as its resource_id (fallback to name); source a
   canary's own edges on that same value.
 - Emit the canary-to-S3 edge only when an artifact location is reported.
@@ -35,7 +35,7 @@
   `subnet-...` and `sg-...` ids the EC2 scanner publishes; never an ARN. Emit
   them only when the canary is VPC-configured.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from canary names or AWS tags.
@@ -48,13 +48,13 @@
 
 - Add a new Synthetics metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry script source, run
+  `aws` envelope builders. If the field can carry script source, run
   artifacts, or run results, leave it out of the scanner contract.
 - Add new relationship evidence only when DescribeCanaries reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for IAM roles and S3 buckets, bare ids for
   subnets and security groups).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

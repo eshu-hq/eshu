@@ -95,19 +95,19 @@ func TestScannerEmitsOrganizationsMetadataOnlyFactsAndRelationships(t *testing.T
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsRoot)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsOrganizationalUnit)
-	account := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsAccount)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsPolicy)
-	delegatedAdmin := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsDelegatedAdministrator)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInOU)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsOUInOU)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInRoot)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsPolicyTargetsResource)
+	assertResourceType(t, envelopes, aws.ResourceTypeOrganizationsRoot)
+	assertResourceType(t, envelopes, aws.ResourceTypeOrganizationsOrganizationalUnit)
+	account := assertResourceType(t, envelopes, aws.ResourceTypeOrganizationsAccount)
+	assertResourceType(t, envelopes, aws.ResourceTypeOrganizationsPolicy)
+	delegatedAdmin := assertResourceType(t, envelopes, aws.ResourceTypeOrganizationsDelegatedAdministrator)
+	assertRelationshipType(t, envelopes, aws.RelationshipOrganizationsAccountInOU)
+	assertRelationshipType(t, envelopes, aws.RelationshipOrganizationsOUInOU)
+	assertRelationshipType(t, envelopes, aws.RelationshipOrganizationsAccountInRoot)
+	assertRelationshipType(t, envelopes, aws.RelationshipOrganizationsPolicyTargetsResource)
 	delegatedAdminRelationship := assertRelationshipType(
 		t,
 		envelopes,
-		awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
+		aws.RelationshipOrganizationsDelegatedAdminForAccount,
 	)
 
 	accountAttrs := attributesOf(t, account)
@@ -148,8 +148,8 @@ func TestScannerEmitsOrganizationsMetadataOnlyFactsAndRelationships(t *testing.T
 }
 
 func TestScannerEmitsOrgAccessSkippedWarning(t *testing.T) {
-	client := fakeClient{snapshot: Snapshot{Warnings: []awscloud.WarningObservation{{
-		WarningKind:    awscloud.WarningOrganizationsOrgAccessSkipped,
+	client := fakeClient{snapshot: Snapshot{Warnings: []aws.WarningObservation{{
+		WarningKind:    aws.WarningOrganizationsOrgAccessSkipped,
 		ErrorClass:     "org_access_denied",
 		Message:        "Organizations metadata scan skipped because credentials are not management or delegated-admin credentials",
 		SourceRecordID: "organizations:org-aware-skip",
@@ -165,8 +165,8 @@ func TestScannerEmitsOrgAccessSkippedWarning(t *testing.T) {
 	if got, want := len(envelopes), 1; got != want {
 		t.Fatalf("len(envelopes) = %d, want %d", got, want)
 	}
-	if got := envelopes[0].Payload["warning_kind"]; got != awscloud.WarningOrganizationsOrgAccessSkipped {
-		t.Fatalf("warning_kind = %#v, want %q", got, awscloud.WarningOrganizationsOrgAccessSkipped)
+	if got := envelopes[0].Payload["warning_kind"]; got != aws.WarningOrganizationsOrgAccessSkipped {
+		t.Fatalf("warning_kind = %#v, want %q", got, aws.WarningOrganizationsOrgAccessSkipped)
 	}
 }
 
@@ -182,18 +182,18 @@ func TestScannerRequiresRedactionKey(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = aws.ServiceIAM
 	_, err := (Scanner{Client: fakeClient{}, RedactionKey: testRedactionKey(t)}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOrganizations,
+		ServiceKind:         aws.ServiceOrganizations,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:organizations:1",
 		CollectorInstanceID: "aws-prod",

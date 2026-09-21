@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskafka "github.com/aws/aws-sdk-go-v2/service/kafka"
 	"go.opentelemetry.io/otel/trace"
 
@@ -28,15 +28,15 @@ type apiClient interface {
 // contract.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an MSK SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -72,7 +72,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]mskservice.Cluster, error)
 			clusters = append(clusters, mapCluster(cluster))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return clusters, nil
 		}
 	}
@@ -103,7 +103,7 @@ func (c *Client) ListConfigurations(ctx context.Context) ([]mskservice.Configura
 			configurations = append(configurations, mapConfiguration(configuration))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return configurations, nil
 		}
 	}
@@ -131,7 +131,7 @@ func (c *Client) ListReplicators(ctx context.Context) ([]mskservice.Replicator, 
 			return replicators, nil
 		}
 		for _, summary := range page.Replicators {
-			arn := strings.TrimSpace(aws.ToString(summary.ReplicatorArn))
+			arn := strings.TrimSpace(awsv2.ToString(summary.ReplicatorArn))
 			if arn == "" {
 				continue
 			}
@@ -142,7 +142,7 @@ func (c *Client) ListReplicators(ctx context.Context) ([]mskservice.Replicator, 
 			replicators = append(replicators, mapReplicatorDescription(description))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return replicators, nil
 		}
 	}
@@ -153,7 +153,7 @@ func (c *Client) describeReplicator(ctx context.Context, arn string) (*awskafka.
 	err := c.recordAPICall(ctx, "DescribeReplicator", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeReplicator(callCtx, &awskafka.DescribeReplicatorInput{
-			ReplicatorArn: aws.String(arn),
+			ReplicatorArn: awsv2.String(arn),
 		})
 		return err
 	})

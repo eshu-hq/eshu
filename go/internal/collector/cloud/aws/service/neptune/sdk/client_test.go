@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsneptune "github.com/aws/aws-sdk-go-v2/service/neptune"
 	awsneptunetypes "github.com/aws/aws-sdk-go-v2/service/neptune/types"
 	awsneptunegraph "github.com/aws/aws-sdk-go-v2/service/neptunegraph"
@@ -26,98 +26,98 @@ func TestClientListsNeptuneMetadataOnly(t *testing.T) {
 	neptuneAPI := &fakeNeptuneAPI{
 		clusterPages: []*awsneptune.DescribeDBClustersOutput{{
 			DBClusters: []awsneptunetypes.DBCluster{{
-				DBClusterArn:                 aws.String(clusterARN),
-				DBClusterIdentifier:          aws.String("orders-neptune"),
-				DbClusterResourceId:          aws.String("cluster-ORDERSNEPTUNE"),
-				Engine:                       aws.String("neptune"),
-				EngineVersion:                aws.String("1.3.0.0"),
-				Status:                       aws.String("available"),
-				Endpoint:                     aws.String("orders.cluster.neptune.amazonaws.com"),
-				ReaderEndpoint:               aws.String("orders.cluster-ro.neptune.amazonaws.com"),
-				HostedZoneId:                 aws.String("Z2"),
-				Port:                         aws.Int32(8182),
-				MultiAZ:                      aws.Bool(true),
-				StorageEncrypted:             aws.Bool(true),
-				KmsKeyId:                     aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
-				DeletionProtection:           aws.Bool(true),
-				BackupRetentionPeriod:        aws.Int32(7),
-				DBSubnetGroup:                aws.String("orders-neptune-subnets"),
-				DBClusterParameterGroup:      aws.String("orders-neptune-params"),
+				DBClusterArn:                 awsv2.String(clusterARN),
+				DBClusterIdentifier:          awsv2.String("orders-neptune"),
+				DbClusterResourceId:          awsv2.String("cluster-ORDERSNEPTUNE"),
+				Engine:                       awsv2.String("neptune"),
+				EngineVersion:                awsv2.String("1.3.0.0"),
+				Status:                       awsv2.String("available"),
+				Endpoint:                     awsv2.String("orders.cluster.neptune.amazonaws.com"),
+				ReaderEndpoint:               awsv2.String("orders.cluster-ro.neptune.amazonaws.com"),
+				HostedZoneId:                 awsv2.String("Z2"),
+				Port:                         awsv2.Int32(8182),
+				MultiAZ:                      awsv2.Bool(true),
+				StorageEncrypted:             awsv2.Bool(true),
+				KmsKeyId:                     awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
+				DeletionProtection:           awsv2.Bool(true),
+				BackupRetentionPeriod:        awsv2.Int32(7),
+				DBSubnetGroup:                awsv2.String("orders-neptune-subnets"),
+				DBClusterParameterGroup:      awsv2.String("orders-neptune-params"),
 				EnabledCloudwatchLogsExports: []string{"audit"},
-				VpcSecurityGroups:            []awsneptunetypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
-				DBClusterMembers:             []awsneptunetypes.DBClusterMember{{DBInstanceIdentifier: aws.String("orders-neptune-1"), IsClusterWriter: aws.Bool(true)}},
-				AssociatedRoles:              []awsneptunetypes.DBClusterRole{{RoleArn: aws.String("arn:aws:iam::123456789012:role/neptune")}},
+				VpcSecurityGroups:            []awsneptunetypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: awsv2.String("sg-123")}},
+				DBClusterMembers:             []awsneptunetypes.DBClusterMember{{DBInstanceIdentifier: awsv2.String("orders-neptune-1"), IsClusterWriter: awsv2.Bool(true)}},
+				AssociatedRoles:              []awsneptunetypes.DBClusterRole{{RoleArn: awsv2.String("arn:aws:iam::123456789012:role/neptune")}},
 				// Forbidden field the mapper must drop:
-				MasterUsername: aws.String("do-not-copy"),
+				MasterUsername: awsv2.String("do-not-copy"),
 			}},
 		}},
 		instancePages: []*awsneptune.DescribeDBInstancesOutput{{
 			DBInstances: []awsneptunetypes.DBInstance{{
-				DBInstanceArn:        aws.String(instanceARN),
-				DBInstanceIdentifier: aws.String("orders-neptune-1"),
-				DbiResourceId:        aws.String("db-ORDERSNEPTUNE1"),
-				DBInstanceClass:      aws.String("db.r6g.large"),
-				Engine:               aws.String("neptune"),
-				EngineVersion:        aws.String("1.3.0.0"),
-				DBInstanceStatus:     aws.String("available"),
-				Endpoint:             &awsneptunetypes.Endpoint{Address: aws.String("orders-neptune-1.neptune.amazonaws.com"), Port: aws.Int32(8182), HostedZoneId: aws.String("Z2")},
-				AvailabilityZone:     aws.String("us-east-1a"),
-				StorageEncrypted:     aws.Bool(true),
-				KmsKeyId:             aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
-				DBClusterIdentifier:  aws.String("orders-neptune"),
-				PromotionTier:        aws.Int32(1),
-				MasterUsername:       aws.String("do-not-copy"),
+				DBInstanceArn:        awsv2.String(instanceARN),
+				DBInstanceIdentifier: awsv2.String("orders-neptune-1"),
+				DbiResourceId:        awsv2.String("db-ORDERSNEPTUNE1"),
+				DBInstanceClass:      awsv2.String("db.r6g.large"),
+				Engine:               awsv2.String("neptune"),
+				EngineVersion:        awsv2.String("1.3.0.0"),
+				DBInstanceStatus:     awsv2.String("available"),
+				Endpoint:             &awsneptunetypes.Endpoint{Address: awsv2.String("orders-neptune-1.neptune.amazonaws.com"), Port: awsv2.Int32(8182), HostedZoneId: awsv2.String("Z2")},
+				AvailabilityZone:     awsv2.String("us-east-1a"),
+				StorageEncrypted:     awsv2.Bool(true),
+				KmsKeyId:             awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
+				DBClusterIdentifier:  awsv2.String("orders-neptune"),
+				PromotionTier:        awsv2.Int32(1),
+				MasterUsername:       awsv2.String("do-not-copy"),
 			}},
 		}},
 		parameterGroupPages: []*awsneptune.DescribeDBClusterParameterGroupsOutput{{
 			DBClusterParameterGroups: []awsneptunetypes.DBClusterParameterGroup{{
-				DBClusterParameterGroupArn:  aws.String(paramGroupARN),
-				DBClusterParameterGroupName: aws.String("orders-neptune-params"),
-				DBParameterGroupFamily:      aws.String("neptune1.3"),
-				Description:                 aws.String("orders neptune cluster parameters"),
+				DBClusterParameterGroupArn:  awsv2.String(paramGroupARN),
+				DBClusterParameterGroupName: awsv2.String("orders-neptune-params"),
+				DBParameterGroupFamily:      awsv2.String("neptune1.3"),
+				Description:                 awsv2.String("orders neptune cluster parameters"),
 			}},
 		}},
 		snapshotPages: []*awsneptune.DescribeDBClusterSnapshotsOutput{{
 			DBClusterSnapshots: []awsneptunetypes.DBClusterSnapshot{{
-				DBClusterSnapshotArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster-snapshot:orders-neptune-2026-05-01"),
-				DBClusterSnapshotIdentifier: aws.String("orders-neptune-2026-05-01"),
-				DBClusterIdentifier:         aws.String("orders-neptune"),
-				Engine:                      aws.String("neptune"),
-				EngineVersion:               aws.String("1.3.0.0"),
-				Status:                      aws.String("available"),
-				SnapshotType:                aws.String("manual"),
-				StorageEncrypted:            aws.Bool(true),
-				KmsKeyId:                    aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
-				VpcId:                       aws.String("vpc-123"),
-				MasterUsername:              aws.String("do-not-copy"),
+				DBClusterSnapshotArn:        awsv2.String("arn:aws:rds:us-east-1:123456789012:cluster-snapshot:orders-neptune-2026-05-01"),
+				DBClusterSnapshotIdentifier: awsv2.String("orders-neptune-2026-05-01"),
+				DBClusterIdentifier:         awsv2.String("orders-neptune"),
+				Engine:                      awsv2.String("neptune"),
+				EngineVersion:               awsv2.String("1.3.0.0"),
+				Status:                      awsv2.String("available"),
+				SnapshotType:                awsv2.String("manual"),
+				StorageEncrypted:            awsv2.Bool(true),
+				KmsKeyId:                    awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
+				VpcId:                       awsv2.String("vpc-123"),
+				MasterUsername:              awsv2.String("do-not-copy"),
 			}},
 		}},
 		subnetGroupPages: []*awsneptune.DescribeDBSubnetGroupsOutput{{
 			DBSubnetGroups: []awsneptunetypes.DBSubnetGroup{{
-				DBSubnetGroupArn:         aws.String("arn:aws:rds:us-east-1:123456789012:subgrp:orders-neptune-subnets"),
-				DBSubnetGroupName:        aws.String("orders-neptune-subnets"),
-				DBSubnetGroupDescription: aws.String("orders neptune subnets"),
-				SubnetGroupStatus:        aws.String("Complete"),
-				VpcId:                    aws.String("vpc-123"),
-				Subnets:                  []awsneptunetypes.Subnet{{SubnetIdentifier: aws.String("subnet-a")}},
+				DBSubnetGroupArn:         awsv2.String("arn:aws:rds:us-east-1:123456789012:subgrp:orders-neptune-subnets"),
+				DBSubnetGroupName:        awsv2.String("orders-neptune-subnets"),
+				DBSubnetGroupDescription: awsv2.String("orders neptune subnets"),
+				SubnetGroupStatus:        awsv2.String("Complete"),
+				VpcId:                    awsv2.String("vpc-123"),
+				Subnets:                  []awsneptunetypes.Subnet{{SubnetIdentifier: awsv2.String("subnet-a")}},
 			}},
 		}},
 		globalClusterPages: []*awsneptune.DescribeGlobalClustersOutput{{
 			GlobalClusters: []awsneptunetypes.GlobalCluster{{
-				GlobalClusterArn:        aws.String("arn:aws:rds::123456789012:global-cluster:orders-global"),
-				GlobalClusterIdentifier: aws.String("orders-global"),
-				GlobalClusterResourceId: aws.String("global-ORDERS"),
-				Engine:                  aws.String("neptune"),
-				EngineVersion:           aws.String("1.3.0.0"),
-				Status:                  aws.String("available"),
-				StorageEncrypted:        aws.Bool(true),
-				DeletionProtection:      aws.Bool(true),
-				GlobalClusterMembers:    []awsneptunetypes.GlobalClusterMember{{DBClusterArn: aws.String(clusterARN), IsWriter: aws.Bool(true)}},
-				TagList:                 []awsneptunetypes.Tag{{Key: aws.String("Scope"), Value: aws.String("global")}},
+				GlobalClusterArn:        awsv2.String("arn:aws:rds::123456789012:global-cluster:orders-global"),
+				GlobalClusterIdentifier: awsv2.String("orders-global"),
+				GlobalClusterResourceId: awsv2.String("global-ORDERS"),
+				Engine:                  awsv2.String("neptune"),
+				EngineVersion:           awsv2.String("1.3.0.0"),
+				Status:                  awsv2.String("available"),
+				StorageEncrypted:        awsv2.Bool(true),
+				DeletionProtection:      awsv2.Bool(true),
+				GlobalClusterMembers:    []awsneptunetypes.GlobalClusterMember{{DBClusterArn: awsv2.String(clusterARN), IsWriter: awsv2.Bool(true)}},
+				TagList:                 []awsneptunetypes.Tag{{Key: awsv2.String("Scope"), Value: awsv2.String("global")}},
 			}},
 		}},
 		tags: map[string]*awsneptune.ListTagsForResourceOutput{
-			clusterARN: {TagList: []awsneptunetypes.Tag{{Key: aws.String("Tier"), Value: aws.String("data")}}},
+			clusterARN: {TagList: []awsneptunetypes.Tag{{Key: awsv2.String("Tier"), Value: awsv2.String("data")}}},
 		},
 	}
 
@@ -125,35 +125,35 @@ func TestClientListsNeptuneMetadataOnly(t *testing.T) {
 	graphAPI := &fakeNeptuneGraphAPI{
 		graphPages: []*awsneptunegraph.ListGraphsOutput{{
 			Graphs: []awsneptunegraphtypes.GraphSummary{{
-				Arn:    aws.String(graphARN),
-				Id:     aws.String("g-orders"),
-				Name:   aws.String("orders-graph"),
+				Arn:    awsv2.String(graphARN),
+				Id:     awsv2.String("g-orders"),
+				Name:   awsv2.String("orders-graph"),
 				Status: awsneptunegraphtypes.GraphStatusAvailable,
 			}},
 		}},
 		graphDetails: map[string]*awsneptunegraph.GetGraphOutput{
 			"g-orders": {
-				Arn:                       aws.String(graphARN),
-				Id:                        aws.String("g-orders"),
-				Name:                      aws.String("orders-graph"),
+				Arn:                       awsv2.String(graphARN),
+				Id:                        awsv2.String("g-orders"),
+				Name:                      awsv2.String("orders-graph"),
 				Status:                    awsneptunegraphtypes.GraphStatusAvailable,
-				KmsKeyIdentifier:          aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
-				ProvisionedMemory:         aws.Int32(128),
-				ReplicaCount:              aws.Int32(2),
-				PublicConnectivity:        aws.Bool(false),
-				DeletionProtection:        aws.Bool(true),
-				Endpoint:                  aws.String("g-orders.us-east-1.neptune-graph.amazonaws.com"),
+				KmsKeyIdentifier:          awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
+				ProvisionedMemory:         awsv2.Int32(128),
+				ReplicaCount:              awsv2.Int32(2),
+				PublicConnectivity:        awsv2.Bool(false),
+				DeletionProtection:        awsv2.Bool(true),
+				Endpoint:                  awsv2.String("g-orders.us-east-1.neptune-graph.amazonaws.com"),
 				VectorSearchConfiguration: &awsneptunegraphtypes.VectorSearchConfiguration{Dimension: &dimension},
 			},
 		},
 		snapshotPages: []*awsneptunegraph.ListGraphSnapshotsOutput{{
 			GraphSnapshots: []awsneptunegraphtypes.GraphSnapshotSummary{{
-				Arn:              aws.String(graphSnapshotARN),
-				Id:               aws.String("gs-orders"),
-				Name:             aws.String("orders-graph-2026-05-01"),
+				Arn:              awsv2.String(graphSnapshotARN),
+				Id:               awsv2.String("gs-orders"),
+				Name:             awsv2.String("orders-graph-2026-05-01"),
 				Status:           awsneptunegraphtypes.SnapshotStatusAvailable,
-				KmsKeyIdentifier: aws.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
-				SourceGraphId:    aws.String("g-orders"),
+				KmsKeyIdentifier: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders-neptune"),
+				SourceGraphId:    awsv2.String("g-orders"),
 			}},
 		}},
 		tags: map[string]*awsneptunegraph.ListTagsForResourceOutput{
@@ -259,10 +259,10 @@ func TestClientListsNeptuneMetadataOnly(t *testing.T) {
 func TestClientUsesMarkersAndMaxRecords(t *testing.T) {
 	neptuneAPI := &fakeNeptuneAPI{
 		clusterPages: []*awsneptune.DescribeDBClustersOutput{{
-			DBClusters: []awsneptunetypes.DBCluster{{DBClusterIdentifier: aws.String("first")}},
-			Marker:     aws.String("next-clusters"),
+			DBClusters: []awsneptunetypes.DBCluster{{DBClusterIdentifier: awsv2.String("first")}},
+			Marker:     awsv2.String("next-clusters"),
 		}, {
-			DBClusters: []awsneptunetypes.DBCluster{{DBClusterIdentifier: aws.String("second")}},
+			DBClusters: []awsneptunetypes.DBCluster{{DBClusterIdentifier: awsv2.String("second")}},
 		}},
 	}
 	adapter := &Client{neptune: neptuneAPI, graph: &fakeNeptuneGraphAPI{}, boundary: testBoundary()}
@@ -285,14 +285,14 @@ func TestClientUsesMarkersAndMaxRecords(t *testing.T) {
 func TestClientPaginatesGraphsWithNextToken(t *testing.T) {
 	graphAPI := &fakeNeptuneGraphAPI{
 		graphPages: []*awsneptunegraph.ListGraphsOutput{{
-			Graphs:    []awsneptunegraphtypes.GraphSummary{{Id: aws.String("g-1"), Arn: aws.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-1"), Name: aws.String("first")}},
-			NextToken: aws.String("next-graphs"),
+			Graphs:    []awsneptunegraphtypes.GraphSummary{{Id: awsv2.String("g-1"), Arn: awsv2.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-1"), Name: awsv2.String("first")}},
+			NextToken: awsv2.String("next-graphs"),
 		}, {
-			Graphs: []awsneptunegraphtypes.GraphSummary{{Id: aws.String("g-2"), Arn: aws.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-2"), Name: aws.String("second")}},
+			Graphs: []awsneptunegraphtypes.GraphSummary{{Id: awsv2.String("g-2"), Arn: awsv2.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-2"), Name: awsv2.String("second")}},
 		}},
 		graphDetails: map[string]*awsneptunegraph.GetGraphOutput{
-			"g-1": {Id: aws.String("g-1"), Arn: aws.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-1"), Name: aws.String("first"), Status: awsneptunegraphtypes.GraphStatusAvailable},
-			"g-2": {Id: aws.String("g-2"), Arn: aws.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-2"), Name: aws.String("second"), Status: awsneptunegraphtypes.GraphStatusAvailable},
+			"g-1": {Id: awsv2.String("g-1"), Arn: awsv2.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-1"), Name: awsv2.String("first"), Status: awsneptunegraphtypes.GraphStatusAvailable},
+			"g-2": {Id: awsv2.String("g-2"), Arn: awsv2.String("arn:aws:neptune-graph:us-east-1:123456789012:graph/g-2"), Name: awsv2.String("second"), Status: awsneptunegraphtypes.GraphStatusAvailable},
 		},
 	}
 	adapter := &Client{neptune: &fakeNeptuneAPI{}, graph: graphAPI, boundary: testBoundary()}
@@ -312,11 +312,11 @@ func TestClientPaginatesGraphsWithNextToken(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceNeptune,
+		ServiceKind: aws.ServiceNeptune,
 	}
 }
 

@@ -8,4 +8,4 @@
 // and ListTagsForResource. It intentionally excludes PutEvents, rule/target
 // mutation calls, event bus policy persistence, and target payload fields such
 // as Input, InputPath, InputTransformer, and HttpParameters.
-package awssdk
+package sdk

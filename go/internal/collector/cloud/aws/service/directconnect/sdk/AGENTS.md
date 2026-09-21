@@ -1,4 +1,4 @@
-# AGENTS.md - services/directconnect/awssdk guidance
+# AGENTS.md - services/directconnect/sdk guidance
 
 ## Read First
 
@@ -9,7 +9,7 @@
 4. `client_test.go` - the forbidden-method reflection test, the authKey-drop
    test, and the MACsec-key-drop test.
 5. `../README.md` - Direct Connect scanner contract and join keys.
-6. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+6. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 

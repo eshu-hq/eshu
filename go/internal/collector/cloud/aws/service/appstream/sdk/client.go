@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappstream "github.com/aws/aws-sdk-go-v2/service/appstream"
 	awsappstreamtypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/aws/smithy-go"
@@ -67,15 +67,15 @@ type apiClient interface {
 // never reads streaming-session, user, or session-script content.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AppStream SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -147,7 +147,7 @@ func (c *Client) describeFleets(ctx context.Context) ([]appstreamservice.Fleet, 
 			fleets = append(fleets, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return fleets, nil
 		}
 	}
@@ -179,7 +179,7 @@ func (c *Client) describeStacks(ctx context.Context) ([]appstreamservice.Stack, 
 			stacks = append(stacks, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return stacks, nil
 		}
 	}
@@ -211,7 +211,7 @@ func (c *Client) describeImageBuilders(ctx context.Context) ([]appstreamservice.
 			builders = append(builders, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return builders, nil
 		}
 	}
@@ -253,7 +253,7 @@ func (c *Client) describeImages(ctx context.Context) ([]appstreamservice.Image, 
 				images = append(images, mapped)
 			}
 			nextToken = page.NextToken
-			if aws.ToString(nextToken) == "" {
+			if awsv2.ToString(nextToken) == "" {
 				break
 			}
 		}
@@ -282,7 +282,7 @@ func (c *Client) fleetStackAssociations(
 			err := c.recordAPICall(ctx, "ListAssociatedStacks", func(callCtx context.Context) error {
 				var callErr error
 				page, callErr = c.client.ListAssociatedStacks(callCtx, &awsappstream.ListAssociatedStacksInput{
-					FleetName: aws.String(fleetName),
+					FleetName: awsv2.String(fleetName),
 					NextToken: nextToken,
 				})
 				return callErr
@@ -302,7 +302,7 @@ func (c *Client) fleetStackAssociations(
 				}
 			}
 			nextToken = page.NextToken
-			if aws.ToString(nextToken) == "" {
+			if awsv2.ToString(nextToken) == "" {
 				break
 			}
 		}
@@ -319,7 +319,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awsappstream.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return callErr
 	})
@@ -356,7 +356,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

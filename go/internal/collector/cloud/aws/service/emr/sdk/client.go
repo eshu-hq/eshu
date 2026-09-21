@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsemr "github.com/aws/aws-sdk-go-v2/service/emr"
 	emrtypes "github.com/aws/aws-sdk-go-v2/service/emr/types"
 	awsemrserverless "github.com/aws/aws-sdk-go-v2/service/emrserverless"
@@ -57,15 +57,15 @@ type emrServerlessAPIClient interface {
 type Client struct {
 	emr         emrAPIClient
 	serverless  emrServerlessAPIClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an EMR SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -84,7 +84,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]emrservice.Cluster, error)
 	createdAfter := c.now().Add(-recentlyTerminatedWindow)
 	input := &awsemr.ListClustersInput{
 		ClusterStates: clusterStates(),
-		CreatedAfter:  aws.Time(createdAfter),
+		CreatedAfter:  awsv2.Time(createdAfter),
 	}
 	var clusters []emrservice.Cluster
 	for {
@@ -101,7 +101,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]emrservice.Cluster, error)
 			break
 		}
 		for _, summary := range page.Clusters {
-			cluster, err := c.describeCluster(ctx, aws.ToString(summary.Id))
+			cluster, err := c.describeCluster(ctx, awsv2.ToString(summary.Id))
 			if err != nil {
 				return nil, err
 			}
@@ -125,7 +125,7 @@ func (c *Client) describeCluster(ctx context.Context, id string) (*emrservice.Cl
 	var output *awsemr.DescribeClusterOutput
 	err := c.recordEMRCall(ctx, "DescribeCluster", func(callCtx context.Context) error {
 		var err error
-		output, err = c.emr.DescribeCluster(callCtx, &awsemr.DescribeClusterInput{ClusterId: aws.String(id)})
+		output, err = c.emr.DescribeCluster(callCtx, &awsemr.DescribeClusterInput{ClusterId: awsv2.String(id)})
 		return err
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func (c *Client) describeCluster(ctx context.Context, id string) (*emrservice.Cl
 }
 
 func (c *Client) listInstanceGroups(ctx context.Context, clusterID string) ([]emrservice.InstanceGroup, error) {
-	input := &awsemr.ListInstanceGroupsInput{ClusterId: aws.String(clusterID)}
+	input := &awsemr.ListInstanceGroupsInput{ClusterId: awsv2.String(clusterID)}
 	var groups []emrservice.InstanceGroup
 	for {
 		var page *awsemr.ListInstanceGroupsOutput
@@ -178,7 +178,7 @@ func (c *Client) listInstanceGroups(ctx context.Context, clusterID string) ([]em
 }
 
 func (c *Client) listInstanceFleets(ctx context.Context, clusterID string) ([]emrservice.InstanceFleet, error) {
-	input := &awsemr.ListInstanceFleetsInput{ClusterId: aws.String(clusterID)}
+	input := &awsemr.ListInstanceFleetsInput{ClusterId: awsv2.String(clusterID)}
 	var fleets []emrservice.InstanceFleet
 	for {
 		var page *awsemr.ListInstanceFleetsOutput
@@ -224,8 +224,8 @@ func (c *Client) ListSecurityConfigurations(ctx context.Context) ([]emrservice.S
 		}
 		for _, summary := range page.SecurityConfigurations {
 			configs = append(configs, emrservice.SecurityConfiguration{
-				Name:      aws.ToString(summary.Name),
-				CreatedAt: aws.ToTime(summary.CreationDateTime),
+				Name:      awsv2.ToString(summary.Name),
+				CreatedAt: awsv2.ToTime(summary.CreationDateTime),
 			})
 		}
 		if !advance(&input.Marker, page.Marker) {
@@ -253,7 +253,7 @@ func (c *Client) ListStudios(ctx context.Context) ([]emrservice.Studio, error) {
 			break
 		}
 		for _, summary := range page.Studios {
-			studio, err := c.describeStudio(ctx, aws.ToString(summary.StudioId))
+			studio, err := c.describeStudio(ctx, awsv2.ToString(summary.StudioId))
 			if err != nil {
 				return nil, err
 			}
@@ -277,7 +277,7 @@ func (c *Client) describeStudio(ctx context.Context, id string) (*emrservice.Stu
 	var output *awsemr.DescribeStudioOutput
 	err := c.recordEMRCall(ctx, "DescribeStudio", func(callCtx context.Context) error {
 		var err error
-		output, err = c.emr.DescribeStudio(callCtx, &awsemr.DescribeStudioInput{StudioId: aws.String(id)})
+		output, err = c.emr.DescribeStudio(callCtx, &awsemr.DescribeStudioInput{StudioId: awsv2.String(id)})
 		return err
 	})
 	if err != nil {
@@ -296,7 +296,7 @@ func (c *Client) describeStudio(ctx context.Context, id string) (*emrservice.Stu
 }
 
 func (c *Client) listSessionMappings(ctx context.Context, studioID string) ([]emrservice.StudioSessionMapping, error) {
-	input := &awsemr.ListStudioSessionMappingsInput{StudioId: aws.String(studioID)}
+	input := &awsemr.ListStudioSessionMappingsInput{StudioId: awsv2.String(studioID)}
 	var mappings []emrservice.StudioSessionMapping
 	for {
 		var page *awsemr.ListStudioSessionMappingsOutput
@@ -340,7 +340,7 @@ func (c *Client) ListServerlessApplications(ctx context.Context) ([]emrservice.S
 			break
 		}
 		for _, summary := range page.Applications {
-			application, err := c.getServerlessApplication(ctx, aws.ToString(summary.Id))
+			application, err := c.getServerlessApplication(ctx, awsv2.ToString(summary.Id))
 			if err != nil {
 				return nil, err
 			}
@@ -364,7 +364,7 @@ func (c *Client) getServerlessApplication(ctx context.Context, id string) (*emrs
 	var output *awsemrserverless.GetApplicationOutput
 	err := c.recordServerlessCall(ctx, "GetApplication", func(callCtx context.Context) error {
 		var err error
-		output, err = c.serverless.GetApplication(callCtx, &awsemrserverless.GetApplicationInput{ApplicationId: aws.String(id)})
+		output, err = c.serverless.GetApplication(callCtx, &awsemrserverless.GetApplicationInput{ApplicationId: awsv2.String(id)})
 		return err
 	})
 	if err != nil {
@@ -404,14 +404,14 @@ func isInstanceFleetCluster(collectionType emrtypes.InstanceCollectionType) bool
 // paginating. It stops on an empty token and on an unchanging token so a buggy
 // server response cannot loop forever.
 func advance(current **string, next *string) bool {
-	token := strings.TrimSpace(aws.ToString(next))
+	token := strings.TrimSpace(awsv2.ToString(next))
 	if token == "" {
 		return false
 	}
 	if *current != nil && strings.TrimSpace(**current) == token {
 		return false
 	}
-	*current = aws.String(token)
+	*current = awsv2.String(token)
 	return true
 }
 
@@ -446,7 +446,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

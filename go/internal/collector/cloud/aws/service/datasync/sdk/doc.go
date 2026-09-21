@@ -13,4 +13,4 @@
 // join the backing S3 bucket, EFS file system, FSx file system, and IAM role; it
 // never reads object-storage access keys, server certificates, or SMB and
 // object-storage passwords.
-package awssdk
+package sdk

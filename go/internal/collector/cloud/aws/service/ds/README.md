@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ds` owns the Directory Service scanner
+`internal/collector/cloud/aws/service/ds` owns the Directory Service scanner
 contract for the AWS cloud collector. It converts AWS Directory Service
 directories (AWS Managed Microsoft AD, Simple AD, AD Connector), their trust
 relationships, shared-directory invitations, and LDAPS settings metadata into
@@ -40,19 +40,19 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
 The package depends on a small `Client` interface rather than the AWS SDK for Go
-v2 so tests can use fake clients and the runtime adapter (`awssdk`) owns SDK
+v2 so tests can use fake clients and the runtime adapter (`sdk`) owns SDK
 behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource/relationship counts after `Scanner.Scan`
-returns. The `awssdk` adapter records Directory Service API call counts,
+returns. The `sdk` adapter records Directory Service API call counts,
 throttles, and pagination spans. The collector counts emitted facts under
 `eshu_dp_aws_resources_emitted_total{service="ds"}` and
 `eshu_dp_aws_relationships_emitted_total{service="ds"}`.
@@ -60,7 +60,7 @@ throttles, and pagination spans. The collector counts emitted facts under
 ## Gotchas / invariants
 
 - The scanner is metadata-only. It never calls a mutation API (ResetUserPassword,
-  Create/Delete/Update/Enable/Disable/...). A reflection test in the `awssdk`
+  Create/Delete/Update/Enable/Disable/...). A reflection test in the `sdk`
   adapter fails the build if any such method is added to the SDK seam.
 - The directory admin password and the RADIUS shared secret are never persisted.
   `DescribeDirectories` does not return the admin password, and the scanner-owned
@@ -83,7 +83,7 @@ throttles, and pagination spans. The collector counts emitted facts under
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/ds/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/ds/...`
 covers the bounded Directory Service metadata path: a paginated
 DescribeDirectories account-wide describe, then a bounded per-directory fan-out
 of DescribeTrusts, DescribeSharedDirectories, and (for Managed Microsoft AD only)
@@ -92,7 +92,7 @@ count per claim; trusts, shares, and LDAPS reads are bounded by that count and
 their own page sizes. No mutation calls and no graph writes exist in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Directory Service metadata fact emission across all three directory types,
 VPC/subnet/trust/shared-directory/owner-account relationship emission with
 non-empty target_type and join keys, the bare-directory-id resource_id that the

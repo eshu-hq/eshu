@@ -26,15 +26,15 @@ type Scanner struct {
 
 // Scan observes WorkSpaces, directories, bundles, and IP access control groups
 // plus their direct dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("workspaces scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceWorkSpaces:
+	case "", aws.ServiceWorkSpaces:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceWorkSpaces
+		boundary.ServiceKind = aws.ServiceWorkSpaces
 	default:
 		return nil, fmt.Errorf("workspaces scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -55,14 +55,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, bundle := range snapshot.Bundles {
-		envelope, err := awscloud.NewResourceEnvelope(bundleObservation(boundary, bundle))
+		envelope, err := aws.NewResourceEnvelope(bundleObservation(boundary, bundle))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, group := range snapshot.IPGroups {
-		envelope, err := awscloud.NewResourceEnvelope(ipGroupObservation(boundary, group))
+		envelope, err := aws.NewResourceEnvelope(ipGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -78,9 +78,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -89,13 +89,13 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(workspaceObservation(boundary, workspace))
+func workspaceEnvelopes(boundary aws.Boundary, workspace Workspace) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(workspaceObservation(boundary, workspace))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		workspaceInDirectoryRelationship(boundary, workspace),
 		workspaceUsesBundleRelationship(boundary, workspace),
 		workspaceUsesKMSKeyRelationship(boundary, workspace),
@@ -103,7 +103,7 @@ func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]fact
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -112,14 +112,14 @@ func workspaceEnvelopes(boundary awscloud.Boundary, workspace Workspace) ([]fact
 	return envelopes, nil
 }
 
-func directoryEnvelopes(boundary awscloud.Boundary, directory Directory) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(directoryObservation(boundary, directory))
+func directoryEnvelopes(boundary aws.Boundary, directory Directory) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(directoryObservation(boundary, directory))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range directoryRelationships(boundary, directory) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -128,15 +128,15 @@ func directoryEnvelopes(boundary awscloud.Boundary, directory Directory) ([]fact
 	return envelopes, nil
 }
 
-func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscloud.ResourceObservation {
+func workspaceObservation(boundary aws.Boundary, workspace Workspace) aws.ResourceObservation {
 	resourceID := workspaceResourceID(boundary, workspace)
 	id := strings.TrimSpace(workspace.ID)
 	name := strings.TrimSpace(workspace.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesWorkspace,
+		ResourceType: aws.ResourceTypeWorkSpacesWorkspace,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(workspace.State),
 		Tags:         cloneStringMap(workspace.Tags),
@@ -156,15 +156,15 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 	}
 }
 
-func directoryObservation(boundary awscloud.Boundary, directory Directory) awscloud.ResourceObservation {
+func directoryObservation(boundary aws.Boundary, directory Directory) aws.ResourceObservation {
 	resourceID := directoryResourceID(boundary, directory)
 	id := strings.TrimSpace(directory.ID)
 	name := strings.TrimSpace(directory.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesDirectory,
+		ResourceType: aws.ResourceTypeWorkSpacesDirectory,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(directory.State),
 		Tags:         cloneStringMap(directory.Tags),
@@ -184,15 +184,15 @@ func directoryObservation(boundary awscloud.Boundary, directory Directory) awscl
 	}
 }
 
-func bundleObservation(boundary awscloud.Boundary, bundle Bundle) awscloud.ResourceObservation {
+func bundleObservation(boundary aws.Boundary, bundle Bundle) aws.ResourceObservation {
 	resourceID := bundleResourceID(boundary, bundle)
 	id := strings.TrimSpace(bundle.ID)
 	name := strings.TrimSpace(bundle.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesBundle,
+		ResourceType: aws.ResourceTypeWorkSpacesBundle,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(bundle.State),
 		Tags:         cloneStringMap(bundle.Tags),
@@ -214,15 +214,15 @@ func bundleObservation(boundary awscloud.Boundary, bundle Bundle) awscloud.Resou
 	}
 }
 
-func ipGroupObservation(boundary awscloud.Boundary, group IPGroup) awscloud.ResourceObservation {
+func ipGroupObservation(boundary aws.Boundary, group IPGroup) aws.ResourceObservation {
 	resourceID := ipGroupResourceID(boundary, group)
 	id := strings.TrimSpace(group.ID)
 	name := strings.TrimSpace(group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesIPGroup,
+		ResourceType: aws.ResourceTypeWorkSpacesIPGroup,
 		Name:         firstNonEmptyValue(name, id),
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

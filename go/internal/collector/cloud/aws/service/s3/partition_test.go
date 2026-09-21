@@ -29,7 +29,7 @@ func TestBucketNodeIdentityDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			obs := bucketObservation(awscloud.Boundary{Region: tc.region}, Bucket{Name: "my-bucket"})
+			obs := bucketObservation(aws.Boundary{Region: tc.region}, Bucket{Name: "my-bucket"})
 			if obs.ARN != tc.wantARN {
 				t.Fatalf("node ARN = %q, want %q", obs.ARN, tc.wantARN)
 			}
@@ -67,7 +67,7 @@ func TestLoggingRelationshipDerivesPartition(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			bucket := Bucket{Name: "src"}
 			bucket.Logging.TargetBucket = "dst"
-			obs, ok := loggingRelationship(awscloud.Boundary{Region: tc.region}, bucket)
+			obs, ok := loggingRelationship(aws.Boundary{Region: tc.region}, bucket)
 			if !ok {
 				t.Fatalf("expected a logging relationship")
 			}

@@ -31,15 +31,15 @@ type Scanner struct {
 // CloudFormation-stack-backed group. Members whose resource family the
 // classifier does not recognize are skipped rather than emitted with an empty
 // target type.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("resourcegroups scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceResourceGroups:
+	case "", aws.ServiceResourceGroups:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceResourceGroups
+		boundary.ServiceKind = aws.ServiceResourceGroups
 	default:
 		return nil, fmt.Errorf("resourcegroups scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -62,15 +62,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // groupEnvelopes projects one group into its resource fact plus the membership
 // and stack-backing relationship facts it anchors.
-func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(groupObservation(boundary, group))
+func groupEnvelopes(boundary aws.Boundary, group Group) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(groupObservation(boundary, group))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	if rel, ok := groupBackedByStackRelationship(boundary, group); ok {
-		relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+		relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, 
 		if !ok {
 			continue
 		}
-		relEnvelope, err := awscloud.NewRelationshipEnvelope(rel)
+		relEnvelope, err := aws.NewRelationshipEnvelope(rel)
 		if err != nil {
 			return nil, err
 		}
@@ -95,14 +95,14 @@ func groupEnvelopes(boundary awscloud.Boundary, group Group) ([]facts.Envelope, 
 // observation. The resource-query body is never persisted; only the query type
 // is recorded. The group ARN is the durable identity and the partition is taken
 // from it, never synthesized.
-func groupObservation(boundary awscloud.Boundary, group Group) awscloud.ResourceObservation {
+func groupObservation(boundary aws.Boundary, group Group) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   firstNonEmpty(groupARN, name),
-		ResourceType: awscloud.ResourceTypeResourceGroupsGroup,
+		ResourceType: aws.ResourceTypeResourceGroupsGroup,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":      strings.TrimSpace(group.Description),

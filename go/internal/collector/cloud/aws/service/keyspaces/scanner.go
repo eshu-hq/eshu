@@ -24,15 +24,15 @@ type Scanner struct {
 // Scan observes Amazon Keyspaces keyspaces and tables plus the table-in-keyspace
 // and direct customer-managed KMS dependency edges through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("keyspaces scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKeyspaces:
+	case "", aws.ServiceKeyspaces:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKeyspaces
+		boundary.ServiceKind = aws.ServiceKeyspaces
 	default:
 		return nil, fmt.Errorf("keyspaces scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -46,7 +46,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, keyspace := range snapshot.Keyspaces {
-		envelope, err := awscloud.NewResourceEnvelope(keyspaceObservation(boundary, keyspace))
+		envelope, err := aws.NewResourceEnvelope(keyspaceObservation(boundary, keyspace))
 		if err != nil {
 			return nil, err
 		}
@@ -62,9 +62,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -73,20 +73,20 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func tableEnvelopes(boundary awscloud.Boundary, table Table) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(tableObservation(boundary, table))
+func tableEnvelopes(boundary aws.Boundary, table Table) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(tableObservation(boundary, table))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		tableKeyspaceRelationship(boundary, table),
 		tableKMSRelationship(boundary, table),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -95,15 +95,15 @@ func tableEnvelopes(boundary awscloud.Boundary, table Table) ([]facts.Envelope, 
 	return envelopes, nil
 }
 
-func keyspaceObservation(boundary awscloud.Boundary, keyspace Keyspace) awscloud.ResourceObservation {
+func keyspaceObservation(boundary aws.Boundary, keyspace Keyspace) aws.ResourceObservation {
 	keyspaceARN := strings.TrimSpace(keyspace.ARN)
 	keyspaceName := strings.TrimSpace(keyspace.Name)
 	resourceID := firstNonEmpty(keyspaceARN, keyspaceName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          keyspaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKeyspacesKeyspace,
+		ResourceType: aws.ResourceTypeKeyspacesKeyspace,
 		Name:         keyspaceName,
 		Attributes: map[string]any{
 			"keyspace_name":        keyspaceName,
@@ -115,15 +115,15 @@ func keyspaceObservation(boundary awscloud.Boundary, keyspace Keyspace) awscloud
 	}
 }
 
-func tableObservation(boundary awscloud.Boundary, table Table) awscloud.ResourceObservation {
+func tableObservation(boundary aws.Boundary, table Table) aws.ResourceObservation {
 	tableARN := strings.TrimSpace(table.ARN)
 	tableName := strings.TrimSpace(table.Name)
 	resourceID := firstNonEmpty(tableARN, tableName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          tableARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKeyspacesTable,
+		ResourceType: aws.ResourceTypeKeyspacesTable,
 		Name:         tableName,
 		State:        strings.TrimSpace(table.Status),
 		Tags:         cloneStringMap(table.Tags),

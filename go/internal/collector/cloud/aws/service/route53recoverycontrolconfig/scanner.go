@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes recovery-control clusters, their control panels, and the routing
 // controls and safety rules under each panel through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("route53recoverycontrolconfig scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRoute53RecoveryControlConfig:
+	case "", aws.ServiceRoute53RecoveryControlConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRoute53RecoveryControlConfig
+		boundary.ServiceKind = aws.ServiceRoute53RecoveryControlConfig
 	default:
 		return nil, fmt.Errorf(
 			"route53recoverycontrolconfig scanner received service_kind %q", boundary.ServiceKind,
@@ -58,9 +58,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -69,8 +69,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+func clusterEnvelopes(boundary aws.Boundary, cluster Cluster) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +85,8 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	return envelopes, nil
 }
 
-func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(controlPanelObservation(boundary, panel))
+func controlPanelEnvelopes(boundary aws.Boundary, panel ControlPanel) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(controlPanelObservation(boundary, panel))
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]fa
 		return nil, err
 	}
 	for _, control := range panel.RoutingControls {
-		resource, err := awscloud.NewResourceEnvelope(routingControlObservation(boundary, control))
+		resource, err := aws.NewResourceEnvelope(routingControlObservation(boundary, control))
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]fa
 		}
 	}
 	for _, rule := range panel.SafetyRules {
-		resource, err := awscloud.NewResourceEnvelope(safetyRuleObservation(boundary, rule))
+		resource, err := aws.NewResourceEnvelope(safetyRuleObservation(boundary, rule))
 		if err != nil {
 			return nil, err
 		}
@@ -121,11 +121,11 @@ func controlPanelEnvelopes(boundary awscloud.Boundary, panel ControlPanel) ([]fa
 	return envelopes, nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.RelationshipObservation) error {
+func appendRelationship(envelopes *[]facts.Envelope, relationship *aws.RelationshipObservation) error {
 	if relationship == nil {
 		return nil
 	}
-	envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+	envelope, err := aws.NewRelationshipEnvelope(*relationship)
 	if err != nil {
 		return err
 	}
@@ -133,15 +133,15 @@ func appendRelationship(envelopes *[]facts.Envelope, relationship *awscloud.Rela
 	return nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	arn := strings.TrimSpace(cluster.ARN)
 	name := strings.TrimSpace(cluster.Name)
 	resourceID := clusterResourceID(cluster)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigCluster,
+		ResourceType: aws.ResourceTypeRoute53RecoveryControlConfigCluster,
 		Name:         name,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -156,15 +156,15 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 	}
 }
 
-func controlPanelObservation(boundary awscloud.Boundary, panel ControlPanel) awscloud.ResourceObservation {
+func controlPanelObservation(boundary aws.Boundary, panel ControlPanel) aws.ResourceObservation {
 	arn := strings.TrimSpace(panel.ARN)
 	name := strings.TrimSpace(panel.Name)
 	resourceID := controlPanelResourceID(panel)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		ResourceType: aws.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		Name:         name,
 		State:        strings.TrimSpace(panel.Status),
 		Tags:         cloneStringMap(panel.Tags),
@@ -180,15 +180,15 @@ func controlPanelObservation(boundary awscloud.Boundary, panel ControlPanel) aws
 	}
 }
 
-func routingControlObservation(boundary awscloud.Boundary, control RoutingControl) awscloud.ResourceObservation {
+func routingControlObservation(boundary aws.Boundary, control RoutingControl) aws.ResourceObservation {
 	arn := strings.TrimSpace(control.ARN)
 	name := strings.TrimSpace(control.Name)
 	resourceID := routingControlResourceID(control)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigRoutingControl,
+		ResourceType: aws.ResourceTypeRoute53RecoveryControlConfigRoutingControl,
 		Name:         name,
 		State:        strings.TrimSpace(control.Status),
 		Tags:         cloneStringMap(control.Tags),
@@ -202,7 +202,7 @@ func routingControlObservation(boundary awscloud.Boundary, control RoutingContro
 	}
 }
 
-func safetyRuleObservation(boundary awscloud.Boundary, rule SafetyRule) awscloud.ResourceObservation {
+func safetyRuleObservation(boundary aws.Boundary, rule SafetyRule) aws.ResourceObservation {
 	arn := strings.TrimSpace(rule.ARN)
 	name := strings.TrimSpace(rule.Name)
 	resourceID := safetyRuleResourceID(rule)
@@ -222,11 +222,11 @@ func safetyRuleObservation(boundary awscloud.Boundary, rule SafetyRule) awscloud
 		attributes["gating_control_count"] = int64(rule.GatingControlCount)
 		attributes["target_control_count"] = int64(rule.TargetControlCount)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeRoute53RecoveryControlConfigSafetyRule,
+		ResourceType:       aws.ResourceTypeRoute53RecoveryControlConfigSafetyRule,
 		Name:               name,
 		State:              strings.TrimSpace(rule.Status),
 		Tags:               cloneStringMap(rule.Tags),

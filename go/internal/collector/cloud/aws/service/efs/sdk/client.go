@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsefs "github.com/aws/aws-sdk-go-v2/service/efs"
 	awsefstypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
 	"github.com/aws/smithy-go"
@@ -37,15 +37,15 @@ type apiClient interface {
 // Client adapts AWS SDK EFS describe calls into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an EFS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -88,7 +88,7 @@ func (c *Client) fileSystemMetadata(
 	ctx context.Context,
 	description awsefstypes.FileSystemDescription,
 ) (efsservice.FileSystem, error) {
-	fsID := aws.ToString(description.FileSystemId)
+	fsID := awsv2.ToString(description.FileSystemId)
 	accessPoints, err := c.accessPoints(ctx, fsID)
 	if err != nil {
 		return efsservice.FileSystem{}, err
@@ -106,7 +106,7 @@ func (c *Client) fileSystemMetadata(
 
 func (c *Client) accessPoints(ctx context.Context, fsID string) ([]efsservice.AccessPoint, error) {
 	paginator := awsefs.NewDescribeAccessPointsPaginator(c.client, &awsefs.DescribeAccessPointsInput{
-		FileSystemId: aws.String(fsID),
+		FileSystemId: awsv2.String(fsID),
 	})
 	var accessPoints []efsservice.AccessPoint
 	for paginator.HasMorePages() {
@@ -128,7 +128,7 @@ func (c *Client) accessPoints(ctx context.Context, fsID string) ([]efsservice.Ac
 
 func (c *Client) mountTargets(ctx context.Context, fsID string) ([]efsservice.MountTarget, error) {
 	paginator := awsefs.NewDescribeMountTargetsPaginator(c.client, &awsefs.DescribeMountTargetsInput{
-		FileSystemId: aws.String(fsID),
+		FileSystemId: awsv2.String(fsID),
 	})
 	var mountTargets []efsservice.MountTarget
 	for paginator.HasMorePages() {
@@ -162,7 +162,7 @@ func (c *Client) mountTargetSecurityGroups(ctx context.Context, mountTargetID st
 	err := c.recordAPICall(ctx, "DescribeMountTargetSecurityGroups", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeMountTargetSecurityGroups(callCtx, &awsefs.DescribeMountTargetSecurityGroupsInput{
-			MountTargetId: aws.String(mountTargetID),
+			MountTargetId: awsv2.String(mountTargetID),
 		})
 		return err
 	})
@@ -186,7 +186,7 @@ func (c *Client) lifecyclePolicy(ctx context.Context, fsID string) (efsservice.L
 	err := c.recordAPICall(ctx, "DescribeLifecycleConfiguration", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeLifecycleConfiguration(callCtx, &awsefs.DescribeLifecycleConfigurationInput{
-			FileSystemId: aws.String(fsID),
+			FileSystemId: awsv2.String(fsID),
 		})
 		return err
 	})
@@ -228,16 +228,16 @@ func mapFileSystem(
 	lifecycle efsservice.LifecyclePolicySummary,
 ) efsservice.FileSystem {
 	return efsservice.FileSystem{
-		ID:                   aws.ToString(description.FileSystemId),
-		ARN:                  strings.TrimSpace(aws.ToString(description.FileSystemArn)),
-		Name:                 strings.TrimSpace(aws.ToString(description.Name)),
-		OwnerID:              aws.ToString(description.OwnerId),
+		ID:                   awsv2.ToString(description.FileSystemId),
+		ARN:                  strings.TrimSpace(awsv2.ToString(description.FileSystemArn)),
+		Name:                 strings.TrimSpace(awsv2.ToString(description.Name)),
+		OwnerID:              awsv2.ToString(description.OwnerId),
 		LifeCycleState:       string(description.LifeCycleState),
 		PerformanceMode:      string(description.PerformanceMode),
 		ThroughputMode:       string(description.ThroughputMode),
-		Encrypted:            aws.ToBool(description.Encrypted),
-		KMSKeyID:             strings.TrimSpace(aws.ToString(description.KmsKeyId)),
-		AvailabilityZoneID:   aws.ToString(description.AvailabilityZoneId),
+		Encrypted:            awsv2.ToBool(description.Encrypted),
+		KMSKeyID:             strings.TrimSpace(awsv2.ToString(description.KmsKeyId)),
+		AvailabilityZoneID:   awsv2.ToString(description.AvailabilityZoneId),
 		NumberOfMountTargets: description.NumberOfMountTargets,
 		LifecyclePolicy:      lifecycle,
 		Tags:                 mapTags(description.Tags),
@@ -248,15 +248,15 @@ func mapFileSystem(
 
 func mapAccessPoint(description awsefstypes.AccessPointDescription) efsservice.AccessPoint {
 	accessPoint := efsservice.AccessPoint{
-		ID:             aws.ToString(description.AccessPointId),
-		ARN:            strings.TrimSpace(aws.ToString(description.AccessPointArn)),
-		Name:           strings.TrimSpace(aws.ToString(description.Name)),
-		FileSystemID:   aws.ToString(description.FileSystemId),
+		ID:             awsv2.ToString(description.AccessPointId),
+		ARN:            strings.TrimSpace(awsv2.ToString(description.AccessPointArn)),
+		Name:           strings.TrimSpace(awsv2.ToString(description.Name)),
+		FileSystemID:   awsv2.ToString(description.FileSystemId),
 		LifeCycleState: string(description.LifeCycleState),
 		Tags:           mapTags(description.Tags),
 	}
 	if description.RootDirectory != nil {
-		accessPoint.RootDirectory = strings.TrimSpace(aws.ToString(description.RootDirectory.Path))
+		accessPoint.RootDirectory = strings.TrimSpace(awsv2.ToString(description.RootDirectory.Path))
 	}
 	if description.PosixUser != nil {
 		accessPoint.PosixUID = description.PosixUser.Uid
@@ -267,26 +267,26 @@ func mapAccessPoint(description awsefstypes.AccessPointDescription) efsservice.A
 
 func mapMountTarget(description awsefstypes.MountTargetDescription) efsservice.MountTarget {
 	return efsservice.MountTarget{
-		ID:                 aws.ToString(description.MountTargetId),
-		FileSystemID:       aws.ToString(description.FileSystemId),
-		SubnetID:           aws.ToString(description.SubnetId),
-		VPCID:              aws.ToString(description.VpcId),
-		AvailabilityZoneID: aws.ToString(description.AvailabilityZoneId),
+		ID:                 awsv2.ToString(description.MountTargetId),
+		FileSystemID:       awsv2.ToString(description.FileSystemId),
+		SubnetID:           awsv2.ToString(description.SubnetId),
+		VPCID:              awsv2.ToString(description.VpcId),
+		AvailabilityZoneID: awsv2.ToString(description.AvailabilityZoneId),
 		LifeCycleState:     string(description.LifeCycleState),
-		IPAddress:          aws.ToString(description.IpAddress),
-		NetworkInterfaceID: aws.ToString(description.NetworkInterfaceId),
+		IPAddress:          awsv2.ToString(description.IpAddress),
+		NetworkInterfaceID: awsv2.ToString(description.NetworkInterfaceId),
 	}
 }
 
 func mapReplicationConfiguration(description awsefstypes.ReplicationConfigurationDescription) efsservice.ReplicationConfiguration {
 	config := efsservice.ReplicationConfiguration{
-		SourceFileSystemID:  aws.ToString(description.SourceFileSystemId),
-		SourceFileSystemARN: strings.TrimSpace(aws.ToString(description.SourceFileSystemArn)),
+		SourceFileSystemID:  awsv2.ToString(description.SourceFileSystemId),
+		SourceFileSystemARN: strings.TrimSpace(awsv2.ToString(description.SourceFileSystemArn)),
 	}
 	for _, destination := range description.Destinations {
 		config.Destinations = append(config.Destinations, efsservice.ReplicationDestination{
-			FileSystemID: aws.ToString(destination.FileSystemId),
-			Region:       aws.ToString(destination.Region),
+			FileSystemID: awsv2.ToString(destination.FileSystemId),
+			Region:       awsv2.ToString(destination.Region),
 			Status:       string(destination.Status),
 		})
 	}
@@ -315,11 +315,11 @@ func mapTags(tags []awsefstypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil
@@ -369,7 +369,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

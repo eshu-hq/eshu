@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sns/awssdk` adapts AWS SDK for Go v2 SNS
+`internal/collector/cloud/aws/service/sns/sdk` adapts AWS SDK for Go v2 SNS
 responses to the scanner-owned `sns.Client` contract. It owns SNS topic
 pagination, topic metadata reads, topic tag reads, subscription pagination,
 throttle classification, and per-call AWS API telemetry.
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/sns` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/sns` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `sns` and Smithy error contracts.
 

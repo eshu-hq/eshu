@@ -34,7 +34,7 @@ type Snapshot struct {
 	CoreNetworks []CoreNetwork
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // GlobalNetwork is the scanner-owned Network Manager global-network model and

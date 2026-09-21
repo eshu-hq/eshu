@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/wafv2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/wafv2 guidance
 
 ## Read First
 
@@ -26,12 +26,12 @@
 ## Common Changes
 
 - Add a new WAFv2 metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. Never add a field that carries an address, regex body, or
   Statement body.
 - Add new relationship evidence only when the WAFv2 API reports both endpoints
   directly.
-- Extend SDK pagination, scope selection, and statement walking in the `awssdk`
+- Extend SDK pagination, scope selection, and statement walking in the `sdk`
   adapter, not here.
 
 ## What Not To Change Without An ADR

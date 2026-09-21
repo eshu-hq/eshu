@@ -57,7 +57,7 @@ func TestFlowS3RelationshipDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region}
+			boundary := aws.Boundary{Region: tc.region}
 			flow := Flow{
 				ARN:            tc.flowARN,
 				Name:           "f",
@@ -73,8 +73,8 @@ func TestFlowS3RelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetARN != tc.want {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeS3Bucket {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeS3Bucket)
+			if obs.TargetType != aws.ResourceTypeS3Bucket {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeS3Bucket)
 			}
 		})
 	}

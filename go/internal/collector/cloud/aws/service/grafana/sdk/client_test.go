@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsgrafana "github.com/aws/aws-sdk-go-v2/service/grafana"
 	awsgrafanatypes "github.com/aws/aws-sdk-go-v2/service/grafana/types"
 
@@ -19,18 +19,18 @@ func TestClientSnapshotsGrafanaMetadataOnly(t *testing.T) {
 	created := time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)
 	api := &fakeGrafanaAPI{
 		workspacePages: []*awsgrafana.ListWorkspacesOutput{{
-			Workspaces: []awsgrafanatypes.WorkspaceSummary{{Id: aws.String("g-abcd123456")}},
+			Workspaces: []awsgrafanatypes.WorkspaceSummary{{Id: awsv2.String("g-abcd123456")}},
 		}},
 		descriptions: map[string]*awsgrafanatypes.WorkspaceDescription{
 			"g-abcd123456": {
-				Id:                aws.String("g-abcd123456"),
-				Name:              aws.String("observability"),
+				Id:                awsv2.String("g-abcd123456"),
+				Name:              awsv2.String("observability"),
 				Status:            awsgrafanatypes.WorkspaceStatusActive,
-				GrafanaVersion:    aws.String("10.4"),
-				Endpoint:          aws.String("g-abcd123456.grafana-workspace.us-east-1.amazonaws.com"),
+				GrafanaVersion:    awsv2.String("10.4"),
+				Endpoint:          awsv2.String("g-abcd123456.grafana-workspace.us-east-1.amazonaws.com"),
 				AccountAccessType: awsgrafanatypes.AccountAccessTypeCurrentAccount,
 				PermissionType:    awsgrafanatypes.PermissionTypeServiceManaged,
-				WorkspaceRoleArn:  aws.String("arn:aws:iam::123456789012:role/grafana-workspace-role"),
+				WorkspaceRoleArn:  awsv2.String("arn:aws:iam::123456789012:role/grafana-workspace-role"),
 				DataSources:       []awsgrafanatypes.DataSourceType{awsgrafanatypes.DataSourceTypePrometheus, awsgrafanatypes.DataSourceTypeCloudwatch},
 				Authentication: &awsgrafanatypes.AuthenticationSummary{
 					Providers: []awsgrafanatypes.AuthenticationProviderTypes{awsgrafanatypes.AuthenticationProviderTypesAwsSso},
@@ -39,8 +39,8 @@ func TestClientSnapshotsGrafanaMetadataOnly(t *testing.T) {
 					SubnetIds:        []string{"subnet-0123456789abcdef0", "subnet-0123456789abcdef1"},
 					SecurityGroupIds: []string{"sg-0123456789abcdef0"},
 				},
-				Created:  aws.Time(created),
-				Modified: aws.Time(created),
+				Created:  awsv2.Time(created),
+				Modified: awsv2.Time(created),
 			},
 		},
 		tags: map[string]map[string]string{
@@ -86,10 +86,10 @@ func TestClientSynthesizesGovCloudWorkspaceARN(t *testing.T) {
 	boundary.Region = "us-gov-west-1"
 	api := &fakeGrafanaAPI{
 		workspacePages: []*awsgrafana.ListWorkspacesOutput{{
-			Workspaces: []awsgrafanatypes.WorkspaceSummary{{Id: aws.String("g-gov12345")}},
+			Workspaces: []awsgrafanatypes.WorkspaceSummary{{Id: awsv2.String("g-gov12345")}},
 		}},
 		descriptions: map[string]*awsgrafanatypes.WorkspaceDescription{
-			"g-gov12345": {Id: aws.String("g-gov12345"), Status: awsgrafanatypes.WorkspaceStatusActive},
+			"g-gov12345": {Id: awsv2.String("g-gov12345"), Status: awsgrafanatypes.WorkspaceStatusActive},
 		},
 	}
 	client := &Client{client: api, boundary: boundary}
@@ -139,7 +139,7 @@ func (f *fakeGrafanaAPI) DescribeWorkspace(
 	input *awsgrafana.DescribeWorkspaceInput,
 	_ ...func(*awsgrafana.Options),
 ) (*awsgrafana.DescribeWorkspaceOutput, error) {
-	desc := f.descriptions[aws.ToString(input.WorkspaceId)]
+	desc := f.descriptions[awsv2.ToString(input.WorkspaceId)]
 	return &awsgrafana.DescribeWorkspaceOutput{Workspace: desc}, nil
 }
 
@@ -149,14 +149,14 @@ func (f *fakeGrafanaAPI) ListTagsForResource(
 	_ ...func(*awsgrafana.Options),
 ) (*awsgrafana.ListTagsForResourceOutput, error) {
 	return &awsgrafana.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceGrafana,
+		ServiceKind: aws.ServiceGrafana,
 	}
 }

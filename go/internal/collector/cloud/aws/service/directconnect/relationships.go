@@ -11,18 +11,18 @@ import (
 
 // connectionRelationships links a connection to its parent LAG when AWS reports
 // one. The target is the aws_direct_connect_lag identity owned by this scanner.
-func connectionRelationships(boundary awscloud.Boundary, connection Connection) []awscloud.RelationshipObservation {
+func connectionRelationships(boundary aws.Boundary, connection Connection) []aws.RelationshipObservation {
 	id := strings.TrimSpace(connection.ID)
 	lagID := strings.TrimSpace(connection.LAGID)
 	if id == "" || lagID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDirectConnectConnectionInLAG,
+		RelationshipType: aws.RelationshipDirectConnectConnectionInLAG,
 		SourceResourceID: id,
 		TargetResourceID: lagID,
-		TargetType:       awscloud.ResourceTypeDirectConnectLAG,
+		TargetType:       aws.ResourceTypeDirectConnectLAG,
 		SourceRecordID:   id + "#lag#" + lagID,
 	}}
 }
@@ -31,29 +31,29 @@ func connectionRelationships(boundary awscloud.Boundary, connection Connection) 
 // gateway it attaches to and to the physical connection it runs over, when AWS
 // reports each. Both targets are scanner-owned identities keyed by AWS-reported
 // ID so the graph join lands on the matching node.
-func virtualInterfaceRelationships(boundary awscloud.Boundary, vif VirtualInterface) []awscloud.RelationshipObservation {
+func virtualInterfaceRelationships(boundary aws.Boundary, vif VirtualInterface) []aws.RelationshipObservation {
 	id := strings.TrimSpace(vif.ID)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if gatewayID := strings.TrimSpace(vif.GatewayID); gatewayID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectVirtualInterfaceToGateway,
+			RelationshipType: aws.RelationshipDirectConnectVirtualInterfaceToGateway,
 			SourceResourceID: id,
 			TargetResourceID: gatewayID,
-			TargetType:       awscloud.ResourceTypeDirectConnectGateway,
+			TargetType:       aws.ResourceTypeDirectConnectGateway,
 			SourceRecordID:   id + "#direct-connect-gateway#" + gatewayID,
 		})
 	}
 	if connectionID := strings.TrimSpace(vif.ConnectionID); connectionID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectVirtualInterfaceToConnection,
+			RelationshipType: aws.RelationshipDirectConnectVirtualInterfaceToConnection,
 			SourceResourceID: id,
 			TargetResourceID: connectionID,
-			TargetType:       awscloud.ResourceTypeDirectConnectConnection,
+			TargetType:       aws.ResourceTypeDirectConnectConnection,
 			SourceRecordID:   id + "#connection#" + connectionID,
 		})
 	}
@@ -67,16 +67,16 @@ func virtualInterfaceRelationships(boundary awscloud.Boundary, vif VirtualInterf
 // scanner. Associations whose type is neither transit nor virtual private
 // gateway emit no edge rather than fabricate a typed target.
 func gatewayAssociationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association GatewayAssociation,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	gatewayID := strings.TrimSpace(association.GatewayID)
 	if gatewayID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	targetID := firstNonEmpty(association.AssociatedGatewayID, association.VirtualGatewayID)
 	if targetID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	attributes := map[string]any{
 		"association_id":    strings.TrimSpace(association.AssociationID),
@@ -84,22 +84,22 @@ func gatewayAssociationRelationship(
 	}
 	switch normalizeGatewayType(association.AssociatedGatewayType) {
 	case "transitgateway":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectGatewayToTransitGateway,
+			RelationshipType: aws.RelationshipDirectConnectGatewayToTransitGateway,
 			SourceResourceID: gatewayID,
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeTransitGateway,
+			TargetType:       aws.ResourceTypeTransitGateway,
 			Attributes:       attributes,
 			SourceRecordID:   gatewayID + "#transit-gateway#" + targetID,
 		}, true
 	case "virtualprivategateway":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectGatewayToVPNGateway,
+			RelationshipType: aws.RelationshipDirectConnectGatewayToVPNGateway,
 			SourceResourceID: gatewayID,
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeVPCVPNGateway,
+			TargetType:       aws.ResourceTypeVPCVPNGateway,
 			Attributes:       attributes,
 			SourceRecordID:   gatewayID + "#vpn-gateway#" + targetID,
 		}, true
@@ -108,17 +108,17 @@ func gatewayAssociationRelationship(
 		// AssociatedGateway. Treat that as a virtual private gateway edge.
 		if strings.TrimSpace(association.AssociatedGatewayType) == "" &&
 			strings.TrimSpace(association.VirtualGatewayID) != "" {
-			return awscloud.RelationshipObservation{
+			return aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipDirectConnectGatewayToVPNGateway,
+				RelationshipType: aws.RelationshipDirectConnectGatewayToVPNGateway,
 				SourceResourceID: gatewayID,
 				TargetResourceID: strings.TrimSpace(association.VirtualGatewayID),
-				TargetType:       awscloud.ResourceTypeVPCVPNGateway,
+				TargetType:       aws.ResourceTypeVPCVPNGateway,
 				Attributes:       attributes,
 				SourceRecordID:   gatewayID + "#vpn-gateway#" + strings.TrimSpace(association.VirtualGatewayID),
 			}, true
 		}
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }
 

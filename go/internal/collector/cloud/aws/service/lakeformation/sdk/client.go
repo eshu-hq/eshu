@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslf "github.com/aws/aws-sdk-go-v2/service/lakeformation"
 	awslftypes "github.com/aws/aws-sdk-go-v2/service/lakeformation/types"
 	"github.com/aws/smithy-go"
@@ -39,15 +39,15 @@ type apiClient interface {
 // survive.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Lake Formation SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -105,7 +105,7 @@ func (c *Client) ListResources(ctx context.Context) ([]lfservice.RegisteredResou
 			resources = append(resources, mapRegisteredResource(info))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return resources, nil
 		}
 	}
@@ -137,7 +137,7 @@ func (c *Client) ListPermissions(ctx context.Context) ([]lfservice.Permission, e
 			permissions = append(permissions, mapPermission(grant))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return permissions, nil
 		}
 	}
@@ -145,14 +145,14 @@ func (c *Client) ListPermissions(ctx context.Context) ([]lfservice.Permission, e
 
 func mapRegisteredResource(info awslftypes.ResourceInfo) lfservice.RegisteredResource {
 	return lfservice.RegisteredResource{
-		ResourceARN:                  strings.TrimSpace(aws.ToString(info.ResourceArn)),
-		RoleARN:                      strings.TrimSpace(aws.ToString(info.RoleArn)),
-		HybridAccessEnabled:          aws.ToBool(info.HybridAccessEnabled),
-		WithFederation:               aws.ToBool(info.WithFederation),
-		WithPrivilegedAccess:         aws.ToBool(info.WithPrivilegedAccess),
+		ResourceARN:                  strings.TrimSpace(awsv2.ToString(info.ResourceArn)),
+		RoleARN:                      strings.TrimSpace(awsv2.ToString(info.RoleArn)),
+		HybridAccessEnabled:          awsv2.ToBool(info.HybridAccessEnabled),
+		WithFederation:               awsv2.ToBool(info.WithFederation),
+		WithPrivilegedAccess:         awsv2.ToBool(info.WithPrivilegedAccess),
 		VerificationStatus:           strings.TrimSpace(string(info.VerificationStatus)),
-		ExpectedResourceOwnerAccount: strings.TrimSpace(aws.ToString(info.ExpectedResourceOwnerAccount)),
-		LastModified:                 aws.ToTime(info.LastModified),
+		ExpectedResourceOwnerAccount: strings.TrimSpace(awsv2.ToString(info.ExpectedResourceOwnerAccount)),
+		LastModified:                 awsv2.ToTime(info.LastModified),
 	}
 }
 
@@ -163,10 +163,10 @@ func mapPermission(grant awslftypes.PrincipalResourcePermissions) lfservice.Perm
 	permission := lfservice.Permission{
 		Privileges:          permissionNames(grant.Permissions),
 		GrantablePrivileges: permissionNames(grant.PermissionsWithGrantOption),
-		LastUpdated:         aws.ToTime(grant.LastUpdated),
+		LastUpdated:         awsv2.ToTime(grant.LastUpdated),
 	}
 	if grant.Principal != nil {
-		permission.PrincipalID = strings.TrimSpace(aws.ToString(grant.Principal.DataLakePrincipalIdentifier))
+		permission.PrincipalID = strings.TrimSpace(awsv2.ToString(grant.Principal.DataLakePrincipalIdentifier))
 	}
 	applyResource(&permission, grant.Resource)
 	return permission
@@ -182,25 +182,25 @@ func applyResource(permission *lfservice.Permission, resource *awslftypes.Resour
 	switch {
 	case resource.Table != nil:
 		permission.ResourceKind = "table"
-		permission.DatabaseName = strings.TrimSpace(aws.ToString(resource.Table.DatabaseName))
-		permission.TableName = strings.TrimSpace(aws.ToString(resource.Table.Name))
-		permission.CatalogID = strings.TrimSpace(aws.ToString(resource.Table.CatalogId))
+		permission.DatabaseName = strings.TrimSpace(awsv2.ToString(resource.Table.DatabaseName))
+		permission.TableName = strings.TrimSpace(awsv2.ToString(resource.Table.Name))
+		permission.CatalogID = strings.TrimSpace(awsv2.ToString(resource.Table.CatalogId))
 		if resource.Table.TableWildcard != nil {
 			permission.TableWildcard = true
 		}
 	case resource.TableWithColumns != nil:
 		permission.ResourceKind = "table"
-		permission.DatabaseName = strings.TrimSpace(aws.ToString(resource.TableWithColumns.DatabaseName))
-		permission.TableName = strings.TrimSpace(aws.ToString(resource.TableWithColumns.Name))
-		permission.CatalogID = strings.TrimSpace(aws.ToString(resource.TableWithColumns.CatalogId))
+		permission.DatabaseName = strings.TrimSpace(awsv2.ToString(resource.TableWithColumns.DatabaseName))
+		permission.TableName = strings.TrimSpace(awsv2.ToString(resource.TableWithColumns.Name))
+		permission.CatalogID = strings.TrimSpace(awsv2.ToString(resource.TableWithColumns.CatalogId))
 	case resource.Database != nil:
 		permission.ResourceKind = "database"
-		permission.DatabaseName = strings.TrimSpace(aws.ToString(resource.Database.Name))
-		permission.CatalogID = strings.TrimSpace(aws.ToString(resource.Database.CatalogId))
+		permission.DatabaseName = strings.TrimSpace(awsv2.ToString(resource.Database.Name))
+		permission.CatalogID = strings.TrimSpace(awsv2.ToString(resource.Database.CatalogId))
 	case resource.DataLocation != nil:
 		permission.ResourceKind = "data_location"
-		permission.DataLocationARN = strings.TrimSpace(aws.ToString(resource.DataLocation.ResourceArn))
-		permission.CatalogID = strings.TrimSpace(aws.ToString(resource.DataLocation.CatalogId))
+		permission.DataLocationARN = strings.TrimSpace(awsv2.ToString(resource.DataLocation.ResourceArn))
+		permission.CatalogID = strings.TrimSpace(awsv2.ToString(resource.DataLocation.CatalogId))
 	case resource.Catalog != nil:
 		permission.ResourceKind = "catalog"
 	case resource.LFTag != nil || resource.LFTagPolicy != nil || resource.LFTagExpression != nil:
@@ -242,7 +242,7 @@ func principalIdentifiers(principals []awslftypes.DataLakePrincipal) []string {
 	}
 	identifiers := make([]string, 0, len(principals))
 	for _, principal := range principals {
-		if id := strings.TrimSpace(aws.ToString(principal.DataLakePrincipalIdentifier)); id != "" {
+		if id := strings.TrimSpace(awsv2.ToString(principal.DataLakePrincipalIdentifier)); id != "" {
 			identifiers = append(identifiers, id)
 		}
 	}
@@ -270,7 +270,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

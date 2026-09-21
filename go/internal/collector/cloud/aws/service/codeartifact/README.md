@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codeartifact` owns the CodeArtifact
+`internal/collector/cloud/aws/service/codeartifact` owns the CodeArtifact
 scanner contract for the AWS cloud collector. It converts package-registry
 domain and repository metadata into `aws_resource` facts and emits relationship
 evidence for repository-to-domain membership, domain-to-KMS-key encryption,
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records CodeArtifact API call counts, throttles, and
+The `sdk` adapter records CodeArtifact API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -61,7 +61,7 @@ pagination spans.
   CodeArtifact API and are used directly, so they carry the correct partition
   (`aws`, `aws-us-gov`, `aws-cn`) without synthesis. The scanner synthesizes no
   ARN and never hardcodes `arn:aws:`; if a future edge ever needs a synthesized
-  identity, derive the partition through `awscloud.PartitionForBoundary` rather
+  identity, derive the partition through `aws.PartitionForBoundary` rather
   than a literal partition.
 - The domain resource_id is the domain name, which is the join key repositories
   reference as their owning domain.
@@ -86,7 +86,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codeartifact/...` covers the
+`go test ./internal/collector/cloud/aws/service/codeartifact/...` covers the
 bounded CodeArtifact metadata path: one paginated `ListDomains` stream with one
 `DescribeDomain` point read per domain, one paginated `ListRepositories` stream
 with one `DescribeRepository` point read per repository, no `ListPackages`,
@@ -95,7 +95,7 @@ with one `DescribeRepository` point read per repository, no `ListPackages`,
 graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/codeartifact/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/codeartifact/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers CodeArtifact domain and repository metadata fact emission,
 repository-to-domain membership, domain-to-KMS-key,
 repository-to-upstream-repository, and repository-to-external-connection relationship emission with

@@ -13,4 +13,4 @@
 // control state or mutate configuration. A reflective exclusion test enforces
 // that contract at build time. Each call is wrapped in the shared AWS pagination
 // span and API-call/throttle counters.
-package awssdk
+package sdk

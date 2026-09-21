@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kms/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/kms/sdk` adapts AWS SDK for Go v2
 KMS responses to the scanner-owned `kms.Client` contract. It owns KMS
 pagination, per-key control-plane reads, throttle classification, and
 per-call AWS API telemetry.
@@ -48,9 +48,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/kms` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/kms` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `kms` and Smithy error contracts.
 

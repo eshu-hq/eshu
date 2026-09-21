@@ -11,4 +11,4 @@
 // DescribeFileSystemPolicy or DescribeBackupPolicy, so NFS file system policy
 // bodies never enter the scan slice. The apiClient interface plus the reflection
 // guard in client_test.go enforce that contract.
-package awssdk
+package sdk

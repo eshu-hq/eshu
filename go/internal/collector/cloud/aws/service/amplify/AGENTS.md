@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/amplify guidance
+# AGENTS.md - internal/collector/cloud/aws/service/amplify guidance
 
 ## Read First
 
@@ -36,7 +36,7 @@
   the cloudfront domain-name anchor) with no target ARN, and dedupe repeated
   CloudFront domains.
 - Derive synthesized-ARN partitions from the boundary via
-  `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from app, branch, or domain
   names or AWS tags.
@@ -46,14 +46,14 @@
 ## Common Changes
 
 - Add a new Amplify metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry credential, env-var, or build-spec
   material, leave it out of the scanner contract.
 - Add new relationship evidence only when the Amplify API reports both sides
   directly and the target identity matches the target scanner's published
   `resource_id` shape (ARN, normalized name, or correlation anchor). Verify the
   shape by reading the target scanner before adding the edge.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

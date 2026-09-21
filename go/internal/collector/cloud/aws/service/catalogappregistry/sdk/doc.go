@@ -13,4 +13,4 @@
 // associated-resource tag value detail), and every Create/Update/Delete/
 // Associate/Disassociate/Put/Tag mutation API, so the adapter cannot read
 // content bodies or write AppRegistry state.
-package awssdk
+package sdk

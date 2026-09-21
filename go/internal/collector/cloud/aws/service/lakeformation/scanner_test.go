@@ -57,7 +57,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	settings := resourceByType(t, envelopes, awscloud.ResourceTypeLakeFormationSettings)
+	settings := resourceByType(t, envelopes, aws.ResourceTypeLakeFormationSettings)
 	settingsAttributes := attributesOf(t, settings)
 	admins, ok := settingsAttributes["data_lake_admins"].([]string)
 	if !ok || len(admins) != 1 || admins[0] != adminARN {
@@ -69,7 +69,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 		}
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeLakeFormationResource)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeLakeFormationResource)
 	if got, want := resource.Payload["resource_id"], registeredARN; got != want {
 		t.Fatalf("registered resource_id = %#v, want %q", got, want)
 	}
@@ -81,7 +81,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 		t.Fatalf("registered hybrid_access_enabled = %#v, want %v", got, want)
 	}
 
-	permission := resourceByType(t, envelopes, awscloud.ResourceTypeLakeFormationPermission)
+	permission := resourceByType(t, envelopes, aws.ResourceTypeLakeFormationPermission)
 	permissionAttributes := attributesOf(t, permission)
 	if got, want := permissionAttributes["principal_id"], analystARN; got != want {
 		t.Fatalf("permission principal_id = %#v, want %q", got, want)
@@ -97,50 +97,50 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 	}
 
 	// Registered resource -> S3 bucket.
-	resourceS3 := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationResourceAtS3Bucket)
+	resourceS3 := relationshipByType(t, envelopes, aws.RelationshipLakeFormationResourceAtS3Bucket)
 	if got, want := resourceS3.Payload["source_resource_id"], registeredARN; got != want {
 		t.Fatalf("resource->s3 source_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := resourceS3.Payload["target_resource_id"], "arn:aws:s3:::analytics-lake"; got != want {
 		t.Fatalf("resource->s3 target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := resourceS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := resourceS3.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("resource->s3 target_type = %#v, want %q", got, want)
 	}
 
 	// Registered resource -> IAM role.
-	resourceRole := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationResourceUsesIAMRole)
+	resourceRole := relationshipByType(t, envelopes, aws.RelationshipLakeFormationResourceUsesIAMRole)
 	if got, want := resourceRole.Payload["target_arn"], registerRoleARN; got != want {
 		t.Fatalf("resource->role target_arn = %#v, want %q", got, want)
 	}
-	if got, want := resourceRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := resourceRole.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("resource->role target_type = %#v, want %q", got, want)
 	}
 
 	// Permission -> Glue table.
-	permTable := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueTable)
+	permTable := relationshipByType(t, envelopes, aws.RelationshipLakeFormationPermissionOnGlueTable)
 	if got, want := permTable.Payload["target_resource_id"], "analytics/orders"; got != want {
 		t.Fatalf("permission->table target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permTable.Payload["target_type"], awscloud.ResourceTypeGlueTable; got != want {
+	if got, want := permTable.Payload["target_type"], aws.ResourceTypeGlueTable; got != want {
 		t.Fatalf("permission->table target_type = %#v, want %q", got, want)
 	}
 
 	// Permission -> Glue database.
-	permDB := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueDatabase)
+	permDB := relationshipByType(t, envelopes, aws.RelationshipLakeFormationPermissionOnGlueDatabase)
 	if got, want := permDB.Payload["target_resource_id"], "analytics"; got != want {
 		t.Fatalf("permission->database target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permDB.Payload["target_type"], awscloud.ResourceTypeGlueDatabase; got != want {
+	if got, want := permDB.Payload["target_type"], aws.ResourceTypeGlueDatabase; got != want {
 		t.Fatalf("permission->database target_type = %#v, want %q", got, want)
 	}
 
 	// Permission -> principal (IAM role).
-	permPrincipal := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal)
+	permPrincipal := relationshipByType(t, envelopes, aws.RelationshipLakeFormationPermissionGrantedToPrincipal)
 	if got, want := permPrincipal.Payload["target_resource_id"], analystARN; got != want {
 		t.Fatalf("permission->principal target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permPrincipal.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := permPrincipal.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("permission->principal target_type = %#v, want %q", got, want)
 	}
 
@@ -163,7 +163,7 @@ func TestScannerDerivesS3BucketPartitionFromRegisteredARN(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region}
+			boundary := aws.Boundary{Region: tc.region}
 			obs := resourceS3BucketRelationship(boundary, RegisteredResource{ResourceARN: tc.sourceARN})
 			if obs == nil {
 				t.Fatalf("resourceS3BucketRelationship returned nil for a valid s3 location ARN")
@@ -174,8 +174,8 @@ func TestScannerDerivesS3BucketPartitionFromRegisteredARN(t *testing.T) {
 			if obs.TargetARN != tc.want {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeS3Bucket {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeS3Bucket)
+			if obs.TargetType != aws.ResourceTypeS3Bucket {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, aws.ResourceTypeS3Bucket)
 			}
 		})
 	}
@@ -191,7 +191,7 @@ func TestScannerOmitsS3RelationshipWhenRegisteredARNIsNotS3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipLakeFormationResourceAtS3Bucket); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipLakeFormationResourceAtS3Bucket); got != 0 {
 		t.Fatalf("resource->s3 relationship count = %d, want 0 for a non-S3 registered ARN", got)
 	}
 }
@@ -208,11 +208,11 @@ func TestScannerOmitsPrincipalEdgeWhenPrincipalIsNotRoleARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipLakeFormationPermissionGrantedToPrincipal); got != 0 {
 		t.Fatalf("permission->principal count = %d, want 0 for a non-role-ARN principal", got)
 	}
 	// The database edge still resolves for the special principal grant.
-	if got := countRelationships(envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueDatabase); got != 1 {
+	if got := countRelationships(envelopes, aws.RelationshipLakeFormationPermissionOnGlueDatabase); got != 1 {
 		t.Fatalf("permission->database count = %d, want 1", got)
 	}
 }
@@ -234,10 +234,10 @@ func TestScannerEmitsDatabaseEdgeForTableWildcardGrant(t *testing.T) {
 	// resource_id is "database/table"), so it must route to the Glue database
 	// node keyed by the bare database name, not emit an aws_glue_table edge with
 	// a database-shaped id that would dangle.
-	if got := countRelationships(envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueTable); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipLakeFormationPermissionOnGlueTable); got != 0 {
 		t.Fatalf("wildcard grant must not emit a glue-table edge, got %d", got)
 	}
-	permDB := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueDatabase)
+	permDB := relationshipByType(t, envelopes, aws.RelationshipLakeFormationPermissionOnGlueDatabase)
 	if got, want := permDB.Payload["target_resource_id"], "analytics"; got != want {
 		t.Fatalf("wildcard permission->database target_resource_id = %#v, want %q", got, want)
 	}
@@ -245,7 +245,7 @@ func TestScannerEmitsDatabaseEdgeForTableWildcardGrant(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGlue
+	boundary.ServiceKind = aws.ServiceGlue
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -267,16 +267,16 @@ func TestScannerEmitsSettingsResourceWithEmptyState(t *testing.T) {
 	}
 	// The data-lake settings resource is always emitted, even with no admins,
 	// no registered resources, and no permissions.
-	if _, exists := firstResource(envelopes, awscloud.ResourceTypeLakeFormationSettings); !exists {
+	if _, exists := firstResource(envelopes, aws.ResourceTypeLakeFormationSettings); !exists {
 		t.Fatalf("settings resource missing for empty Lake Formation state")
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLakeFormation,
+		ServiceKind:         aws.ServiceLakeFormation,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lakeformation:1",
 		CollectorInstanceID: "aws-prod",
@@ -363,14 +363,14 @@ func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
 // collectRelationshipObservations reconstructs the relationship observations the
 // scanner emitted from the fact payloads so the relguard runtime contract can be
 // asserted against the live graph-join data.
-func collectRelationshipObservations(t *testing.T, envelopes []facts.Envelope) []awscloud.RelationshipObservation {
+func collectRelationshipObservations(t *testing.T, envelopes []facts.Envelope) []aws.RelationshipObservation {
 	t.Helper()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			RelationshipType: stringField(envelope, "relationship_type"),
 			SourceResourceID: stringField(envelope, "source_resource_id"),
 			TargetResourceID: stringField(envelope, "target_resource_id"),

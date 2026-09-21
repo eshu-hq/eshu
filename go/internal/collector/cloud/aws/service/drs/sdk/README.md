@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/drs/awssdk` adapts AWS SDK for Go v2 DRS
+`internal/collector/cloud/aws/service/drs/sdk` adapts AWS SDK for Go v2 DRS
 responses to the scanner-owned `Client` contract. It owns source server,
 recovery instance, and replication configuration template pagination, throttle
 classification, and per-call AWS API telemetry.
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/drs` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/drs` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `drs` and Smithy error contracts.
 
@@ -68,7 +68,7 @@ of metric labels.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK pagination.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/drs/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/drs/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

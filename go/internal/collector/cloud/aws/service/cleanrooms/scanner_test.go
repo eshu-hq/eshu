@@ -63,7 +63,7 @@ func TestScannerEmitsCleanRoomsMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	collaboration := resourceByType(t, envelopes, awscloud.ResourceTypeCleanRoomsCollaboration)
+	collaboration := resourceByType(t, envelopes, aws.ResourceTypeCleanRoomsCollaboration)
 	if got, want := collaboration.Payload["resource_id"], testCollaborationARN; got != want {
 		t.Fatalf("collaboration resource_id = %#v, want %q", got, want)
 	}
@@ -71,7 +71,7 @@ func TestScannerEmitsCleanRoomsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, collabAttrs, "analytics_engine", "SPARK")
 	assertAttribute(t, collabAttrs, "creator_account_id", "123456789012")
 
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeCleanRoomsConfiguredTable)
+	table := resourceByType(t, envelopes, aws.ResourceTypeCleanRoomsConfiguredTable)
 	if got, want := table.Payload["resource_id"], testConfiguredARN; got != want {
 		t.Fatalf("configured table resource_id = %#v, want %q", got, want)
 	}
@@ -80,15 +80,15 @@ func TestScannerEmitsCleanRoomsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, tableAttrs, "allowed_column_count", 3)
 	assertAttribute(t, tableAttrs, "table_reference_kind", "glue")
 
-	membership := resourceByType(t, envelopes, awscloud.ResourceTypeCleanRoomsMembership)
+	membership := resourceByType(t, envelopes, aws.ResourceTypeCleanRoomsMembership)
 	if got, want := membership.Payload["resource_id"], testMembershipARN; got != want {
 		t.Fatalf("membership resource_id = %#v, want %q", got, want)
 	}
 
 	// configured table -> Glue table edge, keyed by the "<database>/<table>"
 	// resource_id the Glue scanner publishes for a table node.
-	tableGlue := relationshipByType(t, envelopes, awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable)
-	assertEdgeTarget(t, tableGlue, awscloud.ResourceTypeGlueTable, "analytics/impressions")
+	tableGlue := relationshipByType(t, envelopes, aws.RelationshipCleanRoomsConfiguredTableUsesGlueTable)
+	assertEdgeTarget(t, tableGlue, aws.ResourceTypeGlueTable, "analytics/impressions")
 	if got, want := tableGlue.Payload["source_resource_id"], testConfiguredARN; got != want {
 		t.Fatalf("table->glue source_resource_id = %#v, want %q", got, want)
 	}
@@ -97,8 +97,8 @@ func TestScannerEmitsCleanRoomsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// membership -> collaboration internal edge, keyed by the collaboration ARN.
-	memberEdge := relationshipByType(t, envelopes, awscloud.RelationshipCleanRoomsMembershipInCollaboration)
-	assertEdgeTarget(t, memberEdge, awscloud.ResourceTypeCleanRoomsCollaboration, testCollaborationARN)
+	memberEdge := relationshipByType(t, envelopes, aws.RelationshipCleanRoomsMembershipInCollaboration)
+	assertEdgeTarget(t, memberEdge, aws.ResourceTypeCleanRoomsCollaboration, testCollaborationARN)
 	if got, want := memberEdge.Payload["source_resource_id"], testMembershipARN; got != want {
 		t.Fatalf("membership->collaboration source_resource_id = %#v, want %q", got, want)
 	}
@@ -176,8 +176,8 @@ func TestScannerKeysGlueEdgeWithTableNameOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable)
-	assertEdgeTarget(t, edge, awscloud.ResourceTypeGlueTable, "events")
+	edge := relationshipByType(t, envelopes, aws.RelationshipCleanRoomsConfiguredTableUsesGlueTable)
+	assertEdgeTarget(t, edge, aws.ResourceTypeGlueTable, "events")
 }
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
@@ -194,8 +194,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		ID:               "m1n2o3p4",
 		CollaborationARN: testCollaborationARN,
 	}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		configuredTableGlueRelationship(boundary, table),
 		membershipCollaborationRelationship(boundary, membership),
 	} {
@@ -209,7 +209,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -227,9 +227,9 @@ func TestScannerRequiresClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Collaborations: []Collaboration{{ARN: testCollaborationARN, ID: "c1d2e3f4", Name: "ad"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Clean Rooms ListMemberships throttled after SDK retries; membership metadata omitted for this scan",
 			SourceRecordID: "cleanrooms_memberships_throttled",
@@ -240,17 +240,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCleanRooms,
+		ServiceKind:         aws.ServiceCleanRooms,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cleanrooms:1",
 		CollectorInstanceID: "aws-prod",

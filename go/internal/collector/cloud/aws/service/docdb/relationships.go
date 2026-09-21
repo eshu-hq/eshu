@@ -18,35 +18,35 @@ type subnetGroupIdentity struct {
 }
 
 func clusterRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster DBCluster,
 	subnets map[string]subnetGroupIdentity,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(cluster.ARN, cluster.ResourceID, cluster.Identifier)
 	sourceARN := strings.TrimSpace(cluster.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	subnetGroupName := strings.TrimSpace(cluster.DBSubnetGroupName)
 	if subnet, ok := subnets[subnetGroupName]; ok && subnet.id != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDocDBClusterInSubnetGroup,
+			aws.RelationshipDocDBClusterInSubnetGroup,
 			sourceID,
 			sourceARN,
 			subnet.id,
 			arnIfARN(subnet.id),
-			awscloud.ResourceTypeDocDBSubnetGroup,
+			aws.ResourceTypeDocDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": subnetGroupName},
 		))
 		if vpcID := strings.TrimSpace(subnet.vpcID); vpcID != "" {
 			relationships = append(relationships, relationship(
 				boundary,
-				awscloud.RelationshipDocDBClusterInVPC,
+				aws.RelationshipDocDBClusterInVPC,
 				sourceID,
 				sourceARN,
 				vpcID,
 				"",
-				awscloud.ResourceTypeEC2VPC,
+				aws.ResourceTypeEC2VPC,
 				map[string]any{"db_subnet_group_name": subnetGroupName},
 			))
 		}
@@ -54,7 +54,7 @@ func clusterRelationships(
 
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipDocDBClusterUsesKMSKey,
+		aws.RelationshipDocDBClusterUsesKMSKey,
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -64,11 +64,11 @@ func clusterRelationships(
 }
 
 func instanceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance ClusterInstance,
 	clusterIDs map[string]string,
 	memberships map[string]clusterMembership,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(instance.ARN, instance.ResourceID, instance.Identifier)
 	sourceARN := strings.TrimSpace(instance.ARN)
 	clusterIdentifier := strings.TrimSpace(instance.ClusterIdentifier)
@@ -77,14 +77,14 @@ func instanceRelationships(
 		return nil
 	}
 	membership := memberships[strings.TrimSpace(instance.Identifier)]
-	return []awscloud.RelationshipObservation{relationship(
+	return []aws.RelationshipObservation{relationship(
 		boundary,
-		awscloud.RelationshipDocDBInstanceMemberOfCluster,
+		aws.RelationshipDocDBInstanceMemberOfCluster,
 		sourceID,
 		sourceARN,
 		targetID,
 		arnIfARN(targetID),
-		awscloud.ResourceTypeDocDBCluster,
+		aws.ResourceTypeDocDBCluster,
 		map[string]any{
 			"cluster_identifier": clusterIdentifier,
 			"is_writer":          membership.isWriter,
@@ -93,12 +93,12 @@ func instanceRelationships(
 }
 
 func globalClusterRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	globalCluster GlobalCluster,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(globalCluster.ARN, globalCluster.ResourceID, globalCluster.Identifier)
 	sourceARN := strings.TrimSpace(globalCluster.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, member := range globalCluster.Members {
 		targetARN := strings.TrimSpace(member.DBClusterARN)
 		if targetARN == "" {
@@ -106,12 +106,12 @@ func globalClusterRelationships(
 		}
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDocDBGlobalClusterHasCluster,
+			aws.RelationshipDocDBGlobalClusterHasCluster,
 			sourceID,
 			sourceARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeDocDBCluster,
+			aws.ResourceTypeDocDBCluster,
 			map[string]any{"is_writer": member.IsWriter},
 		))
 	}
@@ -119,18 +119,18 @@ func globalClusterRelationships(
 }
 
 func optionalTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	targetID string,
 	targetType string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	targetID = strings.TrimSpace(targetID)
 	if targetID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{relationship(
+	return []aws.RelationshipObservation{relationship(
 		boundary,
 		relationshipType,
 		sourceID,
@@ -143,7 +143,7 @@ func optionalTargetRelationship(
 }
 
 func relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
@@ -151,8 +151,8 @@ func relationship(
 	targetARN string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,

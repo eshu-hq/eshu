@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/memorydb guidance
+# AGENTS.md - internal/collector/cloud/aws/service/memorydb guidance
 
 ## Read First
 
@@ -41,12 +41,12 @@
 
 - Add a new MemoryDB metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Reject additions that would expose AUTH tokens,
+  `aws` envelope builders. Reject additions that would expose AUTH tokens,
   passwords, access strings, or cache data.
 - Add new relationship evidence only when the MemoryDB API reports both sides
   directly and the target identity is not sensitive.
 - Extend SDK pagination, shard-detail replica derivation, or tag reads in the
-  `awssdk` adapter, not here.
+  `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

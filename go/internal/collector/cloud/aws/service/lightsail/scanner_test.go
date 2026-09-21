@@ -100,7 +100,7 @@ func TestScannerEmitsLightsailMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeLightsailInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeLightsailInstance)
 	if got, want := instance.Payload["resource_id"], instanceName; got != want {
 		t.Fatalf("instance resource_id = %#v, want %q", got, want)
 	}
@@ -118,7 +118,7 @@ func TestScannerEmitsLightsailMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("instance public_ip_address = %#v, want %q", got, want)
 	}
 
-	database := resourceByType(t, envelopes, awscloud.ResourceTypeLightsailDatabase)
+	database := resourceByType(t, envelopes, aws.ResourceTypeLightsailDatabase)
 	if got, want := database.Payload["resource_id"], databaseName; got != want {
 		t.Fatalf("database resource_id = %#v, want %q", got, want)
 	}
@@ -127,31 +127,31 @@ func TestScannerEmitsLightsailMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("database engine = %#v, want %q", got, want)
 	}
 
-	loadBalancer := resourceByType(t, envelopes, awscloud.ResourceTypeLightsailLoadBalancer)
+	loadBalancer := resourceByType(t, envelopes, aws.ResourceTypeLightsailLoadBalancer)
 	if got, want := loadBalancer.Payload["resource_id"], loadBalancerName; got != want {
 		t.Fatalf("load_balancer resource_id = %#v, want %q", got, want)
 	}
 
-	disk := resourceByType(t, envelopes, awscloud.ResourceTypeLightsailDisk)
+	disk := resourceByType(t, envelopes, aws.ResourceTypeLightsailDisk)
 	if got, want := disk.Payload["resource_id"], diskName; got != want {
 		t.Fatalf("disk resource_id = %#v, want %q", got, want)
 	}
 
-	staticIP := resourceByType(t, envelopes, awscloud.ResourceTypeLightsailStaticIP)
+	staticIP := resourceByType(t, envelopes, aws.ResourceTypeLightsailStaticIP)
 	if got, want := staticIP.Payload["resource_id"], staticIPName; got != want {
 		t.Fatalf("static_ip resource_id = %#v, want %q", got, want)
 	}
 
 	// load-balancer -> instance: source must equal the load balancer node
 	// resource_id; target must equal the instance node resource_id.
-	lbInstance := relationshipByType(t, envelopes, awscloud.RelationshipLightsailLoadBalancerTargetsInstance)
+	lbInstance := relationshipByType(t, envelopes, aws.RelationshipLightsailLoadBalancerTargetsInstance)
 	if got, want := lbInstance.Payload["source_resource_id"], loadBalancerName; got != want {
 		t.Fatalf("lb->instance source_resource_id = %#v, want %q (load balancer node resource_id)", got, want)
 	}
 	if got, want := lbInstance.Payload["target_resource_id"], instanceName; got != want {
 		t.Fatalf("lb->instance target_resource_id = %#v, want %q (instance node resource_id)", got, want)
 	}
-	if got, want := lbInstance.Payload["target_type"], awscloud.ResourceTypeLightsailInstance; got != want {
+	if got, want := lbInstance.Payload["target_type"], aws.ResourceTypeLightsailInstance; got != want {
 		t.Fatalf("lb->instance target_type = %#v, want %q", got, want)
 	}
 	if got := lbInstance.Payload["target_arn"]; got != "" {
@@ -160,27 +160,27 @@ func TestScannerEmitsLightsailMetadataResourcesAndRelationships(t *testing.T) {
 
 	// instance -> disk: source must equal the instance node resource_id; target
 	// must equal the disk node resource_id.
-	instanceDisk := relationshipByType(t, envelopes, awscloud.RelationshipLightsailInstanceAttachedToDisk)
+	instanceDisk := relationshipByType(t, envelopes, aws.RelationshipLightsailInstanceAttachedToDisk)
 	if got, want := instanceDisk.Payload["source_resource_id"], instanceName; got != want {
 		t.Fatalf("instance->disk source_resource_id = %#v, want %q (instance node resource_id)", got, want)
 	}
 	if got, want := instanceDisk.Payload["target_resource_id"], diskName; got != want {
 		t.Fatalf("instance->disk target_resource_id = %#v, want %q (disk node resource_id)", got, want)
 	}
-	if got, want := instanceDisk.Payload["target_type"], awscloud.ResourceTypeLightsailDisk; got != want {
+	if got, want := instanceDisk.Payload["target_type"], aws.ResourceTypeLightsailDisk; got != want {
 		t.Fatalf("instance->disk target_type = %#v, want %q", got, want)
 	}
 
 	// instance -> static IP: source must equal the instance node resource_id;
 	// target must equal the static IP node resource_id.
-	instanceStaticIP := relationshipByType(t, envelopes, awscloud.RelationshipLightsailInstanceAttachedToStaticIP)
+	instanceStaticIP := relationshipByType(t, envelopes, aws.RelationshipLightsailInstanceAttachedToStaticIP)
 	if got, want := instanceStaticIP.Payload["source_resource_id"], instanceName; got != want {
 		t.Fatalf("instance->static_ip source_resource_id = %#v, want %q (instance node resource_id)", got, want)
 	}
 	if got, want := instanceStaticIP.Payload["target_resource_id"], staticIPName; got != want {
 		t.Fatalf("instance->static_ip target_resource_id = %#v, want %q (static IP node resource_id)", got, want)
 	}
-	if got, want := instanceStaticIP.Payload["target_type"], awscloud.ResourceTypeLightsailStaticIP; got != want {
+	if got, want := instanceStaticIP.Payload["target_type"], aws.ResourceTypeLightsailStaticIP; got != want {
 		t.Fatalf("instance->static_ip target_type = %#v, want %q", got, want)
 	}
 
@@ -218,9 +218,9 @@ func TestScannerKeepsEdgeKeysConsistentWithNodeResourceIDs(t *testing.T) {
 		sourceType   string
 		targetType   string
 	}{
-		{awscloud.RelationshipLightsailLoadBalancerTargetsInstance, loadBalancerName, instanceName, awscloud.ResourceTypeLightsailLoadBalancer, awscloud.ResourceTypeLightsailInstance},
-		{awscloud.RelationshipLightsailInstanceAttachedToDisk, instanceName, diskName, awscloud.ResourceTypeLightsailInstance, awscloud.ResourceTypeLightsailDisk},
-		{awscloud.RelationshipLightsailInstanceAttachedToStaticIP, instanceName, staticIPName, awscloud.ResourceTypeLightsailInstance, awscloud.ResourceTypeLightsailStaticIP},
+		{aws.RelationshipLightsailLoadBalancerTargetsInstance, loadBalancerName, instanceName, aws.ResourceTypeLightsailLoadBalancer, aws.ResourceTypeLightsailInstance},
+		{aws.RelationshipLightsailInstanceAttachedToDisk, instanceName, diskName, aws.ResourceTypeLightsailInstance, aws.ResourceTypeLightsailDisk},
+		{aws.RelationshipLightsailInstanceAttachedToStaticIP, instanceName, staticIPName, aws.ResourceTypeLightsailInstance, aws.ResourceTypeLightsailStaticIP},
 	}
 	for _, edge := range edges {
 		rel := relationshipByType(t, envelopes, edge.relationship)
@@ -253,9 +253,9 @@ func TestScannerOmitsRelationshipsWhenNotAttached(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationship := range []string{
-		awscloud.RelationshipLightsailInstanceAttachedToDisk,
-		awscloud.RelationshipLightsailInstanceAttachedToStaticIP,
-		awscloud.RelationshipLightsailLoadBalancerTargetsInstance,
+		aws.RelationshipLightsailInstanceAttachedToDisk,
+		aws.RelationshipLightsailInstanceAttachedToStaticIP,
+		aws.RelationshipLightsailLoadBalancerTargetsInstance,
 	} {
 		if got := countRelationships(envelopes, relationship); got != 0 {
 			t.Fatalf("%s relationship count = %d, want 0 for unattached resources", relationship, got)
@@ -273,14 +273,14 @@ func TestScannerEmitsOneLoadBalancerEdgePerDistinctInstance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipLightsailLoadBalancerTargetsInstance); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipLightsailLoadBalancerTargetsInstance); got != 2 {
 		t.Fatalf("lb->instance relationship count = %d, want 2 (duplicate instance collapses)", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = aws.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -297,11 +297,11 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func int32Ptr(value int32) *int32 { return &value }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLightsail,
+		ServiceKind:         aws.ServiceLightsail,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lightsail:1",
 		CollectorInstanceID: "aws-prod",

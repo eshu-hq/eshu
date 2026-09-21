@@ -12,4 +12,4 @@
 // Access state, read policy documents, or read trust-provider client secrets. It
 // copies only the OIDC issuer reference from a trust provider, never the OIDC
 // client identifier, client secret, or token/userinfo endpoints.
-package awssdk
+package sdk

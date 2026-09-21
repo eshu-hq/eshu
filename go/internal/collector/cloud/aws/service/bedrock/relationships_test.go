@@ -97,7 +97,7 @@ func TestKnowledgeBaseS3SourceWithEmptyBucketEmitsNoRelationship(t *testing.T) {
 
 	var s3Targets []string
 	for _, obs := range observations {
-		if obs.RelationshipType == awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource {
+		if obs.RelationshipType == aws.RelationshipBedrockKnowledgeBaseUsesS3DataSource {
 			s3Targets = append(s3Targets, obs.TargetResourceID)
 		}
 	}

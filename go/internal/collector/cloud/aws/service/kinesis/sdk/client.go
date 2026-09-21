@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfirehose "github.com/aws/aws-sdk-go-v2/service/firehose"
 	awskinesis "github.com/aws/aws-sdk-go-v2/service/kinesis"
 	awskinesisvideo "github.com/aws/aws-sdk-go-v2/service/kinesisvideo"
@@ -56,7 +56,7 @@ type Client struct {
 	dataStreams dataStreamsAPI
 	firehose    firehoseAPI
 	video       videoAPI
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -65,8 +65,8 @@ type Client struct {
 // constructs one client per sub-service (Data Streams, Firehose, Video
 // Streams) from the same AWS config.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -126,7 +126,7 @@ func (c *Client) listDataStreamNames(ctx context.Context) ([]string, error) {
 		}
 		lastName := ""
 		for _, summary := range page.StreamSummaries {
-			if name := strings.TrimSpace(aws.ToString(summary.StreamName)); name != "" {
+			if name := strings.TrimSpace(awsv2.ToString(summary.StreamName)); name != "" {
 				names = append(names, name)
 				lastName = name
 			}
@@ -138,14 +138,14 @@ func (c *Client) listDataStreamNames(ctx context.Context) ([]string, error) {
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" && !aws.ToBool(page.HasMoreStreams) {
+		if awsv2.ToString(nextToken) == "" && !awsv2.ToBool(page.HasMoreStreams) {
 			return dedupeNames(names), nil
 		}
 		// AWS reports more streams via one of two mechanisms. Prefer the opaque
 		// NextToken when present; otherwise fall back to the documented
 		// ExclusiveStartStreamName continuation keyed by the last stream name.
 		// A stream name must never be sent in NextToken.
-		if aws.ToString(nextToken) != "" {
+		if awsv2.ToString(nextToken) != "" {
 			exclusiveStartName = nil
 			continue
 		}
@@ -154,7 +154,7 @@ func (c *Client) listDataStreamNames(ctx context.Context) ([]string, error) {
 			// avoid resending the same request forever.
 			return dedupeNames(names), nil
 		}
-		exclusiveStartName = aws.String(lastName)
+		exclusiveStartName = awsv2.String(lastName)
 	}
 }
 
@@ -163,7 +163,7 @@ func (c *Client) describeDataStreamSummary(ctx context.Context, name string) (*a
 	err := c.recordAPICall(ctx, "DescribeStreamSummary", func(callCtx context.Context) error {
 		var err error
 		output, err = c.dataStreams.DescribeStreamSummary(callCtx, &awskinesis.DescribeStreamSummaryInput{
-			StreamName: aws.String(name),
+			StreamName: awsv2.String(name),
 		})
 		return err
 	})
@@ -184,7 +184,7 @@ func (c *Client) listDataStreamTags(ctx context.Context, name string) (map[strin
 		err := c.recordAPICall(ctx, "ListTagsForStream", func(callCtx context.Context) error {
 			var err error
 			output, err = c.dataStreams.ListTagsForStream(callCtx, &awskinesis.ListTagsForStreamInput{
-				StreamName:           aws.String(name),
+				StreamName:           awsv2.String(name),
 				ExclusiveStartTagKey: startTagKey,
 			})
 			return err
@@ -196,14 +196,14 @@ func (c *Client) listDataStreamTags(ctx context.Context, name string) (map[strin
 			return tags, nil
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 			startTagKey = tag.Key
 		}
-		if !aws.ToBool(output.HasMoreTags) {
+		if !awsv2.ToBool(output.HasMoreTags) {
 			return tags, nil
 		}
 	}
@@ -258,10 +258,10 @@ func (c *Client) listDeliveryStreamNames(ctx context.Context) ([]string, error) 
 				names = append(names, trimmed)
 			}
 		}
-		if !aws.ToBool(page.HasMoreDeliveryStreams) || len(page.DeliveryStreamNames) == 0 {
+		if !awsv2.ToBool(page.HasMoreDeliveryStreams) || len(page.DeliveryStreamNames) == 0 {
 			return names, nil
 		}
-		startName = aws.String(page.DeliveryStreamNames[len(page.DeliveryStreamNames)-1])
+		startName = awsv2.String(page.DeliveryStreamNames[len(page.DeliveryStreamNames)-1])
 	}
 }
 
@@ -270,7 +270,7 @@ func (c *Client) describeDeliveryStream(ctx context.Context, name string) (*awsf
 	err := c.recordAPICall(ctx, "DescribeDeliveryStream", func(callCtx context.Context) error {
 		var err error
 		output, err = c.firehose.DescribeDeliveryStream(callCtx, &awsfirehose.DescribeDeliveryStreamInput{
-			DeliveryStreamName: aws.String(name),
+			DeliveryStreamName: awsv2.String(name),
 		})
 		return err
 	})
@@ -291,7 +291,7 @@ func (c *Client) listDeliveryStreamTags(ctx context.Context, name string) (map[s
 		err := c.recordAPICall(ctx, "ListTagsForDeliveryStream", func(callCtx context.Context) error {
 			var err error
 			output, err = c.firehose.ListTagsForDeliveryStream(callCtx, &awsfirehose.ListTagsForDeliveryStreamInput{
-				DeliveryStreamName:   aws.String(name),
+				DeliveryStreamName:   awsv2.String(name),
 				ExclusiveStartTagKey: startTagKey,
 			})
 			return err
@@ -303,14 +303,14 @@ func (c *Client) listDeliveryStreamTags(ctx context.Context, name string) (map[s
 			return tags, nil
 		}
 		for _, tag := range output.Tags {
-			key := strings.TrimSpace(aws.ToString(tag.Key))
+			key := strings.TrimSpace(awsv2.ToString(tag.Key))
 			if key == "" {
 				continue
 			}
-			tags[key] = aws.ToString(tag.Value)
+			tags[key] = awsv2.ToString(tag.Value)
 			startTagKey = tag.Key
 		}
-		if !aws.ToBool(output.HasMoreTags) {
+		if !awsv2.ToBool(output.HasMoreTags) {
 			return tags, nil
 		}
 	}
@@ -339,7 +339,7 @@ func (c *Client) ListVideoStreams(ctx context.Context) ([]kinesisservice.VideoSt
 			return streams, nil
 		}
 		for _, info := range page.StreamInfoList {
-			name := strings.TrimSpace(aws.ToString(info.StreamName))
+			name := strings.TrimSpace(awsv2.ToString(info.StreamName))
 			tags, err := c.listVideoStreamTags(ctx, name)
 			if err != nil {
 				return nil, fmt.Errorf("list tags for Kinesis video stream %q: %w", name, err)
@@ -347,7 +347,7 @@ func (c *Client) ListVideoStreams(ctx context.Context) ([]kinesisservice.VideoSt
 			streams = append(streams, mapVideoStream(info, tags))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return streams, nil
 		}
 	}
@@ -364,7 +364,7 @@ func (c *Client) listVideoStreamTags(ctx context.Context, name string) (map[stri
 		err := c.recordAPICall(ctx, "ListTagsForStream", func(callCtx context.Context) error {
 			var err error
 			output, err = c.video.ListTagsForStream(callCtx, &awskinesisvideo.ListTagsForStreamInput{
-				StreamName: aws.String(name),
+				StreamName: awsv2.String(name),
 				NextToken:  nextToken,
 			})
 			return err
@@ -383,7 +383,7 @@ func (c *Client) listVideoStreamTags(ctx context.Context, name string) (map[stri
 			tags[key] = value
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tags, nil
 		}
 	}

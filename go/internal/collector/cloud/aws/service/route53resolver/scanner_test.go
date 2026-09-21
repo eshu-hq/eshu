@@ -13,11 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRoute53Resolver,
+		ServiceKind:         aws.ServiceRoute53Resolver,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -187,13 +187,13 @@ func TestScannerEmitsAllResourceKinds(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	for _, resourceType := range []string{
-		awscloud.ResourceTypeRoute53ResolverEndpoint,
-		awscloud.ResourceTypeRoute53ResolverRule,
-		awscloud.ResourceTypeRoute53ResolverRuleAssociation,
-		awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup,
-		awscloud.ResourceTypeRoute53ResolverFirewallDomainList,
-		awscloud.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
-		awscloud.ResourceTypeRoute53ResolverQueryLogConfig,
+		aws.ResourceTypeRoute53ResolverEndpoint,
+		aws.ResourceTypeRoute53ResolverRule,
+		aws.ResourceTypeRoute53ResolverRuleAssociation,
+		aws.ResourceTypeRoute53ResolverFirewallRuleGroup,
+		aws.ResourceTypeRoute53ResolverFirewallDomainList,
+		aws.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
+		aws.ResourceTypeRoute53ResolverQueryLogConfig,
 	} {
 		if got := resourcesByType(t, envelopes, resourceType); len(got) != 1 {
 			t.Fatalf("resource %q count = %d, want 1", resourceType, len(got))
@@ -214,38 +214,38 @@ func TestRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		targetResourceID string
 	}{
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverEndpointInVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			relationshipType: aws.RelationshipRoute53ResolverEndpointInVPC,
+			targetType:       aws.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-aaa",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverEndpointUsesSubnet,
-			targetType:       awscloud.ResourceTypeEC2Subnet,
+			relationshipType: aws.RelationshipRoute53ResolverEndpointUsesSubnet,
+			targetType:       aws.ResourceTypeEC2Subnet,
 			targetResourceID: "subnet-aaa",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverRuleUsesEndpoint,
-			targetType:       awscloud.ResourceTypeRoute53ResolverEndpoint,
+			relationshipType: aws.RelationshipRoute53ResolverRuleUsesEndpoint,
+			targetType:       aws.ResourceTypeRoute53ResolverEndpoint,
 			targetResourceID: "rslvr-out-1",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			relationshipType: aws.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
+			targetType:       aws.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-bbb",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationUsesRule,
-			targetType:       awscloud.ResourceTypeRoute53ResolverRule,
+			relationshipType: aws.RelationshipRoute53ResolverRuleAssociationUsesRule,
+			targetType:       aws.ResourceTypeRoute53ResolverRule,
 			targetResourceID: "rslvr-rr-1",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			relationshipType: aws.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
+			targetType:       aws.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-ccc",
 		},
 		{
-			relationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationUsesRuleGroup,
-			targetType:       awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup,
+			relationshipType: aws.RelationshipRoute53ResolverFirewallRuleGroupAssociationUsesRuleGroup,
+			targetType:       aws.ResourceTypeRoute53ResolverFirewallRuleGroup,
 			targetResourceID: "rslvr-frg-1",
 		},
 	}
@@ -280,7 +280,7 @@ func TestEndpointSubnetRelationshipsDeduplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	relationships := relationshipsByType(t, envelopes, awscloud.RelationshipRoute53ResolverEndpointUsesSubnet)
+	relationships := relationshipsByType(t, envelopes, aws.RelationshipRoute53ResolverEndpointUsesSubnet)
 	if len(relationships) != 2 {
 		t.Fatalf("endpoint subnet edges = %d, want 2 (subnet-aaa deduplicated)", len(relationships))
 	}
@@ -295,7 +295,7 @@ func TestFirewallDomainListCarriesCountNotContents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	lists := resourcesByType(t, envelopes, awscloud.ResourceTypeRoute53ResolverFirewallDomainList)
+	lists := resourcesByType(t, envelopes, aws.ResourceTypeRoute53ResolverFirewallDomainList)
 	if len(lists) != 1 {
 		t.Fatalf("domain list count = %d, want 1", len(lists))
 	}
@@ -321,7 +321,7 @@ func TestFirewallRuleGroupCarriesCountNotRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	groups := resourcesByType(t, envelopes, awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup)
+	groups := resourcesByType(t, envelopes, aws.ResourceTypeRoute53ResolverFirewallRuleGroup)
 	if len(groups) != 1 {
 		t.Fatalf("rule group count = %d, want 1", len(groups))
 	}
@@ -347,7 +347,7 @@ func TestQueryLogConfigCarriesDestinationOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	configs := resourcesByType(t, envelopes, awscloud.ResourceTypeRoute53ResolverQueryLogConfig)
+	configs := resourcesByType(t, envelopes, aws.ResourceTypeRoute53ResolverQueryLogConfig)
 	if len(configs) != 1 {
 		t.Fatalf("query log config count = %d, want 1", len(configs))
 	}
@@ -373,7 +373,7 @@ func TestResolverRulePreservesTypeAndDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	rules := resourcesByType(t, envelopes, awscloud.ResourceTypeRoute53ResolverRule)
+	rules := resourcesByType(t, envelopes, aws.ResourceTypeRoute53ResolverRule)
 	if len(rules) != 1 {
 		t.Fatalf("rule count = %d, want 1", len(rules))
 	}
@@ -402,7 +402,7 @@ func TestResolverEndpointCarriesIPCountNotAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	endpoints := resourcesByType(t, envelopes, awscloud.ResourceTypeRoute53ResolverEndpoint)
+	endpoints := resourcesByType(t, envelopes, aws.ResourceTypeRoute53ResolverEndpoint)
 	if len(endpoints) != 1 {
 		t.Fatalf("endpoint count = %d, want 1", len(endpoints))
 	}

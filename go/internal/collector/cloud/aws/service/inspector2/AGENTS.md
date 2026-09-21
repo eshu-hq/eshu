@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/inspector2 guidance
+# AGENTS.md - internal/collector/cloud/aws/service/inspector2 guidance
 
 ## Read First
 
@@ -36,10 +36,10 @@
 
 - Add a new safe Inspector v2 metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when Inspector v2 directly reports both
   sides and the value is metadata.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

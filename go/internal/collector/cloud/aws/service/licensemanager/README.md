@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/licensemanager` owns the AWS License
+`internal/collector/cloud/aws/service/licensemanager` owns the AWS License
 Manager scanner contract for the AWS cloud collector. It converts License
 Manager license-configuration metadata into `aws_resource` facts and emits
 relationship evidence for the configuration-to-EC2-instance association.
@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records License Manager API call counts, throttles, and
+The `sdk` adapter records License Manager API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -80,12 +80,12 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/licensemanager/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/licensemanager/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/licensemanager/...` covers the
+`go test ./internal/collector/cloud/aws/service/licensemanager/...` covers the
 bounded License Manager metadata path: one paginated ListLicenseConfigurations
 stream, one paginated ListAssociationsForLicenseConfiguration stream per
 configuration, one ListTagsForResource point read per configuration, no

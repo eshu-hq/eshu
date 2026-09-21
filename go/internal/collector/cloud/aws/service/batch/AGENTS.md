@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/batch guidance
+# AGENTS.md - internal/collector/cloud/aws/service/batch guidance
 
 ## Read First
 
@@ -33,11 +33,11 @@
 ## Common Changes
 
 - Add a new Batch resource by extending the scanner-owned type, writing a
-  focused scanner test first, then mapping it through `awscloud` envelope
+  focused scanner test first, then mapping it through `aws` envelope
   builders.
 - Add new compute-environment or job-definition fields only when the Batch API
   reports them directly and the field is safe for persistence.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

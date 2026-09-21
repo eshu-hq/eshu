@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSQS},
 	}
 
 	queues, err := adapter.ListQueues(context.Background())
@@ -93,7 +93,7 @@ func TestClientListQueuesReadsFIFOAttributesOnlyForFIFOQueues(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSQS},
 	}
 
 	queues, err := adapter.ListQueues(context.Background())
@@ -132,7 +132,7 @@ func TestClientListQueuesDoesNotRequestFIFOOnlyAttributesForStandardQueues(t *te
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSQS},
 	}
 
 	if _, err := adapter.ListQueues(context.Background()); err != nil {

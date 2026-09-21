@@ -13,4 +13,4 @@
 // AssociateProductWithPortfolio, CreateConstraint, DescribeProvisioningArtifact
 // template reads, DescribeRecord output reads, and every other mutation,
 // association, constraint, or sensitive-payload API.
-package awssdk
+package sdk

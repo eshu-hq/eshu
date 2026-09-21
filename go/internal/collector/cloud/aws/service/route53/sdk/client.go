@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsroute53 "github.com/aws/aws-sdk-go-v2/service/route53"
 	awsroute53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
@@ -34,15 +34,15 @@ type apiClient interface {
 // records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Route 53 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -70,7 +70,7 @@ func (c *Client) ListHostedZones(ctx context.Context) ([]route53service.HostedZo
 			return nil, err
 		}
 		for _, hostedZone := range page.HostedZones {
-			tags, err := c.listHostedZoneTags(ctx, aws.ToString(hostedZone.Id))
+			tags, err := c.listHostedZoneTags(ctx, awsv2.ToString(hostedZone.Id))
 			if err != nil {
 				return nil, err
 			}
@@ -88,7 +88,7 @@ func (c *Client) ListResourceRecordSets(
 	paginator := awsroute53.NewListResourceRecordSetsPaginator(
 		c.client,
 		&awsroute53.ListResourceRecordSetsInput{
-			HostedZoneId: aws.String(hostedZone.ID),
+			HostedZoneId: awsv2.String(hostedZone.ID),
 		},
 	)
 	var records []route53service.RecordSet
@@ -118,7 +118,7 @@ func (c *Client) listHostedZoneTags(ctx context.Context, hostedZoneID string) (m
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsroute53.ListTagsForResourceInput{
-			ResourceId:   aws.String(trimmed),
+			ResourceId:   awsv2.String(trimmed),
 			ResourceType: awsroute53types.TagResourceTypeHostedzone,
 		})
 		return err
@@ -150,7 +150,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

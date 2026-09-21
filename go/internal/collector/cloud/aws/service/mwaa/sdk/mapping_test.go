@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmwaa "github.com/aws/aws-sdk-go-v2/service/mwaa"
 	awsmwaatypes "github.com/aws/aws-sdk-go-v2/service/mwaa/types"
 
@@ -21,15 +21,15 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 		environments: []string{"analytics-airflow"},
 		details: map[string]awsmwaatypes.Environment{
 			"analytics-airflow": {
-				Name:                aws.String("analytics-airflow"),
-				Arn:                 aws.String("arn:aws:airflow:us-east-1:123456789012:environment/analytics-airflow"),
+				Name:                awsv2.String("analytics-airflow"),
+				Arn:                 awsv2.String("arn:aws:airflow:us-east-1:123456789012:environment/analytics-airflow"),
 				Status:              awsmwaatypes.EnvironmentStatusAvailable,
-				AirflowVersion:      aws.String("2.10.1"),
+				AirflowVersion:      awsv2.String("2.10.1"),
 				WebserverAccessMode: awsmwaatypes.WebserverAccessModePublicOnly,
-				EnvironmentClass:    aws.String("mw1.small"),
-				SourceBucketArn:     aws.String("arn:aws:s3:::analytics-airflow-dags"),
-				ExecutionRoleArn:    aws.String("arn:aws:iam::123456789012:role/mwaa-execution"),
-				KmsKey:              aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+				EnvironmentClass:    awsv2.String("mw1.small"),
+				SourceBucketArn:     awsv2.String("arn:aws:s3:::analytics-airflow-dags"),
+				ExecutionRoleArn:    awsv2.String("arn:aws:iam::123456789012:role/mwaa-execution"),
+				KmsKey:              awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
 				// AirflowConfigurationOptions carries secret-shaped Airflow option
 				// values and MUST NOT survive the mapper.
 				AirflowConfigurationOptions: map[string]string{
@@ -37,16 +37,16 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 					"smtp.smtp_password":   "smtp-secret",
 					"webserver.secret_key": "flask-secret",
 				},
-				CeleryExecutorQueue: aws.String("arn:aws:sqs:us-east-1:123456789012:celery-queue"),
-				WebserverUrl:        aws.String("https://example.c2.us-east-1.airflow.amazonaws.com"),
+				CeleryExecutorQueue: awsv2.String("arn:aws:sqs:us-east-1:123456789012:celery-queue"),
+				WebserverUrl:        awsv2.String("https://example.c2.us-east-1.airflow.amazonaws.com"),
 				NetworkConfiguration: &awsmwaatypes.NetworkConfiguration{
 					SubnetIds:        []string{"subnet-aaa", "subnet-bbb"},
 					SecurityGroupIds: []string{"sg-111"},
 				},
 				LoggingConfiguration: &awsmwaatypes.LoggingConfiguration{
 					DagProcessingLogs: &awsmwaatypes.ModuleLoggingConfiguration{
-						CloudWatchLogGroupArn: aws.String("arn:aws:logs:us-east-1:123456789012:log-group:airflow-analytics-DAGProcessing:*"),
-						Enabled:               aws.Bool(true),
+						CloudWatchLogGroupArn: awsv2.String("arn:aws:logs:us-east-1:123456789012:log-group:airflow-analytics-DAGProcessing:*"),
+						Enabled:               awsv2.Bool(true),
 						LogLevel:              awsmwaatypes.LoggingLevelInfo,
 					},
 				},
@@ -55,7 +55,7 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 		},
 	}
 
-	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceMWAA}}
+	client := &Client{client: fake, boundary: aws.Boundary{ServiceKind: aws.ServiceMWAA}}
 	environments, err := client.ListEnvironments(context.Background())
 	if err != nil {
 		t.Fatalf("ListEnvironments() error = %v, want nil", err)
@@ -89,7 +89,7 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 
 func TestClientGetEnvironmentNilEnvironmentFallsBackToName(t *testing.T) {
 	fake := &fakeMWAAAPI{environments: []string{"empty-env"}, details: map[string]awsmwaatypes.Environment{}}
-	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceMWAA}}
+	client := &Client{client: fake, boundary: aws.Boundary{ServiceKind: aws.ServiceMWAA}}
 	environments, err := client.ListEnvironments(context.Background())
 	if err != nil {
 		t.Fatalf("ListEnvironments() error = %v, want nil", err)
@@ -133,7 +133,7 @@ func (f *fakeMWAAAPI) GetEnvironment(
 	input *awsmwaa.GetEnvironmentInput,
 	_ ...func(*awsmwaa.Options),
 ) (*awsmwaa.GetEnvironmentOutput, error) {
-	name := aws.ToString(input.Name)
+	name := awsv2.ToString(input.Name)
 	detail, ok := f.details[name]
 	if !ok {
 		return &awsmwaa.GetEnvironmentOutput{}, nil

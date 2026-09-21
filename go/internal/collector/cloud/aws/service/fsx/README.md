@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fsx` owns the FSx scanner contract for the
+`internal/collector/cloud/aws/service/fsx` owns the FSx scanner contract for the
 AWS cloud collector. It converts FSx file systems (Windows File Server, Lustre,
 NetApp ONTAP, OpenZFS), backups, snapshots, storage virtual machines, and
 volumes into AWS cloud fact envelopes. One scanner covers all four flavors.
@@ -38,19 +38,19 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
 The package depends on a small `Client` interface rather than the AWS SDK for Go
-v2 so tests can use fake clients and the runtime adapter (`awssdk`) owns SDK
+v2 so tests can use fake clients and the runtime adapter (`sdk`) owns SDK
 behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource/relationship counts after `Scanner.Scan`
-returns. The `awssdk` adapter records FSx API call counts, throttles, and
+returns. The `sdk` adapter records FSx API call counts, throttles, and
 pagination spans. The collector counts emitted facts under
 `eshu_dp_aws_resources_emitted_total{service="fsx"}` and
 `eshu_dp_aws_relationships_emitted_total{service="fsx"}`.
@@ -59,7 +59,7 @@ pagination spans. The collector counts emitted facts under
 
 - The scanner is metadata-only. It never reads file contents and never calls a
   mutation API (Create/Delete/Update/Restore/Copy/Release). A reflection test in
-  the `awssdk` adapter fails the build if any such method is added to the SDK
+  the `sdk` adapter fails the build if any such method is added to the SDK
   seam.
 - Active Directory self-managed credentials are never persisted across any
   flavor. The Windows and SVM self-managed AD `Password`, `UserName`,
@@ -81,7 +81,7 @@ pagination spans. The collector counts emitted facts under
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/fsx/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/fsx/...`
 covers the bounded FSx metadata path: paginated DescribeFileSystems,
 DescribeBackups, DescribeStorageVirtualMachines, DescribeVolumes, and
 DescribeSnapshots. Each is a single account/region account-wide describe with
@@ -89,7 +89,7 @@ SDK pagination; there is no per-file-system fanout. No file-content reads, no
 mutation calls, and no graph writes exist in the collector. Cardinality is
 bounded by the file system, backup, SVM, volume, and snapshot count per claim.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers FSx metadata fact emission across all four flavors, VPC/subnet/KMS/AD/
 backup/SVM/volume relationship emission with non-empty target_type and join
 keys, omission of AD self-managed credentials and SVM/fsxadmin passwords, SDK

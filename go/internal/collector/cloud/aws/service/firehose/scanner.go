@@ -26,15 +26,15 @@ type Scanner struct {
 // stream's S3, Redshift, and OpenSearch destinations, its Kinesis data stream
 // source, its delivery IAM role, its server-side encryption KMS key, its
 // CloudWatch error-logging log group, and its transform Lambda functions.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("firehose scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFirehose:
+	case "", aws.ServiceFirehose:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFirehose
+		boundary.ServiceKind = aws.ServiceFirehose
 	default:
 		return nil, fmt.Errorf("firehose scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -46,7 +46,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, stream := range streams {
-		resource, err := awscloud.NewResourceEnvelope(deliveryStreamObservation(boundary, stream))
+		resource, err := aws.NewResourceEnvelope(deliveryStreamObservation(boundary, stream))
 		if err != nil {
 			return nil, err
 		}
@@ -63,13 +63,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // relationshipEnvelopes wraps each relationship observation in a fact envelope.
 // It returns a nil slice for an empty input so callers append nothing.
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if len(observations) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(observations))
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -82,14 +82,14 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 // reported-confidence resource observation. The resource id prefers the stream
 // ARN and falls back to the stream name. Destination kinds are summarized as a
 // presence list; no destination payload is persisted.
-func deliveryStreamObservation(boundary awscloud.Boundary, stream DeliveryStream) awscloud.ResourceObservation {
+func deliveryStreamObservation(boundary aws.Boundary, stream DeliveryStream) aws.ResourceObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
 	resourceID := firstNonEmpty(streamARN, stream.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFirehoseDeliveryStream,
+		ResourceType: aws.ResourceTypeFirehoseDeliveryStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),

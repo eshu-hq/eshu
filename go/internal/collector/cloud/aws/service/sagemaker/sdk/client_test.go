@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssagemaker "github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	awssagemakertypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 
@@ -18,16 +18,16 @@ import (
 func TestClientListModelsMapsImageArtifactRoleAndDropsEnvironment(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		models: []awssagemakertypes.ModelSummary{{
-			ModelArn:  aws.String("arn:aws:sagemaker:us-east-1:123456789012:model/m"),
-			ModelName: aws.String("m"),
+			ModelArn:  awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:model/m"),
+			ModelName: awsv2.String("m"),
 		}},
 		describeModel: &awssagemaker.DescribeModelOutput{
-			ModelArn:         aws.String("arn:aws:sagemaker:us-east-1:123456789012:model/m"),
-			ModelName:        aws.String("m"),
-			ExecutionRoleArn: aws.String("arn:aws:iam::123456789012:role/model"),
+			ModelArn:         awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:model/m"),
+			ModelName:        awsv2.String("m"),
+			ExecutionRoleArn: awsv2.String("arn:aws:iam::123456789012:role/model"),
 			PrimaryContainer: &awssagemakertypes.ContainerDefinition{
-				Image:        aws.String("123456789012.dkr.ecr.us-east-1.amazonaws.com/infer:latest"),
-				ModelDataUrl: aws.String("s3://artifacts/model.tar.gz"),
+				Image:        awsv2.String("123456789012.dkr.ecr.us-east-1.amazonaws.com/infer:latest"),
+				ModelDataUrl: awsv2.String("s3://artifacts/model.tar.gz"),
 				Environment:  map[string]string{"DB_PASSWORD": "container-env-secret"},
 			},
 			VpcConfig: &awssagemakertypes.VpcConfig{Subnets: []string{"subnet-aaa"}},
@@ -67,14 +67,14 @@ func TestClientListModelsMapsImageArtifactRoleAndDropsEnvironment(t *testing.T) 
 func TestClientListTrainingJobsReadsRoleNotHyperParameters(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		trainingJobs: []awssagemakertypes.TrainingJobSummary{{
-			TrainingJobArn:    aws.String("arn:aws:sagemaker:us-east-1:123456789012:training-job/tj"),
-			TrainingJobName:   aws.String("tj"),
+			TrainingJobArn:    awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:training-job/tj"),
+			TrainingJobName:   awsv2.String("tj"),
 			TrainingJobStatus: awssagemakertypes.TrainingJobStatusCompleted,
 		}},
 		describeTrainingJob: &awssagemaker.DescribeTrainingJobOutput{
-			TrainingJobArn:  aws.String("arn:aws:sagemaker:us-east-1:123456789012:training-job/tj"),
-			TrainingJobName: aws.String("tj"),
-			RoleArn:         aws.String("arn:aws:iam::123456789012:role/train"),
+			TrainingJobArn:  awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:training-job/tj"),
+			TrainingJobName: awsv2.String("tj"),
+			RoleArn:         awsv2.String("arn:aws:iam::123456789012:role/train"),
 			HyperParameters: map[string]string{"learning_rate": "secret-hyperparameter"},
 		},
 	}
@@ -97,23 +97,23 @@ func TestClientListTrainingJobsReadsRoleNotHyperParameters(t *testing.T) {
 func TestClientListEndpointsAndConfigsResolveModelDependency(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		endpoints: []awssagemakertypes.EndpointSummary{{
-			EndpointArn:    aws.String("arn:aws:sagemaker:us-east-1:123456789012:endpoint/e"),
-			EndpointName:   aws.String("e"),
+			EndpointArn:    awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:endpoint/e"),
+			EndpointName:   awsv2.String("e"),
 			EndpointStatus: awssagemakertypes.EndpointStatusInService,
 		}},
 		describeEndpoint: &awssagemaker.DescribeEndpointOutput{
-			EndpointName:       aws.String("e"),
-			EndpointConfigName: aws.String("ec"),
+			EndpointName:       awsv2.String("e"),
+			EndpointConfigName: awsv2.String("ec"),
 		},
 		endpointConfigs: []awssagemakertypes.EndpointConfigSummary{{
-			EndpointConfigArn:  aws.String("arn:aws:sagemaker:us-east-1:123456789012:endpoint-config/ec"),
-			EndpointConfigName: aws.String("ec"),
+			EndpointConfigArn:  awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:endpoint-config/ec"),
+			EndpointConfigName: awsv2.String("ec"),
 		}},
 		describeEndpointConfig: &awssagemaker.DescribeEndpointConfigOutput{
-			EndpointConfigName: aws.String("ec"),
+			EndpointConfigName: awsv2.String("ec"),
 			ProductionVariants: []awssagemakertypes.ProductionVariant{{
-				VariantName: aws.String("v1"),
-				ModelName:   aws.String("m"),
+				VariantName: awsv2.String("v1"),
+				ModelName:   awsv2.String("m"),
 			}},
 		},
 	}
@@ -138,16 +138,16 @@ func TestClientListEndpointsAndConfigsResolveModelDependency(t *testing.T) {
 func TestClientListNotebookInstancesReadsSubnetNotScriptBody(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		notebooks: []awssagemakertypes.NotebookInstanceSummary{{
-			NotebookInstanceArn:    aws.String("arn:aws:sagemaker:us-east-1:123456789012:notebook-instance/nb"),
-			NotebookInstanceName:   aws.String("nb"),
+			NotebookInstanceArn:    awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:notebook-instance/nb"),
+			NotebookInstanceName:   awsv2.String("nb"),
 			NotebookInstanceStatus: awssagemakertypes.NotebookInstanceStatusInService,
 		}},
 		describeNotebook: &awssagemaker.DescribeNotebookInstanceOutput{
-			NotebookInstanceName:                aws.String("nb"),
-			SubnetId:                            aws.String("subnet-aaa"),
+			NotebookInstanceName:                awsv2.String("nb"),
+			SubnetId:                            awsv2.String("subnet-aaa"),
 			SecurityGroups:                      []string{"sg-1"},
 			DirectInternetAccess:                awssagemakertypes.DirectInternetAccessDisabled,
-			NotebookInstanceLifecycleConfigName: aws.String("nb-lifecycle"),
+			NotebookInstanceLifecycleConfigName: awsv2.String("nb-lifecycle"),
 		},
 	}
 	adapter := newTestClient(api)
@@ -173,14 +173,14 @@ func TestClientListNotebookInstancesReadsSubnetNotScriptBody(t *testing.T) {
 func TestClientListDomainsReadsVPC(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		domains: []awssagemakertypes.DomainDetails{{
-			DomainArn:  aws.String("arn:aws:sagemaker:us-east-1:123456789012:domain/d-1"),
-			DomainId:   aws.String("d-1"),
-			DomainName: aws.String("studio"),
+			DomainArn:  awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:domain/d-1"),
+			DomainId:   awsv2.String("d-1"),
+			DomainName: awsv2.String("studio"),
 			Status:     awssagemakertypes.DomainStatusInService,
 		}},
 		describeDomain: &awssagemaker.DescribeDomainOutput{
-			DomainId:  aws.String("d-1"),
-			VpcId:     aws.String("vpc-aaa"),
+			DomainId:  awsv2.String("d-1"),
+			VpcId:     awsv2.String("vpc-aaa"),
 			AuthMode:  awssagemakertypes.AuthModeIam,
 			SubnetIds: []string{"subnet-aaa"},
 		},
@@ -199,8 +199,8 @@ func TestClientListDomainsReadsVPC(t *testing.T) {
 func TestClientListPipelinesNeverReadsDefinitionBody(t *testing.T) {
 	api := &fakeSageMakerAPI{
 		pipelines: []awssagemakertypes.PipelineSummary{{
-			PipelineArn:  aws.String("arn:aws:sagemaker:us-east-1:123456789012:pipeline/pl"),
-			PipelineName: aws.String("pl"),
+			PipelineArn:  awsv2.String("arn:aws:sagemaker:us-east-1:123456789012:pipeline/pl"),
+			PipelineName: awsv2.String("pl"),
 		}},
 	}
 	adapter := newTestClient(api)
@@ -216,7 +216,7 @@ func TestClientListPipelinesNeverReadsDefinitionBody(t *testing.T) {
 func newTestClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSageMaker},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceSageMaker},
 	}
 }
 

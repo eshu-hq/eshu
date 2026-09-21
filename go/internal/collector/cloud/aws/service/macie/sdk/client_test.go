@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmacie2 "github.com/aws/aws-sdk-go-v2/service/macie2"
 	macietypes "github.com/aws/aws-sdk-go-v2/service/macie2/types"
 
@@ -94,73 +94,73 @@ func TestClientReadsMetadataAndDropsSensitivePayloads(t *testing.T) {
 		session: &awsmacie2.GetMacieSessionOutput{
 			Status:                     macietypes.MacieStatusEnabled,
 			FindingPublishingFrequency: macietypes.FindingPublishingFrequencyFifteenMinutes,
-			ServiceRole:                aws.String("arn:aws:iam::123456789012:role/aws-service-role/macie.amazonaws.com/AWSServiceRoleForAmazonMacie"),
-			CreatedAt:                  aws.Time(mustTime()),
-			UpdatedAt:                  aws.Time(mustTime()),
+			ServiceRole:                awsv2.String("arn:aws:iam::123456789012:role/aws-service-role/macie.amazonaws.com/AWSServiceRoleForAmazonMacie"),
+			CreatedAt:                  awsv2.Time(mustTime()),
+			UpdatedAt:                  awsv2.Time(mustTime()),
 		},
 		administrator: &awsmacie2.GetAdministratorAccountOutput{
-			Administrator: &macietypes.Invitation{AccountId: aws.String("999988887777")},
+			Administrator: &macietypes.Invitation{AccountId: awsv2.String("999988887777")},
 		},
 		memberPages: []*awsmacie2.ListMembersOutput{{
 			Members: []macietypes.Member{{
-				AccountId:              aws.String("111122223333"),
-				AdministratorAccountId: aws.String("123456789012"),
+				AccountId:              awsv2.String("111122223333"),
+				AdministratorAccountId: awsv2.String("123456789012"),
 				// Email is personal contact data and must be dropped.
-				Email:              aws.String("security@example.com"),
+				Email:              awsv2.String("security@example.com"),
 				RelationshipStatus: macietypes.RelationshipStatusEnabled,
-				InvitedAt:          aws.Time(mustTime()),
-				UpdatedAt:          aws.Time(mustTime()),
+				InvitedAt:          awsv2.Time(mustTime()),
+				UpdatedAt:          awsv2.Time(mustTime()),
 				Tags:               map[string]string{"Team": "security"},
 			}},
 		}},
 		jobPages: []*awsmacie2.ListClassificationJobsOutput{{
 			Items: []macietypes.JobSummary{{
-				JobId:     aws.String("job-abc"),
-				Name:      aws.String("weekly-pii-scan"),
+				JobId:     awsv2.String("job-abc"),
+				Name:      awsv2.String("weekly-pii-scan"),
 				JobType:   macietypes.JobTypeScheduled,
 				JobStatus: macietypes.JobStatusRunning,
-				CreatedAt: aws.Time(mustTime()),
+				CreatedAt: awsv2.Time(mustTime()),
 				// BucketDefinitions is the explicit bucket list and BucketCriteria
 				// is the property/tag criteria. Both must be reduced to counts only.
 				BucketDefinitions: []macietypes.S3BucketDefinitionForJob{
-					{AccountId: aws.String("123456789012"), Buckets: []string{"orders-raw", "orders-pii"}},
-					{AccountId: aws.String("111122223333"), Buckets: []string{"member-data"}},
+					{AccountId: awsv2.String("123456789012"), Buckets: []string{"orders-raw", "orders-pii"}},
+					{AccountId: awsv2.String("111122223333"), Buckets: []string{"member-data"}},
 				},
 			}},
 		}},
 		allowListPages: []*awsmacie2.ListAllowListsOutput{{
 			AllowLists: []macietypes.AllowListSummary{{
-				Id:   aws.String("allow-1"),
-				Name: aws.String("approved-test-data"),
+				Id:   awsv2.String("allow-1"),
+				Name: awsv2.String("approved-test-data"),
 				// Description must not be carried into the scanner type.
-				Description: aws.String("known-benign synthetic SSNs used in QA"),
+				Description: awsv2.String("known-benign synthetic SSNs used in QA"),
 			}},
 		}},
 		identifierPages: []*awsmacie2.ListCustomDataIdentifiersOutput{{
 			Items: []macietypes.CustomDataIdentifierSummary{{
-				Id:   aws.String("cdi-1"),
-				Name: aws.String("internal-employee-id"),
+				Id:   awsv2.String("cdi-1"),
+				Name: awsv2.String("internal-employee-id"),
 				// Description must not be carried into the scanner type.
-				Description: aws.String("matches EMP-#### badge numbers"),
+				Description: awsv2.String("matches EMP-#### badge numbers"),
 			}},
 		}},
 		filterPages: []*awsmacie2.ListFindingsFiltersOutput{{
 			FindingsFilterListItems: []macietypes.FindingsFilterListItem{{
-				Id:     aws.String("filter-1"),
-				Name:   aws.String("suppress-known-benign"),
+				Id:     awsv2.String("filter-1"),
+				Name:   awsv2.String("suppress-known-benign"),
 				Action: macietypes.FindingsFilterActionArchive,
 			}},
 		}},
 		statistics: &awsmacie2.GetFindingStatisticsOutput{
 			CountsByGroup: []macietypes.GroupCount{
-				{GroupKey: aws.String("Low"), Count: aws.Int64(3)},
-				{GroupKey: aws.String("High"), Count: aws.Int64(1)},
+				{GroupKey: awsv2.String("Low"), Count: awsv2.Int64(3)},
+				{GroupKey: awsv2.String("High"), Count: awsv2.Int64(1)},
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMacie},
 	}
 
 	session, err := adapter.Session(context.Background())
@@ -282,9 +282,9 @@ func TestClientReadsMetadataAndDropsSensitivePayloads(t *testing.T) {
 // account that has never turned on Macie produces a truthful disabled record.
 func TestSessionMapsNotEnabledToDisabled(t *testing.T) {
 	api := &fakeMacie2API{sessionErr: &macietypes.AccessDeniedException{
-		Message: aws.String("Macie is not enabled. Enable Macie and try again."),
+		Message: awsv2.String("Macie is not enabled. Enable Macie and try again."),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMacie}}
 
 	session, err := adapter.Session(context.Background())
 	if err != nil {
@@ -301,9 +301,9 @@ func TestSessionMapsNotEnabledToDisabled(t *testing.T) {
 // be wrong truth.
 func TestSessionSurfacesRealAccessDenied(t *testing.T) {
 	api := &fakeMacie2API{sessionErr: &macietypes.AccessDeniedException{
-		Message: aws.String("User is not authorized to perform macie2:GetMacieSession"),
+		Message: awsv2.String("User is not authorized to perform macie2:GetMacieSession"),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMacie}}
 
 	_, err := adapter.Session(context.Background())
 	if err == nil {
@@ -316,9 +316,9 @@ func TestSessionSurfacesRealAccessDenied(t *testing.T) {
 // than an error.
 func TestAdministratorAccountNotFoundMapsToEmpty(t *testing.T) {
 	api := &fakeMacie2API{administratorErr: &macietypes.ResourceNotFoundException{
-		Message: aws.String("no administrator account"),
+		Message: awsv2.String("no administrator account"),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceMacie}}
 
 	admin, err := adapter.AdministratorAccountID(context.Background())
 	if err != nil {

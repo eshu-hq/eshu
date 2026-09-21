@@ -33,7 +33,7 @@ type Snapshot struct {
 	Memberships []Membership
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Collaboration is the scanner-owned Clean Rooms collaboration model. It carries

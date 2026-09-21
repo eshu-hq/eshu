@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/networkmanager/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/networkmanager/sdk` adapts AWS SDK for
 Go v2 Network Manager responses to the scanner-owned `Client` contract. It owns
 global-network pagination, per-global-network child pagination (sites, devices,
 links, connections, link associations, transit gateway registrations), core
@@ -43,9 +43,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, service boundary labels,
+- `internal/collector/cloud/aws` for account, region, service boundary labels,
   and partition helpers.
-- `internal/collector/awscloud/service/networkmanager` for scanner-owned result
+- `internal/collector/cloud/aws/service/networkmanager` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `networkmanager` and Smithy error contracts.

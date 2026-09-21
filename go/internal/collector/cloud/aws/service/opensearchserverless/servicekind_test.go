@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "opensearchserverless".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceOpenSearchServerless + "  "
+	boundary.ServiceKind = "  " + aws.ServiceOpenSearchServerless + "  "
 	client := fakeClient{snapshot: Snapshot{Collections: []Collection{{
 		ARN:  testCollectionARN,
 		ID:   "abc123",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceOpenSearchServerless; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceOpenSearchServerless; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

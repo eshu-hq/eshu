@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 //
 // The factory holds the runtime-wide tracer, instruments, checkpoint store,
 // and redaction key. It carries no per-service knowledge; service bindings
-// install themselves into the registry from runtimebind subpackages and the
-// factory dispatches through awsruntime.LookupBuilder.
+// install themselves into the registry from bind subpackages and the
+// factory dispatches through runtime.LookupBuilder.
 type DefaultScannerFactory struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
@@ -33,7 +33,7 @@ type DefaultScannerFactory struct {
 
 // SupportedServiceKinds returns the service_kind values backed by production
 // scanner adapters in registration order. The list is derived from the
-// package registry, so adding a scanner needs only its runtimebind import.
+// package registry, so adding a scanner needs only its bind import.
 func SupportedServiceKinds() []string {
 	return RegisteredServiceKinds()
 }
@@ -50,7 +50,7 @@ func SupportsServiceKind(service string) bool {
 func (f DefaultScannerFactory) Scanner(
 	_ context.Context,
 	target Target,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	lease CredentialLease,
 ) (ServiceScanner, error) {
 	configLease, ok := lease.(AWSConfigLease)

@@ -109,7 +109,7 @@ func TestScannerEmitsProvisionedRedshiftMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftCluster, clusterARN)
+	cluster := resourceByID(t, envelopes, aws.ResourceTypeRedshiftCluster, clusterARN)
 	assertNoForbidden(t, cluster, []string{
 		"master_user_password",
 		"master_password",
@@ -135,12 +135,12 @@ func TestScannerEmitsProvisionedRedshiftMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("master_username must not be persisted; Redshift scanner is metadata-only")
 	}
 
-	parameterGroup := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftClusterParameterGroup, parameterGroupARN)
+	parameterGroup := resourceByID(t, envelopes, aws.ResourceTypeRedshiftClusterParameterGroup, parameterGroupARN)
 	assertAttribute(t, attributesOf(t, parameterGroup), "family", "redshift-1.0")
-	subnetGroup := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftClusterSubnetGroup, subnetGroupARN)
+	subnetGroup := resourceByID(t, envelopes, aws.ResourceTypeRedshiftClusterSubnetGroup, subnetGroupARN)
 	assertAttribute(t, attributesOf(t, subnetGroup), "subnet_ids", []string{"subnet-a", "subnet-b"})
 
-	snapshot := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftClusterSnapshot, snapshotARN)
+	snapshot := resourceByID(t, envelopes, aws.ResourceTypeRedshiftClusterSnapshot, snapshotARN)
 	assertNoForbidden(t, snapshot, []string{
 		"snapshot_data",
 		"snapshot_contents",
@@ -157,23 +157,23 @@ func TestScannerEmitsProvisionedRedshiftMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, snapshotAttributes, "encrypted", true)
 	assertAttribute(t, snapshotAttributes, "node_type", "ra3.xlplus")
 
-	scheduledAction := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftScheduledAction, "pause-analytics-overnight")
+	scheduledAction := resourceByID(t, envelopes, aws.ResourceTypeRedshiftScheduledAction, "pause-analytics-overnight")
 	scheduledActionAttributes := attributesOf(t, scheduledAction)
 	assertAttribute(t, scheduledActionAttributes, "schedule", "cron(0 23 * * ? *)")
 	assertAttribute(t, scheduledActionAttributes, "target_action_name", "PauseCluster")
 	assertAttribute(t, scheduledActionAttributes, "target_cluster_identifier", "analytics")
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterUsesKMSKey, kmsKeyARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterUsesIAMRole, iamRoleARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterUsesParameterGroup, parameterGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-redshift-1")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterInVPC, "vpc-redshift")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterSubnetGroupInVPC, "vpc-redshift")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterSnapshotOfCluster, clusterARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftClusterSnapshotUsesKMSKey, kmsKeyARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftScheduledActionTargetsCluster, clusterARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftScheduledActionUsesIAMRole, scheduledActionRoleARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterUsesKMSKey, kmsKeyARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterUsesIAMRole, iamRoleARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterUsesParameterGroup, parameterGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-redshift-1")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterInVPC, "vpc-redshift")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterSubnetGroupInVPC, "vpc-redshift")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterSnapshotOfCluster, clusterARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftClusterSnapshotUsesKMSKey, kmsKeyARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftScheduledActionTargetsCluster, clusterARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftScheduledActionUsesIAMRole, scheduledActionRoleARN)
 }
 
 func TestScannerEmitsServerlessRedshiftMetadataAndRelationships(t *testing.T) {
@@ -224,7 +224,7 @@ func TestScannerEmitsServerlessRedshiftMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	namespace := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftServerlessNamespace, namespaceARN)
+	namespace := resourceByID(t, envelopes, aws.ResourceTypeRedshiftServerlessNamespace, namespaceARN)
 	assertNoForbidden(t, namespace, []string{
 		"master_user_password",
 		"master_password",
@@ -240,7 +240,7 @@ func TestScannerEmitsServerlessRedshiftMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, namespaceAttributes, "iam_role_arns", []string{iamRoleARN})
 	assertAttribute(t, namespaceAttributes, "log_exports", []string{"connectionlog", "userlog"})
 
-	workgroup := resourceByID(t, envelopes, awscloud.ResourceTypeRedshiftServerlessWorkgroup, workgroupARN)
+	workgroup := resourceByID(t, envelopes, aws.ResourceTypeRedshiftServerlessWorkgroup, workgroupARN)
 	workgroupAttributes := attributesOf(t, workgroup)
 	assertAttribute(t, workgroupAttributes, "namespace_name", "analytics-ns")
 	assertAttribute(t, workgroupAttributes, "base_capacity", int32(64))
@@ -248,11 +248,11 @@ func TestScannerEmitsServerlessRedshiftMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, workgroupAttributes, "endpoint_address", "analytics-wg.123456789012.us-east-1.redshift-serverless.amazonaws.com")
 	assertAttribute(t, workgroupAttributes, "endpoint_port", int32(5439))
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftServerlessWorkgroupInNamespace, namespaceARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftServerlessWorkgroupUsesSubnet, "subnet-a")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-redshift-wg")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftServerlessNamespaceUsesKMSKey, kmsKeyARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRedshiftServerlessNamespaceUsesIAMRole, iamRoleARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftServerlessWorkgroupInNamespace, namespaceARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftServerlessWorkgroupUsesSubnet, "subnet-a")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-redshift-wg")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftServerlessNamespaceUsesKMSKey, kmsKeyARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipRedshiftServerlessNamespaceUsesIAMRole, iamRoleARN)
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -271,9 +271,9 @@ func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipRedshiftClusterInSubnetGroup,
-		awscloud.RelationshipRedshiftClusterUsesParameterGroup,
-		awscloud.RelationshipRedshiftClusterUsesKMSKey,
+		aws.RelationshipRedshiftClusterInSubnetGroup,
+		aws.RelationshipRedshiftClusterUsesParameterGroup,
+		aws.RelationshipRedshiftClusterUsesKMSKey,
 	} {
 		if got := countRelationships(envelopes, relationshipType); got != 0 {
 			t.Fatalf("relationship %q count = %d, want 0 without target identity", relationshipType, got)
@@ -294,7 +294,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipRedshiftClusterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipRedshiftClusterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/analytics"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -315,14 +315,14 @@ func TestScannerSkipsScheduledActionsWithoutTargetCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipRedshiftScheduledActionTargetsCluster); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipRedshiftScheduledActionTargetsCluster); got != 0 {
 		t.Fatalf("targets_cluster relationship count = %d, want 0 without target cluster", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceRDS
+	boundary.ServiceKind = aws.ServiceRDS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -347,8 +347,8 @@ func TestScannerDefaultsServiceKindWhenEmpty(t *testing.T) {
 		t.Fatalf("envelopes = %d, want at least one cluster fact", len(envelopes))
 	}
 	for _, envelope := range envelopes {
-		if got, _ := envelope.Payload["service_kind"].(string); got != awscloud.ServiceRedshift {
-			t.Fatalf("envelope service_kind = %q, want %q", got, awscloud.ServiceRedshift)
+		if got, _ := envelope.Payload["service_kind"].(string); got != aws.ServiceRedshift {
+			t.Fatalf("envelope service_kind = %q, want %q", got, aws.ServiceRedshift)
 		}
 	}
 }
@@ -360,11 +360,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRedshift,
+		ServiceKind:         aws.ServiceRedshift,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:redshift:1",
 		CollectorInstanceID: "aws-prod",

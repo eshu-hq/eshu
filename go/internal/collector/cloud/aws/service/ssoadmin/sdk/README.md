@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ssoadmin/awssdk` adapts AWS sso-admin and
+`internal/collector/cloud/aws/service/ssoadmin/sdk` adapts AWS sso-admin and
 identitystore SDK reads into the scanner-owned `ssoadmin.Snapshot`. It owns
 pagination, control-plane region selection, API telemetry, and the
 metadata-only API surface. It is the only place in the Identity Center scanner
@@ -32,8 +32,8 @@ the load-bearing proof for the metadata-only contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/ssoadmin` and `.../identitystore` for
   control-plane reads.
-- `internal/collector/awscloud` for boundaries and API-call telemetry.
-- `internal/collector/awscloud/service/ssoadmin` for scanner-owned types.
+- `internal/collector/cloud/aws` for boundaries and API-call telemetry.
+- `internal/collector/cloud/aws/service/ssoadmin` for scanner-owned types.
 - `internal/telemetry` for spans and instruments.
 
 ## Telemetry

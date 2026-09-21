@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appsync/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/appsync/sdk` adapts AWS SDK for Go v2
 AppSync control-plane responses into the scanner-owned metadata model defined by
 the parent `appsync` package. It pages read-only list operations and maps SDK
 shapes into safe metadata records.
@@ -12,7 +12,7 @@ shapes into safe metadata records.
 This package owns AppSync SDK pagination, response mapping, and per-call
 telemetry. It does not own fact envelope shaping, relationship logic, or
 registration. Fact shaping lives in the parent `appsync` package; registration
-lives in the sibling `runtimebind` package.
+lives in the sibling `bind` package.
 
 ## Exported surface
 
@@ -28,8 +28,8 @@ schema-body reads, schema-creation, introspection, or mutation operations.
 ## Dependencies
 
 - `github.com/aws/aws-sdk-go-v2/service/appsync` and its `types` package.
-- `internal/collector/awscloud` for the boundary and shared API-call telemetry.
-- `internal/collector/awscloud/service/appsync` for the scanner-owned types.
+- `internal/collector/cloud/aws` for the boundary and shared API-call telemetry.
+- `internal/collector/cloud/aws/service/appsync` for the scanner-owned types.
 - `internal/telemetry` for spans and instruments.
 
 ## Telemetry
@@ -60,12 +60,12 @@ Each AWS operation runs inside `recordAPICall`, which starts the
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/appsync/awssdk/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/appsync/sdk/...`
 covers paginated GraphQL API discovery, per-API data source, type-name, resolver,
 function, schema-status, and API key listing, the nil-page guard, and the
 forbidden-method interface contract.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/...` covers the
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/...` covers the
 adapter together with the scanner and runtime registration.
 
 Collector Observability Evidence: the adapter records the

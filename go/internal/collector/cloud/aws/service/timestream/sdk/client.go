@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awstimestreamwrite "github.com/aws/aws-sdk-go-v2/service/timestreamwrite"
 	awstimestreamwritetypes "github.com/aws/aws-sdk-go-v2/service/timestreamwrite/types"
 	"github.com/aws/smithy-go"
@@ -50,7 +50,7 @@ type apiClient interface {
 // and never calls a Write or mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -59,8 +59,8 @@ type Client struct {
 // Timestream-write management endpoint requires endpoint discovery, which the
 // SDK enables automatically for the list operations, so no extra option is set.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -116,7 +116,7 @@ func (c *Client) listDatabases(ctx context.Context) ([]timestreamservice.Databas
 			databases = append(databases, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return databases, nil
 		}
 	}
@@ -126,18 +126,18 @@ func (c *Client) mapDatabase(
 	ctx context.Context,
 	database awstimestreamwritetypes.Database,
 ) (timestreamservice.Database, error) {
-	arn := strings.TrimSpace(aws.ToString(database.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(database.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return timestreamservice.Database{}, err
 	}
 	return timestreamservice.Database{
 		ARN:             arn,
-		Name:            strings.TrimSpace(aws.ToString(database.DatabaseName)),
-		KMSKeyID:        strings.TrimSpace(aws.ToString(database.KmsKeyId)),
+		Name:            strings.TrimSpace(awsv2.ToString(database.DatabaseName)),
+		KMSKeyID:        strings.TrimSpace(awsv2.ToString(database.KmsKeyId)),
 		TableCount:      database.TableCount,
-		CreationTime:    aws.ToTime(database.CreationTime),
-		LastUpdatedTime: aws.ToTime(database.LastUpdatedTime),
+		CreationTime:    awsv2.ToTime(database.CreationTime),
+		LastUpdatedTime: awsv2.ToTime(database.LastUpdatedTime),
 		Tags:            tags,
 	}, nil
 }
@@ -154,7 +154,7 @@ func (c *Client) listTables(ctx context.Context, databaseName string) ([]timestr
 		err := c.recordAPICall(ctx, "ListTables", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListTables(callCtx, &awstimestreamwrite.ListTablesInput{
-				DatabaseName: aws.String(databaseName),
+				DatabaseName: awsv2.String(databaseName),
 				NextToken:    nextToken,
 			})
 			return err
@@ -173,7 +173,7 @@ func (c *Client) listTables(ctx context.Context, databaseName string) ([]timestr
 			tables = append(tables, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tables, nil
 		}
 	}
@@ -184,28 +184,28 @@ func (c *Client) mapTable(
 	table awstimestreamwritetypes.Table,
 	databaseName string,
 ) (timestreamservice.Table, error) {
-	arn := strings.TrimSpace(aws.ToString(table.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(table.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return timestreamservice.Table{}, err
 	}
-	tableDatabase := strings.TrimSpace(aws.ToString(table.DatabaseName))
+	tableDatabase := strings.TrimSpace(awsv2.ToString(table.DatabaseName))
 	if tableDatabase == "" {
 		tableDatabase = strings.TrimSpace(databaseName)
 	}
 	mapped := timestreamservice.Table{
 		ARN:               arn,
-		Name:              strings.TrimSpace(aws.ToString(table.TableName)),
+		Name:              strings.TrimSpace(awsv2.ToString(table.TableName)),
 		DatabaseName:      tableDatabase,
 		State:             strings.TrimSpace(string(table.TableStatus)),
 		PartitionKeyNames: partitionKeyNames(table.Schema),
-		CreationTime:      aws.ToTime(table.CreationTime),
-		LastUpdatedTime:   aws.ToTime(table.LastUpdatedTime),
+		CreationTime:      awsv2.ToTime(table.CreationTime),
+		LastUpdatedTime:   awsv2.ToTime(table.LastUpdatedTime),
 		Tags:              tags,
 	}
 	if retention := table.RetentionProperties; retention != nil {
-		mapped.MemoryStoreRetentionPeriodInHours = aws.ToInt64(retention.MemoryStoreRetentionPeriodInHours)
-		mapped.MagneticStoreRetentionPeriodInDays = aws.ToInt64(retention.MagneticStoreRetentionPeriodInDays)
+		mapped.MemoryStoreRetentionPeriodInHours = awsv2.ToInt64(retention.MemoryStoreRetentionPeriodInHours)
+		mapped.MagneticStoreRetentionPeriodInDays = awsv2.ToInt64(retention.MagneticStoreRetentionPeriodInDays)
 	}
 	applyMagneticStore(&mapped, table.MagneticStoreWriteProperties)
 	return mapped, nil
@@ -222,14 +222,14 @@ func applyMagneticStore(
 	if properties == nil {
 		return
 	}
-	table.MagneticStoreWritesEnabled = aws.ToBool(properties.EnableMagneticStoreWrites)
+	table.MagneticStoreWritesEnabled = awsv2.ToBool(properties.EnableMagneticStoreWrites)
 	location := properties.MagneticStoreRejectedDataLocation
 	if location == nil || location.S3Configuration == nil {
 		return
 	}
 	s3Config := location.S3Configuration
-	table.RejectedDataS3Bucket = strings.TrimSpace(aws.ToString(s3Config.BucketName))
-	table.RejectedDataS3Prefix = strings.TrimSpace(aws.ToString(s3Config.ObjectKeyPrefix))
+	table.RejectedDataS3Bucket = strings.TrimSpace(awsv2.ToString(s3Config.BucketName))
+	table.RejectedDataS3Prefix = strings.TrimSpace(awsv2.ToString(s3Config.ObjectKeyPrefix))
 	table.RejectedDataS3EncryptionOption = strings.TrimSpace(string(s3Config.EncryptionOption))
 }
 
@@ -239,7 +239,7 @@ func partitionKeyNames(schema *awstimestreamwritetypes.Schema) []string {
 	}
 	names := make([]string, 0, len(schema.CompositePartitionKey))
 	for _, key := range schema.CompositePartitionKey {
-		if name := strings.TrimSpace(aws.ToString(key.Name)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(key.Name)); name != "" {
 			names = append(names, name)
 		}
 	}
@@ -258,7 +258,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awstimestreamwrite.ListTagsForResourceInput{
-			ResourceARN: aws.String(resourceARN),
+			ResourceARN: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -270,11 +270,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := make(map[string]string, len(output.Tags))
 	for _, tag := range output.Tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -300,7 +300,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

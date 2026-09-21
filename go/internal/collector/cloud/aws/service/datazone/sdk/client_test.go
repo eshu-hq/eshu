@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdatazone "github.com/aws/aws-sdk-go-v2/service/datazone"
 	awsdatazonetypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
 
@@ -25,28 +25,28 @@ func TestClientSnapshotsDatazoneMetadataOnly(t *testing.T) {
 	api := &fakeDatazoneAPI{
 		domainPages: []*awsdatazone.ListDomainsOutput{{
 			Items: []awsdatazonetypes.DomainSummary{{
-				Arn:       aws.String(domainARN),
-				Id:        aws.String("dzd_abc123"),
-				Name:      aws.String("analytics"),
+				Arn:       awsv2.String(domainARN),
+				Id:        awsv2.String("dzd_abc123"),
+				Name:      awsv2.String("analytics"),
 				Status:    awsdatazonetypes.DomainStatusAvailable,
-				CreatedAt: aws.Time(createdAt),
+				CreatedAt: awsv2.Time(createdAt),
 			}},
 		}},
 		getDomain: map[string]*awsdatazone.GetDomainOutput{
 			"dzd_abc123": {
-				Id:                  aws.String("dzd_abc123"),
-				KmsKeyIdentifier:    aws.String(kmsARN),
-				DomainExecutionRole: aws.String(roleARN),
-				ServiceRole:         aws.String("arn:aws:iam::123456789012:role/service-role/AmazonDataZoneService"),
+				Id:                  awsv2.String("dzd_abc123"),
+				KmsKeyIdentifier:    awsv2.String(kmsARN),
+				DomainExecutionRole: awsv2.String(roleARN),
+				ServiceRole:         awsv2.String("arn:aws:iam::123456789012:role/service-role/AmazonDataZoneService"),
 				Tags:                map[string]string{"Environment": "prod"},
 			},
 		},
 		projectPages: map[string][]*awsdatazone.ListProjectsOutput{
 			"dzd_abc123": {{
 				Items: []awsdatazonetypes.ProjectSummary{{
-					Id:            aws.String("prj_xyz789"),
-					DomainId:      aws.String("dzd_abc123"),
-					Name:          aws.String("sales-analytics"),
+					Id:            awsv2.String("prj_xyz789"),
+					DomainId:      awsv2.String("dzd_abc123"),
+					Name:          awsv2.String("sales-analytics"),
 					ProjectStatus: awsdatazonetypes.ProjectStatusActive,
 				}},
 			}},
@@ -54,11 +54,11 @@ func TestClientSnapshotsDatazoneMetadataOnly(t *testing.T) {
 		environmentPages: map[string][]*awsdatazone.ListEnvironmentsOutput{
 			"dzd_abc123/prj_xyz789": {{
 				Items: []awsdatazonetypes.EnvironmentSummary{{
-					Id:        aws.String("env_def456"),
-					DomainId:  aws.String("dzd_abc123"),
-					ProjectId: aws.String("prj_xyz789"),
-					Name:      aws.String("prod-env"),
-					Provider:  aws.String("Amazon DataZone"),
+					Id:        awsv2.String("env_def456"),
+					DomainId:  awsv2.String("dzd_abc123"),
+					ProjectId: awsv2.String("prj_xyz789"),
+					Name:      awsv2.String("prod-env"),
+					Provider:  awsv2.String("Amazon DataZone"),
 					Status:    awsdatazonetypes.EnvironmentStatusActive,
 				}},
 			}},
@@ -67,18 +67,18 @@ func TestClientSnapshotsDatazoneMetadataOnly(t *testing.T) {
 			"dzd_abc123/prj_xyz789": {{
 				Items: []awsdatazonetypes.DataSourceSummary{
 					{
-						DataSourceId:  aws.String("dz_glue_source"),
-						DomainId:      aws.String("dzd_abc123"),
-						Name:          aws.String("glue-catalog"),
-						Type:          aws.String("GLUE"),
+						DataSourceId:  awsv2.String("dz_glue_source"),
+						DomainId:      awsv2.String("dzd_abc123"),
+						Name:          awsv2.String("glue-catalog"),
+						Type:          awsv2.String("GLUE"),
 						Status:        awsdatazonetypes.DataSourceStatusReady,
 						EnableSetting: awsdatazonetypes.EnableSettingEnabled,
 					},
 					{
-						DataSourceId:  aws.String("dz_redshift_source"),
-						DomainId:      aws.String("dzd_abc123"),
-						Name:          aws.String("redshift-warehouse"),
-						Type:          aws.String("REDSHIFT"),
+						DataSourceId:  awsv2.String("dz_redshift_source"),
+						DomainId:      awsv2.String("dzd_abc123"),
+						Name:          awsv2.String("redshift-warehouse"),
+						Type:          awsv2.String("REDSHIFT"),
 						Status:        awsdatazonetypes.DataSourceStatusReady,
 						EnableSetting: awsdatazonetypes.EnableSettingEnabled,
 					},
@@ -87,26 +87,26 @@ func TestClientSnapshotsDatazoneMetadataOnly(t *testing.T) {
 		},
 		getDataSource: map[string]*awsdatazone.GetDataSourceOutput{
 			"dz_glue_source": {
-				Id:        aws.String("dz_glue_source"),
-				ProjectId: aws.String("prj_xyz789"),
+				Id:        awsv2.String("dz_glue_source"),
+				ProjectId: awsv2.String("prj_xyz789"),
 				Configuration: &awsdatazonetypes.DataSourceConfigurationOutputMemberGlueRunConfiguration{
 					Value: awsdatazonetypes.GlueRunConfigurationOutput{
 						RelationalFilterConfigurations: []awsdatazonetypes.RelationalFilterConfiguration{
-							{DatabaseName: aws.String("sales_db")},
+							{DatabaseName: awsv2.String("sales_db")},
 						},
 					},
 				},
 			},
 			"dz_redshift_source": {
-				Id:        aws.String("dz_redshift_source"),
-				ProjectId: aws.String("prj_xyz789"),
+				Id:        awsv2.String("dz_redshift_source"),
+				ProjectId: awsv2.String("prj_xyz789"),
 				Configuration: &awsdatazonetypes.DataSourceConfigurationOutputMemberRedshiftRunConfiguration{
 					Value: awsdatazonetypes.RedshiftRunConfigurationOutput{
-						AccountId: aws.String("123456789012"),
-						Region:    aws.String("us-east-1"),
+						AccountId: awsv2.String("123456789012"),
+						Region:    awsv2.String("us-east-1"),
 						RedshiftStorage: &awsdatazonetypes.RedshiftStorageMemberRedshiftClusterSource{
 							Value: awsdatazonetypes.RedshiftClusterStorage{
-								ClusterName: aws.String("analytics-cluster"),
+								ClusterName: awsv2.String("analytics-cluster"),
 							},
 						},
 					},
@@ -180,10 +180,10 @@ func dataSourceByID(t *testing.T, sources []datazoneservice.DataSource, id strin
 	return datazoneservice.DataSource{}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDatazone,
+		ServiceKind: aws.ServiceDatazone,
 	}
 }

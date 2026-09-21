@@ -9,4 +9,4 @@
 // Authorize/Revoke/Allocate/Release/Replace/Accept/Reject/Attach/Detach) is
 // embedded into the narrow apiClient interface, and a reflect-driven test
 // pins that boundary against regressions.
-package awssdk
+package sdk

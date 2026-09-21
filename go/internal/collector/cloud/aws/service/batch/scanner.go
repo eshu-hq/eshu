@@ -29,7 +29,7 @@ type Scanner struct {
 }
 
 // Scan observes AWS Batch resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("batch scanner client is required")
 	}
@@ -37,10 +37,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("batch scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceBatch:
+	case "", aws.ServiceBatch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceBatch
+		boundary.ServiceKind = aws.ServiceBatch
 	default:
 		return nil, fmt.Errorf("batch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -100,7 +100,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Batch scheduling policies: %w", err)
 	}
 	for _, schedulingPolicy := range schedulingPolicies {
-		resource, err := awscloud.NewResourceEnvelope(schedulingPolicyObservation(boundary, schedulingPolicy))
+		resource, err := aws.NewResourceEnvelope(schedulingPolicyObservation(boundary, schedulingPolicy))
 		if err != nil {
 			return nil, err
 		}
@@ -111,16 +111,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func computeEnvironmentEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	computeEnvironment ComputeEnvironment,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(computeEnvironmentObservation(boundary, computeEnvironment))
+	resource, err := aws.NewResourceEnvelope(computeEnvironmentObservation(boundary, computeEnvironment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range computeEnvironmentRelationships(boundary, computeEnvironment) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -129,14 +129,14 @@ func computeEnvironmentEnvelopes(
 	return envelopes, nil
 }
 
-func jobQueueEnvelopes(boundary awscloud.Boundary, jobQueue JobQueue) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(jobQueueObservation(boundary, jobQueue))
+func jobQueueEnvelopes(boundary aws.Boundary, jobQueue JobQueue) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(jobQueueObservation(boundary, jobQueue))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range jobQueueRelationships(boundary, jobQueue) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -146,16 +146,16 @@ func jobQueueEnvelopes(boundary awscloud.Boundary, jobQueue JobQueue) ([]facts.E
 }
 
 func (s Scanner) jobDefinitionEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	jobDefinition JobDefinition,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(s.jobDefinitionObservation(boundary, jobDefinition))
+	resource, err := aws.NewResourceEnvelope(s.jobDefinitionObservation(boundary, jobDefinition))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range jobDefinitionRelationships(boundary, jobDefinition) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -164,8 +164,8 @@ func (s Scanner) jobDefinitionEnvelopes(
 	return envelopes, nil
 }
 
-func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(jobObservation(boundary, job))
+func jobEnvelopes(boundary aws.Boundary, job Job) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(jobObservation(boundary, job))
 	if err != nil {
 		return nil, err
 	}
@@ -173,16 +173,16 @@ func jobEnvelopes(boundary awscloud.Boundary, job Job) ([]facts.Envelope, error)
 }
 
 func computeEnvironmentObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	computeEnvironment ComputeEnvironment,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	computeEnvironmentARN := strings.TrimSpace(computeEnvironment.ARN)
 	resourceID := firstNonEmpty(computeEnvironmentARN, computeEnvironment.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          computeEnvironmentARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchComputeEnvironment,
+		ResourceType: aws.ResourceTypeBatchComputeEnvironment,
 		Name:         strings.TrimSpace(computeEnvironment.Name),
 		State:        strings.TrimSpace(computeEnvironment.State),
 		Tags:         computeEnvironment.Tags,
@@ -205,14 +205,14 @@ func computeEnvironmentObservation(
 	}
 }
 
-func jobQueueObservation(boundary awscloud.Boundary, jobQueue JobQueue) awscloud.ResourceObservation {
+func jobQueueObservation(boundary aws.Boundary, jobQueue JobQueue) aws.ResourceObservation {
 	jobQueueARN := strings.TrimSpace(jobQueue.ARN)
 	resourceID := firstNonEmpty(jobQueueARN, jobQueue.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          jobQueueARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJobQueue,
+		ResourceType: aws.ResourceTypeBatchJobQueue,
 		Name:         strings.TrimSpace(jobQueue.Name),
 		State:        strings.TrimSpace(jobQueue.State),
 		Tags:         jobQueue.Tags,
@@ -229,17 +229,17 @@ func jobQueueObservation(boundary awscloud.Boundary, jobQueue JobQueue) awscloud
 }
 
 func (s Scanner) jobDefinitionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	jobDefinition JobDefinition,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	jobDefinitionARN := strings.TrimSpace(jobDefinition.ARN)
 	familyRevision := strings.TrimSpace(jobDefinition.Name) + ":" + strconv.Itoa(int(jobDefinition.Revision))
 	resourceID := firstNonEmpty(jobDefinitionARN, familyRevision)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          jobDefinitionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJobDefinition,
+		ResourceType: aws.ResourceTypeBatchJobDefinition,
 		Name:         strings.TrimSpace(jobDefinition.Name),
 		State:        strings.TrimSpace(jobDefinition.Status),
 		Tags:         jobDefinition.Tags,
@@ -255,16 +255,16 @@ func (s Scanner) jobDefinitionObservation(
 }
 
 func schedulingPolicyObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	schedulingPolicy SchedulingPolicy,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	schedulingPolicyARN := strings.TrimSpace(schedulingPolicy.ARN)
 	resourceID := firstNonEmpty(schedulingPolicyARN, schedulingPolicy.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          schedulingPolicyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchSchedulingPolicy,
+		ResourceType: aws.ResourceTypeBatchSchedulingPolicy,
 		Name:         strings.TrimSpace(schedulingPolicy.Name),
 		Tags:         schedulingPolicy.Tags,
 		// No attributes: the fair-share policy weight state is never persisted.
@@ -273,14 +273,14 @@ func schedulingPolicyObservation(
 	}
 }
 
-func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObservation {
+func jobObservation(boundary aws.Boundary, job Job) aws.ResourceObservation {
 	jobARN := strings.TrimSpace(job.ARN)
 	resourceID := firstNonEmpty(jobARN, job.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          jobARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJob,
+		ResourceType: aws.ResourceTypeBatchJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Attributes: map[string]any{
@@ -316,7 +316,7 @@ func (s Scanner) environmentVariableMaps(environment []EnvironmentVariable) []ma
 		source := "batch.job_definition.container.environment." + strings.TrimSpace(variable.Name)
 		output = append(output, map[string]any{
 			"name":  strings.TrimSpace(variable.Name),
-			"value": awscloud.RedactString(variable.Value, source, s.RedactionKey),
+			"value": aws.RedactString(variable.Value, source, s.RedactionKey),
 		})
 	}
 	return output

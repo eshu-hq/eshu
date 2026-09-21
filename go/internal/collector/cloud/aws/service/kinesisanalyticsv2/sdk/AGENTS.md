@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/kinesisanalyticsv2/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/kinesisanalyticsv2/sdk guidance
 
 ## Read First
 

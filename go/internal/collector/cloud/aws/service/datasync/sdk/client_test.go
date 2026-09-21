@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdatasync "github.com/aws/aws-sdk-go-v2/service/datasync"
 	awsdatasynctypes "github.com/aws/aws-sdk-go-v2/service/datasync/types"
 
@@ -69,15 +69,15 @@ func TestAPIClientInterfaceExcludesMutationAndUnsafeReadAPIs(t *testing.T) {
 func TestClientListTasksResolvesTaskMetadata(t *testing.T) {
 	taskARN := "arn:aws:datasync:us-east-1:123456789012:task/task-0"
 	fake := &fakeDataSyncAPI{
-		tasks: []awsdatasynctypes.TaskListEntry{{TaskArn: aws.String(taskARN)}},
+		tasks: []awsdatasynctypes.TaskListEntry{{TaskArn: awsv2.String(taskARN)}},
 		describeTask: &awsdatasync.DescribeTaskOutput{
-			TaskArn:                aws.String(taskARN),
-			Name:                   aws.String("nightly"),
+			TaskArn:                awsv2.String(taskARN),
+			Name:                   awsv2.String("nightly"),
 			Status:                 awsdatasynctypes.TaskStatusAvailable,
-			SourceLocationArn:      aws.String("arn:aws:datasync:us-east-1:123456789012:location/loc-s3"),
-			DestinationLocationArn: aws.String("arn:aws:datasync:us-east-1:123456789012:location/loc-efs"),
-			CloudWatchLogGroupArn:  aws.String("arn:aws:logs:us-east-1:123456789012:log-group:/aws/datasync"),
-			Schedule:               &awsdatasynctypes.TaskSchedule{ScheduleExpression: aws.String("cron(0 2 * * ? *)")},
+			SourceLocationArn:      awsv2.String("arn:aws:datasync:us-east-1:123456789012:location/loc-s3"),
+			DestinationLocationArn: awsv2.String("arn:aws:datasync:us-east-1:123456789012:location/loc-efs"),
+			CloudWatchLogGroupArn:  awsv2.String("arn:aws:logs:us-east-1:123456789012:log-group:/aws/datasync"),
+			Schedule:               &awsdatasynctypes.TaskSchedule{ScheduleExpression: awsv2.String("cron(0 2 * * ? *)")},
 		},
 	}
 	client := newTestClient(fake)
@@ -108,21 +108,21 @@ func TestClientListLocationsResolvesBackingIdentity(t *testing.T) {
 	fsxARN := "arn:aws:fsx:us-east-1:123456789012:file-system/fs-0ontap"
 	fake := &fakeDataSyncAPI{
 		locations: []awsdatasynctypes.LocationListEntry{
-			{LocationArn: aws.String(s3ARN), LocationUri: aws.String("s3://archive/incoming/")},
-			{LocationArn: aws.String(efsARN), LocationUri: aws.String("efs://us-east-1.fs-0123/backups/")},
-			{LocationArn: aws.String(ontapARN), LocationUri: aws.String("fsxn://us-east-1.fs-0ontap/vol1/")},
+			{LocationArn: awsv2.String(s3ARN), LocationUri: awsv2.String("s3://archive/incoming/")},
+			{LocationArn: awsv2.String(efsARN), LocationUri: awsv2.String("efs://us-east-1.fs-0123/backups/")},
+			{LocationArn: awsv2.String(ontapARN), LocationUri: awsv2.String("fsxn://us-east-1.fs-0ontap/vol1/")},
 		},
 		describeS3: &awsdatasync.DescribeLocationS3Output{
-			LocationUri: aws.String("s3://archive/incoming/"),
-			S3Config:    &awsdatasynctypes.S3Config{BucketAccessRoleArn: aws.String("arn:aws:iam::123456789012:role/datasync-s3")},
+			LocationUri: awsv2.String("s3://archive/incoming/"),
+			S3Config:    &awsdatasynctypes.S3Config{BucketAccessRoleArn: awsv2.String("arn:aws:iam::123456789012:role/datasync-s3")},
 		},
 		describeEFS: &awsdatasync.DescribeLocationEfsOutput{
-			LocationUri:             aws.String("efs://us-east-1.fs-0123/backups/"),
-			FileSystemAccessRoleArn: aws.String("arn:aws:iam::123456789012:role/datasync-efs"),
+			LocationUri:             awsv2.String("efs://us-east-1.fs-0123/backups/"),
+			FileSystemAccessRoleArn: awsv2.String("arn:aws:iam::123456789012:role/datasync-efs"),
 		},
 		describeOntap: &awsdatasync.DescribeLocationFsxOntapOutput{
-			LocationUri:      aws.String("fsxn://us-east-1.fs-0ontap/vol1/"),
-			FsxFilesystemArn: aws.String(fsxARN),
+			LocationUri:      awsv2.String("fsxn://us-east-1.fs-0ontap/vol1/"),
+			FsxFilesystemArn: awsv2.String(fsxARN),
 		},
 	}
 	client := newTestClient(fake)
@@ -164,13 +164,13 @@ func TestClientListLocationsResolvesBackingIdentity(t *testing.T) {
 func TestClientListAgentsResolvesAgentMetadata(t *testing.T) {
 	agentARN := "arn:aws:datasync:us-east-1:123456789012:agent/agent-0"
 	fake := &fakeDataSyncAPI{
-		agents: []awsdatasynctypes.AgentListEntry{{AgentArn: aws.String(agentARN), Name: aws.String("a")}},
+		agents: []awsdatasynctypes.AgentListEntry{{AgentArn: awsv2.String(agentARN), Name: awsv2.String("a")}},
 		describeAgent: &awsdatasync.DescribeAgentOutput{
-			AgentArn:     aws.String(agentARN),
-			Name:         aws.String("on-prem"),
+			AgentArn:     awsv2.String(agentARN),
+			Name:         awsv2.String("on-prem"),
 			Status:       awsdatasynctypes.AgentStatusOnline,
 			EndpointType: awsdatasynctypes.EndpointTypePublic,
-			Platform:     &awsdatasynctypes.Platform{Version: aws.String("1.2.3")},
+			Platform:     &awsdatasynctypes.Platform{Version: awsv2.String("1.2.3")},
 		},
 	}
 	client := newTestClient(fake)
@@ -191,7 +191,7 @@ func TestClientListAgentsResolvesAgentMetadata(t *testing.T) {
 func newTestClient(fake *fakeDataSyncAPI) *Client {
 	return &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDataSync},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceDataSync},
 	}
 }
 

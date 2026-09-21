@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mq` owns the Amazon MQ scanner contract
+`internal/collector/cloud/aws/service/mq` owns the Amazon MQ scanner contract
 for the AWS cloud collector. One slice covers both ActiveMQ and RabbitMQ broker
 engine types. It converts broker and broker-configuration metadata into
 `aws_resource` facts and emits relationship evidence for subnet, security
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Amazon MQ API call counts, throttles, and
+The `sdk` adapter records Amazon MQ API call counts, throttles, and
 pagination spans. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total` with `service="mq"` and per-resource
 `resource_type` labels for `aws_mq_broker` and `aws_mq_configuration`.
@@ -99,7 +99,7 @@ pagination spans. Resource counts surface through
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/mq/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/mq/...`
 covers the bounded Amazon MQ metadata path: one paginated ListBrokers stream
 followed by one DescribeBroker point read per broker (to fetch engine,
 deployment, instance, status, encryption, configuration, log destination,
@@ -108,7 +108,7 @@ stream that returns full configuration metadata, no mutation APIs, no
 DescribeUser, no DescribeConfigurationRevision, and no graph writes inside the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Amazon MQ broker and configuration fact emission for both ActiveMQ and
 RabbitMQ engines, customer-managed-key-only KMS relationship emission, subnet,
 security group, configuration, and CloudWatch log group relationship emission,
@@ -134,10 +134,10 @@ Collector Deployment Evidence: Amazon MQ runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/mq/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/mq/... -count=1`
 covers the existing partition assertions, now backed by the shared helper. The
 synthesized CloudWatch Logs log-group ARN inherits the partition of the broker
-ARN via `awscloud.PartitionFromARN` (replacing the package-local `arnPartition`
+ARN via `aws.PartitionFromARN` (replacing the package-local `arnPartition`
 helper) instead of hardcoding `aws`. Commercial output is byte-for-byte
 unchanged; this is a metadata-only correctness fix with no graph-write, queue,
 or hot-path behavior change.

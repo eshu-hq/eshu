@@ -11,4 +11,4 @@
 // Reboot/Rebuild/Start/Stop/Terminate mutation, every session and
 // connection-status read, and any credential read, so the adapter cannot read
 // desktop session contents or mutate WorkSpaces state.
-package awssdk
+package sdk

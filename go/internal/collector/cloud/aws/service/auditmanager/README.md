@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/auditmanager` reads AWS Audit Manager
+`internal/collector/cloud/aws/service/auditmanager` reads AWS Audit Manager
 assessment, framework, and control control-plane metadata for one claimed
 account and region and emits reported `aws_resource` and `aws_relationship`
 facts. It maps the compliance-program graph: which assessments exist, the
@@ -13,7 +13,7 @@ evidence and reports, and the AWS accounts in each assessment's scope.
 
 This package owns Audit Manager fact selection: which assessment, framework, and
 control metadata becomes a resource, and which dependencies become edges. It
-does not own SDK calls (see `awssdk/`), credential acquisition, graph writes,
+does not own SDK calls (see `sdk/`), credential acquisition, graph writes,
 reducer admission, or query behavior.
 
 It is metadata-only. It never reads or persists collected audit evidence,
@@ -29,7 +29,7 @@ See `doc.go` for the godoc contract.
 - `Scanner.Scan` - observes assessments, frameworks, controls, and their direct
   framework, S3, KMS, and in-scope-account dependencies.
 - `Client` / `Snapshot` / `Assessment` / `Framework` / `Control` - the
-  metadata-only result contract the `awssdk` adapter implements.
+  metadata-only result contract the `sdk` adapter implements.
 
 ## Resources and relationships
 
@@ -55,22 +55,22 @@ reports with it.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the boundary, observation, envelope, and
+- `internal/collector/cloud/aws` for the boundary, observation, envelope, and
   partition helpers (`PartitionForBoundary`).
 - `internal/facts` for the durable fact envelope contract.
-- `internal/collector/awscloud/internal/relguard` (test only) for the graph-join
+- `internal/collector/cloud/aws/internal/relguard` (test only) for the graph-join
   guard assertion.
 
 ## Telemetry
 
-The scanner emits no telemetry directly. The `awssdk` adapter wraps every API
+The scanner emits no telemetry directly. The `sdk` adapter wraps every API
 call in the shared AWS pagination span and the AWS API-call/throttle counters:
 
 - `aws.service.pagination.page`
 - `eshu_dp_aws_api_calls_total`
 - `eshu_dp_aws_throttle_total`
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/auditmanager/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/auditmanager/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 ## Gotchas / invariants

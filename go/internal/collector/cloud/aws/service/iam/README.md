@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/iam` owns the IAM scanner contract for the
+`internal/collector/cloud/aws/service/iam` owns the IAM scanner contract for the
 AWS cloud collector. It converts roles, users, managed policies, instance
-profiles, trust principals, and IAM relationships into `awscloud` observations.
+profiles, trust principals, and IAM relationships into `aws` observations.
 It also emits derived `aws_iam_permission` facts and `secrets_iam_posture`
 source facts: normalized, metadata-only projections of inline, attached
 managed, and role trust policy statements.
@@ -19,9 +19,9 @@ fact persistence, graph writes, or reducer admission.
 flowchart LR
   A["IAM API adapter"] --> B["Client"]
   B --> C["Scanner.Scan"]
-  C --> D["awscloud.ResourceObservation"]
-  C --> E["awscloud.RelationshipObservation"]
-  C --> G["awscloud.IAMPermissionObservation"]
+  C --> D["aws.ResourceObservation"]
+  C --> E["aws.RelationshipObservation"]
+  C --> G["aws.IAMPermissionObservation"]
   C --> H["secretsiam source observations"]
   D --> F["facts.Envelope"]
   E --> F
@@ -55,7 +55,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource and relationship
+- `internal/collector/cloud/aws` for boundaries, resource and relationship
   constants, and envelope builders.
 - `internal/collector/secretsiam` for secrets/IAM posture source fact
   envelopes.
@@ -71,7 +71,7 @@ implements `Client` must record IAM API call counts, throttles, page latency,
 scan duration, and warnings/failures.
 
 No-Regression Evidence: The #1310 IAM source-fact expansion is covered by
-`go test ./internal/collector/awscloud/service/iam ./internal/collector/awscloud/service/iam/awssdk ./internal/collector/secretsiam ./internal/facts -count=1`. The test fixture includes one role, one user, one managed policy, one instance profile, one OIDC provider, permissions boundaries, inline and attached managed policy statements, trust statements, and one coverage warning. No queue, graph, Compose, Helm, or worker-concurrency settings changed.
+`go test ./internal/collector/cloud/aws/service/iam ./internal/collector/cloud/aws/service/iam/sdk ./internal/collector/secretsiam ./internal/facts -count=1`. The test fixture includes one role, one user, one managed policy, one instance profile, one OIDC provider, permissions boundaries, inline and attached managed policy statements, trust statements, and one coverage warning. No queue, graph, Compose, Helm, or worker-concurrency settings changed.
 
 Observability Evidence: The scanner remains inside the existing
 `collector-aws-cloud` runtime boundary. The SDK adapter records the new

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/dax guidance
+# AGENTS.md - internal/collector/cloud/aws/service/dax guidance
 
 ## Read First
 
@@ -39,12 +39,12 @@
 ## Common Changes
 
 - Add a new DAX metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. Reject additions that would expose cached item data, query
   results, node endpoint payloads, or parameter values.
 - Add new relationship evidence only when the DAX API reports both sides directly
   and the target identity is not sensitive.
-- Extend SDK pagination or tag reads in the `awssdk` adapter, not here.
+- Extend SDK pagination or tag reads in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslightsail "github.com/aws/aws-sdk-go-v2/service/lightsail"
 	awslightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 
@@ -20,28 +20,28 @@ func TestClientListInstancesMapsSafeMetadataAndPaginates(t *testing.T) {
 		instancePages: []*awslightsail.GetInstancesOutput{
 			{
 				Instances: []awslightsailtypes.Instance{{
-					Arn:              aws.String("arn:aws:lightsail:us-east-1:123456789012:Instance/abc"),
-					Name:             aws.String("web-1"),
-					BlueprintId:      aws.String("amazon_linux_2023"),
-					BundleId:         aws.String("micro_3_0"),
-					PublicIpAddress:  aws.String("203.0.113.10"),
-					PrivateIpAddress: aws.String("172.26.0.10"),
-					IsStaticIp:       aws.Bool(true),
-					CreatedAt:        aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
-					State:            &awslightsailtypes.InstanceState{Name: aws.String("running")},
+					Arn:              awsv2.String("arn:aws:lightsail:us-east-1:123456789012:Instance/abc"),
+					Name:             awsv2.String("web-1"),
+					BlueprintId:      awsv2.String("amazon_linux_2023"),
+					BundleId:         awsv2.String("micro_3_0"),
+					PublicIpAddress:  awsv2.String("203.0.113.10"),
+					PrivateIpAddress: awsv2.String("172.26.0.10"),
+					IsStaticIp:       awsv2.Bool(true),
+					CreatedAt:        awsv2.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
+					State:            &awslightsailtypes.InstanceState{Name: awsv2.String("running")},
 					Location: &awslightsailtypes.ResourceLocation{
-						AvailabilityZone: aws.String("us-east-1a"),
+						AvailabilityZone: awsv2.String("us-east-1a"),
 						RegionName:       awslightsailtypes.RegionNameUsEast1,
 					},
-					Tags: []awslightsailtypes.Tag{{Key: aws.String("env"), Value: aws.String("prod")}},
+					Tags: []awslightsailtypes.Tag{{Key: awsv2.String("env"), Value: awsv2.String("prod")}},
 				}},
-				NextPageToken: aws.String("page-2"),
+				NextPageToken: awsv2.String("page-2"),
 			},
 			{
 				Instances: []awslightsailtypes.Instance{{
-					Arn:   aws.String("arn:aws:lightsail:us-east-1:123456789012:Instance/def"),
-					Name:  aws.String("web-2"),
-					State: &awslightsailtypes.InstanceState{Name: aws.String("running")},
+					Arn:   awsv2.String("arn:aws:lightsail:us-east-1:123456789012:Instance/def"),
+					Name:  awsv2.String("web-2"),
+					State: &awslightsailtypes.InstanceState{Name: awsv2.String("running")},
 				}},
 			},
 		},
@@ -74,13 +74,13 @@ func TestClientListLoadBalancersMapsAttachedInstanceNames(t *testing.T) {
 	client := &fakeLightsailAPI{
 		loadBalancerPages: []*awslightsail.GetLoadBalancersOutput{{
 			LoadBalancers: []awslightsailtypes.LoadBalancer{{
-				Arn:   aws.String("arn:aws:lightsail:us-east-1:123456789012:LoadBalancer/ghi"),
-				Name:  aws.String("web-lb"),
+				Arn:   awsv2.String("arn:aws:lightsail:us-east-1:123456789012:LoadBalancer/ghi"),
+				Name:  awsv2.String("web-lb"),
 				State: awslightsailtypes.LoadBalancerStateActive,
 				InstanceHealthSummary: []awslightsailtypes.InstanceHealthSummary{
-					{InstanceName: aws.String("web-1"), InstanceHealth: awslightsailtypes.InstanceHealthStateHealthy},
-					{InstanceName: aws.String("web-2"), InstanceHealth: awslightsailtypes.InstanceHealthStateHealthy},
-					{InstanceName: aws.String("")},
+					{InstanceName: awsv2.String("web-1"), InstanceHealth: awslightsailtypes.InstanceHealthStateHealthy},
+					{InstanceName: awsv2.String("web-2"), InstanceHealth: awslightsailtypes.InstanceHealthStateHealthy},
+					{InstanceName: awsv2.String("")},
 				},
 			}},
 		}},
@@ -103,21 +103,21 @@ func TestClientListDisksAndStaticIPsMapAttachment(t *testing.T) {
 	client := &fakeLightsailAPI{
 		diskPages: []*awslightsail.GetDisksOutput{{
 			Disks: []awslightsailtypes.Disk{{
-				Arn:        aws.String("arn:aws:lightsail:us-east-1:123456789012:Disk/jkl"),
-				Name:       aws.String("web-1-data"),
+				Arn:        awsv2.String("arn:aws:lightsail:us-east-1:123456789012:Disk/jkl"),
+				Name:       awsv2.String("web-1-data"),
 				State:      awslightsailtypes.DiskStateInUse,
-				SizeInGb:   aws.Int32(32),
-				IsAttached: aws.Bool(true),
-				AttachedTo: aws.String("web-1"),
+				SizeInGb:   awsv2.Int32(32),
+				IsAttached: awsv2.Bool(true),
+				AttachedTo: awsv2.String("web-1"),
 			}},
 		}},
 		staticIPPages: []*awslightsail.GetStaticIpsOutput{{
 			StaticIps: []awslightsailtypes.StaticIp{{
-				Arn:        aws.String("arn:aws:lightsail:us-east-1:123456789012:StaticIp/mno"),
-				Name:       aws.String("web-1-ip"),
-				IpAddress:  aws.String("203.0.113.10"),
-				IsAttached: aws.Bool(true),
-				AttachedTo: aws.String("web-1"),
+				Arn:        awsv2.String("arn:aws:lightsail:us-east-1:123456789012:StaticIp/mno"),
+				Name:       awsv2.String("web-1-ip"),
+				IpAddress:  awsv2.String("203.0.113.10"),
+				IsAttached: awsv2.Bool(true),
+				AttachedTo: awsv2.String("web-1"),
 			}},
 		}},
 	}
@@ -144,15 +144,15 @@ func TestClientListDatabasesMapsEndpointWithoutMasterPassword(t *testing.T) {
 	client := &fakeLightsailAPI{
 		databasePages: []*awslightsail.GetRelationalDatabasesOutput{{
 			RelationalDatabases: []awslightsailtypes.RelationalDatabase{{
-				Arn:            aws.String("arn:aws:lightsail:us-east-1:123456789012:RelationalDatabase/def"),
-				Name:           aws.String("orders-db"),
-				Engine:         aws.String("mysql"),
-				EngineVersion:  aws.String("8.0.32"),
-				State:          aws.String("available"),
-				MasterUsername: aws.String("admin"),
+				Arn:            awsv2.String("arn:aws:lightsail:us-east-1:123456789012:RelationalDatabase/def"),
+				Name:           awsv2.String("orders-db"),
+				Engine:         awsv2.String("mysql"),
+				EngineVersion:  awsv2.String("8.0.32"),
+				State:          awsv2.String("available"),
+				MasterUsername: awsv2.String("admin"),
 				MasterEndpoint: &awslightsailtypes.RelationalDatabaseEndpoint{
-					Address: aws.String("orders-db.abc.us-east-1.rds.amazonaws.com"),
-					Port:    aws.Int32(3306),
+					Address: awsv2.String("orders-db.abc.us-east-1.rds.amazonaws.com"),
+					Port:    awsv2.Int32(3306),
 				},
 			}},
 		}},
@@ -170,7 +170,7 @@ func TestClientListDatabasesMapsEndpointWithoutMasterPassword(t *testing.T) {
 	if database.EndpointAddress != "orders-db.abc.us-east-1.rds.amazonaws.com" {
 		t.Fatalf("databases[0].EndpointAddress = %q", database.EndpointAddress)
 	}
-	if got, want := aws.ToInt32(database.EndpointPort), int32(3306); got != want {
+	if got, want := awsv2.ToInt32(database.EndpointPort), int32(3306); got != want {
 		t.Fatalf("databases[0].EndpointPort = %d, want %d", got, want)
 	}
 }
@@ -187,11 +187,11 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLightsail,
+		ServiceKind:         aws.ServiceLightsail,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lightsail:1",
 		CollectorInstanceID: "aws-prod",

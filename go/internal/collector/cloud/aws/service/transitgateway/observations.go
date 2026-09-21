@@ -9,14 +9,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func transitGatewayObservation(boundary awscloud.Boundary, gateway TransitGateway) awscloud.ResourceObservation {
+func transitGatewayObservation(boundary aws.Boundary, gateway TransitGateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
 	arn := strings.TrimSpace(gateway.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGateway,
+		ResourceType: aws.ResourceTypeTransitGateway,
 		Name:         id,
 		State:        strings.TrimSpace(gateway.State),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -31,12 +31,12 @@ func transitGatewayObservation(boundary awscloud.Boundary, gateway TransitGatewa
 	}
 }
 
-func routeTableObservation(boundary awscloud.Boundary, rt RouteTable) awscloud.ResourceObservation {
+func routeTableObservation(boundary aws.Boundary, rt RouteTable) aws.ResourceObservation {
 	id := strings.TrimSpace(rt.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayRouteTable,
+		ResourceType: aws.ResourceTypeTransitGatewayRouteTable,
 		Name:         id,
 		State:        strings.TrimSpace(rt.State),
 		Tags:         cloneStringMap(rt.Tags),
@@ -51,12 +51,12 @@ func routeTableObservation(boundary awscloud.Boundary, rt RouteTable) awscloud.R
 	}
 }
 
-func attachmentObservation(boundary awscloud.Boundary, attachment Attachment) awscloud.ResourceObservation {
+func attachmentObservation(boundary aws.Boundary, attachment Attachment) aws.ResourceObservation {
 	id := strings.TrimSpace(attachment.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayAttachment,
+		ResourceType: aws.ResourceTypeTransitGatewayAttachment,
 		Name:         id,
 		State:        strings.TrimSpace(attachment.State),
 		Tags:         cloneStringMap(attachment.Tags),
@@ -75,12 +75,12 @@ func attachmentObservation(boundary awscloud.Boundary, attachment Attachment) aw
 	}
 }
 
-func peeringAttachmentObservation(boundary awscloud.Boundary, peering PeeringAttachment) awscloud.ResourceObservation {
+func peeringAttachmentObservation(boundary aws.Boundary, peering PeeringAttachment) aws.ResourceObservation {
 	id := strings.TrimSpace(peering.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayPeeringAttachment,
+		ResourceType: aws.ResourceTypeTransitGatewayPeeringAttachment,
 		Name:         id,
 		State:        strings.TrimSpace(peering.State),
 		Tags:         cloneStringMap(peering.Tags),
@@ -96,14 +96,14 @@ func peeringAttachmentObservation(boundary awscloud.Boundary, peering PeeringAtt
 	}
 }
 
-func multicastDomainObservation(boundary awscloud.Boundary, domain MulticastDomain) awscloud.ResourceObservation {
+func multicastDomainObservation(boundary aws.Boundary, domain MulticastDomain) aws.ResourceObservation {
 	id := strings.TrimSpace(domain.ID)
 	arn := strings.TrimSpace(domain.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayMulticastDomain,
+		ResourceType: aws.ResourceTypeTransitGatewayMulticastDomain,
 		Name:         id,
 		State:        strings.TrimSpace(domain.State),
 		Tags:         cloneStringMap(domain.Tags),
@@ -118,12 +118,12 @@ func multicastDomainObservation(boundary awscloud.Boundary, domain MulticastDoma
 	}
 }
 
-func policyTableObservation(boundary awscloud.Boundary, policyTable PolicyTable) awscloud.ResourceObservation {
+func policyTableObservation(boundary aws.Boundary, policyTable PolicyTable) aws.ResourceObservation {
 	id := strings.TrimSpace(policyTable.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayPolicyTable,
+		ResourceType: aws.ResourceTypeTransitGatewayPolicyTable,
 		Name:         id,
 		State:        strings.TrimSpace(policyTable.State),
 		Tags:         cloneStringMap(policyTable.Tags),

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codeguru/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/codeguru/sdk` adapts AWS SDK for Go v2
 CodeGuru Reviewer and CodeGuru Profiler responses to the scanner-owned `Client`
 contract. It owns repository-association pagination, per-association
 describe-only enrichment, profiling-group pagination with inline descriptions,
@@ -36,9 +36,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/codeguru` for scanner-owned result
+- `internal/collector/cloud/aws/service/codeguru` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `codegurureviewer`, `codeguruprofiler`, and Smithy error

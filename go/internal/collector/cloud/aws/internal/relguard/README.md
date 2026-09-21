@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/internal/relguard` is test-support code that
+`internal/collector/cloud/aws/internal/relguard` is test-support code that
 mechanizes the AWS scanner graph-join contract. Across the AWS scanner fleet the
 single dominant correctness bug class was a relationship fact whose `target_type`
 was empty, was not a real resource family, or was keyed by a name when the target
@@ -15,18 +15,18 @@ joined its target node. Those defects were caught only by hand in review
 For every relationship a scanner emits:
 
 1. `target_type` is non-empty.
-2. `target_type` is a known resource family: a declared `awscloud.ResourceType*`
+2. `target_type` is a known resource family: a declared `aws.ResourceType*`
    constant value, or a documented entry in `KnownTargetTypeAllowlist`.
 3. When `target_arn` is set the target is ARN-keyed, so the join key
    (`target_resource_id`, or `target_arn` when the id is blank) is ARN-shaped.
 
 ## Two layers, one source of truth
 
-`KnownTargetTypes(awscloudDir)` is the single valid-target-type set both layers
+`KnownTargetTypes(awsDir)` is the single valid-target-type set both layers
 check against. It is the union of:
 
-- every string value assigned to an `awscloud.ResourceType*` constant
-  (parsed from the awscloud source with `go/parser`, no type checking); and
+- every string value assigned to an `aws.ResourceType*` constant
+  (parsed from the aws source with `go/parser`, no type checking); and
 - `KnownTargetTypeAllowlist`, the explicit, commented set of forward references
   (targets Eshu does not scan yet) and synthetic/non-AWS join anchors
   (`container_image`, `git_repository`, CloudWatch metrics, etc.). Adding an
@@ -38,7 +38,7 @@ check against. It is the union of:
 `EmittedTargetTypeLiterals(servicesDir)` AST-walks every scanner package and
 resolves the target_type expressions it can determine statically: inline string
 literals, identifiers bound to package or file-local string constants, and
-`awscloud.ResourceType*` selectors (recorded as const-backed, since the compiler
+`aws.ResourceType*` selectors (recorded as const-backed, since the compiler
 already guarantees those). `Validate` / `ValidateEmitted` assert each resolved
 literal is non-empty and known. The live guard test
 (`TestLiveScannerTreeHasNoGraphJoinDefects`) runs this over the real tree, so a
@@ -77,8 +77,8 @@ Does not catch:
 
 ## Why it is not tautological
 
-The known set is derived from the awscloud constant source and the explicit
-allowlist. It never reads `awsruntime.SupportedServiceKinds()` or any runtime
+The known set is derived from the aws constant source and the explicit
+allowlist. It never reads `runtime.SupportedServiceKinds()` or any runtime
 registry, so the guard checks a real property of the source rather than
 restating it.
 
@@ -94,7 +94,7 @@ None. This is test-support code that runs only under `go test`.
 
 ## Related docs
 
-- `../../README.md` for the awscloud fact and envelope contract.
-- `../../awsruntime/internal/guardset/README.md` for the sibling derived guard
+- `../../README.md` for the aws fact and envelope contract.
+- `../../runtime/internal/guardset/README.md` for the sibling derived guard
   (scanner registration) this package's design mirrors.
 - `docs/public/guides/collector-authoring.md` for the scanner authoring flow.

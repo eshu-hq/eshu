@@ -37,19 +37,19 @@ func TestScannerEmitsRouteTableAndRelationships(t *testing.T) {
 		}},
 	})
 
-	rt := resourceByType(t, envelopes, awscloud.ResourceTypeVPCRouteTable)
+	rt := resourceByType(t, envelopes, aws.ResourceTypeVPCRouteTable)
 	attributes := attributesOf(t, rt)
 	if got, want := attributes["vpc_id"], "vpc-1"; got != want {
 		t.Fatalf("route table vpc_id = %#v, want %q", got, want)
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTableInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTableAssociatedWithSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTargetsInternetGateway)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTargetsNATGateway)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTargetsVPCEndpoint)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTargetsPeeringConnection)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCRouteTargetsTransitGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTableInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTableAssociatedWithSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTargetsInternetGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTargetsNATGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTargetsVPCEndpoint)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTargetsPeeringConnection)
+	assertRelationship(t, envelopes, aws.RelationshipVPCRouteTargetsTransitGateway)
 
 	// Local route (gateway_id="local") MUST NOT generate an internet-gateway
 	// relationship. Only igw-prefixed gateway IDs are internet gateways.
@@ -57,7 +57,7 @@ func TestScannerEmitsRouteTableAndRelationships(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipVPCRouteTargetsInternetGateway {
+		if envelope.Payload["relationship_type"] == aws.RelationshipVPCRouteTargetsInternetGateway {
 			if target, _ := envelope.Payload["target_resource_id"].(string); target == "local" {
 				t.Fatalf("local route emitted as internet-gateway edge: %#v", envelope.Payload)
 			}
@@ -77,15 +77,15 @@ func TestScannerEmitsInternetGatewayWithVPCAttachment(t *testing.T) {
 		}},
 	})
 
-	igw := resourceByType(t, envelopes, awscloud.ResourceTypeVPCInternetGateway)
+	igw := resourceByType(t, envelopes, aws.ResourceTypeVPCInternetGateway)
 	if got, want := igw.Payload["resource_id"], "igw-1"; got != want {
 		t.Fatalf("igw resource_id = %#v, want %q", got, want)
 	}
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipVPCInternetGatewayAttachedToVPC)
+	rel := relationshipByType(t, envelopes, aws.RelationshipVPCInternetGatewayAttachedToVPC)
 	if got, want := rel.Payload["target_resource_id"], "vpc-1"; got != want {
 		t.Fatalf("igw attachment target = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := rel.Payload["target_type"], aws.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("igw attachment target_type = %#v, want %q (EC2-owned)", got, want)
 	}
 }
@@ -109,13 +109,13 @@ func TestScannerEmitsNATGatewaySubnetAndVPCEdges(t *testing.T) {
 		}},
 	})
 
-	natResource := resourceByType(t, envelopes, awscloud.ResourceTypeVPCNATGateway)
+	natResource := resourceByType(t, envelopes, aws.ResourceTypeVPCNATGateway)
 	attributes := attributesOf(t, natResource)
 	if got, want := attributes["subnet_id"], "subnet-1"; got != want {
 		t.Fatalf("nat subnet_id = %#v, want %q", got, want)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCNATGatewayInSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCNATGatewayInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipVPCNATGatewayInSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipVPCNATGatewayInVPC)
 }
 
 func TestScannerEmitsNetworkACLAndSubnetAssociations(t *testing.T) {
@@ -140,9 +140,9 @@ func TestScannerEmitsNetworkACLAndSubnetAssociations(t *testing.T) {
 		}},
 	})
 
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCNetworkACLInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCNetworkACLAssociatedWithSubnet)
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeVPCNetworkACL)
+	assertRelationship(t, envelopes, aws.RelationshipVPCNetworkACLInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipVPCNetworkACLAssociatedWithSubnet)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeVPCNetworkACL)
 	attributes := attributesOf(t, resource)
 	entries, ok := attributes["entries"].([]map[string]any)
 	if !ok || len(entries) != 1 {
@@ -173,7 +173,7 @@ func TestScannerEmitsVPCPeeringBothSides(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] != awscloud.RelationshipVPCPeeringConnectsVPC {
+		if envelope.Payload["relationship_type"] != aws.RelationshipVPCPeeringConnectsVPC {
 			continue
 		}
 		attributes, _ := envelope.Payload["attributes"].(map[string]any)
@@ -221,16 +221,16 @@ func TestScannerEmitsVPCEndpointVPCAndServiceEdges(t *testing.T) {
 		}},
 	})
 
-	gatewayEndpoint := resourceByID(t, envelopes, awscloud.ResourceTypeVPCEndpoint, "vpce-1")
+	gatewayEndpoint := resourceByID(t, envelopes, aws.ResourceTypeVPCEndpoint, "vpce-1")
 	if got := attributesOf(t, gatewayEndpoint)["endpoint_type"]; got != "Gateway" {
 		t.Fatalf("gateway endpoint endpoint_type = %#v", got)
 	}
-	interfaceEndpoint := resourceByID(t, envelopes, awscloud.ResourceTypeVPCEndpoint, "vpce-2")
+	interfaceEndpoint := resourceByID(t, envelopes, aws.ResourceTypeVPCEndpoint, "vpce-2")
 	if got := attributesOf(t, interfaceEndpoint)["endpoint_type"]; got != "Interface" {
 		t.Fatalf("interface endpoint endpoint_type = %#v", got)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCEndpointInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCEndpointUsesService)
+	assertRelationship(t, envelopes, aws.RelationshipVPCEndpointInVPC)
+	assertRelationship(t, envelopes, aws.RelationshipVPCEndpointUsesService)
 }
 
 func TestScannerEmitsElasticIPInstanceAndENIEdges(t *testing.T) {
@@ -248,16 +248,16 @@ func TestScannerEmitsElasticIPInstanceAndENIEdges(t *testing.T) {
 		}},
 	})
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeVPCElasticIP)
+	resource := resourceByType(t, envelopes, aws.ResourceTypeVPCElasticIP)
 	if got, want := resource.Payload["resource_id"], "eipalloc-1"; got != want {
 		t.Fatalf("elastic IP resource_id = %#v, want %q", got, want)
 	}
-	instanceRel := relationshipByType(t, envelopes, awscloud.RelationshipVPCElasticIPAssociatedWithInstance)
+	instanceRel := relationshipByType(t, envelopes, aws.RelationshipVPCElasticIPAssociatedWithInstance)
 	if got, want := instanceRel.Payload["target_type"], "aws_ec2_instance"; got != want {
 		t.Fatalf("EIP->instance target_type = %#v, want %q", got, want)
 	}
-	eniRel := relationshipByType(t, envelopes, awscloud.RelationshipVPCElasticIPAssociatedWithNetworkInterface)
-	if got, want := eniRel.Payload["target_type"], awscloud.ResourceTypeEC2NetworkInterface; got != want {
+	eniRel := relationshipByType(t, envelopes, aws.RelationshipVPCElasticIPAssociatedWithNetworkInterface)
+	if got, want := eniRel.Payload["target_type"], aws.ResourceTypeEC2NetworkInterface; got != want {
 		t.Fatalf("EIP->ENI target_type = %#v, want %q (EC2-owned)", got, want)
 	}
 }
@@ -283,11 +283,11 @@ func TestScannerEmitsDHCPOptionsAndCustomerGatewayResources(t *testing.T) {
 		}},
 	})
 
-	dhcp := resourceByType(t, envelopes, awscloud.ResourceTypeVPCDHCPOptions)
+	dhcp := resourceByType(t, envelopes, aws.ResourceTypeVPCDHCPOptions)
 	if got, want := dhcp.Payload["resource_id"], "dopt-1"; got != want {
 		t.Fatalf("dhcp options resource_id = %#v, want %q", got, want)
 	}
-	cgw := resourceByType(t, envelopes, awscloud.ResourceTypeVPCCustomerGateway)
+	cgw := resourceByType(t, envelopes, aws.ResourceTypeVPCCustomerGateway)
 	if got, want := cgw.Payload["resource_id"], "cgw-1"; got != want {
 		t.Fatalf("customer gateway resource_id = %#v, want %q", got, want)
 	}
@@ -328,12 +328,12 @@ func TestScannerEmitsVPNGatewayAndConnectionEdges(t *testing.T) {
 		}},
 	})
 
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCVPNGatewayAttachedToVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCVPNConnectionUsesCustomerGateway)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCVPNConnectionUsesVPNGateway)
-	assertRelationship(t, envelopes, awscloud.RelationshipVPCVPNConnectionUsesTransitGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCVPNGatewayAttachedToVPC)
+	assertRelationship(t, envelopes, aws.RelationshipVPCVPNConnectionUsesCustomerGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCVPNConnectionUsesVPNGateway)
+	assertRelationship(t, envelopes, aws.RelationshipVPCVPNConnectionUsesTransitGateway)
 
-	connection := resourceByID(t, envelopes, awscloud.ResourceTypeVPCVPNConnection, "vpn-1")
+	connection := resourceByID(t, envelopes, aws.ResourceTypeVPCVPNConnection, "vpn-1")
 	attributes := attributesOf(t, connection)
 	telemetry, ok := attributes["telemetry"].([]map[string]any)
 	if !ok || len(telemetry) != 1 {
@@ -349,7 +349,7 @@ func TestScannerEmitsVPNGatewayAndConnectionEdges(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEC2
+	boundary.ServiceKind = aws.ServiceEC2
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -381,24 +381,24 @@ func TestVPCResourceTypesDisjointFromEC2(t *testing.T) {
 	// resource_type. This test pins the boundary so a regression cannot be
 	// merged silently.
 	ec2Owned := map[string]struct{}{
-		awscloud.ResourceTypeEC2VPC:               {},
-		awscloud.ResourceTypeEC2Subnet:            {},
-		awscloud.ResourceTypeEC2SecurityGroup:     {},
-		awscloud.ResourceTypeEC2SecurityGroupRule: {},
-		awscloud.ResourceTypeEC2NetworkInterface:  {},
+		aws.ResourceTypeEC2VPC:               {},
+		aws.ResourceTypeEC2Subnet:            {},
+		aws.ResourceTypeEC2SecurityGroup:     {},
+		aws.ResourceTypeEC2SecurityGroupRule: {},
+		aws.ResourceTypeEC2NetworkInterface:  {},
 	}
 	vpcEmitted := []string{
-		awscloud.ResourceTypeVPCRouteTable,
-		awscloud.ResourceTypeVPCInternetGateway,
-		awscloud.ResourceTypeVPCNATGateway,
-		awscloud.ResourceTypeVPCNetworkACL,
-		awscloud.ResourceTypeVPCPeeringConnection,
-		awscloud.ResourceTypeVPCEndpoint,
-		awscloud.ResourceTypeVPCElasticIP,
-		awscloud.ResourceTypeVPCDHCPOptions,
-		awscloud.ResourceTypeVPCCustomerGateway,
-		awscloud.ResourceTypeVPCVPNGateway,
-		awscloud.ResourceTypeVPCVPNConnection,
+		aws.ResourceTypeVPCRouteTable,
+		aws.ResourceTypeVPCInternetGateway,
+		aws.ResourceTypeVPCNATGateway,
+		aws.ResourceTypeVPCNetworkACL,
+		aws.ResourceTypeVPCPeeringConnection,
+		aws.ResourceTypeVPCEndpoint,
+		aws.ResourceTypeVPCElasticIP,
+		aws.ResourceTypeVPCDHCPOptions,
+		aws.ResourceTypeVPCCustomerGateway,
+		aws.ResourceTypeVPCVPNGateway,
+		aws.ResourceTypeVPCVPNConnection,
 	}
 	seen := map[string]struct{}{}
 	for _, resourceType := range vpcEmitted {

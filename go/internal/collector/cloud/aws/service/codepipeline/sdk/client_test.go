@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	cptypes "github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -80,11 +80,11 @@ func testKey(t *testing.T) redact.Key {
 	return key
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodePipeline,
+		ServiceKind: aws.ServiceCodePipeline,
 	}
 }
 
@@ -99,21 +99,21 @@ func TestGetPipelineDropsActionConfigurationValues(t *testing.T) {
 		pipelineNames: []string{"checkout"},
 		pipelines: map[string]cptypes.PipelineDeclaration{
 			"checkout": {
-				Name:    aws.String("checkout"),
-				RoleArn: aws.String("arn:aws:iam::123456789012:role/CodePipelineServiceRole"),
+				Name:    awsv2.String("checkout"),
+				RoleArn: awsv2.String("arn:aws:iam::123456789012:role/CodePipelineServiceRole"),
 				ArtifactStore: &cptypes.ArtifactStore{
 					Type:     cptypes.ArtifactStoreTypeS3,
-					Location: aws.String("checkout-artifacts"),
+					Location: awsv2.String("checkout-artifacts"),
 				},
 				Stages: []cptypes.StageDeclaration{{
-					Name: aws.String("Source"),
+					Name: awsv2.String("Source"),
 					Actions: []cptypes.ActionDeclaration{{
-						Name: aws.String("Source"),
+						Name: awsv2.String("Source"),
 						ActionTypeId: &cptypes.ActionTypeId{
 							Category: cptypes.ActionCategorySource,
 							Owner:    cptypes.ActionOwnerThirdParty,
-							Provider: aws.String("GitHub"),
-							Version:  aws.String("1"),
+							Provider: awsv2.String("GitHub"),
+							Version:  awsv2.String("1"),
 						},
 						Configuration: map[string]string{
 							"Owner":       "octocorp",
@@ -200,15 +200,15 @@ func TestListWebhooksDropsAuthenticationSecretToken(t *testing.T) {
 	const secretToken = "webhook-hmac-secret-abc123XYZ"
 	api := &fakeCodePipelineAPI{
 		webhooks: []cptypes.ListWebhookItem{{
-			Arn: aws.String("arn:aws:codepipeline:us-east-1:123456789012:webhook:checkout-hook"),
-			Url: aws.String("https://webhooks.example.com/trigger/abc"),
+			Arn: awsv2.String("arn:aws:codepipeline:us-east-1:123456789012:webhook:checkout-hook"),
+			Url: awsv2.String("https://webhooks.example.com/trigger/abc"),
 			Definition: &cptypes.WebhookDefinition{
-				Name:           aws.String("checkout-hook"),
-				TargetPipeline: aws.String("checkout"),
-				TargetAction:   aws.String("Source"),
+				Name:           awsv2.String("checkout-hook"),
+				TargetPipeline: awsv2.String("checkout"),
+				TargetAction:   awsv2.String("Source"),
 				Authentication: cptypes.WebhookAuthenticationTypeGithubHmac,
 				AuthenticationConfiguration: &cptypes.WebhookAuthConfiguration{
-					SecretToken: aws.String(secretToken),
+					SecretToken: awsv2.String(secretToken),
 				},
 			},
 		}},
@@ -238,33 +238,33 @@ func TestListPipelinesPaginatesAndResolvesTargets(t *testing.T) {
 		pipelinePages: [][]string{{"alpha"}, {"beta"}},
 		pipelines: map[string]cptypes.PipelineDeclaration{
 			"alpha": {
-				Name:    aws.String("alpha"),
-				RoleArn: aws.String("arn:aws:iam::123456789012:role/Alpha"),
+				Name:    awsv2.String("alpha"),
+				RoleArn: awsv2.String("arn:aws:iam::123456789012:role/Alpha"),
 				ArtifactStore: &cptypes.ArtifactStore{
 					Type:     cptypes.ArtifactStoreTypeS3,
-					Location: aws.String("alpha-bucket"),
+					Location: awsv2.String("alpha-bucket"),
 					EncryptionKey: &cptypes.EncryptionKey{
-						Id:   aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd-1234"),
+						Id:   awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd-1234"),
 						Type: cptypes.EncryptionKeyTypeKms,
 					},
 				},
 				Stages: []cptypes.StageDeclaration{{
-					Name: aws.String("Build"),
+					Name: awsv2.String("Build"),
 					Actions: []cptypes.ActionDeclaration{{
-						Name: aws.String("Build"),
+						Name: awsv2.String("Build"),
 						ActionTypeId: &cptypes.ActionTypeId{
 							Category: cptypes.ActionCategoryBuild,
 							Owner:    cptypes.ActionOwnerAws,
-							Provider: aws.String("CodeBuild"),
-							Version:  aws.String("1"),
+							Provider: awsv2.String("CodeBuild"),
+							Version:  awsv2.String("1"),
 						},
 						Configuration: map[string]string{"ProjectName": "alpha-build"},
 					}},
 				}},
 			},
 			"beta": {
-				Name:    aws.String("beta"),
-				RoleArn: aws.String("arn:aws:iam::123456789012:role/Beta"),
+				Name:    awsv2.String("beta"),
+				RoleArn: awsv2.String("arn:aws:iam::123456789012:role/Beta"),
 				Stages:  []cptypes.StageDeclaration{},
 			},
 		},
@@ -313,15 +313,15 @@ func TestListPipelinesPopulatesMetadataTimestamps(t *testing.T) {
 		pipelineNames: []string{"checkout"},
 		pipelines: map[string]cptypes.PipelineDeclaration{
 			"checkout": {
-				Name:    aws.String("checkout"),
-				RoleArn: aws.String("arn:aws:iam::123456789012:role/CodePipelineServiceRole"),
+				Name:    awsv2.String("checkout"),
+				RoleArn: awsv2.String("arn:aws:iam::123456789012:role/CodePipelineServiceRole"),
 			},
 		},
 		metadata: map[string]*cptypes.PipelineMetadata{
 			"checkout": {
-				PipelineArn: aws.String("arn:aws:codepipeline:us-east-1:123456789012:checkout"),
-				Created:     aws.Time(created),
-				Updated:     aws.Time(updated),
+				PipelineArn: awsv2.String("arn:aws:codepipeline:us-east-1:123456789012:checkout"),
+				Created:     awsv2.Time(created),
+				Updated:     awsv2.Time(updated),
 			},
 		},
 	}
@@ -351,16 +351,16 @@ func TestListRecentExecutionsKeepsSafeRevisionRefs(t *testing.T) {
 	api := &fakeCodePipelineAPI{
 		pipelineNames: []string{"checkout"},
 		pipelines: map[string]cptypes.PipelineDeclaration{
-			"checkout": {Name: aws.String("checkout"), RoleArn: aws.String("arn:aws:iam::123456789012:role/R")},
+			"checkout": {Name: awsv2.String("checkout"), RoleArn: awsv2.String("arn:aws:iam::123456789012:role/R")},
 		},
 		executionsByPipeline: map[string][]cptypes.PipelineExecutionSummary{
 			"checkout": {{
-				PipelineExecutionId: aws.String("exec-1"),
+				PipelineExecutionId: awsv2.String("exec-1"),
 				Status:              cptypes.PipelineExecutionStatusSucceeded,
 				SourceRevisions: []cptypes.SourceRevision{{
-					ActionName:      aws.String("Source"),
-					RevisionId:      aws.String("abc123"),
-					RevisionSummary: aws.String("fix: ship the thing"),
+					ActionName:      awsv2.String("Source"),
+					RevisionId:      awsv2.String("abc123"),
+					RevisionSummary: awsv2.String("fix: ship the thing"),
 				}},
 			}},
 		},
@@ -400,8 +400,8 @@ func TestListActionTypesKeepsCustomTypesMetadata(t *testing.T) {
 			Id: &cptypes.ActionTypeId{
 				Category: cptypes.ActionCategoryBuild,
 				Owner:    cptypes.ActionOwnerCustom,
-				Provider: aws.String("AcmeRunner"),
-				Version:  aws.String("2"),
+				Provider: awsv2.String("AcmeRunner"),
+				Version:  awsv2.String("2"),
 			},
 		}},
 	}

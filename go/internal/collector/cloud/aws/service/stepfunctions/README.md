@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/stepfunctions` owns the Step Functions
+`internal/collector/cloud/aws/service/stepfunctions` owns the Step Functions
 scanner contract for the AWS cloud collector. It converts state machine and
 activity metadata into `aws_resource` facts and emits relationship evidence
 for execution-role dependencies and ARN-addressable Task target references
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,10 +49,10 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan`
 returns, including `eshu_dp_aws_resources_emitted_total{service="stepfunctions"}`
-for the new state machine and activity resource types. The `awssdk` adapter
+for the new state machine and activity resource types. The `sdk` adapter
 records Step Functions API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -76,14 +76,14 @@ records Step Functions API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/stepfunctions/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/stepfunctions/...`
 covers the bounded Step Functions metadata path: one paginated
 ListStateMachines stream, one DescribeStateMachine read per state machine, one
 ListTagsForResource read per state machine, one paginated ListActivities
 stream, one ListTagsForResource read per activity, no execution or mutation
 calls, and no graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Step Functions state machine and activity metadata fact emission,
 state-machine-to-IAM-role relationship emission, ARN-only referenced-resource
 relationship emission, omission of execution input/output, omission of

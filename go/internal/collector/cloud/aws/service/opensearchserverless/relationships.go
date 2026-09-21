@@ -17,10 +17,10 @@ import (
 // when the collection has no identity or no encryption policy assigns it a
 // customer-managed key.
 func collectionKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection Collection,
 	bindings []EncryptionKeyBinding,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := collectionResourceID(collection)
 	if sourceID == "" {
 		return nil
@@ -37,16 +37,16 @@ func collectionKMSRelationship(
 	if policyName != "" {
 		attributes["encryption_policy_name"] = policyName
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey,
+		RelationshipType: aws.RelationshipOpenSearchServerlessCollectionUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey + ":" + keyARN,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipOpenSearchServerlessCollectionUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -55,39 +55,39 @@ func collectionKMSRelationship(
 // reports bare EC2 ids for all three, matching how the EC2 scanner publishes the
 // vpc-…, subnet-…, and sg-… resource_ids. It returns nil when the endpoint has no
 // resolvable identity.
-func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) []awscloud.RelationshipObservation {
+func vpcEndpointRelationships(boundary aws.Boundary, endpoint VPCEndpoint) []aws.RelationshipObservation {
 	endpointID := vpcEndpointResourceID(endpoint)
 	if endpointID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if vpcID := strings.TrimSpace(endpoint.VPCID); vpcID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInVPC,
+			RelationshipType: aws.RelationshipOpenSearchServerlessVPCEndpointInVPC,
 			SourceResourceID: endpointID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			SourceRecordID:   endpointID + "#vpc#" + vpcID,
 		})
 	}
 	for _, subnetID := range cloneStrings(endpoint.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInSubnet,
+			RelationshipType: aws.RelationshipOpenSearchServerlessVPCEndpointInSubnet,
 			SourceResourceID: endpointID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   endpointID + "#subnet#" + subnetID,
 		})
 	}
 	for _, groupID := range cloneStrings(endpoint.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup,
+			RelationshipType: aws.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup,
 			SourceResourceID: endpointID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   endpointID + "#security-group#" + groupID,
 		})
 	}

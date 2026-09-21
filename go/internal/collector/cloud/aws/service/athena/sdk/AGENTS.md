@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/athena/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/athena/sdk guidance
 
 ## Read First
 

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/securityhub guidance
+# AGENTS.md - internal/collector/cloud/aws/service/securityhub guidance
 
 ## Read First
 
@@ -6,7 +6,7 @@
 2. `types.go` - scanner-owned Security Hub domain types.
 3. `scanner.go` - hub, standard, control, member, insight, action target, and
    finding aggregate fact emission.
-4. `awssdk/README.md` - AWS SDK API allowlist and redaction boundary.
+4. `sdk/README.md` - AWS SDK API allowlist and redaction boundary.
 5. `../../README.md` - shared AWS cloud observation and envelope contract.
 6. `docs/public/services/collector-aws-cloud.md` - AWS collector service
    coverage and runtime requirements.
@@ -26,7 +26,7 @@
 - Never persist insight filter expressions.
 - Keep finding posture as aggregates only. Do not add finding IDs, resource
   ARNs, product-field keys, or user-defined values to facts or metric labels.
-- Redact custom action target descriptions with `awscloud.RedactString` before
+- Redact custom action target descriptions with `aws.RedactString` before
   fact emission.
 - Emit reported evidence only. Do not infer AWS Organizations hierarchy,
   workload ownership, deployment truth, or reducer-owned finding truth.
@@ -37,10 +37,10 @@
 
 - Add a new Security Hub metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when Security Hub reports both sides
   directly and neither side depends on finding-body details.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

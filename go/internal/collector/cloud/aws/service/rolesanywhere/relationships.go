@@ -14,12 +14,12 @@ import (
 // each role as an ARN, which matches how the IAM scanner publishes its role
 // resource_id, so each edge joins the IAM role node exactly. Empty or duplicate
 // role ARNs are skipped so no edge dangles or duplicates.
-func profileRoleRelationships(boundary awscloud.Boundary, profile Profile) []awscloud.RelationshipObservation {
+func profileRoleRelationships(boundary aws.Boundary, profile Profile) []aws.RelationshipObservation {
 	sourceID := profileResourceID(profile)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	seen := make(map[string]struct{}, len(profile.RoleARNs))
 	for _, roleARN := range profile.RoleARNs {
 		roleARN = strings.TrimSpace(roleARN)
@@ -34,15 +34,15 @@ func profileRoleRelationships(boundary awscloud.Boundary, profile Profile) []aws
 		if isARN(roleARN) {
 			targetARN = roleARN
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRolesAnywhereProfileAssumesRole,
+			RelationshipType: aws.RelationshipRolesAnywhereProfileAssumesRole,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(profile.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereProfileAssumesRole + ":" + roleARN,
+			TargetType:       aws.ResourceTypeIAMRole,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipRolesAnywhereProfileAssumesRole + ":" + roleARN,
 		})
 	}
 	return observations
@@ -54,7 +54,7 @@ func profileRoleRelationships(boundary awscloud.Boundary, profile Profile) []aws
 // AWS reports the CA ARN, which matches how the acmpca scanner publishes its
 // certificate-authority resource_id, so the edge joins the CA node. It returns
 // nil when the trust anchor is not ACM-PCA-backed or no CA ARN is reported.
-func trustAnchorACMPCARelationship(boundary awscloud.Boundary, anchor TrustAnchor) *awscloud.RelationshipObservation {
+func trustAnchorACMPCARelationship(boundary aws.Boundary, anchor TrustAnchor) *aws.RelationshipObservation {
 	caARN := strings.TrimSpace(anchor.ACMPCAArn)
 	if caARN == "" || !isARN(caARN) {
 		return nil
@@ -63,15 +63,15 @@ func trustAnchorACMPCARelationship(boundary awscloud.Boundary, anchor TrustAncho
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA,
+		RelationshipType: aws.RelationshipRolesAnywhereTrustAnchorUsesACMPCA,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(anchor.ARN),
 		TargetResourceID: caARN,
 		TargetARN:        caARN,
-		TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA + ":" + caARN,
+		TargetType:       aws.ResourceTypeACMPCACertificateAuthority,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipRolesAnywhereTrustAnchorUsesACMPCA + ":" + caARN,
 	}
 }
 
@@ -80,7 +80,7 @@ func trustAnchorACMPCARelationship(boundary awscloud.Boundary, anchor TrustAncho
 // anchor ARN on the CRL, which is the resource_id the trust-anchor node
 // publishes, so the edge joins the trust-anchor node. It returns nil when no
 // trust anchor is associated.
-func crlTrustAnchorRelationship(boundary awscloud.Boundary, crl CRL) *awscloud.RelationshipObservation {
+func crlTrustAnchorRelationship(boundary aws.Boundary, crl CRL) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(crl.TrustAnchorARN)
 	if targetID == "" {
 		return nil
@@ -93,14 +93,14 @@ func crlTrustAnchorRelationship(boundary awscloud.Boundary, crl CRL) *awscloud.R
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRolesAnywhereCRLValidatesTrustAnchor,
+		RelationshipType: aws.RelationshipRolesAnywhereCRLValidatesTrustAnchor,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(crl.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRolesAnywhereTrustAnchor,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereCRLValidatesTrustAnchor + ":" + targetID,
+		TargetType:       aws.ResourceTypeRolesAnywhereTrustAnchor,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipRolesAnywhereCRLValidatesTrustAnchor + ":" + targetID,
 	}
 }

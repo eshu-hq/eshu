@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloud_test
+package aws_test
 
 import (
 	"go/ast"
@@ -14,13 +14,13 @@ import (
 )
 
 // TestScannerServiceKindSwitchesCanonicalize is a by-construction guard against
-// the service_kind canonicalization bug fixed across the awscloud scanner fleet.
+// the service_kind canonicalization bug fixed across the aws scanner fleet.
 //
 // Every scanner gates its work behind:
 //
 //	switch strings.TrimSpace(boundary.ServiceKind) {
-//	case "", awscloud.Service<X>:
-//	    boundary.ServiceKind = awscloud.Service<X>
+//	case "", aws.Service<X>:
+//	    boundary.ServiceKind = aws.Service<X>
 //	default:
 //	    return ..., fmt.Errorf(...)
 //	}
@@ -32,7 +32,7 @@ import (
 // leaks the padded string into the graph and breaks joins/filters keyed on the
 // canonical value.
 //
-// The original bug was an empty-bodied non-default case (`case awscloud.Service<X>:`
+// The original bug was an empty-bodied non-default case (`case aws.Service<X>:`
 // with nothing after it): the kind was validated but never canonicalized. This
 // guard walks every service/*/scanner.go that uses the trim-switch and asserts
 // the shape that makes the bug impossible: a default arm (mismatch rejection),
@@ -185,7 +185,7 @@ func isSelector(expr ast.Expr, x, sel string) bool {
 }
 
 // caseListText renders a case clause's expression list for a failure message,
-// naming the constants that arm matches (for example `awscloud.ServiceSNS`).
+// naming the constants that arm matches (for example `aws.ServiceSNS`).
 func caseListText(list []ast.Expr) string {
 	parts := make([]string, 0, len(list))
 	for _, expr := range list {

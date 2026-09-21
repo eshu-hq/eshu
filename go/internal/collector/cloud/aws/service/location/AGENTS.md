@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/location guidance
+# AGENTS.md - internal/collector/cloud/aws/service/location guidance
 
 ## Read First
 
@@ -31,7 +31,7 @@
   `ListTrackerConsumers` reports a consumer ARN. That ARN is the geofence
   collection ARN the collection node publishes, so key the target on it.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from resource names or AWS
@@ -45,14 +45,14 @@
 
 - Add a new Location Service metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a device position,
+  `aws` envelope builders. If the field can carry a device position,
   geofence geometry, place result, or route, leave it out of the scanner
   contract.
 - Add new relationship evidence only when the Location Service API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for KMS keys, the geofence collection ARN for
   consumer associations).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

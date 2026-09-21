@@ -18,7 +18,7 @@ import "encoding/json"
 //
 //   - Required (identity): AccountID, Region, RelationshipType,
 //     SourceResourceID, TargetResourceID — matching the collector emitter
-//     (awscloud.NewRelationshipEnvelope), which validates them non-empty
+//     (aws.NewRelationshipEnvelope), which validates them non-empty
 //     (source_resource_id defaults to source_arn, target_resource_id to
 //     target_arn). A missing identity field dead-letters as input_invalid.
 //   - Optional (common): SourceARN, TargetARN, TargetType — always emitted but

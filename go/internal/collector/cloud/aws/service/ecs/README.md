@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ecs` owns the ECS scanner contract for
+`internal/collector/cloud/aws/service/ecs` owns the ECS scanner contract for
 the AWS cloud collector. It converts clusters, services, task definitions,
 tasks, service load-balancer bindings, task-definition container image
 relationships, and running-task container `aws_image_reference` facts into AWS
@@ -44,7 +44,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 - `internal/redact` for HMAC-SHA256 task-definition environment value markers.
@@ -54,9 +54,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource/relationship counts after
-`Scanner.Scan` returns. The `awssdk` adapter records ECS API call counts,
+`Scanner.Scan` returns. The `sdk` adapter records ECS API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants

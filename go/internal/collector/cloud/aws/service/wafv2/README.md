@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/wafv2` owns the WAFv2 scanner contract for
+`internal/collector/cloud/aws/service/wafv2` owns the WAFv2 scanner contract for
 the AWS cloud collector. It converts web ACL, rule group, IP set, and regex
 pattern set metadata into `aws_resource` facts and emits web-ACL relationship
 evidence to protected resources, rule groups, IP sets, and regex pattern sets.
@@ -42,7 +42,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, WAFv2 resource and relationship
+- `internal/collector/cloud/aws` for boundaries, WAFv2 resource and relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,10 +51,10 @@ v2 so tests use fake clients and the runtime adapter owns SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
 through `eshu_dp_aws_resources_emitted_total{service="wafv2"}` and
-`eshu_dp_aws_relationships_emitted_total`. The `awssdk` adapter records WAFv2
+`eshu_dp_aws_relationships_emitted_total`. The `sdk` adapter records WAFv2
 API call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -74,13 +74,13 @@ API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/wafv2/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/wafv2/...`
 covers the bounded WAFv2 metadata path: one marker-paginated list per resource
 kind, one detail read per resource, one tag read per resource, and per-web-ACL
 regional association reads. IP set and regex set detail reads count entries and
 discard the bodies.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers WAFv2 resource fact emission, all four relationship kinds, count-only IP
 set and regex set emission, the SDK adapter's read-only interface (reflection
 exclusion test), scope selection, runtime registration, and command

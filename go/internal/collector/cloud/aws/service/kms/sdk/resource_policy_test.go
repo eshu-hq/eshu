@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 
@@ -24,10 +24,10 @@ func TestClientListKeysDerivesResourcePolicyStatements(t *testing.T) {
 	keyARN := "arn:aws:kms:us-east-1:123456789012:key/" + keyID
 	api := &fakeKMSAPI{
 		listKeysPages: []*awskms.ListKeysOutput{{
-			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID), KeyArn: aws.String(keyARN)}},
+			Keys: []kmstypes.KeyListEntry{{KeyId: awsv2.String(keyID), KeyArn: awsv2.String(keyARN)}},
 		}},
 		describeKey: map[string]*kmstypes.KeyMetadata{
-			keyID: {KeyId: aws.String(keyID), Arn: aws.String(keyARN), KeyManager: kmstypes.KeyManagerTypeCustomer},
+			keyID: {KeyId: awsv2.String(keyID), Arn: awsv2.String(keyARN), KeyManager: kmstypes.KeyManagerTypeCustomer},
 		},
 		listPoliciesByKey: map[string][]*awskms.ListKeyPoliciesOutput{
 			keyID: {{PolicyNames: []string{"default"}}},
@@ -39,7 +39,7 @@ func TestClientListKeysDerivesResourcePolicyStatements(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())
@@ -109,7 +109,7 @@ func TestDeriveKeyPolicyResourcePermissionStatements(t *testing.T) {
 	}
 
 	service := statementBySID(t, statements, "AllowService")
-	if !equalStrings(service.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeService}) {
+	if !equalStrings(service.PrincipalTypes, []string{aws.ResourcePolicyPrincipalTypeService}) {
 		t.Fatalf("AllowService principal_types = %#v, want [service]", service.PrincipalTypes)
 	}
 	if len(service.PrincipalAccountIDs) != 0 {

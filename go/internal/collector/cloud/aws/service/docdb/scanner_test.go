@@ -123,7 +123,7 @@ func TestScannerEmitsDocDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeDocDBCluster)
 	if got, want := cluster.Payload["arn"], clusterARN; got != want {
 		t.Fatalf("cluster arn = %#v, want %q", got, want)
 	}
@@ -135,14 +135,14 @@ func TestScannerEmitsDocDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, clusterAttributes, "enabled_cloudwatch_logs_exports", []string{"audit", "profiler"})
 	assertForbiddenAbsent(t, clusterAttributes, "cluster")
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBClusterInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeDocDBClusterInstance)
 	instanceAttributes := attributesOf(t, instance)
 	assertAttribute(t, instanceAttributes, "endpoint_address", "orders-docdb-1.docdb.amazonaws.com")
 	assertAttribute(t, instanceAttributes, "endpoint_port", int32(27017))
 	assertAttribute(t, instanceAttributes, "cluster_identifier", "orders-docdb")
 	assertForbiddenAbsent(t, instanceAttributes, "instance")
 
-	paramGroup := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBClusterParameterGroup)
+	paramGroup := resourceByType(t, envelopes, aws.ResourceTypeDocDBClusterParameterGroup)
 	paramAttributes := attributesOf(t, paramGroup)
 	assertAttribute(t, paramAttributes, "family", "docdb5.0")
 	assertAttribute(t, paramAttributes, "parameter_count", 12)
@@ -152,38 +152,38 @@ func TestScannerEmitsDocDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	snapshot := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBClusterSnapshot)
+	snapshot := resourceByType(t, envelopes, aws.ResourceTypeDocDBClusterSnapshot)
 	snapshotAttributes := attributesOf(t, snapshot)
 	assertAttribute(t, snapshotAttributes, "snapshot_type", "manual")
 	assertAttribute(t, snapshotAttributes, "cluster_identifier", "orders-docdb")
 	assertForbiddenAbsent(t, snapshotAttributes, "snapshot")
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, aws.ResourceTypeDocDBSubnetGroup)
 	subnetAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 	assertAttribute(t, subnetAttributes, "vpc_id", "vpc-123")
 
-	globalCluster := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBGlobalCluster)
+	globalCluster := resourceByType(t, envelopes, aws.ResourceTypeDocDBGlobalCluster)
 	globalAttributes := attributesOf(t, globalCluster)
 	assertAttribute(t, globalAttributes, "engine", "docdb")
 	assertAttribute(t, globalAttributes, "member_cluster_arns", []string{clusterARN})
 
-	eventSub := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBEventSubscription)
+	eventSub := resourceByType(t, envelopes, aws.ResourceTypeDocDBEventSubscription)
 	eventAttributes := attributesOf(t, eventSub)
 	assertAttribute(t, eventAttributes, "source_type", "db-cluster")
 	assertAttribute(t, eventAttributes, "sns_topic_arn", "arn:aws:sns:us-east-1:123456789012:docdb-alerts")
 	assertAttribute(t, eventAttributes, "source_ids", []string{"orders-docdb"})
 	assertAttribute(t, eventAttributes, "event_categories", []string{"failover", "maintenance"})
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDocDBClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDocDBClusterInVPC, "vpc-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDocDBClusterUsesKMSKey, kmsARN)
-	memberRel := relationshipByType(t, envelopes, awscloud.RelationshipDocDBInstanceMemberOfCluster)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDocDBClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDocDBClusterInVPC, "vpc-123")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDocDBClusterUsesKMSKey, kmsARN)
+	memberRel := relationshipByType(t, envelopes, aws.RelationshipDocDBInstanceMemberOfCluster)
 	if got, want := memberRel.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("instance membership target_arn = %#v, want %q", got, want)
 	}
 	assertAttribute(t, attributesOf(t, memberRel), "is_writer", true)
-	globalRel := relationshipByType(t, envelopes, awscloud.RelationshipDocDBGlobalClusterHasCluster)
+	globalRel := relationshipByType(t, envelopes, aws.RelationshipDocDBGlobalClusterHasCluster)
 	if got, want := globalRel.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("global cluster membership target_arn = %#v, want %q", got, want)
 	}
@@ -214,11 +214,11 @@ func TestScannerClusterInVPCEdgeTargetsEC2VPCType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipDocDBClusterInVPC)
+	rel := relationshipByType(t, envelopes, aws.RelationshipDocDBClusterInVPC)
 	if got, want := rel.Payload["target_resource_id"], "vpc-123"; got != want {
 		t.Fatalf("cluster-in-vpc target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := rel.Payload["target_type"], aws.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("cluster-in-vpc target_type = %#v, want %q", got, want)
 	}
 }
@@ -264,7 +264,7 @@ func TestScannerInstanceMembershipReflectsClusterWriterRole(t *testing.T) {
 
 	writers := map[string]bool{}
 	for _, envelope := range envelopes {
-		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipDocDBInstanceMemberOfCluster {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != aws.RelationshipDocDBInstanceMemberOfCluster {
 			continue
 		}
 		sourceID, _ := envelope.Payload["source_resource_id"].(string)
@@ -295,7 +295,7 @@ func TestScannerNeverPersistsMasterUserPasswordAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeDocDBCluster)
 	assertForbiddenAbsent(t, attributesOf(t, cluster), "cluster")
 	anchors, _ := cluster.Payload["correlation_anchors"].([]string)
 	for _, anchor := range anchors {
@@ -334,7 +334,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipDocDBClusterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipDocDBClusterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders-docdb"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -345,7 +345,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

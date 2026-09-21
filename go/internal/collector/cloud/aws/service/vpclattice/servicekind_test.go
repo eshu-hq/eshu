@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "vpclattice".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceVPCLattice + "  "
+	boundary.ServiceKind = "  " + aws.ServiceVPCLattice + "  "
 	client := fakeClient{snapshot: Snapshot{ServiceNetworks: []ServiceNetwork{{
 		ARN:  testNetworkARN,
 		ID:   "sn-0123",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceVPCLattice; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceVPCLattice; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

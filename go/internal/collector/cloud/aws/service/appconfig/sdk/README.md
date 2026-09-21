@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/appconfig/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/appconfig/sdk` adapts AWS SDK for Go
 v2 AppConfig responses to the scanner-owned `Client` contract. It owns
 application pagination, per-application environment and configuration-profile
 pagination, account-level deployment-strategy pagination, throttle
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/appconfig` for scanner-owned result
+- `internal/collector/cloud/aws/service/appconfig` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `appconfig` and Smithy error contracts.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sqs/awssdk` adapts AWS SDK for Go v2 SQS
+`internal/collector/cloud/aws/service/sqs/sdk` adapts AWS SDK for Go v2 SQS
 responses to the scanner-owned `sqs.Client` contract. It owns SQS queue
 pagination, queue metadata reads, queue tag reads, throttle classification, and
 per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/sqs` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/sqs` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `sqs` and Smithy error contracts.
 

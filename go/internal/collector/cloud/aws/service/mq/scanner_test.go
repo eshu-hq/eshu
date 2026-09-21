@@ -53,7 +53,7 @@ func TestScannerEmitsBrokerMetadataOnlyWithRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	broker := resourceByType(t, envelopes, awscloud.ResourceTypeMQBroker)
+	broker := resourceByType(t, envelopes, aws.ResourceTypeMQBroker)
 	attributes := attributesOf(t, broker)
 	if got, want := attributes["engine_type"], "ACTIVEMQ"; got != want {
 		t.Fatalf("engine_type = %#v, want %q", got, want)
@@ -85,17 +85,17 @@ func TestScannerEmitsBrokerMetadataOnlyWithRelationships(t *testing.T) {
 	}
 	assertNoPasswordMaterial(t, broker.Payload)
 
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesSecurityGroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesKMSKey)
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesConfiguration)
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup)
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerUsesSubnet)
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerUsesSecurityGroup)
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerUsesKMSKey)
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerUsesConfiguration)
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerLogsToCloudWatchLogGroup)
 
 	// The configuration and log group edges must target the ARN form the
 	// owning scanners use as their resource ResourceID, or the edges will not
 	// join in the reducer.
-	assertRelationshipTargetARN(t, envelopes, awscloud.RelationshipMQBrokerUsesConfiguration, configARN)
-	assertRelationshipTargetARN(t, envelopes, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
+	assertRelationshipTargetARN(t, envelopes, aws.RelationshipMQBrokerUsesConfiguration, configARN)
+	assertRelationshipTargetARN(t, envelopes, aws.RelationshipMQBrokerLogsToCloudWatchLogGroup,
 		"arn:aws:logs:us-east-1:123456789012:log-group:/aws/amazonmq/broker/b-1111/general")
 }
 
@@ -123,7 +123,7 @@ func TestScannerEmitsConfigurationIdentityNotBody(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	configuration := resourceByType(t, envelopes, awscloud.ResourceTypeMQConfiguration)
+	configuration := resourceByType(t, envelopes, aws.ResourceTypeMQConfiguration)
 	attributes := attributesOf(t, configuration)
 	revision, ok := attributes["latest_revision"].(map[string]any)
 	if !ok {
@@ -157,19 +157,19 @@ func TestScannerEmitsRabbitMQBrokerWithoutKMSKeyRelationshipForAWSOwnedKey(t *te
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	broker := resourceByType(t, envelopes, awscloud.ResourceTypeMQBroker)
+	broker := resourceByType(t, envelopes, aws.ResourceTypeMQBroker)
 	if got, want := attributesOf(t, broker)["engine_type"], "RABBITMQ"; got != want {
 		t.Fatalf("engine_type = %#v, want %q", got, want)
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesSubnet)
-	if relationshipPresent(envelopes, awscloud.RelationshipMQBrokerUsesKMSKey) {
+	assertRelationship(t, envelopes, aws.RelationshipMQBrokerUsesSubnet)
+	if relationshipPresent(envelopes, aws.RelationshipMQBrokerUsesKMSKey) {
 		t.Fatalf("AWS-owned-key broker emitted a KMS key relationship; only customer-managed keys should produce one")
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceMSK
+	boundary.ServiceKind = aws.ServiceMSK
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -184,11 +184,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceMQ,
+		ServiceKind:         aws.ServiceMQ,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:mq:1",
 		CollectorInstanceID: "aws-prod",

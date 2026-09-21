@@ -7,13 +7,13 @@ Read these files before editing this package:
 3. `types.go`
 4. `scanner.go`
 5. `relationships.go`
-6. `awssdk/README.md`
+6. `sdk/README.md`
 
 Do not add mutation APIs, BYOIP advertise/withdraw calls, custom-routing traffic
 allow/deny calls, or any operation that creates, updates, or deletes a Global
 Accelerator resource. The scanner is metadata-only.
 
-The scanner boundary must remain `awscloud.ServiceGlobalAccelerator`. Global
+The scanner boundary must remain `aws.ServiceGlobalAccelerator`. Global
 Accelerator is a global-endpoint service whose control plane lives only in
 `us-west-2`; tests and runtime scopes use a `us-west-2` boundary and must not
 infer application environment or deployment truth.

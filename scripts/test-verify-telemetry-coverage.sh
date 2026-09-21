@@ -451,7 +451,7 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # of the detection-limit skip that move-heavy diffs hit in CI): without the
 # verifier's own forced `-M`, the move misreads as Added and fails; with it
 # the R-pair drops out of the added-file diff and the gate passes. The moved
-# file is deliberately row-less (like the awssdk/runtimebind files that
+# file is deliberately row-less (like the sdk/bind files that
 # motivated this): the fixture doc keeps naming only service.go, so nothing
 # but the pairing decision can satisfy the gate.
 case_rename_pair="$(init_repo case-rename-pair)"

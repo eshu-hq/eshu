@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/outposts` owns the AWS Outposts scanner
+`internal/collector/cloud/aws/service/outposts` owns the AWS Outposts scanner
 contract for the AWS cloud collector. It converts Outposts outpost, site, and
 rack/server asset metadata into `aws_resource` facts and emits relationship
 evidence for outpost-in-site and asset-in-outpost membership.
@@ -41,7 +41,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -51,9 +51,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Outposts API call counts, throttles, and pagination
+`sdk` adapter records Outposts API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -82,14 +82,14 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/outposts/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/outposts/...` covers the bounded
 Outposts metadata path: one paginated ListOutposts stream, one GetOutpost point
 read per outpost, one paginated ListAssets stream per outpost, one paginated
 ListSites stream, one GetSite point read per site, one ListTagsForResource point
 read per outpost and per site, no address/order/billing reads, and no graph
 writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/outposts/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/outposts/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

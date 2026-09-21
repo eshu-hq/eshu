@@ -18,7 +18,7 @@ import (
 // joins/filters that key on the canonical "route53resolver".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceRoute53Resolver + "  "
+	boundary.ServiceKind = "  " + aws.ServiceRoute53Resolver + "  "
 	client := sampleClient()
 
 	envelopes, err := (route53resolver.Scanner{Client: client}).Scan(context.Background(), boundary)
@@ -29,7 +29,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceRoute53Resolver; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceRoute53Resolver; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -106,12 +106,12 @@ func TestScannerEmitsNetworkManagerResources(t *testing.T) {
 		resourceType string
 		resourceID   string
 	}{
-		{awscloud.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN},
-		{awscloud.ResourceTypeNetworkManagerSite, testSiteARN},
-		{awscloud.ResourceTypeNetworkManagerDevice, testDeviceARN},
-		{awscloud.ResourceTypeNetworkManagerLink, testLinkARN},
-		{awscloud.ResourceTypeNetworkManagerConnection, testConnARN},
-		{awscloud.ResourceTypeNetworkManagerCoreNetwork, testCoreARN},
+		{aws.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN},
+		{aws.ResourceTypeNetworkManagerSite, testSiteARN},
+		{aws.ResourceTypeNetworkManagerDevice, testDeviceARN},
+		{aws.ResourceTypeNetworkManagerLink, testLinkARN},
+		{aws.ResourceTypeNetworkManagerConnection, testConnARN},
+		{aws.ResourceTypeNetworkManagerCoreNetwork, testCoreARN},
 	}
 	for _, tc := range cases {
 		resource := resourceByType(t, envelopes, tc.resourceType)
@@ -123,17 +123,17 @@ func TestScannerEmitsNetworkManagerResources(t *testing.T) {
 		}
 	}
 
-	device := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkManagerDevice)
+	device := resourceByType(t, envelopes, aws.ResourceTypeNetworkManagerDevice)
 	deviceAttrs := attributesOf(t, device)
 	assertAttribute(t, deviceAttrs, "vendor", "Cisco")
 	assertAttribute(t, deviceAttrs, "subnet_arn", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-0aa11bb22cc33dd44")
 
-	link := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkManagerLink)
+	link := resourceByType(t, envelopes, aws.ResourceTypeNetworkManagerLink)
 	linkAttrs := attributesOf(t, link)
 	assertAttribute(t, linkAttrs, "upload_speed_mbps", int32(100))
 	assertAttribute(t, linkAttrs, "download_speed_mbps", int32(200))
 
-	core := resourceByType(t, envelopes, awscloud.ResourceTypeNetworkManagerCoreNetwork)
+	core := resourceByType(t, envelopes, aws.ResourceTypeNetworkManagerCoreNetwork)
 	coreAttrs := attributesOf(t, core)
 	assertAttribute(t, coreAttrs, "segment_names", []string{"shared"})
 }
@@ -142,45 +142,45 @@ func TestScannerEmitsNetworkManagerEdges(t *testing.T) {
 	envelopes := scan(t, testBoundary(), fakeClient{snapshot: fullSnapshot()})
 
 	// core network -> global network
-	core := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerCoreNetworkInGlobalNetwork)
-	assertEdgeTarget(t, core, awscloud.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN)
+	core := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerCoreNetworkInGlobalNetwork)
+	assertEdgeTarget(t, core, aws.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN)
 	if got := core.Payload["source_resource_id"]; got != testCoreARN {
 		t.Fatalf("core->gn source_resource_id = %#v, want %q", got, testCoreARN)
 	}
 
 	// site/device/link/connection -> global network
 	for _, relType := range []string{
-		awscloud.RelationshipNetworkManagerSiteInGlobalNetwork,
-		awscloud.RelationshipNetworkManagerDeviceInGlobalNetwork,
-		awscloud.RelationshipNetworkManagerLinkInGlobalNetwork,
-		awscloud.RelationshipNetworkManagerConnectionInGlobalNetwork,
+		aws.RelationshipNetworkManagerSiteInGlobalNetwork,
+		aws.RelationshipNetworkManagerDeviceInGlobalNetwork,
+		aws.RelationshipNetworkManagerLinkInGlobalNetwork,
+		aws.RelationshipNetworkManagerConnectionInGlobalNetwork,
 	} {
 		rel := relationshipByType(t, envelopes, relType)
-		assertEdgeTarget(t, rel, awscloud.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN)
+		assertEdgeTarget(t, rel, aws.ResourceTypeNetworkManagerGlobalNetwork, testGlobalNetARN)
 	}
 
 	// device -> site, link -> site
-	deviceSite := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerDeviceInSite)
-	assertEdgeTarget(t, deviceSite, awscloud.ResourceTypeNetworkManagerSite, testSiteARN)
-	linkSite := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerLinkInSite)
-	assertEdgeTarget(t, linkSite, awscloud.ResourceTypeNetworkManagerSite, testSiteARN)
+	deviceSite := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerDeviceInSite)
+	assertEdgeTarget(t, deviceSite, aws.ResourceTypeNetworkManagerSite, testSiteARN)
+	linkSite := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerLinkInSite)
+	assertEdgeTarget(t, linkSite, aws.ResourceTypeNetworkManagerSite, testSiteARN)
 
 	// device -> link association
-	deviceLink := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerDeviceUsesLink)
-	assertEdgeTarget(t, deviceLink, awscloud.ResourceTypeNetworkManagerLink, testLinkARN)
+	deviceLink := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerDeviceUsesLink)
+	assertEdgeTarget(t, deviceLink, aws.ResourceTypeNetworkManagerLink, testLinkARN)
 	if got := deviceLink.Payload["source_resource_id"]; got != testDeviceARN {
 		t.Fatalf("device->link source_resource_id = %#v, want %q", got, testDeviceARN)
 	}
 
 	// connection -> device (first and connected device)
-	connDevices := relationshipsByType(envelopes, awscloud.RelationshipNetworkManagerConnectionConnectsDevice)
+	connDevices := relationshipsByType(envelopes, aws.RelationshipNetworkManagerConnectionConnectsDevice)
 	if len(connDevices) != 2 {
 		t.Fatalf("connection->device edges = %d, want 2", len(connDevices))
 	}
 
 	// transit gateway registration: gn -> transit gateway, keyed by BARE tgw id
-	tgw := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway)
-	assertEdgeTarget(t, tgw, awscloud.ResourceTypeTransitGateway, testTGWID)
+	tgw := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway)
+	assertEdgeTarget(t, tgw, aws.ResourceTypeTransitGateway, testTGWID)
 	if got := tgw.Payload["source_resource_id"]; got != testGlobalNetARN {
 		t.Fatalf("tgw registration source_resource_id = %#v, want %q", got, testGlobalNetARN)
 	}
@@ -191,7 +191,7 @@ func TestScannerEmitsNetworkManagerEdges(t *testing.T) {
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	envelopes := scan(t, testBoundary(), fakeClient{snapshot: fullSnapshot()})
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
@@ -214,7 +214,7 @@ func TestScannerSynthesizesGovCloudParentEdge(t *testing.T) {
 		Sites: []Site{{ID: testSiteID, GlobalNetworkID: testGlobalNetID, State: "ACTIVE"}},
 	}}}
 	envelopes := scan(t, boundary, fakeClient{snapshot: snapshot})
-	site := relationshipByType(t, envelopes, awscloud.RelationshipNetworkManagerSiteInGlobalNetwork)
+	site := relationshipByType(t, envelopes, aws.RelationshipNetworkManagerSiteInGlobalNetwork)
 	wantARN := "arn:aws-us-gov:networkmanager::123456789012:global-network/" + testGlobalNetID
 	if got := site.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud site->gn target_resource_id = %#v, want %q", got, wantARN)
@@ -253,7 +253,7 @@ func TestScannerStaysMetadataOnly(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatal("Scan() error = nil, want service kind mismatch")
 	}
@@ -262,16 +262,16 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		GlobalNetworks: []GlobalNetwork{{ARN: testGlobalNetARN, ID: testGlobalNetID, State: "AVAILABLE"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Network Manager GetDevices throttled after SDK retries; device metadata omitted",
 			SourceRecordID: "networkmanager_devices_throttled",
 		}},
 	}}
 	envelopes := scan(t, testBoundary(), client)
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/secretsmanager/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/secretsmanager/sdk guidance
 
 ## Read First
 

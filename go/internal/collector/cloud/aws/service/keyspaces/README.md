@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/keyspaces` owns the Amazon Keyspaces (for
+`internal/collector/cloud/aws/service/keyspaces` owns the Amazon Keyspaces (for
 Apache Cassandra) scanner contract for the AWS cloud collector. It converts
 keyspace and table control-plane metadata into `aws_resource` facts and emits
 relationship evidence for table-in-keyspace membership and the table's
@@ -44,7 +44,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -53,9 +53,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Keyspaces API call counts, throttles, and
+The `sdk` adapter records Keyspaces API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -86,7 +86,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/keyspaces/...` covers the
+`go test ./internal/collector/cloud/aws/service/keyspaces/...` covers the
 bounded Keyspaces metadata path: one paginated ListKeyspaces stream with
 MaxResults=100, one GetKeyspace point read per keyspace, one paginated ListTables
 stream per keyspace, one GetTable point read per table, and one paginated
@@ -95,7 +95,7 @@ Select, row reads, cell reads, RestoreTable calls, mutations, or graph writes in
 the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 keyspace and table metadata fact emission, table-in-keyspace relationship
 emission, direct customer-managed KMS relationship emission, omission of
 data-plane row/cell fields, the metadata-only adapter-interface exclusion test,
@@ -103,7 +103,7 @@ SDK metadata mapping, runtime registration, and the derived supported-service
 guard.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/keyspaces/... -count=1` covers
+`go test ./internal/collector/cloud/aws/service/keyspaces/... -count=1` covers
 `TestTableKeyspaceRelationshipDerivesPartitionFromTableARN` (commercial /
 `aws-us-gov` / `aws-cn`), proving the synthesized keyspace ARN inherits the table
 ARN's partition instead of hardcoding `aws`, so the table->keyspace edge resolves

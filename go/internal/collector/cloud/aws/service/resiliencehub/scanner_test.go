@@ -85,7 +85,7 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Policy resource node.
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeResilienceHubResiliencyPolicy)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeResilienceHubResiliencyPolicy)
 	if got, want := policy.Payload["resource_id"], testPolicyARN; got != want {
 		t.Fatalf("policy resource_id = %#v, want %q", got, want)
 	}
@@ -93,7 +93,7 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, policyAttrs, "tier", "MissionCritical")
 
 	// App resource node.
-	app := resourceByType(t, envelopes, awscloud.ResourceTypeResilienceHubApp)
+	app := resourceByType(t, envelopes, aws.ResourceTypeResilienceHubApp)
 	if got, want := app.Payload["resource_id"], testAppARN; got != want {
 		t.Fatalf("app resource_id = %#v, want %q", got, want)
 	}
@@ -106,22 +106,22 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, appAttrs, "rto_in_secs", int32(7200))
 
 	// Input source, component, assessment resource nodes.
-	resourceByType(t, envelopes, awscloud.ResourceTypeResilienceHubAppInputSource)
-	resourceByType(t, envelopes, awscloud.ResourceTypeResilienceHubAppComponent)
-	assessment := resourceByType(t, envelopes, awscloud.ResourceTypeResilienceHubAppAssessment)
+	resourceByType(t, envelopes, aws.ResourceTypeResilienceHubAppInputSource)
+	resourceByType(t, envelopes, aws.ResourceTypeResilienceHubAppComponent)
+	assessment := resourceByType(t, envelopes, aws.ResourceTypeResilienceHubAppAssessment)
 	if got, want := assessment.Payload["resource_id"], testAssessARN; got != want {
 		t.Fatalf("assessment resource_id = %#v, want %q", got, want)
 	}
 
 	// app -> policy edge.
-	appPolicy := relationshipByType(t, envelopes, awscloud.RelationshipResilienceHubAppUsesPolicy)
-	assertEdgeTarget(t, appPolicy, awscloud.ResourceTypeResilienceHubResiliencyPolicy, testPolicyARN)
+	appPolicy := relationshipByType(t, envelopes, aws.RelationshipResilienceHubAppUsesPolicy)
+	assertEdgeTarget(t, appPolicy, aws.ResourceTypeResilienceHubResiliencyPolicy, testPolicyARN)
 	if got, want := appPolicy.Payload["source_resource_id"], testAppARN; got != want {
 		t.Fatalf("app->policy source_resource_id = %#v, want %q", got, want)
 	}
 
 	// app -> protected resource edges (Lambda + SNS, both ARN-keyed).
-	protects := relationshipsByType(envelopes, awscloud.RelationshipResilienceHubAppProtectsResource)
+	protects := relationshipsByType(envelopes, aws.RelationshipResilienceHubAppProtectsResource)
 	if len(protects) != 2 {
 		t.Fatalf("expected 2 protects-resource edges, got %d", len(protects))
 	}
@@ -129,20 +129,20 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 	for _, edge := range protects {
 		gotTargets[edge.Payload["target_resource_id"].(string)] = edge.Payload["target_type"].(string)
 	}
-	if gotTargets[testLambdaARN] != awscloud.ResourceTypeLambdaFunction {
-		t.Fatalf("lambda protect edge target_type = %q, want %q", gotTargets[testLambdaARN], awscloud.ResourceTypeLambdaFunction)
+	if gotTargets[testLambdaARN] != aws.ResourceTypeLambdaFunction {
+		t.Fatalf("lambda protect edge target_type = %q, want %q", gotTargets[testLambdaARN], aws.ResourceTypeLambdaFunction)
 	}
-	if gotTargets[testTopicARN] != awscloud.ResourceTypeSNSTopic {
-		t.Fatalf("sns protect edge target_type = %q, want %q", gotTargets[testTopicARN], awscloud.ResourceTypeSNSTopic)
+	if gotTargets[testTopicARN] != aws.ResourceTypeSNSTopic {
+		t.Fatalf("sns protect edge target_type = %q, want %q", gotTargets[testTopicARN], aws.ResourceTypeSNSTopic)
 	}
 
 	// component -> app, input source -> app, assessment -> app edges.
-	componentEdge := relationshipByType(t, envelopes, awscloud.RelationshipResilienceHubComponentInApp)
-	assertEdgeTarget(t, componentEdge, awscloud.ResourceTypeResilienceHubApp, testAppARN)
-	inputEdge := relationshipByType(t, envelopes, awscloud.RelationshipResilienceHubInputSourceInApp)
-	assertEdgeTarget(t, inputEdge, awscloud.ResourceTypeResilienceHubApp, testAppARN)
-	assessEdge := relationshipByType(t, envelopes, awscloud.RelationshipResilienceHubAssessmentForApp)
-	assertEdgeTarget(t, assessEdge, awscloud.ResourceTypeResilienceHubApp, testAppARN)
+	componentEdge := relationshipByType(t, envelopes, aws.RelationshipResilienceHubComponentInApp)
+	assertEdgeTarget(t, componentEdge, aws.ResourceTypeResilienceHubApp, testAppARN)
+	inputEdge := relationshipByType(t, envelopes, aws.RelationshipResilienceHubInputSourceInApp)
+	assertEdgeTarget(t, inputEdge, aws.ResourceTypeResilienceHubApp, testAppARN)
+	assessEdge := relationshipByType(t, envelopes, aws.RelationshipResilienceHubAssessmentForApp)
+	assertEdgeTarget(t, assessEdge, aws.ResourceTypeResilienceHubApp, testAppARN)
 
 	// No assessment-result / drift / recommendation leakage anywhere.
 	for _, envelope := range envelopes {
@@ -182,7 +182,7 @@ func TestScannerSkipsNativeProtectedResourceEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if edges := relationshipsByType(envelopes, awscloud.RelationshipResilienceHubAppProtectsResource); len(edges) != 0 {
+	if edges := relationshipsByType(envelopes, aws.RelationshipResilienceHubAppProtectsResource); len(edges) != 0 {
 		t.Fatalf("expected no protects-resource edge for native/unkeyed resources, got %d", len(edges))
 	}
 }
@@ -201,7 +201,7 @@ func TestScannerOmitsPolicyEdgeWhenNoPolicyAttached(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got := envelope.Payload["relationship_type"]; got == awscloud.RelationshipResilienceHubAppUsesPolicy {
+		if got := envelope.Payload["relationship_type"]; got == aws.RelationshipResilienceHubAppUsesPolicy {
 			t.Fatalf("unexpected app->policy edge for app with no policy: %#v", envelope.Payload)
 		}
 	}
@@ -224,7 +224,7 @@ func TestScannerPreservesGovCloudPartitionOnEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipResilienceHubAppProtectsResource)
+	edge := relationshipByType(t, envelopes, aws.RelationshipResilienceHubAppProtectsResource)
 	if got := edge.Payload["target_resource_id"]; got != govLambdaARN {
 		t.Fatalf("gov protect edge target_resource_id = %#v, want %q (partition must be preserved)", got, govLambdaARN)
 	}
@@ -251,8 +251,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	}
 	assessment := Assessment{ARN: testAssessARN, AppARN: testAppARN, Name: "weekly"}
 
-	var observations []awscloud.RelationshipObservation
-	candidates := []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	candidates := []*aws.RelationshipObservation{
 		appUsesPolicyRelationship(boundary, app),
 		appProtectsResourceRelationship(boundary, app, app.ProtectedResources[0]),
 		componentInAppRelationship(boundary, app, app.Components[0]),
@@ -270,7 +270,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -281,9 +281,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsVersionMissingWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Apps: []App{{ARN: testAppARN, Name: "checkout"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningResilienceHubAppVersionMissing,
+			WarningKind:    aws.WarningResilienceHubAppVersionMissing,
 			ErrorClass:     "resource_not_found",
 			Message:        "Resilience Hub application has no release version",
 			SourceRecordID: "resiliencehub_app_version_missing:" + testAppARN,
@@ -294,7 +294,7 @@ func TestScannerEmitsVersionMissingWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningResilienceHubAppVersionMissing)
+	warning := warningByKind(t, envelopes, aws.WarningResilienceHubAppVersionMissing)
 	if got := warning.Payload["error_class"]; got != "resource_not_found" {
 		t.Fatalf("warning error_class = %#v, want resource_not_found", got)
 	}

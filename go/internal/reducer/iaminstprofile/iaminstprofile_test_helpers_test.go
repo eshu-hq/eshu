@@ -44,7 +44,7 @@ func resourceEnvelope(accountID, region, resourceType, resourceID, arn string, a
 
 // iamInstanceProfileResourceEnvelope builds an aws_iam_instance_profile
 // aws_resource envelope with the same nested-attributes shape the real
-// awscloud IAM scanner emits (awscloud.NewResourceEnvelope ->
+// awscloud IAM scanner emits (aws.NewResourceEnvelope ->
 // awsPayloadAttributes flattens the scanner's service-specific attributes,
 // including role_arns, under one top-level "attributes" key rather than at
 // the payload's top level; see #4633).

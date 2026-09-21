@@ -69,14 +69,14 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, 2)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerArchiveRule, 1)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerFindingCount, 3)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary, 1)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipAccessAnalyzerAnalyzerHasArchiveRule)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerAnalyzer, 2)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerArchiveRule, 1)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerFindingCount, 3)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerUnusedAccessSummary, 1)
+	assertRelationshipType(t, envelopes, aws.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount)
+	assertRelationshipType(t, envelopes, aws.RelationshipAccessAnalyzerAnalyzerHasArchiveRule)
 
-	analyzer := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, unusedARN)
+	analyzer := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAccessAnalyzerAnalyzer, unusedARN)
 	attrs := attributesOf(t, analyzer)
 	if got, want := attrs["scope"], "ORGANIZATION"; got != want {
 		t.Fatalf("scope = %#v, want %q", got, want)
@@ -88,7 +88,7 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 	findingCount := resourceByTypeAndID(
 		t,
 		envelopes,
-		awscloud.ResourceTypeAccessAnalyzerFindingCount,
+		aws.ResourceTypeAccessAnalyzerFindingCount,
 		externalARN+"/finding-count/ACTIVE/AWS::S3::Bucket",
 	)
 	if got, want := attributesOf(t, findingCount)["count"], int64(2); got != want {
@@ -98,7 +98,7 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 	unused := resourceByTypeAndID(
 		t,
 		envelopes,
-		awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary,
+		aws.ResourceTypeAccessAnalyzerUnusedAccessSummary,
 		unusedARN+"/unused-access/unused-permission-1",
 	)
 	unusedAttrs := attributesOf(t, unused)
@@ -110,7 +110,7 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = aws.ServiceIAM
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -143,10 +143,10 @@ func TestScannerSkipsAnalyzerChildrenWhenAnalyzerARNMissing(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, 1)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerArchiveRule, 0)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerFindingCount, 0)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary, 0)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerAnalyzer, 1)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerArchiveRule, 0)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerFindingCount, 0)
+	assertResourceCount(t, envelopes, aws.ResourceTypeAccessAnalyzerUnusedAccessSummary, 0)
 	assertNoResourceIDPrefix(t, envelopes, "/")
 }
 
@@ -156,8 +156,8 @@ func TestScannerEmitsWarnings(t *testing.T) {
 		Name:   "unused",
 		Type:   "ACCOUNT_UNUSED_ACCESS",
 		Status: "ACTIVE",
-		Warnings: []awscloud.WarningObservation{{
-			WarningKind: awscloud.WarningBudgetExhausted,
+		Warnings: []aws.WarningObservation{{
+			WarningKind: aws.WarningBudgetExhausted,
 			ErrorClass:  "unused_access_detail_budget_exhausted",
 			Message:     "unused access detail reads exceeded the bounded Access Analyzer detail-read budget",
 		}},
@@ -168,7 +168,7 @@ func TestScannerEmitsWarnings(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertWarningKind(t, envelopes, awscloud.WarningBudgetExhausted)
+	assertWarningKind(t, envelopes, aws.WarningBudgetExhausted)
 }
 
 func TestScannerMapsSupportedAnalyzerScopesAndAnalysisTypes(t *testing.T) {
@@ -219,7 +219,7 @@ func TestScannerMapsSupportedAnalyzerScopesAndAnalysisTypes(t *testing.T) {
 				t.Fatalf("Scan() error = %v, want nil", err)
 			}
 
-			analyzer := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, analyzerARN)
+			analyzer := resourceByTypeAndID(t, envelopes, aws.ResourceTypeAccessAnalyzerAnalyzer, analyzerARN)
 			attrs := attributesOf(t, analyzer)
 			if got := attrs["scope"]; got != tt.wantScope {
 				t.Fatalf("scope = %#v, want %q", got, tt.wantScope)
@@ -231,11 +231,11 @@ func TestScannerMapsSupportedAnalyzerScopesAndAnalysisTypes(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAccessAnalyzer,
+		ServiceKind:         aws.ServiceAccessAnalyzer,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:accessanalyzer:1",
 		CollectorInstanceID: "aws-prod",

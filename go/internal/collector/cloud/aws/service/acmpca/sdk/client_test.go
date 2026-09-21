@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsacmpca "github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 
@@ -64,16 +64,16 @@ func TestClientListReadsDescribeAndTagsAndOmitsSensitiveBodies(t *testing.T) {
 	api := &fakeACMPCAAPI{
 		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{{
 			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{
-				Arn: aws.String(caARN),
+				Arn: awsv2.String(caARN),
 			}},
 		}},
 		descriptions: map[string]*acmpcatypes.CertificateAuthority{
 			caARN: {
-				Arn:                        aws.String(caARN),
-				OwnerAccount:               aws.String("123456789012"),
+				Arn:                        awsv2.String(caARN),
+				OwnerAccount:               awsv2.String("123456789012"),
 				Type:                       acmpcatypes.CertificateAuthorityTypeRoot,
 				Status:                     acmpcatypes.CertificateAuthorityStatusActive,
-				Serial:                     aws.String("01"),
+				Serial:                     awsv2.String("01"),
 				UsageMode:                  acmpcatypes.CertificateAuthorityUsageModeGeneralPurpose,
 				KeyStorageSecurityStandard: acmpcatypes.KeyStorageSecurityStandardFips1402Level3OrHigher,
 				CreatedAt:                  &createdAt,
@@ -83,24 +83,24 @@ func TestClientListReadsDescribeAndTagsAndOmitsSensitiveBodies(t *testing.T) {
 				CertificateAuthorityConfiguration: &acmpcatypes.CertificateAuthorityConfiguration{
 					KeyAlgorithm:     acmpcatypes.KeyAlgorithmRsa2048,
 					SigningAlgorithm: acmpcatypes.SigningAlgorithmSha256withrsa,
-					Subject:          &acmpcatypes.ASN1Subject{CommonName: aws.String("Eshu Root CA")},
+					Subject:          &acmpcatypes.ASN1Subject{CommonName: awsv2.String("Eshu Root CA")},
 				},
 				RevocationConfiguration: &acmpcatypes.RevocationConfiguration{
 					CrlConfiguration: &acmpcatypes.CrlConfiguration{
-						Enabled:      aws.Bool(true),
-						S3BucketName: aws.String("eshu-crl-bucket"),
+						Enabled:      awsv2.Bool(true),
+						S3BucketName: awsv2.String("eshu-crl-bucket"),
 					},
-					OcspConfiguration: &acmpcatypes.OcspConfiguration{Enabled: aws.Bool(false)},
+					OcspConfiguration: &acmpcatypes.OcspConfiguration{Enabled: awsv2.Bool(false)},
 				},
 			},
 		},
 		tags: map[string][]acmpcatypes.Tag{
-			caARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			caARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -166,30 +166,30 @@ func TestClientPaginatesWithoutSameTokenLoop(t *testing.T) {
 		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{
 			{
 				CertificateAuthorities: []acmpcatypes.CertificateAuthority{{
-					Arn: aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+					Arn: awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
 				}},
-				NextToken: aws.String("token-1"),
+				NextToken: awsv2.String("token-1"),
 			},
 			{
 				CertificateAuthorities: []acmpcatypes.CertificateAuthority{{
-					Arn: aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/b"),
+					Arn: awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/b"),
 				}},
 			},
 		},
 		descriptions: map[string]*acmpcatypes.CertificateAuthority{
 			"arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a": {
-				Arn:    aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+				Arn:    awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
 				Status: acmpcatypes.CertificateAuthorityStatusActive,
 			},
 			"arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/b": {
-				Arn:    aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/b"),
+				Arn:    awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/b"),
 				Status: acmpcatypes.CertificateAuthorityStatusActive,
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -212,14 +212,14 @@ func TestClientListBreaksOnRepeatedNextToken(t *testing.T) {
 		repeatListToken: "stuck-token",
 		descriptions: map[string]*acmpcatypes.CertificateAuthority{
 			"arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a": {
-				Arn:    aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+				Arn:    awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
 				Status: acmpcatypes.CertificateAuthorityStatusActive,
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACMPCA},
 	}
 
 	_, err := adapter.ListCertificateAuthorities(context.Background())
@@ -239,19 +239,19 @@ func TestClientListTagsBreaksOnRepeatedNextToken(t *testing.T) {
 	caARN := "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"
 	api := &fakeACMPCAAPI{
 		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{{
-			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{Arn: aws.String(caARN)}},
+			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{Arn: awsv2.String(caARN)}},
 		}},
 		descriptions: map[string]*acmpcatypes.CertificateAuthority{
-			caARN: {Arn: aws.String(caARN), Status: acmpcatypes.CertificateAuthorityStatusActive},
+			caARN: {Arn: awsv2.String(caARN), Status: acmpcatypes.CertificateAuthorityStatusActive},
 		},
 		repeatTagsToken: "stuck-tags-token",
 		tags: map[string][]acmpcatypes.Tag{
-			caARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+			caARN: {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -270,14 +270,14 @@ func TestClientSkipsBlankARNSummaries(t *testing.T) {
 	api := &fakeACMPCAAPI{
 		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{{
 			CertificateAuthorities: []acmpcatypes.CertificateAuthority{
-				{Arn: aws.String("  ")},
+				{Arn: awsv2.String("  ")},
 				{Arn: nil},
 			},
 		}},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -318,7 +318,7 @@ func (f *fakeACMPCAAPI) ListCertificateAuthorities(
 	input *awsacmpca.ListCertificateAuthoritiesInput,
 	_ ...func(*awsacmpca.Options),
 ) (*awsacmpca.ListCertificateAuthoritiesOutput, error) {
-	f.lastToken = aws.ToString(input.NextToken)
+	f.lastToken = awsv2.ToString(input.NextToken)
 	if f.repeatListToken != "" {
 		f.listCalls++
 		if f.listCalls > fakePaginationCallCap {
@@ -326,9 +326,9 @@ func (f *fakeACMPCAAPI) ListCertificateAuthorities(
 		}
 		return &awsacmpca.ListCertificateAuthoritiesOutput{
 			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{
-				Arn: aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+				Arn: awsv2.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
 			}},
-			NextToken: aws.String(f.repeatListToken),
+			NextToken: awsv2.String(f.repeatListToken),
 		}, nil
 	}
 	if f.listCalls >= len(f.listPages) {
@@ -349,7 +349,7 @@ func (f *fakeACMPCAAPI) DescribeCertificateAuthority(
 	_ ...func(*awsacmpca.Options),
 ) (*awsacmpca.DescribeCertificateAuthorityOutput, error) {
 	f.describeCalls++
-	arn := aws.ToString(input.CertificateAuthorityArn)
+	arn := awsv2.ToString(input.CertificateAuthorityArn)
 	detail, ok := f.descriptions[arn]
 	if !ok {
 		return &awsacmpca.DescribeCertificateAuthorityOutput{}, nil
@@ -363,14 +363,14 @@ func (f *fakeACMPCAAPI) ListTags(
 	_ ...func(*awsacmpca.Options),
 ) (*awsacmpca.ListTagsOutput, error) {
 	f.listTagsCalls++
-	arn := aws.ToString(input.CertificateAuthorityArn)
+	arn := awsv2.ToString(input.CertificateAuthorityArn)
 	if f.repeatTagsToken != "" {
 		if f.listTagsCalls > fakePaginationCallCap {
 			return nil, errRepeatedTokenLoop
 		}
 		return &awsacmpca.ListTagsOutput{
 			Tags:      f.tags[arn],
-			NextToken: aws.String(f.repeatTagsToken),
+			NextToken: awsv2.String(f.repeatTagsToken),
 		}, nil
 	}
 	return &awsacmpca.ListTagsOutput{Tags: f.tags[arn]}, nil

@@ -13,4 +13,4 @@
 // OpenSearch HTTP data plane, never persists access-policy or security-policy
 // document bodies, and never calls a Create/Update/Delete mutation API; a
 // reflective exclusion test enforces that surface at build time.
-package awssdk
+package sdk

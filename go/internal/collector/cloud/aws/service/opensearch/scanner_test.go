@@ -110,7 +110,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	domain := resourceByType(t, envelopes, awscloud.ResourceTypeOpenSearchDomain)
+	domain := resourceByType(t, envelopes, aws.ResourceTypeOpenSearchDomain)
 	if got, want := domain.Payload["arn"], domainARN; got != want {
 		t.Fatalf("domain arn = %#v, want %q", got, want)
 	}
@@ -141,7 +141,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	pkg := resourceByType(t, envelopes, awscloud.ResourceTypeOpenSearchPackage)
+	pkg := resourceByType(t, envelopes, aws.ResourceTypeOpenSearchPackage)
 	if got, want := pkg.Payload["name"], "orders-synonyms"; got != want {
 		t.Fatalf("package name = %#v, want %q", got, want)
 	}
@@ -156,7 +156,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	collection := resourceByType(t, envelopes, awscloud.ResourceTypeOpenSearchServerlessCollection)
+	collection := resourceByType(t, envelopes, aws.ResourceTypeOpenSearchServerlessCollection)
 	collectionAttributes := attributesOf(t, collection)
 	assertAttribute(t, collectionAttributes, "collection_type", "VECTORSEARCH")
 	assertAttribute(t, collectionAttributes, "kms_key_arn", collectionKMSARN)
@@ -166,7 +166,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	securityConfig := resourceByType(t, envelopes, awscloud.ResourceTypeOpenSearchServerlessSecurityConfig)
+	securityConfig := resourceByType(t, envelopes, aws.ResourceTypeOpenSearchServerlessSecurityConfig)
 	securityConfigAttributes := attributesOf(t, securityConfig)
 	assertAttribute(t, securityConfigAttributes, "security_config_type", "saml")
 	for _, forbidden := range []string{"saml_options", "metadata", "saml_metadata", "config_body"} {
@@ -175,35 +175,35 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	vpcEndpoint := resourceByType(t, envelopes, awscloud.ResourceTypeOpenSearchServerlessVPCEndpoint)
+	vpcEndpoint := resourceByType(t, envelopes, aws.ResourceTypeOpenSearchServerlessVPCEndpoint)
 	vpcEndpointAttributes := attributesOf(t, vpcEndpoint)
 	assertAttribute(t, vpcEndpointAttributes, "vpc_id", "vpc-123")
 	assertAttribute(t, vpcEndpointAttributes, "subnet_ids", []string{"subnet-a"})
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInVPC, "vpc-123")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInVPC, awscloud.ResourceTypeEC2VPC)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, "subnet-a")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, "subnet-b")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, awscloud.ResourceTypeEC2Subnet)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, "sg-123")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, awscloud.ResourceTypeEC2SecurityGroup)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesKMSKey, kmsKeyARN)
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesKMSKey, awscloud.ResourceTypeKMSKey)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesIAMRole, masterRoleARN)
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesIAMRole, awscloud.ResourceTypeIAMRole)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainInVPC, "vpc-123")
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchDomainInVPC, aws.ResourceTypeEC2VPC)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainInSubnet, "subnet-a")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainInSubnet, "subnet-b")
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchDomainInSubnet, aws.ResourceTypeEC2Subnet)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainUsesSecurityGroup, "sg-123")
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchDomainUsesSecurityGroup, aws.ResourceTypeEC2SecurityGroup)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainUsesKMSKey, kmsKeyARN)
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchDomainUsesKMSKey, aws.ResourceTypeKMSKey)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchDomainUsesIAMRole, masterRoleARN)
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchDomainUsesIAMRole, aws.ResourceTypeIAMRole)
 
 	// Duplicate role ARNs collapse to one relationship.
-	if got := countRelationshipsOfType(envelopes, awscloud.RelationshipOpenSearchDomainUsesIAMRole); got != 1 {
+	if got := countRelationshipsOfType(envelopes, aws.RelationshipOpenSearchDomainUsesIAMRole); got != 1 {
 		t.Fatalf("iam-role relationship count = %d, want 1 (duplicates deduplicated)", got)
 	}
 
 	// Package-to-domain resolves to the domain ARN.
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, domainARN)
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, awscloud.ResourceTypeOpenSearchDomain)
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, "F12345->opensearch_package_associated_with_domain:"+domainARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchPackageAssociatedWithDomain, domainARN)
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchPackageAssociatedWithDomain, aws.ResourceTypeOpenSearchDomain)
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipOpenSearchPackageAssociatedWithDomain, "F12345->opensearch_package_associated_with_domain:"+domainARN)
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, collectionKMSARN)
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, awscloud.ResourceTypeKMSKey)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipOpenSearchCollectionUsesKMSKey, collectionKMSARN)
+	assertRelationshipTargetType(t, envelopes, aws.RelationshipOpenSearchCollectionUsesKMSKey, aws.ResourceTypeKMSKey)
 
 	// Serverless does not bind a collection to a managed VPC endpoint in the
 	// collection record, and the endpoint record reports no collection, so the
@@ -250,7 +250,7 @@ func TestScannerKeepsNonARNKMSIdentifierWithoutTargetARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, aws.RelationshipOpenSearchDomainUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -261,7 +261,7 @@ func TestScannerKeepsNonARNKMSIdentifierWithoutTargetARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEKS
+	boundary.ServiceKind = aws.ServiceEKS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -287,11 +287,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOpenSearch,
+		ServiceKind:         aws.ServiceOpenSearch,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:opensearch:1",
 		CollectorInstanceID: "aws-prod",

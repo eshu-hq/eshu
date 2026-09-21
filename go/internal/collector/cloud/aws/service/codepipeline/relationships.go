@@ -23,14 +23,14 @@ const ResourceTypeCodePipelineSourceProvider = "aws_codepipeline_source_provider
 // containment, action->source-provider edges, and action->target edges for the
 // build/deploy/invoke targets resolved from allowlisted non-secret
 // configuration keys.
-func pipelineRelationships(boundary awscloud.Boundary, pipeline Pipeline) []awscloud.RelationshipObservation {
+func pipelineRelationships(boundary aws.Boundary, pipeline Pipeline) []aws.RelationshipObservation {
 	pipelineArnValue := firstNonEmpty(pipeline.ARN, pipelineARN(boundary, pipeline.Name))
 	pipelineID := firstNonEmpty(pipelineArnValue, pipeline.Name)
 	if pipelineID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := pipelineRoleRelationship(boundary, pipeline, pipelineArnValue, pipelineID); ok {
 		observations = append(observations, rel)
@@ -47,57 +47,57 @@ func pipelineRelationships(boundary awscloud.Boundary, pipeline Pipeline) []awsc
 }
 
 func pipelineRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 	pipelineArnValue, pipelineID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(pipeline.RoleARN)
 	if roleARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineUsesIAMRole,
+		RelationshipType: aws.RelationshipCodePipelinePipelineUsesIAMRole,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   pipelineID + "#role#" + roleARN,
 	}, true
 }
 
 func artifactBucketRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 	pipelineArnValue, pipelineID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	bucket := strings.TrimSpace(pipeline.ArtifactStore.S3Bucket)
 	if bucket == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	bucketARN := s3BucketARN(boundary, bucket)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket,
+		RelationshipType: aws.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket_name": bucket},
 		SourceRecordID:   pipelineID + "#artifact-bucket#" + bucket,
 	}, true
 }
 
 func artifactKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 	pipelineArnValue, pipelineID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	keyID := strings.TrimSpace(pipeline.ArtifactStore.KMSKeyID)
 	if keyID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	// CodePipeline reports the encryption key as a bare key id, a key ARN, or an
 	// alias ARN. The KMS scanner emits a key node (resource_id = bare key id or
@@ -108,17 +108,17 @@ func artifactKeyRelationship(
 	// shape (:alias/) and target aws_kms_alias for those; keep aws_kms_key for
 	// key ARNs and bare key ids. Set target_arn only when the value is an ARN.
 	target := keyID
-	targetType := awscloud.ResourceTypeKMSKey
+	targetType := aws.ResourceTypeKMSKey
 	if strings.Contains(keyID, ":alias/") {
-		targetType = awscloud.ResourceTypeKMSAlias
+		targetType = aws.ResourceTypeKMSAlias
 	}
 	targetARN := ""
 	if strings.HasPrefix(keyID, "arn:") {
 		targetARN = keyID
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey,
+		RelationshipType: aws.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: target,
@@ -129,11 +129,11 @@ func artifactKeyRelationship(
 }
 
 func actionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 	pipelineArnValue, pipelineID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, stage := range pipeline.Stages {
 		stageName := strings.TrimSpace(stage.Name)
 		if stageName == "" {
@@ -147,13 +147,13 @@ func actionRelationships(
 			}
 			actionID := stageID + "#action#" + actionName
 
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodePipelineStageContainsAction,
+				RelationshipType: aws.RelationshipCodePipelineStageContainsAction,
 				SourceResourceID: pipelineID,
 				SourceARN:        pipelineArnValue,
 				TargetResourceID: actionID,
-				TargetType:       awscloud.ResourceTypeCodePipelinePipeline,
+				TargetType:       aws.ResourceTypeCodePipelinePipeline,
 				Attributes: map[string]any{
 					"stage_name":  stageName,
 					"action_name": actionName,
@@ -175,17 +175,17 @@ func actionRelationships(
 }
 
 func sourceProviderRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action Action,
 	pipelineArnValue, pipelineID, actionID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	provider := strings.TrimSpace(action.SourceProvider)
 	if provider == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelineActionUsesSourceProvider,
+		RelationshipType: aws.RelationshipCodePipelineActionUsesSourceProvider,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: provider,
@@ -205,60 +205,60 @@ func sourceProviderRelationship(
 // (ProjectName, ApplicationName, FunctionName, StackName, ClusterName +
 // ServiceName), never from a secret configuration value.
 func actionTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action Action,
 	pipelineArnValue, pipelineID, actionID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	name := strings.TrimSpace(action.TargetResourceName)
 	if name == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	switch strings.TrimSpace(action.TargetProvider) {
 	case "CodeBuild":
 		arn := codeBuildProjectARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCodeBuildProject,
-			awscloud.ResourceTypeCodeBuildProject, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+		return targetRelationship(boundary, aws.RelationshipCodePipelineActionTargetsCodeBuildProject,
+			aws.ResourceTypeCodeBuildProject, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "CodeDeploy":
 		arn := codeDeployApplicationARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCodeDeployApplication,
-			awscloud.ResourceTypeCodeDeployApplication, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+		return targetRelationship(boundary, aws.RelationshipCodePipelineActionTargetsCodeDeployApplication,
+			aws.ResourceTypeCodeDeployApplication, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "Lambda":
 		arn := lambdaFunctionARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsLambdaFunction,
-			awscloud.ResourceTypeLambdaFunction, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+		return targetRelationship(boundary, aws.RelationshipCodePipelineActionTargetsLambdaFunction,
+			aws.ResourceTypeLambdaFunction, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "CloudFormation":
 		// The CloudFormation scanner's stack node carries the stack name in its
 		// correlation anchors. CodePipeline reports only the stack name (the
 		// real stack id ARN has an account-generated UUID suffix this scanner
 		// cannot know), so target the stack name to join the stack node by its
 		// name anchor; leave target_arn empty rather than emit a wrong ARN.
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCloudFormationStack,
-			awscloud.ResourceTypeCloudFormationStack, pipelineArnValue, pipelineID, actionID, name, "", action, nil), true
+		return targetRelationship(boundary, aws.RelationshipCodePipelineActionTargetsCloudFormationStack,
+			aws.ResourceTypeCloudFormationStack, pipelineArnValue, pipelineID, actionID, name, "", action, nil), true
 	case "ECS":
 		cluster, service, ok := splitClusterService(name)
 		if !ok {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
 		arn := ecsServiceARN(boundary, cluster, service)
 		attrs := map[string]any{"cluster_name": cluster, "service_name": service}
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsECSService,
-			awscloud.ResourceTypeECSService, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, attrs), true
+		return targetRelationship(boundary, aws.RelationshipCodePipelineActionTargetsECSService,
+			aws.ResourceTypeECSService, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, attrs), true
 	default:
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }
 
 func targetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relType, targetType, pipelineArnValue, pipelineID, actionID, targetID, targetARN string,
 	action Action,
 	extra map[string]any,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	attrs := map[string]any{"action_name": strings.TrimSpace(action.Name)}
 	for key, value := range extra {
 		attrs[key] = value
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relType,
 		SourceResourceID: pipelineID,
@@ -272,23 +272,23 @@ func targetRelationship(
 }
 
 func webhookRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	webhook Webhook,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	pipelineName := strings.TrimSpace(webhook.TargetPipeline)
 	webhookID := firstNonEmpty(strings.TrimSpace(webhook.ARN), strings.TrimSpace(webhook.Name))
 	if pipelineName == "" || webhookID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	pipelineArnValue := pipelineARN(boundary, pipelineName)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelineWebhookTriggersPipeline,
+		RelationshipType: aws.RelationshipCodePipelineWebhookTriggersPipeline,
 		SourceResourceID: webhookID,
 		SourceARN:        strings.TrimSpace(webhook.ARN),
 		TargetResourceID: firstNonEmpty(pipelineArnValue, pipelineName),
 		TargetARN:        pipelineArnValue,
-		TargetType:       awscloud.ResourceTypeCodePipelinePipeline,
+		TargetType:       aws.ResourceTypeCodePipelinePipeline,
 		Attributes: map[string]any{
 			"target_action": strings.TrimSpace(webhook.TargetAction),
 		},
@@ -311,51 +311,51 @@ func splitClusterService(value string) (cluster, service string, ok bool) {
 
 // s3BucketARN builds the S3 bucket ARN. The S3 scanner emits its bucket
 // resource_id as the bucket ARN, so the artifact-store edge targets that ARN.
-func s3BucketARN(boundary awscloud.Boundary, bucket string) string {
+func s3BucketARN(boundary aws.Boundary, bucket string) string {
 	bucket = strings.TrimSpace(bucket)
 	if bucket == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:%s:s3:::%s", awscloud.PartitionForBoundary(boundary), bucket)
+	return fmt.Sprintf("arn:%s:s3:::%s", aws.PartitionForBoundary(boundary), bucket)
 }
 
-func codeBuildProjectARN(boundary awscloud.Boundary, name string) string {
+func codeBuildProjectARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codebuild:%s:%s:project/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
-func codeDeployApplicationARN(boundary awscloud.Boundary, name string) string {
+func codeDeployApplicationARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
-func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
+func lambdaFunctionARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // ecsServiceARN builds the Amazon ECS service ARN. The ECS scanner emits its
 // service resource_id as this ARN, so the deploy-action edge targets the same
 // ARN to join the ECS service node. CodePipeline reports the target as a
 // cluster/service pair, never a bare service name.
-func ecsServiceARN(boundary awscloud.Boundary, cluster, service string) string {
+func ecsServiceARN(boundary aws.Boundary, cluster, service string) string {
 	cluster = strings.TrimSpace(cluster)
 	service = strings.TrimSpace(service)
 	if cluster == "" || service == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:ecs:%s:%s:service/%s/%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
 }

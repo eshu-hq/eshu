@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaccessanalyzer "github.com/aws/aws-sdk-go-v2/service/accessanalyzer"
 	awsaccessanalyzertypes "github.com/aws/aws-sdk-go-v2/service/accessanalyzer/types"
 
@@ -23,28 +23,28 @@ func TestClientListAnalyzersRedactsFindingBodiesArchiveFiltersAndUnusedActions(t
 	api := &fakeAccessAnalyzerAPI{
 		analyzerPages: []*awsaccessanalyzer.ListAnalyzersOutput{{
 			Analyzers: []awsaccessanalyzertypes.AnalyzerSummary{{
-				Arn:                    aws.String(externalARN),
-				Name:                   aws.String("account-external"),
+				Arn:                    awsv2.String(externalARN),
+				Name:                   awsv2.String("account-external"),
 				Type:                   awsaccessanalyzertypes.TypeAccount,
 				Status:                 awsaccessanalyzertypes.AnalyzerStatusActive,
-				CreatedAt:              aws.Time(time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)),
-				LastResourceAnalyzed:   aws.String("arn:aws:s3:::prod-bucket"),
-				LastResourceAnalyzedAt: aws.Time(time.Date(2026, 5, 27, 10, 15, 0, 0, time.UTC)),
+				CreatedAt:              awsv2.Time(time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)),
+				LastResourceAnalyzed:   awsv2.String("arn:aws:s3:::prod-bucket"),
+				LastResourceAnalyzedAt: awsv2.Time(time.Date(2026, 5, 27, 10, 15, 0, 0, time.UTC)),
 				Tags:                   map[string]string{"Environment": "prod"},
 			}, {
-				Arn:                    aws.String(unusedARN),
-				Name:                   aws.String("org-unused"),
+				Arn:                    awsv2.String(unusedARN),
+				Name:                   awsv2.String("org-unused"),
 				Type:                   awsaccessanalyzertypes.TypeOrganizationUnusedAccess,
 				Status:                 awsaccessanalyzertypes.AnalyzerStatusActive,
-				CreatedAt:              aws.Time(time.Date(2026, 5, 27, 11, 0, 0, 0, time.UTC)),
-				LastResourceAnalyzedAt: aws.Time(time.Date(2026, 5, 27, 11, 15, 0, 0, time.UTC)),
+				CreatedAt:              awsv2.Time(time.Date(2026, 5, 27, 11, 0, 0, 0, time.UTC)),
+				LastResourceAnalyzedAt: awsv2.Time(time.Date(2026, 5, 27, 11, 15, 0, 0, time.UTC)),
 			}},
 		}},
 		archiveRulePages: []*awsaccessanalyzer.ListArchiveRulesOutput{{
 			ArchiveRules: []awsaccessanalyzertypes.ArchiveRuleSummary{{
-				RuleName:  aws.String("archive-known-cross-account"),
-				CreatedAt: aws.Time(time.Date(2026, 5, 27, 10, 20, 0, 0, time.UTC)),
-				UpdatedAt: aws.Time(time.Date(2026, 5, 27, 10, 30, 0, 0, time.UTC)),
+				RuleName:  awsv2.String("archive-known-cross-account"),
+				CreatedAt: awsv2.Time(time.Date(2026, 5, 27, 10, 20, 0, 0, time.UTC)),
+				UpdatedAt: awsv2.Time(time.Date(2026, 5, 27, 10, 30, 0, 0, time.UTC)),
 				Filter: map[string]awsaccessanalyzertypes.Criterion{
 					"principal.AWS": {Eq: []string{"arn:aws:iam::999999999999:root"}},
 				},
@@ -52,49 +52,49 @@ func TestClientListAnalyzersRedactsFindingBodiesArchiveFiltersAndUnusedActions(t
 		}},
 		findingPages: []*awsaccessanalyzer.ListFindingsOutput{{
 			Findings: []awsaccessanalyzertypes.FindingSummary{{
-				Id:                   aws.String("finding-1"),
+				Id:                   awsv2.String("finding-1"),
 				Status:               awsaccessanalyzertypes.FindingStatusActive,
 				ResourceType:         awsaccessanalyzertypes.ResourceTypeAwsS3Bucket,
-				Resource:             aws.String("arn:aws:s3:::prod-bucket"),
+				Resource:             awsv2.String("arn:aws:s3:::prod-bucket"),
 				Action:               []string{"s3:GetObject"},
 				Condition:            map[string]string{"aws:PrincipalOrgID": "o-secret"},
 				Principal:            map[string]string{"AWS": "arn:aws:iam::999999999999:root"},
-				ResourceOwnerAccount: aws.String("123456789012"),
+				ResourceOwnerAccount: awsv2.String("123456789012"),
 				Sources: []awsaccessanalyzertypes.FindingSource{{
 					Type: awsaccessanalyzertypes.FindingSourceTypePolicy,
 					Detail: &awsaccessanalyzertypes.FindingSourceDetail{
-						AccessPointArn: aws.String("arn:aws:s3:us-east-1:123456789012:accesspoint/prod"),
+						AccessPointArn: awsv2.String("arn:aws:s3:us-east-1:123456789012:accesspoint/prod"),
 					},
 				}},
 			}},
 		}},
 		findingV2Pages: []*awsaccessanalyzer.ListFindingsV2Output{{
 			Findings: []awsaccessanalyzertypes.FindingSummaryV2{{
-				Id:                   aws.String("unused-1"),
+				Id:                   awsv2.String("unused-1"),
 				FindingType:          awsaccessanalyzertypes.FindingTypeUnusedPermission,
 				Status:               awsaccessanalyzertypes.FindingStatusActive,
-				Resource:             aws.String("arn:aws:iam::123456789012:role/stale-admin"),
-				ResourceOwnerAccount: aws.String("123456789012"),
+				Resource:             awsv2.String("arn:aws:iam::123456789012:role/stale-admin"),
+				ResourceOwnerAccount: awsv2.String("123456789012"),
 				ResourceType:         awsaccessanalyzertypes.ResourceTypeAwsIamRole,
-				AnalyzedAt:           aws.Time(time.Date(2026, 5, 27, 11, 20, 0, 0, time.UTC)),
-				UpdatedAt:            aws.Time(time.Date(2026, 5, 27, 11, 25, 0, 0, time.UTC)),
+				AnalyzedAt:           awsv2.Time(time.Date(2026, 5, 27, 11, 20, 0, 0, time.UTC)),
+				UpdatedAt:            awsv2.Time(time.Date(2026, 5, 27, 11, 25, 0, 0, time.UTC)),
 			}},
 		}},
 		getFindingV2Pages: []*awsaccessanalyzer.GetFindingV2Output{{
-			Id:                   aws.String("unused-1"),
+			Id:                   awsv2.String("unused-1"),
 			FindingType:          awsaccessanalyzertypes.FindingTypeUnusedPermission,
 			Status:               awsaccessanalyzertypes.FindingStatusActive,
-			Resource:             aws.String("arn:aws:iam::123456789012:role/stale-admin"),
-			ResourceOwnerAccount: aws.String("123456789012"),
+			Resource:             awsv2.String("arn:aws:iam::123456789012:role/stale-admin"),
+			ResourceOwnerAccount: awsv2.String("123456789012"),
 			ResourceType:         awsaccessanalyzertypes.ResourceTypeAwsIamRole,
 			FindingDetails: []awsaccessanalyzertypes.FindingDetails{
 				&awsaccessanalyzertypes.FindingDetailsMemberUnusedPermissionDetails{
 					Value: awsaccessanalyzertypes.UnusedPermissionDetails{
-						ServiceNamespace: aws.String("iam"),
-						LastAccessed:     aws.Time(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)),
+						ServiceNamespace: awsv2.String("iam"),
+						LastAccessed:     awsv2.Time(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)),
 						Actions: []awsaccessanalyzertypes.UnusedAction{{
-							Action:       aws.String("iam:DeleteRole"),
-							LastAccessed: aws.Time(time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)),
+							Action:       awsv2.String("iam:DeleteRole"),
+							LastAccessed: awsv2.Time(time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)),
 						}},
 					},
 				},
@@ -103,7 +103,7 @@ func TestClientListAnalyzersRedactsFindingBodiesArchiveFiltersAndUnusedActions(t
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAccessAnalyzer},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAccessAnalyzer},
 	}
 
 	analyzers, err := adapter.ListAnalyzers(context.Background())
@@ -141,8 +141,8 @@ func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
 	api := &fakeAccessAnalyzerAPI{
 		analyzerPages: []*awsaccessanalyzer.ListAnalyzersOutput{{
 			Analyzers: []awsaccessanalyzertypes.AnalyzerSummary{{
-				Arn:    aws.String(unusedARN),
-				Name:   aws.String("org-unused"),
+				Arn:    awsv2.String(unusedARN),
+				Name:   awsv2.String("org-unused"),
 				Type:   awsaccessanalyzertypes.TypeOrganizationUnusedAccess,
 				Status: awsaccessanalyzertypes.AnalyzerStatusActive,
 			}},
@@ -154,7 +154,7 @@ func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAccessAnalyzer},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAccessAnalyzer},
 	}
 
 	analyzers, err := adapter.ListAnalyzers(context.Background())
@@ -171,8 +171,8 @@ func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
 		t.Fatalf("len(Warnings) = %d, want %d", got, want)
 	}
 	warning := analyzers[0].Warnings[0]
-	if warning.WarningKind != awscloud.WarningBudgetExhausted {
-		t.Fatalf("WarningKind = %q, want %q", warning.WarningKind, awscloud.WarningBudgetExhausted)
+	if warning.WarningKind != aws.WarningBudgetExhausted {
+		t.Fatalf("WarningKind = %q, want %q", warning.WarningKind, aws.WarningBudgetExhausted)
 	}
 }
 
@@ -193,11 +193,11 @@ func unusedFindingSummaries(count int) []awsaccessanalyzertypes.FindingSummaryV2
 	for index := 0; index < count; index++ {
 		suffix := strconv.Itoa(index)
 		findings = append(findings, awsaccessanalyzertypes.FindingSummaryV2{
-			Id:                   aws.String("unused-" + suffix),
+			Id:                   awsv2.String("unused-" + suffix),
 			FindingType:          awsaccessanalyzertypes.FindingTypeUnusedPermission,
 			Status:               awsaccessanalyzertypes.FindingStatusActive,
-			Resource:             aws.String("arn:aws:iam::123456789012:role/stale-admin-" + suffix),
-			ResourceOwnerAccount: aws.String("123456789012"),
+			Resource:             awsv2.String("arn:aws:iam::123456789012:role/stale-admin-" + suffix),
+			ResourceOwnerAccount: awsv2.String("123456789012"),
 			ResourceType:         awsaccessanalyzertypes.ResourceTypeAwsIamRole,
 		})
 	}
@@ -208,11 +208,11 @@ func unusedFindingDetails(count int) []*awsaccessanalyzer.GetFindingV2Output {
 	details := make([]*awsaccessanalyzer.GetFindingV2Output, 0, count)
 	for index := 0; index < count; index++ {
 		details = append(details, &awsaccessanalyzer.GetFindingV2Output{
-			Id: aws.String("unused-" + strconv.Itoa(index)),
+			Id: awsv2.String("unused-" + strconv.Itoa(index)),
 			FindingDetails: []awsaccessanalyzertypes.FindingDetails{
 				&awsaccessanalyzertypes.FindingDetailsMemberUnusedIamRoleDetails{
 					Value: awsaccessanalyzertypes.UnusedIamRoleDetails{
-						LastAccessed: aws.Time(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)),
+						LastAccessed: awsv2.Time(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)),
 					},
 				},
 			},

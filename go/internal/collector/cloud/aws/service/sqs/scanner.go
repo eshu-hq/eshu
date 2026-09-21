@@ -19,15 +19,15 @@ type Scanner struct {
 }
 
 // Scan observes SQS queues through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("sqs scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSQS:
+	case "", aws.ServiceSQS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSQS
+		boundary.ServiceKind = aws.ServiceSQS
 	default:
 		return nil, fmt.Errorf("sqs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -38,13 +38,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, queue := range queues {
-		resource, err := awscloud.NewResourceEnvelope(queueObservation(boundary, queue))
+		resource, err := aws.NewResourceEnvelope(queueObservation(boundary, queue))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if relationship, ok := deadLetterQueueRelationship(boundary, queue); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -54,13 +54,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func queueObservation(boundary awscloud.Boundary, queue Queue) awscloud.ResourceObservation {
+func queueObservation(boundary aws.Boundary, queue Queue) aws.ResourceObservation {
 	queueARN := strings.TrimSpace(queue.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          queueARN,
 		ResourceID:   firstNonEmpty(queueARN, queue.URL, queue.Name),
-		ResourceType: awscloud.ResourceTypeSQSQueue,
+		ResourceType: aws.ResourceTypeSQSQueue,
 		Name:         strings.TrimSpace(queue.Name),
 		Tags:         cloneStringMap(queue.Tags),
 		Attributes: map[string]any{
@@ -90,22 +90,22 @@ func queueObservation(boundary awscloud.Boundary, queue Queue) awscloud.Resource
 }
 
 func deadLetterQueueRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	queue Queue,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	queueARN := strings.TrimSpace(queue.ARN)
 	dlqARN := strings.TrimSpace(queue.Attributes.DeadLetterTargetARN)
 	if queueARN == "" || dlqARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSQSQueueUsesDeadLetterQueue,
+		RelationshipType: aws.RelationshipSQSQueueUsesDeadLetterQueue,
 		SourceResourceID: firstNonEmpty(queueARN, queue.URL, queue.Name),
 		SourceARN:        queueARN,
 		TargetResourceID: dlqARN,
 		TargetARN:        dlqARN,
-		TargetType:       awscloud.ResourceTypeSQSQueue,
+		TargetType:       aws.ResourceTypeSQSQueue,
 		Attributes: map[string]any{
 			"max_receive_count": strings.TrimSpace(queue.Attributes.MaxReceiveCount),
 		},

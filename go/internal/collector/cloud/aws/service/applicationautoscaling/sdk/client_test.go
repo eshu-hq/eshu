@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaas "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	awsaastypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/smithy-go"
@@ -41,7 +41,7 @@ func (f *fakeAPI) DescribeScalableTargets(
 	}
 	out := &awsaas.DescribeScalableTargetsOutput{ScalableTargets: pages[idx]}
 	if idx+1 < len(pages) {
-		out.NextToken = aws.String("next")
+		out.NextToken = awsv2.String("next")
 	}
 	return out, nil
 }
@@ -65,18 +65,18 @@ func (f *fakeAPI) DescribeScheduledActions(
 func newTestClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceApplicationAutoScaling},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceApplicationAutoScaling},
 	}
 }
 
 func TestSnapshotPaginatesAndFansOutNamespaces(t *testing.T) {
 	api := &fakeAPI{targetsByNS: map[awsaastypes.ServiceNamespace][][]awsaastypes.ScalableTarget{
 		awsaastypes.ServiceNamespaceDynamodb: {
-			{{ResourceId: aws.String("table/orders"), ServiceNamespace: awsaastypes.ServiceNamespaceDynamodb}},
-			{{ResourceId: aws.String("table/payments"), ServiceNamespace: awsaastypes.ServiceNamespaceDynamodb}},
+			{{ResourceId: awsv2.String("table/orders"), ServiceNamespace: awsaastypes.ServiceNamespaceDynamodb}},
+			{{ResourceId: awsv2.String("table/payments"), ServiceNamespace: awsaastypes.ServiceNamespaceDynamodb}},
 		},
 		awsaastypes.ServiceNamespaceEcs: {
-			{{ResourceId: aws.String("service/prod/api"), ServiceNamespace: awsaastypes.ServiceNamespaceEcs}},
+			{{ResourceId: awsv2.String("service/prod/api"), ServiceNamespace: awsaastypes.ServiceNamespaceEcs}},
 		},
 	}}
 
@@ -94,7 +94,7 @@ func TestSnapshotRecordsThrottleWarningAndContinues(t *testing.T) {
 		throttleNS: awsaastypes.ServiceNamespaceDynamodb,
 		targetsByNS: map[awsaastypes.ServiceNamespace][][]awsaastypes.ScalableTarget{
 			awsaastypes.ServiceNamespaceEcs: {
-				{{ResourceId: aws.String("service/prod/api"), ServiceNamespace: awsaastypes.ServiceNamespaceEcs}},
+				{{ResourceId: awsv2.String("service/prod/api"), ServiceNamespace: awsaastypes.ServiceNamespaceEcs}},
 			},
 		},
 	}
@@ -108,7 +108,7 @@ func TestSnapshotRecordsThrottleWarningAndContinues(t *testing.T) {
 	}
 	var sawWarning bool
 	for _, warning := range snapshot.Warnings {
-		if warning.WarningKind == awscloud.WarningThrottleSustained {
+		if warning.WarningKind == aws.WarningThrottleSustained {
 			sawWarning = true
 		}
 	}

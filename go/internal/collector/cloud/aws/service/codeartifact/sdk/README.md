@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codeartifact/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/codeartifact/sdk` adapts AWS SDK for
 Go v2 CodeArtifact responses to the scanner-owned `codeartifact.Client`
 contract. It owns CodeArtifact API pagination, domain and repository describe
 reads, throttle classification, and per-call AWS API telemetry.
@@ -31,9 +31,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels and the API-call recorder.
-- `internal/collector/awscloud/service/codeartifact` for scanner-owned result
+- `internal/collector/cloud/aws/service/codeartifact` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `codeartifact` and Smithy error contracts.

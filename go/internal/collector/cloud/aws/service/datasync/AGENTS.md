@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/datasync guidance
+# AGENTS.md - internal/collector/cloud/aws/service/datasync guidance
 
 ## Read First
 
@@ -44,12 +44,12 @@
 
 - Add a new DataSync metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry credential or
+  `aws` envelope builders. If the field can carry credential or
   object-content material, leave it out of the scanner contract.
 - Add new relationship evidence only when the DataSync API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id.
-- Add a new location flavor parser in `helpers.go`/`awssdk` only after
+- Add a new location flavor parser in `helpers.go`/`sdk` only after
   confirming the URI scheme and backing-identity field from the AWS SDK.
 
 ## What Not To Change Without An ADR

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -17,13 +17,13 @@ import (
 // installs the Cloud Map (Service Discovery) scanner builder and that the
 // scanner needs no redaction key.
 func TestServiceDiscoveryRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceServiceDiscovery)
+	build, ok := runtime.LookupBuilder(aws.ServiceServiceDiscovery)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceServiceDiscovery)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceServiceDiscovery)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceServiceDiscovery},
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary:  aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceServiceDiscovery},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -31,7 +31,7 @@ func TestServiceDiscoveryRuntimeBindRegisters(t *testing.T) {
 	if scanner == nil {
 		t.Fatalf("build() returned nil scanner")
 	}
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceServiceDiscovery) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceServiceDiscovery)
+	if runtime.ServiceRequiresRedactionKey(aws.ServiceServiceDiscovery) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", aws.ServiceServiceDiscovery)
 	}
 }

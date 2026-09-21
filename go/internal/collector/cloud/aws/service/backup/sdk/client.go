@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbackup "github.com/aws/aws-sdk-go-v2/service/backup"
 	awsbackuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/aws/smithy-go"
@@ -45,15 +45,15 @@ type apiClient interface {
 // Client adapts AWS SDK Backup pagination into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AWS Backup SDK adapter for one claimed boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -85,7 +85,7 @@ func (c *Client) ListBackupVaults(ctx context.Context) ([]backupservice.Vault, e
 		}
 		for _, item := range page.BackupVaultList {
 			vault := mapVaultListMember(item)
-			described, err := c.describeBackupVault(ctx, aws.ToString(item.BackupVaultName))
+			described, err := c.describeBackupVault(ctx, awsv2.ToString(item.BackupVaultName))
 			if err != nil {
 				return nil, err
 			}
@@ -107,7 +107,7 @@ func (c *Client) describeBackupVault(
 	err := c.recordAPICall(ctx, "DescribeBackupVault", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeBackupVault(callCtx, &awsbackup.DescribeBackupVaultInput{
-			BackupVaultName: aws.String(name),
+			BackupVaultName: awsv2.String(name),
 		})
 		return err
 	})
@@ -142,7 +142,7 @@ func (c *Client) ListBackupPlans(ctx context.Context) ([]backupservice.Plan, err
 		}
 		for _, item := range page.BackupPlansList {
 			plan := mapPlanListMember(item)
-			rules, err := c.getBackupPlanRules(ctx, aws.ToString(item.BackupPlanId))
+			rules, err := c.getBackupPlanRules(ctx, awsv2.ToString(item.BackupPlanId))
 			if err != nil {
 				return nil, err
 			}
@@ -165,7 +165,7 @@ func (c *Client) getBackupPlanRules(
 	err := c.recordAPICall(ctx, "GetBackupPlan", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBackupPlan(callCtx, &awsbackup.GetBackupPlanInput{
-			BackupPlanId: aws.String(planID),
+			BackupPlanId: awsv2.String(planID),
 		})
 		return err
 	})
@@ -188,7 +188,7 @@ func (c *Client) ListBackupSelections(
 		return nil, nil
 	}
 	paginator := awsbackup.NewListBackupSelectionsPaginator(c.client, &awsbackup.ListBackupSelectionsInput{
-		BackupPlanId: aws.String(planID),
+		BackupPlanId: awsv2.String(planID),
 	})
 	var selections []backupservice.Selection
 	for paginator.HasMorePages() {
@@ -206,7 +206,7 @@ func (c *Client) ListBackupSelections(
 		}
 		for _, item := range page.BackupSelectionsList {
 			selection := mapSelectionListMember(item)
-			body, err := c.getBackupSelection(ctx, planID, aws.ToString(item.SelectionId))
+			body, err := c.getBackupSelection(ctx, planID, awsv2.ToString(item.SelectionId))
 			if err != nil {
 				return nil, err
 			}
@@ -230,8 +230,8 @@ func (c *Client) getBackupSelection(
 	err := c.recordAPICall(ctx, "GetBackupSelection", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetBackupSelection(callCtx, &awsbackup.GetBackupSelectionInput{
-			BackupPlanId: aws.String(planID),
-			SelectionId:  aws.String(selectionID),
+			BackupPlanId: awsv2.String(planID),
+			SelectionId:  awsv2.String(selectionID),
 		})
 		return err
 	})
@@ -258,7 +258,7 @@ func (c *Client) ListRecoveryPoints(
 	}
 	paginator := awsbackup.NewListRecoveryPointsByBackupVaultPaginator(
 		c.client,
-		&awsbackup.ListRecoveryPointsByBackupVaultInput{BackupVaultName: aws.String(vaultName)},
+		&awsbackup.ListRecoveryPointsByBackupVaultInput{BackupVaultName: awsv2.String(vaultName)},
 	)
 	var recoveryPoints []backupservice.RecoveryPoint
 	for paginator.HasMorePages() {
@@ -349,7 +349,7 @@ func (c *Client) ListFrameworks(ctx context.Context) ([]backupservice.Framework,
 		}
 		for _, item := range page.Frameworks {
 			framework := mapFrameworkListItem(item)
-			controls, err := c.describeFrameworkControls(ctx, aws.ToString(item.FrameworkName))
+			controls, err := c.describeFrameworkControls(ctx, awsv2.ToString(item.FrameworkName))
 			if err != nil {
 				return nil, err
 			}
@@ -372,7 +372,7 @@ func (c *Client) describeFrameworkControls(
 	err := c.recordAPICall(ctx, "DescribeFramework", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeFramework(callCtx, &awsbackup.DescribeFrameworkInput{
-			FrameworkName: aws.String(name),
+			FrameworkName: awsv2.String(name),
 		})
 		return err
 	})
@@ -403,7 +403,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

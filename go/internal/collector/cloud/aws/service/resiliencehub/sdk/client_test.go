@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsresiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
@@ -23,8 +23,8 @@ const (
 func TestClientSnapshotMapsAppsPoliciesAndArnOnlyResources(t *testing.T) {
 	stub := &stubAPI{
 		policies: []awsresiliencehubtypes.ResiliencyPolicy{{
-			PolicyArn:  aws.String(stubPolicyARN),
-			PolicyName: aws.String("mission-critical"),
+			PolicyArn:  awsv2.String(stubPolicyARN),
+			PolicyName: awsv2.String("mission-critical"),
 			Tier:       awsresiliencehubtypes.ResiliencyPolicyTierMissionCritical,
 			Policy: map[string]awsresiliencehubtypes.FailurePolicy{
 				"AZ": {RpoInSecs: 3600, RtoInSecs: 7200},
@@ -32,38 +32,38 @@ func TestClientSnapshotMapsAppsPoliciesAndArnOnlyResources(t *testing.T) {
 			Tags: map[string]string{"Team": "platform"},
 		}},
 		apps: []awsresiliencehubtypes.AppSummary{{
-			AppArn: aws.String(stubAppARN),
-			Name:   aws.String("checkout"),
+			AppArn: awsv2.String(stubAppARN),
+			Name:   awsv2.String("checkout"),
 			Status: awsresiliencehubtypes.AppStatusTypeActive,
 		}},
 		appPolicyARN: stubPolicyARN,
 		appTags:      map[string]string{"Environment": "prod"},
 		inputSources: []awsresiliencehubtypes.AppInputSource{{
 			ImportType: awsresiliencehubtypes.ResourceMappingTypeCfnStack,
-			SourceName: aws.String("checkout-stack"),
-			SourceArn:  aws.String("arn:aws:cloudformation:us-east-1:123456789012:stack/checkout/abc"),
+			SourceName: awsv2.String("checkout-stack"),
+			SourceArn:  awsv2.String("arn:aws:cloudformation:us-east-1:123456789012:stack/checkout/abc"),
 		}},
 		components: []awsresiliencehubtypes.AppComponent{{
-			Name: aws.String("compute"),
-			Type: aws.String("AWS::ResilienceHub::ComputeAppComponent"),
+			Name: awsv2.String("compute"),
+			Type: awsv2.String("AWS::ResilienceHub::ComputeAppComponent"),
 		}},
 		resources: []awsresiliencehubtypes.PhysicalResource{
 			{
-				ResourceType:       aws.String("AWS::Lambda::Function"),
-				LogicalResourceId:  &awsresiliencehubtypes.LogicalResourceId{Identifier: aws.String("CheckoutFn")},
-				PhysicalResourceId: &awsresiliencehubtypes.PhysicalResourceId{Identifier: aws.String(stubLambdaARN), Type: awsresiliencehubtypes.PhysicalIdentifierTypeArn},
+				ResourceType:       awsv2.String("AWS::Lambda::Function"),
+				LogicalResourceId:  &awsresiliencehubtypes.LogicalResourceId{Identifier: awsv2.String("CheckoutFn")},
+				PhysicalResourceId: &awsresiliencehubtypes.PhysicalResourceId{Identifier: awsv2.String(stubLambdaARN), Type: awsresiliencehubtypes.PhysicalIdentifierTypeArn},
 			},
 			{
 				// Native identifier must be dropped by the adapter.
-				ResourceType:       aws.String("AWS::EC2::Instance"),
-				LogicalResourceId:  &awsresiliencehubtypes.LogicalResourceId{Identifier: aws.String("WebServer")},
-				PhysicalResourceId: &awsresiliencehubtypes.PhysicalResourceId{Identifier: aws.String("i-0abc"), Type: awsresiliencehubtypes.PhysicalIdentifierTypeNative},
+				ResourceType:       awsv2.String("AWS::EC2::Instance"),
+				LogicalResourceId:  &awsresiliencehubtypes.LogicalResourceId{Identifier: awsv2.String("WebServer")},
+				PhysicalResourceId: &awsresiliencehubtypes.PhysicalResourceId{Identifier: awsv2.String("i-0abc"), Type: awsresiliencehubtypes.PhysicalIdentifierTypeNative},
 			},
 		},
 		assessments: []awsresiliencehubtypes.AppAssessmentSummary{{
-			AssessmentArn:    aws.String("arn:aws:resiliencehub:us-east-1:123456789012:app-assessment/app-1/a1"),
-			AppArn:           aws.String(stubAppARN),
-			AssessmentName:   aws.String("weekly"),
+			AssessmentArn:    awsv2.String("arn:aws:resiliencehub:us-east-1:123456789012:app-assessment/app-1/a1"),
+			AppArn:           awsv2.String(stubAppARN),
+			AssessmentName:   awsv2.String("weekly"),
 			AssessmentStatus: awsresiliencehubtypes.AssessmentStatusSuccess,
 		}},
 	}
@@ -104,8 +104,8 @@ func TestClientSnapshotMapsAppsPoliciesAndArnOnlyResources(t *testing.T) {
 func TestClientSnapshotWarnsWhenPublishedVersionMissing(t *testing.T) {
 	stub := &stubAPI{
 		apps: []awsresiliencehubtypes.AppSummary{{
-			AppArn: aws.String(stubAppARN),
-			Name:   aws.String("never-published"),
+			AppArn: awsv2.String(stubAppARN),
+			Name:   awsv2.String("never-published"),
 		}},
 		versionNotFound: true,
 	}
@@ -124,18 +124,18 @@ func TestClientSnapshotWarnsWhenPublishedVersionMissing(t *testing.T) {
 	if len(snapshot.Warnings) != 1 {
 		t.Fatalf("warnings = %d, want 1", len(snapshot.Warnings))
 	}
-	if snapshot.Warnings[0].WarningKind != awscloud.WarningResilienceHubAppVersionMissing {
-		t.Fatalf("warning kind = %q, want %q", snapshot.Warnings[0].WarningKind, awscloud.WarningResilienceHubAppVersionMissing)
+	if snapshot.Warnings[0].WarningKind != aws.WarningResilienceHubAppVersionMissing {
+		t.Fatalf("warning kind = %q, want %q", snapshot.Warnings[0].WarningKind, aws.WarningResilienceHubAppVersionMissing)
 	}
 }
 
 func newTestClient(stub apiClient) *Client {
 	return &Client{
 		client: stub,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceResilienceHub,
+			ServiceKind:         aws.ServiceResilienceHub,
 			ScopeID:             "aws:123456789012:us-east-1",
 			GenerationID:        "gen-1",
 			CollectorInstanceID: "aws-prod",

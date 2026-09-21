@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes Audit Manager assessments, frameworks, controls, and the direct
 // framework, S3, KMS, and in-scope-account dependency metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("auditmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAuditManager:
+	case "", aws.ServiceAuditManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAuditManager
+		boundary.ServiceKind = aws.ServiceAuditManager
 	default:
 		return nil, fmt.Errorf("auditmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,14 +56,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, framework := range snapshot.Frameworks {
-		envelope, err := awscloud.NewResourceEnvelope(frameworkObservation(boundary, framework))
+		envelope, err := aws.NewResourceEnvelope(frameworkObservation(boundary, framework))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, control := range snapshot.Controls {
-		envelope, err := awscloud.NewResourceEnvelope(controlObservation(boundary, control))
+		envelope, err := aws.NewResourceEnvelope(controlObservation(boundary, control))
 		if err != nil {
 			return nil, err
 		}
@@ -72,9 +72,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -84,17 +84,17 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 }
 
 func assessmentEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
 	kmsKeyARN string,
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(assessmentObservation(boundary, assessment))
+	resource, err := aws.NewResourceEnvelope(assessmentObservation(boundary, assessment))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		assessmentFrameworkRelationship(boundary, assessment),
 		assessmentReportsS3Relationship(boundary, assessment),
 		assessmentKMSRelationship(boundary, assessment, kmsKeyARN),
@@ -106,7 +106,7 @@ func assessmentEnvelopes(
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -115,15 +115,15 @@ func assessmentEnvelopes(
 	return envelopes, nil
 }
 
-func assessmentObservation(boundary awscloud.Boundary, assessment Assessment) awscloud.ResourceObservation {
+func assessmentObservation(boundary aws.Boundary, assessment Assessment) aws.ResourceObservation {
 	arn := strings.TrimSpace(assessment.ARN)
 	name := strings.TrimSpace(assessment.Name)
 	resourceID := assessmentResourceID(assessment)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerAssessment,
+		ResourceType: aws.ResourceTypeAuditManagerAssessment,
 		Name:         name,
 		State:        strings.TrimSpace(assessment.Status),
 		Tags:         cloneStringMap(assessment.Tags),
@@ -143,15 +143,15 @@ func assessmentObservation(boundary awscloud.Boundary, assessment Assessment) aw
 	}
 }
 
-func frameworkObservation(boundary awscloud.Boundary, framework Framework) awscloud.ResourceObservation {
+func frameworkObservation(boundary aws.Boundary, framework Framework) aws.ResourceObservation {
 	arn := strings.TrimSpace(framework.ARN)
 	name := strings.TrimSpace(framework.Name)
 	resourceID := frameworkResourceID(framework)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerFramework,
+		ResourceType: aws.ResourceTypeAuditManagerFramework,
 		Name:         name,
 		Tags:         nil,
 		Attributes: map[string]any{
@@ -168,15 +168,15 @@ func frameworkObservation(boundary awscloud.Boundary, framework Framework) awscl
 	}
 }
 
-func controlObservation(boundary awscloud.Boundary, control Control) awscloud.ResourceObservation {
+func controlObservation(boundary aws.Boundary, control Control) aws.ResourceObservation {
 	arn := strings.TrimSpace(control.ARN)
 	name := strings.TrimSpace(control.Name)
 	resourceID := controlResourceID(control)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerControl,
+		ResourceType: aws.ResourceTypeAuditManagerControl,
 		Name:         name,
 		Attributes: map[string]any{
 			"control_id":        strings.TrimSpace(control.ID),

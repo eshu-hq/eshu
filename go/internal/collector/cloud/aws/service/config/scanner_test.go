@@ -84,7 +84,7 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	recorder := resourceByType(t, envelopes, awscloud.ResourceTypeConfigConfigurationRecorder)
+	recorder := resourceByType(t, envelopes, aws.ResourceTypeConfigConfigurationRecorder)
 	recorderAttrs := attributesOf(t, recorder)
 	if got, want := recorderAttrs["recording_strategy"], "INCLUSION_BY_RESOURCE_TYPES"; got != want {
 		t.Fatalf("recorder recording_strategy = %#v, want %q", got, want)
@@ -93,7 +93,7 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("recorder resource_types = %#v, want 2 entries", recorderAttrs["resource_types"])
 	}
 
-	channel := resourceByType(t, envelopes, awscloud.ResourceTypeConfigDeliveryChannel)
+	channel := resourceByType(t, envelopes, aws.ResourceTypeConfigDeliveryChannel)
 	if got, want := attributesOf(t, channel)["s3_bucket_name"], "config-bucket"; got != want {
 		t.Fatalf("channel s3_bucket_name = %#v, want %q", got, want)
 	}
@@ -115,9 +115,9 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 
 	// Exactly one custom-rule-to-Lambda relationship, only for the CUSTOM_LAMBDA
 	// rule, targeting the Lambda function ARN (aws_lambda_function).
-	assertRelationshipCount(t, envelopes, awscloud.RelationshipConfigRuleEvaluatedByLambda, 1)
-	lambdaRel := relationshipByType(t, envelopes, awscloud.RelationshipConfigRuleEvaluatedByLambda)
-	if got, want := lambdaRel.Payload["target_type"], awscloud.ResourceTypeLambdaFunction; got != want {
+	assertRelationshipCount(t, envelopes, aws.RelationshipConfigRuleEvaluatedByLambda, 1)
+	lambdaRel := relationshipByType(t, envelopes, aws.RelationshipConfigRuleEvaluatedByLambda)
+	if got, want := lambdaRel.Payload["target_type"], aws.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("lambda relationship target_type = %#v, want %q", got, want)
 	}
 	if got, want := lambdaRel.Payload["target_resource_id"], "arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:config-evaluator"; got != want {
@@ -129,33 +129,33 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 
 	// Conformance pack carries a rule count and one containment edge per member
 	// rule, each targeting the aws_config_rule node by rule name.
-	pack := resourceByType(t, envelopes, awscloud.ResourceTypeConfigConformancePack)
+	pack := resourceByType(t, envelopes, aws.ResourceTypeConfigConformancePack)
 	if got, want := attributesOf(t, pack)["rule_count"], 2; got != want {
 		t.Fatalf("conformance pack rule_count = %#v, want %d", got, want)
 	}
 	if got, want := pack.Payload["state"], "CREATE_COMPLETE"; got != want {
 		t.Fatalf("conformance pack state = %#v, want %q", got, want)
 	}
-	assertRelationshipCount(t, envelopes, awscloud.RelationshipConfigConformancePackContainsRule, 2)
-	packRel := relationshipByTypeAndTarget(t, envelopes, awscloud.RelationshipConfigConformancePackContainsRule, ruleResourceID("s3-bucket-public-read-prohibited"))
-	if got, want := packRel.Payload["target_type"], awscloud.ResourceTypeConfigRule; got != want {
+	assertRelationshipCount(t, envelopes, aws.RelationshipConfigConformancePackContainsRule, 2)
+	packRel := relationshipByTypeAndTarget(t, envelopes, aws.RelationshipConfigConformancePackContainsRule, ruleResourceID("s3-bucket-public-read-prohibited"))
+	if got, want := packRel.Payload["target_type"], aws.ResourceTypeConfigRule; got != want {
 		t.Fatalf("conformance pack rule target_type = %#v, want %q", got, want)
 	}
 
 	// Aggregator carries source accounts and emits one account edge per source,
 	// targeting the account root ARN with the partition derived from the
 	// aggregator ARN (aws-us-gov here, not a hardcoded aws partition).
-	aggregator := resourceByType(t, envelopes, awscloud.ResourceTypeConfigConfigurationAggregator)
+	aggregator := resourceByType(t, envelopes, aws.ResourceTypeConfigConfigurationAggregator)
 	if got, want := attributesOf(t, aggregator)["source_account_count"], 2; got != want {
 		t.Fatalf("aggregator source_account_count = %#v, want %d", got, want)
 	}
-	assertRelationshipCount(t, envelopes, awscloud.RelationshipConfigAggregatorSourcesAccount, 2)
-	acctRel := relationshipByTypeAndTarget(t, envelopes, awscloud.RelationshipConfigAggregatorSourcesAccount, "arn:aws-us-gov:iam::111122223333:root")
-	if got, want := acctRel.Payload["target_type"], awscloud.ResourceTypeAWSAccount; got != want {
+	assertRelationshipCount(t, envelopes, aws.RelationshipConfigAggregatorSourcesAccount, 2)
+	acctRel := relationshipByTypeAndTarget(t, envelopes, aws.RelationshipConfigAggregatorSourcesAccount, "arn:aws-us-gov:iam::111122223333:root")
+	if got, want := acctRel.Payload["target_type"], aws.ResourceTypeAWSAccount; got != want {
 		t.Fatalf("aggregator account target_type = %#v, want %q", got, want)
 	}
 
-	retention := resourceByType(t, envelopes, awscloud.ResourceTypeConfigRetentionConfiguration)
+	retention := resourceByType(t, envelopes, aws.ResourceTypeConfigRetentionConfiguration)
 	if got, want := attributesOf(t, retention)["retention_period_in_days"], int32(2557); got != want {
 		t.Fatalf("retention retention_period_in_days = %#v, want %d", got, want)
 	}
@@ -186,7 +186,7 @@ func TestScannerDerivesPartitionFromARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipConfigAggregatorSourcesAccount)
+	rel := relationshipByType(t, envelopes, aws.RelationshipConfigAggregatorSourcesAccount)
 	if got, want := rel.Payload["target_resource_id"], "arn:aws-cn:iam::111122223333:root"; got != want {
 		t.Fatalf("aggregator account target = %#v, want %q (China partition derived from ARN)", got, want)
 	}
@@ -207,7 +207,7 @@ func TestScannerSkipsAggregatorAccountWhenPartitionUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipCount(envelopes, awscloud.RelationshipConfigAggregatorSourcesAccount); got != 0 {
+	if got := relationshipCount(envelopes, aws.RelationshipConfigAggregatorSourcesAccount); got != 0 {
 		t.Fatalf("aggregator account relationship count = %d, want 0 when partition cannot be derived", got)
 	}
 }
@@ -226,14 +226,14 @@ func TestScannerEmitsNoLambdaEdgeForManagedOrPolicyRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipCount(envelopes, awscloud.RelationshipConfigRuleEvaluatedByLambda); got != 0 {
+	if got := relationshipCount(envelopes, aws.RelationshipConfigRuleEvaluatedByLambda); got != 0 {
 		t.Fatalf("Lambda relationship count = %d, want 0 for managed and policy rules", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGuardDuty
+	boundary.ServiceKind = aws.ServiceGuardDuty
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -248,11 +248,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-gov-west-1",
-		ServiceKind:         awscloud.ServiceConfig,
+		ServiceKind:         aws.ServiceConfig,
 		ScopeID:             "aws:123456789012:us-gov-west-1",
 		GenerationID:        "aws:123456789012:us-gov-west-1:config:1",
 		CollectorInstanceID: "aws-prod",
@@ -403,7 +403,7 @@ func assertNoDanglingConfigRuleTargets(t *testing.T, envelopes []facts.Envelope)
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipConfigConformancePackContainsRule {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != aws.RelationshipConfigConformancePackContainsRule {
 			continue
 		}
 		target, _ := envelope.Payload["target_resource_id"].(string)

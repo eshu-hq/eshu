@@ -16,14 +16,14 @@ import (
 // namespace whose governed resource the repo does not scan to a stable
 // ARN-keyed node, skipping the edge rather than dangling it.
 func targetScalesResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	target ScalableTarget,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := scalableTargetResourceID(target.ServiceNamespace, target.ScalableDimension, target.ResourceID)
 	if sourceID == "" {
 		return nil
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
+	partition := aws.PartitionForBoundary(boundary)
 	targetARN, targetType := targetResourceARN(
 		partition,
 		boundary.AccountID,
@@ -38,7 +38,7 @@ func targetScalesResourceRelationship(
 	if relationshipType == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
@@ -61,13 +61,13 @@ func targetScalesResourceRelationship(
 func relationshipTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "dynamodb":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable
+		return aws.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable
 	case "ecs":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesECSService
+		return aws.RelationshipApplicationAutoScalingTargetScalesECSService
 	case "rds":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesRDSCluster
+		return aws.RelationshipApplicationAutoScalingTargetScalesRDSCluster
 	case "lambda":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesLambdaFunction
+		return aws.RelationshipApplicationAutoScalingTargetScalesLambdaFunction
 	default:
 		return ""
 	}
@@ -78,22 +78,22 @@ func relationshipTypeForNamespace(namespace string) string {
 // scalable-target node publishes. It returns nil when either endpoint identity
 // is missing.
 func policyForScalableTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	policy ScalingPolicy,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := policyResourceID(policy)
 	targetID := scalableTargetResourceID(policy.ServiceNamespace, policy.ScalableDimension, policy.ResourceID)
 	if sourceID == "" || targetID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipApplicationAutoScalingPolicyForScalableTarget,
+		RelationshipType: aws.RelationshipApplicationAutoScalingPolicyForScalableTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingPolicyForScalableTarget + ":" + targetID,
+		TargetType:       aws.ResourceTypeApplicationAutoScalingScalableTarget,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipApplicationAutoScalingPolicyForScalableTarget + ":" + targetID,
 	}
 }
 
@@ -102,22 +102,22 @@ func policyForScalableTargetRelationship(
 // the scalable-target node publishes. It returns nil when either endpoint
 // identity is missing.
 func scheduledActionForScalableTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action ScheduledAction,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := scheduledActionResourceID(action)
 	targetID := scalableTargetResourceID(action.ServiceNamespace, action.ScalableDimension, action.ResourceID)
 	if sourceID == "" || targetID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipApplicationAutoScalingScheduledActionForScalableTarget,
+		RelationshipType: aws.RelationshipApplicationAutoScalingScheduledActionForScalableTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(action.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingScheduledActionForScalableTarget + ":" + targetID,
+		TargetType:       aws.ResourceTypeApplicationAutoScalingScalableTarget,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipApplicationAutoScalingScheduledActionForScalableTarget + ":" + targetID,
 	}
 }
 
@@ -126,28 +126,28 @@ func scheduledActionForScalableTargetRelationship(
 // CloudWatch scanner's published alarm resource_id, so the edges join real
 // alarm nodes. Non-ARN or empty alarm identifiers are skipped.
 func policyAlarmRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	policy ScalingPolicy,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := policyResourceID(policy)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, alarmARN := range policy.AlarmARNs {
 		trimmed := strings.TrimSpace(alarmARN)
 		if !strings.HasPrefix(trimmed, "arn:") {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm,
+			RelationshipType: aws.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(policy.ARN),
 			TargetResourceID: trimmed,
 			TargetARN:        trimmed,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm + ":" + trimmed,
+			TargetType:       aws.ResourceTypeCloudWatchAlarm,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm + ":" + trimmed,
 		})
 	}
 	return relationships

@@ -18,4 +18,4 @@
 // reader (GetJobRun, ListJobRuns, ListJobRunAttempts) because those carry
 // SparkSubmit entry-point arguments. The package tests enforce these
 // boundaries by reflecting over the SDK interfaces the adapter accepts.
-package awssdk
+package sdk

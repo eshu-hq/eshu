@@ -21,11 +21,11 @@ func (c fakeClient) Snapshot(context.Context) (Snapshot, error) {
 	return c.snapshot, c.err
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           testAccount,
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceNetworkManager,
+		ServiceKind:         aws.ServiceNetworkManager,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:networkmanager:1",
 		CollectorInstanceID: "aws-prod",
@@ -34,7 +34,7 @@ func testBoundary() awscloud.Boundary {
 	}
 }
 
-func scan(t *testing.T, boundary awscloud.Boundary, client Client) []facts.Envelope {
+func scan(t *testing.T, boundary aws.Boundary, client Client) []facts.Envelope {
 	t.Helper()
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
 	if err != nil {
@@ -149,13 +149,13 @@ func valuesEqual(got, want any) bool {
 // relationshipObservationFrom reconstructs a RelationshipObservation from an
 // emitted relationship envelope so the relguard graph-join guard can assert the
 // scanner never keys a dangling or mistyped edge.
-func relationshipObservationFrom(t *testing.T, envelope facts.Envelope) awscloud.RelationshipObservation {
+func relationshipObservationFrom(t *testing.T, envelope facts.Envelope) aws.RelationshipObservation {
 	t.Helper()
 	str := func(key string) string {
 		value, _ := envelope.Payload[key].(string)
 		return value
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         testBoundary(),
 		RelationshipType: str("relationship_type"),
 		SourceResourceID: str("source_resource_id"),

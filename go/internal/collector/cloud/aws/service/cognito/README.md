@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cognito` owns the Cognito scanner contract
+`internal/collector/cloud/aws/service/cognito` owns the Cognito scanner contract
 for the AWS cloud collector. It converts Cognito user pools, user pool app
 clients, identity providers, resource servers, groups, and Cognito identity
 pools into AWS cloud fact envelopes. It covers both the user-pool control plane
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 - `internal/redact` for HMAC-SHA256 markers on developer provider names and group
@@ -50,9 +50,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource/relationship counts after `Scanner.Scan`
-returns. The `awssdk` adapter records Cognito API call counts, throttles, and
+returns. The `sdk` adapter records Cognito API call counts, throttles, and
 pagination spans. The collector counts emitted facts under
 `eshu_dp_aws_resources_emitted_total{service="cognito"}` and
 `eshu_dp_aws_relationships_emitted_total{service="cognito"}`.
@@ -86,7 +86,7 @@ pagination spans. The collector counts emitted facts under
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/cognito/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/cognito/...`
 covers the bounded Cognito metadata path: paginated ListUserPools (MaxResults=60)
 followed by DescribeUserPool, ListUserPoolClients plus DescribeUserPoolClient,
 ListIdentityProviders, ListResourceServers, ListGroups, and ListIdentityPools
@@ -95,7 +95,7 @@ ListUsersInGroup, ListUserPoolClientSecrets, mutation calls, or graph writes
 exist in the collector. Fanout is bounded by the user-pool and identity-pool
 count per claim.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Cognito metadata fact emission, user-pool-client, lambda-trigger, and
 identity-pool relationship emission, omission of ClientSecret and
 ProviderDetails, SDK pagination, runtime registration, the redaction-key guard,
@@ -118,11 +118,11 @@ Collector Deployment Evidence: Cognito runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/cognito/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/cognito/... -count=1`
 covers the new `TestIdentityPoolARNDerivesPartition` (commercial / `aws-us-gov`
 / `aws-cn`) alongside the existing assertions. The cognito-identity APIs return
 only the bare pool id, so `identityPoolARN` now derives the partition from the
-scan boundary via `awscloud.PartitionForBoundary` instead of hardcoding `aws`.
+scan boundary via `aws.PartitionForBoundary` instead of hardcoding `aws`.
 Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
 metadata-only correctness fix with no graph-write, queue, or hot-path behavior
 change.

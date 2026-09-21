@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/drs` owns the AWS Elastic Disaster
+`internal/collector/cloud/aws/service/drs` owns the AWS Elastic Disaster
 Recovery scanner contract for the AWS cloud collector. It converts DRS source
 server, recovery instance, and replication configuration template metadata into
 `aws_resource` facts and emits relationship evidence for the
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records DRS API call counts, throttles, and pagination
+The `sdk` adapter records DRS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -82,14 +82,14 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/drs/...` covers the bounded DRS
+`go test ./internal/collector/cloud/aws/service/drs/...` covers the bounded DRS
 metadata path: one paginated DescribeSourceServers stream, one paginated
 DescribeRecoveryInstances stream, and one paginated
 DescribeReplicationConfigurationTemplates stream, with no agent reads, no
 replicated-disk reads, no snapshot reads, no job-log reads, no mutations, and no
 graph writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/drs/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/drs/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

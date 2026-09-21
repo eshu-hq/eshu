@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes Secrets Manager metadata and direct KMS/Lambda dependency
 // metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("secretsmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSecretsManager:
+	case "", aws.ServiceSecretsManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSecretsManager
+		boundary.ServiceKind = aws.ServiceSecretsManager
 	default:
 		return nil, fmt.Errorf("secretsmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,20 +49,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func secretEnvelopes(boundary awscloud.Boundary, secret Secret) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(secretObservation(boundary, secret))
+func secretEnvelopes(boundary aws.Boundary, secret Secret) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(secretObservation(boundary, secret))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		kmsRelationship(boundary, secret),
 		rotationLambdaRelationship(boundary, secret),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -71,15 +71,15 @@ func secretEnvelopes(boundary awscloud.Boundary, secret Secret) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func secretObservation(boundary awscloud.Boundary, secret Secret) awscloud.ResourceObservation {
+func secretObservation(boundary aws.Boundary, secret Secret) aws.ResourceObservation {
 	secretARN := strings.TrimSpace(secret.ARN)
 	name := strings.TrimSpace(secret.Name)
 	resourceID := secretResourceID(secret)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          secretARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecretsManagerSecret,
+		ResourceType: aws.ResourceTypeSecretsManagerSecret,
 		Name:         name,
 		Tags:         cloneStringMap(secret.Tags),
 		Attributes: map[string]any{

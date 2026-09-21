@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdx "github.com/aws/aws-sdk-go-v2/service/directconnect"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -37,18 +37,18 @@ type apiClient interface {
 
 // Client adapts AWS SDK Direct Connect responses into scanner-owned records. It
 // holds no mutable cross-call state; the AWS SDK client is constructed per
-// claim by the runtimebind builder.
+// claim by the bind builder.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Direct Connect SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -72,7 +72,7 @@ func (c *Client) ListConnections(ctx context.Context) ([]dxservice.Connection, e
 		err := c.recordAPICall(ctx, "DescribeConnections", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.DescribeConnections(callCtx, &awsdx.DescribeConnectionsInput{
-				MaxResults: aws.Int32(directConnectPageLimit),
+				MaxResults: awsv2.Int32(directConnectPageLimit),
 				NextToken:  token,
 			})
 			return callErr
@@ -102,7 +102,7 @@ func (c *Client) ListVirtualInterfaces(ctx context.Context) ([]dxservice.Virtual
 		err := c.recordAPICall(ctx, "DescribeVirtualInterfaces", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.DescribeVirtualInterfaces(callCtx, &awsdx.DescribeVirtualInterfacesInput{
-				MaxResults: aws.Int32(directConnectPageLimit),
+				MaxResults: awsv2.Int32(directConnectPageLimit),
 				NextToken:  token,
 			})
 			return callErr
@@ -131,7 +131,7 @@ func (c *Client) ListGateways(ctx context.Context) ([]dxservice.Gateway, error) 
 		err := c.recordAPICall(ctx, "DescribeDirectConnectGateways", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.DescribeDirectConnectGateways(callCtx, &awsdx.DescribeDirectConnectGatewaysInput{
-				MaxResults: aws.Int32(directConnectPageLimit),
+				MaxResults: awsv2.Int32(directConnectPageLimit),
 				NextToken:  token,
 			})
 			return callErr
@@ -161,7 +161,7 @@ func (c *Client) ListLAGs(ctx context.Context) ([]dxservice.LAG, error) {
 		err := c.recordAPICall(ctx, "DescribeLags", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.DescribeLags(callCtx, &awsdx.DescribeLagsInput{
-				MaxResults: aws.Int32(directConnectPageLimit),
+				MaxResults: awsv2.Int32(directConnectPageLimit),
 				NextToken:  token,
 			})
 			return callErr
@@ -192,7 +192,7 @@ func (c *Client) ListGatewayAssociations(ctx context.Context) ([]dxservice.Gatew
 		err := c.recordAPICall(ctx, "DescribeDirectConnectGatewayAssociations", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.DescribeDirectConnectGatewayAssociations(callCtx, &awsdx.DescribeDirectConnectGatewayAssociationsInput{
-				MaxResults: aws.Int32(directConnectPageLimit),
+				MaxResults: awsv2.Int32(directConnectPageLimit),
 				NextToken:  token,
 			})
 			return callErr
@@ -229,7 +229,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -258,7 +258,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 // string is treated as no more pages so the adapter does not loop forever on a
 // service that returns "" instead of nil.
 func nextToken(token *string) *string {
-	if token == nil || strings.TrimSpace(aws.ToString(token)) == "" {
+	if token == nil || strings.TrimSpace(awsv2.ToString(token)) == "" {
 		return nil
 	}
 	return token

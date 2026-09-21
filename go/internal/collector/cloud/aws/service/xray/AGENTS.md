@@ -5,7 +5,7 @@ groups, sampling rules, and the account-region encryption configuration. Agents
 editing this package MUST:
 
 - Read this package's `doc.go`, `README.md`, and the parent agent docs
-  (`go/internal/collector/awscloud/AGENTS.md` and the repository root
+  (`go/internal/collector/cloud/aws/AGENTS.md` and the repository root
   `AGENTS.md`).
 - Treat the SDK adapter `apiClient` interface and the scanner-owned `Client`
   interface as the contract surface: only `GetGroups`, `GetSamplingRules`, and
@@ -16,7 +16,7 @@ editing this package MUST:
   `PutTraceSegments`, `PutTelemetryRecords`, `CreateGroup`/`UpdateGroup`/
   `DeleteGroup`, `CreateSamplingRule`/`UpdateSamplingRule`/`DeleteSamplingRule`,
   `PutEncryptionConfig`) is a rule violation; the exclusion reflection tests in
-  `scanner_test.go` and `awssdk/client_test.go` assert this.
+  `scanner_test.go` and `sdk/client_test.go` assert this.
 - NEVER read or persist X-Ray observability payload — traces, trace summaries,
   segments, or service-graph (service-map) data. That is monitoring data, not
   configuration truth. The group filter expression is persisted as a
@@ -30,7 +30,7 @@ editing this package MUST:
   synthetic id is the ARN-less encryption-config resource id).
 - Require no `ESHU_AWS_REDACTION_KEY`: X-Ray configuration carries no
   secret-shaped fields. Do not add a redaction-key requirement without a real
-  secret-bearing field and the `RequiresRedactionKey` flag in `runtimebind`.
+  secret-bearing field and the `RequiresRedactionKey` flag in `bind`.
 
 ## Layout
 
@@ -38,10 +38,10 @@ editing this package MUST:
 - `relationships.go`: the KMS-key and service-correlation relationship helpers.
 - `helpers.go`: id-synthesis and small value helpers.
 - `types.go`: scanner-owned models and the configuration-only `Client` interface.
-- `awssdk/`: AWS SDK adapter behind the `apiClient` interface — the contract
+- `sdk/`: AWS SDK adapter behind the `apiClient` interface — the contract
   surface that proves observability/mutation methods are unreachable.
-- `runtimebind/`: package-init binder that registers the scanner with
-  `awsruntime` (no redaction key).
+- `bind/`: package-init binder that registers the scanner with
+  `runtime` (no redaction key).
 
 ## Tests
 
@@ -57,6 +57,6 @@ Focused tests live in `scanner_test.go`. They MUST cover:
   exposes exactly the three config reads and no trace/service-map method.
 - The graph-join contract via `relguard.AssertObservations`.
 
-Adapter tests in `awssdk/` MUST assert that the `apiClient` interface is exactly
+Adapter tests in `sdk/` MUST assert that the `apiClient` interface is exactly
 the three config reads, that pagination walks every page, and that the mapper
 carries configuration only.

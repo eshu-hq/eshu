@@ -74,7 +74,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	app := resourceByType(t, envelopes, awscloud.ResourceTypeManagedFlinkApplication)
+	app := resourceByType(t, envelopes, aws.ResourceTypeManagedFlinkApplication)
 	if got, want := app.Payload["resource_id"], testAppARN; got != want {
 		t.Fatalf("application resource_id = %#v, want %q", got, want)
 	}
@@ -90,28 +90,28 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "parallelism", int32(4))
 	assertAttribute(t, attrs, "snapshot_names", []string{"snapshot-001"})
 
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream, testInputKDS, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream, testOutputKDS, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream, testInputFH, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
-		awscloud.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,
-		awscloud.ResourceTypeIAMRole, testRoleARN, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
-		awscloud.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
+		aws.ResourceTypeKinesisDataStream, testInputKDS, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationWritesToKinesisStream,
+		aws.ResourceTypeKinesisDataStream, testOutputKDS, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
+		aws.ResourceTypeFirehoseDeliveryStream, testInputFH, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
+		aws.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
+		aws.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationUsesIAMRole,
+		aws.ResourceTypeIAMRole, testRoleARN, testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
+		aws.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
 
 	// Two distinct subnet edges, both bare ids.
-	subnetTargets := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSubnet)
+	subnetTargets := relationshipTargets(envelopes, aws.RelationshipManagedFlinkApplicationUsesSubnet)
 	if len(subnetTargets) != 2 {
 		t.Fatalf("subnet edge count = %d, want 2 (%#v)", len(subnetTargets), subnetTargets)
 	}
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup,
-		awscloud.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d", testAppARN)
+	assertEdge(t, envelopes, aws.RelationshipManagedFlinkApplicationUsesSecurityGroup,
+		aws.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d", testAppARN)
 
 	// Code body / SQL / environment property leakage must not appear.
 	for _, envelope := range envelopes {
@@ -142,10 +142,10 @@ func TestScannerDedupesAndKeysBareSubnetTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSubnet); len(got) != 1 {
+	if got := relationshipTargets(envelopes, aws.RelationshipManagedFlinkApplicationUsesSubnet); len(got) != 1 {
 		t.Fatalf("subnet edge count = %d, want 1 deduped (%#v)", len(got), got)
 	}
-	if got := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup); len(got) != 1 {
+	if got := relationshipTargets(envelopes, aws.RelationshipManagedFlinkApplicationUsesSecurityGroup); len(got) != 1 {
 		t.Fatalf("security group edge count = %d, want 1 deduped (%#v)", len(got), got)
 	}
 }
@@ -185,7 +185,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -200,11 +200,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKinesisAnalyticsV2,
+		ServiceKind:         aws.ServiceKinesisAnalyticsV2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:kinesisanalyticsv2:1",
 		CollectorInstanceID: "aws-prod",

@@ -32,11 +32,11 @@ const ec2InstanceTargetType = "aws_ec2_instance"
 // and SSM-managed-instance associations have no resolvable target node and are
 // skipped here rather than keyed to a non-existent resource family.
 func configurationInstanceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configurationID string,
 	configurationARN string,
 	association Association,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	if !strings.EqualFold(strings.TrimSpace(association.ResourceType), resourceTypeEC2Instance) {
 		return nil
 	}
@@ -59,15 +59,15 @@ func configurationInstanceRelationship(
 	if isARN(configurationARN) {
 		sourceARN = strings.TrimSpace(configurationARN)
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance,
+		RelationshipType: aws.RelationshipLicenseManagerConfigurationAppliesToInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: instanceID,
 		TargetType:       ec2InstanceTargetType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance + ":" + instanceID,
+			aws.RelationshipLicenseManagerConfigurationAppliesToInstance + ":" + instanceID,
 	}
 }

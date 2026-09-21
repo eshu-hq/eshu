@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fsx/awssdk` adapts AWS SDK for Go v2 FSx
+`internal/collector/cloud/aws/service/fsx/sdk` adapts AWS SDK for Go v2 FSx
 describe calls into the scanner-owned metadata types defined by the parent
 `fsx` package. It owns SDK pagination, SDK-to-scanner mapping, per-flavor
 configuration reads, and API-call telemetry.
@@ -29,9 +29,9 @@ is the only place SDK methods can be called from.
 
 - `github.com/aws/aws-sdk-go-v2/service/fsx` and its `types` package for the FSx
   SDK client and response types.
-- `internal/collector/awscloud` for the boundary and the shared API-call
+- `internal/collector/cloud/aws` for the boundary and the shared API-call
   recorder.
-- `internal/collector/awscloud/service/fsx` for the scanner-owned target types.
+- `internal/collector/cloud/aws/service/fsx` for the scanner-owned target types.
 - `internal/telemetry` for spans, metric instruments, and attribute helpers.
 
 ## Telemetry

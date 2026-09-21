@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/msk` owns the Amazon Managed Streaming
+`internal/collector/cloud/aws/service/msk` owns the Amazon Managed Streaming
 for Apache Kafka (MSK) scanner contract for the AWS cloud collector. It
 converts cluster, broker configuration, and replicator metadata into
 `aws_resource` facts and emits relationship evidence for subnet, security
@@ -43,7 +43,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -52,9 +52,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records MSK API call counts, throttles, and pagination
+The `sdk` adapter records MSK API call counts, throttles, and pagination
 spans. Resource counts surface through `eshu_dp_aws_resources_emitted_total`
 with `service="msk"` and per-resource `resource_type` labels for
 `aws_msk_cluster`, `aws_msk_configuration`, and `aws_msk_replicator`.
@@ -84,7 +84,7 @@ with `service="msk"` and per-resource `resource_type` labels for
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/msk/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/msk/...`
 covers the bounded MSK metadata path: one paginated ListClustersV2 stream
 that returns full cluster details, one paginated ListConfigurations stream
 that returns full configuration metadata, one paginated ListReplicators
@@ -94,7 +94,7 @@ tags), no mutation APIs, no DescribeConfigurationRevision, no
 GetBootstrapBrokers, no ListScramSecrets, and no graph writes inside the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers MSK cluster, configuration, and replicator fact emission, ARN-only KMS
 key, IAM role, and configuration relationship emission, subnet and security
 group relationship emission from both provisioned and serverless clusters,

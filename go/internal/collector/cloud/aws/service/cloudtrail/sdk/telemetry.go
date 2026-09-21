@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudtrail "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/aws/smithy-go"
@@ -37,7 +37,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -102,15 +102,15 @@ func (c *Client) tagsFor(ctx context.Context, arn string) (map[string]string, er
 		}
 		for _, resource := range output.ResourceTagList {
 			for _, tag := range resource.TagsList {
-				key := strings.TrimSpace(aws.ToString(tag.Key))
+				key := strings.TrimSpace(awsv2.ToString(tag.Key))
 				if key == "" {
 					continue
 				}
-				tags[key] = aws.ToString(tag.Value)
+				tags[key] = awsv2.ToString(tag.Value)
 			}
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}

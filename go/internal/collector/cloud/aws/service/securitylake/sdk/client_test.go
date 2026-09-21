@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssecuritylake "github.com/aws/aws-sdk-go-v2/service/securitylake"
 	awssecuritylaketypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
 
@@ -26,17 +26,17 @@ func TestClientSnapshotsSecurityLakeMetadataOnly(t *testing.T) {
 	api := &fakeSecurityLakeAPI{
 		dataLakes: &awssecuritylake.ListDataLakesOutput{
 			DataLakes: []awssecuritylaketypes.DataLakeResource{{
-				DataLakeArn:  aws.String(dataLakeARN),
-				Region:       aws.String("us-east-1"),
-				S3BucketArn:  aws.String(bucketARN),
+				DataLakeArn:  awsv2.String(dataLakeARN),
+				Region:       awsv2.String("us-east-1"),
+				S3BucketArn:  awsv2.String(bucketARN),
 				CreateStatus: awssecuritylaketypes.DataLakeStatusCompleted,
 				EncryptionConfiguration: &awssecuritylaketypes.DataLakeEncryptionConfiguration{
-					KmsKeyId: aws.String(kmsARN),
+					KmsKeyId: awsv2.String(kmsARN),
 				},
 				LifecycleConfiguration: &awssecuritylaketypes.DataLakeLifecycleConfiguration{
-					Expiration: &awssecuritylaketypes.DataLakeLifecycleExpiration{Days: aws.Int32(365)},
+					Expiration: &awssecuritylaketypes.DataLakeLifecycleExpiration{Days: awsv2.Int32(365)},
 					Transitions: []awssecuritylaketypes.DataLakeLifecycleTransition{
-						{Days: aws.Int32(30)}, {Days: aws.Int32(90)},
+						{Days: awsv2.Int32(30)}, {Days: awsv2.Int32(90)},
 					},
 				},
 				ReplicationConfiguration: &awssecuritylaketypes.DataLakeReplicationConfiguration{
@@ -46,20 +46,20 @@ func TestClientSnapshotsSecurityLakeMetadataOnly(t *testing.T) {
 		},
 		logSourcePages: []*awssecuritylake.ListLogSourcesOutput{{
 			Sources: []awssecuritylaketypes.LogSource{{
-				Account: aws.String("123456789012"),
-				Region:  aws.String("us-east-1"),
+				Account: awsv2.String("123456789012"),
+				Region:  awsv2.String("us-east-1"),
 				Sources: []awssecuritylaketypes.LogSourceResource{
 					&awssecuritylaketypes.LogSourceResourceMemberAwsLogSource{
 						Value: awssecuritylaketypes.AwsLogSourceResource{
 							SourceName:    awssecuritylaketypes.AwsLogSourceName("ROUTE53"),
-							SourceVersion: aws.String("1.0"),
+							SourceVersion: awsv2.String("1.0"),
 						},
 					},
 					&awssecuritylaketypes.LogSourceResourceMemberCustomLogSource{
 						Value: awssecuritylaketypes.CustomLogSourceResource{
-							SourceName: aws.String("MyCustomSource"),
+							SourceName: awsv2.String("MyCustomSource"),
 							Provider: &awssecuritylaketypes.CustomLogSourceProvider{
-								RoleArn: aws.String("arn:aws:iam::123456789012:role/SecurityLakeCustom"),
+								RoleArn: awsv2.String("arn:aws:iam::123456789012:role/SecurityLakeCustom"),
 							},
 						},
 					},
@@ -68,21 +68,21 @@ func TestClientSnapshotsSecurityLakeMetadataOnly(t *testing.T) {
 		}},
 		subscriberPages: []*awssecuritylake.ListSubscribersOutput{{
 			Subscribers: []awssecuritylaketypes.SubscriberResource{{
-				SubscriberArn:    aws.String(subscriberARN),
-				SubscriberId:     aws.String("abc"),
-				SubscriberName:   aws.String("analytics"),
+				SubscriberArn:    awsv2.String(subscriberARN),
+				SubscriberId:     awsv2.String("abc"),
+				SubscriberName:   awsv2.String("analytics"),
 				SubscriberStatus: awssecuritylaketypes.SubscriberStatusActive,
 				AccessTypes:      []awssecuritylaketypes.AccessType{awssecuritylaketypes.AccessTypeS3},
-				RoleArn:          aws.String(roleARN),
-				S3BucketArn:      aws.String("arn:aws:s3:::subscriber-bucket"),
-				CreatedAt:        aws.Time(createdAt),
+				RoleArn:          awsv2.String(roleARN),
+				S3BucketArn:      awsv2.String("arn:aws:s3:::subscriber-bucket"),
+				CreatedAt:        awsv2.Time(createdAt),
 				SubscriberIdentity: &awssecuritylaketypes.AwsIdentity{
 					// ExternalId MUST NOT be persisted; Principal is identity metadata.
-					ExternalId: aws.String("super-secret-external-id"),
-					Principal:  aws.String("210987654321"),
+					ExternalId: awsv2.String("super-secret-external-id"),
+					Principal:  awsv2.String("210987654321"),
 				},
 				// SubscriberEndpoint MUST NOT be persisted.
-				SubscriberEndpoint: aws.String("https://private.endpoint.example"),
+				SubscriberEndpoint: awsv2.String("https://private.endpoint.example"),
 			}},
 		}},
 	}
@@ -162,11 +162,11 @@ func TestClientSnapshotsSecurityLakeMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecurityLake,
+		ServiceKind: aws.ServiceSecurityLake,
 	}
 }
 

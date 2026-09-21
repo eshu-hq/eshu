@@ -67,7 +67,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Dataset resource node keyed by name (so internal job/project edges join).
-	dataset := resourceByType(t, envelopes, awscloud.ResourceTypeDatabrewDataset)
+	dataset := resourceByType(t, envelopes, aws.ResourceTypeDatabrewDataset)
 	if got, want := dataset.Payload["resource_id"], "sales"; got != want {
 		t.Fatalf("dataset resource_id = %#v, want %q", got, want)
 	}
@@ -79,7 +79,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, datasetAttrs, "format", "CSV")
 
 	// Recipe resource node keyed by name. Step count only, never step bodies.
-	recipe := resourceByType(t, envelopes, awscloud.ResourceTypeDatabrewRecipe)
+	recipe := resourceByType(t, envelopes, aws.ResourceTypeDatabrewRecipe)
 	if got, want := recipe.Payload["resource_id"], "clean-sales"; got != want {
 		t.Fatalf("recipe resource_id = %#v, want %q", got, want)
 	}
@@ -88,7 +88,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, recipeAttrs, "version", "1.0")
 
 	// Job resource node keyed by ARN.
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeDatabrewJob)
+	job := resourceByType(t, envelopes, aws.ResourceTypeDatabrewJob)
 	if got, want := job.Payload["resource_id"], testJobARN; got != want {
 		t.Fatalf("job resource_id = %#v, want %q", got, want)
 	}
@@ -96,43 +96,43 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, jobAttrs, "type", "PROFILE")
 
 	// Project resource node keyed by ARN.
-	project := resourceByType(t, envelopes, awscloud.ResourceTypeDatabrewProject)
+	project := resourceByType(t, envelopes, aws.ResourceTypeDatabrewProject)
 	if got, want := project.Payload["resource_id"], testProjectARN; got != want {
 		t.Fatalf("project resource_id = %#v, want %q", got, want)
 	}
 
 	// dataset -> S3 bucket edge, keyed by synthesized partition-aware ARN.
-	datasetS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewDatasetReadsS3)
+	datasetS3 := relationshipByType(t, envelopes, aws.RelationshipDatabrewDatasetReadsS3)
 	wantBucketARN := "arn:aws:s3:::sales-input-bucket"
-	assertEdgeTarget(t, datasetS3, awscloud.ResourceTypeS3Bucket, wantBucketARN)
+	assertEdgeTarget(t, datasetS3, aws.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := datasetS3.Payload["source_resource_id"], "sales"; got != want {
 		t.Fatalf("dataset->s3 source_resource_id = %#v, want %q", got, want)
 	}
 
 	// job -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
-	jobRole := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobAssumesRole)
-	assertEdgeTarget(t, jobRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	jobRole := relationshipByType(t, envelopes, aws.RelationshipDatabrewJobAssumesRole)
+	assertEdgeTarget(t, jobRole, aws.ResourceTypeIAMRole, testRoleARN)
 	if got, want := jobRole.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("job->role target_arn = %#v, want %q", got, want)
 	}
 
 	// job -> S3 output bucket edge.
-	jobS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobWritesS3)
-	assertEdgeTarget(t, jobS3, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::sales-output-bucket")
+	jobS3 := relationshipByType(t, envelopes, aws.RelationshipDatabrewJobWritesS3)
+	assertEdgeTarget(t, jobS3, aws.ResourceTypeS3Bucket, "arn:aws:s3:::sales-output-bucket")
 
 	// job -> dataset internal edge, keyed by the dataset name the dataset node publishes.
-	jobDataset := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobProcessesDataset)
-	assertEdgeTarget(t, jobDataset, awscloud.ResourceTypeDatabrewDataset, "sales")
+	jobDataset := relationshipByType(t, envelopes, aws.RelationshipDatabrewJobProcessesDataset)
+	assertEdgeTarget(t, jobDataset, aws.ResourceTypeDatabrewDataset, "sales")
 
 	// project -> dataset and project -> recipe internal edges.
-	projectDataset := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewProjectUsesDataset)
-	assertEdgeTarget(t, projectDataset, awscloud.ResourceTypeDatabrewDataset, "sales")
-	projectRecipe := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewProjectUsesRecipe)
-	assertEdgeTarget(t, projectRecipe, awscloud.ResourceTypeDatabrewRecipe, "clean-sales")
+	projectDataset := relationshipByType(t, envelopes, aws.RelationshipDatabrewProjectUsesDataset)
+	assertEdgeTarget(t, projectDataset, aws.ResourceTypeDatabrewDataset, "sales")
+	projectRecipe := relationshipByType(t, envelopes, aws.RelationshipDatabrewProjectUsesRecipe)
+	assertEdgeTarget(t, projectRecipe, aws.ResourceTypeDatabrewRecipe, "clean-sales")
 
 	// project -> IAM role edge.
-	projectRole := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewProjectAssumesRole)
-	assertEdgeTarget(t, projectRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	projectRole := relationshipByType(t, envelopes, aws.RelationshipDatabrewProjectAssumesRole)
+	assertEdgeTarget(t, projectRole, aws.ResourceTypeIAMRole, testRoleARN)
 
 	// No recipe step expressions, SQL, or sample data leak anywhere.
 	for _, envelope := range envelopes {
@@ -166,9 +166,9 @@ func TestScannerEmitsGlueTableEdgeForCatalogDataset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	datasetGlue := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewDatasetReadsGlueTable)
+	datasetGlue := relationshipByType(t, envelopes, aws.RelationshipDatabrewDatasetReadsGlueTable)
 	// The Glue table scanner publishes resource_id as "<database>/<table>".
-	assertEdgeTarget(t, datasetGlue, awscloud.ResourceTypeGlueTable, "analytics/sales_fact")
+	assertEdgeTarget(t, datasetGlue, aws.ResourceTypeGlueTable, "analytics/sales_fact")
 }
 
 func TestScannerSkipsRedshiftDatabaseInputEdge(t *testing.T) {
@@ -205,7 +205,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	datasetS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewDatasetReadsS3)
+	datasetS3 := relationshipByType(t, envelopes, aws.RelationshipDatabrewDatasetReadsS3)
 	wantARN := "arn:aws-us-gov:s3:::gov-input-bucket"
 	if got := datasetS3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud dataset->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -225,7 +225,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	jobS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobWritesS3)
+	jobS3 := relationshipByType(t, envelopes, aws.RelationshipDatabrewJobWritesS3)
 	wantARN := "arn:aws-cn:s3:::cn-output-bucket"
 	if got := jobS3.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China job->s3 target_arn = %#v, want %q", got, wantARN)
@@ -262,7 +262,7 @@ func TestScannerOmitsRoleEdgeForNonARNRoleButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	jobRole := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobAssumesRole)
+	jobRole := relationshipByType(t, envelopes, aws.RelationshipDatabrewJobAssumesRole)
 	if got, want := jobRole.Payload["target_resource_id"], "databrew-service-role"; got != want {
 		t.Fatalf("role target_resource_id = %#v, want %q", got, want)
 	}
@@ -295,8 +295,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		RoleARN:     testRoleARN,
 	}
 
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		datasetReadsS3Relationship(boundary, dataset),
 		datasetReadsGlueTableRelationship(boundary, dataset),
 		jobAssumesRoleRelationship(boundary, job),
@@ -316,7 +316,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -327,9 +327,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Datasets: []Dataset{{Name: "sales", ARN: testDatasetARN}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "DataBrew ListJobs throttled after SDK retries; job metadata omitted for this scan",
 			SourceRecordID: "databrew_jobs_throttled",
@@ -340,7 +340,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -353,11 +353,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDatabrew,
+		ServiceKind:         aws.ServiceDatabrew,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:databrew:1",
 		CollectorInstanceID: "aws-prod",

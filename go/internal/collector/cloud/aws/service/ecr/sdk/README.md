@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ecr/awssdk` adapts AWS SDK for Go v2 ECR
+`internal/collector/cloud/aws/service/ecr/sdk` adapts AWS SDK for Go v2 ECR
 responses to the scanner-owned `ecr.Client` contract. It owns ECR API
 pagination, durable image pagination checkpoint use, repository tag reads,
 lifecycle policy reads, throttle classification, and per-call AWS API
@@ -36,10 +36,10 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/checkpoint` for claim-fenced page resume state.
-- `internal/collector/awscloud/service/ecr` for scanner-owned result types.
+- `internal/collector/cloud/aws/checkpoint` for claim-fenced page resume state.
+- `internal/collector/cloud/aws/service/ecr` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `ecr` and Smithy error contracts.
 

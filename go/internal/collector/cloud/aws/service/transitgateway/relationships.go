@@ -9,36 +9,36 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awscloud.RelationshipObservation {
+func routeTableRelationships(boundary aws.Boundary, rt RouteTable) []aws.RelationshipObservation {
 	id := strings.TrimSpace(rt.ID)
 	tgwID := strings.TrimSpace(rt.TransitGatewayID)
 	if id == "" || tgwID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayRouteTableInTransitGateway,
+		RelationshipType: aws.RelationshipTransitGatewayRouteTableInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       aws.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }
 
-func attachmentRelationships(boundary awscloud.Boundary, attachment Attachment) []awscloud.RelationshipObservation {
+func attachmentRelationships(boundary aws.Boundary, attachment Attachment) []aws.RelationshipObservation {
 	id := strings.TrimSpace(attachment.ID)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if tgwID := strings.TrimSpace(attachment.TransitGatewayID); tgwID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToTransitGateway,
+			RelationshipType: aws.RelationshipTransitGatewayAttachmentToTransitGateway,
 			SourceResourceID: id,
 			TargetResourceID: tgwID,
-			TargetType:       awscloud.ResourceTypeTransitGateway,
+			TargetType:       aws.ResourceTypeTransitGateway,
 			Attributes: map[string]any{
 				"transit_gateway_owner_id": strings.TrimSpace(attachment.TransitGatewayOwnerID),
 			},
@@ -51,12 +51,12 @@ func attachmentRelationships(boundary awscloud.Boundary, attachment Attachment) 
 	}
 
 	if rtID := strings.TrimSpace(attachment.AssociationRouteTableID); rtID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayRouteTableToAttachment,
+			RelationshipType: aws.RelationshipTransitGatewayRouteTableToAttachment,
 			SourceResourceID: rtID,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeTransitGatewayAttachment,
+			TargetType:       aws.ResourceTypeTransitGatewayAttachment,
 			Attributes: map[string]any{
 				"association_state": strings.TrimSpace(attachment.AssociationState),
 			},
@@ -73,40 +73,40 @@ func attachmentRelationships(boundary awscloud.Boundary, attachment Attachment) 
 // owned by the VPC scanner, the EC2 scanner, or this scanner; Connect and other
 // attachment types do not yet have a typed target and emit no edge.
 func attachmentResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	id string,
 	attachment Attachment,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	resourceID := strings.TrimSpace(attachment.ResourceID)
 	if resourceID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	resourceOwnerID := strings.TrimSpace(attachment.ResourceOwnerID)
 	switch normalizeAttachmentResourceType(attachment.ResourceType) {
 	case "vpc":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToVPC,
+			RelationshipType: aws.RelationshipTransitGatewayAttachmentToVPC,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#vpc#" + resourceID,
 		}, true
 	case "vpn":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToVPNConnection,
+			RelationshipType: aws.RelationshipTransitGatewayAttachmentToVPNConnection,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeVPCVPNConnection,
+			TargetType:       aws.ResourceTypeVPCVPNConnection,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#vpn#" + resourceID,
 		}, true
 	case "direct-connect-gateway":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
+			RelationshipType: aws.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
 			TargetType:       "aws_direct_connect_gateway",
@@ -114,33 +114,33 @@ func attachmentResourceRelationship(
 			SourceRecordID:   id + "#direct-connect-gateway#" + resourceID,
 		}, true
 	case "peering":
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToPeer,
+			RelationshipType: aws.RelationshipTransitGatewayAttachmentToPeer,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeTransitGatewayPeeringAttachment,
+			TargetType:       aws.ResourceTypeTransitGatewayPeeringAttachment,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#peer#" + resourceID,
 		}, true
 	default:
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }
 
 func peeringAttachmentRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	peering PeeringAttachment,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	id := strings.TrimSpace(peering.ID)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if observation, ok := peeringSideRelationship(
 		boundary,
 		id,
-		awscloud.RelationshipTransitGatewayPeeringRequestsTransitGateway,
+		aws.RelationshipTransitGatewayPeeringRequestsTransitGateway,
 		"requester",
 		peering.Requester,
 	); ok {
@@ -149,7 +149,7 @@ func peeringAttachmentRelationships(
 	if observation, ok := peeringSideRelationship(
 		boundary,
 		id,
-		awscloud.RelationshipTransitGatewayPeeringAcceptsTransitGateway,
+		aws.RelationshipTransitGatewayPeeringAcceptsTransitGateway,
 		"accepter",
 		peering.Accepter,
 	); ok {
@@ -164,23 +164,23 @@ func peeringAttachmentRelationships(
 // org-context join can resolve the remote account. The scanner never resolves
 // the remote account itself.
 func peeringSideRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	id string,
 	relationshipType string,
 	side string,
 	info PeeringTransitGatewayInfo,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	peerTGW := strings.TrimSpace(info.TransitGatewayID)
 	if peerTGW == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	ownerID := strings.TrimSpace(info.OwnerID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: id,
 		TargetResourceID: peerTGW,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       aws.ResourceTypeTransitGateway,
 		Attributes: map[string]any{
 			"core_network_id": strings.TrimSpace(info.CoreNetworkID),
 			"cross_account":   ownerID != "" && ownerID != strings.TrimSpace(boundary.AccountID),
@@ -193,39 +193,39 @@ func peeringSideRelationship(
 }
 
 func multicastDomainRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	domain MulticastDomain,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	id := strings.TrimSpace(domain.ID)
 	tgwID := strings.TrimSpace(domain.TransitGatewayID)
 	if id == "" || tgwID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayMulticastDomainInTransitGateway,
+		RelationshipType: aws.RelationshipTransitGatewayMulticastDomainInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       aws.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }
 
 func policyTableRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	policyTable PolicyTable,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	id := strings.TrimSpace(policyTable.ID)
 	tgwID := strings.TrimSpace(policyTable.TransitGatewayID)
 	if id == "" || tgwID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayPolicyTableInTransitGateway,
+		RelationshipType: aws.RelationshipTransitGatewayPolicyTableInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       aws.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }

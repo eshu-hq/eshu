@@ -11,4 +11,4 @@
 // excludes finding bodies, insight filter expressions, resource details,
 // remediation text, notes, product fields, user-defined fields, network
 // details, process details, and mutation APIs.
-package awssdk
+package sdk

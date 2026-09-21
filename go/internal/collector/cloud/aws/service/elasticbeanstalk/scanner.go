@@ -27,7 +27,7 @@ type Scanner struct {
 }
 
 // Scan observes Elastic Beanstalk resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("elasticbeanstalk scanner client is required")
 	}
@@ -35,10 +35,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("elasticbeanstalk scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceElasticBeanstalk:
+	case "", aws.ServiceElasticBeanstalk:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceElasticBeanstalk
+		boundary.ServiceKind = aws.ServiceElasticBeanstalk
 	default:
 		return nil, fmt.Errorf("elasticbeanstalk scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -52,7 +52,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	applicationARNByName := map[string]string{}
 	for _, application := range applications {
 		applicationARNByName[strings.TrimSpace(application.Name)] = strings.TrimSpace(application.ARN)
-		resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+		resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	versionARNByKey := map[string]string{}
 	for _, version := range versions {
 		versionARNByKey[versionKey(version.ApplicationName, version.VersionLabel)] = strings.TrimSpace(version.ARN)
-		resource, err := awscloud.NewResourceEnvelope(applicationVersionObservation(boundary, version))
+		resource, err := aws.NewResourceEnvelope(applicationVersionObservation(boundary, version))
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) environmentEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	applicationARNByName map[string]string,
 	versionARNByKey map[string]string,
@@ -110,7 +110,7 @@ func (s Scanner) environmentEnvelopes(
 		return nil, fmt.Errorf("describe Elastic Beanstalk configuration settings for %q: %w", environment.Name, err)
 	}
 
-	resource, err := awscloud.NewResourceEnvelope(environmentObservation(boundary, environment, settings, s.RedactionKey))
+	resource, err := aws.NewResourceEnvelope(environmentObservation(boundary, environment, settings, s.RedactionKey))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (s Scanner) environmentEnvelopes(
 		applicationARNByName,
 		versionARNByKey,
 	) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -133,14 +133,14 @@ func (s Scanner) environmentEnvelopes(
 	return envelopes, nil
 }
 
-func applicationObservation(boundary awscloud.Boundary, application Application) awscloud.ResourceObservation {
+func applicationObservation(boundary aws.Boundary, application Application) aws.ResourceObservation {
 	applicationARN := strings.TrimSpace(application.ARN)
 	name := strings.TrimSpace(application.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          applicationARN,
 		ResourceID:   firstNonEmpty(applicationARN, name),
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkApplication,
+		ResourceType: aws.ResourceTypeElasticBeanstalkApplication,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":             strings.TrimSpace(application.Description),
@@ -154,16 +154,16 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 	}
 }
 
-func applicationVersionObservation(boundary awscloud.Boundary, version ApplicationVersion) awscloud.ResourceObservation {
+func applicationVersionObservation(boundary aws.Boundary, version ApplicationVersion) aws.ResourceObservation {
 	versionARN := strings.TrimSpace(version.ARN)
 	label := strings.TrimSpace(version.VersionLabel)
 	appName := strings.TrimSpace(version.ApplicationName)
 	resourceID := firstNonEmpty(versionARN, versionKey(appName, label))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          versionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkApplicationVersion,
+		ResourceType: aws.ResourceTypeElasticBeanstalkApplicationVersion,
 		Name:         label,
 		State:        strings.TrimSpace(version.Status),
 		Attributes: map[string]any{
@@ -183,20 +183,20 @@ func applicationVersionObservation(boundary awscloud.Boundary, version Applicati
 }
 
 func environmentObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	settings []OptionSetting,
 	key redact.Key,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	environmentARN := strings.TrimSpace(environment.ARN)
 	environmentID := strings.TrimSpace(environment.ID)
 	name := strings.TrimSpace(environment.Name)
 	resourceID := firstNonEmpty(environmentARN, environmentID, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          environmentARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkEnvironment,
+		ResourceType: aws.ResourceTypeElasticBeanstalkEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.Status),
 		Attributes: map[string]any{
@@ -239,7 +239,7 @@ func optionSettingMaps(settings []OptionSetting, key redact.Key) []map[string]an
 		output = append(output, map[string]any{
 			"namespace": namespace,
 			"name":      name,
-			"value":     awscloud.RedactString(setting.Value, source, key),
+			"value":     aws.RedactString(setting.Value, source, key),
 		})
 	}
 	return output

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/verifiedpermissions/awssdk` adapts AWS SDK
+`internal/collector/cloud/aws/service/verifiedpermissions/sdk` adapts AWS SDK
 for Go v2 Verified Permissions responses to the scanner-owned `Client` contract.
 It owns policy store pagination, the per-store GetPolicyStore metadata read,
 per-store policy and identity source pagination, configuration-union mapping,
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/verifiedpermissions` for scanner-owned
+- `internal/collector/cloud/aws/service/verifiedpermissions` for scanner-owned
   result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `verifiedpermissions` and Smithy error contracts.

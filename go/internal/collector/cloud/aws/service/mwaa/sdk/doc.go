@@ -14,4 +14,4 @@
 // the database VPC endpoint service, or the webserver URL, so configuration
 // values, internal queue identities, and webserver endpoints never leave the
 // adapter.
-package awssdk
+package sdk

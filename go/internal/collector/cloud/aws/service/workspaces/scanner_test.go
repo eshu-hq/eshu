@@ -105,7 +105,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Workspace node keyed by the synthesized partition-aware ARN.
-	workspace := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesWorkspace)
+	workspace := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesWorkspace)
 	if got, want := workspace.Payload["resource_id"], wantWorkspaceARN(); got != want {
 		t.Fatalf("workspace resource_id = %#v, want %q", got, want)
 	}
@@ -122,7 +122,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 
 	// Directory node keyed by the synthesized WorkSpaces directory ARN, NOT the
 	// bare DS directory id (which is what the DS scanner publishes).
-	directory := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesDirectory)
+	directory := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesDirectory)
 	if got, want := directory.Payload["resource_id"], wantDirectoryARN(); got != want {
 		t.Fatalf("directory resource_id = %#v, want %q", got, want)
 	}
@@ -132,7 +132,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, dirAttrs, "subnet_ids", []string{testSubnetA, testSubnetB})
 
 	// Bundle node.
-	bundle := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesBundle)
+	bundle := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesBundle)
 	if got, want := bundle.Payload["resource_id"], wantBundleARN(); got != want {
 		t.Fatalf("bundle resource_id = %#v, want %q", got, want)
 	}
@@ -142,25 +142,25 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, bundleAttrs, "root_volume_size_gib", "80")
 
 	// IP access control group node.
-	ipGroup := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesIPGroup)
+	ipGroup := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesIPGroup)
 	if got, want := ipGroup.Payload["resource_id"], wantIPGroupARN(); got != want {
 		t.Fatalf("ip group resource_id = %#v, want %q", got, want)
 	}
 
 	// workspace -> directory edge keyed by the directory node's published ARN.
-	wsDir := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesWorkspaceInDirectory)
-	assertEdgeTarget(t, wsDir, awscloud.ResourceTypeWorkSpacesDirectory, wantDirectoryARN())
+	wsDir := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesWorkspaceInDirectory)
+	assertEdgeTarget(t, wsDir, aws.ResourceTypeWorkSpacesDirectory, wantDirectoryARN())
 	if got, want := wsDir.Payload["source_resource_id"], wantWorkspaceARN(); got != want {
 		t.Fatalf("workspace->directory source_resource_id = %#v, want %q", got, want)
 	}
 
 	// workspace -> bundle edge.
-	wsBundle := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesWorkspaceUsesBundle)
-	assertEdgeTarget(t, wsBundle, awscloud.ResourceTypeWorkSpacesBundle, wantBundleARN())
+	wsBundle := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesWorkspaceUsesBundle)
+	assertEdgeTarget(t, wsBundle, aws.ResourceTypeWorkSpacesBundle, wantBundleARN())
 
 	// workspace -> KMS key edge keyed by the reported key ARN.
-	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey)
-	assertEdgeTarget(t, wsKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	wsKMS := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesWorkspaceUsesKMSKey)
+	assertEdgeTarget(t, wsKMS, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := wsKMS.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("workspace->kms target_arn = %#v, want %q", got, want)
 	}
@@ -168,8 +168,8 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	// directory -> DS directory edge keyed by the BARE directory id the DS
 	// scanner publishes (this is the critical cross-service join, distinct from
 	// the internal workspace->directory edge above).
-	dirDS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory)
-	assertEdgeTarget(t, dirDS, awscloud.ResourceTypeDSDirectory, testDirectoryID)
+	dirDS := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesDirectoryUsesDSDirectory)
+	assertEdgeTarget(t, dirDS, aws.ResourceTypeDSDirectory, testDirectoryID)
 	if got, want := dirDS.Payload["source_resource_id"], wantDirectoryARN(); got != want {
 		t.Fatalf("directory->ds source_resource_id = %#v, want %q", got, want)
 	}
@@ -178,22 +178,22 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	}
 
 	// directory -> security group edge keyed by the bare sg id.
-	dirSG := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesSecurityGroup)
-	assertEdgeTarget(t, dirSG, awscloud.ResourceTypeEC2SecurityGroup, testSecGroupID)
+	dirSG := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesDirectoryUsesSecurityGroup)
+	assertEdgeTarget(t, dirSG, aws.ResourceTypeEC2SecurityGroup, testSecGroupID)
 
 	// directory -> IAM role edge keyed by the role ARN.
-	dirRole := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole)
-	assertEdgeTarget(t, dirRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	dirRole := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesDirectoryUsesIAMRole)
+	assertEdgeTarget(t, dirRole, aws.ResourceTypeIAMRole, testRoleARN)
 	if got, want := dirRole.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("directory->iam target_arn = %#v, want %q", got, want)
 	}
 
 	// directory -> IP group edge keyed by the IP group node's published ARN.
-	dirIPGroup := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesIPGroup)
-	assertEdgeTarget(t, dirIPGroup, awscloud.ResourceTypeWorkSpacesIPGroup, wantIPGroupARN())
+	dirIPGroup := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesDirectoryUsesIPGroup)
+	assertEdgeTarget(t, dirIPGroup, aws.ResourceTypeWorkSpacesIPGroup, wantIPGroupARN())
 
 	// directory -> subnet edges (both subnets, bare ids).
-	subnetTargets := relationshipTargets(envelopes, awscloud.RelationshipWorkSpacesDirectoryInSubnet)
+	subnetTargets := relationshipTargets(envelopes, aws.RelationshipWorkSpacesDirectoryInSubnet)
 	if len(subnetTargets) != 2 {
 		t.Fatalf("directory->subnet edges = %d, want 2 (%#v)", len(subnetTargets), subnetTargets)
 	}
@@ -236,13 +236,13 @@ func TestScannerSynthesizesGovCloudARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	workspace := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesWorkspace)
+	workspace := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesWorkspace)
 	wantARN := "arn:aws-us-gov:workspaces:us-gov-west-1:123456789012:workspace/" + testWorkspaceID
 	if got := workspace.Payload["resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud workspace resource_id = %#v, want %q", got, wantARN)
 	}
 	// directory -> DS edge still keys on the bare directory id in GovCloud.
-	dirDS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory)
+	dirDS := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesDirectoryUsesDSDirectory)
 	if got := dirDS.Payload["target_resource_id"]; got != testDirectoryID {
 		t.Fatalf("GovCloud directory->ds target = %#v, want bare %q", got, testDirectoryID)
 	}
@@ -257,7 +257,7 @@ func TestScannerSynthesizesChinaARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	bundle := resourceByType(t, envelopes, awscloud.ResourceTypeWorkSpacesBundle)
+	bundle := resourceByType(t, envelopes, aws.ResourceTypeWorkSpacesBundle)
 	wantARN := "arn:aws-cn:workspaces:cn-north-1:123456789012:workspacebundle/" + testBundleID
 	if got := bundle.Payload["resource_id"]; got != wantARN {
 		t.Fatalf("China bundle resource_id = %#v, want %q", got, wantARN)
@@ -279,7 +279,7 @@ func TestScannerOmitsRelationshipsWhenDependenciesAbsent(t *testing.T) {
 			continue
 		}
 		// Only the directory->DS edge should survive (a directory always has a DS id).
-		if got := envelope.Payload["relationship_type"]; got != awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory {
+		if got := envelope.Payload["relationship_type"]; got != aws.RelationshipWorkSpacesDirectoryUsesDSDirectory {
 			t.Fatalf("unexpected relationship %#v emitted with absent dependencies", got)
 		}
 	}
@@ -295,7 +295,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey)
+	wsKMS := relationshipByType(t, envelopes, aws.RelationshipWorkSpacesWorkspaceUsesKMSKey)
 	if got, want := wsKMS.Payload["target_resource_id"], "1234abcd-12ab-34cd-56ef-1234567890ab"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -307,9 +307,9 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
 	snapshot := fullSnapshot()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, workspace := range snapshot.Workspaces {
-		for _, rel := range []*awscloud.RelationshipObservation{
+		for _, rel := range []*aws.RelationshipObservation{
 			workspaceInDirectoryRelationship(boundary, workspace),
 			workspaceUsesBundleRelationship(boundary, workspace),
 			workspaceUsesKMSKeyRelationship(boundary, workspace),
@@ -331,7 +331,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -342,9 +342,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Workspaces: []Workspace{{ID: testWorkspaceID}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "WorkSpaces DescribeTags throttled after SDK retries; tags omitted for this scan",
 			SourceRecordID: "workspaces_tags_throttled",
@@ -355,7 +355,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}

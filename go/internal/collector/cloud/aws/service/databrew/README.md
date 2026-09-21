@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/databrew` owns the AWS Glue DataBrew
+`internal/collector/cloud/aws/service/databrew` owns the AWS Glue DataBrew
 scanner contract for the AWS cloud collector. It converts DataBrew dataset,
 recipe, job, and project metadata into `aws_resource` facts and emits
 relationship evidence for the dataset's S3 and Glue Data Catalog inputs, the
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records DataBrew API call counts, throttles, and pagination
+`sdk` adapter records DataBrew API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -68,7 +68,7 @@ spans.
 - The dataset-to-S3 and job-to-S3 edges are emitted only when an S3 bucket is
   configured. DataBrew reports a bucket NAME, so the scanner synthesizes the
   partition-aware bucket ARN (`arn:<partition>:s3:::<bucket>`) via
-  `awscloud.PartitionForBoundary` to match the S3 scanner's published bucket
+  `aws.PartitionForBoundary` to match the S3 scanner's published bucket
   node identity in GovCloud and China, not just commercial.
 - The dataset-to-Glue-table edge is emitted only when the dataset reads a Glue
   Data Catalog table. The target is keyed by the `<database>/<table>` identity
@@ -87,7 +87,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/databrew/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/databrew/...` covers the bounded
 DataBrew metadata path: one paginated ListDatasets stream, one paginated
 ListRecipes stream, one paginated ListJobs stream, and one paginated
 ListProjects stream per region, no recipe-step reads, no query-string reads, no
@@ -95,7 +95,7 @@ sample-data reads, no mutations, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
 change to existing hot paths. `go test
-./internal/collector/awscloud/service/databrew/...` green.
+./internal/collector/cloud/aws/service/databrew/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle
 counters; no telemetry contract change.

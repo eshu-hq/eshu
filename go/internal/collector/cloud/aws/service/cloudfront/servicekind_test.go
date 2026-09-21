@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "cloudfront".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceCloudFront + "  "
+	boundary.ServiceKind = "  " + aws.ServiceCloudFront + "  "
 	client := fakeClient{distributions: []Distribution{{
 		ARN:    "arn:aws:cloudfront::123456789012:distribution/EDFDVBD632BHDS5",
 		ID:     "EDFDVBD632BHDS5",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceCloudFront; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceCloudFront; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -2,18 +2,18 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elasticbeanstalk/runtimebind` registers
-the Elastic Beanstalk scanner with the awsruntime registry from a package
+`internal/collector/cloud/aws/service/elasticbeanstalk/bind` registers
+the Elastic Beanstalk scanner with the runtime registry from a package
 `init()`. Importing this package for its blank side effect is the only way a
 runtime brings the Elastic Beanstalk scanner into the production registry.
 
 ## Ownership boundary
 
-This package owns one thing: the `awsruntime.Register` call that wires
-`awscloud.ServiceElasticBeanstalk` to the Elastic Beanstalk scanner builder and
+This package owns one thing: the `runtime.Register` call that wires
+`aws.ServiceElasticBeanstalk` to the Elastic Beanstalk scanner builder and
 declares `RequiresRedactionKey`. It does not own AWS API calls, Elastic
 Beanstalk domain types, redaction policy, or fact emission. Those belong to
-`internal/collector/awscloud/service/elasticbeanstalk` and its `awssdk`
+`internal/collector/cloud/aws/service/elasticbeanstalk` and its `sdk`
 adapter.
 
 ## Exported surface
@@ -23,19 +23,19 @@ the godoc rendering of that contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for the `ServiceElasticBeanstalk` constant.
-- `internal/collector/awscloud/awsruntime` for `Register`, `ScannerDeps`, and
+- `internal/collector/cloud/aws` for the `ServiceElasticBeanstalk` constant.
+- `internal/collector/cloud/aws/runtime` for `Register`, `ScannerDeps`, and
   `ScannerRegistration`.
-- `internal/collector/awscloud/service/elasticbeanstalk` for the scanner
+- `internal/collector/cloud/aws/service/elasticbeanstalk` for the scanner
   struct.
-- `internal/collector/awscloud/service/elasticbeanstalk/awssdk` for the SDK
+- `internal/collector/cloud/aws/service/elasticbeanstalk/sdk` for the SDK
   adapter constructor.
 
 ## Telemetry
 
 This binding emits no telemetry of its own. The Elastic Beanstalk scanner and
 its SDK adapter emit the per-service counters and spans documented in
-`../README.md` and the awsruntime README.
+`../README.md` and the runtime README.
 
 ## Gotchas / invariants
 
@@ -53,6 +53,6 @@ its SDK adapter emit the per-service counters and spans documented in
 ## Related docs
 
 - `../README.md` for the Elastic Beanstalk scanner contract.
-- `../../../awsruntime/README.md` for the registry and runtime surface.
+- `../../../runtime/README.md` for the registry and runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

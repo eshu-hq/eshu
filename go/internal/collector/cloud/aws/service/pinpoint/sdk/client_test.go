@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awspinpoint "github.com/aws/aws-sdk-go-v2/service/pinpoint"
 	awspinpointtypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
 
@@ -31,7 +31,7 @@ func (s *stubAPI) GetApps(_ context.Context, _ *awspinpoint.GetAppsInput, _ ...f
 }
 
 func (s *stubAPI) GetSegments(_ context.Context, in *awspinpoint.GetSegmentsInput, _ ...func(*awspinpoint.Options)) (*awspinpoint.GetSegmentsOutput, error) {
-	pages := s.segmentPages[aws.ToString(in.ApplicationId)]
+	pages := s.segmentPages[awsv2.ToString(in.ApplicationId)]
 	idx := s.segmentCalls
 	s.segmentCalls++
 	if idx >= len(pages) {
@@ -41,11 +41,11 @@ func (s *stubAPI) GetSegments(_ context.Context, in *awspinpoint.GetSegmentsInpu
 }
 
 func (s *stubAPI) GetChannels(_ context.Context, in *awspinpoint.GetChannelsInput, _ ...func(*awspinpoint.Options)) (*awspinpoint.GetChannelsOutput, error) {
-	return s.channels[aws.ToString(in.ApplicationId)], nil
+	return s.channels[awsv2.ToString(in.ApplicationId)], nil
 }
 
 func (s *stubAPI) GetEmailChannel(_ context.Context, in *awspinpoint.GetEmailChannelInput, _ ...func(*awspinpoint.Options)) (*awspinpoint.GetEmailChannelOutput, error) {
-	return s.emailChannel[aws.ToString(in.ApplicationId)], nil
+	return s.emailChannel[awsv2.ToString(in.ApplicationId)], nil
 }
 
 func TestSnapshotMapsApplicationsSegmentsChannels(t *testing.T) {
@@ -54,10 +54,10 @@ func TestSnapshotMapsApplicationsSegmentsChannels(t *testing.T) {
 		appsPages: []*awspinpoint.GetAppsOutput{{
 			ApplicationsResponse: &awspinpointtypes.ApplicationsResponse{
 				Item: []awspinpointtypes.ApplicationResponse{{
-					Id:           aws.String(appID),
-					Arn:          aws.String("arn:aws:mobiletargeting:us-east-1:123456789012:apps/app-1"),
-					Name:         aws.String("marketing"),
-					CreationDate: aws.String("2026-05-14T12:00:00.000Z"),
+					Id:           awsv2.String(appID),
+					Arn:          awsv2.String("arn:aws:mobiletargeting:us-east-1:123456789012:apps/app-1"),
+					Name:         awsv2.String("marketing"),
+					CreationDate: awsv2.String("2026-05-14T12:00:00.000Z"),
 					Tags:         map[string]string{"Env": "prod"},
 				}},
 			},
@@ -66,18 +66,18 @@ func TestSnapshotMapsApplicationsSegmentsChannels(t *testing.T) {
 			appID: {{
 				SegmentsResponse: &awspinpointtypes.SegmentsResponse{
 					Item: []awspinpointtypes.SegmentResponse{{
-						Id:            aws.String("seg-1"),
-						Arn:           aws.String("arn:aws:mobiletargeting:us-east-1:123456789012:apps/app-1/segments/seg-1"),
-						Name:          aws.String("active"),
-						ApplicationId: aws.String(appID),
+						Id:            awsv2.String("seg-1"),
+						Arn:           awsv2.String("arn:aws:mobiletargeting:us-east-1:123456789012:apps/app-1/segments/seg-1"),
+						Name:          awsv2.String("active"),
+						ApplicationId: awsv2.String(appID),
 						SegmentType:   awspinpointtypes.SegmentTypeImport,
-						Version:       aws.Int32(2),
+						Version:       awsv2.Int32(2),
 						ImportDefinition: &awspinpointtypes.SegmentImportResource{
 							Format:     awspinpointtypes.FormatCsv,
-							Size:       aws.Int32(99),
-							S3Url:      aws.String("s3://secret-bucket/endpoints.csv"),
-							ExternalId: aws.String("super-secret-external-id"),
-							RoleArn:    aws.String("arn:aws:iam::123456789012:role/import"),
+							Size:       awsv2.Int32(99),
+							S3Url:      awsv2.String("s3://secret-bucket/endpoints.csv"),
+							ExternalId: awsv2.String("super-secret-external-id"),
+							RoleArn:    awsv2.String("arn:aws:iam::123456789012:role/import"),
 						},
 					}},
 				},
@@ -86,21 +86,21 @@ func TestSnapshotMapsApplicationsSegmentsChannels(t *testing.T) {
 		channels: map[string]*awspinpoint.GetChannelsOutput{
 			appID: {ChannelsResponse: &awspinpointtypes.ChannelsResponse{
 				Channels: map[string]awspinpointtypes.ChannelResponse{
-					"EMAIL": {Enabled: aws.Bool(true), Version: aws.Int32(3)},
-					"SMS":   {Enabled: aws.Bool(false), Version: aws.Int32(1)},
+					"EMAIL": {Enabled: awsv2.Bool(true), Version: awsv2.Int32(3)},
+					"SMS":   {Enabled: awsv2.Bool(false), Version: awsv2.Int32(1)},
 				},
 			}},
 		},
 		emailChannel: map[string]*awspinpoint.GetEmailChannelOutput{
 			appID: {EmailChannelResponse: &awspinpointtypes.EmailChannelResponse{
-				ConfigurationSet: aws.String("marketing-config-set"),
-				Identity:         aws.String("arn:aws:ses:us-east-1:123456789012:identity/example.com"),
-				FromAddress:      aws.String("noreply@example.com"),
+				ConfigurationSet: awsv2.String("marketing-config-set"),
+				Identity:         awsv2.String("arn:aws:ses:us-east-1:123456789012:identity/example.com"),
+				FromAddress:      awsv2.String("noreply@example.com"),
 			}},
 		},
 	}
 
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: aws.Boundary{ServiceKind: aws.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v, want nil", err)
@@ -157,35 +157,35 @@ func TestSnapshotNeverCopiesEmailFromAddressOrImportSecrets(t *testing.T) {
 	stub := &stubAPI{
 		appsPages: []*awspinpoint.GetAppsOutput{{
 			ApplicationsResponse: &awspinpointtypes.ApplicationsResponse{
-				Item: []awspinpointtypes.ApplicationResponse{{Id: aws.String(appID), Name: aws.String("m")}},
+				Item: []awspinpointtypes.ApplicationResponse{{Id: awsv2.String(appID), Name: awsv2.String("m")}},
 			},
 		}},
 		segmentPages: map[string][]*awspinpoint.GetSegmentsOutput{
 			appID: {{SegmentsResponse: &awspinpointtypes.SegmentsResponse{
 				Item: []awspinpointtypes.SegmentResponse{{
-					Id:            aws.String("seg-1"),
-					ApplicationId: aws.String(appID),
+					Id:            awsv2.String("seg-1"),
+					ApplicationId: awsv2.String(appID),
 					SegmentType:   awspinpointtypes.SegmentTypeImport,
 					ImportDefinition: &awspinpointtypes.SegmentImportResource{
-						S3Url:      aws.String("s3://secret-bucket/endpoints.csv"),
-						ExternalId: aws.String("super-secret"),
-						RoleArn:    aws.String("arn:aws:iam::123456789012:role/import"),
+						S3Url:      awsv2.String("s3://secret-bucket/endpoints.csv"),
+						ExternalId: awsv2.String("super-secret"),
+						RoleArn:    awsv2.String("arn:aws:iam::123456789012:role/import"),
 					},
 				}},
 			}}},
 		},
 		channels: map[string]*awspinpoint.GetChannelsOutput{
 			appID: {ChannelsResponse: &awspinpointtypes.ChannelsResponse{
-				Channels: map[string]awspinpointtypes.ChannelResponse{"EMAIL": {Enabled: aws.Bool(true)}},
+				Channels: map[string]awspinpointtypes.ChannelResponse{"EMAIL": {Enabled: awsv2.Bool(true)}},
 			}},
 		},
 		emailChannel: map[string]*awspinpoint.GetEmailChannelOutput{
 			appID: {EmailChannelResponse: &awspinpointtypes.EmailChannelResponse{
-				FromAddress: aws.String("noreply@example.com"),
+				FromAddress: awsv2.String("noreply@example.com"),
 			}},
 		},
 	}
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: aws.Boundary{ServiceKind: aws.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
@@ -209,16 +209,16 @@ func TestListApplicationsPaginates(t *testing.T) {
 	stub := &stubAPI{
 		appsPages: []*awspinpoint.GetAppsOutput{
 			{ApplicationsResponse: &awspinpointtypes.ApplicationsResponse{
-				Item:      []awspinpointtypes.ApplicationResponse{{Id: aws.String("app-1"), Name: aws.String("one")}},
-				NextToken: aws.String("page2"),
+				Item:      []awspinpointtypes.ApplicationResponse{{Id: awsv2.String("app-1"), Name: awsv2.String("one")}},
+				NextToken: awsv2.String("page2"),
 			}},
 			{ApplicationsResponse: &awspinpointtypes.ApplicationsResponse{
-				Item: []awspinpointtypes.ApplicationResponse{{Id: aws.String("app-2"), Name: aws.String("two")}},
+				Item: []awspinpointtypes.ApplicationResponse{{Id: awsv2.String("app-2"), Name: awsv2.String("two")}},
 			}},
 		},
 		channels: map[string]*awspinpoint.GetChannelsOutput{},
 	}
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: aws.Boundary{ServiceKind: aws.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)

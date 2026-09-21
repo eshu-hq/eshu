@@ -1,15 +1,15 @@
-# AGENTS.md - services/appmesh/runtimebind guidance
+# AGENTS.md - services/appmesh/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - App Mesh scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceAppMesh`.
+- Register exactly once from `init()` with `aws.ServiceAppMesh`.
 - Keep the redaction-key guard: return a typed error when
   `ScannerDeps.RedactionKey` is zero. App Mesh redacts sensitive HTTP header
   match values, so a missing key is a configuration error, not a silent
@@ -17,8 +17,8 @@
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here beyond the redaction-key guard.
-  Validation belongs to awsruntime and the scanner.
-- Do not import anything else from `internal/collector/awscloud/service`.
+  Validation belongs to runtime and the scanner.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

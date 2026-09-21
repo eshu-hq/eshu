@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/quicksight guidance
+# AGENTS.md - internal/collector/cloud/aws/service/quicksight guidance
 
 ## Read First
 
@@ -29,12 +29,12 @@
 - Emit a backing-store edge only when the connector reports a resolvable target
   id: bare Redshift cluster id, bare RDS DB instance id, bare Athena workgroup
   name, or the partition-aware synthesized S3 bucket ARN. Never hardcode
-  `arn:aws:`; synthesize with `awscloud.PartitionForBoundary` so GovCloud and
+  `arn:aws:`; synthesize with `aws.PartitionForBoundary` so GovCloud and
   China resolve to the real bucket node.
 - Emit VPC-connection security-group and subnet edges only when the data source
   uses a VPC connection that resolved to a known summary. Key both by bare id.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from resource names or tags.
@@ -47,12 +47,12 @@
 
 - Add a new QuickSight metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry credential, secret, SQL,
+  `aws` envelope builders. If the field can carry credential, secret, SQL,
   or visual-definition content, leave it out of the scanner contract.
 - Add new relationship evidence only when the QuickSight API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination and describe fan-out in the `awssdk` adapter, not here.
+- Extend SDK pagination and describe fan-out in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

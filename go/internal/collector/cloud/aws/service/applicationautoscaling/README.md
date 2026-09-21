@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/applicationautoscaling` owns the AWS
+`internal/collector/cloud/aws/service/applicationautoscaling` owns the AWS
 Application Auto Scaling scanner contract for the AWS cloud collector. It
 converts scalable target, scaling policy, and scheduled action metadata into
 `aws_resource` facts and emits relationship evidence joining a scalable target
@@ -56,8 +56,8 @@ scale edge, so the graph never carries a dangling join.
 
 This package owns scanner-level Application Auto Scaling fact selection and
 identity mapping. It does not own AWS SDK pagination, STS credentials, workflow
-claims, fact envelope schema, or reducer projection. The `awssdk` subpackage
-owns the SDK adapter; `runtimebind` registers the scanner.
+claims, fact envelope schema, or reducer projection. The `sdk` subpackage
+owns the SDK adapter; `bind` registers the scanner.
 
 ## Metadata-only guarantees
 
@@ -71,5 +71,5 @@ scan boundary, never a hardcoded `arn:aws:`.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/applicationautoscaling/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/applicationautoscaling/...` green.
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cognito guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cognito guidance
 
 ## Read First
 
@@ -22,7 +22,7 @@
 - NEVER persist identity-provider ProviderDetails (client_secret,
   google_client_secret, and similar). `IdentityProvider` has no details field.
 - Route operator-supplied free text (identity-pool developer provider name,
-  group description) through `awscloud.RedactString`; the scanner requires a
+  group description) through `aws.RedactString`; the scanner requires a
   non-zero redaction key.
 - Emit reported evidence only. Do not infer environment, workload ownership, or
   deployable-unit truth from pool names, client names, providers, or tags.
@@ -31,11 +31,11 @@
 ## Common Changes
 
 - Add a new Cognito resource by extending the scanner-owned type, writing a
-  focused scanner test first, then mapping it through `awscloud` envelope
+  focused scanner test first, then mapping it through `aws` envelope
   builders.
 - Add new user-pool or identity-pool fields only when the Cognito API reports
   them directly and the field is safe for persistence (not a secret).
-- Extend SDK pagination and SDK-to-scanner mapping in the `awssdk` adapter, not
+- Extend SDK pagination and SDK-to-scanner mapping in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

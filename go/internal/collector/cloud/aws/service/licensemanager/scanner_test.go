@@ -50,7 +50,7 @@ func TestScannerEmitsConfigurationMetadataAndInstanceEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	config := resourceByType(t, envelopes, awscloud.ResourceTypeLicenseManagerConfiguration)
+	config := resourceByType(t, envelopes, aws.ResourceTypeLicenseManagerConfiguration)
 	if got, want := config.Payload["resource_id"], testConfigARN; got != want {
 		t.Fatalf("config resource_id = %#v, want %q", got, want)
 	}
@@ -67,7 +67,7 @@ func TestScannerEmitsConfigurationMetadataAndInstanceEdge(t *testing.T) {
 	assertAttribute(t, attrs, "associated_resource_types", []string{"EC2_AMI", "EC2_HOST", "EC2_INSTANCE"})
 
 	// Only one relationship: configuration -> EC2 instance, keyed by bare i- id.
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance)
+	edge := relationshipByType(t, envelopes, aws.RelationshipLicenseManagerConfigurationAppliesToInstance)
 	assertEdgeTarget(t, edge, "aws_ec2_instance", testInstanceID)
 	if got, want := edge.Payload["source_resource_id"], testConfigARN; got != want {
 		t.Fatalf("edge source_resource_id = %#v, want %q", got, want)
@@ -100,7 +100,7 @@ func TestScannerOmitsLicenseCountWhenUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	config := resourceByType(t, envelopes, awscloud.ResourceTypeLicenseManagerConfiguration)
+	config := resourceByType(t, envelopes, aws.ResourceTypeLicenseManagerConfiguration)
 	attrs := attributesOf(t, config)
 	if _, exists := attrs["license_count"]; exists {
 		t.Fatalf("license_count attribute present, want omitted when not configured")
@@ -167,7 +167,7 @@ func TestScannerResolvesGovCloudInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance)
+	edge := relationshipByType(t, envelopes, aws.RelationshipLicenseManagerConfigurationAppliesToInstance)
 	if got, want := edge.Payload["target_resource_id"], "i-govabc123"; got != want {
 		t.Fatalf("GovCloud edge target_resource_id = %#v, want %q", got, want)
 	}
@@ -185,7 +185,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -203,9 +203,9 @@ func TestScannerErrorsWithoutClient(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Configurations: []Configuration{{ARN: testConfigARN, ID: testConfigID, Name: "windows"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "License Manager ListAssociationsForLicenseConfiguration throttled after SDK retries; associations omitted for this scan",
 			SourceRecordID: "licensemanager_associations_throttled",
@@ -216,7 +216,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -250,11 +250,11 @@ func TestScannerOmitsNoEntitlementLeakage(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLicenseManager,
+		ServiceKind:         aws.ServiceLicenseManager,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:licensemanager:1",
 		CollectorInstanceID: "aws-prod",

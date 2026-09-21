@@ -14,7 +14,7 @@ import (
 // that identifier as the KMS scanner publishes its key resource_id, with the ARN
 // set only when the identifier is an ARN. It returns nil when no key is
 // reported.
-func domainKMSRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.RelationshipObservation {
+func domainKMSRelationship(boundary aws.Boundary, domain Domain) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(domain.KMSKeyIdentifier)
 	if targetID == "" {
 		return nil
@@ -27,15 +27,15 @@ func domainKMSRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDomainUsesKMSKey,
+		RelationshipType: aws.RelationshipDatazoneDomainUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatazoneDomainUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDatazoneDomainUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -45,11 +45,11 @@ func domainKMSRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.
 // its role resource_id. roleKind labels which role the edge records. It returns
 // nil when the role ARN is missing or is not an IAM role ARN.
 func domainIAMRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	domain Domain,
 	roleARN string,
 	roleKind string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	roleARN = strings.TrimSpace(roleARN)
 	if !isIAMRoleARN(roleARN) {
 		return nil
@@ -58,18 +58,18 @@ func domainIAMRoleRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDomainUsesIAMRole,
+		RelationshipType: aws.RelationshipDatazoneDomainUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		Attributes: map[string]any{
 			"role_kind": roleKind,
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipDatazoneDomainUsesIAMRole + ":" + roleARN,
+		SourceRecordID: sourceID + "->" + aws.RelationshipDatazoneDomainUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -79,12 +79,12 @@ func domainIAMRoleRelationship(
 // relationshipType / childType describe the specific child. It returns nil when
 // either endpoint identity is missing.
 func childInDomainRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	childID string,
 	childARN string,
 	domainID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	childID = strings.TrimSpace(childID)
 	domainID = strings.TrimSpace(domainID)
 	if childID == "" || domainID == "" {
@@ -94,14 +94,14 @@ func childInDomainRelationship(
 	if isARN(domainID) {
 		targetARN = domainID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: childID,
 		SourceARN:        strings.TrimSpace(childARN),
 		TargetResourceID: domainID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeDatazoneDomain,
+		TargetType:       aws.ResourceTypeDatazoneDomain,
 		SourceRecordID:   childID + "->" + relationshipType + ":" + domainID,
 	}
 }
@@ -111,22 +111,22 @@ func childInDomainRelationship(
 // matching how the Glue scanner publishes its database resource_id. It returns
 // nil when the data source reports no resolvable Glue database.
 func dataSourceGlueRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	dataSource DataSource,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(dataSource.ID)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, database := range cloneStrings(dataSource.GlueDatabaseNames) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDatazoneDataSourceBacksGlueDatabase,
+			RelationshipType: aws.RelationshipDatazoneDataSourceBacksGlueDatabase,
 			SourceResourceID: sourceID,
 			TargetResourceID: database,
-			TargetType:       awscloud.ResourceTypeGlueDatabase,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatazoneDataSourceBacksGlueDatabase + ":" + database,
+			TargetType:       aws.ResourceTypeGlueDatabase,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipDatazoneDataSourceBacksGlueDatabase + ":" + database,
 		})
 	}
 	return observations
@@ -138,9 +138,9 @@ func dataSourceGlueRelationships(
 // returns nil when the data source reports no provisioned cluster (serverless
 // workgroups are not resolvable to a published node id and are omitted).
 func dataSourceRedshiftRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	dataSource DataSource,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(dataSource.ID)
 	if sourceID == "" {
 		return nil
@@ -154,17 +154,17 @@ func dataSourceRedshiftRelationship(
 	if clusterARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster,
+		RelationshipType: aws.RelationshipDatazoneDataSourceBacksRedshiftCluster,
 		SourceResourceID: sourceID,
 		TargetResourceID: clusterARN,
 		TargetARN:        clusterARN,
-		TargetType:       awscloud.ResourceTypeRedshiftCluster,
+		TargetType:       aws.ResourceTypeRedshiftCluster,
 		Attributes: map[string]any{
 			"cluster_name": strings.TrimSpace(dataSource.RedshiftClusterName),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster + ":" + clusterARN,
+		SourceRecordID: sourceID + "->" + aws.RelationshipDatazoneDataSourceBacksRedshiftCluster + ":" + clusterARN,
 	}
 }
 

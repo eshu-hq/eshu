@@ -11,49 +11,49 @@ import (
 )
 
 func clusterRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	parameterGroupIDs map[string]string,
 	subnetGroupIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(cluster.ARN, cluster.Identifier)
 	if sourceID == "" {
 		return nil
 	}
 	clusterARN := strings.TrimSpace(cluster.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if vpcID := strings.TrimSpace(cluster.VPCID); vpcID != "" {
 		relationships = append(relationships, namedRelationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterInVPC,
+			aws.RelationshipRedshiftClusterInVPC,
 			sourceID,
 			clusterARN,
 			vpcID,
-			awscloud.ResourceTypeEC2VPC,
+			aws.ResourceTypeEC2VPC,
 			nil,
 		))
 	}
 	if targetID := subnetGroupIDs[strings.TrimSpace(cluster.ClusterSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterInSubnetGroup,
+			aws.RelationshipRedshiftClusterInSubnetGroup,
 			sourceID,
 			clusterARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftClusterSubnetGroup,
+			aws.ResourceTypeRedshiftClusterSubnetGroup,
 			map[string]any{"cluster_subnet_group_name": strings.TrimSpace(cluster.ClusterSubnetGroupName)},
 		))
 	}
 	if targetID := parameterGroupIDs[strings.TrimSpace(cluster.ClusterParameterGroup)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesParameterGroup,
+			aws.RelationshipRedshiftClusterUsesParameterGroup,
 			sourceID,
 			clusterARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftClusterParameterGroup,
+			aws.ResourceTypeRedshiftClusterParameterGroup,
 			map[string]any{"cluster_parameter_group_name": strings.TrimSpace(cluster.ClusterParameterGroup)},
 		))
 	}
@@ -61,18 +61,18 @@ func clusterRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesSecurityGroup,
+			aws.RelationshipRedshiftClusterUsesSecurityGroup,
 			sourceID,
 			clusterARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			aws.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterUsesKMSKey,
+		aws.RelationshipRedshiftClusterUsesKMSKey,
 		sourceID,
 		clusterARN,
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -82,12 +82,12 @@ func clusterRelationships(
 	for _, roleARN := range cloneStrings(cluster.IAMRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesIAMRole,
+			aws.RelationshipRedshiftClusterUsesIAMRole,
 			sourceID,
 			clusterARN,
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			aws.ResourceTypeIAMRole,
 			nil,
 		))
 	}
@@ -95,51 +95,51 @@ func clusterRelationships(
 }
 
 func subnetGroupVPCRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group ClusterSubnetGroup,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	sourceID := firstNonEmpty(group.ARN, group.Name)
 	vpcID := strings.TrimSpace(group.VPCID)
 	if sourceID == "" || vpcID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	return namedRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterSubnetGroupInVPC,
+		aws.RelationshipRedshiftClusterSubnetGroupInVPC,
 		sourceID,
 		strings.TrimSpace(group.ARN),
 		vpcID,
-		awscloud.ResourceTypeEC2VPC,
+		aws.ResourceTypeEC2VPC,
 		nil,
 	), true
 }
 
 func snapshotRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	snapshot ClusterSnapshot,
 	clusterIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(snapshot.ARN, snapshot.Identifier)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	clusterIdentifier := strings.TrimSpace(snapshot.ClusterIdentifier)
 	if targetID := clusterIDs[clusterIdentifier]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterSnapshotOfCluster,
+			aws.RelationshipRedshiftClusterSnapshotOfCluster,
 			sourceID,
 			strings.TrimSpace(snapshot.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftCluster,
+			aws.ResourceTypeRedshiftCluster,
 			map[string]any{"cluster_identifier": clusterIdentifier},
 		))
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterSnapshotUsesKMSKey,
+		aws.RelationshipRedshiftClusterSnapshotUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(snapshot.ARN),
 		strings.TrimSpace(snapshot.KMSKeyID),
@@ -150,25 +150,25 @@ func snapshotRelationships(
 }
 
 func scheduledActionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	action ScheduledAction,
 	clusterIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(action.Name)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	clusterIdentifier := strings.TrimSpace(action.TargetClusterIdentifier)
 	if targetID := clusterIDs[clusterIdentifier]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftScheduledActionTargetsCluster,
+			aws.RelationshipRedshiftScheduledActionTargetsCluster,
 			sourceID,
 			"",
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftCluster,
+			aws.ResourceTypeRedshiftCluster,
 			map[string]any{
 				"target_action_name": strings.TrimSpace(action.TargetActionName),
 				"cluster_identifier": clusterIdentifier,
@@ -177,29 +177,29 @@ func scheduledActionRelationships(
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftScheduledActionUsesIAMRole,
+		aws.RelationshipRedshiftScheduledActionUsesIAMRole,
 		sourceID,
 		"",
 		strings.TrimSpace(action.IAMRoleARN),
-		awscloud.ResourceTypeIAMRole,
+		aws.ResourceTypeIAMRole,
 		nil,
 	)...)
 	return relationships
 }
 
 func serverlessNamespaceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	namespace ServerlessNamespace,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(namespace.ARN, namespace.Name)
 	if sourceID == "" {
 		return nil
 	}
 	namespaceARN := strings.TrimSpace(namespace.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftServerlessNamespaceUsesKMSKey,
+		aws.RelationshipRedshiftServerlessNamespaceUsesKMSKey,
 		sourceID,
 		namespaceARN,
 		strings.TrimSpace(namespace.KMSKeyID),
@@ -209,12 +209,12 @@ func serverlessNamespaceRelationships(
 	for _, roleARN := range cloneStrings(namespace.IAMRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessNamespaceUsesIAMRole,
+			aws.RelationshipRedshiftServerlessNamespaceUsesIAMRole,
 			sourceID,
 			namespaceARN,
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			aws.ResourceTypeIAMRole,
 			nil,
 		))
 	}
@@ -222,38 +222,38 @@ func serverlessNamespaceRelationships(
 }
 
 func serverlessWorkgroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	workgroup ServerlessWorkgroup,
 	namespaceIDs map[string]string,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(workgroup.ARN, workgroup.Name)
 	if sourceID == "" {
 		return nil
 	}
 	workgroupARN := strings.TrimSpace(workgroup.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	namespaceName := strings.TrimSpace(workgroup.NamespaceName)
 	if targetID := namespaceIDs[namespaceName]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupInNamespace,
+			aws.RelationshipRedshiftServerlessWorkgroupInNamespace,
 			sourceID,
 			workgroupARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftServerlessNamespace,
+			aws.ResourceTypeRedshiftServerlessNamespace,
 			map[string]any{"namespace_name": namespaceName},
 		))
 	}
 	for _, subnetID := range cloneStrings(workgroup.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupUsesSubnet,
+			aws.RelationshipRedshiftServerlessWorkgroupUsesSubnet,
 			sourceID,
 			workgroupARN,
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			aws.ResourceTypeEC2Subnet,
 			map[string]any{"subnet_id": subnetID},
 		))
 	}
@@ -261,12 +261,12 @@ func serverlessWorkgroupRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup,
+			aws.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup,
 			sourceID,
 			workgroupARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			aws.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
@@ -274,14 +274,14 @@ func serverlessWorkgroupRelationships(
 }
 
 func optionalTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	targetID string,
 	targetType string,
 	attributes map[string]any,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	targetID = strings.TrimSpace(targetID)
 	if targetID == "" {
 		return nil
@@ -290,7 +290,7 @@ func optionalTargetRelationship(
 	if strings.HasPrefix(targetID, "arn:") {
 		targetARN = targetID
 	}
-	return []awscloud.RelationshipObservation{relationship(
+	return []aws.RelationshipObservation{relationship(
 		boundary,
 		relationshipType,
 		sourceID,
@@ -303,19 +303,19 @@ func optionalTargetRelationship(
 }
 
 func namedRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
 	targetID string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	return relationship(boundary, relationshipType, sourceID, sourceARN, targetID, "", targetType, attributes)
 }
 
 func relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType string,
 	sourceID string,
 	sourceARN string,
@@ -323,8 +323,8 @@ func relationship(
 	targetARN string,
 	targetType string,
 	attributes map[string]any,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
@@ -337,12 +337,12 @@ func relationship(
 	}
 }
 
-func securityGroupARN(boundary awscloud.Boundary, groupID string) string {
+func securityGroupARN(boundary aws.Boundary, groupID string) string {
 	groupID = strings.TrimSpace(groupID)
 	if groupID == "" || strings.HasPrefix(groupID, "arn:") {
 		return groupID
 	}
-	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
+	return "arn:" + aws.PartitionForBoundary(boundary) + ":ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
 }
 
 func targetARNFor(targetID string) string {

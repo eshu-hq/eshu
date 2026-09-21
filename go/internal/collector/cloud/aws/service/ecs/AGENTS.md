@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ecs guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ecs guidance
 
 ## Read First
 
@@ -30,10 +30,10 @@
 ## Common Changes
 
 - Add a new ECS resource by extending the scanner-owned type, writing a focused
-  scanner test first, then mapping it through `awscloud` envelope builders.
+  scanner test first, then mapping it through `aws` envelope builders.
 - Add new task-definition fields only when the ECS API reports them directly
   and the field is safe for persistence.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 - Extend `image_reference.go` only for another AWS-registry-shaped image host
   pattern. Do not widen it to force a non-AWS-registry image into the
   `aws_image_reference` shape; that is a documented bounded gap (see README

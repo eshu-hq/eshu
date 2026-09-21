@@ -66,7 +66,7 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	vault := resourceByType(t, envelopes, awscloud.ResourceTypeBackupVault)
+	vault := resourceByType(t, envelopes, aws.ResourceTypeBackupVault)
 	vaultAttrs := attributesOf(t, vault)
 	if got, want := vaultAttrs["encryption_key_arn"], kmsARN; got != want {
 		t.Fatalf("vault encryption_key_arn = %#v, want %q", got, want)
@@ -88,7 +88,7 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 		}
 	}
 
-	plan := resourceByType(t, envelopes, awscloud.ResourceTypeBackupPlan)
+	plan := resourceByType(t, envelopes, aws.ResourceTypeBackupPlan)
 	planAttrs := attributesOf(t, plan)
 	if got, want := planAttrs["version_id"], "v1"; got != want {
 		t.Fatalf("plan version_id = %#v, want %q", got, want)
@@ -107,7 +107,7 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 		t.Fatalf("rule schedule_expression = %#v, want %q", got, want)
 	}
 
-	selection := resourceByType(t, envelopes, awscloud.ResourceTypeBackupSelection)
+	selection := resourceByType(t, envelopes, aws.ResourceTypeBackupSelection)
 	selAttrs := attributesOf(t, selection)
 	if got, want := selAttrs["iam_role_arn"], roleARN; got != want {
 		t.Fatalf("selection iam_role_arn = %#v, want %q", got, want)
@@ -126,7 +126,7 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 		t.Fatalf("tag_conditions[0].key = %#v, want %q", got, want)
 	}
 
-	planSelection := relationshipByType(t, envelopes, awscloud.RelationshipBackupPlanHasSelection)
+	planSelection := relationshipByType(t, envelopes, aws.RelationshipBackupPlanHasSelection)
 	if got, want := planSelection.Payload["source_arn"], planARN; got != want {
 		t.Fatalf("plan-selection source_arn = %#v, want %q", got, want)
 	}
@@ -134,20 +134,20 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 		t.Fatalf("plan-selection target_resource_id = %#v, want %q", got, want)
 	}
 
-	selResource := relationshipByType(t, envelopes, awscloud.RelationshipBackupSelectionIncludesResource)
+	selResource := relationshipByType(t, envelopes, aws.RelationshipBackupSelectionIncludesResource)
 	if got, want := selResource.Payload["target_arn"], includedResource; got != want {
 		t.Fatalf("selection-resource target_arn = %#v, want %q", got, want)
 	}
-	if got, want := selResource.Payload["target_type"], awscloud.ResourceTypeDynamoDBTable; got != want {
+	if got, want := selResource.Payload["target_type"], aws.ResourceTypeDynamoDBTable; got != want {
 		t.Fatalf("selection-resource target_type = %#v, want %q", got, want)
 	}
 
-	selRole := relationshipByType(t, envelopes, awscloud.RelationshipBackupSelectionUsesIAMRole)
+	selRole := relationshipByType(t, envelopes, aws.RelationshipBackupSelectionUsesIAMRole)
 	if got, want := selRole.Payload["target_arn"], roleARN; got != want {
 		t.Fatalf("selection-role target_arn = %#v, want %q", got, want)
 	}
 
-	vaultKMS := relationshipByType(t, envelopes, awscloud.RelationshipBackupVaultUsesKMSKey)
+	vaultKMS := relationshipByType(t, envelopes, aws.RelationshipBackupVaultUsesKMSKey)
 	if got, want := vaultKMS.Payload["target_arn"], kmsARN; got != want {
 		t.Fatalf("vault-kms target_arn = %#v, want %q", got, want)
 	}
@@ -184,7 +184,7 @@ func TestScannerEmitsRecoveryPointMetadataOnly(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	rp := resourceByType(t, envelopes, awscloud.ResourceTypeBackupRecoveryPoint)
+	rp := resourceByType(t, envelopes, aws.ResourceTypeBackupRecoveryPoint)
 	attrs := attributesOf(t, rp)
 	if got, want := attrs["source_resource_arn"], sourceARN; got != want {
 		t.Fatalf("recovery-point source_resource_arn = %#v, want %q", got, want)
@@ -212,16 +212,16 @@ func TestScannerEmitsRecoveryPointMetadataOnly(t *testing.T) {
 		}
 	}
 
-	inVault := relationshipByType(t, envelopes, awscloud.RelationshipBackupRecoveryPointInVault)
+	inVault := relationshipByType(t, envelopes, aws.RelationshipBackupRecoveryPointInVault)
 	if got, want := inVault.Payload["target_arn"], vaultARN; got != want {
 		t.Fatalf("recovery-point in-vault target_arn = %#v, want %q", got, want)
 	}
 
-	ofResource := relationshipByType(t, envelopes, awscloud.RelationshipBackupRecoveryPointOfResource)
+	ofResource := relationshipByType(t, envelopes, aws.RelationshipBackupRecoveryPointOfResource)
 	if got, want := ofResource.Payload["target_arn"], sourceARN; got != want {
 		t.Fatalf("recovery-point of-resource target_arn = %#v, want %q", got, want)
 	}
-	if got, want := ofResource.Payload["target_type"], awscloud.ResourceTypeRDSDBInstance; got != want {
+	if got, want := ofResource.Payload["target_type"], aws.ResourceTypeRDSDBInstance; got != want {
 		t.Fatalf("recovery-point of-resource target_type = %#v, want %q", got, want)
 	}
 }
@@ -268,7 +268,7 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	report := resourceByType(t, envelopes, awscloud.ResourceTypeBackupReportPlan)
+	report := resourceByType(t, envelopes, aws.ResourceTypeBackupReportPlan)
 	rAttrs := attributesOf(t, report)
 	if got, want := rAttrs["s3_bucket_name"], "backup-reports"; got != want {
 		t.Fatalf("report s3_bucket_name = %#v, want %q", got, want)
@@ -277,13 +277,13 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 		t.Fatalf("report report_template = %#v, want %q", got, want)
 	}
 
-	restore := resourceByType(t, envelopes, awscloud.ResourceTypeBackupRestoreTestingPlan)
+	restore := resourceByType(t, envelopes, aws.ResourceTypeBackupRestoreTestingPlan)
 	rtAttrs := attributesOf(t, restore)
 	if got, want := rtAttrs["schedule_expression"], "cron(0 6 ? * * *)"; got != want {
 		t.Fatalf("restore-testing schedule_expression = %#v, want %q", got, want)
 	}
 
-	framework := resourceByType(t, envelopes, awscloud.ResourceTypeBackupFramework)
+	framework := resourceByType(t, envelopes, aws.ResourceTypeBackupFramework)
 	fAttrs := attributesOf(t, framework)
 	if got, want := fAttrs["number_of_controls"], int32(3); got != want {
 		t.Fatalf("framework number_of_controls = %#v, want %d", got, want)
@@ -300,7 +300,7 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 		}
 	}
 
-	control := resourceByType(t, envelopes, awscloud.ResourceTypeBackupFrameworkControl)
+	control := resourceByType(t, envelopes, aws.ResourceTypeBackupFrameworkControl)
 	cAttrs := attributesOf(t, control)
 	if got, want := cAttrs["control_name"], "BACKUP_RECOVERY_POINT_MINIMUM_RETENTION_CHECK"; got != want {
 		t.Fatalf("framework-control control_name = %#v, want %q", got, want)
@@ -316,7 +316,7 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 		}
 	}
 
-	hasControl := relationshipByType(t, envelopes, awscloud.RelationshipBackupFrameworkHasControl)
+	hasControl := relationshipByType(t, envelopes, aws.RelationshipBackupFrameworkHasControl)
 	if got, want := hasControl.Payload["source_arn"], frameworkARN; got != want {
 		t.Fatalf("framework-control relationship source_arn = %#v, want %q", got, want)
 	}
@@ -324,7 +324,7 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -356,10 +356,10 @@ func TestScannerSkipsRoleAndIncludeWhenIdentitiesMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipBackupSelectionUsesIAMRole); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipBackupSelectionUsesIAMRole); got != 0 {
 		t.Fatalf("selection-role relationship count = %d, want 0 when role missing", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipBackupSelectionIncludesResource); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipBackupSelectionIncludesResource); got != 0 {
 		t.Fatalf("selection-resource relationship count = %d, want 0 when only non-ARN values reported", got)
 	}
 }

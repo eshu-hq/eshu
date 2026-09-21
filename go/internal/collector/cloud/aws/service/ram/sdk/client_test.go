@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsram "github.com/aws/aws-sdk-go-v2/service/ram"
 	awsramtypes "github.com/aws/aws-sdk-go-v2/service/ram/types"
 
@@ -69,7 +69,7 @@ func (f *fakeRAMAPI) ListResourceSharePermissions(
 	input *awsram.ListResourceSharePermissionsInput,
 	_ ...func(*awsram.Options),
 ) (*awsram.ListResourceSharePermissionsOutput, error) {
-	arn := aws.ToString(input.ResourceShareArn)
+	arn := awsv2.ToString(input.ResourceShareArn)
 	return &awsram.ListResourceSharePermissionsOutput{Permissions: f.permsByShare[arn]}, nil
 }
 
@@ -78,40 +78,40 @@ func TestClientListResourceSharesReadsOwnerSelfMetadata(t *testing.T) {
 	api := &fakeRAMAPI{
 		sharePages: []*awsram.GetResourceSharesOutput{{
 			ResourceShares: []awsramtypes.ResourceShare{{
-				ResourceShareArn:        aws.String(shareARN),
-				Name:                    aws.String("orders-share"),
+				ResourceShareArn:        awsv2.String(shareARN),
+				Name:                    awsv2.String("orders-share"),
 				Status:                  awsramtypes.ResourceShareStatusActive,
-				OwningAccountId:         aws.String("123456789012"),
-				AllowExternalPrincipals: aws.Bool(true),
+				OwningAccountId:         awsv2.String("123456789012"),
+				AllowExternalPrincipals: awsv2.Bool(true),
 				FeatureSet:              awsramtypes.ResourceShareFeatureSetStandard,
-				Tags:                    []awsramtypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+				Tags:                    []awsramtypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 			}},
 		}},
 		resourcesByShare: map[string][]awsramtypes.Resource{
 			shareARN: {{
-				Arn:                 aws.String("ec2-arn:subnet/subnet-abc"),
-				Type:                aws.String("ec2:subnet"),
+				Arn:                 awsv2.String("ec2-arn:subnet/subnet-abc"),
+				Type:                awsv2.String("ec2:subnet"),
 				Status:              awsramtypes.ResourceStatusAvailable,
 				ResourceRegionScope: awsramtypes.ResourceRegionScopeRegional,
 			}},
 		},
 		principalsByShr: map[string][]awsramtypes.Principal{
-			shareARN: {{Id: aws.String("210987654321"), External: aws.Bool(false)}},
+			shareARN: {{Id: awsv2.String("210987654321"), External: awsv2.Bool(false)}},
 		},
 		permsByShare: map[string][]awsramtypes.ResourceSharePermissionSummary{
 			shareARN: {{
-				Arn:            aws.String("ram-arn:permission/subnet"),
-				Name:           aws.String("AWSRAMDefaultPermissionSubnet"),
-				Version:        aws.String("3"),
+				Arn:            awsv2.String("ram-arn:permission/subnet"),
+				Name:           awsv2.String("AWSRAMDefaultPermissionSubnet"),
+				Version:        awsv2.String("3"),
 				PermissionType: awsramtypes.PermissionTypeAwsManaged,
-				ResourceType:   aws.String("ec2:subnet"),
-				DefaultVersion: aws.Bool(true),
+				ResourceType:   awsv2.String("ec2:subnet"),
+				DefaultVersion: awsv2.Bool(true),
 			}},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceRAM},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceRAM},
 	}
 
 	shares, err := adapter.ListResourceShares(context.Background())
@@ -166,17 +166,17 @@ func TestClientListResourceSharesPaginatesShares(t *testing.T) {
 	api := &fakeRAMAPI{
 		sharePages: []*awsram.GetResourceSharesOutput{
 			{
-				ResourceShares: []awsramtypes.ResourceShare{{ResourceShareArn: aws.String("ram-arn:share/a")}},
-				NextToken:      aws.String("page-2"),
+				ResourceShares: []awsramtypes.ResourceShare{{ResourceShareArn: awsv2.String("ram-arn:share/a")}},
+				NextToken:      awsv2.String("page-2"),
 			},
 			{
-				ResourceShares: []awsramtypes.ResourceShare{{ResourceShareArn: aws.String("ram-arn:share/b")}},
+				ResourceShares: []awsramtypes.ResourceShare{{ResourceShareArn: awsv2.String("ram-arn:share/b")}},
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceRAM},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceRAM},
 	}
 
 	shares, err := adapter.ListResourceShares(context.Background())

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/quotas` owns the AWS Service Quotas
+`internal/collector/cloud/aws/service/quotas` owns the AWS Service Quotas
 scanner contract for the AWS cloud collector. It converts each applied service
 quota for the claimed account and region into an `aws_resource` fact, joining the
 applied value against the AWS-published default so an operator can see which
@@ -34,7 +34,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, the resource-type constant, and
+- `internal/collector/cloud/aws` for boundaries, the resource-type constant, and
   envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -43,9 +43,9 @@ v2 so tests can use fake clients and the runtime adapter can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Service Quotas API call counts, throttles, and
+The `sdk` adapter records Service Quotas API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -69,12 +69,12 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/quotas/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/quotas/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/quotas/...` covers the
+`go test ./internal/collector/cloud/aws/service/quotas/...` covers the
 bounded Service Quotas metadata path: one paginated ListServices stream, one
 paginated ListAWSDefaultServiceQuotas stream and one paginated ListServiceQuotas
 stream per service, an in-memory join by quota code, no quota-change reads, no

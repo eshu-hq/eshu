@@ -15,23 +15,23 @@ import (
 // the same account and region. It returns false for an empty rule name so a
 // blank entry does not produce a dangling edge.
 func conformancePackRuleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pack ConformancePack,
 	ruleName string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	packID := firstNonEmpty(strings.TrimSpace(pack.ARN), conformancePackResourceID(pack.Name))
 	name := strings.TrimSpace(ruleName)
 	if packID == "" || name == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	ruleID := ruleResourceID(name)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigConformancePackContainsRule,
+		RelationshipType: aws.RelationshipConfigConformancePackContainsRule,
 		SourceResourceID: packID,
 		SourceARN:        strings.TrimSpace(pack.ARN),
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeConfigRule,
+		TargetType:       aws.ResourceTypeConfigRule,
 		Attributes: map[string]any{
 			"conformance_pack_name": strings.TrimSpace(pack.Name),
 			"config_rule_name":      name,
@@ -46,23 +46,23 @@ func conformancePackRuleRelationship(
 // resource_id convention (the function ARN when present). It returns false for
 // managed or custom-policy rules, which carry no Lambda evaluator ARN.
 func ruleLambdaRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rule ConfigRule,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	lambdaARN := strings.TrimSpace(rule.LambdaFunctionARN)
 	name := strings.TrimSpace(rule.Name)
 	if name == "" || !isLambdaFunctionARN(lambdaARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	ruleID := ruleResourceID(name)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigRuleEvaluatedByLambda,
+		RelationshipType: aws.RelationshipConfigRuleEvaluatedByLambda,
 		SourceResourceID: ruleID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: lambdaARN,
 		TargetARN:        lambdaARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       aws.ResourceTypeLambdaFunction,
 		Attributes: map[string]any{
 			"config_rule_name": name,
 			"owner":            strings.TrimSpace(rule.Owner),
@@ -78,28 +78,28 @@ func ruleLambdaRelationship(
 // GovCloud and China partitions. It returns false when the partition cannot be
 // derived or the account id is empty.
 func aggregatorAccountRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	aggregator ConfigurationAggregator,
 	sourceAccountID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	aggregatorID := firstNonEmpty(strings.TrimSpace(aggregator.ARN), aggregatorResourceID(aggregator.Name))
 	accountID := strings.TrimSpace(sourceAccountID)
 	if aggregatorID == "" || accountID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	partition, ok := partitionFromARN(aggregator.ARN)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	accountARN := "arn:" + partition + ":iam::" + accountID + ":root"
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigAggregatorSourcesAccount,
+		RelationshipType: aws.RelationshipConfigAggregatorSourcesAccount,
 		SourceResourceID: aggregatorID,
 		SourceARN:        strings.TrimSpace(aggregator.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       aws.ResourceTypeAWSAccount,
 		Attributes: map[string]any{
 			"source_account_id":             accountID,
 			"configuration_aggregator_name": strings.TrimSpace(aggregator.Name),

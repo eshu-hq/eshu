@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/backup` owns the AWS Backup scanner
+`internal/collector/cloud/aws/service/backup` owns the AWS Backup scanner
 contract for the AWS cloud collector. It converts AWS Backup metadata into
 `aws_resource` facts and emits relationship evidence for plan-to-selection,
 selection-to-resource, selection-to-IAM-role, vault-to-KMS-key,
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan`
-returns. The `awssdk` adapter records AWS Backup API call counts, throttles,
+returns. The `sdk` adapter records AWS Backup API call counts, throttles,
 and pagination spans.
 
 ## Security invariants
@@ -94,10 +94,10 @@ point metadata, report plans, restore testing plans, frameworks) once and
 emits typed source facts; the reducer continues to own canonical graph
 writes downstream.
 
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/service/backup/... -count=1 -race`
-and `go test ./internal/collector/awscloud/awsruntime/... -count=1 -race`
+No-Regression Evidence: `cd go && go test ./internal/collector/cloud/aws/service/backup/... -count=1 -race`
+and `go test ./internal/collector/cloud/aws/runtime/... -count=1 -race`
 cover the scanner, the SDK adapter, and registry resolution. `golangci-lint
-run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
+run ./internal/collector/cloud/aws/... ./cmd/collector-aws-cloud/...` reports
 zero issues. The scan surface is bounded by the AWS account's Backup
 inventory and uses the shared paginator, so worst-case fan-out matches the
 existing Phase 2 metadata scanners already inside the repo-scale performance
@@ -105,7 +105,7 @@ contract.
 
 No-Observability-Change: facts ride the existing
 `eshu_dp_aws_resources_emitted_total{service="backup"}` counter and SDK calls
-record through `awscloud.RecordAPICall` into the runtime's `AWSAPICalls` /
+record through `aws.RecordAPICall` into the runtime's `AWSAPICalls` /
 `AWSThrottles` instruments and the `aws.service.scan` span. No new metric,
 span, or status field is introduced; label cardinality is bounded by the
 `service` value and resource-type attribute.

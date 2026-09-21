@@ -26,15 +26,15 @@ type Scanner struct {
 // Scan observes the boundary Region's Security Lake data lakes, their log
 // sources and subscribers, and the resolvable cross-service dependency metadata
 // through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("securitylake scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSecurityLake:
+	case "", aws.ServiceSecurityLake:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSecurityLake
+		boundary.ServiceKind = aws.ServiceSecurityLake
 	default:
 		return nil, fmt.Errorf("securitylake scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -86,9 +86,9 @@ func primaryDataLakeID(lakes []DataLake) string {
 	return ""
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -97,13 +97,13 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func dataLakeEnvelopes(boundary awscloud.Boundary, lake DataLake) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(dataLakeObservation(boundary, lake))
+func dataLakeEnvelopes(boundary aws.Boundary, lake DataLake) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(dataLakeObservation(boundary, lake))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		dataLakeS3Relationship(boundary, lake),
 		dataLakeKMSRelationship(boundary, lake),
 		dataLakeLakeFormationRelationship(boundary, lake),
@@ -111,26 +111,26 @@ func dataLakeEnvelopes(boundary awscloud.Boundary, lake DataLake) ([]facts.Envel
 	return appendRelationships(envelopes, relationships)
 }
 
-func logSourceEnvelopes(boundary awscloud.Boundary, dataLakeID string, source LogSource) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(logSourceObservation(boundary, source))
+func logSourceEnvelopes(boundary aws.Boundary, dataLakeID string, source LogSource) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(logSourceObservation(boundary, source))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		logSourceInDataLakeRelationship(boundary, dataLakeID, source),
 		logSourceIAMRoleRelationship(boundary, source),
 	}
 	return appendRelationships(envelopes, relationships)
 }
 
-func subscriberEnvelopes(boundary awscloud.Boundary, subscriber Subscriber) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(subscriberObservation(boundary, subscriber))
+func subscriberEnvelopes(boundary aws.Boundary, subscriber Subscriber) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(subscriberObservation(boundary, subscriber))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		subscriberIAMRoleRelationship(boundary, subscriber),
 		subscriberS3Relationship(boundary, subscriber),
 	}
@@ -139,13 +139,13 @@ func subscriberEnvelopes(boundary awscloud.Boundary, subscriber Subscriber) ([]f
 
 func appendRelationships(
 	envelopes []facts.Envelope,
-	relationships []*awscloud.RelationshipObservation,
+	relationships []*aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
 	for _, relationship := range relationships {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -154,15 +154,15 @@ func appendRelationships(
 	return envelopes, nil
 }
 
-func dataLakeObservation(boundary awscloud.Boundary, lake DataLake) awscloud.ResourceObservation {
+func dataLakeObservation(boundary aws.Boundary, lake DataLake) aws.ResourceObservation {
 	arn := strings.TrimSpace(lake.ARN)
 	resourceID := dataLakeResourceID(lake)
 	region := strings.TrimSpace(lake.Region)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeDataLake,
+		ResourceType: aws.ResourceTypeSecurityLakeDataLake,
 		Name:         firstNonEmpty(region, resourceID),
 		State:        strings.TrimSpace(lake.CreateStatus),
 		Attributes: map[string]any{
@@ -180,13 +180,13 @@ func dataLakeObservation(boundary awscloud.Boundary, lake DataLake) awscloud.Res
 	}
 }
 
-func logSourceObservation(boundary awscloud.Boundary, source LogSource) awscloud.ResourceObservation {
+func logSourceObservation(boundary aws.Boundary, source LogSource) aws.ResourceObservation {
 	resourceID := logSourceResourceID(source)
 	name := strings.TrimSpace(source.SourceName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeLogSource,
+		ResourceType: aws.ResourceTypeSecurityLakeLogSource,
 		Name:         name,
 		Attributes: map[string]any{
 			"source_name":    name,
@@ -200,15 +200,15 @@ func logSourceObservation(boundary awscloud.Boundary, source LogSource) awscloud
 	}
 }
 
-func subscriberObservation(boundary awscloud.Boundary, subscriber Subscriber) awscloud.ResourceObservation {
+func subscriberObservation(boundary aws.Boundary, subscriber Subscriber) aws.ResourceObservation {
 	arn := strings.TrimSpace(subscriber.ARN)
 	resourceID := subscriberResourceID(subscriber)
 	name := strings.TrimSpace(subscriber.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeSubscriber,
+		ResourceType: aws.ResourceTypeSecurityLakeSubscriber,
 		Name:         name,
 		State:        strings.TrimSpace(subscriber.Status),
 		Attributes: map[string]any{

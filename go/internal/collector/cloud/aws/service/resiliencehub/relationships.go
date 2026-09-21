@@ -12,7 +12,7 @@ import (
 // appUsesPolicyRelationship records that an application is governed by a
 // resiliency policy. AWS reports a policy ARN, which matches the resource_id the
 // resiliency-policy node publishes. It returns nil when no policy is attached.
-func appUsesPolicyRelationship(boundary awscloud.Boundary, app App) *awscloud.RelationshipObservation {
+func appUsesPolicyRelationship(boundary aws.Boundary, app App) *aws.RelationshipObservation {
 	policyARN := strings.TrimSpace(app.PolicyARN)
 	if policyARN == "" {
 		return nil
@@ -21,15 +21,15 @@ func appUsesPolicyRelationship(boundary awscloud.Boundary, app App) *awscloud.Re
 	if appID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAppUsesPolicy,
+		RelationshipType: aws.RelationshipResilienceHubAppUsesPolicy,
 		SourceResourceID: appID,
 		SourceARN:        strings.TrimSpace(app.ARN),
 		TargetResourceID: policyARN,
 		TargetARN:        policyARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubResiliencyPolicy,
-		SourceRecordID:   appID + "->" + awscloud.RelationshipResilienceHubAppUsesPolicy + ":" + policyARN,
+		TargetType:       aws.ResourceTypeResilienceHubResiliencyPolicy,
+		SourceRecordID:   appID + "->" + aws.RelationshipResilienceHubAppUsesPolicy + ":" + policyARN,
 	}
 }
 
@@ -39,10 +39,10 @@ func appUsesPolicyRelationship(boundary awscloud.Boundary, app App) *awscloud.Re
 // identifier is ARN-shaped, so the edge always joins the owning node. It returns
 // nil otherwise, skipping the edge instead of dangling it.
 func appProtectsResourceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	resource ProtectedResource,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetType := protectedResourceTargetType(resource.ResilienceHubType)
 	targetARN := strings.TrimSpace(resource.ARN)
 	if targetType == "" || !isARN(targetARN) {
@@ -58,16 +58,16 @@ func appProtectsResourceRelationship(
 	if logical := strings.TrimSpace(resource.LogicalResourceID); logical != "" {
 		attributes["logical_resource_id"] = logical
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAppProtectsResource,
+		RelationshipType: aws.RelationshipResilienceHubAppProtectsResource,
 		SourceResourceID: appID,
 		SourceARN:        strings.TrimSpace(app.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
 		TargetType:       targetType,
 		Attributes:       attributes,
-		SourceRecordID:   appID + "->" + awscloud.RelationshipResilienceHubAppProtectsResource + ":" + targetARN,
+		SourceRecordID:   appID + "->" + aws.RelationshipResilienceHubAppProtectsResource + ":" + targetARN,
 	}
 }
 
@@ -75,10 +75,10 @@ func appProtectsResourceRelationship(
 // parent application, keyed by the application ARN the application node
 // publishes. It returns nil when either endpoint identity is missing.
 func componentInAppRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	component AppComponent,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	appID := appResourceID(app)
 	componentID := componentResourceID(appID, component)
 	if appID == "" || componentID == "" {
@@ -88,14 +88,14 @@ func componentInAppRelationship(
 	if isARN(appID) {
 		targetARN = appID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubComponentInApp,
+		RelationshipType: aws.RelationshipResilienceHubComponentInApp,
 		SourceResourceID: componentID,
 		TargetResourceID: appID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   componentID + "->" + awscloud.RelationshipResilienceHubComponentInApp + ":" + appID,
+		TargetType:       aws.ResourceTypeResilienceHubApp,
+		SourceRecordID:   componentID + "->" + aws.RelationshipResilienceHubComponentInApp + ":" + appID,
 	}
 }
 
@@ -103,10 +103,10 @@ func componentInAppRelationship(
 // application, keyed by the application ARN the application node publishes. It
 // returns nil when either endpoint identity is missing.
 func inputSourceInAppRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	app App,
 	source InputSource,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	appID := appResourceID(app)
 	sourceID := inputSourceResourceID(appID, source)
 	if appID == "" || sourceID == "" {
@@ -120,15 +120,15 @@ func inputSourceInAppRelationship(
 	if isARN(appID) {
 		targetARN = appID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubInputSourceInApp,
+		RelationshipType: aws.RelationshipResilienceHubInputSourceInApp,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: appID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipResilienceHubInputSourceInApp + ":" + appID,
+		TargetType:       aws.ResourceTypeResilienceHubApp,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipResilienceHubInputSourceInApp + ":" + appID,
 	}
 }
 
@@ -137,22 +137,22 @@ func inputSourceInAppRelationship(
 // reports the application ARN on the assessment summary directly. It returns nil
 // when either endpoint identity is missing.
 func assessmentForAppRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	assessment Assessment,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	assessmentID := assessmentResourceID(assessment)
 	appARN := strings.TrimSpace(assessment.AppARN)
 	if assessmentID == "" || appARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAssessmentForApp,
+		RelationshipType: aws.RelationshipResilienceHubAssessmentForApp,
 		SourceResourceID: assessmentID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: appARN,
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   assessmentID + "->" + awscloud.RelationshipResilienceHubAssessmentForApp + ":" + appARN,
+		TargetType:       aws.ResourceTypeResilienceHubApp,
+		SourceRecordID:   assessmentID + "->" + aws.RelationshipResilienceHubAssessmentForApp + ":" + appARN,
 	}
 }

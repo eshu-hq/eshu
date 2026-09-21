@@ -13,4 +13,4 @@
 // reads only the identity store DisplayName for each unique assignment
 // principal. Accounts with no Identity Center instance or without org access
 // produce a warning rather than failing the claim.
-package awssdk
+package sdk

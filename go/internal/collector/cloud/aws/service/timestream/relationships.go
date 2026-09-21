@@ -14,10 +14,10 @@ import (
 // (its ARN when available), so the edge joins the database node exactly. It
 // returns nil when either endpoint identity is missing.
 func tableInDatabaseRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	databaseID string,
 	table Table,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	tableID := tableResourceID(table)
 	databaseID = strings.TrimSpace(databaseID)
 	if tableID == "" || databaseID == "" {
@@ -27,15 +27,15 @@ func tableInDatabaseRelationship(
 	if isARN(databaseID) {
 		targetARN = databaseID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamTableInDatabase,
+		RelationshipType: aws.RelationshipTimestreamTableInDatabase,
 		SourceResourceID: tableID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: databaseID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeTimestreamDatabase,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipTimestreamTableInDatabase + ":" + databaseID,
+		TargetType:       aws.ResourceTypeTimestreamDatabase,
+		SourceRecordID:   tableID + "->" + aws.RelationshipTimestreamTableInDatabase + ":" + databaseID,
 	}
 }
 
@@ -43,7 +43,7 @@ func tableInDatabaseRelationship(
 // encryption key dependency. AWS reports a key ARN, which matches how the KMS
 // scanner publishes its key resource_id (bare id or ARN). It returns nil when
 // no key is reported.
-func databaseKMSRelationship(boundary awscloud.Boundary, database Database) *awscloud.RelationshipObservation {
+func databaseKMSRelationship(boundary aws.Boundary, database Database) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(database.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -56,15 +56,15 @@ func databaseKMSRelationship(boundary awscloud.Boundary, database Database) *aws
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamDatabaseUsesKMSKey,
+		RelationshipType: aws.RelationshipTimestreamDatabaseUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(database.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipTimestreamDatabaseUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipTimestreamDatabaseUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -73,7 +73,7 @@ func databaseKMSRelationship(boundary awscloud.Boundary, database Database) *aws
 // scanner synthesizes the partition-aware bucket ARN to match the S3 scanner's
 // published bucket resource_id (arn:<partition>:s3:::<bucket>). It returns nil
 // when no rejected-data bucket is configured.
-func tableRejectedDataS3Relationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
+func tableRejectedDataS3Relationship(boundary aws.Boundary, table Table) *aws.RelationshipObservation {
 	bucket := strings.TrimSpace(table.RejectedDataS3Bucket)
 	if bucket == "" {
 		return nil
@@ -82,7 +82,7 @@ func tableRejectedDataS3Relationship(boundary awscloud.Boundary, table Table) *a
 	if tableID == "" {
 		return nil
 	}
-	bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), bucket)
+	bucketARN := arnForBucket(aws.PartitionForBoundary(boundary), bucket)
 	if bucketARN == "" {
 		return nil
 	}
@@ -95,15 +95,15 @@ func tableRejectedDataS3Relationship(boundary awscloud.Boundary, table Table) *a
 	if option := strings.TrimSpace(table.RejectedDataS3EncryptionOption); option != "" {
 		attributes["encryption_option"] = option
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamTableRejectsToS3,
+		RelationshipType: aws.RelationshipTimestreamTableRejectsToS3,
 		SourceResourceID: tableID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipTimestreamTableRejectsToS3 + ":" + bucketARN,
+		SourceRecordID:   tableID + "->" + aws.RelationshipTimestreamTableRejectsToS3 + ":" + bucketARN,
 	}
 }

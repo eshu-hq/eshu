@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/controltower/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/controltower/sdk` adapts AWS SDK for Go
 v2 Control Tower responses to the scanner-owned `Client` contract. It owns
 landing-zone resolution, enabled-baseline pagination, per-target enabled-control
 pagination, resource-tag reads, throttle classification, and per-call AWS API
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/controltower` for scanner-owned result
+- `internal/collector/cloud/aws/service/controltower` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `controltower` and Smithy error contracts.

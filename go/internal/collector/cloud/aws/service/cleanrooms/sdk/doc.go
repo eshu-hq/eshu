@@ -11,4 +11,4 @@
 // and job run, every result read, every analysis-rule and analysis-template
 // body read, and all Create/Update/Delete mutation APIs, so the adapter cannot
 // run protected queries, read query results, or write Clean Rooms state.
-package awssdk
+package sdk

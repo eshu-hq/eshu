@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscloudhsmv2 "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2"
 	awscloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	"github.com/aws/smithy-go"
@@ -47,15 +47,15 @@ type apiClient interface {
 // password, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CloudHSM v2 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -104,7 +104,7 @@ func (c *Client) describeClusters(ctx context.Context) ([]cloudhsmv2service.Clus
 			clusters = append(clusters, mapCluster(cluster))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return clusters, nil
 		}
 	}
@@ -132,7 +132,7 @@ func (c *Client) describeBackups(ctx context.Context) ([]cloudhsmv2service.Backu
 			backups = append(backups, mapBackup(backup))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return backups, nil
 		}
 	}
@@ -140,24 +140,24 @@ func (c *Client) describeBackups(ctx context.Context) ([]cloudhsmv2service.Backu
 
 func mapCluster(cluster awscloudhsmv2types.Cluster) cloudhsmv2service.Cluster {
 	mapped := cloudhsmv2service.Cluster{
-		ID:              strings.TrimSpace(aws.ToString(cluster.ClusterId)),
+		ID:              strings.TrimSpace(awsv2.ToString(cluster.ClusterId)),
 		State:           string(cluster.State),
-		StateMessage:    strings.TrimSpace(aws.ToString(cluster.StateMessage)),
-		HsmType:         strings.TrimSpace(aws.ToString(cluster.HsmType)),
+		StateMessage:    strings.TrimSpace(awsv2.ToString(cluster.StateMessage)),
+		HsmType:         strings.TrimSpace(awsv2.ToString(cluster.HsmType)),
 		Mode:            string(cluster.Mode),
 		NetworkType:     string(cluster.NetworkType),
-		VPCID:           strings.TrimSpace(aws.ToString(cluster.VpcId)),
-		SecurityGroupID: strings.TrimSpace(aws.ToString(cluster.SecurityGroup)),
-		SourceBackupID:  strings.TrimSpace(aws.ToString(cluster.SourceBackupId)),
+		VPCID:           strings.TrimSpace(awsv2.ToString(cluster.VpcId)),
+		SecurityGroupID: strings.TrimSpace(awsv2.ToString(cluster.SecurityGroup)),
+		SourceBackupID:  strings.TrimSpace(awsv2.ToString(cluster.SourceBackupId)),
 		BackupPolicy:    string(cluster.BackupPolicy),
 		SubnetMappings:  subnetMappings(cluster.SubnetMapping),
 		HSMs:            mapHSMs(cluster.Hsms),
-		CreateTimestamp: aws.ToTime(cluster.CreateTimestamp),
+		CreateTimestamp: awsv2.ToTime(cluster.CreateTimestamp),
 		Tags:            mapTags(cluster.TagList),
 	}
 	if retention := cluster.BackupRetentionPolicy; retention != nil {
 		mapped.BackupRetentionType = string(retention.Type)
-		mapped.BackupRetentionValue = strings.TrimSpace(aws.ToString(retention.Value))
+		mapped.BackupRetentionValue = strings.TrimSpace(awsv2.ToString(retention.Value))
 	}
 	mapped.CertificatePresence = certificatePresence(cluster.Certificates)
 	return mapped
@@ -186,13 +186,13 @@ func mapHSMs(hsms []awscloudhsmv2types.Hsm) []cloudhsmv2service.HSM {
 	out := make([]cloudhsmv2service.HSM, 0, len(hsms))
 	for _, hsm := range hsms {
 		out = append(out, cloudhsmv2service.HSM{
-			ID:               strings.TrimSpace(aws.ToString(hsm.HsmId)),
+			ID:               strings.TrimSpace(awsv2.ToString(hsm.HsmId)),
 			State:            string(hsm.State),
-			AvailabilityZone: strings.TrimSpace(aws.ToString(hsm.AvailabilityZone)),
-			SubnetID:         strings.TrimSpace(aws.ToString(hsm.SubnetId)),
-			ENIID:            strings.TrimSpace(aws.ToString(hsm.EniId)),
-			ENIIP:            strings.TrimSpace(aws.ToString(hsm.EniIp)),
-			ENIIPV6:          strings.TrimSpace(aws.ToString(hsm.EniIpV6)),
+			AvailabilityZone: strings.TrimSpace(awsv2.ToString(hsm.AvailabilityZone)),
+			SubnetID:         strings.TrimSpace(awsv2.ToString(hsm.SubnetId)),
+			ENIID:            strings.TrimSpace(awsv2.ToString(hsm.EniId)),
+			ENIIP:            strings.TrimSpace(awsv2.ToString(hsm.EniIp)),
+			ENIIPV6:          strings.TrimSpace(awsv2.ToString(hsm.EniIpV6)),
 		})
 	}
 	return out
@@ -200,19 +200,19 @@ func mapHSMs(hsms []awscloudhsmv2types.Hsm) []cloudhsmv2service.HSM {
 
 func mapBackup(backup awscloudhsmv2types.Backup) cloudhsmv2service.Backup {
 	return cloudhsmv2service.Backup{
-		ID:              strings.TrimSpace(aws.ToString(backup.BackupId)),
-		ARN:             strings.TrimSpace(aws.ToString(backup.BackupArn)),
+		ID:              strings.TrimSpace(awsv2.ToString(backup.BackupId)),
+		ARN:             strings.TrimSpace(awsv2.ToString(backup.BackupArn)),
 		State:           string(backup.BackupState),
-		ClusterID:       strings.TrimSpace(aws.ToString(backup.ClusterId)),
-		HsmType:         strings.TrimSpace(aws.ToString(backup.HsmType)),
+		ClusterID:       strings.TrimSpace(awsv2.ToString(backup.ClusterId)),
+		HsmType:         strings.TrimSpace(awsv2.ToString(backup.HsmType)),
 		Mode:            string(backup.Mode),
-		NeverExpires:    aws.ToBool(backup.NeverExpires),
-		SourceBackup:    strings.TrimSpace(aws.ToString(backup.SourceBackup)),
-		SourceCluster:   strings.TrimSpace(aws.ToString(backup.SourceCluster)),
-		SourceRegion:    strings.TrimSpace(aws.ToString(backup.SourceRegion)),
-		CreateTimestamp: aws.ToTime(backup.CreateTimestamp),
-		CopyTimestamp:   aws.ToTime(backup.CopyTimestamp),
-		DeleteTimestamp: aws.ToTime(backup.DeleteTimestamp),
+		NeverExpires:    awsv2.ToBool(backup.NeverExpires),
+		SourceBackup:    strings.TrimSpace(awsv2.ToString(backup.SourceBackup)),
+		SourceCluster:   strings.TrimSpace(awsv2.ToString(backup.SourceCluster)),
+		SourceRegion:    strings.TrimSpace(awsv2.ToString(backup.SourceRegion)),
+		CreateTimestamp: awsv2.ToTime(backup.CreateTimestamp),
+		CopyTimestamp:   awsv2.ToTime(backup.CopyTimestamp),
+		DeleteTimestamp: awsv2.ToTime(backup.DeleteTimestamp),
 		Tags:            mapTags(backup.TagList),
 	}
 }
@@ -246,11 +246,11 @@ func mapTags(tagList []awscloudhsmv2types.Tag) map[string]string {
 	}
 	tags := make(map[string]string, len(tagList))
 	for _, tag := range tagList {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil
@@ -283,7 +283,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

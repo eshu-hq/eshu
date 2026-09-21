@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes DocumentDB Elastic clusters and their direct VPC, KMS, and
 // admin-secret dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("docdbelastic scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDocDBElastic:
+	case "", aws.ServiceDocDBElastic:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDocDBElastic
+		boundary.ServiceKind = aws.ServiceDocDBElastic
 	default:
 		return nil, fmt.Errorf("docdbelastic scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,9 +56,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -67,14 +67,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+func clusterEnvelopes(boundary aws.Boundary, cluster Cluster) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range clusterRelationships(boundary, cluster) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -83,7 +83,7 @@ func clusterEnvelopes(boundary awscloud.Boundary, cluster Cluster) ([]facts.Enve
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	name := strings.TrimSpace(cluster.Name)
 	resourceID := clusterResourceID(cluster)
@@ -105,11 +105,11 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 	if window := strings.TrimSpace(cluster.PreferredMaintenanceWindow); window != "" {
 		attributes["preferred_maintenance_window"] = window
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                clusterARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeDocDBElasticCluster,
+		ResourceType:       aws.ResourceTypeDocDBElasticCluster,
 		Name:               name,
 		State:              strings.TrimSpace(cluster.Status),
 		Tags:               cloneStringMap(cluster.Tags),

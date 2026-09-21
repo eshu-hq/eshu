@@ -44,14 +44,14 @@ intentionally omits `GetDashboard` so the dashboard body cannot be fetched.
 
 Each fact rides the standard
 `eshu_dp_aws_resources_emitted_total{service="cloudwatch"}` counter. SDK
-adapter calls record through `awscloud.RecordAPICall` and the runtime's
+adapter calls record through `aws.RecordAPICall` and the runtime's
 `AWSAPICalls` / `AWSThrottles` instruments.
 
 ## Registration
 
-The scanner self-registers through `runtimebind/`. Importing
-`github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudwatch/runtimebind`
-or the `awsruntime/bindings` aggregate package is the only step required.
+The scanner self-registers through `bind/`. Importing
+`github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/cloudwatch/bind`
+or the `runtime/bindings` aggregate package is the only step required.
 
 ## Performance and Observability Evidence
 
@@ -62,10 +62,10 @@ CloudWatch read surface (alarms, composite alarms, dashboards metadata,
 Contributor Insights rules metadata, metric streams) once and emits typed
 source facts; the reducer continues to own canonical graph writes downstream.
 
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/service/cloudwatch/... -count=1 -race`
-and `go test ./internal/collector/awscloud/awsruntime/... -count=1 -race`
+No-Regression Evidence: `cd go && go test ./internal/collector/cloud/aws/service/cloudwatch/... -count=1 -race`
+and `go test ./internal/collector/cloud/aws/runtime/... -count=1 -race`
 cover the scanner, the SDK adapter, and registry resolution. `golangci-lint
-run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
+run ./internal/collector/cloud/aws/... ./cmd/collector-aws-cloud/...` reports
 zero issues. The scan surface is bounded by the AWS account's alarm/dashboard
 inventory and uses the shared paginator, so worst-case fan-out matches the
 existing Phase 2 metadata scanners (e.g. CloudWatch Logs, SNS) already in the
@@ -73,7 +73,7 @@ repo-scale performance contract.
 
 No-Observability-Change: facts ride the existing
 `eshu_dp_aws_resources_emitted_total{service="cloudwatch"}` counter and SDK
-calls record through `awscloud.RecordAPICall` into the runtime's `AWSAPICalls`
+calls record through `aws.RecordAPICall` into the runtime's `AWSAPICalls`
 / `AWSThrottles` instruments and the `aws.service.scan` span. No new metric,
 span, or status field is introduced; label cardinality is bounded by the
 `service` value and resource-type attribute.

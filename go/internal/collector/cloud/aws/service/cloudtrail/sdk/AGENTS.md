@@ -1,4 +1,4 @@
-# AGENTS.md - services/cloudtrail/awssdk guidance
+# AGENTS.md - services/cloudtrail/sdk guidance
 
 ## Read First
 

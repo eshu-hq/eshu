@@ -26,15 +26,15 @@ type Scanner struct {
 // shares through the configured client and returns their resource and
 // relationship envelopes. Object contents, client allow lists, and admin/user
 // lists stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("storagegateway scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceStorageGateway:
+	case "", aws.ServiceStorageGateway:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceStorageGateway
+		boundary.ServiceKind = aws.ServiceStorageGateway
 	default:
 		return nil, fmt.Errorf("storagegateway scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -80,14 +80,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func gatewayEnvelopes(boundary awscloud.Boundary, gateway Gateway) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(gatewayObservation(boundary, gateway))
+func gatewayEnvelopes(boundary aws.Boundary, gateway Gateway) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(gatewayObservation(boundary, gateway))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := gatewayVPCEndpointRelationship(boundary, gateway); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -96,14 +96,14 @@ func gatewayEnvelopes(boundary awscloud.Boundary, gateway Gateway) ([]facts.Enve
 	return envelopes, nil
 }
 
-func volumeEnvelopes(boundary awscloud.Boundary, volume Volume) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(volumeObservation(boundary, volume))
+func volumeEnvelopes(boundary aws.Boundary, volume Volume) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(volumeObservation(boundary, volume))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := volumeOnGatewayRelationship(boundary, volume); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -112,13 +112,13 @@ func volumeEnvelopes(boundary awscloud.Boundary, volume Volume) ([]facts.Envelop
 	return envelopes, nil
 }
 
-func fileShareEnvelopes(boundary awscloud.Boundary, share FileShare) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(fileShareObservation(boundary, share))
+func fileShareEnvelopes(boundary aws.Boundary, share FileShare) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(fileShareObservation(boundary, share))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		fileShareOnGatewayRelationship(boundary, share),
 		fileShareS3BucketRelationship(boundary, share),
 		fileShareRoleRelationship(boundary, share),
@@ -128,7 +128,7 @@ func fileShareEnvelopes(boundary awscloud.Boundary, share FileShare) ([]facts.En
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -137,15 +137,15 @@ func fileShareEnvelopes(boundary awscloud.Boundary, share FileShare) ([]facts.En
 	return envelopes, nil
 }
 
-func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.ResourceObservation {
+func gatewayObservation(boundary aws.Boundary, gateway Gateway) aws.ResourceObservation {
 	arn := strings.TrimSpace(gateway.ARN)
 	id := strings.TrimSpace(gateway.ID)
 	resourceID := firstNonEmpty(arn, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayGateway,
+		ResourceType: aws.ResourceTypeStorageGatewayGateway,
 		Name:         firstNonEmpty(gateway.Name, id),
 		State:        firstNonEmpty(gateway.State, gateway.OperationalState),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -168,15 +168,15 @@ func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.Re
 	}
 }
 
-func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.ResourceObservation {
+func volumeObservation(boundary aws.Boundary, volume Volume) aws.ResourceObservation {
 	arn := strings.TrimSpace(volume.ARN)
 	id := strings.TrimSpace(volume.ID)
 	resourceID := volumeResourceID(volume)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayVolume,
+		ResourceType: aws.ResourceTypeStorageGatewayVolume,
 		Name:         firstNonEmpty(id, arn),
 		State:        strings.TrimSpace(volume.AttachmentStatus),
 		Attributes: map[string]any{
@@ -192,15 +192,15 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 	}
 }
 
-func fileShareObservation(boundary awscloud.Boundary, share FileShare) awscloud.ResourceObservation {
+func fileShareObservation(boundary aws.Boundary, share FileShare) aws.ResourceObservation {
 	arn := strings.TrimSpace(share.ARN)
 	id := strings.TrimSpace(share.ID)
 	resourceID := fileShareResourceID(share)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayFileShare,
+		ResourceType: aws.ResourceTypeStorageGatewayFileShare,
 		Name:         firstNonEmpty(share.Name, id, arn),
 		State:        strings.TrimSpace(share.Status),
 		Attributes: map[string]any{

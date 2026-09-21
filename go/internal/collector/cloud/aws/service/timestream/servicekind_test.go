@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "timestream".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceTimestream + "  "
+	boundary.ServiceKind = "  " + aws.ServiceTimestream + "  "
 	client := fakeClient{snapshot: Snapshot{Databases: []Database{{
 		ARN:  testDatabaseARN,
 		Name: "metrics",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceTimestream; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceTimestream; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

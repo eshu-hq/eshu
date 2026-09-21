@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/rds` owns the Amazon RDS scanner contract
+`internal/collector/cloud/aws/service/rds` owns the Amazon RDS scanner contract
 for the AWS cloud collector. It converts RDS control-plane metadata into
 `aws_resource` facts and emits relationship evidence when RDS directly reports
 database cluster membership, DB subnet groups, VPC security groups, KMS keys,
@@ -52,13 +52,13 @@ See `doc.go` for the godoc contract.
   relationship details.
 
 The `rds_instance_posture` fact kind, schema version, and payload envelope are
-owned by `internal/facts` and `internal/collector/awscloud`
-(`facts.RDSInstancePostureFactKind`, `awscloud.RDSPostureObservation`,
-`awscloud.NewRDSInstancePostureEnvelope`).
+owned by `internal/facts` and `internal/collector/cloud/aws`
+(`facts.RDSInstancePostureFactKind`, `aws.RDSPostureObservation`,
+`aws.NewRDSInstancePostureEnvelope`).
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -67,9 +67,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records RDS API call counts, throttles, and pagination
+The `sdk` adapter records RDS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -98,14 +98,14 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/rds/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/rds/...`
 covers the bounded RDS metadata path: paginated DescribeDBInstances,
 DescribeDBClusters, DescribeDBSubnetGroups, and ListTagsForResource for
 ARN-addressable RDS resources; no database connections, snapshots, log reads,
 Performance Insights sample reads, schema/table reads, mutations, or graph
 writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers RDS metadata fact emission, direct relationship emission, omission of
 secret/database/log fields, runtime registration, command configuration, and the
 SDK adapter's safe metadata mapping.
@@ -126,12 +126,12 @@ Collector Deployment Evidence: RDS runs inside the existing hosted
 
 ### Partition-aware ARNs (#866)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/rds/... -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/rds/... -count=1`
 covers the new `TestSecurityGroupARNDerivesPartition` (commercial / `aws-us-gov`
 / `aws-cn`, plus already-ARN passthrough) alongside the existing assertions. EC2
 reports a bare security-group id, so the RDS instance/cluster ->
 security-group join target now derives the partition from the scan boundary via
-`awscloud.PartitionForBoundary` instead of hardcoding `aws`. Commercial output
+`aws.PartitionForBoundary` instead of hardcoding `aws`. Commercial output
 (`us-east-1`) is byte-for-byte unchanged; this is a metadata-only correctness
 fix with no graph-write, queue, or hot-path behavior change.
 
@@ -141,7 +141,7 @@ row changes.
 
 ### RDS/Aurora posture facts (#1145, PR1 facts-only)
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/rds/... ./internal/facts -count=1`
+No-Regression Evidence: `go test ./internal/collector/cloud/aws/service/rds/... ./internal/facts -count=1`
 covers the new `rds_instance_posture` fact for DB instances and Aurora clusters
 (`TestScannerEmitsInstanceAndClusterPostureFacts`,
 `TestScannerEmitsNoPostureRelationships`,

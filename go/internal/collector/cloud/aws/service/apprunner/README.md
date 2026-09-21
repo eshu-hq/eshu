@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/apprunner` owns the AWS App Runner scanner
+`internal/collector/cloud/aws/service/apprunner` owns the AWS App Runner scanner
 contract for the AWS cloud collector. It converts services, connections,
 automatic scaling configurations, observability configurations, VPC connectors,
 and VPC ingress connections into `aws_resource` facts and emits relationship
@@ -53,7 +53,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -62,11 +62,11 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource/relationship counts after
 `Scanner.Scan` returns. Resource counts surface through
 `eshu_dp_aws_resources_emitted_total{service="apprunner"}` with the existing
-per-resource `resource_type` label. The `awssdk` adapter records App Runner API
+per-resource `resource_type` label. The `sdk` adapter records App Runner API
 call counts, throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -82,7 +82,7 @@ call counts, throttles, and pagination spans.
 - Source repository credentials (connection tokens, repository access secrets)
   are never read. Only the connection ARN and access role ARN are recorded.
 - App Runner needs no redaction key. Because environment-variable values are
-  dropped rather than HMAC-mapped, the runtimebind registration leaves
+  dropped rather than HMAC-mapped, the bind registration leaves
   `RequiresRedactionKey` unset.
 - Every relationship sets a non-empty `target_type` matching the target
   scanner's `resource_id` form: container images target `container_image`,
@@ -99,7 +99,7 @@ call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/apprunner/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/apprunner/...`
 covers the bounded App Runner metadata path: one paginated ListServices stream
 with a DescribeService and ListTagsForResource enrichment per service, one
 paginated ListConnections stream, one paginated ListAutoScalingConfigurations
@@ -115,7 +115,7 @@ Cypher, graph write, reducer, queue, or runtime-stage change; it emits reported
 facts the existing reducer admits. The read path is bounded paginated
 List/Describe calls per claimed account and region.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers service, connection, autoscaling, observability, VPC-connector, and
 VPC-ingress fact emission, every relationship's non-empty target type and join
 key, the service-ARN dangling-edge join key, structural exclusion of

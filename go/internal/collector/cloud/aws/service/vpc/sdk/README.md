@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/vpc/awssdk` adapts AWS SDK for Go v2 EC2
+`internal/collector/cloud/aws/service/vpc/sdk` adapts AWS SDK for Go v2 EC2
 read responses into the scanner-owned VPC topology records. It owns paginator
 wiring, API-call telemetry, and the narrow `apiClient` interface that the
 production AWS SDK Client satisfies.
@@ -46,7 +46,7 @@ Every `recordAPICall` wraps a single AWS call with:
 
 - `github.com/aws/aws-sdk-go-v2/service/ec2` — the AWS EC2 SDK serves the
   VPC topology APIs.
-- `internal/collector/awscloud/service/vpc` — the scanner-owned record
+- `internal/collector/cloud/aws/service/vpc` — the scanner-owned record
   types this adapter maps into.
 
 ## Gotchas / invariants
@@ -65,5 +65,5 @@ Every `recordAPICall` wraps a single AWS call with:
 ## Related docs
 
 - `../README.md` — VPC scanner contract and EC2/VPC ownership table.
-- `../../../awsruntime/README.md` — awsruntime registry and runtime surface.
+- `../../../runtime/README.md` — runtime registry and runtime surface.
 - `docs/public/guides/collector-authoring.md` — AWS scanner authoring.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/redshift/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/redshift/sdk` adapts AWS SDK for Go v2
 Redshift and Redshift Serverless responses to the scanner-owned `Client`
 contract. It owns pagination for both control planes, resource tag reads for
 Serverless ARN-addressable resources, throttle classification, and per-call
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/redshift` for scanner-owned result
+- `internal/collector/cloud/aws/service/redshift` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `redshift` and `redshiftserverless` packages and the

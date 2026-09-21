@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscleanrooms "github.com/aws/aws-sdk-go-v2/service/cleanrooms"
 	awscleanroomstypes "github.com/aws/aws-sdk-go-v2/service/cleanrooms/types"
 	"github.com/aws/smithy-go"
@@ -61,15 +61,15 @@ type apiClient interface {
 // or analysis-rule bodies, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Clean Rooms SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -130,7 +130,7 @@ func (c *Client) listCollaborations(ctx context.Context) ([]cleanroomsservice.Co
 			collaborations = append(collaborations, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return collaborations, nil
 		}
 	}
@@ -140,21 +140,21 @@ func (c *Client) mapCollaboration(
 	ctx context.Context,
 	summary awscleanroomstypes.CollaborationSummary,
 ) (cleanroomsservice.Collaboration, error) {
-	arn := strings.TrimSpace(aws.ToString(summary.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(summary.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return cleanroomsservice.Collaboration{}, err
 	}
 	return cleanroomsservice.Collaboration{
 		ARN:                arn,
-		ID:                 strings.TrimSpace(aws.ToString(summary.Id)),
-		Name:               strings.TrimSpace(aws.ToString(summary.Name)),
-		CreatorAccountID:   strings.TrimSpace(aws.ToString(summary.CreatorAccountId)),
-		CreatorDisplayName: strings.TrimSpace(aws.ToString(summary.CreatorDisplayName)),
+		ID:                 strings.TrimSpace(awsv2.ToString(summary.Id)),
+		Name:               strings.TrimSpace(awsv2.ToString(summary.Name)),
+		CreatorAccountID:   strings.TrimSpace(awsv2.ToString(summary.CreatorAccountId)),
+		CreatorDisplayName: strings.TrimSpace(awsv2.ToString(summary.CreatorDisplayName)),
 		MemberStatus:       strings.TrimSpace(string(summary.MemberStatus)),
 		AnalyticsEngine:    strings.TrimSpace(string(summary.AnalyticsEngine)),
-		CreateTime:         aws.ToTime(summary.CreateTime),
-		UpdateTime:         aws.ToTime(summary.UpdateTime),
+		CreateTime:         awsv2.ToTime(summary.CreateTime),
+		UpdateTime:         awsv2.ToTime(summary.UpdateTime),
 		Tags:               tags,
 	}, nil
 }
@@ -185,7 +185,7 @@ func (c *Client) listConfiguredTables(ctx context.Context) ([]cleanroomsservice.
 			tables = append(tables, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return tables, nil
 		}
 	}
@@ -195,8 +195,8 @@ func (c *Client) mapConfiguredTable(
 	ctx context.Context,
 	summary awscleanroomstypes.ConfiguredTableSummary,
 ) (cleanroomsservice.ConfiguredTable, error) {
-	arn := strings.TrimSpace(aws.ToString(summary.Arn))
-	id := strings.TrimSpace(aws.ToString(summary.Id))
+	arn := strings.TrimSpace(awsv2.ToString(summary.Arn))
+	id := strings.TrimSpace(awsv2.ToString(summary.Id))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return cleanroomsservice.ConfiguredTable{}, err
@@ -204,11 +204,11 @@ func (c *Client) mapConfiguredTable(
 	table := cleanroomsservice.ConfiguredTable{
 		ARN:               arn,
 		ID:                id,
-		Name:              strings.TrimSpace(aws.ToString(summary.Name)),
+		Name:              strings.TrimSpace(awsv2.ToString(summary.Name)),
 		AnalysisMethod:    strings.TrimSpace(string(summary.AnalysisMethod)),
 		AnalysisRuleTypes: analysisRuleTypeNames(summary.AnalysisRuleTypes),
-		CreateTime:        aws.ToTime(summary.CreateTime),
-		UpdateTime:        aws.ToTime(summary.UpdateTime),
+		CreateTime:        awsv2.ToTime(summary.CreateTime),
+		UpdateTime:        awsv2.ToTime(summary.UpdateTime),
 		Tags:              tags,
 	}
 	if err := c.resolveTableReference(ctx, &table); err != nil {
@@ -230,7 +230,7 @@ func (c *Client) resolveTableReference(ctx context.Context, table *cleanroomsser
 	err := c.recordAPICall(ctx, "GetConfiguredTable", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetConfiguredTable(callCtx, &awscleanrooms.GetConfiguredTableInput{
-			ConfiguredTableIdentifier: aws.String(id),
+			ConfiguredTableIdentifier: awsv2.String(id),
 		})
 		return err
 	})
@@ -251,8 +251,8 @@ func applyTableReference(table *cleanroomsservice.ConfiguredTable, reference aws
 	switch ref := reference.(type) {
 	case *awscleanroomstypes.TableReferenceMemberGlue:
 		table.TableReferenceKind = "glue"
-		table.GlueDatabaseName = strings.TrimSpace(aws.ToString(ref.Value.DatabaseName))
-		table.GlueTableName = strings.TrimSpace(aws.ToString(ref.Value.TableName))
+		table.GlueDatabaseName = strings.TrimSpace(awsv2.ToString(ref.Value.DatabaseName))
+		table.GlueTableName = strings.TrimSpace(awsv2.ToString(ref.Value.TableName))
 	case *awscleanroomstypes.TableReferenceMemberAthena:
 		table.TableReferenceKind = "athena"
 	case *awscleanroomstypes.TableReferenceMemberSnowflake:
@@ -286,7 +286,7 @@ func (c *Client) listMemberships(ctx context.Context) ([]cleanroomsservice.Membe
 			memberships = append(memberships, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return memberships, nil
 		}
 	}
@@ -296,22 +296,22 @@ func (c *Client) mapMembership(
 	ctx context.Context,
 	summary awscleanroomstypes.MembershipSummary,
 ) (cleanroomsservice.Membership, error) {
-	arn := strings.TrimSpace(aws.ToString(summary.Arn))
+	arn := strings.TrimSpace(awsv2.ToString(summary.Arn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return cleanroomsservice.Membership{}, err
 	}
 	return cleanroomsservice.Membership{
 		ARN:                           arn,
-		ID:                            strings.TrimSpace(aws.ToString(summary.Id)),
-		CollaborationARN:              strings.TrimSpace(aws.ToString(summary.CollaborationArn)),
-		CollaborationID:               strings.TrimSpace(aws.ToString(summary.CollaborationId)),
-		CollaborationName:             strings.TrimSpace(aws.ToString(summary.CollaborationName)),
-		CollaborationCreatorAccountID: strings.TrimSpace(aws.ToString(summary.CollaborationCreatorAccountId)),
+		ID:                            strings.TrimSpace(awsv2.ToString(summary.Id)),
+		CollaborationARN:              strings.TrimSpace(awsv2.ToString(summary.CollaborationArn)),
+		CollaborationID:               strings.TrimSpace(awsv2.ToString(summary.CollaborationId)),
+		CollaborationName:             strings.TrimSpace(awsv2.ToString(summary.CollaborationName)),
+		CollaborationCreatorAccountID: strings.TrimSpace(awsv2.ToString(summary.CollaborationCreatorAccountId)),
 		MemberAbilities:               memberAbilityNames(summary.MemberAbilities),
 		Status:                        strings.TrimSpace(string(summary.Status)),
-		CreateTime:                    aws.ToTime(summary.CreateTime),
-		UpdateTime:                    aws.ToTime(summary.UpdateTime),
+		CreateTime:                    awsv2.ToTime(summary.CreateTime),
+		UpdateTime:                    awsv2.ToTime(summary.UpdateTime),
 		Tags:                          tags,
 	}, nil
 }
@@ -357,7 +357,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awscleanrooms.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -399,7 +399,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

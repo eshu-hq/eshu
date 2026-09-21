@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/lambda guidance
+# AGENTS.md - internal/collector/cloud/aws/service/lambda guidance
 
 ## Read First
 
@@ -7,7 +7,7 @@
 3. `scanner.go` - fact-envelope construction and environment redaction.
 4. `relationships.go` - alias, event-source, image, IAM, subnet, and security
    group relationship evidence.
-5. `awssdk/README.md` - AWS SDK adapter contract.
+5. `sdk/README.md` - AWS SDK adapter contract.
 
 ## Invariants
 
@@ -27,7 +27,7 @@
 - Add a new Lambda attribute in `Function` and map it in `scanner.go`.
 - Add a new relationship in `relationships.go` only when the downstream reducer
   can use the evidence without collector-side inference.
-- Extend SDK mapping in `awssdk/client.go`; keep AWS SDK types out of this
+- Extend SDK mapping in `sdk/client.go`; keep AWS SDK types out of this
   package.
 
 ## What Not To Change Without An ADR

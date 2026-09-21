@@ -14,4 +14,4 @@
 // and client IDs and thumbprints are counted only. The per-principal managed policy document
 // fan-out is bounded to avoid an N+1 against IAM. Scanner packages own fact
 // selection and do not import the AWS SDK directly.
-package awssdk
+package sdk

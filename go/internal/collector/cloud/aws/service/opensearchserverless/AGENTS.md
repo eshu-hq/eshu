@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/opensearchserverless guidance
+# AGENTS.md - internal/collector/cloud/aws/service/opensearchserverless guidance
 
 ## Read First
 
@@ -36,7 +36,7 @@
 - A security policy node publishes its resource_id as the type-qualified name so
   encryption and network policies that share a name stay distinct.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from collection, policy, or
@@ -48,13 +48,13 @@
 
 - Add a new OpenSearch Serverless metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry data-plane content or a
+  `aws` envelope builders. If the field can carry data-plane content or a
   policy document body, leave it out of the scanner contract.
 - Add new relationship evidence only when the OpenSearch Serverless API reports
   both sides directly and the target identity matches an existing scanner's
   published resource_id shape (ARN-equality for KMS keys, bare ids for VPC,
   subnet, and security group).
-- Extend SDK pagination and policy-body parsing in the `awssdk` adapter, not
+- Extend SDK pagination and policy-body parsing in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

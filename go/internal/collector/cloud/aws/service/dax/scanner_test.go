@@ -52,7 +52,7 @@ func TestScannerEmitsDAXMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeDAXCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeDAXCluster)
 	if got, want := cluster.Payload["arn"], clusterARN; got != want {
 		t.Fatalf("cluster arn = %#v, want %q", got, want)
 	}
@@ -85,7 +85,7 @@ func TestScannerEmitsDAXMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeDAXSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, aws.ResourceTypeDAXSubnetGroup)
 	if got, want := subnetGroup.Payload["resource_id"], "orders-dax-subnets"; got != want {
 		t.Fatalf("subnet group resource_id = %#v, want %q (keyed by name, no ARN)", got, want)
 	}
@@ -93,7 +93,7 @@ func TestScannerEmitsDAXMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, subnetGroupAttributes, "vpc_id", "vpc-123")
 	assertAttribute(t, subnetGroupAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 
-	parameterGroup := resourceByType(t, envelopes, awscloud.ResourceTypeDAXParameterGroup)
+	parameterGroup := resourceByType(t, envelopes, aws.ResourceTypeDAXParameterGroup)
 	if got, want := parameterGroup.Payload["resource_id"], "default.dax1.0"; got != want {
 		t.Fatalf("parameter group resource_id = %#v, want %q", got, want)
 	}
@@ -101,17 +101,17 @@ func TestScannerEmitsDAXMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, parameterGroupAttributes, "description", "default dax parameter group")
 
 	// Cluster edges: subnet group (by name), each security group (bare id), IAM role (ARN).
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXClusterInSubnetGroup, "orders-dax-subnets")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXClusterUsesSecurityGroup, "sg-aaa")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXClusterUsesSecurityGroup, "sg-bbb")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXClusterAssumesIAMRole, roleARN)
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXClusterInSubnetGroup, "orders-dax-subnets")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXClusterUsesSecurityGroup, "sg-aaa")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXClusterUsesSecurityGroup, "sg-bbb")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXClusterAssumesIAMRole, roleARN)
 	// Subnet group edges: VPC (bare id) and each member subnet (bare id).
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXSubnetGroupInVPC, "vpc-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXSubnetGroupHasSubnet, "subnet-a")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipDAXSubnetGroupHasSubnet, "subnet-b")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXSubnetGroupInVPC, "vpc-123")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXSubnetGroupHasSubnet, "subnet-a")
+	assertRelationshipTarget(t, envelopes, aws.RelationshipDAXSubnetGroupHasSubnet, "subnet-b")
 
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipDAXClusterAssumesIAMRole, clusterARN+"->dax_cluster_assumes_iam_role:"+roleARN)
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipDAXSubnetGroupHasSubnet, "orders-dax-subnets->dax_subnet_group_has_subnet:subnet-a")
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipDAXClusterAssumesIAMRole, clusterARN+"->dax_cluster_assumes_iam_role:"+roleARN)
+	assertRelationshipSourceRecordID(t, envelopes, aws.RelationshipDAXSubnetGroupHasSubnet, "orders-dax-subnets->dax_subnet_group_has_subnet:subnet-a")
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -149,11 +149,11 @@ func TestScannerEmitsSubnetEdgesFromSubnetGroupNotCluster(t *testing.T) {
 	}
 	// The VPC and subnet edges originate from the subnet group, keyed by the
 	// subnet group name (not the cluster).
-	vpcEdge := relationshipByType(t, envelopes, awscloud.RelationshipDAXSubnetGroupInVPC)
+	vpcEdge := relationshipByType(t, envelopes, aws.RelationshipDAXSubnetGroupInVPC)
 	if got, want := vpcEdge.Payload["source_resource_id"], "orders-subnets"; got != want {
 		t.Fatalf("vpc edge source = %#v, want %q (subnet group, not cluster)", got, want)
 	}
-	subnetEdge := relationshipByType(t, envelopes, awscloud.RelationshipDAXSubnetGroupHasSubnet)
+	subnetEdge := relationshipByType(t, envelopes, aws.RelationshipDAXSubnetGroupHasSubnet)
 	if got, want := subnetEdge.Payload["source_resource_id"], "orders-subnets"; got != want {
 		t.Fatalf("subnet edge source = %#v, want %q (subnet group, not cluster)", got, want)
 	}
@@ -161,7 +161,7 @@ func TestScannerEmitsSubnetEdgesFromSubnetGroupNotCluster(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceRDS
+	boundary.ServiceKind = aws.ServiceRDS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

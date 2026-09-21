@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes Outposts outposts, their installed assets, and the regional
 // sites through the configured client, emitting resource and relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("outposts scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOutposts:
+	case "", aws.ServiceOutposts:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOutposts
+		boundary.ServiceKind = aws.ServiceOutposts
 	default:
 		return nil, fmt.Errorf("outposts scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,7 +47,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, site := range snapshot.Sites {
-		envelope, err := awscloud.NewResourceEnvelope(siteObservation(boundary, site))
+		envelope, err := aws.NewResourceEnvelope(siteObservation(boundary, site))
 		if err != nil {
 			return nil, err
 		}
@@ -63,9 +63,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -74,14 +74,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func outpostEnvelopes(boundary awscloud.Boundary, outpost Outpost) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(outpostObservation(boundary, outpost))
+func outpostEnvelopes(boundary aws.Boundary, outpost Outpost) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(outpostObservation(boundary, outpost))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := outpostInSiteRelationship(boundary, outpost); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -97,18 +97,18 @@ func outpostEnvelopes(boundary awscloud.Boundary, outpost Outpost) ([]facts.Enve
 	return envelopes, nil
 }
 
-func assetEnvelopes(boundary awscloud.Boundary, outpost Outpost, asset Asset) ([]facts.Envelope, error) {
+func assetEnvelopes(boundary aws.Boundary, outpost Outpost, asset Asset) ([]facts.Envelope, error) {
 	assetID := assetResourceID(outpost, asset)
 	if assetID == "" {
 		return nil, nil
 	}
-	resource, err := awscloud.NewResourceEnvelope(assetObservation(boundary, outpost, asset, assetID))
+	resource, err := aws.NewResourceEnvelope(assetObservation(boundary, outpost, asset, assetID))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := assetInOutpostRelationship(boundary, outpost, assetID); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -117,15 +117,15 @@ func assetEnvelopes(boundary awscloud.Boundary, outpost Outpost, asset Asset) ([
 	return envelopes, nil
 }
 
-func outpostObservation(boundary awscloud.Boundary, outpost Outpost) awscloud.ResourceObservation {
+func outpostObservation(boundary aws.Boundary, outpost Outpost) aws.ResourceObservation {
 	outpostARN := strings.TrimSpace(outpost.ARN)
 	name := strings.TrimSpace(outpost.Name)
 	resourceID := outpostResourceID(outpost)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          outpostARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOutpostsOutpost,
+		ResourceType: aws.ResourceTypeOutpostsOutpost,
 		Name:         name,
 		State:        strings.TrimSpace(outpost.LifeCycleStatus),
 		Tags:         cloneStringMap(outpost.Tags),
@@ -143,15 +143,15 @@ func outpostObservation(boundary awscloud.Boundary, outpost Outpost) awscloud.Re
 	}
 }
 
-func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObservation {
+func siteObservation(boundary aws.Boundary, site Site) aws.ResourceObservation {
 	siteARN := strings.TrimSpace(site.ARN)
 	name := strings.TrimSpace(site.Name)
 	resourceID := siteResourceID(site)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          siteARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOutpostsSite,
+		ResourceType: aws.ResourceTypeOutpostsSite,
 		Name:         name,
 		Tags:         cloneStringMap(site.Tags),
 		Attributes: map[string]any{
@@ -164,11 +164,11 @@ func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObs
 }
 
 func assetObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	outpost Outpost,
 	asset Asset,
 	assetID string,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	attributes := map[string]any{
 		"asset_id":   strings.TrimSpace(asset.AssetID),
 		"asset_type": strings.TrimSpace(asset.AssetType),
@@ -178,10 +178,10 @@ func assetObservation(
 	if asset.RackElevation != nil {
 		attributes["rack_elevation"] = *asset.RackElevation
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         assetID,
-		ResourceType:       awscloud.ResourceTypeOutpostsAsset,
+		ResourceType:       aws.ResourceTypeOutpostsAsset,
 		Name:               strings.TrimSpace(asset.AssetID),
 		State:              strings.TrimSpace(asset.ComputeState),
 		Attributes:         attributes,

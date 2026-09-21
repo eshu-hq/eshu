@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsbatch "github.com/aws/aws-sdk-go-v2/service/batch"
 	awsbatchtypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
 	"github.com/aws/smithy-go"
@@ -54,15 +54,15 @@ type apiClient interface {
 // Client adapts the AWS SDK for Go v2 Batch client into scanner-owned records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Batch SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -122,8 +122,8 @@ func (c *Client) ListJobQueues(ctx context.Context) ([]batchservice.JobQueue, er
 // configured AWS credentials.
 func (c *Client) ListJobDefinitions(ctx context.Context) ([]batchservice.JobDefinition, error) {
 	paginator := awsbatch.NewDescribeJobDefinitionsPaginator(c.client, &awsbatch.DescribeJobDefinitionsInput{
-		MaxResults: aws.Int32(describeJobDefinitionsLimit),
-		Status:     aws.String("ACTIVE"),
+		MaxResults: awsv2.Int32(describeJobDefinitionsLimit),
+		Status:     awsv2.String("ACTIVE"),
 	})
 	var jobDefinitions []batchservice.JobDefinition
 	for paginator.HasMorePages() {
@@ -161,7 +161,7 @@ func (c *Client) ListSchedulingPolicies(ctx context.Context) ([]batchservice.Sch
 			return nil, err
 		}
 		for _, listing := range page.SchedulingPolicies {
-			if arn := strings.TrimSpace(aws.ToString(listing.Arn)); arn != "" {
+			if arn := strings.TrimSpace(awsv2.ToString(listing.Arn)); arn != "" {
 				arns = append(arns, arn)
 			}
 		}
@@ -197,9 +197,9 @@ func (c *Client) ListRecentJobs(ctx context.Context, queue batchservice.JobQueue
 	seen := make(map[string]struct{})
 	for _, status := range recentJobStatuses {
 		paginator := awsbatch.NewListJobsPaginator(c.client, &awsbatch.ListJobsInput{
-			JobQueue:   aws.String(queueARN),
+			JobQueue:   awsv2.String(queueARN),
 			JobStatus:  status,
-			MaxResults: aws.Int32(recentJobsPerStatus),
+			MaxResults: awsv2.Int32(recentJobsPerStatus),
 		})
 		remaining := recentJobsPerStatus
 		for paginator.HasMorePages() && remaining > 0 {
@@ -213,7 +213,7 @@ func (c *Client) ListRecentJobs(ctx context.Context, queue batchservice.JobQueue
 				return nil, err
 			}
 			for _, summary := range page.JobSummaryList {
-				jobID := strings.TrimSpace(aws.ToString(summary.JobId))
+				jobID := strings.TrimSpace(awsv2.ToString(summary.JobId))
 				if jobID == "" {
 					continue
 				}
@@ -250,7 +250,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "msk".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceMSK + "  "
+	boundary.ServiceKind = "  " + aws.ServiceMSK + "  "
 	client := fakeClient{clusters: []Cluster{{
 		ARN:   "arn:aws:kafka:us-east-1:123456789012:cluster/padded/11111111-2222-3333-4444-555555555555-1",
 		Name:  "padded",
@@ -33,7 +33,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMSK; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceMSK; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

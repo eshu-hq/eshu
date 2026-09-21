@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsamp "github.com/aws/aws-sdk-go-v2/service/amp"
 	awsamptypes "github.com/aws/aws-sdk-go-v2/service/amp/types"
 	"github.com/aws/smithy-go"
@@ -53,15 +53,15 @@ type apiClient interface {
 // bodies, or scrape-configuration bodies, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AMP SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -118,7 +118,7 @@ func (c *Client) listWorkspaces(ctx context.Context) ([]ampservice.Workspace, er
 			workspaces = append(workspaces, mapWorkspace(summary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return workspaces, nil
 		}
 	}
@@ -126,11 +126,11 @@ func (c *Client) listWorkspaces(ctx context.Context) ([]ampservice.Workspace, er
 
 func mapWorkspace(summary awsamptypes.WorkspaceSummary) ampservice.Workspace {
 	workspace := ampservice.Workspace{
-		ARN:         strings.TrimSpace(aws.ToString(summary.Arn)),
-		WorkspaceID: strings.TrimSpace(aws.ToString(summary.WorkspaceId)),
-		Alias:       strings.TrimSpace(aws.ToString(summary.Alias)),
-		KMSKeyARN:   strings.TrimSpace(aws.ToString(summary.KmsKeyArn)),
-		CreatedAt:   aws.ToTime(summary.CreatedAt),
+		ARN:         strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		WorkspaceID: strings.TrimSpace(awsv2.ToString(summary.WorkspaceId)),
+		Alias:       strings.TrimSpace(awsv2.ToString(summary.Alias)),
+		KMSKeyARN:   strings.TrimSpace(awsv2.ToString(summary.KmsKeyArn)),
+		CreatedAt:   awsv2.ToTime(summary.CreatedAt),
 		Tags:        cloneTags(summary.Tags),
 	}
 	if summary.Status != nil {
@@ -151,7 +151,7 @@ func (c *Client) listNamespaces(ctx context.Context, workspaceID string) ([]amps
 		err := c.recordAPICall(ctx, "ListRuleGroupsNamespaces", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListRuleGroupsNamespaces(callCtx, &awsamp.ListRuleGroupsNamespacesInput{
-				WorkspaceId: aws.String(workspaceID),
+				WorkspaceId: awsv2.String(workspaceID),
 				NextToken:   nextToken,
 			})
 			return err
@@ -166,7 +166,7 @@ func (c *Client) listNamespaces(ctx context.Context, workspaceID string) ([]amps
 			namespaces = append(namespaces, mapNamespace(summary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return namespaces, nil
 		}
 	}
@@ -174,10 +174,10 @@ func (c *Client) listNamespaces(ctx context.Context, workspaceID string) ([]amps
 
 func mapNamespace(summary awsamptypes.RuleGroupsNamespaceSummary) ampservice.RuleGroupsNamespace {
 	namespace := ampservice.RuleGroupsNamespace{
-		ARN:        strings.TrimSpace(aws.ToString(summary.Arn)),
-		Name:       strings.TrimSpace(aws.ToString(summary.Name)),
-		CreatedAt:  aws.ToTime(summary.CreatedAt),
-		ModifiedAt: aws.ToTime(summary.ModifiedAt),
+		ARN:        strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		Name:       strings.TrimSpace(awsv2.ToString(summary.Name)),
+		CreatedAt:  awsv2.ToTime(summary.CreatedAt),
+		ModifiedAt: awsv2.ToTime(summary.ModifiedAt),
 		Tags:       cloneTags(summary.Tags),
 	}
 	if summary.Status != nil {
@@ -208,7 +208,7 @@ func (c *Client) listScrapers(ctx context.Context) ([]ampservice.Scraper, error)
 			scrapers = append(scrapers, mapScraper(summary))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return scrapers, nil
 		}
 	}
@@ -216,13 +216,13 @@ func (c *Client) listScrapers(ctx context.Context) ([]ampservice.Scraper, error)
 
 func mapScraper(summary awsamptypes.ScraperSummary) ampservice.Scraper {
 	scraper := ampservice.Scraper{
-		ARN:                     strings.TrimSpace(aws.ToString(summary.Arn)),
-		ScraperID:               strings.TrimSpace(aws.ToString(summary.ScraperId)),
-		Alias:                   strings.TrimSpace(aws.ToString(summary.Alias)),
-		RoleARN:                 strings.TrimSpace(aws.ToString(summary.RoleArn)),
+		ARN:                     strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		ScraperID:               strings.TrimSpace(awsv2.ToString(summary.ScraperId)),
+		Alias:                   strings.TrimSpace(awsv2.ToString(summary.Alias)),
+		RoleARN:                 strings.TrimSpace(awsv2.ToString(summary.RoleArn)),
 		SourceEKSClusterARN:     sourceEKSClusterARN(summary.Source),
 		DestinationWorkspaceARN: destinationWorkspaceARN(summary.Destination),
-		CreatedAt:               aws.ToTime(summary.CreatedAt),
+		CreatedAt:               awsv2.ToTime(summary.CreatedAt),
 		Tags:                    cloneTags(summary.Tags),
 	}
 	if summary.Status != nil {
@@ -240,7 +240,7 @@ func sourceEKSClusterARN(source awsamptypes.Source) string {
 	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(aws.ToString(eks.Value.ClusterArn))
+	return strings.TrimSpace(awsv2.ToString(eks.Value.ClusterArn))
 }
 
 // scraperVPCConfig extracts the bare subnet and security-group ids from a
@@ -261,7 +261,7 @@ func destinationWorkspaceARN(destination awsamptypes.Destination) string {
 	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(aws.ToString(amp.Value.WorkspaceArn))
+	return strings.TrimSpace(awsv2.ToString(amp.Value.WorkspaceArn))
 }
 
 func trimAll(input []string) []string {
@@ -316,7 +316,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

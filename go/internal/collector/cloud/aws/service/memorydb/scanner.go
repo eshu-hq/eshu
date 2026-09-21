@@ -22,15 +22,15 @@ type Scanner struct {
 
 // Scan observes MemoryDB clusters, subnet groups, parameter groups, users,
 // ACLs, and snapshot metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("memorydb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMemoryDB:
+	case "", aws.ServiceMemoryDB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMemoryDB
+		boundary.ServiceKind = aws.ServiceMemoryDB
 	default:
 		return nil, fmt.Errorf("memorydb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -65,13 +65,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range clusterRelationships(boundary, cluster, subnetGroupIDs) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -79,34 +79,34 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, subnetGroup := range subnetGroups {
-		resource, err := awscloud.NewResourceEnvelope(subnetGroupObservation(boundary, subnetGroup))
+		resource, err := aws.NewResourceEnvelope(subnetGroupObservation(boundary, subnetGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, parameterGroup := range parameterGroups {
-		resource, err := awscloud.NewResourceEnvelope(parameterGroupObservation(boundary, parameterGroup))
+		resource, err := aws.NewResourceEnvelope(parameterGroupObservation(boundary, parameterGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, user := range users {
-		resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
+		resource, err := aws.NewResourceEnvelope(userObservation(boundary, user))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, acl := range acls {
-		resource, err := awscloud.NewResourceEnvelope(aclObservation(boundary, acl))
+		resource, err := aws.NewResourceEnvelope(aclObservation(boundary, acl))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range aclRelationships(boundary, acl, userIDs) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -114,7 +114,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, snapshot := range snapshots {
-		resource, err := awscloud.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
+		resource, err := aws.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
 		if err != nil {
 			return nil, err
 		}
@@ -123,15 +123,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	name := strings.TrimSpace(cluster.Name)
 	resourceID := firstNonEmpty(clusterARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBCluster,
+		ResourceType: aws.ResourceTypeMemoryDBCluster,
 		Name:         name,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -170,15 +170,15 @@ func clusterAttributes(cluster Cluster) map[string]any {
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, group SubnetGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBSubnetGroup,
+		ResourceType: aws.ResourceTypeMemoryDBSubnetGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -191,15 +191,15 @@ func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscl
 	}
 }
 
-func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup) awscloud.ResourceObservation {
+func parameterGroupObservation(boundary aws.Boundary, group ParameterGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBParameterGroup,
+		ResourceType: aws.ResourceTypeMemoryDBParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -211,15 +211,15 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup)
 	}
 }
 
-func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObservation {
+func userObservation(boundary aws.Boundary, user User) aws.ResourceObservation {
 	userARN := strings.TrimSpace(user.ARN)
 	name := strings.TrimSpace(user.Name)
 	resourceID := firstNonEmpty(userARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBUser,
+		ResourceType: aws.ResourceTypeMemoryDBUser,
 		Name:         name,
 		State:        strings.TrimSpace(user.Status),
 		Tags:         cloneStringMap(user.Tags),
@@ -235,15 +235,15 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 	}
 }
 
-func aclObservation(boundary awscloud.Boundary, acl ACL) awscloud.ResourceObservation {
+func aclObservation(boundary aws.Boundary, acl ACL) aws.ResourceObservation {
 	aclARN := strings.TrimSpace(acl.ARN)
 	name := strings.TrimSpace(acl.Name)
 	resourceID := firstNonEmpty(aclARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          aclARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBACL,
+		ResourceType: aws.ResourceTypeMemoryDBACL,
 		Name:         name,
 		State:        strings.TrimSpace(acl.Status),
 		Tags:         cloneStringMap(acl.Tags),
@@ -257,15 +257,15 @@ func aclObservation(boundary awscloud.Boundary, acl ACL) awscloud.ResourceObserv
 	}
 }
 
-func snapshotObservation(boundary awscloud.Boundary, snapshot SnapshotMetadata) awscloud.ResourceObservation {
+func snapshotObservation(boundary aws.Boundary, snapshot SnapshotMetadata) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	name := strings.TrimSpace(snapshot.Name)
 	resourceID := firstNonEmpty(snapshotARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBSnapshot,
+		ResourceType: aws.ResourceTypeMemoryDBSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

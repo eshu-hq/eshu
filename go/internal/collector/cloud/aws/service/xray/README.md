@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/xray` owns the X-Ray scanner contract for
+`internal/collector/cloud/aws/service/xray` owns the X-Ray scanner contract for
 the AWS cloud collector. It emits X-Ray **configuration** only: trace groups,
 sampling rules, and the account-region encryption configuration. It converts
 that configuration into `aws_resource` facts and emits relationship evidence for
@@ -50,7 +50,7 @@ configuration-only contract:
   service match criteria.
 - `GetEncryptionConfig` — encryption type (NONE/KMS), status, KMS key reference.
 
-No other X-Ray API is reachable. The `awssdk` adapter's `apiClient` interface
+No other X-Ray API is reachable. The `sdk` adapter's `apiClient` interface
 omits every trace, service-graph, insight, telemetry, and mutation method, and a
 reflection test asserts that surface is exactly the three reads above.
 
@@ -89,7 +89,7 @@ reflection test asserts that surface is exactly the three reads above.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/xray/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/xray/...` covers the bounded
 X-Ray configuration path: one paginated `GetGroups` stream, one paginated
 `GetSamplingRules` stream, and one `GetEncryptionConfig` point read, with no
 trace, service-graph, insight, telemetry, or mutation calls and no graph writes
@@ -97,7 +97,7 @@ in the collector. The slice is account-region bounded and adds no pagination
 fan-out beyond the two config list reads.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 X-Ray group, sampling-rule, and encryption-config fact emission, the
 encryption-config-to-KMS-key relationship (ARN-keyed and bare-id keyed),
 the sampling-rule-to-service correlation anchor, the wildcard-rule no-edge case,

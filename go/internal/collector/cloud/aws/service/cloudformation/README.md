@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/cloudformation` owns the CloudFormation
+`internal/collector/cloud/aws/service/cloudformation` owns the CloudFormation
 scanner contract for the AWS cloud collector. CloudFormation is the highest
 template-body redaction surface in the collector: stack and stack-set templates
 can carry inline IAM policy bodies, NoEcho parameter values, and embedded
@@ -56,7 +56,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and the `ClassifyStackOutput`
   output redaction helper.
 - `internal/facts` for emitted fact envelope kinds.
@@ -67,9 +67,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records CloudFormation API call counts, throttles, and
+The `sdk` adapter records CloudFormation API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="cloudformation"}` with the
 existing bounded AWS collector labels.
@@ -97,7 +97,7 @@ existing bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/cloudformation/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/cloudformation/...`
 covers the bounded CloudFormation metadata path: paginated stack discovery
 (active and deleted), per-stack resource-type, change-set, and drift-result
 reads, stack-set discovery with per-set describe, stack-instance discovery,
@@ -105,9 +105,9 @@ registered-type discovery, and the guard tests for forbidden template and
 mutation APIs. No template body, parameter value, change-set body, or drift
 property document appears anywhere in the test surface.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers CloudFormation resource and relationship fact emission, output
-redaction, the runtimebind registration, command configuration, and the SDK
+redaction, the bind registration, command configuration, and the SDK
 adapter contract.
 
 Collector Observability Evidence: CloudFormation uses the existing AWS collector

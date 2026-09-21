@@ -9,57 +9,57 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func subnetVPCRelationship(boundary awscloud.Boundary, subnet Subnet) (awscloud.RelationshipObservation, bool) {
+func subnetVPCRelationship(boundary aws.Boundary, subnet Subnet) (aws.RelationshipObservation, bool) {
 	subnetID := strings.TrimSpace(subnet.ID)
 	vpcID := strings.TrimSpace(subnet.VPCID)
 	if subnetID == "" || vpcID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SubnetInVPC,
+		RelationshipType: aws.RelationshipEC2SubnetInVPC,
 		SourceResourceID: subnetID,
 		SourceARN:        strings.TrimSpace(subnet.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       aws.ResourceTypeEC2VPC,
 		SourceRecordID:   subnetID + "#vpc#" + vpcID,
 	}, true
 }
 
 func securityGroupVPCRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group SecurityGroup,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	groupID := strings.TrimSpace(group.ID)
 	vpcID := strings.TrimSpace(group.VPCID)
 	if groupID == "" || vpcID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SecurityGroupInVPC,
+		RelationshipType: aws.RelationshipEC2SecurityGroupInVPC,
 		SourceResourceID: groupID,
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       aws.ResourceTypeEC2VPC,
 		SourceRecordID:   groupID + "#vpc#" + vpcID,
 	}, true
 }
 
 func securityGroupRuleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rule SecurityGroupRule,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	ruleID := securityGroupRuleID(rule)
 	groupID := strings.TrimSpace(rule.GroupID)
 	if ruleID == "" || groupID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SecurityGroupHasRule,
+		RelationshipType: aws.RelationshipEC2SecurityGroupHasRule,
 		SourceResourceID: groupID,
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroupRule,
+		TargetType:       aws.ResourceTypeEC2SecurityGroupRule,
 		Attributes: map[string]any{
 			"direction": securityGroupRuleDirection(rule),
 		},
@@ -68,31 +68,31 @@ func securityGroupRuleRelationship(
 }
 
 func networkInterfaceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	networkInterface NetworkInterface,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	networkInterfaceID := strings.TrimSpace(networkInterface.ID)
 	if networkInterfaceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if subnetID := strings.TrimSpace(networkInterface.SubnetID); subnetID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceInSubnet,
+			RelationshipType: aws.RelationshipEC2NetworkInterfaceInSubnet,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			SourceRecordID:   networkInterfaceID + "#subnet#" + subnetID,
 		})
 	}
 	if vpcID := strings.TrimSpace(networkInterface.VPCID); vpcID != "" {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceInVPC,
+			RelationshipType: aws.RelationshipEC2NetworkInterfaceInVPC,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			SourceRecordID:   networkInterfaceID + "#vpc#" + vpcID,
 		})
 	}
@@ -101,12 +101,12 @@ func networkInterfaceRelationships(
 		if groupID == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceUsesSecurityGroup,
+			RelationshipType: aws.RelationshipEC2NetworkInterfaceUsesSecurityGroup,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			Attributes: map[string]any{
 				"group_name": strings.TrimSpace(group.Name),
 			},
@@ -120,21 +120,21 @@ func networkInterfaceRelationships(
 }
 
 func attachmentRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	networkInterface NetworkInterface,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	if networkInterface.Attachment == nil {
-		return awscloud.RelationshipObservation{}
+		return aws.RelationshipObservation{}
 	}
 	networkInterfaceID := strings.TrimSpace(networkInterface.ID)
 	targetARN := strings.TrimSpace(networkInterface.Attachment.AttachedResourceARN)
 	targetID := firstNonEmpty(strings.TrimSpace(networkInterface.Attachment.InstanceID), targetARN)
 	if networkInterfaceID == "" || targetID == "" {
-		return awscloud.RelationshipObservation{}
+		return aws.RelationshipObservation{}
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2NetworkInterfaceAttachedToResource,
+		RelationshipType: aws.RelationshipEC2NetworkInterfaceAttachedToResource,
 		SourceResourceID: networkInterfaceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,

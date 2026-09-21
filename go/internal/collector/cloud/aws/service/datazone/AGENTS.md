@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/datazone guidance
+# AGENTS.md - internal/collector/cloud/aws/service/datazone guidance
 
 ## Read First
 
@@ -37,12 +37,12 @@
 - Emit the data-source-to-Glue-database edge keyed by the Glue database name (the
   Glue scanner's published database resource_id). Emit the
   data-source-to-Redshift-cluster edge keyed by the partition-aware cluster ARN
-  synthesized with `awscloud.PartitionForRegion` / `PartitionForBoundary` and
+  synthesized with `aws.PartitionForRegion` / `PartitionForBoundary` and
   never hardcode `arn:aws:`. Do not edge Redshift Serverless workgroups: their
   published ARN cannot be synthesized from the workgroup name, so skip rather
   than dangle.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from domain, project, or data
@@ -52,14 +52,14 @@
 ## Common Changes
 
 - Add a new DataZone metadata field by extending the scanner-owned type, writing
-  a focused scanner or adapter test first, then mapping it through `awscloud`
+  a focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry glossary, asset, subscription, or
   credential content, leave it out of the scanner contract.
 - Add new relationship evidence only when the DataZone API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape (the domain id for the parent domain, the Glue database name,
   the synthesized Redshift cluster ARN, the IAM role ARN, the KMS key identifier).
-- Extend SDK pagination and GetDomain/GetDataSource enrichment in the `awssdk`
+- Extend SDK pagination and GetDomain/GetDataSource enrichment in the `sdk`
   adapter, not here.
 
 ## What Not To Change Without An ADR

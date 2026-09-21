@@ -58,8 +58,8 @@ func TestWebhookHandlerAcceptsAWSFreshnessEventBridgePayload(t *testing.T) {
 	if trigger.Kind != freshness.EventKindConfigChange {
 		t.Fatalf("Kind = %q, want %q", trigger.Kind, freshness.EventKindConfigChange)
 	}
-	if trigger.ServiceKind != awscloud.ServiceLambda {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceLambda)
+	if trigger.ServiceKind != aws.ServiceLambda {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, aws.ServiceLambda)
 	}
 }
 

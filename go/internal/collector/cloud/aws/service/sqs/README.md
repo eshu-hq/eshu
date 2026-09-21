@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/sqs` owns the SQS scanner contract for the
+`internal/collector/cloud/aws/service/sqs` owns the SQS scanner contract for the
 AWS cloud collector. It converts queue metadata into `aws_resource` facts and
 emits optional dead-letter queue relationship evidence from safe redrive
 attributes.
@@ -35,7 +35,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -44,9 +44,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records SQS API call counts, throttles, and pagination
+The `sdk` adapter records SQS API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -62,12 +62,12 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/sqs/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/sqs/...`
 covers the bounded SQS metadata path: one paginated queue listing, one metadata
 attribute read per queue, one tag read per queue, no message reads, and no queue
 mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers SQS queue metadata fact emission, dead-letter queue relationship
 emission, safe omission of queue policy JSON, runtime registration, command
 configuration, and the SDK adapter's explicit metadata attribute allowlist.

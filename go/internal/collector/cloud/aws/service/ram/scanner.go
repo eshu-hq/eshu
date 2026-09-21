@@ -25,15 +25,15 @@ type Scanner struct {
 // permissions through the configured client. It emits one resource fact per
 // share and per permission, plus share-to-resource, share-to-principal, and
 // share-to-permission relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ram scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRAM:
+	case "", aws.ServiceRAM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRAM
+		boundary.ServiceKind = aws.ServiceRAM
 	default:
 		return nil, fmt.Errorf("ram scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -51,7 +51,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			// skip it rather than failing the whole scan on one malformed record.
 			continue
 		}
-		shareEnvelope, err := awscloud.NewResourceEnvelope(observation)
+		shareEnvelope, err := aws.NewResourceEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +62,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -74,7 +74,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -86,7 +86,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if permissionARN != "" {
 				if _, ok := seenPermission[permissionARN]; !ok {
 					seenPermission[permissionARN] = struct{}{}
-					permissionEnvelope, err := awscloud.NewResourceEnvelope(permissionObservation(boundary, permission))
+					permissionEnvelope, err := aws.NewResourceEnvelope(permissionObservation(boundary, permission))
 					if err != nil {
 						return nil, err
 					}
@@ -97,7 +97,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -112,18 +112,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 // RAM reports a blank ARN, so one malformed share record cannot fail the whole
 // scan. It returns false when the share has neither an ARN nor a name, because
 // such a record has no stable identity to project.
-func shareObservation(boundary awscloud.Boundary, share ResourceShare) (awscloud.ResourceObservation, bool) {
+func shareObservation(boundary aws.Boundary, share ResourceShare) (aws.ResourceObservation, bool) {
 	shareARN := strings.TrimSpace(share.ARN)
 	shareName := strings.TrimSpace(share.Name)
 	shareID := shareJoinID(share)
 	if shareID == "" {
-		return awscloud.ResourceObservation{}, false
+		return aws.ResourceObservation{}, false
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          shareARN,
 		ResourceID:   shareID,
-		ResourceType: awscloud.ResourceTypeRAMResourceShare,
+		ResourceType: aws.ResourceTypeRAMResourceShare,
 		Name:         shareName,
 		State:        strings.TrimSpace(share.Status),
 		Tags:         cloneStringMap(share.Tags),
@@ -144,13 +144,13 @@ func shareObservation(boundary awscloud.Boundary, share ResourceShare) (awscloud
 	}, true
 }
 
-func permissionObservation(boundary awscloud.Boundary, permission Permission) awscloud.ResourceObservation {
+func permissionObservation(boundary aws.Boundary, permission Permission) aws.ResourceObservation {
 	permissionARN := strings.TrimSpace(permission.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          permissionARN,
 		ResourceID:   permissionARN,
-		ResourceType: awscloud.ResourceTypeRAMPermission,
+		ResourceType: aws.ResourceTypeRAMPermission,
 		Name:         strings.TrimSpace(permission.Name),
 		State:        strings.TrimSpace(permission.Status),
 		Attributes: map[string]any{

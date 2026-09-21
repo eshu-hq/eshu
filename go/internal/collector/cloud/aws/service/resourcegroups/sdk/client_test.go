@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsrg "github.com/aws/aws-sdk-go-v2/service/resourcegroups"
 	awsrgtypes "github.com/aws/aws-sdk-go-v2/service/resourcegroups/types"
 
@@ -37,7 +37,7 @@ func (f *fakeRGAPI) ListGroups(_ context.Context, _ *awsrg.ListGroupsInput, _ ..
 
 func (f *fakeRGAPI) GetGroupQuery(_ context.Context, in *awsrg.GetGroupQueryInput, _ ...func(*awsrg.Options)) (*awsrg.GetGroupQueryOutput, error) {
 	f.groupQueryCalls++
-	if out, ok := f.groupQueries[aws.ToString(in.Group)]; ok {
+	if out, ok := f.groupQueries[awsv2.ToString(in.Group)]; ok {
 		return out, nil
 	}
 	return &awsrg.GetGroupQueryOutput{}, nil
@@ -45,7 +45,7 @@ func (f *fakeRGAPI) GetGroupQuery(_ context.Context, in *awsrg.GetGroupQueryInpu
 
 func (f *fakeRGAPI) ListGroupResources(_ context.Context, in *awsrg.ListGroupResourcesInput, _ ...func(*awsrg.Options)) (*awsrg.ListGroupResourcesOutput, error) {
 	f.groupResourceCalls++
-	if out, ok := f.groupResources[aws.ToString(in.Group)]; ok {
+	if out, ok := f.groupResources[awsv2.ToString(in.Group)]; ok {
 		return out, nil
 	}
 	return &awsrg.ListGroupResourcesOutput{}, nil
@@ -57,32 +57,32 @@ func TestClientListGroupsProjectsQueryTypeAndMembers(t *testing.T) {
 	fake := &fakeRGAPI{
 		listGroups: []*awsrg.ListGroupsOutput{{
 			GroupIdentifiers: []awsrgtypes.GroupIdentifier{{
-				GroupArn:    aws.String(groupARN),
-				GroupName:   aws.String("web"),
-				Description: aws.String("web tier"),
+				GroupArn:    awsv2.String(groupARN),
+				GroupName:   awsv2.String("web"),
+				Description: awsv2.String("web tier"),
 			}},
 		}},
 		groupQueries: map[string]*awsrg.GetGroupQueryOutput{
 			groupARN: {GroupQuery: &awsrgtypes.GroupQuery{
-				GroupName: aws.String("web"),
+				GroupName: awsv2.String("web"),
 				ResourceQuery: &awsrgtypes.ResourceQuery{
 					Type:  awsrgtypes.QueryTypeTagFilters10,
-					Query: aws.String(`{"ResourceTypeFilters":["AWS::AllSupported"],"TagFilters":[{"Key":"tier","Values":["web"]}]}`),
+					Query: awsv2.String(`{"ResourceTypeFilters":["AWS::AllSupported"],"TagFilters":[{"Key":"tier","Values":["web"]}]}`),
 				},
 			}},
 		},
 		groupResources: map[string]*awsrg.ListGroupResourcesOutput{
 			groupARN: {Resources: []awsrgtypes.ListGroupResourcesItem{{
 				Identifier: &awsrgtypes.ResourceIdentifier{
-					ResourceArn:  aws.String(bucketARN),
-					ResourceType: aws.String("AWS::S3::Bucket"),
+					ResourceArn:  awsv2.String(bucketARN),
+					ResourceType: awsv2.String("AWS::S3::Bucket"),
 				},
 			}}},
 		},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -120,22 +120,22 @@ func TestClientExtractsStackIdentifierForCloudFormationGroup(t *testing.T) {
 	fake := &fakeRGAPI{
 		listGroups: []*awsrg.ListGroupsOutput{{
 			GroupIdentifiers: []awsrgtypes.GroupIdentifier{{
-				GroupArn:  aws.String(groupARN),
-				GroupName: aws.String("cfn"),
+				GroupArn:  awsv2.String(groupARN),
+				GroupName: awsv2.String("cfn"),
 			}},
 		}},
 		groupQueries: map[string]*awsrg.GetGroupQueryOutput{
 			groupARN: {GroupQuery: &awsrgtypes.GroupQuery{
 				ResourceQuery: &awsrgtypes.ResourceQuery{
 					Type:  awsrgtypes.QueryTypeCloudformationStack10,
-					Query: aws.String(`{"ResourceTypeFilters":["AWS::AllSupported"],"StackIdentifier":"` + stackARN + `"}`),
+					Query: awsv2.String(`{"ResourceTypeFilters":["AWS::AllSupported"],"StackIdentifier":"` + stackARN + `"}`),
 				},
 			}},
 		},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -170,19 +170,19 @@ func TestClientSkipsMembersWithoutARN(t *testing.T) {
 	groupARN := "arn:aws:resource-groups:us-east-1:123456789012:group/g"
 	fake := &fakeRGAPI{
 		listGroups: []*awsrg.ListGroupsOutput{{
-			GroupIdentifiers: []awsrgtypes.GroupIdentifier{{GroupArn: aws.String(groupARN), GroupName: aws.String("g")}},
+			GroupIdentifiers: []awsrgtypes.GroupIdentifier{{GroupArn: awsv2.String(groupARN), GroupName: awsv2.String("g")}},
 		}},
 		groupResources: map[string]*awsrg.ListGroupResourcesOutput{
 			groupARN: {Resources: []awsrgtypes.ListGroupResourcesItem{
 				{Identifier: nil},
-				{Identifier: &awsrgtypes.ResourceIdentifier{ResourceArn: aws.String("")}},
-				{Identifier: &awsrgtypes.ResourceIdentifier{ResourceArn: aws.String("arn:aws:s3:::ok")}},
+				{Identifier: &awsrgtypes.ResourceIdentifier{ResourceArn: awsv2.String("")}},
+				{Identifier: &awsrgtypes.ResourceIdentifier{ResourceArn: awsv2.String("arn:aws:s3:::ok")}},
 			}},
 		},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -196,7 +196,7 @@ func TestClientSkipsMembersWithoutARN(t *testing.T) {
 func TestClientMetadataReadsSucceedAgainstEmptyFake(t *testing.T) {
 	adapter := &Client{
 		client:   &fakeRGAPI{},
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {

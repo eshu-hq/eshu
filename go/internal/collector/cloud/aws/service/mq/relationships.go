@@ -14,45 +14,45 @@ import (
 // configurationARNs maps a broker-reported configuration ID to the ARN of the
 // emitted aws_mq_configuration resource so the broker→configuration edge joins
 // on the same identity the configuration scanner publishes as its ResourceID.
-func brokerRelationships(boundary awscloud.Boundary, broker Broker, configurationARNs map[string]string) []awscloud.RelationshipObservation {
+func brokerRelationships(boundary aws.Boundary, broker Broker, configurationARNs map[string]string) []aws.RelationshipObservation {
 	brokerID := firstNonEmpty(broker.ARN, broker.ID, broker.Name)
 	if brokerID == "" {
 		return nil
 	}
 	brokerARN := strings.TrimSpace(broker.ARN)
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, subnetID := range cloneStrings(broker.SubnetIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesSubnet,
+			RelationshipType: aws.RelationshipMQBrokerUsesSubnet,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSubnet, subnetID),
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   relationshipRecordID(brokerID, aws.RelationshipMQBrokerUsesSubnet, subnetID),
 		})
 	}
 	for _, groupID := range cloneStrings(broker.SecurityGroupIDs) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesSecurityGroup,
+			RelationshipType: aws.RelationshipMQBrokerUsesSecurityGroup,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSecurityGroup, groupID),
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   relationshipRecordID(brokerID, aws.RelationshipMQBrokerUsesSecurityGroup, groupID),
 		})
 	}
 	if kmsARN := strings.TrimSpace(broker.Encryption.KMSKeyID); !broker.Encryption.UseAWSOwnedKey && isARN(kmsARN) {
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesKMSKey,
+			RelationshipType: aws.RelationshipMQBrokerUsesKMSKey,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesKMSKey, kmsARN),
+			TargetType:       aws.ResourceTypeKMSKey,
+			SourceRecordID:   relationshipRecordID(brokerID, aws.RelationshipMQBrokerUsesKMSKey, kmsARN),
 		})
 	}
 	if broker.Configuration != nil {
@@ -69,40 +69,40 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 				configTarget = arn
 				configTargetARN = arn
 			}
-			observations = append(observations, awscloud.RelationshipObservation{
+			observations = append(observations, aws.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipMQBrokerUsesConfiguration,
+				RelationshipType: aws.RelationshipMQBrokerUsesConfiguration,
 				SourceResourceID: brokerID,
 				SourceARN:        brokerARN,
 				TargetResourceID: configTarget,
 				TargetARN:        configTargetARN,
-				TargetType:       awscloud.ResourceTypeMQConfiguration,
+				TargetType:       aws.ResourceTypeMQConfiguration,
 				Attributes: map[string]any{
 					"revision": broker.Configuration.Revision,
 				},
-				SourceRecordID: relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesConfiguration, configID),
+				SourceRecordID: relationshipRecordID(brokerID, aws.RelationshipMQBrokerUsesConfiguration, configID),
 			})
 		}
 	}
-	partition := awscloud.PartitionFromARN(brokerARN)
+	partition := aws.PartitionFromARN(brokerARN)
 	for _, logGroup := range brokerLogGroups(broker.Logs) {
 		// The cloudwatchlogs scanner emits each log group with ResourceID set to
 		// its non-wildcard ARN, so synthesize the matching ARN from the broker
 		// partition and the boundary account and region and target it in both
 		// fields, otherwise the edge cannot join the log group resource.
 		logGroupARN := cloudWatchLogGroupARN(partition, boundary, logGroup.name)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
+			RelationshipType: aws.RelationshipMQBrokerLogsToCloudWatchLogGroup,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
 			Attributes: map[string]any{
 				"log_kind": logGroup.kind,
 			},
-			SourceRecordID: relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup, logGroup.kind+":"+logGroup.name),
+			SourceRecordID: relationshipRecordID(brokerID, aws.RelationshipMQBrokerLogsToCloudWatchLogGroup, logGroup.kind+":"+logGroup.name),
 		})
 	}
 	return observations
@@ -115,7 +115,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 // arn:<partition>:logs:<region>:<account>:log-group:<name>. The partition is
 // taken from the broker ARN so the edge joins in the aws-us-gov and aws-cn
 // partitions, not only the commercial aws partition.
-func cloudWatchLogGroupARN(partition string, boundary awscloud.Boundary, name string) string {
+func cloudWatchLogGroupARN(partition string, boundary aws.Boundary, name string) string {
 	region := strings.TrimSpace(boundary.Region)
 	account := strings.TrimSpace(boundary.AccountID)
 	name = strings.TrimSpace(name)

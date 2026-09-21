@@ -14,11 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAmplify,
+		ServiceKind:         aws.ServiceAmplify,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -135,7 +135,7 @@ func TestScannerEmitsAppAndBranchResources(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	apps := resourcesByType(t, envelopes, awscloud.ResourceTypeAmplifyApp)
+	apps := resourcesByType(t, envelopes, aws.ResourceTypeAmplifyApp)
 	if len(apps) != 1 {
 		t.Fatalf("app resources = %d, want 1", len(apps))
 	}
@@ -150,7 +150,7 @@ func TestScannerEmitsAppAndBranchResources(t *testing.T) {
 		t.Fatalf("app repository_url = %v", appAttrs["repository_url"])
 	}
 
-	branches := resourcesByType(t, envelopes, awscloud.ResourceTypeAmplifyBranch)
+	branches := resourcesByType(t, envelopes, aws.ResourceTypeAmplifyBranch)
 	if len(branches) != 1 {
 		t.Fatalf("branch resources = %d, want 1", len(branches))
 	}
@@ -168,7 +168,7 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	repo := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppDeploysFromRepository)
+	repo := relationshipsByType(t, envelopes, aws.RelationshipAmplifyAppDeploysFromRepository)
 	if len(repo) != 1 || repo[0]["target_type"] != repositorySourceTargetType {
 		t.Fatalf("app->repository = %#v", repo)
 	}
@@ -179,12 +179,12 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("app->repository source_resource_id = %v, want app node id", repo[0]["source_resource_id"])
 	}
 
-	roles := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppUsesIAMRole)
+	roles := relationshipsByType(t, envelopes, aws.RelationshipAmplifyAppUsesIAMRole)
 	if len(roles) != 2 {
 		t.Fatalf("app->IAM-role relationships = %d, want 2", len(roles))
 	}
 	for _, role := range roles {
-		if role["target_type"] != awscloud.ResourceTypeIAMRole {
+		if role["target_type"] != aws.ResourceTypeIAMRole {
 			t.Fatalf("app->IAM-role target_type = %v", role["target_type"])
 		}
 		if !strings.HasPrefix(role["target_resource_id"].(string), "arn:aws:iam::") {
@@ -195,8 +195,8 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 		}
 	}
 
-	zone := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppServesCustomDomainViaHostedZone)
-	if len(zone) != 1 || zone[0]["target_type"] != awscloud.ResourceTypeRoute53HostedZone {
+	zone := relationshipsByType(t, envelopes, aws.RelationshipAmplifyAppServesCustomDomainViaHostedZone)
+	if len(zone) != 1 || zone[0]["target_type"] != aws.ResourceTypeRoute53HostedZone {
 		t.Fatalf("app->Route53 = %#v", zone)
 	}
 	if zone[0]["target_resource_id"] != "storefront.example.com" {
@@ -206,16 +206,16 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("app->Route53 target_arn = %v, want empty (Amplify reports no zone ARN)", zone[0]["target_arn"])
 	}
 
-	cf := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppServesCustomDomainViaCloudFront)
-	if len(cf) != 1 || cf[0]["target_type"] != awscloud.ResourceTypeCloudFrontDistribution {
+	cf := relationshipsByType(t, envelopes, aws.RelationshipAmplifyAppServesCustomDomainViaCloudFront)
+	if len(cf) != 1 || cf[0]["target_type"] != aws.ResourceTypeCloudFrontDistribution {
 		t.Fatalf("app->CloudFront = %#v (want 1 deduped edge)", cf)
 	}
 	if cf[0]["target_resource_id"] != "d2example.cloudfront.net" {
 		t.Fatalf("app->CloudFront target_resource_id = %v, want cloudfront domain", cf[0]["target_resource_id"])
 	}
 
-	branchToApp := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyBranchBelongsToApp)
-	if len(branchToApp) != 1 || branchToApp[0]["target_type"] != awscloud.ResourceTypeAmplifyApp {
+	branchToApp := relationshipsByType(t, envelopes, aws.RelationshipAmplifyBranchBelongsToApp)
+	if len(branchToApp) != 1 || branchToApp[0]["target_type"] != aws.ResourceTypeAmplifyApp {
 		t.Fatalf("branch->app = %#v", branchToApp)
 	}
 	if branchToApp[0]["target_resource_id"] != sampleAppARN {
@@ -354,7 +354,7 @@ func TestScannerUsesBoundaryPartitionForSynthesizedARNs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Scan() error = %v", err)
 			}
-			apps := resourcesByType(t, envelopes, awscloud.ResourceTypeAmplifyApp)
+			apps := resourcesByType(t, envelopes, aws.ResourceTypeAmplifyApp)
 			if len(apps) != 1 {
 				t.Fatalf("app resources = %d, want 1", len(apps))
 			}
@@ -362,7 +362,7 @@ func TestScannerUsesBoundaryPartitionForSynthesizedARNs(t *testing.T) {
 			if apps[0]["resource_id"] != wantAppARN {
 				t.Fatalf("app resource_id = %v, want %v", apps[0]["resource_id"], wantAppARN)
 			}
-			branchToApp := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyBranchBelongsToApp)
+			branchToApp := relationshipsByType(t, envelopes, aws.RelationshipAmplifyBranchBelongsToApp)
 			if len(branchToApp) != 1 || branchToApp[0]["target_resource_id"] != wantAppARN {
 				t.Fatalf("branch->app target = %#v, want %v", branchToApp, wantAppARN)
 			}
@@ -379,7 +379,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = aws.ServiceIAM
 	_, err := Scanner{Client: sampleClient()}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service-kind mismatch error")
@@ -397,7 +397,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, env := range envelopes {
-		if env.Payload["service_kind"] != awscloud.ServiceAmplify {
+		if env.Payload["service_kind"] != aws.ServiceAmplify {
 			t.Fatalf("service_kind = %v, want amplify", env.Payload["service_kind"])
 		}
 	}

@@ -14,9 +14,9 @@ import (
 // the resource_id the SES configuration-set node publishes, so the edge joins
 // that node exactly. It returns nil when the identity reports no default set.
 func identityConfigurationSetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	identity EmailIdentity,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	setName := strings.TrimSpace(identity.ConfigurationSetName)
 	if setName == "" {
 		return nil
@@ -25,15 +25,15 @@ func identityConfigurationSetRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEmailIdentityUsesConfigurationSet,
+		RelationshipType: aws.RelationshipSESEmailIdentityUsesConfigurationSet,
 		SourceResourceID: sourceID,
 		SourceARN:        identityARN(boundary, identity),
 		TargetResourceID: setName,
-		TargetType:       awscloud.ResourceTypeSESConfigurationSet,
+		TargetType:       aws.ResourceTypeSESConfigurationSet,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEmailIdentityUsesConfigurationSet + ":" + setName,
+			aws.RelationshipSESEmailIdentityUsesConfigurationSet + ":" + setName,
 	}
 }
 
@@ -44,9 +44,9 @@ func identityConfigurationSetRelationship(
 // key identifier the KMS scanner publishes (a key ARN). It returns nil when no
 // key identifier is reported.
 func identityDKIMKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	identity EmailIdentity,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	keyID := strings.TrimSpace(identity.DKIMKMSKeyID)
 	if keyID == "" {
 		return nil
@@ -59,16 +59,16 @@ func identityDKIMKMSRelationship(
 	if isARN(keyID) {
 		targetARN = keyID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEmailIdentityDKIMUsesKMSKey,
+		RelationshipType: aws.RelationshipSESEmailIdentityDKIMUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        identityARN(boundary, identity),
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEmailIdentityDKIMUsesKMSKey + ":" + keyID,
+			aws.RelationshipSESEmailIdentityDKIMUsesKMSKey + ":" + keyID,
 	}
 }
 
@@ -77,9 +77,9 @@ func identityDKIMKMSRelationship(
 // resource_id the SES dedicated-IP-pool node publishes, so the edge joins that
 // node. It returns nil when the set sends through the shared pool.
 func configurationSetDedicatedIPPoolRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	set ConfigurationSet,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	poolName := strings.TrimSpace(set.SendingPoolName)
 	if poolName == "" {
 		return nil
@@ -88,15 +88,15 @@ func configurationSetDedicatedIPPoolRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESConfigurationSetUsesDedicatedIPPool,
+		RelationshipType: aws.RelationshipSESConfigurationSetUsesDedicatedIPPool,
 		SourceResourceID: sourceID,
 		SourceARN:        configurationSetARN(boundary, set),
 		TargetResourceID: poolName,
-		TargetType:       awscloud.ResourceTypeSESDedicatedIPPool,
+		TargetType:       aws.ResourceTypeSESDedicatedIPPool,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESConfigurationSetUsesDedicatedIPPool + ":" + poolName,
+			aws.RelationshipSESConfigurationSetUsesDedicatedIPPool + ":" + poolName,
 	}
 }
 
@@ -106,10 +106,10 @@ func configurationSetDedicatedIPPoolRelationship(
 // ARN), so the edge joins the topic node. It returns nil when the destination
 // has no SNS target.
 func eventDestinationSNSTopicRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configurationSet string,
 	destination EventDestination,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	topicARN := strings.TrimSpace(destination.SNSTopicARN)
 	if topicARN == "" {
 		return nil
@@ -118,15 +118,15 @@ func eventDestinationSNSTopicRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEventDestinationPublishesToSNSTopic,
+		RelationshipType: aws.RelationshipSESEventDestinationPublishesToSNSTopic,
 		SourceResourceID: sourceID,
 		TargetResourceID: topicARN,
 		TargetARN:        topicARN,
-		TargetType:       awscloud.ResourceTypeSNSTopic,
+		TargetType:       aws.ResourceTypeSNSTopic,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEventDestinationPublishesToSNSTopic + ":" + topicARN,
+			aws.RelationshipSESEventDestinationPublishesToSNSTopic + ":" + topicARN,
 	}
 }
 
@@ -138,10 +138,10 @@ func eventDestinationSNSTopicRelationship(
 // attribute, not as a separate dangling edge. It returns nil when the
 // destination has no Firehose target.
 func eventDestinationFirehoseRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	configurationSet string,
 	destination EventDestination,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	streamARN := strings.TrimSpace(destination.FirehoseDeliveryStreamARN)
 	if streamARN == "" {
 		return nil
@@ -154,15 +154,15 @@ func eventDestinationFirehoseRelationship(
 	if roleARN := strings.TrimSpace(destination.FirehoseIAMRoleARN); roleARN != "" {
 		attributes = map[string]any{"iam_role_arn": roleARN}
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEventDestinationStreamsToFirehose,
+		RelationshipType: aws.RelationshipSESEventDestinationStreamsToFirehose,
 		SourceResourceID: sourceID,
 		TargetResourceID: streamARN,
 		TargetARN:        streamARN,
-		TargetType:       awscloud.ResourceTypeFirehoseDeliveryStream,
+		TargetType:       aws.ResourceTypeFirehoseDeliveryStream,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEventDestinationStreamsToFirehose + ":" + streamARN,
+			aws.RelationshipSESEventDestinationStreamsToFirehose + ":" + streamARN,
 	}
 }

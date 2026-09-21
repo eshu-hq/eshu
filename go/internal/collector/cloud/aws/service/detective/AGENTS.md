@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/detective guidance
+# AGENTS.md - internal/collector/cloud/aws/service/detective guidance
 
 ## Read First
 
@@ -43,10 +43,10 @@
 
 - Add a new safe Detective metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add new relationship evidence only when Detective directly reports both sides
   and the target matches an existing scanner's published `resource_id`.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

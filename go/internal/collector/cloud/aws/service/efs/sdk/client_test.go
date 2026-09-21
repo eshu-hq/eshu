@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsefs "github.com/aws/aws-sdk-go-v2/service/efs"
 	awsefstypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
 
@@ -69,38 +69,38 @@ func TestClientListFileSystemsReadsMetadataAndChildResources(t *testing.T) {
 	fsARN := "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-01234567"
 	fake := &fakeEFSAPI{
 		fileSystems: []awsefstypes.FileSystemDescription{{
-			FileSystemId:    aws.String(fsID),
-			FileSystemArn:   aws.String(fsARN),
-			Name:            aws.String("prod-data"),
-			OwnerId:         aws.String("123456789012"),
+			FileSystemId:    awsv2.String(fsID),
+			FileSystemArn:   awsv2.String(fsARN),
+			Name:            awsv2.String("prod-data"),
+			OwnerId:         awsv2.String("123456789012"),
 			LifeCycleState:  awsefstypes.LifeCycleStateAvailable,
 			PerformanceMode: awsefstypes.PerformanceModeGeneralPurpose,
 			ThroughputMode:  awsefstypes.ThroughputModeBursting,
-			Encrypted:       aws.Bool(true),
-			KmsKeyId:        aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+			Encrypted:       awsv2.Bool(true),
+			KmsKeyId:        awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
 			Tags: []awsefstypes.Tag{
-				{Key: aws.String("Environment"), Value: aws.String("prod")},
+				{Key: awsv2.String("Environment"), Value: awsv2.String("prod")},
 			},
 		}},
 		accessPoints: map[string][]awsefstypes.AccessPointDescription{
 			fsID: {{
-				AccessPointId:  aws.String("fsap-0001"),
-				AccessPointArn: aws.String("arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0001"),
-				Name:           aws.String("app-ap"),
-				FileSystemId:   aws.String(fsID),
+				AccessPointId:  awsv2.String("fsap-0001"),
+				AccessPointArn: awsv2.String("arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0001"),
+				Name:           awsv2.String("app-ap"),
+				FileSystemId:   awsv2.String(fsID),
 				LifeCycleState: awsefstypes.LifeCycleStateAvailable,
-				RootDirectory:  &awsefstypes.RootDirectory{Path: aws.String("/app")},
-				PosixUser:      &awsefstypes.PosixUser{Uid: aws.Int64(1000), Gid: aws.Int64(1000)},
+				RootDirectory:  &awsefstypes.RootDirectory{Path: awsv2.String("/app")},
+				PosixUser:      &awsefstypes.PosixUser{Uid: awsv2.Int64(1000), Gid: awsv2.Int64(1000)},
 			}},
 		},
 		mountTargets: map[string][]awsefstypes.MountTargetDescription{
 			fsID: {{
-				MountTargetId:  aws.String("fsmt-0001"),
-				FileSystemId:   aws.String(fsID),
-				SubnetId:       aws.String("subnet-aaa"),
-				VpcId:          aws.String("vpc-bbb"),
+				MountTargetId:  awsv2.String("fsmt-0001"),
+				FileSystemId:   awsv2.String(fsID),
+				SubnetId:       awsv2.String("subnet-aaa"),
+				VpcId:          awsv2.String("vpc-bbb"),
 				LifeCycleState: awsefstypes.LifeCycleStateAvailable,
-				IpAddress:      aws.String("10.0.0.5"),
+				IpAddress:      awsv2.String("10.0.0.5"),
 			}},
 		},
 		securityGroups: map[string][]string{
@@ -112,7 +112,7 @@ func TestClientListFileSystemsReadsMetadataAndChildResources(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEFS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceEFS},
 	}
 
 	systems, err := adapter.ListFileSystems(context.Background())
@@ -165,18 +165,18 @@ func TestClientListFileSystemsReadsMetadataAndChildResources(t *testing.T) {
 func TestClientListReplicationConfigurationsRecordsDestinations(t *testing.T) {
 	fake := &fakeEFSAPI{
 		replications: []awsefstypes.ReplicationConfigurationDescription{{
-			SourceFileSystemId:  aws.String("fs-source"),
-			SourceFileSystemArn: aws.String("arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-source"),
+			SourceFileSystemId:  awsv2.String("fs-source"),
+			SourceFileSystemArn: awsv2.String("arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-source"),
 			Destinations: []awsefstypes.Destination{{
-				FileSystemId: aws.String("fs-dest"),
-				Region:       aws.String("us-west-2"),
+				FileSystemId: awsv2.String("fs-dest"),
+				Region:       awsv2.String("us-west-2"),
 				Status:       awsefstypes.ReplicationStatusEnabled,
 			}},
 		}},
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEFS},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceEFS},
 	}
 
 	configs, err := adapter.ListReplicationConfigurations(context.Background())
@@ -223,7 +223,7 @@ func (f *fakeEFSAPI) DescribeAccessPoints(
 	input *awsefs.DescribeAccessPointsInput,
 	_ ...func(*awsefs.Options),
 ) (*awsefs.DescribeAccessPointsOutput, error) {
-	return &awsefs.DescribeAccessPointsOutput{AccessPoints: f.accessPoints[aws.ToString(input.FileSystemId)]}, nil
+	return &awsefs.DescribeAccessPointsOutput{AccessPoints: f.accessPoints[awsv2.ToString(input.FileSystemId)]}, nil
 }
 
 func (f *fakeEFSAPI) DescribeMountTargets(
@@ -231,7 +231,7 @@ func (f *fakeEFSAPI) DescribeMountTargets(
 	input *awsefs.DescribeMountTargetsInput,
 	_ ...func(*awsefs.Options),
 ) (*awsefs.DescribeMountTargetsOutput, error) {
-	return &awsefs.DescribeMountTargetsOutput{MountTargets: f.mountTargets[aws.ToString(input.FileSystemId)]}, nil
+	return &awsefs.DescribeMountTargetsOutput{MountTargets: f.mountTargets[awsv2.ToString(input.FileSystemId)]}, nil
 }
 
 func (f *fakeEFSAPI) DescribeMountTargetSecurityGroups(
@@ -239,7 +239,7 @@ func (f *fakeEFSAPI) DescribeMountTargetSecurityGroups(
 	input *awsefs.DescribeMountTargetSecurityGroupsInput,
 	_ ...func(*awsefs.Options),
 ) (*awsefs.DescribeMountTargetSecurityGroupsOutput, error) {
-	return &awsefs.DescribeMountTargetSecurityGroupsOutput{SecurityGroups: f.securityGroups[aws.ToString(input.MountTargetId)]}, nil
+	return &awsefs.DescribeMountTargetSecurityGroupsOutput{SecurityGroups: f.securityGroups[awsv2.ToString(input.MountTargetId)]}, nil
 }
 
 func (f *fakeEFSAPI) DescribeLifecycleConfiguration(
@@ -247,7 +247,7 @@ func (f *fakeEFSAPI) DescribeLifecycleConfiguration(
 	input *awsefs.DescribeLifecycleConfigurationInput,
 	_ ...func(*awsefs.Options),
 ) (*awsefs.DescribeLifecycleConfigurationOutput, error) {
-	return &awsefs.DescribeLifecycleConfigurationOutput{LifecyclePolicies: f.lifecyclePolicies[aws.ToString(input.FileSystemId)]}, nil
+	return &awsefs.DescribeLifecycleConfigurationOutput{LifecyclePolicies: f.lifecyclePolicies[awsv2.ToString(input.FileSystemId)]}, nil
 }
 
 func (f *fakeEFSAPI) DescribeReplicationConfigurations(

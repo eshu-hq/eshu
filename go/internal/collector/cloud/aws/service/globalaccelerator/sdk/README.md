@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`awssdk` adapts the AWS SDK for Go v2 Global Accelerator client into the
+`sdk` adapts the AWS SDK for Go v2 Global Accelerator client into the
 metadata-only `globalaccelerator.Client` port. It pages accelerators, listeners,
 and endpoint groups, reads accelerator tags, and maps the SDK types into the
 scanner-owned model.
@@ -26,8 +26,8 @@ See `doc.go` for the godoc-rendered package contract.
 
 - `github.com/aws/aws-sdk-go-v2/service/globalaccelerator` and its `types`
   package for the control-plane client.
-- `internal/collector/awscloud` for the boundary and shared API-call recording.
-- `internal/collector/awscloud/service/globalaccelerator` for the scanner-owned
+- `internal/collector/cloud/aws` for the boundary and shared API-call recording.
+- `internal/collector/cloud/aws/service/globalaccelerator` for the scanner-owned
   model returned to callers.
 - `internal/telemetry` for spans and instruments.
 

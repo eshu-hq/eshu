@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53resolver` owns scanner-side Route
+`internal/collector/cloud/aws/service/route53resolver` owns scanner-side Route
 53 Resolver fact selection for the AWS cloud collector. It converts resolver
 endpoints, resolver rules and rule associations, DNS Firewall rule groups and
 domain lists, firewall rule group associations, and query log configurations
@@ -36,19 +36,19 @@ See `doc.go` for the godoc contract.
 
 - `Scanner` - emits Route 53 Resolver facts for one claimed AWS boundary.
 - `Client` - scanner-owned, metadata-only read surface implemented by
-  `awssdk.Client`.
+  `sdk.Client`.
 - `ResolverEndpoint`, `ResolverRule`, `ResolverRuleAssociation`,
   `FirewallRuleGroup`, `FirewallDomainList`, `FirewallRuleGroupAssociation`,
   `QueryLogConfig` - scanner-owned record types.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
+This package emits no metrics or spans directly. The `sdk` adapter emits AWS
 API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants
@@ -77,7 +77,7 @@ API call counters, throttle counters, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/route53resolver/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/route53resolver/...`
 covers the bounded Route 53 Resolver metadata path: one paginated
 ListResolverEndpoints stream with a per-endpoint paginated
 ListResolverEndpointIpAddresses fan-out for subnet derivation, one paginated
@@ -89,7 +89,7 @@ ListFirewallRuleGroupAssociations stream, and one paginated
 ListResolverQueryLogConfigs stream. No mutation, domain-content, or
 query-log-record API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers resolver endpoint, rule, rule association, firewall rule group, firewall
 domain list, firewall rule group association, and query log config fact
 emission; every relationship's non-empty target type and join key; domain-list

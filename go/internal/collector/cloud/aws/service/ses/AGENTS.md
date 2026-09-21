@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ses guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ses guidance
 
 ## Read First
 
@@ -35,9 +35,9 @@
 - Emit the identity-DKIM-to-KMS-key edge only when AWS reports a key identifier
   on the DKIM attributes. Set `target_arn` only when ARN-shaped.
 - Synthesize identity, configuration-set, and dedicated-IP-pool ARNs with
-  `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from SES names or tags.
@@ -49,13 +49,13 @@
 ## Common Changes
 
 - Add a new SES metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry message content, a DKIM token, a
   policy document, or a credential, leave it out of the scanner contract.
 - Add new relationship evidence only when the SES API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

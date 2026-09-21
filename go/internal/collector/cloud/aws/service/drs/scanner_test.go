@@ -68,7 +68,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Source server resource node.
-	server := resourceByType(t, envelopes, awscloud.ResourceTypeDRSSourceServer)
+	server := resourceByType(t, envelopes, aws.ResourceTypeDRSSourceServer)
 	if got, want := server.Payload["resource_id"], testSourceServerID; got != want {
 		t.Fatalf("source server resource_id = %#v, want %q", got, want)
 	}
@@ -82,7 +82,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, serverAttrs, "recommended_instance_type", "m5.large")
 
 	// Recovery instance resource node.
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeDRSRecoveryInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeDRSRecoveryInstance)
 	if got, want := instance.Payload["resource_id"], testRecoveryInstID2; got != want {
 		t.Fatalf("recovery instance resource_id = %#v, want %q", got, want)
 	}
@@ -92,7 +92,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "source_server_id", testSourceServerID)
 
 	// Replication configuration template resource node.
-	template := resourceByType(t, envelopes, awscloud.ResourceTypeDRSReplicationConfigurationTemplate)
+	template := resourceByType(t, envelopes, aws.ResourceTypeDRSReplicationConfigurationTemplate)
 	if got, want := template.Payload["resource_id"], testTemplateID; got != want {
 		t.Fatalf("template resource_id = %#v, want %q", got, want)
 	}
@@ -103,14 +103,14 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 
 	// source server -> recovery instance edge, keyed by the recovery instance id
 	// the recovery instance node publishes.
-	recovers := relationshipByType(t, envelopes, awscloud.RelationshipDRSSourceServerRecoversToInstance)
-	assertEdgeTarget(t, recovers, awscloud.ResourceTypeDRSRecoveryInstance, testRecoveryInstID2)
+	recovers := relationshipByType(t, envelopes, aws.RelationshipDRSSourceServerRecoversToInstance)
+	assertEdgeTarget(t, recovers, aws.ResourceTypeDRSRecoveryInstance, testRecoveryInstID2)
 	if got, want := recovers.Payload["source_resource_id"], testSourceServerID; got != want {
 		t.Fatalf("source->recovery source_resource_id = %#v, want %q", got, want)
 	}
 
 	// recovery instance -> EC2 instance edge, keyed by the bare i- id, target_arn empty.
-	runsOn := relationshipByType(t, envelopes, awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance)
+	runsOn := relationshipByType(t, envelopes, aws.RelationshipDRSRecoveryInstanceRunsOnEC2Instance)
 	assertEdgeTarget(t, runsOn, "aws_ec2_instance", testEC2InstanceID)
 	if got := runsOn.Payload["target_arn"]; got != "" {
 		t.Fatalf("recovery->ec2 target_arn = %#v, want empty (forward reference)", got)
@@ -174,8 +174,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		ARN:                testRecoveryInstARN,
 		EC2InstanceID:      testEC2InstanceID,
 	}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		sourceServerRecoversToInstanceRelationship(boundary, server),
 		recoveryInstanceRunsOnEC2InstanceRelationship(boundary, instance),
 	} {
@@ -206,7 +206,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -217,9 +217,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		SourceServers: []SourceServer{{SourceServerID: testSourceServerID, ARN: testSourceServerARN}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "DRS DescribeRecoveryInstances throttled after SDK retries; recovery instance metadata omitted for this scan",
 			SourceRecordID: "drs_recovery_instances_throttled",
@@ -230,17 +230,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDRS,
+		ServiceKind:         aws.ServiceDRS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:drs:1",
 		CollectorInstanceID: "aws-prod",

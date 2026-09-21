@@ -30,15 +30,15 @@ type Scanner struct {
 // encryption, repository-to-upstream-repository routing, and
 // repository-to-external-connection (public registry) links. Package versions
 // and assets stay outside the scanner contract.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codeartifact scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeArtifact:
+	case "", aws.ServiceCodeArtifact:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeArtifact
+		boundary.ServiceKind = aws.ServiceCodeArtifact
 	default:
 		return nil, fmt.Errorf("codeartifact scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -74,14 +74,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // domainEnvelopes builds the resource fact for one domain plus its
 // domain-to-KMS-key relationship when AWS reports an encryption key.
-func domainEnvelopes(boundary awscloud.Boundary, domain Domain) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(domainObservation(boundary, domain))
+func domainEnvelopes(boundary aws.Boundary, domain Domain) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(domainObservation(boundary, domain))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := domainKMSKeyRelationship(boundary, domain); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -92,29 +92,29 @@ func domainEnvelopes(boundary awscloud.Boundary, domain Domain) ([]facts.Envelop
 
 // repositoryEnvelopes builds the resource fact for one repository plus its
 // in-domain, upstream-repository, and external-connection relationships.
-func repositoryEnvelopes(boundary awscloud.Boundary, repository Repository) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(repositoryObservation(boundary, repository))
+func repositoryEnvelopes(boundary aws.Boundary, repository Repository) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(repositoryObservation(boundary, repository))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 
 	if relationship := repositoryInDomainRelationship(boundary, repository); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, relationship := range upstreamRepositoryRelationships(boundary, repository) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
 	for _, relationship := range externalConnectionRelationships(boundary, repository) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -129,14 +129,14 @@ func repositoryEnvelopes(boundary awscloud.Boundary, repository Repository) ([]f
 // reference as their owning domain. The encryption-key and S3-bucket ARNs come
 // from the API and are recorded as reported metadata; the scanner reads no
 // package assets stored in the domain.
-func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.ResourceObservation {
+func domainObservation(boundary aws.Boundary, domain Domain) aws.ResourceObservation {
 	name := strings.TrimSpace(domain.Name)
 	domainARN := strings.TrimSpace(domain.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          domainARN,
 		ResourceID:   firstNonEmpty(name, domainARN),
-		ResourceType: awscloud.ResourceTypeCodeArtifactDomain,
+		ResourceType: aws.ResourceTypeCodeArtifactDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.Status),
 		Attributes: map[string]any{
@@ -158,15 +158,15 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 // upstream-repository edges from sibling repositories resolve. External
 // connections are summarized by identity, format, and status; upstream
 // repositories by name. No package versions or assets are read.
-func repositoryObservation(boundary awscloud.Boundary, repository Repository) awscloud.ResourceObservation {
+func repositoryObservation(boundary aws.Boundary, repository Repository) aws.ResourceObservation {
 	name := strings.TrimSpace(repository.Name)
 	repositoryARN := strings.TrimSpace(repository.ARN)
 	domainQualified := repositoryDomainQualifiedName(repository)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   repositoryResourceID(repository),
-		ResourceType: awscloud.ResourceTypeCodeArtifactRepository,
+		ResourceType: aws.ResourceTypeCodeArtifactRepository,
 		Name:         name,
 		Attributes: map[string]any{
 			"domain_name":           strings.TrimSpace(repository.DomainName),

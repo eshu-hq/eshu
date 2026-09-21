@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes Access Analyzer analyzers, safe archive-rule bindings,
 // aggregate finding counts, and unused-access summaries through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("accessanalyzer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAccessAnalyzer:
+	case "", aws.ServiceAccessAnalyzer:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAccessAnalyzer
+		boundary.ServiceKind = aws.ServiceAccessAnalyzer
 	default:
 		return nil, fmt.Errorf("accessanalyzer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -45,14 +45,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		if !isSupportedAnalyzerType(analyzer.Type) {
 			continue
 		}
-		resource, err := awscloud.NewResourceEnvelope(analyzerObservation(boundary, analyzer))
+		resource, err := aws.NewResourceEnvelope(analyzerObservation(boundary, analyzer))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 
 		if relationship, ok := analyzerOrganizationAccountRelationship(boundary, analyzer); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +61,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 		for _, warning := range analyzer.Warnings {
 			warning.Boundary = boundary
-			envelope, err := awscloud.NewWarningEnvelope(warning)
+			envelope, err := aws.NewWarningEnvelope(warning)
 			if err != nil {
 				return nil, err
 			}
@@ -76,7 +76,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if archiveRuleID(analyzer, rule) == "" {
 				continue
 			}
-			ruleResource, err := awscloud.NewResourceEnvelope(archiveRuleObservation(boundary, analyzer, rule))
+			ruleResource, err := aws.NewResourceEnvelope(archiveRuleObservation(boundary, analyzer, rule))
 			if err != nil {
 				return nil, err
 			}
@@ -85,7 +85,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if !ok {
 				continue
 			}
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -96,7 +96,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if findingCountID(analyzer, count) == "" {
 				continue
 			}
-			countResource, err := awscloud.NewResourceEnvelope(findingCountObservation(boundary, analyzer, count))
+			countResource, err := aws.NewResourceEnvelope(findingCountObservation(boundary, analyzer, count))
 			if err != nil {
 				return nil, err
 			}
@@ -107,7 +107,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			if unusedAccessSummaryID(analyzer, summary) == "" {
 				continue
 			}
-			summaryResource, err := awscloud.NewResourceEnvelope(unusedAccessSummaryObservation(boundary, analyzer, summary))
+			summaryResource, err := aws.NewResourceEnvelope(unusedAccessSummaryObservation(boundary, analyzer, summary))
 			if err != nil {
 				return nil, err
 			}
@@ -117,13 +117,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func analyzerObservation(boundary awscloud.Boundary, analyzer Analyzer) awscloud.ResourceObservation {
+func analyzerObservation(boundary aws.Boundary, analyzer Analyzer) aws.ResourceObservation {
 	analyzerARN := strings.TrimSpace(analyzer.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          analyzerARN,
 		ResourceID:   firstNonEmpty(analyzerARN, analyzer.Name),
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerAnalyzer,
+		ResourceType: aws.ResourceTypeAccessAnalyzerAnalyzer,
 		Name:         strings.TrimSpace(analyzer.Name),
 		State:        strings.TrimSpace(analyzer.Status),
 		Tags:         cloneStringMap(analyzer.Tags),
@@ -141,15 +141,15 @@ func analyzerObservation(boundary awscloud.Boundary, analyzer Analyzer) awscloud
 }
 
 func archiveRuleObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	analyzer Analyzer,
 	rule ArchiveRule,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	resourceID := archiveRuleID(analyzer, rule)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerArchiveRule,
+		ResourceType: aws.ResourceTypeAccessAnalyzerArchiveRule,
 		Name:         strings.TrimSpace(rule.Name),
 		Attributes: map[string]any{
 			"analyzer_arn": strings.TrimSpace(firstNonEmpty(rule.AnalyzerARN, analyzer.ARN)),
@@ -162,15 +162,15 @@ func archiveRuleObservation(
 }
 
 func findingCountObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	analyzer Analyzer,
 	count FindingCount,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	resourceID := findingCountID(analyzer, count)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerFindingCount,
+		ResourceType: aws.ResourceTypeAccessAnalyzerFindingCount,
 		Name:         strings.TrimSpace(count.Status + " " + count.ResourceType),
 		State:        strings.TrimSpace(count.Status),
 		Attributes: map[string]any{
@@ -187,15 +187,15 @@ func findingCountObservation(
 }
 
 func unusedAccessSummaryObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	analyzer Analyzer,
 	summary UnusedAccessSummary,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	resourceID := unusedAccessSummaryID(analyzer, summary)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary,
+		ResourceType: aws.ResourceTypeAccessAnalyzerUnusedAccessSummary,
 		Name:         strings.TrimSpace(summary.ResourceID),
 		State:        strings.TrimSpace(summary.Status),
 		Attributes: map[string]any{
@@ -216,25 +216,25 @@ func unusedAccessSummaryObservation(
 }
 
 func analyzerOrganizationAccountRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	analyzer Analyzer,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	if analyzerScope(analyzer.Type) != "ORGANIZATION" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	partition, accountID, ok := accountFromAnalyzerARN(analyzer.ARN)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	accountARN := "arn:" + partition + ":iam::" + accountID + ":root"
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount,
+		RelationshipType: aws.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount,
 		SourceResourceID: strings.TrimSpace(analyzer.ARN),
 		SourceARN:        strings.TrimSpace(analyzer.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       aws.ResourceTypeAWSAccount,
 		Attributes: map[string]any{
 			"account_id": accountID,
 			"scope":      "ORGANIZATION",
@@ -244,22 +244,22 @@ func analyzerOrganizationAccountRelationship(
 }
 
 func analyzerArchiveRuleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	analyzer Analyzer,
 	rule ArchiveRule,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	analyzerARN := strings.TrimSpace(firstNonEmpty(rule.AnalyzerARN, analyzer.ARN))
 	ruleID := archiveRuleID(analyzer, rule)
 	if analyzerARN == "" || ruleID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAccessAnalyzerAnalyzerHasArchiveRule,
+		RelationshipType: aws.RelationshipAccessAnalyzerAnalyzerHasArchiveRule,
 		SourceResourceID: analyzerARN,
 		SourceARN:        analyzerARN,
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeAccessAnalyzerArchiveRule,
+		TargetType:       aws.ResourceTypeAccessAnalyzerArchiveRule,
 		Attributes: map[string]any{
 			"rule_name": strings.TrimSpace(rule.Name),
 		},

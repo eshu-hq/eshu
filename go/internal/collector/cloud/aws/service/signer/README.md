@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/signer` owns the AWS Signer (code-signing)
+`internal/collector/cloud/aws/service/signer` owns the AWS Signer (code-signing)
 scanner contract for the AWS cloud collector. It converts Signer signing-profile
 and signing-platform metadata into `aws_resource` facts and emits relationship
 evidence for the profile's ACM certificate dependency and the signing platform
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,9 +47,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Signer API call counts, throttles, and pagination
+`sdk` adapter records Signer API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -85,14 +85,14 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/signer/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/signer/...` covers the bounded
 Signer metadata path: one paginated ListSigningProfiles stream, one
 GetSigningProfile point read per profile (image-format enrichment), one
 paginated ListSigningPlatforms stream, no signing-job reads, no SignPayload, no
 mutations, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/signer/...`
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/signer/...`
 green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle

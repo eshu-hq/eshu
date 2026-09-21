@@ -13,4 +13,4 @@
 // User.AccessString grant string before scanner code sees it and records only a
 // non-secret presence signal so AUTH tokens, user passwords, and ACL grant
 // strings can never reach facts or logs.
-package awssdk
+package sdk

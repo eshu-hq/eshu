@@ -24,10 +24,10 @@ func flowResourceID(flow Flow) string {
 // targeting the source bucket node by the `arn:<partition>:s3:::<bucket>`
 // identity the S3 scanner publishes. It returns nil when the source bucket is
 // absent.
-func flowS3SourceRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.RelationshipObservation {
+func flowS3SourceRelationship(boundary aws.Boundary, flow Flow) *aws.RelationshipObservation {
 	return flowS3Relationship(
 		boundary, flow, flow.SourceS3Bucket,
-		awscloud.RelationshipAppFlowFlowReadsFromS3Bucket, "source",
+		aws.RelationshipAppFlowFlowReadsFromS3Bucket, "source",
 	)
 }
 
@@ -38,8 +38,8 @@ func flowS3SourceRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.R
 // its own edge. Buckets seen more than once collapse to a single edge so a
 // flow listing the same destination twice does not double-count. It returns nil
 // when no destination uses S3.
-func flowS3DestinationRelationships(boundary awscloud.Boundary, flow Flow) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+func flowS3DestinationRelationships(boundary aws.Boundary, flow Flow) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	seen := make(map[string]struct{}, len(flow.Destinations))
 	for _, destination := range flow.Destinations {
 		bucket := strings.TrimSpace(destination.S3Bucket)
@@ -52,7 +52,7 @@ func flowS3DestinationRelationships(boundary awscloud.Boundary, flow Flow) []aws
 		seen[bucket] = struct{}{}
 		observation := flowS3Relationship(
 			boundary, flow, bucket,
-			awscloud.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
+			aws.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
 		)
 		if observation != nil {
 			observations = append(observations, *observation)
@@ -62,12 +62,12 @@ func flowS3DestinationRelationships(boundary awscloud.Boundary, flow Flow) []aws
 }
 
 func flowS3Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	flow Flow,
 	bucket string,
 	relationshipType string,
 	direction string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	bucket = strings.TrimSpace(bucket)
 	flowID := flowResourceID(flow)
 	if bucket == "" || flowID == "" {
@@ -77,14 +77,14 @@ func flowS3Relationship(
 	if arn == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: flowID,
 		SourceARN:        strings.TrimSpace(flow.ARN),
 		TargetResourceID: arn,
 		TargetARN:        arn,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"bucket":    bucket,
 			"direction": direction,
@@ -100,7 +100,7 @@ func flowS3Relationship(
 // destination AppFlow reports, since a fan-out flow can target several
 // connector-profile destinations. A profile referenced more than once (source
 // and destination, or two destinations) collapses to a single edge.
-func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []awscloud.RelationshipObservation {
+func flowConnectorProfileRelationships(boundary aws.Boundary, flow Flow) []aws.RelationshipObservation {
 	flowID := flowResourceID(flow)
 	if flowID == "" {
 		return nil
@@ -117,7 +117,7 @@ func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []
 			direction string
 		}{name: destination.ConnectorProfileName, direction: "destination"})
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	seen := make(map[string]struct{}, len(candidates))
 	for _, candidate := range candidates {
 		name := strings.TrimSpace(candidate.name)
@@ -128,15 +128,15 @@ func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []
 			continue
 		}
 		seen[name] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppFlowFlowUsesConnectorProfile,
+			RelationshipType: aws.RelationshipAppFlowFlowUsesConnectorProfile,
 			SourceResourceID: flowID,
 			SourceARN:        strings.TrimSpace(flow.ARN),
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAppFlowConnectorProfile,
+			TargetType:       aws.ResourceTypeAppFlowConnectorProfile,
 			Attributes:       map[string]any{"direction": candidate.direction},
-			SourceRecordID:   flowID + "->" + awscloud.RelationshipAppFlowFlowUsesConnectorProfile + ":" + name,
+			SourceRecordID:   flowID + "->" + aws.RelationshipAppFlowFlowUsesConnectorProfile + ":" + name,
 		})
 	}
 	return observations
@@ -146,21 +146,21 @@ func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []
 // encrypt transferred data, targeting the KMS key node by ARN. It returns nil
 // when the flow uses the AppFlow-managed key (no customer KMS ARN reported) or
 // the reported value is not ARN-shaped.
-func flowKMSKeyRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.RelationshipObservation {
+func flowKMSKeyRelationship(boundary aws.Boundary, flow Flow) *aws.RelationshipObservation {
 	keyARN := strings.TrimSpace(flow.KMSKeyARN)
 	flowID := flowResourceID(flow)
 	if !isARN(keyARN) || flowID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppFlowFlowUsesKMSKey,
+		RelationshipType: aws.RelationshipAppFlowFlowUsesKMSKey,
 		SourceResourceID: flowID,
 		SourceARN:        strings.TrimSpace(flow.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   flowID + "->" + awscloud.RelationshipAppFlowFlowUsesKMSKey + ":" + keyARN,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   flowID + "->" + aws.RelationshipAppFlowFlowUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -170,22 +170,22 @@ func flowKMSKeyRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.Rel
 // Manager ARN (exact service-segment match), so a non-secret reference never
 // produces a dangling edge. The credential values are never read.
 func connectorProfileSecretRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	profile ConnectorProfile,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	secretARN := strings.TrimSpace(profile.CredentialsARN)
 	name := strings.TrimSpace(profile.Name)
 	if name == "" || !isSecretsManagerARN(secretARN) {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppFlowConnectorProfileUsesSecret,
+		RelationshipType: aws.RelationshipAppFlowConnectorProfileUsesSecret,
 		SourceResourceID: name,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: secretARN,
 		TargetARN:        secretARN,
-		TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
-		SourceRecordID:   name + "->" + awscloud.RelationshipAppFlowConnectorProfileUsesSecret + ":" + secretARN,
+		TargetType:       aws.ResourceTypeSecretsManagerSecret,
+		SourceRecordID:   name + "->" + aws.RelationshipAppFlowConnectorProfileUsesSecret + ":" + secretARN,
 	}
 }

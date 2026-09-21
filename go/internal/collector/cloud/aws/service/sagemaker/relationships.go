@@ -15,36 +15,36 @@ import (
 // ECR-specific resource type.
 const containerImageTargetType = "container_image"
 
-func notebookRelationships(notebook NotebookInstance) []awscloud.RelationshipObservation {
+func notebookRelationships(notebook NotebookInstance) []aws.RelationshipObservation {
 	id := firstNonEmpty(notebook.ARN, notebook.Name)
 	subnet := strings.TrimSpace(notebook.SubnetID)
 	if id == "" || subnet == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerNotebookInstanceUsesSubnet,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipSageMakerNotebookInstanceUsesSubnet,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(notebook.ARN),
 		TargetResourceID: subnet,
-		TargetType:       awscloud.ResourceTypeEC2Subnet,
+		TargetType:       aws.ResourceTypeEC2Subnet,
 		SourceRecordID:   id + "#subnet#" + subnet,
 	}}
 }
 
-func modelRelationships(model Model) []awscloud.RelationshipObservation {
+func modelRelationships(model Model) []aws.RelationshipObservation {
 	id := firstNonEmpty(model.ARN, model.Name)
 	if id == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	if role := strings.TrimSpace(model.ExecutionRole); isARN(role) {
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipSageMakerModelUsesIAMRole,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipSageMakerModelUsesIAMRole,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: role,
 			TargetARN:        role,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       aws.ResourceTypeIAMRole,
 			SourceRecordID:   id + "#role#" + role,
 		})
 	}
@@ -54,8 +54,8 @@ func modelRelationships(model Model) []awscloud.RelationshipObservation {
 		if image := strings.TrimSpace(container.Image); image != "" {
 			if _, ok := seenImage[image]; !ok {
 				seenImage[image] = struct{}{}
-				observations = append(observations, awscloud.RelationshipObservation{
-					RelationshipType: awscloud.RelationshipSageMakerModelUsesContainerImage,
+				observations = append(observations, aws.RelationshipObservation{
+					RelationshipType: aws.RelationshipSageMakerModelUsesContainerImage,
 					SourceResourceID: id,
 					SourceARN:        strings.TrimSpace(model.ARN),
 					TargetResourceID: image,
@@ -77,31 +77,31 @@ func modelRelationships(model Model) []awscloud.RelationshipObservation {
 func modelArtifactRelationship(
 	modelID, modelARN, modelDataURL string,
 	seen map[string]struct{},
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	artifact := strings.TrimSpace(modelDataURL)
 	if artifact == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if _, ok := seen[artifact]; ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	seen[artifact] = struct{}{}
 	bucket, key, ok := parseS3URL(artifact)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	bucketARN := "arn:" + awscloud.PartitionFromARN(modelARN) + ":s3:::" + bucket
+	bucketARN := "arn:" + aws.PartitionFromARN(modelARN) + ":s3:::" + bucket
 	attributes := map[string]any{"model_data_url": artifact, "bucket": bucket}
 	if key != "" {
 		attributes["object_key"] = key
 	}
-	return awscloud.RelationshipObservation{
-		RelationshipType: awscloud.RelationshipSageMakerModelUsesS3Artifact,
+	return aws.RelationshipObservation{
+		RelationshipType: aws.RelationshipSageMakerModelUsesS3Artifact,
 		SourceResourceID: modelID,
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   modelID + "#artifact#" + artifact,
 	}, true
@@ -127,29 +127,29 @@ func parseS3URL(url string) (bucket string, key string, ok bool) {
 	return bucket, strings.TrimSpace(key), true
 }
 
-func endpointRelationships(endpoint Endpoint) []awscloud.RelationshipObservation {
+func endpointRelationships(endpoint Endpoint) []aws.RelationshipObservation {
 	id := firstNonEmpty(endpoint.ARN, endpoint.Name)
 	config := strings.TrimSpace(endpoint.EndpointConfig)
 	if id == "" || config == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerEndpointUsesEndpointConfig,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipSageMakerEndpointUsesEndpointConfig,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(endpoint.ARN),
 		TargetResourceID: config,
-		TargetType:       awscloud.ResourceTypeSageMakerEndpointConfig,
+		TargetType:       aws.ResourceTypeSageMakerEndpointConfig,
 		SourceRecordID:   id + "#endpoint-config#" + config,
 	}}
 }
 
-func endpointConfigRelationships(config EndpointConfig) []awscloud.RelationshipObservation {
+func endpointConfigRelationships(config EndpointConfig) []aws.RelationshipObservation {
 	id := firstNonEmpty(config.ARN, config.Name)
 	if id == "" {
 		return nil
 	}
 	seen := make(map[string]struct{}, len(config.ModelNames))
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, model := range config.ModelNames {
 		model = strings.TrimSpace(model)
 		if model == "" {
@@ -159,63 +159,63 @@ func endpointConfigRelationships(config EndpointConfig) []awscloud.RelationshipO
 			continue
 		}
 		seen[model] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipSageMakerEndpointConfigUsesModel,
+		observations = append(observations, aws.RelationshipObservation{
+			RelationshipType: aws.RelationshipSageMakerEndpointConfigUsesModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(config.ARN),
 			TargetResourceID: model,
-			TargetType:       awscloud.ResourceTypeSageMakerModel,
+			TargetType:       aws.ResourceTypeSageMakerModel,
 			SourceRecordID:   id + "#model#" + model,
 		})
 	}
 	return observations
 }
 
-func trainingJobRelationships(job TrainingJob) []awscloud.RelationshipObservation {
+func trainingJobRelationships(job TrainingJob) []aws.RelationshipObservation {
 	id := firstNonEmpty(job.ARN, job.Name)
 	role := strings.TrimSpace(job.ExecutionRole)
 	if id == "" || !isARN(role) {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerTrainingJobUsesIAMRole,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipSageMakerTrainingJobUsesIAMRole,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(job.ARN),
 		TargetResourceID: role,
 		TargetARN:        role,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   id + "#role#" + role,
 	}}
 }
 
-func domainRelationships(domain Domain) []awscloud.RelationshipObservation {
+func domainRelationships(domain Domain) []aws.RelationshipObservation {
 	id := firstNonEmpty(domain.ARN, domain.ID, domain.Name)
 	vpc := strings.TrimSpace(domain.VPCID)
 	if id == "" || vpc == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerDomainUsesVPC,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipSageMakerDomainUsesVPC,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: vpc,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       aws.ResourceTypeEC2VPC,
 		SourceRecordID:   id + "#vpc#" + vpc,
 	}}
 }
 
-func userProfileRelationships(profile UserProfile) []awscloud.RelationshipObservation {
+func userProfileRelationships(profile UserProfile) []aws.RelationshipObservation {
 	name := strings.TrimSpace(profile.Name)
 	domainID := strings.TrimSpace(profile.DomainID)
 	id := firstNonEmpty(userProfileID(domainID, name), name)
 	if id == "" || domainID == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerUserProfileInDomain,
+	return []aws.RelationshipObservation{{
+		RelationshipType: aws.RelationshipSageMakerUserProfileInDomain,
 		SourceResourceID: id,
 		TargetResourceID: domainID,
-		TargetType:       awscloud.ResourceTypeSageMakerDomain,
+		TargetType:       aws.ResourceTypeSageMakerDomain,
 		SourceRecordID:   id + "#domain#" + domainID,
 	}}
 }

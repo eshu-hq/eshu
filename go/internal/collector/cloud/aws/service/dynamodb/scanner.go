@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes DynamoDB tables and direct KMS dependency metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("dynamodb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDynamoDB:
+	case "", aws.ServiceDynamoDB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDynamoDB
+		boundary.ServiceKind = aws.ServiceDynamoDB
 	default:
 		return nil, fmt.Errorf("dynamodb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -52,9 +52,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -63,14 +63,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func tableEnvelopes(boundary awscloud.Boundary, table Table) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(tableObservation(boundary, table))
+func tableEnvelopes(boundary aws.Boundary, table Table) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(tableObservation(boundary, table))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := kmsRelationship(boundary, table); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -79,15 +79,15 @@ func tableEnvelopes(boundary awscloud.Boundary, table Table) ([]facts.Envelope, 
 	return envelopes, nil
 }
 
-func tableObservation(boundary awscloud.Boundary, table Table) awscloud.ResourceObservation {
+func tableObservation(boundary aws.Boundary, table Table) aws.ResourceObservation {
 	tableARN := strings.TrimSpace(table.ARN)
 	tableName := strings.TrimSpace(table.Name)
 	resourceID := firstNonEmpty(tableARN, table.ID, tableName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          tableARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDynamoDBTable,
+		ResourceType: aws.ResourceTypeDynamoDBTable,
 		Name:         tableName,
 		State:        strings.TrimSpace(table.Status),
 		Tags:         cloneStringMap(table.Tags),

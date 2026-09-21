@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappflow "github.com/aws/aws-sdk-go-v2/service/appflow"
 	awsappflowtypes "github.com/aws/aws-sdk-go-v2/service/appflow/types"
 
@@ -32,7 +32,7 @@ func (f *fakeAPI) ListFlows(_ context.Context, _ *awsappflow.ListFlowsInput, _ .
 
 func (f *fakeAPI) DescribeFlow(_ context.Context, in *awsappflow.DescribeFlowInput, _ ...func(*awsappflow.Options)) (*awsappflow.DescribeFlowOutput, error) {
 	f.describeFlowCalls++
-	return f.describe[aws.ToString(in.FlowName)], nil
+	return f.describe[awsv2.ToString(in.FlowName)], nil
 }
 
 func (f *fakeAPI) DescribeConnectorProfiles(_ context.Context, _ *awsappflow.DescribeConnectorProfilesInput, _ ...func(*awsappflow.Options)) (*awsappflow.DescribeConnectorProfilesOutput, error) {
@@ -43,8 +43,8 @@ func (f *fakeAPI) DescribeConnectorProfiles(_ context.Context, _ *awsappflow.Des
 func TestClientListFlowsMapsSafeMetadata(t *testing.T) {
 	api := &fakeAPI{
 		flows: []awsappflowtypes.FlowDefinition{{
-			FlowArn:                  aws.String("arn:aws:appflow:us-east-1:123456789012:flow/orders"),
-			FlowName:                 aws.String("orders"),
+			FlowArn:                  awsv2.String("arn:aws:appflow:us-east-1:123456789012:flow/orders"),
+			FlowName:                 awsv2.String("orders"),
 			FlowStatus:               awsappflowtypes.FlowStatusActive,
 			SourceConnectorType:      awsappflowtypes.ConnectorTypeS3,
 			DestinationConnectorType: awsappflowtypes.ConnectorTypeSalesforce,
@@ -52,25 +52,25 @@ func TestClientListFlowsMapsSafeMetadata(t *testing.T) {
 		}},
 		describe: map[string]*awsappflow.DescribeFlowOutput{
 			"orders": {
-				FlowArn:    aws.String("arn:aws:appflow:us-east-1:123456789012:flow/orders"),
+				FlowArn:    awsv2.String("arn:aws:appflow:us-east-1:123456789012:flow/orders"),
 				FlowStatus: awsappflowtypes.FlowStatusActive,
-				KmsArn:     aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+				KmsArn:     awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
 				SourceFlowConfig: &awsappflowtypes.SourceFlowConfig{
 					ConnectorType: awsappflowtypes.ConnectorTypeS3,
 					SourceConnectorProperties: &awsappflowtypes.SourceConnectorProperties{
-						S3: &awsappflowtypes.S3SourceProperties{BucketName: aws.String("orders-landing")},
+						S3: &awsappflowtypes.S3SourceProperties{BucketName: awsv2.String("orders-landing")},
 					},
 				},
 				DestinationFlowConfigList: []awsappflowtypes.DestinationFlowConfig{{
 					ConnectorType:        awsappflowtypes.ConnectorTypeSalesforce,
-					ConnectorProfileName: aws.String("salesforce-prod"),
+					ConnectorProfileName: awsv2.String("salesforce-prod"),
 				}},
 				// Tasks (field mappings) intentionally populated to prove the
 				// adapter never reads them.
 				Tasks: []awsappflowtypes.Task{{
 					TaskType:         awsappflowtypes.TaskTypeMap,
 					SourceFields:     []string{"ssn", "credit_card"},
-					DestinationField: aws.String("secret_field"),
+					DestinationField: awsv2.String("secret_field"),
 				}},
 			},
 		},
@@ -119,28 +119,28 @@ func TestClientListFlowsMapsSafeMetadata(t *testing.T) {
 func TestClientListFlowsCapturesEveryDestination(t *testing.T) {
 	api := &fakeAPI{
 		flows: []awsappflowtypes.FlowDefinition{{
-			FlowArn:  aws.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
-			FlowName: aws.String("fanout"),
+			FlowArn:  awsv2.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
+			FlowName: awsv2.String("fanout"),
 		}},
 		describe: map[string]*awsappflow.DescribeFlowOutput{
 			"fanout": {
-				FlowArn: aws.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
+				FlowArn: awsv2.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
 				DestinationFlowConfigList: []awsappflowtypes.DestinationFlowConfig{
 					{
 						ConnectorType: awsappflowtypes.ConnectorTypeS3,
 						DestinationConnectorProperties: &awsappflowtypes.DestinationConnectorProperties{
-							S3: &awsappflowtypes.S3DestinationProperties{BucketName: aws.String("primary-out")},
+							S3: &awsappflowtypes.S3DestinationProperties{BucketName: awsv2.String("primary-out")},
 						},
 					},
 					{
 						ConnectorType: awsappflowtypes.ConnectorTypeS3,
 						DestinationConnectorProperties: &awsappflowtypes.DestinationConnectorProperties{
-							S3: &awsappflowtypes.S3DestinationProperties{BucketName: aws.String("secondary-out")},
+							S3: &awsappflowtypes.S3DestinationProperties{BucketName: awsv2.String("secondary-out")},
 						},
 					},
 					{
 						ConnectorType:        awsappflowtypes.ConnectorTypeSalesforce,
-						ConnectorProfileName: aws.String("salesforce-prod"),
+						ConnectorProfileName: awsv2.String("salesforce-prod"),
 					},
 				},
 			},
@@ -179,11 +179,11 @@ func TestClientListFlowsCapturesEveryDestination(t *testing.T) {
 func TestClientListConnectorProfilesForwardsOnlyCredentialARN(t *testing.T) {
 	api := &fakeAPI{
 		profiles: []awsappflowtypes.ConnectorProfile{{
-			ConnectorProfileArn:  aws.String("arn:aws:appflow:us-east-1:123456789012:connectorprofile/sf"),
-			ConnectorProfileName: aws.String("sf"),
+			ConnectorProfileArn:  awsv2.String("arn:aws:appflow:us-east-1:123456789012:connectorprofile/sf"),
+			ConnectorProfileName: awsv2.String("sf"),
 			ConnectorType:        awsappflowtypes.ConnectorTypeSalesforce,
 			ConnectionMode:       awsappflowtypes.ConnectionModePublic,
-			CredentialsArn:       aws.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:appflow!sf-Ab3"),
+			CredentialsArn:       awsv2.String("arn:aws:secretsmanager:us-east-1:123456789012:secret:appflow!sf-Ab3"),
 		}},
 	}
 	client := &Client{client: api, boundary: testBoundary()}
@@ -213,10 +213,10 @@ func TestClientListConnectorProfilesForwardsOnlyCredentialARN(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAppFlow,
+		ServiceKind: aws.ServiceAppFlow,
 	}
 }

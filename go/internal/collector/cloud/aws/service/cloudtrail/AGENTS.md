@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/cloudtrail guidance
+# AGENTS.md - internal/collector/cloud/aws/service/cloudtrail guidance
 
 ## Read First
 
@@ -45,10 +45,10 @@
 
 - Add a new safe CloudTrail metadata field by extending the scanner-owned
   type, writing a focused scanner or adapter test first, then mapping it
-  through `awscloud` envelope builders.
+  through `aws` envelope builders.
 - Add new relationship evidence only when CloudTrail directly reports both
   sides and the value is metadata.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

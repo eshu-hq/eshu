@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes Step Functions state machines and activities through the
 // configured client and returns reported-confidence AWS facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("stepfunctions scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceStepFunctions:
+	case "", aws.ServiceStepFunctions:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceStepFunctions
+		boundary.ServiceKind = aws.ServiceStepFunctions
 	default:
 		return nil, fmt.Errorf("stepfunctions scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -44,20 +44,20 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, machine := range stateMachines {
-		resource, err := awscloud.NewResourceEnvelope(stateMachineObservation(boundary, machine))
+		resource, err := aws.NewResourceEnvelope(stateMachineObservation(boundary, machine))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		if role, ok := stateMachineRoleRelationship(boundary, machine); ok {
-			envelope, err := awscloud.NewRelationshipEnvelope(role)
+			envelope, err := aws.NewRelationshipEnvelope(role)
 			if err != nil {
 				return nil, err
 			}
 			envelopes = append(envelopes, envelope)
 		}
 		for _, reference := range uniqueARNs(machine.ReferencedARNs) {
-			envelope, err := awscloud.NewRelationshipEnvelope(
+			envelope, err := aws.NewRelationshipEnvelope(
 				stateMachineReferenceRelationship(boundary, machine, reference),
 			)
 			if err != nil {
@@ -72,7 +72,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Step Functions activities: %w", err)
 	}
 	for _, activity := range activities {
-		envelope, err := awscloud.NewResourceEnvelope(activityObservation(boundary, activity))
+		envelope, err := aws.NewResourceEnvelope(activityObservation(boundary, activity))
 		if err != nil {
 			return nil, err
 		}
@@ -82,15 +82,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 }
 
 func stateMachineObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	machine StateMachine,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	machineARN := strings.TrimSpace(machine.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          machineARN,
 		ResourceID:   firstNonEmpty(machineARN, machine.Name),
-		ResourceType: awscloud.ResourceTypeStepFunctionsStateMachine,
+		ResourceType: aws.ResourceTypeStepFunctionsStateMachine,
 		Name:         strings.TrimSpace(machine.Name),
 		State:        strings.TrimSpace(machine.Status),
 		Tags:         cloneStringMap(machine.Tags),
@@ -108,13 +108,13 @@ func stateMachineObservation(
 	}
 }
 
-func activityObservation(boundary awscloud.Boundary, activity Activity) awscloud.ResourceObservation {
+func activityObservation(boundary aws.Boundary, activity Activity) aws.ResourceObservation {
 	activityARN := strings.TrimSpace(activity.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          activityARN,
 		ResourceID:   firstNonEmpty(activityARN, activity.Name),
-		ResourceType: awscloud.ResourceTypeStepFunctionsActivity,
+		ResourceType: aws.ResourceTypeStepFunctionsActivity,
 		Name:         strings.TrimSpace(activity.Name),
 		Tags:         cloneStringMap(activity.Tags),
 		Attributes: map[string]any{
@@ -126,35 +126,35 @@ func activityObservation(boundary awscloud.Boundary, activity Activity) awscloud
 }
 
 func stateMachineRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	machine StateMachine,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	machineARN := strings.TrimSpace(machine.ARN)
 	roleARN := strings.TrimSpace(machine.RoleARN)
 	if machineARN == "" || !isARN(roleARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStepFunctionsStateMachineUsesIAMRole,
+		RelationshipType: aws.RelationshipStepFunctionsStateMachineUsesIAMRole,
 		SourceResourceID: machineARN,
 		SourceARN:        machineARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   machineARN + "#execution-role#" + roleARN,
 	}, true
 }
 
 func stateMachineReferenceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	machine StateMachine,
 	targetARN string,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	machineARN := strings.TrimSpace(machine.ARN)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStepFunctionsStateMachineReferencesResource,
+		RelationshipType: aws.RelationshipStepFunctionsStateMachineReferencesResource,
 		SourceResourceID: firstNonEmpty(machineARN, machine.Name),
 		SourceARN:        machineARN,
 		TargetResourceID: targetARN,
@@ -209,17 +209,17 @@ func safeStateNodes(states []StateNode) []map[string]any {
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":lambda:"):
-		return awscloud.ResourceTypeLambdaFunction
+		return aws.ResourceTypeLambdaFunction
 	case strings.Contains(arn, ":sns:"):
-		return awscloud.ResourceTypeSNSTopic
+		return aws.ResourceTypeSNSTopic
 	case strings.Contains(arn, ":sqs:"):
-		return awscloud.ResourceTypeSQSQueue
+		return aws.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":states:"):
-		return awscloud.ResourceTypeStepFunctionsStateMachine
+		return aws.ResourceTypeStepFunctionsStateMachine
 	case strings.Contains(arn, ":dynamodb:"):
-		return awscloud.ResourceTypeDynamoDBTable
+		return aws.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":ecs:"):
-		return awscloud.ResourceTypeECSTaskDefinition
+		return aws.ResourceTypeECSTaskDefinition
 	default:
 		return "aws_resource"
 	}

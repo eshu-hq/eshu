@@ -17,14 +17,14 @@ import (
 // in a join-resolvable shape; otherwise the edge is skipped rather than
 // dangled. Duplicate role, KMS, log-group, and Lambda targets within one stream
 // collapse to a single edge.
-func deliveryStreamRelationships(boundary awscloud.Boundary, stream DeliveryStream) []awscloud.RelationshipObservation {
+func deliveryStreamRelationships(boundary aws.Boundary, stream DeliveryStream) []aws.RelationshipObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
 	streamID := firstNonEmpty(streamARN, stream.Name)
 	if streamID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if edge, ok := sourceKinesisStreamRelationship(boundary, streamID, streamARN, stream); ok {
 		observations = append(observations, edge)
@@ -70,31 +70,31 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream DeliveryStre
 // emit their primary bucket edge via destinationTargetRelationship, so this skips
 // them and dedups any bucket already keyed for the stream.
 func stagingS3Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination Destination,
 	seen map[string]struct{},
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	if destination.Kind == destinationKindS3 {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	bucketARN := strings.TrimSpace(destination.S3BucketARN)
 	if !isARN(bucketARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if _, ok := seen[bucketARN]; ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	seen[bucketARN] = struct{}{}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamDeliversToS3Bucket,
+		RelationshipType: aws.RelationshipFirehoseStreamDeliversToS3Bucket,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"staging_bucket": true},
 		SourceRecordID:   streamID + "#s3-staging#" + bucketARN,
 	}, true
@@ -105,23 +105,23 @@ func stagingS3Relationship(
 // source stream ARN, and the kinesis scanner publishes its data stream
 // resource_id as that ARN, so the edge is ARN-keyed.
 func sourceKinesisStreamRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	stream DeliveryStream,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	sourceARN := strings.TrimSpace(stream.SourceKinesisStreamARN)
 	if !isARN(sourceARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream,
+		RelationshipType: aws.RelationshipFirehoseStreamSourcedFromKinesisStream,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: sourceARN,
 		TargetARN:        sourceARN,
-		TargetType:       awscloud.ResourceTypeKinesisDataStream,
+		TargetType:       aws.ResourceTypeKinesisDataStream,
 		SourceRecordID:   streamID + "#kinesis-source#" + sourceARN,
 	}, true
 }
@@ -131,23 +131,23 @@ func sourceKinesisStreamRelationship(
 // key ARN, and the kms scanner keys its key node by id-or-ARN, so the edge is
 // ARN-keyed.
 func encryptionKMSKeyRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	stream DeliveryStream,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	keyARN := strings.TrimSpace(stream.EncryptionKMSKeyARN)
 	if !isARN(keyARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamUsesKMSKey,
+		RelationshipType: aws.RelationshipFirehoseStreamUsesKMSKey,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       aws.ResourceTypeKMSKey,
 		SourceRecordID:   streamID + "#kms-key#" + keyARN,
 	}, true
 }
@@ -157,28 +157,28 @@ func encryptionKMSKeyRelationship(
 // keys its role node by ARN, so the edge is ARN-keyed. Duplicate roles across a
 // stream's destinations collapse via seen.
 func deliveryRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination Destination,
 	seen map[string]struct{},
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(destination.RoleARN)
 	if !isARN(roleARN) {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if _, ok := seen[roleARN]; ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	seen[roleARN] = struct{}{}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamUsesIAMRole,
+		RelationshipType: aws.RelationshipFirehoseStreamUsesIAMRole,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   streamID + "#role#" + roleARN,
 	}, true
 }
@@ -189,27 +189,27 @@ func deliveryRoleRelationship(
 // edge is name-keyed without a fabricated ARN. Duplicate log groups across a
 // stream's destinations collapse via seen.
 func logGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination Destination,
 	seen map[string]struct{},
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	logGroupName := strings.TrimSpace(destination.LogGroupName)
 	if logGroupName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if _, ok := seen[logGroupName]; ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	seen[logGroupName] = struct{}{}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup,
+		RelationshipType: aws.RelationshipFirehoseStreamLogsToCloudWatchLogGroup,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: logGroupName,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		TargetType:       aws.ResourceTypeCloudWatchLogsLogGroup,
 		SourceRecordID:   streamID + "#log-group#" + logGroupName,
 	}, true
 }
@@ -220,16 +220,16 @@ func logGroupRelationship(
 // ARN-keyed. Duplicate Lambda ARNs across a stream's destinations collapse via
 // seen.
 func transformLambdaRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination Destination,
 	seen map[string]struct{},
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	if len(destination.TransformLambdaARNs) == 0 {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, lambdaARN := range destination.TransformLambdaARNs {
 		lambdaARN = strings.TrimSpace(lambdaARN)
 		if !isARN(lambdaARN) {
@@ -239,14 +239,14 @@ func transformLambdaRelationships(
 			continue
 		}
 		seen[lambdaARN] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFirehoseStreamUsesLambdaTransform,
+			RelationshipType: aws.RelationshipFirehoseStreamUsesLambdaTransform,
 			SourceResourceID: streamID,
 			SourceARN:        streamARN,
 			TargetResourceID: lambdaARN,
 			TargetARN:        lambdaARN,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       aws.ResourceTypeLambdaFunction,
 			SourceRecordID:   streamID + "#lambda-transform#" + lambdaARN,
 		})
 	}
@@ -262,12 +262,12 @@ func transformLambdaRelationships(
 // access material and report no Eshu-resolvable resource family, so they
 // produce no edge here.
 func destinationTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	streamID string,
 	streamARN string,
 	destination Destination,
-) (awscloud.RelationshipObservation, bool) {
-	base := awscloud.RelationshipObservation{
+) (aws.RelationshipObservation, bool) {
+	base := aws.RelationshipObservation{
 		Boundary:         boundary,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
@@ -276,36 +276,36 @@ func destinationTargetRelationship(
 	case destinationKindS3:
 		bucketARN := strings.TrimSpace(destination.S3BucketARN)
 		if !isARN(bucketARN) {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToS3Bucket
+		base.RelationshipType = aws.RelationshipFirehoseStreamDeliversToS3Bucket
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
-		base.TargetType = awscloud.ResourceTypeS3Bucket
+		base.TargetType = aws.ResourceTypeS3Bucket
 		base.SourceRecordID = streamID + "#s3#" + bucketARN
 		return base, true
 	case destinationKindRedshift:
 		clusterID := strings.TrimSpace(destination.RedshiftClusterIdentifier)
 		if clusterID == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster
+		base.RelationshipType = aws.RelationshipFirehoseStreamDeliversToRedshiftCluster
 		base.TargetResourceID = clusterID
-		base.TargetType = awscloud.ResourceTypeRedshiftCluster
+		base.TargetType = aws.ResourceTypeRedshiftCluster
 		base.SourceRecordID = streamID + "#redshift#" + clusterID
 		return base, true
 	case destinationKindOpenSearch:
 		domainARN := strings.TrimSpace(destination.OpenSearchDomainARN)
 		if !isARN(domainARN) {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain
+		base.RelationshipType = aws.RelationshipFirehoseStreamDeliversToOpenSearchDomain
 		base.TargetResourceID = domainARN
 		base.TargetARN = domainARN
-		base.TargetType = awscloud.ResourceTypeOpenSearchDomain
+		base.TargetType = aws.ResourceTypeOpenSearchDomain
 		base.SourceRecordID = streamID + "#opensearch#" + domainARN
 		return base, true
 	default:
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }

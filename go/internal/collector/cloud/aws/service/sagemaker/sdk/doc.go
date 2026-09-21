@@ -13,4 +13,4 @@
 // definition bodies into scanner-owned types. The reflection gate in
 // exclusion_test.go fails the build if a forbidden method ever reaches the
 // adapter-local apiClient interface.
-package awssdk
+package sdk

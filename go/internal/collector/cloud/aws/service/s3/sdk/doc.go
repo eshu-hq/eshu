@@ -11,4 +11,4 @@
 // metadata, and replication configuration is reduced to presence. Object
 // inventory calls, ACL grant reads, notification reads, replication rule detail,
 // lifecycle reads, and mutation APIs stay outside this package contract.
-package awssdk
+package sdk

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/kinesis/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/kinesis/sdk` adapts AWS SDK for Go v2
 Kinesis Data Streams, Kinesis Data Firehose, and Kinesis Video Streams
 responses to the scanner-owned `Client` contract. It owns data-stream
 discovery and per-stream summary enrichment, Firehose delivery-stream
@@ -39,9 +39,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/kinesis` for scanner-owned result
+- `internal/collector/cloud/aws/service/kinesis` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `kinesis`, `firehose`, `kinesisvideo`, and Smithy error

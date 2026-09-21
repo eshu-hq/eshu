@@ -35,7 +35,7 @@ func dimensionSummary(dimensions []MetricDimension, key redact.Key) []any {
 			"name": name,
 		}
 		if dimensionIsCustomerTagShaped(name) && !key.IsZero() {
-			entry["value"] = awscloud.RedactString(value, "cloudwatch.alarm.dimension."+name, key)
+			entry["value"] = aws.RedactString(value, "cloudwatch.alarm.dimension."+name, key)
 		} else {
 			entry["value"] = value
 		}

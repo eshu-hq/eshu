@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	awsecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/aws/smithy-go"
@@ -33,7 +33,7 @@ type apiClient interface {
 // Client adapts AWS SDK ECR pagination into scanner-owned ECR records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 	checkpoints checkpoint.Store
@@ -41,8 +41,8 @@ type Client struct {
 
 // NewClient builds an ECR SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -52,8 +52,8 @@ func NewClient(
 // NewClientWithCheckpoints builds an ECR SDK adapter with optional durable
 // pagination checkpoints.
 func NewClientWithCheckpoints(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	checkpoints checkpoint.Store,
@@ -83,7 +83,7 @@ func (c *Client) ListRepositories(ctx context.Context) ([]ecrservice.Repository,
 			return nil, err
 		}
 		for _, repository := range page.Repositories {
-			tags, err := c.listTagsForRepository(ctx, aws.ToString(repository.RepositoryArn))
+			tags, err := c.listTagsForRepository(ctx, awsv2.ToString(repository.RepositoryArn))
 			if err != nil {
 				return nil, err
 			}
@@ -101,13 +101,13 @@ func (c *Client) ListImages(ctx context.Context, repository ecrservice.Repositor
 		return nil, err
 	}
 	input := &awsecr.DescribeImagesInput{
-		RepositoryName: aws.String(repository.Name),
+		RepositoryName: awsv2.String(repository.Name),
 	}
 	if strings.TrimSpace(repository.RegistryID) != "" {
-		input.RegistryId = aws.String(repository.RegistryID)
+		input.RegistryId = awsv2.String(repository.RegistryID)
 	}
 	if pageToken != "" {
-		input.NextToken = aws.String(pageToken)
+		input.NextToken = awsv2.String(pageToken)
 	}
 	paginator := awsecr.NewDescribeImagesPaginator(c.client, input)
 	var images []ecrservice.Image
@@ -134,7 +134,7 @@ func (c *Client) ListImages(ctx context.Context, repository ecrservice.Repositor
 			seenImages[key] = struct{}{}
 			images = append(images, mapped)
 		}
-		pageToken = aws.ToString(page.NextToken)
+		pageToken = awsv2.ToString(page.NextToken)
 		pageNumber++
 		if pageToken == "" {
 			if err := c.completeImageCheckpoint(ctx, checkpointKey); err != nil {
@@ -192,10 +192,10 @@ func (c *Client) GetLifecyclePolicy(
 	repository ecrservice.Repository,
 ) (*ecrservice.LifecyclePolicy, error) {
 	input := &awsecr.GetLifecyclePolicyInput{
-		RepositoryName: aws.String(repository.Name),
+		RepositoryName: awsv2.String(repository.Name),
 	}
 	if strings.TrimSpace(repository.RegistryID) != "" {
-		input.RegistryId = aws.String(repository.RegistryID)
+		input.RegistryId = awsv2.String(repository.RegistryID)
 	}
 	var output *awsecr.GetLifecyclePolicyOutput
 	err := c.recordAPICall(ctx, "GetLifecyclePolicy", func(callCtx context.Context) error {
@@ -214,10 +214,10 @@ func (c *Client) GetLifecyclePolicy(
 	}
 	return &ecrservice.LifecyclePolicy{
 		RepositoryARN:   repository.ARN,
-		RepositoryName:  firstNonEmpty(aws.ToString(output.RepositoryName), repository.Name),
-		RegistryID:      firstNonEmpty(aws.ToString(output.RegistryId), repository.RegistryID),
-		PolicyText:      aws.ToString(output.LifecyclePolicyText),
-		LastEvaluatedAt: aws.ToTime(output.LastEvaluatedAt),
+		RepositoryName:  firstNonEmpty(awsv2.ToString(output.RepositoryName), repository.Name),
+		RegistryID:      firstNonEmpty(awsv2.ToString(output.RegistryId), repository.RegistryID),
+		PolicyText:      awsv2.ToString(output.LifecyclePolicyText),
+		LastEvaluatedAt: awsv2.ToTime(output.LastEvaluatedAt),
 	}, nil
 }
 
@@ -229,7 +229,7 @@ func (c *Client) listTagsForRepository(ctx context.Context, repositoryARN string
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsecr.ListTagsForResourceInput{
-			ResourceArn: aws.String(repositoryARN),
+			ResourceArn: awsv2.String(repositoryARN),
 		})
 		return err
 	})
@@ -244,17 +244,17 @@ func (c *Client) listTagsForRepository(ctx context.Context, repositoryARN string
 
 func mapRepository(repository awsecrtypes.Repository, tags []awsecrtypes.Tag) ecrservice.Repository {
 	value := ecrservice.Repository{
-		ARN:                aws.ToString(repository.RepositoryArn),
-		Name:               aws.ToString(repository.RepositoryName),
-		URI:                aws.ToString(repository.RepositoryUri),
-		RegistryID:         aws.ToString(repository.RegistryId),
+		ARN:                awsv2.ToString(repository.RepositoryArn),
+		Name:               awsv2.ToString(repository.RepositoryName),
+		URI:                awsv2.ToString(repository.RepositoryUri),
+		RegistryID:         awsv2.ToString(repository.RegistryId),
 		ImageTagMutability: string(repository.ImageTagMutability),
-		CreatedAt:          aws.ToTime(repository.CreatedAt),
+		CreatedAt:          awsv2.ToTime(repository.CreatedAt),
 		Tags:               mapTags(tags),
 	}
 	if repository.EncryptionConfiguration != nil {
 		value.EncryptionType = string(repository.EncryptionConfiguration.EncryptionType)
-		value.KMSKey = aws.ToString(repository.EncryptionConfiguration.KmsKey)
+		value.KMSKey = awsv2.ToString(repository.EncryptionConfiguration.KmsKey)
 	}
 	if repository.ImageScanningConfiguration != nil {
 		value.ScanOnPush = repository.ImageScanningConfiguration.ScanOnPush
@@ -263,18 +263,18 @@ func mapRepository(repository awsecrtypes.Repository, tags []awsecrtypes.Tag) ec
 }
 
 func mapImageDetail(repositoryARN string, image awsecrtypes.ImageDetail) ecrservice.Image {
-	digest := aws.ToString(image.ImageDigest)
+	digest := awsv2.ToString(image.ImageDigest)
 	return ecrservice.Image{
 		RepositoryARN:     repositoryARN,
-		RepositoryName:    aws.ToString(image.RepositoryName),
-		RegistryID:        aws.ToString(image.RegistryId),
+		RepositoryName:    awsv2.ToString(image.RepositoryName),
+		RegistryID:        awsv2.ToString(image.RegistryId),
 		ImageDigest:       digest,
 		ManifestDigest:    digest,
 		Tags:              cloneStrings(image.ImageTags),
-		PushedAt:          aws.ToTime(image.ImagePushedAt),
-		ImageSizeInBytes:  aws.ToInt64(image.ImageSizeInBytes),
-		ManifestMediaType: aws.ToString(image.ImageManifestMediaType),
-		ArtifactMediaType: aws.ToString(image.ArtifactMediaType),
+		PushedAt:          awsv2.ToTime(image.ImagePushedAt),
+		ImageSizeInBytes:  awsv2.ToInt64(image.ImageSizeInBytes),
+		ManifestMediaType: awsv2.ToString(image.ImageManifestMediaType),
+		ArtifactMediaType: awsv2.ToString(image.ArtifactMediaType),
 	}
 }
 
@@ -284,11 +284,11 @@ func mapTags(tags []awsecrtypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	return output
 }
@@ -333,7 +333,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

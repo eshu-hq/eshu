@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`awssdk` owns the AWS SDK for Go v2 adapter for CloudFront distribution
+`sdk` owns the AWS SDK for Go v2 adapter for CloudFront distribution
 metadata. It implements the scanner-owned `Client` port in the parent package.
 
 ## Ownership boundary
@@ -14,7 +14,7 @@ environment, repository, or deployable-unit truth.
 
 ```mermaid
 flowchart LR
-    Client[awssdk.Client] --> List[ListDistributions]
+    Client[sdk.Client] --> List[ListDistributions]
     Client --> Tags[ListTagsForResource]
     List --> Mapper[metadata mapper]
     Tags --> Mapper
@@ -40,8 +40,8 @@ See `doc.go` for the godoc-rendered package contract.
 ## Dependencies
 
 - AWS SDK for Go v2 CloudFront client and CloudFront response types.
-- `internal/collector/awscloud` for boundaries and API-call status events.
-- `internal/collector/awscloud/service/cloudfront` for scanner-owned models.
+- `internal/collector/cloud/aws` for boundaries and API-call status events.
+- `internal/collector/cloud/aws/service/cloudfront` for scanner-owned models.
 - `internal/telemetry` for shared AWS collector API-call metrics and spans.
 
 ## Telemetry

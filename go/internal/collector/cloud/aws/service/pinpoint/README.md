@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/pinpoint` owns the Amazon Pinpoint
+`internal/collector/cloud/aws/service/pinpoint` owns the Amazon Pinpoint
 scanner contract for the AWS cloud collector. It converts Pinpoint application
 (project), segment, and channel-settings metadata into `aws_resource` facts and
 emits relationship evidence for application-to-segment membership,
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Pinpoint API call counts, throttles, and
+The `sdk` adapter records Pinpoint API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -85,14 +85,14 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/pinpoint/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/pinpoint/...` covers the bounded
 Pinpoint metadata path: one paginated GetApps stream, one paginated GetSegments
 stream per application, one GetChannels point read per application, one
 GetEmailChannel point read per application that has an email channel, no
 endpoint reads, no message sends, no mutations, and no graph writes in the
 collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/pinpoint/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/pinpoint/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

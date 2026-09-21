@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/organizations/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/organizations/sdk guidance
 
 ## Read First
 
@@ -6,7 +6,7 @@
 2. `client.go`, `policies.go`, `delegated.go`, and `helpers.go` - SDK
    pagination and metadata mapping.
 3. `../scanner.go` - scanner-owned fact selection and redaction.
-4. `../../../awsruntime/README.md` - runtime credential and scanner registry
+4. `../../../runtime/README.md` - runtime credential and scanner registry
    contract.
 5. `docs/public/services/collector-aws-cloud-security.md` - credential and
    redaction rules.

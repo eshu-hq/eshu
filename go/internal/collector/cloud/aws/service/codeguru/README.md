@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codeguru` owns the Amazon CodeGuru scanner
+`internal/collector/cloud/aws/service/codeguru` owns the Amazon CodeGuru scanner
 contract for the AWS cloud collector. It covers both CodeGuru Reviewer
 (repository associations) and CodeGuru Profiler (profiling groups). It converts
 that control-plane metadata into `aws_resource` facts and emits relationship
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ v2 so tests can use fake clients and the runtime adapter can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records CodeGuru Reviewer and Profiler API call counts,
+`sdk` adapter records CodeGuru Reviewer and Profiler API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -67,7 +67,7 @@ throttles, and pagination spans.
   type is CodeCommit. CodeGuru reports only the repository name and the owning
   account, so the scanner synthesizes the partition-aware CodeCommit repository
   ARN (`arn:<partition>:codecommit:<region>:<owner>:<name>`) via
-  `awscloud.PartitionForBoundary` to match the CodeCommit scanner's published
+  `aws.PartitionForBoundary` to match the CodeCommit scanner's published
   repository resource_id in GovCloud and China, not just commercial. The edge is
   skipped when the owner account or region is missing rather than dangled.
 - Non-CodeCommit providers (GitHub, Bitbucket, GitHub Enterprise Server, S3) and
@@ -83,7 +83,7 @@ throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/codeguru/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/codeguru/...` covers the bounded
 CodeGuru metadata path: one paginated ListRepositoryAssociations stream
 (Reviewer) and one paginated ListProfilingGroups stream with full descriptions
 (Profiler), one ListTagsForResource point read per association and per group, no
@@ -91,7 +91,7 @@ findings reads, no recommendation reads, no profiling-sample reads, no
 mutations, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/codeguru/...`
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/codeguru/...`
 green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle

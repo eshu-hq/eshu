@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package runtimebind registers the Application Auto Scaling scanner with the
-// awsruntime registry.
+// Package bind registers the Application Auto Scaling scanner with the
+// runtime registry.
 //
 // The package has no exported surface. Importing it for its init side effect
 // adds the Application Auto Scaling scanner builder to the registry so
 // DefaultScannerFactory can resolve service_kind "applicationautoscaling"
 // without a central switch. Production callers pull every service binding
-// through internal/collector/awscloud/awsruntime/bindings.
-package runtimebind
+// through internal/collector/cloud/aws/runtime/bindings.
+package bind

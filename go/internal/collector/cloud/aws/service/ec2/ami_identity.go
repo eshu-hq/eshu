@@ -22,7 +22,7 @@ import (
 // place. Returns nil when the instance carries no AMI id (mirrors
 // instanceIdentityEnvelopes' relationship-emission guard) or when the AMI id
 // was already emitted earlier in this scan.
-func amiResourceEnvelopes(boundary awscloud.Boundary, instance Instance, seenAMIIDs map[string]struct{}) ([]facts.Envelope, error) {
+func amiResourceEnvelopes(boundary aws.Boundary, instance Instance, seenAMIIDs map[string]struct{}) ([]facts.Envelope, error) {
 	amiID := strings.TrimSpace(instance.ImageID)
 	if amiID == "" {
 		return nil, nil
@@ -32,7 +32,7 @@ func amiResourceEnvelopes(boundary awscloud.Boundary, instance Instance, seenAMI
 	}
 	seenAMIIDs[amiID] = struct{}{}
 
-	resource, err := awscloud.NewResourceEnvelope(amiResourceObservation(boundary, amiID))
+	resource, err := aws.NewResourceEnvelope(amiResourceObservation(boundary, amiID))
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +52,11 @@ func amiResourceEnvelopes(boundary awscloud.Boundary, instance Instance, seenAMI
 // an AMI ARN, but DescribeInstances does not surface it, so this fact's
 // identity is bare-id-only (the shape resolveTarget's byResourceID path
 // expects; see go/internal/reducer/aws_relationship_join.go).
-func amiResourceObservation(boundary awscloud.Boundary, amiID string) awscloud.ResourceObservation {
-	return awscloud.ResourceObservation{
+func amiResourceObservation(boundary aws.Boundary, amiID string) aws.ResourceObservation {
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         amiID,
-		ResourceType:       awscloud.ResourceTypeEC2AMI,
+		ResourceType:       aws.ResourceTypeEC2AMI,
 		Name:               amiID,
 		CorrelationAnchors: []string{amiID},
 		SourceRecordID:     amiID,

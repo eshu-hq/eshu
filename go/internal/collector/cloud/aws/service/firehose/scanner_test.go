@@ -58,7 +58,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stream := resourceByType(t, envelopes, awscloud.ResourceTypeFirehoseDeliveryStream)
+	stream := resourceByType(t, envelopes, aws.ResourceTypeFirehoseDeliveryStream)
 	if got, want := stream.Payload["name"], streamName; got != want {
 		t.Fatalf("stream name = %#v, want %q", got, want)
 	}
@@ -84,32 +84,32 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 		}
 	}
 
-	source := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream)
-	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, awscloud.ResourceTypeKinesisDataStream)
+	source := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamSourcedFromKinesisStream)
+	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, aws.ResourceTypeKinesisDataStream)
 
-	kms := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesKMSKey)
-	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, awscloud.ResourceTypeKMSKey)
+	kms := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamUsesKMSKey)
+	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, aws.ResourceTypeKMSKey)
 
-	role := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesIAMRole)
-	assertEdge(t, role, streamARN, roleARN, roleARN, awscloud.ResourceTypeIAMRole)
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamUsesIAMRole); got != 1 {
+	role := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamUsesIAMRole)
+	assertEdge(t, role, streamARN, roleARN, roleARN, aws.ResourceTypeIAMRole)
+	if got := countRelationships(envelopes, aws.RelationshipFirehoseStreamUsesIAMRole); got != 1 {
 		t.Fatalf("role edge count = %d, want 1 (duplicate role across destinations must collapse)", got)
 	}
 
-	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup)
-	assertEdge(t, logGroup, streamARN, logGroupName, "", awscloud.ResourceTypeCloudWatchLogsLogGroup)
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup); got != 1 {
+	logGroup := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamLogsToCloudWatchLogGroup)
+	assertEdge(t, logGroup, streamARN, logGroupName, "", aws.ResourceTypeCloudWatchLogsLogGroup)
+	if got := countRelationships(envelopes, aws.RelationshipFirehoseStreamLogsToCloudWatchLogGroup); got != 1 {
 		t.Fatalf("log-group edge count = %d, want 1 (duplicate log group must collapse)", got)
 	}
 
-	lambda := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesLambdaTransform)
-	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, awscloud.ResourceTypeLambdaFunction)
+	lambda := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamUsesLambdaTransform)
+	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, aws.ResourceTypeLambdaFunction)
 
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToS3Bucket)
-	assertEdge(t, s3, streamARN, bucketARN, bucketARN, awscloud.ResourceTypeS3Bucket)
+	s3 := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamDeliversToS3Bucket)
+	assertEdge(t, s3, streamARN, bucketARN, bucketARN, aws.ResourceTypeS3Bucket)
 
-	opensearch := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
-	assertEdge(t, opensearch, streamARN, domainARN, domainARN, awscloud.ResourceTypeOpenSearchDomain)
+	opensearch := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
+	assertEdge(t, opensearch, streamARN, domainARN, domainARN, aws.ResourceTypeOpenSearchDomain)
 }
 
 func TestScannerEmitsRedshiftDestinationEdgeKeyedByClusterIdentifier(t *testing.T) {
@@ -128,11 +128,11 @@ func TestScannerEmitsRedshiftDestinationEdgeKeyedByClusterIdentifier(t *testing.
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	redshift := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster)
+	redshift := relationshipByType(t, envelopes, aws.RelationshipFirehoseStreamDeliversToRedshiftCluster)
 	if got, want := redshift.Payload["target_resource_id"], "warehouse-prod"; got != want {
 		t.Fatalf("redshift target_resource_id = %#v, want %q (bare cluster id, the Redshift scanner Name)", got, want)
 	}
-	if got, want := redshift.Payload["target_type"], awscloud.ResourceTypeRedshiftCluster; got != want {
+	if got, want := redshift.Payload["target_type"], aws.ResourceTypeRedshiftCluster; got != want {
 		t.Fatalf("redshift target_type = %#v, want %q", got, want)
 	}
 	if _, exists := redshift.Payload["target_arn"]; exists {
@@ -160,9 +160,9 @@ func TestScannerOmitsDestinationEdgesWhenTargetIdentityMissing(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipFirehoseStreamDeliversToS3Bucket,
-		awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain,
-		awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster,
+		aws.RelationshipFirehoseStreamDeliversToS3Bucket,
+		aws.RelationshipFirehoseStreamDeliversToOpenSearchDomain,
+		aws.RelationshipFirehoseStreamDeliversToRedshiftCluster,
 	} {
 		if got := countRelationships(envelopes, relationshipType); got != 0 {
 			t.Fatalf("relationship %q count = %d, want 0 when target identity is missing", relationshipType, got)
@@ -183,7 +183,7 @@ func TestScannerOmitsKMSEdgeForAWSOwnedKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamUsesKMSKey); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipFirehoseStreamUsesKMSKey); got != 0 {
 		t.Fatalf("kms edge count = %d, want 0 for an AWS-owned key (no customer key ARN)", got)
 	}
 }
@@ -200,7 +200,7 @@ func TestScannerOmitsSourceEdgeForDirectPutStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipFirehoseStreamSourcedFromKinesisStream); got != 0 {
 		t.Fatalf("source edge count = %d, want 0 for a DirectPut stream", got)
 	}
 }
@@ -231,7 +231,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceKinesis
+	boundary.ServiceKind = aws.ServiceKinesis
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -258,7 +258,7 @@ func TestStagingS3RelationshipForNonS3Destination(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a staging S3 edge for a Redshift destination with a backup bucket")
 	}
-	if edge.TargetType != awscloud.ResourceTypeS3Bucket || edge.TargetResourceID != "arn:aws:s3:::staging-bucket" {
+	if edge.TargetType != aws.ResourceTypeS3Bucket || edge.TargetResourceID != "arn:aws:s3:::staging-bucket" {
 		t.Fatalf("staging edge = %+v, want S3 bucket arn:aws:s3:::staging-bucket", edge)
 	}
 	if _, ok := stagingS3Relationship(testBoundary(), "stream-1", streamARN,
@@ -267,11 +267,11 @@ func TestStagingS3RelationshipForNonS3Destination(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFirehose,
+		ServiceKind:         aws.ServiceFirehose,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:firehose:1",
 		CollectorInstanceID: "aws-prod",
@@ -306,9 +306,9 @@ func assertEdge(t *testing.T, envelope facts.Envelope, sourceID, targetID, targe
 	}
 }
 
-func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []awscloud.RelationshipObservation {
+func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []aws.RelationshipObservation {
 	t.Helper()
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
@@ -318,7 +318,7 @@ func relationshipObservations(t *testing.T, envelopes []facts.Envelope) []awsclo
 		sourceID, _ := envelope.Payload["source_resource_id"].(string)
 		targetID, _ := envelope.Payload["target_resource_id"].(string)
 		targetARN, _ := envelope.Payload["target_arn"].(string)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			RelationshipType: relationshipType,
 			TargetType:       targetType,
 			SourceResourceID: sourceID,

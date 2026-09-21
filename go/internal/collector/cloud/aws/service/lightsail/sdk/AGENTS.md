@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/lightsail/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/lightsail/sdk guidance
 
 ## Read First
 

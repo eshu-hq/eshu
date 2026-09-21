@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
@@ -84,7 +84,7 @@ func (s ClaimedSource) NextClaimed(
 
 	lease, err := s.acquireCredentials(ctx, target, item.LeaseExpiresAt.UTC())
 	if err != nil {
-		envelope, warningErr := awscloud.NewWarningEnvelope(awscloud.WarningObservation{
+		envelope, warningErr := aws.NewWarningEnvelope(aws.WarningObservation{
 			Boundary:    boundary,
 			WarningKind: WarningAssumeRoleFailed,
 			ErrorClass:  "credential_acquisition_failed",
@@ -98,7 +98,7 @@ func (s ClaimedSource) NextClaimed(
 		}
 		s.recordAssumeRoleFailure(ctx, target)
 		envelopes := []facts.Envelope{envelope}
-		if err := s.observeScanStatus(ctx, boundary, awscloud.APICallStats{}, envelopes, err); err != nil {
+		if err := s.observeScanStatus(ctx, boundary, aws.APICallStats{}, envelopes, err); err != nil {
 			return collector.CollectedGeneration{}, false, err
 		}
 		return collector.FactsFromSlice(scopeValue, generationValue, []facts.Envelope{envelope}), true, nil
@@ -113,8 +113,8 @@ func (s ClaimedSource) NextClaimed(
 	if err != nil {
 		return collector.CollectedGeneration{}, false, fmt.Errorf("create AWS service scanner: %w", err)
 	}
-	apiRecorder := awscloud.NewAPICallStatsRecorder(boundary)
-	scanCtx := awscloud.ContextWithAPICallRecorder(ctx, apiRecorder)
+	apiRecorder := aws.NewAPICallStatsRecorder(boundary)
+	scanCtx := aws.ContextWithAPICallRecorder(ctx, apiRecorder)
 	envelopes, err := s.scanService(scanCtx, target, boundary, scanner)
 	if err != nil {
 		scanErr := classifyServiceScanError(err)
@@ -129,7 +129,7 @@ func (s ClaimedSource) NextClaimed(
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 
-func (s ClaimedSource) expireStaleCheckpoints(ctx context.Context, boundary awscloud.Boundary) error {
+func (s ClaimedSource) expireStaleCheckpoints(ctx context.Context, boundary aws.Boundary) error {
 	if s.Checkpoints == nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (s ClaimedSource) acquireCredentials(
 func (s ClaimedSource) scanService(
 	ctx context.Context,
 	target Target,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	scanner ServiceScanner,
 ) ([]facts.Envelope, error) {
 	startedAt := time.Now()
@@ -323,8 +323,8 @@ func parseClaimTarget(raw string) (claimTarget, error) {
 	}
 }
 
-func (s ClaimedSource) boundary(item workflow.WorkItem, target Target) awscloud.Boundary {
-	return awscloud.Boundary{
+func (s ClaimedSource) boundary(item workflow.WorkItem, target Target) aws.Boundary {
+	return aws.Boundary{
 		AccountID:           target.AccountID,
 		Region:              target.Region,
 		ServiceKind:         target.ServiceKind,

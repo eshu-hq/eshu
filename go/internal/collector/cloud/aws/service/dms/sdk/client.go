@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdms "github.com/aws/aws-sdk-go-v2/service/databasemigrationservice"
 	awsdmstypes "github.com/aws/aws-sdk-go-v2/service/databasemigrationservice/types"
 	"github.com/aws/smithy-go"
@@ -61,15 +61,15 @@ type apiClient interface {
 // endpoint credentials or task settings, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DMS SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -133,7 +133,7 @@ func (c *Client) listSubnetGroups(ctx context.Context) ([]dmsservice.Replication
 			groups = append(groups, mapSubnetGroup(group))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -168,7 +168,7 @@ func (c *Client) listInstances(
 			instances = append(instances, mapped)
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return instances, nil
 		}
 	}
@@ -196,7 +196,7 @@ func (c *Client) listEndpoints(ctx context.Context) ([]dmsservice.Endpoint, erro
 			endpoints = append(endpoints, mapEndpoint(endpoint))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return endpoints, nil
 		}
 	}
@@ -228,7 +228,7 @@ func (c *Client) listTasks(ctx context.Context) ([]dmsservice.ReplicationTask, e
 			tasks = append(tasks, mapped)
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return tasks, nil
 		}
 	}
@@ -239,7 +239,7 @@ func (c *Client) mapInstance(
 	instance awsdmstypes.ReplicationInstance,
 	subnetGroups map[string]dmsservice.ReplicationSubnetGroup,
 ) (dmsservice.ReplicationInstance, error) {
-	arn := strings.TrimSpace(aws.ToString(instance.ReplicationInstanceArn))
+	arn := strings.TrimSpace(awsv2.ToString(instance.ReplicationInstanceArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return dmsservice.ReplicationInstance{}, err
@@ -251,7 +251,7 @@ func (c *Client) mapTask(
 	ctx context.Context,
 	task awsdmstypes.ReplicationTask,
 ) (dmsservice.ReplicationTask, error) {
-	arn := strings.TrimSpace(aws.ToString(task.ReplicationTaskArn))
+	arn := strings.TrimSpace(awsv2.ToString(task.ReplicationTaskArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return dmsservice.ReplicationTask{}, err
@@ -268,7 +268,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsdms.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -280,11 +280,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := make(map[string]string, len(output.TagList))
 	for _, tag := range output.TagList {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -310,7 +310,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

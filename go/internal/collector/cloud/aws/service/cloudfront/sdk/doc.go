@@ -9,4 +9,4 @@
 // origin custom header values before data reaches the scanner-owned model.
 // Callers receive errors from AWS pagination and tag reads with the original
 // cause preserved.
-package awssdk
+package sdk

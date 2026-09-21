@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsrolesanywhere "github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	awsrolesanywheretypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	"github.com/aws/smithy-go"
@@ -57,15 +57,15 @@ type apiClient interface {
 // credentials, and never calls a mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Roles Anywhere SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -127,7 +127,7 @@ func (c *Client) listTrustAnchors(ctx context.Context) ([]rolesanywhereservice.T
 			anchors = append(anchors, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return anchors, nil
 		}
 	}
@@ -137,7 +137,7 @@ func (c *Client) mapTrustAnchor(
 	ctx context.Context,
 	anchor awsrolesanywheretypes.TrustAnchorDetail,
 ) (rolesanywhereservice.TrustAnchor, error) {
-	arn := strings.TrimSpace(aws.ToString(anchor.TrustAnchorArn))
+	arn := strings.TrimSpace(awsv2.ToString(anchor.TrustAnchorArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return rolesanywhereservice.TrustAnchor{}, err
@@ -145,13 +145,13 @@ func (c *Client) mapTrustAnchor(
 	sourceType, acmPcaARN := trustAnchorSource(anchor.Source)
 	return rolesanywhereservice.TrustAnchor{
 		ARN:           arn,
-		TrustAnchorID: strings.TrimSpace(aws.ToString(anchor.TrustAnchorId)),
-		Name:          strings.TrimSpace(aws.ToString(anchor.Name)),
-		Enabled:       aws.ToBool(anchor.Enabled),
+		TrustAnchorID: strings.TrimSpace(awsv2.ToString(anchor.TrustAnchorId)),
+		Name:          strings.TrimSpace(awsv2.ToString(anchor.Name)),
+		Enabled:       awsv2.ToBool(anchor.Enabled),
 		SourceType:    sourceType,
 		ACMPCAArn:     acmPcaARN,
-		CreatedAt:     aws.ToTime(anchor.CreatedAt),
-		UpdatedAt:     aws.ToTime(anchor.UpdatedAt),
+		CreatedAt:     awsv2.ToTime(anchor.CreatedAt),
+		UpdatedAt:     awsv2.ToTime(anchor.UpdatedAt),
 		Tags:          tags,
 	}, nil
 }
@@ -197,7 +197,7 @@ func (c *Client) listProfiles(ctx context.Context) ([]rolesanywhereservice.Profi
 			profiles = append(profiles, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return profiles, nil
 		}
 	}
@@ -207,25 +207,25 @@ func (c *Client) mapProfile(
 	ctx context.Context,
 	profile awsrolesanywheretypes.ProfileDetail,
 ) (rolesanywhereservice.Profile, error) {
-	arn := strings.TrimSpace(aws.ToString(profile.ProfileArn))
+	arn := strings.TrimSpace(awsv2.ToString(profile.ProfileArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return rolesanywhereservice.Profile{}, err
 	}
 	return rolesanywhereservice.Profile{
 		ARN:                       arn,
-		ProfileID:                 strings.TrimSpace(aws.ToString(profile.ProfileId)),
-		Name:                      strings.TrimSpace(aws.ToString(profile.Name)),
-		Enabled:                   aws.ToBool(profile.Enabled),
-		DurationSeconds:           aws.ToInt32(profile.DurationSeconds),
-		AcceptRoleSessionName:     aws.ToBool(profile.AcceptRoleSessionName),
-		RequireInstanceProperties: aws.ToBool(profile.RequireInstanceProperties),
-		HasSessionPolicy:          strings.TrimSpace(aws.ToString(profile.SessionPolicy)) != "",
+		ProfileID:                 strings.TrimSpace(awsv2.ToString(profile.ProfileId)),
+		Name:                      strings.TrimSpace(awsv2.ToString(profile.Name)),
+		Enabled:                   awsv2.ToBool(profile.Enabled),
+		DurationSeconds:           awsv2.ToInt32(profile.DurationSeconds),
+		AcceptRoleSessionName:     awsv2.ToBool(profile.AcceptRoleSessionName),
+		RequireInstanceProperties: awsv2.ToBool(profile.RequireInstanceProperties),
+		HasSessionPolicy:          strings.TrimSpace(awsv2.ToString(profile.SessionPolicy)) != "",
 		AttributeMappingCount:     len(profile.AttributeMappings),
 		RoleARNs:                  trimmedARNs(profile.RoleArns),
 		ManagedPolicyARNs:         trimmedARNs(profile.ManagedPolicyArns),
-		CreatedAt:                 aws.ToTime(profile.CreatedAt),
-		UpdatedAt:                 aws.ToTime(profile.UpdatedAt),
+		CreatedAt:                 awsv2.ToTime(profile.CreatedAt),
+		UpdatedAt:                 awsv2.ToTime(profile.UpdatedAt),
 		Tags:                      tags,
 	}, nil
 }
@@ -256,7 +256,7 @@ func (c *Client) listCRLs(ctx context.Context) ([]rolesanywhereservice.CRL, erro
 			crls = append(crls, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return crls, nil
 		}
 	}
@@ -266,7 +266,7 @@ func (c *Client) mapCRL(
 	ctx context.Context,
 	crl awsrolesanywheretypes.CrlDetail,
 ) (rolesanywhereservice.CRL, error) {
-	arn := strings.TrimSpace(aws.ToString(crl.CrlArn))
+	arn := strings.TrimSpace(awsv2.ToString(crl.CrlArn))
 	tags, err := c.listTags(ctx, arn)
 	if err != nil {
 		return rolesanywhereservice.CRL{}, err
@@ -274,12 +274,12 @@ func (c *Client) mapCRL(
 	// CrlData (the CRL body bytes) is intentionally never copied.
 	return rolesanywhereservice.CRL{
 		ARN:            arn,
-		CRLID:          strings.TrimSpace(aws.ToString(crl.CrlId)),
-		Name:           strings.TrimSpace(aws.ToString(crl.Name)),
-		Enabled:        aws.ToBool(crl.Enabled),
-		TrustAnchorARN: strings.TrimSpace(aws.ToString(crl.TrustAnchorArn)),
-		CreatedAt:      aws.ToTime(crl.CreatedAt),
-		UpdatedAt:      aws.ToTime(crl.UpdatedAt),
+		CRLID:          strings.TrimSpace(awsv2.ToString(crl.CrlId)),
+		Name:           strings.TrimSpace(awsv2.ToString(crl.Name)),
+		Enabled:        awsv2.ToBool(crl.Enabled),
+		TrustAnchorARN: strings.TrimSpace(awsv2.ToString(crl.TrustAnchorArn)),
+		CreatedAt:      awsv2.ToTime(crl.CreatedAt),
+		UpdatedAt:      awsv2.ToTime(crl.UpdatedAt),
 		Tags:           tags,
 	}, nil
 }
@@ -309,7 +309,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTagsForResource(callCtx, &awsrolesanywhere.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -321,11 +321,11 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	}
 	tags := make(map[string]string, len(output.Tags))
 	for _, tag := range output.Tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		tags[key] = aws.ToString(tag.Value)
+		tags[key] = awsv2.ToString(tag.Value)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -351,7 +351,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -63,7 +63,7 @@ type TB interface {
 //     ARN-shaped, so an ARN-typed target is not silently keyed by a bare name.
 //
 // known is the target-type set; pass KnownTargetTypeSet to use the live set.
-func Check(known map[string]struct{}, observations ...awscloud.RelationshipObservation) []Violation {
+func Check(known map[string]struct{}, observations ...aws.RelationshipObservation) []Violation {
 	var violations []Violation
 	for _, obs := range observations {
 		violations = append(violations, checkOne(known, obs)...)
@@ -72,7 +72,7 @@ func Check(known map[string]struct{}, observations ...awscloud.RelationshipObser
 }
 
 // checkOne returns the violations for a single relationship observation.
-func checkOne(known map[string]struct{}, obs awscloud.RelationshipObservation) []Violation {
+func checkOne(known map[string]struct{}, obs aws.RelationshipObservation) []Violation {
 	targetType := strings.TrimSpace(obs.TargetType)
 	relationshipType := strings.TrimSpace(obs.RelationshipType)
 	targetID := strings.TrimSpace(obs.TargetResourceID)
@@ -93,7 +93,7 @@ func checkOne(known map[string]struct{}, obs awscloud.RelationshipObservation) [
 		return violations
 	}
 	if _, ok := known[targetType]; !ok {
-		add("unknown target_type: not a declared awscloud.ResourceType constant " +
+		add("unknown target_type: not a declared aws.ResourceType constant " +
 			"and not in relguard.KnownTargetTypeAllowlist; the edge would dangle")
 	}
 	if targetARN != "" && !isARNShaped(targetARN) {
@@ -115,7 +115,7 @@ func checkOne(known map[string]struct{}, obs awscloud.RelationshipObservation) [
 // with one Errorf per violation and is a no-op when every edge is well formed.
 // It resolves the live target-type set itself so callers pass only their
 // observations.
-func AssertObservations(t TB, observations ...awscloud.RelationshipObservation) {
+func AssertObservations(t TB, observations ...aws.RelationshipObservation) {
 	t.Helper()
 	known, err := KnownTargetTypeSet()
 	if err != nil {
@@ -134,20 +134,20 @@ var (
 )
 
 // KnownTargetTypeSet returns the live union of declared ResourceType constant
-// values and the documented allowlist, resolving the awscloud source directory
+// values and the documented allowlist, resolving the aws source directory
 // from this package's own location so any caller gets the same set. The result
 // is computed once and cached, so feeding many observations through the runtime
 // layer in a test does not re-walk the source tree per call.
 func KnownTargetTypeSet() (map[string]struct{}, error) {
 	knownOnce.Do(func() {
-		knownSet, knownErr = KnownTargetTypes(awscloudSourceDir())
+		knownSet, knownErr = KnownTargetTypes(awsSourceDir())
 	})
 	return knownSet, knownErr
 }
 
-// awscloudSourceDir resolves go/internal/collector/cloud/aws from this file's
-// location: runtime.go -> relguard -> internal -> awscloud.
-func awscloudSourceDir() string {
+// awsSourceDir resolves go/internal/collector/cloud/aws from this file's
+// location: runtime.go -> relguard -> internal -> aws.
+func awsSourceDir() string {
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		return ""

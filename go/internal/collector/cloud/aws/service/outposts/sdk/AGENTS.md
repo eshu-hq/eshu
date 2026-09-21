@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/outposts/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/outposts/sdk guidance
 
 ## Read First
 

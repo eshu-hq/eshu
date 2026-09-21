@@ -80,7 +80,7 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminInstance)
+	instance := resourceByType(t, envelopes, aws.ResourceTypeSSOAdminInstance)
 	if got, want := instance.Payload["arn"], instanceARN; got != want {
 		t.Fatalf("instance arn = %#v, want %q", got, want)
 	}
@@ -97,7 +97,7 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("legacy attribute account_assignment_cnt persisted; use account_assignment_count")
 	}
 
-	permSet := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminPermissionSet)
+	permSet := resourceByType(t, envelopes, aws.ResourceTypeSSOAdminPermissionSet)
 	permAttrs := attributesOf(t, permSet)
 	if got, want := permAttrs["session_duration"], "PT8H"; got != want {
 		t.Fatalf("session_duration = %#v, want %q", got, want)
@@ -107,7 +107,7 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 	}
 	assertNoInlinePolicyAttributes(t, permAttrs)
 
-	assignment := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminAccountAssignment)
+	assignment := resourceByType(t, envelopes, aws.ResourceTypeSSOAdminAccountAssignment)
 	assignAttrs := attributesOf(t, assignment)
 	if got, want := assignAttrs["principal_type"], "GROUP"; got != want {
 		t.Fatalf("principal_type = %#v, want %q", got, want)
@@ -116,7 +116,7 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("target_account_id = %#v, want %q", got, want)
 	}
 
-	app := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminApplication)
+	app := resourceByType(t, envelopes, aws.ResourceTypeSSOAdminApplication)
 	appAttrs := attributesOf(t, app)
 	if _, exists := appAttrs["access_scope"]; exists {
 		t.Fatalf("access_scope persisted; application access-scope attributes must never be stored")
@@ -125,9 +125,9 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("access scope authorized targets persisted; must never be stored")
 	}
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminTrustedTokenIssuer)
+	resourceByType(t, envelopes, aws.ResourceTypeSSOAdminTrustedTokenIssuer)
 
-	principal := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminPrincipal)
+	principal := resourceByType(t, envelopes, aws.ResourceTypeSSOAdminPrincipal)
 	principalAttrs := attributesOf(t, principal)
 	display, ok := principalAttrs["display_name"].(map[string]any)
 	if !ok {
@@ -138,25 +138,25 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 	}
 	assertNoRawString(t, envelopes, "platform-admins")
 
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminAssignmentUsesPermissionSet)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminAssignmentTargetsAccount)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminAssignmentGrantsPrincipal)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesManagedPolicy)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetInInstance)
-	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminApplicationInInstance)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminAssignmentUsesPermissionSet)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminAssignmentTargetsAccount)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminAssignmentGrantsPrincipal)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminPermissionSetUsesManagedPolicy)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminPermissionSetInInstance)
+	assertRelationship(t, envelopes, aws.RelationshipSSOAdminApplicationInInstance)
 
 	// Both policy relationships must target the canonical IAM policy resource
 	// type so downstream correlation matches the IAM scanner's typing.
-	managed := relationshipByType(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesManagedPolicy)
-	if got, want := targetTypeOf(t, managed), awscloud.ResourceTypeIAMPolicy; got != want {
+	managed := relationshipByType(t, envelopes, aws.RelationshipSSOAdminPermissionSetUsesManagedPolicy)
+	if got, want := targetTypeOf(t, managed), aws.ResourceTypeIAMPolicy; got != want {
 		t.Fatalf("managed policy target_type = %q, want %q", got, want)
 	}
 
 	// Customer-managed policy relationship must reference the name only, never a
 	// policy body.
-	cmp := relationshipByType(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy)
-	if got, want := targetTypeOf(t, cmp), awscloud.ResourceTypeIAMPolicy; got != want {
+	cmp := relationshipByType(t, envelopes, aws.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy)
+	if got, want := targetTypeOf(t, cmp), aws.ResourceTypeIAMPolicy; got != want {
 		t.Fatalf("customer managed policy target_type = %q, want %q", got, want)
 	}
 	cmpAttrs := attributesOf(t, cmp)
@@ -184,7 +184,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceOrganizations
+	boundary.ServiceKind = aws.ServiceOrganizations
 
 	_, err := newTestScanner(t, fakeClient{}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -194,7 +194,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 
 func TestScannerEmitsWarnings(t *testing.T) {
 	snapshot := Snapshot{
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			WarningKind: "identitycenter_no_instance",
 			ErrorClass:  "empty",
 			Message:     "no Identity Center instance in this account",
@@ -229,11 +229,11 @@ func testKey(t *testing.T) redact.Key {
 	return key
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSSOAdmin,
+		ServiceKind:         aws.ServiceSSOAdmin,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ssoadmin:1",
 		CollectorInstanceID: "aws-prod",

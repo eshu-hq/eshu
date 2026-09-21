@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsmemorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
 	awsmemorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/aws/smithy-go"
@@ -69,15 +69,15 @@ type apiClient interface {
 // the raw user access string, snapshot node payloads, or any mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a MemoryDB SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -102,8 +102,8 @@ func (c *Client) ListClusters(ctx context.Context) ([]memorydbservice.Cluster, e
 			var err error
 			page, err = c.client.DescribeClusters(callCtx, &awsmemorydb.DescribeClustersInput{
 				NextToken:        token,
-				MaxResults:       aws.Int32(describeMaxResults),
-				ShowShardDetails: aws.Bool(true),
+				MaxResults:       awsv2.Int32(describeMaxResults),
+				ShowShardDetails: awsv2.Bool(true),
 			})
 			return err
 		})
@@ -114,7 +114,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]memorydbservice.Cluster, e
 			return clusters, nil
 		}
 		for _, raw := range page.Clusters {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -122,7 +122,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]memorydbservice.Cluster, e
 			clusters = append(clusters, mapCluster(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return clusters, nil
 		}
 	}
@@ -139,7 +139,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]memorydbservice.Subnet
 			var err error
 			page, err = c.client.DescribeSubnetGroups(callCtx, &awsmemorydb.DescribeSubnetGroupsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -150,7 +150,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]memorydbservice.Subnet
 			return groups, nil
 		}
 		for _, raw := range page.SubnetGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -158,7 +158,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]memorydbservice.Subnet
 			groups = append(groups, mapSubnetGroup(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return groups, nil
 		}
 	}
@@ -176,7 +176,7 @@ func (c *Client) ListParameterGroups(ctx context.Context) ([]memorydbservice.Par
 			var err error
 			page, err = c.client.DescribeParameterGroups(callCtx, &awsmemorydb.DescribeParameterGroupsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -187,7 +187,7 @@ func (c *Client) ListParameterGroups(ctx context.Context) ([]memorydbservice.Par
 			return groups, nil
 		}
 		for _, raw := range page.ParameterGroups {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -195,7 +195,7 @@ func (c *Client) ListParameterGroups(ctx context.Context) ([]memorydbservice.Par
 			groups = append(groups, mapParameterGroup(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return groups, nil
 		}
 	}
@@ -215,7 +215,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]memorydbservice.User, error) 
 			var err error
 			page, err = c.client.DescribeUsers(callCtx, &awsmemorydb.DescribeUsersInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -226,7 +226,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]memorydbservice.User, error) 
 			return users, nil
 		}
 		for _, raw := range page.Users {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -234,7 +234,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]memorydbservice.User, error) 
 			users = append(users, mapUser(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return users, nil
 		}
 	}
@@ -251,7 +251,7 @@ func (c *Client) ListACLs(ctx context.Context) ([]memorydbservice.ACL, error) {
 			var err error
 			page, err = c.client.DescribeACLs(callCtx, &awsmemorydb.DescribeACLsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -262,7 +262,7 @@ func (c *Client) ListACLs(ctx context.Context) ([]memorydbservice.ACL, error) {
 			return acls, nil
 		}
 		for _, raw := range page.ACLs {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -270,7 +270,7 @@ func (c *Client) ListACLs(ctx context.Context) ([]memorydbservice.ACL, error) {
 			acls = append(acls, mapACL(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return acls, nil
 		}
 	}
@@ -289,7 +289,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]memorydbservice.SnapshotM
 			var err error
 			page, err = c.client.DescribeSnapshots(callCtx, &awsmemorydb.DescribeSnapshotsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -300,7 +300,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]memorydbservice.SnapshotM
 			return snapshots, nil
 		}
 		for _, raw := range page.Snapshots {
-			arn := aws.ToString(raw.ARN)
+			arn := awsv2.ToString(raw.ARN)
 			tags, err := c.listTags(ctx, arn)
 			if err != nil {
 				return nil, err
@@ -308,7 +308,7 @@ func (c *Client) ListSnapshots(ctx context.Context) ([]memorydbservice.SnapshotM
 			snapshots = append(snapshots, mapSnapshot(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return snapshots, nil
 		}
 	}
@@ -323,7 +323,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTags", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.ListTags(callCtx, &awsmemorydb.ListTagsInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -351,7 +351,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,
@@ -393,11 +393,11 @@ func mapTags(tags []awsmemorydbtypes.Tag) map[string]string {
 	}
 	output := make(map[string]string, len(tags))
 	for _, tag := range tags {
-		key := strings.TrimSpace(aws.ToString(tag.Key))
+		key := strings.TrimSpace(awsv2.ToString(tag.Key))
 		if key == "" {
 			continue
 		}
-		output[key] = aws.ToString(tag.Value)
+		output[key] = awsv2.ToString(tag.Value)
 	}
 	if len(output) == 0 {
 		return nil

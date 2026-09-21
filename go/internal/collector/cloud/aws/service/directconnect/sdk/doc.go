@@ -18,4 +18,4 @@
 // so it is excluded by construction. The mapper drops VirtualInterface.AuthKey
 // and BGP-peer auth keys, and drops Connection/LAG MacSecKeys (CKN and secret
 // ARNs); only non-secret metadata reaches the scanner-owned records.
-package awssdk
+package sdk

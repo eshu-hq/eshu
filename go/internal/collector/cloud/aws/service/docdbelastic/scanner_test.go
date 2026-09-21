@@ -44,7 +44,7 @@ func TestScannerEmitsClusterMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBElasticCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeDocDBElasticCluster)
 	if got, want := cluster.Payload["resource_id"], testClusterARN; got != want {
 		t.Fatalf("cluster resource_id = %#v, want %q", got, want)
 	}
@@ -65,32 +65,32 @@ func TestScannerEmitsClusterMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "security_group_ids", []string{"sg-0123456789abcdef0"})
 
 	// cluster -> subnet edges, keyed by bare subnet ids the EC2 scanner publishes.
-	subnetEdges := relationshipsByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterInSubnet)
+	subnetEdges := relationshipsByType(t, envelopes, aws.RelationshipDocDBElasticClusterInSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("subnet edges = %d, want 2", len(subnetEdges))
 	}
-	assertEdgeTarget(t, subnetEdges[0], awscloud.ResourceTypeEC2Subnet, "subnet-0a1b2c3d")
+	assertEdgeTarget(t, subnetEdges[0], aws.ResourceTypeEC2Subnet, "subnet-0a1b2c3d")
 	if got := subnetEdges[0].Payload["target_arn"]; got != "" {
 		t.Fatalf("subnet edge target_arn = %#v, want empty (bare id)", got)
 	}
 
 	// cluster -> security group edge, keyed by bare sg id.
-	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, "sg-0123456789abcdef0")
+	sgEdge := relationshipByType(t, envelopes, aws.RelationshipDocDBElasticClusterUsesSecurityGroup)
+	assertEdgeTarget(t, sgEdge, aws.ResourceTypeEC2SecurityGroup, "sg-0123456789abcdef0")
 	if got := sgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("sg edge target_arn = %#v, want empty (bare id)", got)
 	}
 
 	// cluster -> KMS key edge.
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesKMSKey)
-	assertEdgeTarget(t, kmsEdge, awscloud.ResourceTypeKMSKey, testKMSARN)
+	kmsEdge := relationshipByType(t, envelopes, aws.RelationshipDocDBElasticClusterUsesKMSKey)
+	assertEdgeTarget(t, kmsEdge, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("kms edge target_arn = %#v, want %q", got, want)
 	}
 
 	// cluster -> admin secret edge.
-	secretEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesAdminSecret)
-	assertEdgeTarget(t, secretEdge, awscloud.ResourceTypeSecretsManagerSecret, testSecretARN)
+	secretEdge := relationshipByType(t, envelopes, aws.RelationshipDocDBElasticClusterUsesAdminSecret)
+	assertEdgeTarget(t, secretEdge, aws.ResourceTypeSecretsManagerSecret, testSecretARN)
 	if got, want := secretEdge.Payload["target_arn"], testSecretARN; got != want {
 		t.Fatalf("secret edge target_arn = %#v, want %q", got, want)
 	}
@@ -135,11 +135,11 @@ func TestScannerOmitsAdminSecretEdgeForPlainTextAuth(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipDocDBElasticClusterUsesAdminSecret {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipDocDBElasticClusterUsesAdminSecret {
 			t.Fatalf("unexpected admin-secret edge emitted for PLAIN_TEXT auth")
 		}
 	}
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeDocDBElasticCluster)
+	cluster := resourceByType(t, envelopes, aws.ResourceTypeDocDBElasticCluster)
 	assertAttribute(t, attributesOf(t, cluster), "admin_secret_configured", false)
 }
 
@@ -173,7 +173,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, aws.RelationshipDocDBElasticClusterUsesKMSKey)
 	if got, want := kmsEdge.Payload["target_resource_id"], "1234abcd-12ab-34cd-56ef-1234567890ab"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -202,7 +202,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -213,9 +213,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Clusters: []Cluster{{ARN: testClusterARN, Name: "analytics"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "DocumentDB Elastic GetCluster throttled after SDK retries; cluster metadata omitted for this scan",
 			SourceRecordID: "docdbelastic_clusters_throttled",
@@ -226,7 +226,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
@@ -239,11 +239,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDocDBElastic,
+		ServiceKind:         aws.ServiceDocDBElastic,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:docdbelastic:1",
 		CollectorInstanceID: "aws-prod",

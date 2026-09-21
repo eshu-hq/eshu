@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/transitgateway` owns the Transit Gateway
+`internal/collector/cloud/aws/service/transitgateway` owns the Transit Gateway
 scanner contract for the AWS cloud collector. It converts transit gateways,
 transit gateway route tables, transit gateway attachments (VPC, VPN, Direct
 Connect gateway, peering, and Connect), peering attachments, multicast domains,
@@ -54,19 +54,19 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
 The package depends on a small `Client` interface rather than the AWS SDK for
-Go v2 so tests can use fake clients and the `awssdk` adapter can own SDK
+Go v2 so tests can use fake clients and the `sdk` adapter can own SDK
 behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Transit Gateway API call counts, throttles, and
+The `sdk` adapter records Transit Gateway API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="transitgateway"}` with the
 existing bounded AWS collector labels.
@@ -77,7 +77,7 @@ existing bounded AWS collector labels.
   Create/Delete/Modify TransitGateway, TransitGatewayAttachment,
   TransitGatewayRouteTable, or TransitGatewayMulticastDomain;
   AssociateTransitGatewayRouteTable; or
-  EnableTransitGatewayRouteTablePropagation. The `awssdk` adapter's reflection
+  EnableTransitGatewayRouteTablePropagation. The `sdk` adapter's reflection
   test pins the same contract on its narrow `apiClient` interface.
 - It must never read transit gateway routes, multicast group memberships, or
   policy table rules. The scanner-owned `PolicyTable` type has no rules field;
@@ -101,14 +101,14 @@ existing bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/transitgateway/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/transitgateway/...`
 covers the bounded Transit Gateway metadata path: paginated
 DescribeTransitGateways, DescribeTransitGatewayRouteTables,
 DescribeTransitGatewayAttachments, DescribeTransitGatewayPeeringAttachments,
 DescribeTransitGatewayMulticastDomains, and DescribeTransitGatewayPolicyTables
 with `MaxResults=1000`, and no route, multicast-membership, or policy-rule reads.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers transit gateway resource and relationship fact emission, the
 cross-account peer surfacing without remote-account resolution, omission of
 policy rule entries, runtime registration, command configuration, and the SDK

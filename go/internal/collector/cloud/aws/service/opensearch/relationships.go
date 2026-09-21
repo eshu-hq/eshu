@@ -9,48 +9,48 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.RelationshipObservation {
+func domainRelationships(boundary aws.Boundary, domain Domain) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(domain.ARN, domain.Name, domain.ID)
 	if sourceID == "" {
 		return nil
 	}
 	domainARN := strings.TrimSpace(domain.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(domain.VPCID); vpcID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainInVPC,
+			RelationshipType: aws.RelationshipOpenSearchDomainInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       aws.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchDomainInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(domain.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainInSubnet,
+			RelationshipType: aws.RelationshipOpenSearchDomainInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       aws.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchDomainInSubnet, subnetID),
 		})
 	}
 	for _, groupID := range cloneStrings(domain.SecurityGroupIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesSecurityGroup,
+			RelationshipType: aws.RelationshipOpenSearchDomainUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"security_group_id": groupID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchDomainUsesSecurityGroup, groupID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(domain.KMSKeyID); kmsKey != "" {
@@ -58,15 +58,15 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 		if isARN(kmsKey) {
 			targetARN = kmsKey
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesKMSKey,
+			RelationshipType: aws.RelationshipOpenSearchDomainUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesKMSKey, kmsKey),
+			TargetType:       aws.ResourceTypeKMSKey,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchDomainUsesKMSKey, kmsKey),
 		})
 	}
 	seenRoles := make(map[string]struct{}, len(domain.MasterUserRoleARNs))
@@ -75,30 +75,30 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			continue
 		}
 		seenRoles[roleARN] = struct{}{}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesIAMRole,
+			RelationshipType: aws.RelationshipOpenSearchDomainUsesIAMRole,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesIAMRole, roleARN),
+			TargetType:       aws.ResourceTypeIAMRole,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchDomainUsesIAMRole, roleARN),
 		})
 	}
 	return relationships
 }
 
 func packageDomainRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pkg Package,
 	association PackageAssociation,
 	domainARNs map[string]string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	sourceID := strings.TrimSpace(pkg.ID)
 	domainName := strings.TrimSpace(association.DomainName)
 	if sourceID == "" || domainName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	targetID := domainName
 	targetARN := ""
@@ -110,15 +110,15 @@ func packageDomainRelationship(
 	if status := strings.TrimSpace(association.DomainPackageStat); status != "" {
 		attributes["domain_package_status"] = status
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOpenSearchPackageAssociatedWithDomain,
+		RelationshipType: aws.RelationshipOpenSearchPackageAssociatedWithDomain,
 		SourceResourceID: sourceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOpenSearchDomain,
+		TargetType:       aws.ResourceTypeOpenSearchDomain,
 		Attributes:       attributes,
-		SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, targetID),
+		SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchPackageAssociatedWithDomain, targetID),
 	}, true
 }
 
@@ -134,30 +134,30 @@ func packageDomainRelationship(
 // dropped until a reliable association join key (resolved policy selectors)
 // exists. The managed VPC endpoint is still emitted as a standalone resource.
 func collectionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection Collection,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(collection.ARN, collection.ID, collection.Name)
 	if sourceID == "" {
 		return nil
 	}
 	collectionARN := strings.TrimSpace(collection.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if kmsKey := strings.TrimSpace(collection.KMSKeyARN); kmsKey != "" {
 		var targetARN string
 		if isARN(kmsKey) {
 			targetARN = kmsKey
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchCollectionUsesKMSKey,
+			RelationshipType: aws.RelationshipOpenSearchCollectionUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        collectionARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, kmsKey),
+			TargetType:       aws.ResourceTypeKMSKey,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipOpenSearchCollectionUsesKMSKey, kmsKey),
 		})
 	}
 

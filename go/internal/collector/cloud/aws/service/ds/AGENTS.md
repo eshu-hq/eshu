@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ds guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ds guidance
 
 ## Read First
 
@@ -19,7 +19,7 @@
   into this package.
 - NEVER add a mutation API (ResetUserPassword, Create/Delete/Update/Enable/
   Disable/Register/Accept/Reject/Share/...) to the `Client` interface. A
-  reflection test in the `awssdk` adapter enforces the metadata-only SDK seam.
+  reflection test in the `sdk` adapter enforces the metadata-only SDK seam.
 - NEVER persist the directory admin password, the RADIUS shared secret, or the
   AD Connector service-account credentials: the scanner-owned types have no field
   for them and must never gain one.
@@ -40,10 +40,10 @@
 
 - Add a new Directory Service resource or attribute by extending the
   scanner-owned type, writing a focused scanner test first, then mapping it
-  through `awscloud` envelope builders.
+  through `aws` envelope builders.
 - Add new directory fields only when the Directory Service API reports them on
   the describe path and the field is safe for persistence (not a secret).
-- Extend SDK pagination and SDK-to-scanner mapping in the `awssdk` adapter, not
+- Extend SDK pagination and SDK-to-scanner mapping in the `sdk` adapter, not
   here.
 
 ## What Not To Change Without An ADR

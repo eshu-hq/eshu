@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/vpclattice/awssdk` adapts the AWS SDK for
+`internal/collector/cloud/aws/service/vpclattice/sdk` adapts the AWS SDK for
 Go v2 VPC Lattice client into the metadata-only `vpclattice.Client` interface.
 It paginates the control-plane list reads, enriches each service and target
 group with a read-only detail call, maps the SDK responses into scanner-owned
@@ -35,7 +35,7 @@ instrument is introduced.
 ## Evidence
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/vpclattice/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/vpclattice/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

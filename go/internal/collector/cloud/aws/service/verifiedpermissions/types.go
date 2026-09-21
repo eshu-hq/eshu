@@ -30,7 +30,7 @@ type Snapshot struct {
 	PolicyStores []PolicyStore
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // PolicyStore is the scanner-owned Verified Permissions policy store model. It

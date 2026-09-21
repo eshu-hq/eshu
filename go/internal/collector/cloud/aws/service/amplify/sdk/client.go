@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsamplify "github.com/aws/aws-sdk-go-v2/service/amplify"
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
 	"github.com/aws/smithy-go"
@@ -43,15 +43,15 @@ type apiClient interface {
 // cannot leak.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Amplify SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -89,7 +89,7 @@ func (c *Client) ListApps(ctx context.Context) ([]amplifyservice.App, error) {
 			apps = append(apps, mapApp(app))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return apps, nil
 		}
 	}
@@ -109,7 +109,7 @@ func (c *Client) ListBranches(ctx context.Context, appID string) ([]amplifyservi
 		err := c.recordAPICall(ctx, "ListBranches", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListBranches(callCtx, &awsamplify.ListBranchesInput{
-				AppId:      aws.String(appID),
+				AppId:      awsv2.String(appID),
 				MaxResults: listPageSize,
 				NextToken:  nextToken,
 			})
@@ -125,7 +125,7 @@ func (c *Client) ListBranches(ctx context.Context, appID string) ([]amplifyservi
 			branches = append(branches, mapBranch(appID, branch))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return branches, nil
 		}
 	}
@@ -146,7 +146,7 @@ func (c *Client) ListDomainAssociations(ctx context.Context, appID string) ([]am
 		err := c.recordAPICall(ctx, "ListDomainAssociations", func(callCtx context.Context) error {
 			var callErr error
 			page, callErr = c.client.ListDomainAssociations(callCtx, &awsamplify.ListDomainAssociationsInput{
-				AppId:      aws.String(appID),
+				AppId:      awsv2.String(appID),
 				MaxResults: listPageSize,
 				NextToken:  nextToken,
 			})
@@ -162,7 +162,7 @@ func (c *Client) ListDomainAssociations(ctx context.Context, appID string) ([]am
 			domains = append(domains, mapDomainAssociation(appID, domain))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return domains, nil
 		}
 	}
@@ -170,21 +170,21 @@ func (c *Client) ListDomainAssociations(ctx context.Context, appID string) ([]am
 
 func mapApp(app amplifytypes.App) amplifyservice.App {
 	mapped := amplifyservice.App{
-		ID:                    strings.TrimSpace(aws.ToString(app.AppId)),
-		ARN:                   strings.TrimSpace(aws.ToString(app.AppArn)),
-		Name:                  strings.TrimSpace(aws.ToString(app.Name)),
+		ID:                    strings.TrimSpace(awsv2.ToString(app.AppId)),
+		ARN:                   strings.TrimSpace(awsv2.ToString(app.AppArn)),
+		Name:                  strings.TrimSpace(awsv2.ToString(app.Name)),
 		Platform:              strings.TrimSpace(string(app.Platform)),
-		RepositoryURL:         amplifyservice.SanitizeRepositoryURL(aws.ToString(app.Repository)),
+		RepositoryURL:         amplifyservice.SanitizeRepositoryURL(awsv2.ToString(app.Repository)),
 		RepositoryCloneMethod: strings.TrimSpace(string(app.RepositoryCloneMethod)),
-		DefaultDomain:         strings.TrimSpace(aws.ToString(app.DefaultDomain)),
-		ServiceRoleARN:        strings.TrimSpace(aws.ToString(app.IamServiceRoleArn)),
-		ComputeRoleARN:        strings.TrimSpace(aws.ToString(app.ComputeRoleArn)),
-		CreateTime:            aws.ToTime(app.CreateTime),
-		UpdateTime:            aws.ToTime(app.UpdateTime),
+		DefaultDomain:         strings.TrimSpace(awsv2.ToString(app.DefaultDomain)),
+		ServiceRoleARN:        strings.TrimSpace(awsv2.ToString(app.IamServiceRoleArn)),
+		ComputeRoleARN:        strings.TrimSpace(awsv2.ToString(app.ComputeRoleArn)),
+		CreateTime:            awsv2.ToTime(app.CreateTime),
+		UpdateTime:            awsv2.ToTime(app.UpdateTime),
 		Tags:                  cloneStringMap(app.Tags),
 	}
 	if app.ProductionBranch != nil {
-		mapped.ProductionBranchName = strings.TrimSpace(aws.ToString(app.ProductionBranch.BranchName))
+		mapped.ProductionBranchName = strings.TrimSpace(awsv2.ToString(app.ProductionBranch.BranchName))
 	}
 	return mapped
 }
@@ -192,16 +192,16 @@ func mapApp(app amplifytypes.App) amplifyservice.App {
 func mapBranch(appID string, branch amplifytypes.Branch) amplifyservice.Branch {
 	return amplifyservice.Branch{
 		AppID:             strings.TrimSpace(appID),
-		Name:              strings.TrimSpace(aws.ToString(branch.BranchName)),
-		ARN:               strings.TrimSpace(aws.ToString(branch.BranchArn)),
-		DisplayName:       strings.TrimSpace(aws.ToString(branch.DisplayName)),
+		Name:              strings.TrimSpace(awsv2.ToString(branch.BranchName)),
+		ARN:               strings.TrimSpace(awsv2.ToString(branch.BranchArn)),
+		DisplayName:       strings.TrimSpace(awsv2.ToString(branch.DisplayName)),
 		Stage:             strings.TrimSpace(string(branch.Stage)),
-		Framework:         strings.TrimSpace(aws.ToString(branch.Framework)),
-		EnableAutoBuild:   aws.ToBool(branch.EnableAutoBuild),
-		ComputeRoleARN:    strings.TrimSpace(aws.ToString(branch.ComputeRoleArn)),
+		Framework:         strings.TrimSpace(awsv2.ToString(branch.Framework)),
+		EnableAutoBuild:   awsv2.ToBool(branch.EnableAutoBuild),
+		ComputeRoleARN:    strings.TrimSpace(awsv2.ToString(branch.ComputeRoleArn)),
 		CustomDomainCount: len(branch.CustomDomains),
-		CreateTime:        aws.ToTime(branch.CreateTime),
-		UpdateTime:        aws.ToTime(branch.UpdateTime),
+		CreateTime:        awsv2.ToTime(branch.CreateTime),
+		UpdateTime:        awsv2.ToTime(branch.UpdateTime),
 		Tags:              cloneStringMap(branch.Tags),
 	}
 }
@@ -209,18 +209,18 @@ func mapBranch(appID string, branch amplifytypes.Branch) amplifyservice.Branch {
 func mapDomainAssociation(appID string, domain amplifytypes.DomainAssociation) amplifyservice.DomainAssociation {
 	mapped := amplifyservice.DomainAssociation{
 		AppID:      strings.TrimSpace(appID),
-		ARN:        strings.TrimSpace(aws.ToString(domain.DomainAssociationArn)),
-		DomainName: strings.TrimSpace(aws.ToString(domain.DomainName)),
+		ARN:        strings.TrimSpace(awsv2.ToString(domain.DomainAssociationArn)),
+		DomainName: strings.TrimSpace(awsv2.ToString(domain.DomainName)),
 		Status:     strings.TrimSpace(string(domain.DomainStatus)),
 	}
 	for _, sub := range domain.SubDomains {
 		entry := amplifyservice.SubDomain{
-			DNSRecord: strings.TrimSpace(aws.ToString(sub.DnsRecord)),
-			Verified:  aws.ToBool(sub.Verified),
+			DNSRecord: strings.TrimSpace(awsv2.ToString(sub.DnsRecord)),
+			Verified:  awsv2.ToBool(sub.Verified),
 		}
 		if sub.SubDomainSetting != nil {
-			entry.Prefix = strings.TrimSpace(aws.ToString(sub.SubDomainSetting.Prefix))
-			entry.BranchName = strings.TrimSpace(aws.ToString(sub.SubDomainSetting.BranchName))
+			entry.Prefix = strings.TrimSpace(awsv2.ToString(sub.SubDomainSetting.Prefix))
+			entry.BranchName = strings.TrimSpace(awsv2.ToString(sub.SubDomainSetting.BranchName))
 		}
 		mapped.SubDomains = append(mapped.SubDomains, entry)
 	}
@@ -263,7 +263,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

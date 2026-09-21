@@ -225,8 +225,8 @@ func testAWSFreshnessTrigger(observedAt time.Time) freshness.Trigger {
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-1",
 		ObservedAt:   observedAt,
 	}

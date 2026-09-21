@@ -25,15 +25,15 @@ type Scanner struct {
 
 // Scan observes DAX clusters, subnet groups, and parameter groups plus their
 // direct network and IAM dependency metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("dax scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDAX:
+	case "", aws.ServiceDAX:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDAX
+		boundary.ServiceKind = aws.ServiceDAX
 	default:
 		return nil, fmt.Errorf("dax scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -53,13 +53,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range clusterRelationships(boundary, cluster) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -67,13 +67,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, group := range subnetGroups {
-		resource, err := awscloud.NewResourceEnvelope(subnetGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(subnetGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range subnetGroupRelationships(boundary, group) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -81,7 +81,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, group := range parameterGroups {
-		resource, err := awscloud.NewResourceEnvelope(parameterGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(parameterGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -90,15 +90,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	name := strings.TrimSpace(cluster.Name)
 	resourceID := firstNonEmpty(clusterARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDAXCluster,
+		ResourceType: aws.ResourceTypeDAXCluster,
 		Name:         name,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -130,12 +130,12 @@ func clusterAttributes(cluster Cluster) map[string]any {
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, group SubnetGroup) aws.ResourceObservation {
 	name := strings.TrimSpace(group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeDAXSubnetGroup,
+		ResourceType: aws.ResourceTypeDAXSubnetGroup,
 		Name:         name,
 		Attributes: map[string]any{
 			"description": strings.TrimSpace(group.Description),
@@ -147,12 +147,12 @@ func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscl
 	}
 }
 
-func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup) awscloud.ResourceObservation {
+func parameterGroupObservation(boundary aws.Boundary, group ParameterGroup) aws.ResourceObservation {
 	name := strings.TrimSpace(group.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeDAXParameterGroup,
+		ResourceType: aws.ResourceTypeDAXParameterGroup,
 		Name:         name,
 		Attributes: map[string]any{
 			"description": strings.TrimSpace(group.Description),

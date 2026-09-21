@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/lightsail` owns the Lightsail scanner
+`internal/collector/cloud/aws/service/lightsail` owns the Lightsail scanner
 contract for the AWS cloud collector. It converts Lightsail instance, managed
 relational database, load balancer, block-storage disk, and static IP metadata
 into `aws_resource` facts and emits the Lightsail-internal relationship evidence
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -66,9 +66,9 @@ the scanner never synthesizes an ARN and never hardcodes a partition.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Lightsail API call counts, throttles, and
+The `sdk` adapter records Lightsail API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -93,7 +93,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/lightsail/...` covers the
+`go test ./internal/collector/cloud/aws/service/lightsail/...` covers the
 bounded Lightsail metadata path: one paginated GetInstances stream, one
 paginated GetRelationalDatabases stream, one paginated GetLoadBalancers stream,
 one paginated GetDisks stream, and one paginated GetStaticIps stream, with no
@@ -101,7 +101,7 @@ Create/Delete/Reboot/Start/Stop/Snapshot/Attach/Detach calls, no access-key or
 master-password reads, no mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/lightsail/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/lightsail/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers Lightsail instance, database, load balancer, disk, and static IP
 metadata fact emission; load-balancer-to-instance, instance-to-disk, and
 instance-to-static-IP relationship emission with target_type and

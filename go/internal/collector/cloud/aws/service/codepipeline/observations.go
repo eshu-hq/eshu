@@ -15,22 +15,22 @@ import (
 // does not return ARNs, so the scanner derives a stable identity from the
 // boundary account and region plus the pipeline name, matching the documented
 // AWS ARN format. The partition is derived from the boundary, never hardcoded.
-func pipelineARN(boundary awscloud.Boundary, name string) string {
+func pipelineARN(boundary aws.Boundary, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codepipeline:%s:%s:%s",
-		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
+		aws.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
-func pipelineObservation(boundary awscloud.Boundary, pipeline Pipeline) awscloud.ResourceObservation {
+func pipelineObservation(boundary aws.Boundary, pipeline Pipeline) aws.ResourceObservation {
 	arn := firstNonEmpty(pipeline.ARN, pipelineARN(boundary, pipeline.Name))
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, pipeline.Name),
-		ResourceType: awscloud.ResourceTypeCodePipelinePipeline,
+		ResourceType: aws.ResourceTypeCodePipelinePipeline,
 		Name:         strings.TrimSpace(pipeline.Name),
 		Tags:         cloneStringMap(pipeline.Tags),
 		Attributes: map[string]any{
@@ -51,16 +51,16 @@ func pipelineObservation(boundary awscloud.Boundary, pipeline Pipeline) awscloud
 }
 
 func executionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	pipeline Pipeline,
 	execution Execution,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	pipelineArnValue := firstNonEmpty(pipeline.ARN, pipelineARN(boundary, pipeline.Name))
 	resourceID := executionResourceID(pipeline.Name, execution.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodePipelineExecution,
+		ResourceType: aws.ResourceTypeCodePipelineExecution,
 		Name:         strings.TrimSpace(execution.ID),
 		State:        strings.TrimSpace(execution.Status),
 		Attributes: map[string]any{
@@ -80,13 +80,13 @@ func executionObservation(
 	}
 }
 
-func webhookObservation(boundary awscloud.Boundary, webhook Webhook) awscloud.ResourceObservation {
+func webhookObservation(boundary aws.Boundary, webhook Webhook) aws.ResourceObservation {
 	arn := strings.TrimSpace(webhook.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, webhook.Name),
-		ResourceType: awscloud.ResourceTypeCodePipelineWebhook,
+		ResourceType: aws.ResourceTypeCodePipelineWebhook,
 		Name:         strings.TrimSpace(webhook.Name),
 		Tags:         cloneStringMap(webhook.Tags),
 		Attributes: map[string]any{
@@ -100,12 +100,12 @@ func webhookObservation(boundary awscloud.Boundary, webhook Webhook) awscloud.Re
 	}
 }
 
-func actionTypeObservation(boundary awscloud.Boundary, actionType ActionType) awscloud.ResourceObservation {
+func actionTypeObservation(boundary aws.Boundary, actionType ActionType) aws.ResourceObservation {
 	resourceID := actionTypeResourceID(actionType)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodePipelineActionType,
+		ResourceType: aws.ResourceTypeCodePipelineActionType,
 		Name:         resourceID,
 		Attributes: map[string]any{
 			"category":                    strings.TrimSpace(actionType.Category),

@@ -70,11 +70,11 @@ func AssertFactShape(t *testing.T, contract CollectorContract, envelopes []facts
 }
 
 // ScanFunc is the signature shared by all awscloud service scanners.
-type ScanFunc func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error)
+type ScanFunc func(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error)
 
 // AssertRejectsMismatchedServiceKind asserts that scan rejects a boundary with
 // a non-matching ServiceKind and the error message mentions the kind.
-func AssertRejectsMismatchedServiceKind(t *testing.T, scan ScanFunc, correctBoundary awscloud.Boundary, wrongServiceKind string) {
+func AssertRejectsMismatchedServiceKind(t *testing.T, scan ScanFunc, correctBoundary aws.Boundary, wrongServiceKind string) {
 	t.Helper()
 	boundary := correctBoundary
 	boundary.ServiceKind = wrongServiceKind
@@ -90,7 +90,7 @@ func AssertRejectsMismatchedServiceKind(t *testing.T, scan ScanFunc, correctBoun
 }
 
 // AssertRequiresClient asserts that scan rejects a nil/missing client.
-func AssertRequiresClient(t *testing.T, scan ScanFunc, boundary awscloud.Boundary) {
+func AssertRequiresClient(t *testing.T, scan ScanFunc, boundary aws.Boundary) {
 	t.Helper()
 	_, err := scan(context.Background(), boundary)
 	if err == nil {

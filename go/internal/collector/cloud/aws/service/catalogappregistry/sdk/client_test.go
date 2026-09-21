@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappregistry "github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry"
 	awsappregistrytypes "github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry/types"
 
@@ -24,41 +24,41 @@ func TestClientSnapshotsAppRegistryMetadataOnly(t *testing.T) {
 	api := &fakeAppRegistryAPI{
 		applicationPages: []*awsappregistry.ListApplicationsOutput{{
 			Applications: []awsappregistrytypes.ApplicationSummary{{
-				Id:             aws.String("app-0abc123"),
-				Arn:            aws.String(appARN),
-				Name:           aws.String("payments"),
-				Description:    aws.String("Payments application"),
-				CreationTime:   aws.Time(createdAt),
-				LastUpdateTime: aws.Time(createdAt),
+				Id:             awsv2.String("app-0abc123"),
+				Arn:            awsv2.String(appARN),
+				Name:           awsv2.String("payments"),
+				Description:    awsv2.String("Payments application"),
+				CreationTime:   awsv2.Time(createdAt),
+				LastUpdateTime: awsv2.Time(createdAt),
 			}},
 		}},
 		attributeGroupPages: []*awsappregistry.ListAttributeGroupsOutput{{
 			AttributeGroups: []awsappregistrytypes.AttributeGroupSummary{{
-				Id:             aws.String("ag-0def456"),
-				Arn:            aws.String(groupARN),
-				Name:           aws.String("cost-center"),
-				Description:    aws.String("Cost center metadata"),
-				CreationTime:   aws.Time(createdAt),
-				LastUpdateTime: aws.Time(createdAt),
+				Id:             awsv2.String("ag-0def456"),
+				Arn:            awsv2.String(groupARN),
+				Name:           awsv2.String("cost-center"),
+				Description:    awsv2.String("Cost center metadata"),
+				CreationTime:   awsv2.Time(createdAt),
+				LastUpdateTime: awsv2.Time(createdAt),
 			}},
 		}},
 		appGroupPages: map[string][]*awsappregistry.ListAttributeGroupsForApplicationOutput{
 			"app-0abc123": {{
 				AttributeGroupsDetails: []awsappregistrytypes.AttributeGroupDetails{{
-					Id:  aws.String("ag-0def456"),
-					Arn: aws.String(groupARN),
+					Id:  awsv2.String("ag-0def456"),
+					Arn: awsv2.String(groupARN),
 				}},
 			}},
 		},
 		associatedPages: map[string][]*awsappregistry.ListAssociatedResourcesOutput{
 			"app-0abc123": {{
 				Resources: []awsappregistrytypes.ResourceInfo{{
-					Arn:          aws.String(stackARN),
-					Name:         aws.String("prod-network"),
+					Arn:          awsv2.String(stackARN),
+					Name:         awsv2.String("prod-network"),
 					ResourceType: awsappregistrytypes.ResourceTypeCfnStack,
 					// ResourceDetails carries a tag value that must never be read.
 					ResourceDetails: &awsappregistrytypes.ResourceDetails{
-						TagValue: aws.String("super-secret-tag-value"),
+						TagValue: awsv2.String("super-secret-tag-value"),
 					},
 				}},
 			}},
@@ -155,7 +155,7 @@ func (f *fakeAppRegistryAPI) ListAttributeGroupsForApplication(
 	if f.appGroupCalls == nil {
 		f.appGroupCalls = map[string]int{}
 	}
-	name := aws.ToString(input.Application)
+	name := awsv2.ToString(input.Application)
 	pages := f.appGroupPages[name]
 	idx := f.appGroupCalls[name]
 	if idx >= len(pages) {
@@ -173,7 +173,7 @@ func (f *fakeAppRegistryAPI) ListAssociatedResources(
 	if f.associatedCalls == nil {
 		f.associatedCalls = map[string]int{}
 	}
-	name := aws.ToString(input.Application)
+	name := awsv2.ToString(input.Application)
 	pages := f.associatedPages[name]
 	idx := f.associatedCalls[name]
 	if idx >= len(pages) {
@@ -189,14 +189,14 @@ func (f *fakeAppRegistryAPI) ListTagsForResource(
 	_ ...func(*awsappregistry.Options),
 ) (*awsappregistry.ListTagsForResourceOutput, error) {
 	return &awsappregistry.ListTagsForResourceOutput{
-		Tags: f.tags[aws.ToString(input.ResourceArn)],
+		Tags: f.tags[awsv2.ToString(input.ResourceArn)],
 	}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceServiceCatalogAppRegistry,
+		ServiceKind: aws.ServiceServiceCatalogAppRegistry,
 	}
 }

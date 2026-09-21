@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/discovery` owns the AWS Cloud Map
+`internal/collector/cloud/aws/service/discovery` owns the AWS Cloud Map
 (Service Discovery) scanner contract for the AWS cloud collector. It converts
 namespace and service metadata into `aws_resource` facts and emits
 `aws_relationship` facts for the edges Cloud Map reports directly. It is a Tier 1
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -47,10 +47,10 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns
 (`eshu_dp_aws_resources_emitted_total{service="servicediscovery"}`). The
-`awssdk` adapter records Cloud Map API call counts, throttles, and pagination
+`sdk` adapter records Cloud Map API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -79,7 +79,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/discovery/... -count=1 -race`
+`go test ./internal/collector/cloud/aws/service/discovery/... -count=1 -race`
 covers the bounded Cloud Map metadata path: one paginated `ListNamespaces`, then
 per namespace one `NAMESPACE_ID`-filtered paginated `ListServices`, and one tag
 read per namespace and service; no instance reads; no mutations. Cardinality is
@@ -87,7 +87,7 @@ bounded by the namespace and service counts Cloud Map returns for the claimed
 account and region.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
+`go test ./cmd/collector-aws-cloud/... ./internal/collector/cloud/aws/runtime/... -count=1`
 covers Cloud Map resource and relationship emission, the App Mesh service join
 key, the Route 53 hosted-zone join key, instance-count-only recording, the SDK
 mutation/instance-reader exclusion guard, runtime registration through the

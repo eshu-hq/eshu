@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codebuild/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codebuild/sdk guidance
 
 ## Read First
 
@@ -25,7 +25,7 @@
 - Never copy `ProjectSource.Buildspec` into scanner types.
 - Never copy build log group/stream references or log content into `Build`.
 - Route PLAINTEXT environment-variable values (and any unmapped variable type)
-  through `awscloud.RedactString`. Keep PARAMETER_STORE/SECRETS_MANAGER values
+  through `aws.RedactString`. Keep PARAMETER_STORE/SECRETS_MANAGER values
   only as references.
 - Chunk every BatchGet by the AWS 100-item cap and surface `*NotFound` lists as
   errors; never silently drop an unresolved item.

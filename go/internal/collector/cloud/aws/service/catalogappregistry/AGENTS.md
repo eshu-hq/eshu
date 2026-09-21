@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/catalogappregistry guidance
+# AGENTS.md - internal/collector/cloud/aws/service/catalogappregistry guidance
 
 ## Read First
 
@@ -32,7 +32,7 @@
   resource_id. Skip RESOURCE_TAG_VALUE and any non-stack association rather than
   dangling an edge.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from application, attribute
@@ -43,7 +43,7 @@
   of metric labels.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/catalogappregistry/...`
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/catalogappregistry/...`
 green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle
@@ -53,13 +53,13 @@ counters; no telemetry contract change.
 
 - Add a new AppRegistry metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry a content body or tag
+  `aws` envelope builders. If the field can carry a content body or tag
   value, leave it out of the scanner contract.
 - Add new relationship evidence only when the AppRegistry API reports both
   sides directly and the target identity matches an existing scanner's
   published resource_id shape (ARN-equality for CloudFormation stacks and
   attribute groups).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

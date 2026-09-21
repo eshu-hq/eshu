@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/macie guidance
+# AGENTS.md - internal/collector/cloud/aws/service/macie guidance
 
 ## Read First
 
@@ -45,9 +45,9 @@
 
 - Add a new safe Macie metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. Never add a field able to hold a regex body,
+  `aws` envelope builders. Never add a field able to hold a regex body,
   list contents, finding detail, or criteria.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

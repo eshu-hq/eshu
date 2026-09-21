@@ -9,12 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func routeTableObservation(boundary awscloud.Boundary, rt RouteTable) awscloud.ResourceObservation {
+func routeTableObservation(boundary aws.Boundary, rt RouteTable) aws.ResourceObservation {
 	id := strings.TrimSpace(rt.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCRouteTable,
+		ResourceType: aws.ResourceTypeVPCRouteTable,
 		Name:         id,
 		Tags:         cloneStringMap(rt.Tags),
 		Attributes: map[string]any{
@@ -28,12 +28,12 @@ func routeTableObservation(boundary awscloud.Boundary, rt RouteTable) awscloud.R
 	}
 }
 
-func internetGatewayObservation(boundary awscloud.Boundary, gateway InternetGateway) awscloud.ResourceObservation {
+func internetGatewayObservation(boundary aws.Boundary, gateway InternetGateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCInternetGateway,
+		ResourceType: aws.ResourceTypeVPCInternetGateway,
 		Name:         id,
 		Tags:         cloneStringMap(gateway.Tags),
 		Attributes: map[string]any{
@@ -45,12 +45,12 @@ func internetGatewayObservation(boundary awscloud.Boundary, gateway InternetGate
 	}
 }
 
-func natGatewayObservation(boundary awscloud.Boundary, gateway NATGateway) awscloud.ResourceObservation {
+func natGatewayObservation(boundary aws.Boundary, gateway NATGateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCNATGateway,
+		ResourceType: aws.ResourceTypeVPCNATGateway,
 		Name:         id,
 		State:        strings.TrimSpace(gateway.State),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -69,12 +69,12 @@ func natGatewayObservation(boundary awscloud.Boundary, gateway NATGateway) awscl
 	}
 }
 
-func networkACLObservation(boundary awscloud.Boundary, networkACL NetworkACL) awscloud.ResourceObservation {
+func networkACLObservation(boundary aws.Boundary, networkACL NetworkACL) aws.ResourceObservation {
 	id := strings.TrimSpace(networkACL.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCNetworkACL,
+		ResourceType: aws.ResourceTypeVPCNetworkACL,
 		Name:         id,
 		Tags:         cloneStringMap(networkACL.Tags),
 		Attributes: map[string]any{
@@ -89,12 +89,12 @@ func networkACLObservation(boundary awscloud.Boundary, networkACL NetworkACL) aw
 	}
 }
 
-func vpcPeeringObservation(boundary awscloud.Boundary, peering VPCPeeringConnection) awscloud.ResourceObservation {
+func vpcPeeringObservation(boundary aws.Boundary, peering VPCPeeringConnection) aws.ResourceObservation {
 	id := strings.TrimSpace(peering.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCPeeringConnection,
+		ResourceType: aws.ResourceTypeVPCPeeringConnection,
 		Name:         id,
 		State:        strings.TrimSpace(peering.Status),
 		Tags:         cloneStringMap(peering.Tags),
@@ -109,12 +109,12 @@ func vpcPeeringObservation(boundary awscloud.Boundary, peering VPCPeeringConnect
 	}
 }
 
-func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) awscloud.ResourceObservation {
+func vpcEndpointObservation(boundary aws.Boundary, endpoint VPCEndpoint) aws.ResourceObservation {
 	id := strings.TrimSpace(endpoint.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCEndpoint,
+		ResourceType: aws.ResourceTypeVPCEndpoint,
 		Name:         id,
 		State:        strings.TrimSpace(endpoint.State),
 		Tags:         cloneStringMap(endpoint.Tags),
@@ -137,17 +137,17 @@ func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) aw
 	}
 }
 
-func elasticIPObservation(boundary awscloud.Boundary, eip ElasticIP) awscloud.ResourceObservation {
+func elasticIPObservation(boundary aws.Boundary, eip ElasticIP) aws.ResourceObservation {
 	id := strings.TrimSpace(eip.AllocationID)
 	if id == "" {
 		// Classic-platform Elastic IPs predate allocation IDs; fall back to the
 		// public IPv4 address so the resource still has a stable identity.
 		id = strings.TrimSpace(eip.PublicIP)
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCElasticIP,
+		ResourceType: aws.ResourceTypeVPCElasticIP,
 		Name:         id,
 		Tags:         cloneStringMap(eip.Tags),
 		Attributes: map[string]any{
@@ -167,12 +167,12 @@ func elasticIPObservation(boundary awscloud.Boundary, eip ElasticIP) awscloud.Re
 	}
 }
 
-func dhcpOptionsObservation(boundary awscloud.Boundary, options DHCPOptions) awscloud.ResourceObservation {
+func dhcpOptionsObservation(boundary aws.Boundary, options DHCPOptions) aws.ResourceObservation {
 	id := strings.TrimSpace(options.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCDHCPOptions,
+		ResourceType: aws.ResourceTypeVPCDHCPOptions,
 		Name:         id,
 		Tags:         cloneStringMap(options.Tags),
 		Attributes: map[string]any{
@@ -184,12 +184,12 @@ func dhcpOptionsObservation(boundary awscloud.Boundary, options DHCPOptions) aws
 	}
 }
 
-func customerGatewayObservation(boundary awscloud.Boundary, gateway CustomerGateway) awscloud.ResourceObservation {
+func customerGatewayObservation(boundary aws.Boundary, gateway CustomerGateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCCustomerGateway,
+		ResourceType: aws.ResourceTypeVPCCustomerGateway,
 		Name:         id,
 		State:        strings.TrimSpace(gateway.State),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -205,12 +205,12 @@ func customerGatewayObservation(boundary awscloud.Boundary, gateway CustomerGate
 	}
 }
 
-func vpnGatewayObservation(boundary awscloud.Boundary, gateway VPNGateway) awscloud.ResourceObservation {
+func vpnGatewayObservation(boundary aws.Boundary, gateway VPNGateway) aws.ResourceObservation {
 	id := strings.TrimSpace(gateway.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCVPNGateway,
+		ResourceType: aws.ResourceTypeVPCVPNGateway,
 		Name:         id,
 		State:        strings.TrimSpace(gateway.State),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -225,12 +225,12 @@ func vpnGatewayObservation(boundary awscloud.Boundary, gateway VPNGateway) awscl
 	}
 }
 
-func vpnConnectionObservation(boundary awscloud.Boundary, connection VPNConnection) awscloud.ResourceObservation {
+func vpnConnectionObservation(boundary aws.Boundary, connection VPNConnection) aws.ResourceObservation {
 	id := strings.TrimSpace(connection.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeVPCVPNConnection,
+		ResourceType: aws.ResourceTypeVPCVPNConnection,
 		Name:         id,
 		State:        strings.TrimSpace(connection.State),
 		Tags:         cloneStringMap(connection.Tags),

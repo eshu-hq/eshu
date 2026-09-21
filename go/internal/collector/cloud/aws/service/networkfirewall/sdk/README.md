@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/networkfirewall/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/networkfirewall/sdk` adapts AWS SDK for
 Go v2 Network Firewall reads into the scanner-owned types defined in the parent
 package. It owns Network Firewall list/describe pagination, tag reads, and
 API-call telemetry.
@@ -11,7 +11,7 @@ API-call telemetry.
 
 This package owns Network Firewall SDK access only. It does not own
 scanner-level fact selection (parent package), credential acquisition
-(awsruntime), or fact persistence. It never calls a Network Firewall mutation
+(runtime), or fact persistence. It never calls a Network Firewall mutation
 API and never reads rule sources, policy rule bodies, or certificate bodies.
 
 ## Exported surface
@@ -31,9 +31,9 @@ the build path if any mutation or rule-body read method (including
 
 - `github.com/aws/aws-sdk-go-v2/service/networkfirewall` and its `types`
   package.
-- `internal/collector/awscloud` for the boundary, API-call recorder, and
+- `internal/collector/cloud/aws` for the boundary, API-call recorder, and
   throttle classification.
-- `internal/collector/awscloud/service/networkfirewall` for scanner-owned
+- `internal/collector/cloud/aws/service/networkfirewall` for scanner-owned
   types.
 - `internal/telemetry` for spans and instruments.
 

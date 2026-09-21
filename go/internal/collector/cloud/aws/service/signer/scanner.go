@@ -25,15 +25,15 @@ type Scanner struct {
 // Scan observes Signer signing profiles, signing platforms, and the profile
 // ACM-certificate and signing-platform dependency metadata through the
 // configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("signer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSigner:
+	case "", aws.ServiceSigner:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSigner
+		boundary.ServiceKind = aws.ServiceSigner
 	default:
 		return nil, fmt.Errorf("signer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -47,7 +47,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, err
 	}
 	for _, platform := range snapshot.Platforms {
-		envelope, err := awscloud.NewResourceEnvelope(platformObservation(boundary, platform))
+		envelope, err := aws.NewResourceEnvelope(platformObservation(boundary, platform))
 		if err != nil {
 			return nil, err
 		}
@@ -63,9 +63,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -74,20 +74,20 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func profileEnvelopes(boundary awscloud.Boundary, profile SigningProfile) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(profileObservation(boundary, profile))
+func profileEnvelopes(boundary aws.Boundary, profile SigningProfile) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(profileObservation(boundary, profile))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	for _, relationship := range []*awscloud.RelationshipObservation{
+	for _, relationship := range []*aws.RelationshipObservation{
 		profileACMCertificateRelationship(boundary, profile),
 		profileSigningPlatformRelationship(boundary, profile),
 	} {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -96,15 +96,15 @@ func profileEnvelopes(boundary awscloud.Boundary, profile SigningProfile) ([]fac
 	return envelopes, nil
 }
 
-func profileObservation(boundary awscloud.Boundary, profile SigningProfile) awscloud.ResourceObservation {
+func profileObservation(boundary aws.Boundary, profile SigningProfile) aws.ResourceObservation {
 	profileARN := strings.TrimSpace(profile.ARN)
 	name := strings.TrimSpace(profile.Name)
 	resourceID := profileResourceID(profile)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          profileARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSignerSigningProfile,
+		ResourceType: aws.ResourceTypeSignerSigningProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.Status),
 		Tags:         cloneStringMap(profile.Tags),
@@ -125,13 +125,13 @@ func profileObservation(boundary awscloud.Boundary, profile SigningProfile) awsc
 	}
 }
 
-func platformObservation(boundary awscloud.Boundary, platform SigningPlatform) awscloud.ResourceObservation {
+func platformObservation(boundary aws.Boundary, platform SigningPlatform) aws.ResourceObservation {
 	platformID := platformResourceID(platform)
 	displayName := strings.TrimSpace(platform.DisplayName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   platformID,
-		ResourceType: awscloud.ResourceTypeSignerSigningPlatform,
+		ResourceType: aws.ResourceTypeSignerSigningPlatform,
 		Name:         firstNonEmpty(displayName, platformID),
 		Attributes: map[string]any{
 			"platform_id":          platformID,

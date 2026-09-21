@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes REST, HTTP, WebSocket, custom-domain, stage, mapping, and
 // integration metadata through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("apigateway scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAPIGateway:
+	case "", aws.ServiceAPIGateway:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAPIGateway
+		boundary.ServiceKind = aws.ServiceAPIGateway
 	default:
 		return nil, fmt.Errorf("apigateway scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -76,9 +76,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -87,8 +87,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,8 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.RelationshipObservation) error {
-	envelope, err := awscloud.NewRelationshipEnvelope(observation)
+func appendRelationship(envelopes *[]facts.Envelope, observation aws.RelationshipObservation) error {
+	envelope, err := aws.NewRelationshipEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -105,13 +105,13 @@ func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.Relati
 	return nil
 }
 
-func restAPIObservation(boundary awscloud.Boundary, api RESTAPI) awscloud.ResourceObservation {
+func restAPIObservation(boundary aws.Boundary, api RESTAPI) aws.ResourceObservation {
 	apiID := restAPIResourceID(api)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          restAPIARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayRESTAPI,
+		ResourceType: aws.ResourceTypeAPIGatewayRESTAPI,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.APIStatus),
 		Tags:         cloneStringMap(api.Tags),
@@ -132,13 +132,13 @@ func restAPIObservation(boundary awscloud.Boundary, api RESTAPI) awscloud.Resour
 	}
 }
 
-func v2APIObservation(boundary awscloud.Boundary, api V2API) awscloud.ResourceObservation {
+func v2APIObservation(boundary aws.Boundary, api V2API) aws.ResourceObservation {
 	apiID := v2APIResourceID(api)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          v2APIARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2API,
+		ResourceType: aws.ResourceTypeAPIGatewayV2API,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.ProtocolType),
 		Tags:         cloneStringMap(api.Tags),
@@ -158,13 +158,13 @@ func v2APIObservation(boundary awscloud.Boundary, api V2API) awscloud.ResourceOb
 	}
 }
 
-func domainObservation(boundary awscloud.Boundary, domain DomainName) awscloud.ResourceObservation {
+func domainObservation(boundary aws.Boundary, domain DomainName) aws.ResourceObservation {
 	resourceID := domainResourceID(domain)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(domain.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayDomainName,
+		ResourceType: aws.ResourceTypeAPIGatewayDomainName,
 		Name:         firstNonEmpty(domain.Name, resourceID),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -189,7 +189,7 @@ func domainObservation(boundary awscloud.Boundary, domain DomainName) awscloud.R
 
 func appendStageFacts(
 	envelopes *[]facts.Envelope,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	apiKind string,
 	apiID string,
 	apiARN string,
@@ -217,13 +217,13 @@ func appendStageFacts(
 	return nil
 }
 
-func stageObservation(boundary awscloud.Boundary, stage Stage) awscloud.ResourceObservation {
+func stageObservation(boundary aws.Boundary, stage Stage) aws.ResourceObservation {
 	resourceID := stageResourceID(stage.APIID, stage.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayStage,
+		ResourceType: aws.ResourceTypeAPIGatewayStage,
 		Name:         strings.TrimSpace(stage.Name),
 		Tags:         cloneStringMap(stage.Tags),
 		Attributes: map[string]any{

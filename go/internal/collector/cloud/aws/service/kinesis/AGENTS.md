@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/kinesis guidance
+# AGENTS.md - internal/collector/cloud/aws/service/kinesis guidance
 
 ## Read First
 
@@ -6,7 +6,7 @@
 2. `scanner.go` - resource fact selection for the three sub-services.
 3. `relationships.go` - KMS, IAM, Lambda, and destination edge selection.
 4. `types.go` - scanner-owned metadata types and the `Client` interface.
-5. `awssdk/README.md` - SDK adapter contract and the reflection proof.
+5. `sdk/README.md` - SDK adapter contract and the reflection proof.
 6. `../../README.md` - AWS cloud envelope contract.
 7. `docs/public/guides/collector-authoring.md` - collector authoring rules.
 
@@ -23,7 +23,7 @@
   the ARN form for the target. Splunk and HTTP endpoints are keyed by URL; the
   Redshift edge is keyed by the JDBC-derived cluster identifier.
 - Deduplicate the IAM role and transform Lambda edges per ARN.
-- Do not call the AWS SDK from this package. SDK behavior belongs in `awssdk`.
+- Do not call the AWS SDK from this package. SDK behavior belongs in `sdk`.
 
 ## Common Changes
 

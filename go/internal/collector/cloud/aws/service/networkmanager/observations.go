@@ -12,15 +12,15 @@ import (
 // globalNetworkObservation builds the resource observation for a global network.
 // The node publishes its resource_id as the API-reported ARN (synthesized from
 // the boundary account when a fixture omits it).
-func globalNetworkObservation(boundary awscloud.Boundary, network GlobalNetwork) awscloud.ResourceObservation {
+func globalNetworkObservation(boundary aws.Boundary, network GlobalNetwork) aws.ResourceObservation {
 	resourceID := globalNetworkResourceID(boundary, network)
 	id := strings.TrimSpace(network.ID)
 	arn := strings.TrimSpace(network.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerGlobalNetwork,
+		ResourceType: aws.ResourceTypeNetworkManagerGlobalNetwork,
 		Name:         id,
 		State:        strings.TrimSpace(network.State),
 		Tags:         cloneStringMap(network.Tags),
@@ -35,15 +35,15 @@ func globalNetworkObservation(boundary awscloud.Boundary, network GlobalNetwork)
 }
 
 // siteObservation builds the resource observation for a site.
-func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObservation {
+func siteObservation(boundary aws.Boundary, site Site) aws.ResourceObservation {
 	resourceID := siteResourceID(boundary, site)
 	id := strings.TrimSpace(site.ID)
 	arn := strings.TrimSpace(site.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerSite,
+		ResourceType: aws.ResourceTypeNetworkManagerSite,
 		Name:         id,
 		State:        strings.TrimSpace(site.State),
 		Tags:         cloneStringMap(site.Tags),
@@ -62,15 +62,15 @@ func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObs
 }
 
 // deviceObservation builds the resource observation for a device.
-func deviceObservation(boundary awscloud.Boundary, device Device) awscloud.ResourceObservation {
+func deviceObservation(boundary aws.Boundary, device Device) aws.ResourceObservation {
 	resourceID := deviceResourceID(boundary, device)
 	id := strings.TrimSpace(device.ID)
 	arn := strings.TrimSpace(device.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerDevice,
+		ResourceType: aws.ResourceTypeNetworkManagerDevice,
 		Name:         id,
 		State:        strings.TrimSpace(device.State),
 		Tags:         cloneStringMap(device.Tags),
@@ -95,15 +95,15 @@ func deviceObservation(boundary awscloud.Boundary, device Device) awscloud.Resou
 }
 
 // linkObservation builds the resource observation for a link.
-func linkObservation(boundary awscloud.Boundary, link Link) awscloud.ResourceObservation {
+func linkObservation(boundary aws.Boundary, link Link) aws.ResourceObservation {
 	resourceID := linkResourceID(boundary, link)
 	id := strings.TrimSpace(link.ID)
 	arn := strings.TrimSpace(link.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerLink,
+		ResourceType: aws.ResourceTypeNetworkManagerLink,
 		Name:         id,
 		State:        strings.TrimSpace(link.State),
 		Tags:         cloneStringMap(link.Tags),
@@ -124,15 +124,15 @@ func linkObservation(boundary awscloud.Boundary, link Link) awscloud.ResourceObs
 }
 
 // connectionObservation builds the resource observation for a connection.
-func connectionObservation(boundary awscloud.Boundary, connection Connection) awscloud.ResourceObservation {
+func connectionObservation(boundary aws.Boundary, connection Connection) aws.ResourceObservation {
 	resourceID := connectionResourceID(boundary, connection)
 	id := strings.TrimSpace(connection.ID)
 	arn := strings.TrimSpace(connection.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerConnection,
+		ResourceType: aws.ResourceTypeNetworkManagerConnection,
 		Name:         id,
 		State:        strings.TrimSpace(connection.State),
 		Tags:         cloneStringMap(connection.Tags),
@@ -152,15 +152,15 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 }
 
 // coreNetworkObservation builds the resource observation for a core network.
-func coreNetworkObservation(boundary awscloud.Boundary, core CoreNetwork) awscloud.ResourceObservation {
+func coreNetworkObservation(boundary aws.Boundary, core CoreNetwork) aws.ResourceObservation {
 	resourceID := coreNetworkResourceID(boundary, core)
 	id := strings.TrimSpace(core.ID)
 	arn := strings.TrimSpace(core.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerCoreNetwork,
+		ResourceType: aws.ResourceTypeNetworkManagerCoreNetwork,
 		Name:         id,
 		State:        strings.TrimSpace(core.State),
 		Tags:         cloneStringMap(core.Tags),
@@ -188,19 +188,19 @@ func globalNetworkChildResourceID(apiARN, synth string) string {
 	return strings.TrimSpace(synth)
 }
 
-func siteResourceID(boundary awscloud.Boundary, site Site) string {
+func siteResourceID(boundary aws.Boundary, site Site) string {
 	return globalNetworkChildResourceID(site.ARN, siteARN(boundary, site.GlobalNetworkID, site.ID))
 }
 
-func deviceResourceID(boundary awscloud.Boundary, device Device) string {
+func deviceResourceID(boundary aws.Boundary, device Device) string {
 	return globalNetworkChildResourceID(device.ARN, deviceARN(boundary, device.GlobalNetworkID, device.ID))
 }
 
-func linkResourceID(boundary awscloud.Boundary, link Link) string {
+func linkResourceID(boundary aws.Boundary, link Link) string {
 	return globalNetworkChildResourceID(link.ARN, linkARN(boundary, link.GlobalNetworkID, link.ID))
 }
 
-func connectionResourceID(boundary awscloud.Boundary, connection Connection) string {
+func connectionResourceID(boundary aws.Boundary, connection Connection) string {
 	synth := networkManagerARN(boundary, "connection/"+strings.TrimSpace(connection.GlobalNetworkID)+"/"+strings.TrimSpace(connection.ID))
 	if strings.TrimSpace(connection.GlobalNetworkID) == "" || strings.TrimSpace(connection.ID) == "" {
 		synth = ""
@@ -208,7 +208,7 @@ func connectionResourceID(boundary awscloud.Boundary, connection Connection) str
 	return globalNetworkChildResourceID(connection.ARN, synth)
 }
 
-func coreNetworkResourceID(boundary awscloud.Boundary, core CoreNetwork) string {
+func coreNetworkResourceID(boundary aws.Boundary, core CoreNetwork) string {
 	synth := networkManagerARN(boundary, "core-network/"+strings.TrimSpace(core.ID))
 	if strings.TrimSpace(core.ID) == "" {
 		synth = ""

@@ -20,4 +20,4 @@
 // body, custom package body, or serverless saved-object body. Only IAM role
 // ARNs referenced by the domain access policy are resolved, for relationship
 // evidence; the policy body itself is dropped.
-package awssdk
+package sdk

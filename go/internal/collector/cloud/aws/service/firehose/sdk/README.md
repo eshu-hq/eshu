@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/firehose/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/firehose/sdk` adapts AWS SDK for Go v2
 Firehose responses to the scanner-owned `Client` contract. It owns delivery
 stream listing pagination, the per-stream describe fan-out, throttle
 classification, per-call AWS API telemetry, and the mapping of each delivery
@@ -34,9 +34,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/firehose` for scanner-owned result
+- `internal/collector/cloud/aws/service/firehose` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `firehose` and Smithy error contracts.

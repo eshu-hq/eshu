@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ssm guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ssm guidance
 
 ## Read First
 
@@ -27,11 +27,11 @@
 ## Common Changes
 
 - Add a new SSM metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders.
 - Add new relationship evidence only when SSM directly reports both sides and
   the target identity is not secret material.
-- Extend SDK pagination and optional-not-found handling in the `awssdk`
+- Extend SDK pagination and optional-not-found handling in the `sdk`
   adapter, not here.
 
 ## What Not To Change Without An ADR

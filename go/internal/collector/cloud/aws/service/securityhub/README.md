@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/securityhub` owns the scanner contract for
+`internal/collector/cloud/aws/service/securityhub` owns the scanner contract for
 AWS Security Hub metadata. It converts a claim-scoped Security Hub snapshot into
 `aws_resource` and `aws_relationship` facts for hub configuration, enabled
 standards, controls, member accounts, custom action targets, insight summaries,
@@ -39,19 +39,19 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, envelope builders, and shared scalar redaction.
 - `internal/facts` for emitted fact envelope kinds.
 - `internal/redact` for deterministic action target description markers.
 
 The package depends on a small `Client` interface rather than the AWS SDK for Go
-v2 so scanner tests can use fake snapshots and SDK behavior stays in `awssdk`.
+v2 so scanner tests can use fake snapshots and SDK behavior stays in `sdk`.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Security Hub API call counts, throttles, and
+The `sdk` adapter records Security Hub API call counts, throttles, and
 pagination spans. Security Hub resources appear on
 `eshu_dp_aws_resources_emitted_total{service="securityhub"}` with bounded
 `resource_type` labels.
@@ -80,13 +80,13 @@ pagination spans. Security Hub resources appear on
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/securityhub/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/securityhub/...`
 covers the bounded Security Hub metadata path: hub read, administrator/member
 enumeration, enabled standards, controls, action targets, insight summaries,
 safe insight-control grouping, tag reads, and one paginated GetFindings stream
 reduced to aggregate counts.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Security Hub fact emission, finding-body and insight-filter omission,
 runtime registration, command configuration, and EventBridge freshness routing.
 

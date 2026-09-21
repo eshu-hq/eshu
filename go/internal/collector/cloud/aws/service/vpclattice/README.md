@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/vpclattice` owns the Amazon VPC Lattice
+`internal/collector/cloud/aws/service/vpclattice` owns the Amazon VPC Lattice
 scanner contract for the AWS cloud collector. It converts VPC Lattice service
 network, service, target group, and listener metadata into `aws_resource` facts
 and emits relationship evidence for service-network-to-VPC and
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -50,9 +50,9 @@ behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records VPC Lattice API call counts, throttles, and
+The `sdk` adapter records VPC Lattice API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -83,7 +83,7 @@ pagination spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/vpclattice/...` covers the
+`go test ./internal/collector/cloud/aws/service/vpclattice/...` covers the
 bounded VPC Lattice metadata path: one paginated ListServiceNetworks stream
 with per-network paginated VPC and service association streams, one paginated
 ListServices stream with one GetService point read and one paginated
@@ -93,7 +93,7 @@ one ListTagsForResource point read per network/service/target group, no policy
 reads, and no graph writes in the collector.
 
 No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/vpclattice/...` green.
+change to existing hot paths. `go test ./internal/collector/cloud/aws/service/vpclattice/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 

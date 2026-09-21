@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslf "github.com/aws/aws-sdk-go-v2/service/lakeformation"
 	awslftypes "github.com/aws/aws-sdk-go-v2/service/lakeformation/types"
 
@@ -79,10 +79,10 @@ func TestClientGetDataLakeSettingsReadsAdminIdentifiersOnly(t *testing.T) {
 		settings: &awslf.GetDataLakeSettingsOutput{
 			DataLakeSettings: &awslftypes.DataLakeSettings{
 				DataLakeAdmins: []awslftypes.DataLakePrincipal{
-					{DataLakePrincipalIdentifier: aws.String("arn:aws:iam::123456789012:role/Admin")},
+					{DataLakePrincipalIdentifier: awsv2.String("arn:aws:iam::123456789012:role/Admin")},
 				},
 				ReadOnlyAdmins: []awslftypes.DataLakePrincipal{
-					{DataLakePrincipalIdentifier: aws.String("arn:aws:iam::123456789012:role/Auditor")},
+					{DataLakePrincipalIdentifier: awsv2.String("arn:aws:iam::123456789012:role/Auditor")},
 				},
 			},
 		},
@@ -105,13 +105,13 @@ func TestClientListResourcesMapsRegistrationMetadata(t *testing.T) {
 	api := &fakeLakeFormationAPI{
 		resourcePages: []*awslf.ListResourcesOutput{{
 			ResourceInfoList: []awslftypes.ResourceInfo{{
-				ResourceArn:                  aws.String("arn:aws:s3:::analytics-lake/governed/"),
-				RoleArn:                      aws.String("arn:aws:iam::123456789012:role/Register"),
-				HybridAccessEnabled:          aws.Bool(true),
-				WithFederation:               aws.Bool(false),
+				ResourceArn:                  awsv2.String("arn:aws:s3:::analytics-lake/governed/"),
+				RoleArn:                      awsv2.String("arn:aws:iam::123456789012:role/Register"),
+				HybridAccessEnabled:          awsv2.Bool(true),
+				WithFederation:               awsv2.Bool(false),
 				VerificationStatus:           awslftypes.VerificationStatusVerified,
-				ExpectedResourceOwnerAccount: aws.String("123456789012"),
-				LastModified:                 aws.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
+				ExpectedResourceOwnerAccount: awsv2.String("123456789012"),
+				LastModified:                 awsv2.Time(time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC)),
 			}},
 		}},
 	}
@@ -144,20 +144,20 @@ func TestClientListPermissionsDropsConditionAndKeepsGrantIdentity(t *testing.T) 
 		permissionPages: []*awslf.ListPermissionsOutput{{
 			PrincipalResourcePermissions: []awslftypes.PrincipalResourcePermissions{{
 				Principal: &awslftypes.DataLakePrincipal{
-					DataLakePrincipalIdentifier: aws.String("arn:aws:iam::123456789012:role/Analyst"),
+					DataLakePrincipalIdentifier: awsv2.String("arn:aws:iam::123456789012:role/Analyst"),
 				},
 				Resource: &awslftypes.Resource{
 					Table: &awslftypes.TableResource{
-						DatabaseName: aws.String("analytics"),
-						Name:         aws.String("orders"),
-						CatalogId:    aws.String("123456789012"),
+						DatabaseName: awsv2.String("analytics"),
+						Name:         awsv2.String("orders"),
+						CatalogId:    awsv2.String("123456789012"),
 					},
 				},
 				Permissions:                []awslftypes.Permission{awslftypes.PermissionSelect, awslftypes.PermissionDescribe},
 				PermissionsWithGrantOption: []awslftypes.Permission{awslftypes.PermissionSelect},
-				Condition:                  &awslftypes.Condition{Expression: aws.String("secret-lf-tag-expression")},
+				Condition:                  &awslftypes.Condition{Expression: awsv2.String("secret-lf-tag-expression")},
 				AdditionalDetails:          &awslftypes.DetailsMap{ResourceShare: []string{"arn:aws:ram::123456789012:resource-share/abc"}},
-				LastUpdated:                aws.Time(time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)),
+				LastUpdated:                awsv2.Time(time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)),
 			}},
 		}},
 	}
@@ -194,8 +194,8 @@ func TestClientListPermissionsSortsPrivilegesDeterministically(t *testing.T) {
 	api := &fakeLakeFormationAPI{
 		permissionPages: []*awslf.ListPermissionsOutput{{
 			PrincipalResourcePermissions: []awslftypes.PrincipalResourcePermissions{{
-				Principal: &awslftypes.DataLakePrincipal{DataLakePrincipalIdentifier: aws.String("p")},
-				Resource:  &awslftypes.Resource{Database: &awslftypes.DatabaseResource{Name: aws.String("analytics")}},
+				Principal: &awslftypes.DataLakePrincipal{DataLakePrincipalIdentifier: awsv2.String("p")},
+				Resource:  &awslftypes.Resource{Database: &awslftypes.DatabaseResource{Name: awsv2.String("analytics")}},
 				Permissions: []awslftypes.Permission{
 					awslftypes.PermissionSelect,
 					awslftypes.PermissionAll,
@@ -228,11 +228,11 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLakeFormation,
+		ServiceKind:         aws.ServiceLakeFormation,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lakeformation:1",
 		CollectorInstanceID: "aws-prod",

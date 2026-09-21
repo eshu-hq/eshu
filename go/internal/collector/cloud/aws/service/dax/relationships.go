@@ -15,51 +15,51 @@ import (
 // the target identity, so empty accounts and partial responses produce no
 // dangling edges. The subnet/VPC edges are not emitted here; they belong to the
 // subnet group resource, which owns the authoritative VPC and member-subnet ids.
-func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
+func clusterRelationships(boundary aws.Boundary, cluster Cluster) []aws.RelationshipObservation {
 	sourceID := firstNonEmpty(cluster.ARN, cluster.Name)
 	if sourceID == "" {
 		return nil
 	}
 	sourceARN := strings.TrimSpace(cluster.ARN)
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if subnetGroupName := strings.TrimSpace(cluster.SubnetGroupName); subnetGroupName != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterInSubnetGroup,
+			RelationshipType: aws.RelationshipDAXClusterInSubnetGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetGroupName,
-			TargetType:       awscloud.ResourceTypeDAXSubnetGroup,
+			TargetType:       aws.ResourceTypeDAXSubnetGroup,
 			Attributes: map[string]any{
 				"subnet_group_name": subnetGroupName,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterInSubnetGroup, subnetGroupName),
+			SourceRecordID: relationshipRecordID(sourceID, aws.RelationshipDAXClusterInSubnetGroup, subnetGroupName),
 		})
 	}
 
 	for _, securityGroupID := range cloneStrings(cluster.SecurityGroupIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterUsesSecurityGroup,
+			RelationshipType: aws.RelationshipDAXClusterUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterUsesSecurityGroup, securityGroupID),
+			TargetType:       aws.ResourceTypeEC2SecurityGroup,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDAXClusterUsesSecurityGroup, securityGroupID),
 		})
 	}
 
 	if roleARN := strings.TrimSpace(cluster.IAMRoleARN); roleARN != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterAssumesIAMRole,
+			RelationshipType: aws.RelationshipDAXClusterAssumesIAMRole,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterAssumesIAMRole, roleARN),
+			TargetType:       aws.ResourceTypeIAMRole,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDAXClusterAssumesIAMRole, roleARN),
 		})
 	}
 
@@ -71,32 +71,32 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 // subnet groups have no ARN); the VPC and subnet targets are bare AWS ids, which
 // is how the EC2 scanner publishes those resource_ids. Edges are emitted only
 // when the target id is present.
-func subnetGroupRelationships(boundary awscloud.Boundary, group SubnetGroup) []awscloud.RelationshipObservation {
+func subnetGroupRelationships(boundary aws.Boundary, group SubnetGroup) []aws.RelationshipObservation {
 	sourceID := strings.TrimSpace(group.Name)
 	if sourceID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	if vpcID := strings.TrimSpace(group.VPCID); vpcID != "" {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXSubnetGroupInVPC,
+			RelationshipType: aws.RelationshipDAXSubnetGroupInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupInVPC, vpcID),
+			TargetType:       aws.ResourceTypeEC2VPC,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDAXSubnetGroupInVPC, vpcID),
 		})
 	}
 
 	for _, subnetID := range cloneStrings(group.SubnetIDs) {
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXSubnetGroupHasSubnet,
+			RelationshipType: aws.RelationshipDAXSubnetGroupHasSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupHasSubnet, subnetID),
+			TargetType:       aws.ResourceTypeEC2Subnet,
+			SourceRecordID:   relationshipRecordID(sourceID, aws.RelationshipDAXSubnetGroupHasSubnet, subnetID),
 		})
 	}
 

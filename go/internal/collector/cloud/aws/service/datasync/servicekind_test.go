@@ -18,7 +18,7 @@ import (
 // joins/filters that key on the canonical "datasync".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceDataSync + "  "
+	boundary.ServiceKind = "  " + aws.ServiceDataSync + "  "
 	client := fakeClient{
 		tasks: []Task{{
 			ARN:          "arn:aws:datasync:us-east-1:123456789012:task/task-01234567890abcdef",
@@ -36,7 +36,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceDataSync; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceDataSync; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

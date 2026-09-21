@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/accessanalyzer/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/accessanalyzer/sdk guidance
 
 ## Read First
 

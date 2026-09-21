@@ -15,17 +15,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/internal/relguard"
 )
 
-// writeFixtureTree writes a minimal awscloud-shaped source tree under a temp dir
-// and returns the awscloud and services directories. It lets the guard run
+// writeFixtureTree writes a minimal aws-shaped source tree under a temp dir
+// and returns the aws and services directories. It lets the guard run
 // against controlled inputs, including the negative cases the guard must catch,
 // without touching the live tree.
-func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]string) (awscloudDir, servicesDir string) {
+func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]string) (awsDir, servicesDir string) {
 	t.Helper()
-	awscloudDir = t.TempDir()
-	if err := os.WriteFile(filepath.Join(awscloudDir, "constants_fixture.go"), []byte(constantsSrc), 0o600); err != nil {
+	awsDir = t.TempDir()
+	if err := os.WriteFile(filepath.Join(awsDir, "constants_fixture.go"), []byte(constantsSrc), 0o600); err != nil {
 		t.Fatalf("write constants fixture: %v", err)
 	}
-	servicesDir = filepath.Join(awscloudDir, "services")
+	servicesDir = filepath.Join(awsDir, "services")
 	for service, relationshipsSrc := range services {
 		dir := filepath.Join(servicesDir, service)
 		if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -35,10 +35,10 @@ func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]str
 			t.Fatalf("write relationships fixture: %v", err)
 		}
 	}
-	return awscloudDir, servicesDir
+	return awsDir, servicesDir
 }
 
-const fixtureConstants = `package awscloud
+const fixtureConstants = `package aws
 
 import awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 
@@ -65,11 +65,11 @@ type RelationshipObservation struct {
 `
 
 // relationshipsHeaderWithImport is relationshipsHeader for fixtures that
-// reference a qualified awscloud.ResourceType* selector. The import must precede
+// reference a qualified aws.ResourceType* selector. The import must precede
 // the type declaration to parse.
 const relationshipsHeaderWithImport = `package fixture
 
-import awscloud "x"
+import aws "x"
 
 type RelationshipObservation struct {
 	RelationshipType string
@@ -81,10 +81,10 @@ type RelationshipObservation struct {
 `
 
 // TestDeclaredResourceTypeValues proves the static layer reads every
-// ResourceType constant value from the awscloud source and nothing else.
+// ResourceType constant value from the aws source and nothing else.
 func TestDeclaredResourceTypeValues(t *testing.T) {
-	awscloudDir, _ := writeFixtureTree(t, fixtureConstants, nil)
-	values, err := relguard.DeclaredResourceTypeValues(awscloudDir)
+	awsDir, _ := writeFixtureTree(t, fixtureConstants, nil)
+	values, err := relguard.DeclaredResourceTypeValues(awsDir)
 	if err != nil {
 		t.Fatalf("DeclaredResourceTypeValues() error = %v", err)
 	}
@@ -108,8 +108,8 @@ func TestDeclaredResourceTypeValues(t *testing.T) {
 // of declared constants and the documented allowlist, so a forward-reference
 // target type is accepted while still being explicit.
 func TestKnownTargetTypesUnionIncludesAllowlist(t *testing.T) {
-	awscloudDir, _ := writeFixtureTree(t, fixtureConstants, nil)
-	known, err := relguard.KnownTargetTypes(awscloudDir)
+	awsDir, _ := writeFixtureTree(t, fixtureConstants, nil)
+	known, err := relguard.KnownTargetTypes(awsDir)
 	if err != nil {
 		t.Fatalf("KnownTargetTypes() error = %v", err)
 	}
@@ -163,7 +163,7 @@ func localAssign() RelationshipObservation {
 }
 
 // TestEmittedSkipsHelperAndConstBacked proves a helper-call target is left
-// unresolved (handed to the runtime layer) and an awscloud.ResourceType*
+// unresolved (handed to the runtime layer) and an aws.ResourceType*
 // selector is recorded as const-backed, not as an unknown literal.
 func TestEmittedSkipsHelperAndConstBacked(t *testing.T) {
 	src := relationshipsHeaderWithImport + `
@@ -172,7 +172,7 @@ func helperTarget(s string) RelationshipObservation {
 }
 
 func constBacked() RelationshipObservation {
-	return RelationshipObservation{RelationshipType: "r2", TargetType: awscloud.ResourceTypeS3Bucket}
+	return RelationshipObservation{RelationshipType: "r2", TargetType: aws.ResourceTypeS3Bucket}
 }
 
 func classify(s string) string { return s }
@@ -192,7 +192,7 @@ func classify(s string) string { return s }
 		}
 	}
 	if constBacked != 1 {
-		t.Errorf("const-backed = %d, want 1 (the awscloud.ResourceType* selector)", constBacked)
+		t.Errorf("const-backed = %d, want 1 (the aws.ResourceType* selector)", constBacked)
 	}
 }
 
@@ -214,8 +214,8 @@ func goodTarget() RelationshipObservation {
 	return RelationshipObservation{RelationshipType: "good", TargetType: "aws_ec2_vpc"}
 }
 `
-	awscloudDir, servicesDir := writeFixtureTree(t, fixtureConstants, map[string]string{"svc": src})
-	resolved, _, err := relguard.ValidateEmitted(awscloudDir, servicesDir)
+	awsDir, servicesDir := writeFixtureTree(t, fixtureConstants, map[string]string{"svc": src})
+	resolved, _, err := relguard.ValidateEmitted(awsDir, servicesDir)
 	if err == nil {
 		t.Fatalf("ValidateEmitted() = nil error, want a violation for the empty and unknown target_type")
 	}
@@ -243,8 +243,8 @@ func allowlisted() RelationshipObservation {
 	return RelationshipObservation{RelationshipType: "a", TargetType: "aws_resource"}
 }
 `
-	awscloudDir, servicesDir := writeFixtureTree(t, fixtureConstants, map[string]string{"svc": src})
-	if _, _, err := relguard.ValidateEmitted(awscloudDir, servicesDir); err != nil {
+	awsDir, servicesDir := writeFixtureTree(t, fixtureConstants, map[string]string{"svc": src})
+	if _, _, err := relguard.ValidateEmitted(awsDir, servicesDir); err != nil {
 		t.Fatalf("ValidateEmitted() = %v, want nil for an all-known fixture", err)
 	}
 }
@@ -272,26 +272,26 @@ func TestRuntimeCheckCatchesDataDependentDefects(t *testing.T) {
 	}
 	cases := []struct {
 		name string
-		obs  awscloud.RelationshipObservation
+		obs  aws.RelationshipObservation
 		want string
 	}{
 		{
 			name: "empty target_type",
-			obs: awscloud.RelationshipObservation{
+			obs: aws.RelationshipObservation{
 				RelationshipType: "x_uses_y", TargetResourceID: "id", TargetType: "",
 			},
 			want: "empty target_type",
 		},
 		{
 			name: "unknown target_type",
-			obs: awscloud.RelationshipObservation{
+			obs: aws.RelationshipObservation{
 				RelationshipType: "x_uses_y", TargetResourceID: "id", TargetType: "aws_not_a_thing",
 			},
 			want: "unknown target_type",
 		},
 		{
 			name: "ARN-keyed target keyed by bare name",
-			obs: awscloud.RelationshipObservation{
+			obs: aws.RelationshipObservation{
 				RelationshipType: "x_uses_y",
 				TargetResourceID: "my-bucket",
 				TargetARN:        "arn:aws:s3:::my-bucket",
@@ -301,7 +301,7 @@ func TestRuntimeCheckCatchesDataDependentDefects(t *testing.T) {
 		},
 		{
 			name: "malformed target_arn",
-			obs: awscloud.RelationshipObservation{
+			obs: aws.RelationshipObservation{
 				RelationshipType: "x_uses_y",
 				TargetResourceID: "arn:aws:s3:::my-bucket",
 				TargetARN:        "my-bucket",
@@ -327,7 +327,7 @@ func TestRuntimeCheckCatchesDataDependentDefects(t *testing.T) {
 // a correct ARN-keyed edge, so it does not false-fail real scanner tests.
 func TestAssertObservationsPassesValidEdge(t *testing.T) {
 	rec := &recordingTB{}
-	relguard.AssertObservations(rec, awscloud.RelationshipObservation{
+	relguard.AssertObservations(rec, aws.RelationshipObservation{
 		RelationshipType: "x_uses_y",
 		TargetResourceID: "arn:aws:s3:::my-bucket",
 		TargetARN:        "arn:aws:s3:::my-bucket",
@@ -342,7 +342,7 @@ func TestAssertObservationsPassesValidEdge(t *testing.T) {
 // the TB surface a scanner test would use.
 func TestAssertObservationsFailsBadEdge(t *testing.T) {
 	rec := &recordingTB{}
-	relguard.AssertObservations(rec, awscloud.RelationshipObservation{
+	relguard.AssertObservations(rec, aws.RelationshipObservation{
 		RelationshipType: "x_uses_y",
 		TargetResourceID: "id",
 		TargetType:       "aws_not_a_thing",
@@ -353,13 +353,13 @@ func TestAssertObservationsFailsBadEdge(t *testing.T) {
 }
 
 // TestLiveScannerTreeHasNoGraphJoinDefects is the repo-level guard. It walks the
-// real awscloud scanner tree and asserts every statically resolvable target_type
+// real aws scanner tree and asserts every statically resolvable target_type
 // is non-empty and known. A new scanner that ships an empty or unknown literal
 // target_type fails here mechanically, which is the whole point of #804.
 func TestLiveScannerTreeHasNoGraphJoinDefects(t *testing.T) {
-	awscloudDir := liveAWSCloudDir(t)
-	servicesDir := filepath.Join(awscloudDir, "service")
-	resolved, unresolved, err := relguard.ValidateEmitted(awscloudDir, servicesDir)
+	awsDir := liveAWSDir(t)
+	servicesDir := filepath.Join(awsDir, "service")
+	resolved, unresolved, err := relguard.ValidateEmitted(awsDir, servicesDir)
 	if err != nil {
 		t.Fatalf("live scanner tree has graph-join target_type defects:\n%v", err)
 	}
@@ -372,9 +372,9 @@ func TestLiveScannerTreeHasNoGraphJoinDefects(t *testing.T) {
 	t.Logf("relguard static layer: %d resolved literals, %d runtime-only (data-dependent) target types", resolved, unresolved)
 }
 
-// liveAWSCloudDir resolves go/internal/collector/cloud/aws from this test file:
-// relguard_test.go -> relguard -> internal -> awscloud.
-func liveAWSCloudDir(t *testing.T) string {
+// liveAWSDir resolves go/internal/collector/cloud/aws from this test file:
+// relguard_test.go -> relguard -> internal -> aws.
+func liveAWSDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {

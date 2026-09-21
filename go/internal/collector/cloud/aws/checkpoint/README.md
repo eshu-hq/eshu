@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/checkpoint` defines the durable resume contract for
+`internal/collector/cloud/aws/checkpoint` defines the durable resume contract for
 long AWS service scans. The package is storage-neutral: AWS service adapters use
 the `Store` interface, while the Postgres implementation owns persistence and
 telemetry.

@@ -25,7 +25,7 @@ import (
 const resourceTypeConstPrefix = "ResourceType"
 
 // KnownTargetTypeAllowlist is the explicit, reviewed set of relationship
-// target_type values that are deliberately NOT backed by an awscloud
+// target_type values that are deliberately NOT backed by an aws
 // ResourceType constant. Each entry is a forward reference to a resource family
 // Eshu does not scan yet, or a synthetic/non-AWS join anchor. Adding an entry is
 // a deliberate decision: it documents that the dangling target is expected, not
@@ -39,7 +39,7 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// ResourceTypeGeneric. The honest fallback when a reported identifier does
 	// not match a known resource family; scanners still record the original
 	// service-reported type in relationship attributes.
-	"aws_resource": "generic fallback (awscloud.ResourceTypeGeneric) for identifiers with no known resource family",
+	"aws_resource": "generic fallback (aws.ResourceTypeGeneric) for identifiers with no known resource family",
 	// CloudWatch metrics are an identity, not a scanned resource. The alarm
 	// observes-metric edge anchors to a namespace/name identity that no scanner
 	// publishes as a CloudResource.
@@ -49,7 +49,7 @@ var KnownTargetTypeAllowlist = map[string]string{
 	"aws_vpc_endpoint_service": "forward reference: no VPC endpoint-service scanner yet",
 	// EC2 instances are referenced as relationship targets (VPC, Global
 	// Accelerator) but Eshu does not yet emit an EC2 instance CloudResource; the
-	// ec2/awssdk mapper and globalaccelerator helper both key this value.
+	// ec2/sdk mapper and globalaccelerator helper both key this value.
 	"aws_ec2_instance": "forward reference: no EC2 instance resource scanner yet",
 	// IAM server certificates are referenced by Classic ELB HTTPS/SSL listeners
 	// (and IAM-uploaded certs predating ACM) but Eshu does not scan an IAM
@@ -85,15 +85,15 @@ var KnownTargetTypeAllowlist = map[string]string{
 }
 
 // DeclaredResourceTypeValues parses every Go source file directly under
-// awscloudDir and returns the sorted, de-duplicated set of string values
+// awsDir and returns the sorted, de-duplicated set of string values
 // assigned to constants whose name starts with ResourceType. These are the
 // resource families a relationship target_type may name. The walk is source
 // based (go/parser, no type checking) so it stays fast and has no dependency on
 // the packages it derives the set from.
-func DeclaredResourceTypeValues(awscloudDir string) ([]string, error) {
-	entries, err := os.ReadDir(awscloudDir)
+func DeclaredResourceTypeValues(awsDir string) ([]string, error) {
+	entries, err := os.ReadDir(awsDir)
 	if err != nil {
-		return nil, fmt.Errorf("read awscloud dir %q: %w", awscloudDir, err)
+		return nil, fmt.Errorf("read aws dir %q: %w", awsDir, err)
 	}
 	seen := map[string]struct{}{}
 	fset := token.NewFileSet()
@@ -104,7 +104,7 @@ func DeclaredResourceTypeValues(awscloudDir string) ([]string, error) {
 		if strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
-		path := filepath.Join(awscloudDir, entry.Name())
+		path := filepath.Join(awsDir, entry.Name())
 		file, parseErr := goparser.ParseFile(fset, path, nil, 0)
 		if parseErr != nil {
 			return nil, fmt.Errorf("parse %q: %w", path, parseErr)
@@ -149,8 +149,8 @@ func collectResourceTypeConstants(file *ast.File, seen map[string]struct{}) {
 // KnownTargetTypes returns the union of every declared ResourceType constant
 // value and the documented KnownTargetTypeAllowlist. It is the single source of
 // truth both guard layers check emitted target types against.
-func KnownTargetTypes(awscloudDir string) (map[string]struct{}, error) {
-	declared, err := DeclaredResourceTypeValues(awscloudDir)
+func KnownTargetTypes(awsDir string) (map[string]struct{}, error) {
+	declared, err := DeclaredResourceTypeValues(awsDir)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func Validate(literals []EmittedTargetType, known map[string]struct{}) []error {
 		}
 		if _, ok := known[lit.Value]; !ok {
 			errs = append(errs, fmt.Errorf(
-				"%s: target_type %q is not a declared awscloud.ResourceType constant and is not in relguard.KnownTargetTypeAllowlist; "+
+				"%s: target_type %q is not a declared aws.ResourceType constant and is not in relguard.KnownTargetTypeAllowlist; "+
 					"a relationship to it would dangle. Fix the target_type to the value the target scanner publishes, "+
 					"or add a documented allowlist entry if the target is deliberately not scanned yet",
 				lit.File, lit.Value,
@@ -203,7 +203,7 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 	return value, true
 }
 
-// factschemaResourceTypeSelector resolves awscloud ResourceType* constants
+// factschemaResourceTypeSelector resolves aws ResourceType* constants
 // repointed to the typed factschema/aws/v1 source of truth.
 func factschemaResourceTypeSelector(expr ast.Expr) (string, bool) {
 	selector, ok := expr.(*ast.SelectorExpr)
@@ -259,13 +259,13 @@ func errJoin(errs []error) error {
 }
 
 // ValidateEmitted is the one-call static guard: it derives the known target
-// types from awscloudDir, walks servicesDir, validates the resolved literals,
+// types from awsDir, walks servicesDir, validates the resolved literals,
 // and returns a single joined error naming every offending literal. The number
 // of resolved literals and the number of unresolved (runtime-only) target-type
 // expressions are returned so the guard test can assert it observed real input
 // rather than silently walking an empty tree.
-func ValidateEmitted(awscloudDir, servicesDir string) (resolved, unresolved int, err error) {
-	known, err := KnownTargetTypes(awscloudDir)
+func ValidateEmitted(awsDir, servicesDir string) (resolved, unresolved int, err error) {
+	known, err := KnownTargetTypes(awsDir)
 	if err != nil {
 		return 0, 0, err
 	}

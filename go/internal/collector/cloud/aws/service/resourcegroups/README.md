@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/resourcegroups` owns the AWS Resource
+`internal/collector/cloud/aws/service/resourcegroups` owns the AWS Resource
 Groups scanner contract for the AWS cloud collector. It converts each resource
 group into an `aws_resource` fact (name, ARN, description, query type) and emits
 the membership edges that connect a group to its member resources, plus a
@@ -48,7 +48,7 @@ See `doc.go` for the godoc contract.
 `helpers.go` holds the `classifyMember` classifier. It parses each member ARN
 into its colon-separated fields (never substring-matches the raw ARN) and maps
 the `service` plus the leading resource-type token to a declared
-`awscloud.ResourceType*` and the published identity of the target scanner:
+`aws.ResourceType*` and the published identity of the target scanner:
 
 | Member family | `target_type` | `target_resource_id` | Keyed by |
 | --- | --- | --- | --- |
@@ -76,7 +76,7 @@ falsely marked ARN-keyed, matching the `relguard` runtime contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -85,9 +85,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Resource Groups API call counts, throttles, and
+`sdk` adapter records Resource Groups API call counts, throttles, and
 pagination spans.
 
 ## Gotchas / invariants
@@ -111,14 +111,14 @@ pagination spans.
 ## Evidence
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/resourcegroups/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/resourcegroups/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 is green. `scanner_test.go` covers the group resource fact, the ARN-to-family
 classifier across every recognized member family (asserting each
 `target_type`/`target_resource_id`/ARN-keyed shape), the unrecognized-family
 SKIP (no dangling edges), the CloudFormation-stack edge (and its absence for
 tag-filter groups), partition awareness (`aws-us-gov` member ARN preserved), and
 the metadata-only exclusions (`Client` interface shape reflection and
-query-body-never-persisted). `awssdk/client_test.go` covers the SDK adapter
+query-body-never-persisted). `sdk/client_test.go` covers the SDK adapter
 mapping, stack-identifier extraction, member ARN skipping, and the SDK-seam
 exclusion reflection. The `relguard` and `partitionguard` guards pass over the
 new scanner tree. This is a new metadata-only scanner: it adds emission for a
@@ -127,7 +127,7 @@ no hot-path, graph-write, or queue behavior to regress.
 
 No-Observability-Change: this scanner introduces no new instrument, span, metric
 label, or `aws_scan_status` row beyond the shared per-service API-call counters,
-throttle counters, and pagination spans the `awssdk` adapter records through the
+throttle counters, and pagination spans the `sdk` adapter records through the
 common `recordAPICall` path that every AWS scanner already uses.
 
 Collector Deployment Evidence: Resource Groups runs inside the existing hosted

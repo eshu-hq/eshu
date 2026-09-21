@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsapigatewayv2 "github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
 	awsapigatewayv2types "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
 
@@ -67,67 +67,67 @@ func TestAPIGatewayV2APIExcludesForbiddenMethods(t *testing.T) {
 func TestSnapshotMapsMetadataAndExcludesPayloads(t *testing.T) {
 	fake := &fakeAPI{
 		apis: []awsapigatewayv2types.Api{{
-			ApiId:        aws.String("api-1"),
-			Name:         aws.String("orders"),
+			ApiId:        awsv2.String("api-1"),
+			Name:         awsv2.String("orders"),
 			ProtocolType: awsapigatewayv2types.ProtocolTypeHttp,
-			ApiEndpoint:  aws.String("https://api-1.execute-api.us-east-1.amazonaws.com"),
+			ApiEndpoint:  awsv2.String("https://api-1.execute-api.us-east-1.amazonaws.com"),
 		}},
 		stages: []awsapigatewayv2types.Stage{{
-			StageName:  aws.String("$default"),
-			AutoDeploy: aws.Bool(true),
+			StageName:  awsv2.String("$default"),
+			AutoDeploy: awsv2.Bool(true),
 		}},
 		routes: []awsapigatewayv2types.Route{{
-			RouteId:        aws.String("route-1"),
-			RouteKey:       aws.String("POST /orders"),
-			Target:         aws.String("integrations/int-1"),
+			RouteId:        awsv2.String("route-1"),
+			RouteKey:       awsv2.String("POST /orders"),
+			Target:         awsv2.String("integrations/int-1"),
 			RequestModels:  map[string]string{"$default": "OrdersModel"},
-			AuthorizerId:   aws.String("auth-1"),
-			OperationName:  aws.String("createOrder"),
-			ApiKeyRequired: aws.Bool(false),
+			AuthorizerId:   awsv2.String("auth-1"),
+			OperationName:  awsv2.String("createOrder"),
+			ApiKeyRequired: awsv2.Bool(false),
 		}},
 		integrations: []awsapigatewayv2types.Integration{{
-			IntegrationId:    aws.String("int-1"),
+			IntegrationId:    awsv2.String("int-1"),
 			IntegrationType:  awsapigatewayv2types.IntegrationTypeAwsProxy,
-			IntegrationUri:   aws.String("arn:aws:lambda:us-east-1:123456789012:function:orders"),
-			CredentialsArn:   aws.String("arn:aws:iam::123456789012:role/secret-invoke-role"),
+			IntegrationUri:   awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:orders"),
+			CredentialsArn:   awsv2.String("arn:aws:iam::123456789012:role/secret-invoke-role"),
 			RequestTemplates: map[string]string{"application/json": "#set($x = $input.body)"},
 			RequestParameters: map[string]string{
 				"overwrite:header.Authorization": "stageVariables.secretToken",
 			},
 		}},
 		authorizers: []awsapigatewayv2types.Authorizer{{
-			AuthorizerId:                 aws.String("auth-1"),
-			Name:                         aws.String("cognito"),
+			AuthorizerId:                 awsv2.String("auth-1"),
+			Name:                         awsv2.String("cognito"),
 			AuthorizerType:               awsapigatewayv2types.AuthorizerTypeJwt,
-			AuthorizerUri:                aws.String("arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:123456789012:function:secret-authorizer/invocations"),
-			AuthorizerCredentialsArn:     aws.String("arn:aws:iam::123456789012:role/secret-auth-role"),
-			IdentityValidationExpression: aws.String("^secretpattern$"),
+			AuthorizerUri:                awsv2.String("arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:123456789012:function:secret-authorizer/invocations"),
+			AuthorizerCredentialsArn:     awsv2.String("arn:aws:iam::123456789012:role/secret-auth-role"),
+			IdentityValidationExpression: awsv2.String("^secretpattern$"),
 			IdentitySource:               []string{"$request.header.Authorization"},
 			JwtConfiguration: &awsapigatewayv2types.JWTConfiguration{
-				Issuer:   aws.String("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"),
+				Issuer:   awsv2.String("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"),
 				Audience: []string{"client-app"},
 			},
 		}},
 		vpcLinks: []awsapigatewayv2types.VpcLink{{
-			VpcLinkId:        aws.String("vpclink-1"),
-			Name:             aws.String("orders-link"),
+			VpcLinkId:        awsv2.String("vpclink-1"),
+			Name:             awsv2.String("orders-link"),
 			VpcLinkStatus:    awsapigatewayv2types.VpcLinkStatusAvailable,
 			SubnetIds:        []string{"subnet-aaa"},
 			SecurityGroupIds: []string{"sg-111"},
 		}},
 		domains: []awsapigatewayv2types.DomainName{{
-			DomainName:    aws.String("api.example.com"),
-			DomainNameArn: aws.String("arn:aws:apigateway:us-east-1::/domainnames/api.example.com"),
+			DomainName:    awsv2.String("api.example.com"),
+			DomainNameArn: awsv2.String("arn:aws:apigateway:us-east-1::/domainnames/api.example.com"),
 			DomainNameConfigurations: []awsapigatewayv2types.DomainNameConfiguration{{
-				CertificateArn:   aws.String("arn:aws:acm:us-east-1:123456789012:certificate/abc-123"),
+				CertificateArn:   awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/abc-123"),
 				DomainNameStatus: awsapigatewayv2types.DomainNameStatusAvailable,
 			}},
 		}},
 		mappings: []awsapigatewayv2types.ApiMapping{{
-			ApiMappingId:  aws.String("map-1"),
-			ApiId:         aws.String("api-1"),
-			Stage:         aws.String("$default"),
-			ApiMappingKey: aws.String("v1"),
+			ApiMappingId:  awsv2.String("map-1"),
+			ApiId:         awsv2.String("api-1"),
+			Stage:         awsv2.String("$default"),
+			ApiMappingKey: awsv2.String("v1"),
 		}},
 	}
 
@@ -184,8 +184,8 @@ func TestSnapshotStopsPaginationOnNilPage(t *testing.T) {
 func TestSnapshotPaginatesAPIs(t *testing.T) {
 	fake := &fakeAPI{
 		apiPages: [][]awsapigatewayv2types.Api{
-			{{ApiId: aws.String("api-1"), Name: aws.String("a")}},
-			{{ApiId: aws.String("api-2"), Name: aws.String("b")}},
+			{{ApiId: awsv2.String("api-1"), Name: awsv2.String("a")}},
+			{{ApiId: awsv2.String("api-2"), Name: awsv2.String("b")}},
 		},
 	}
 	client := &Client{api: fake, boundary: testBoundary()}
@@ -215,8 +215,8 @@ func assertNoForbiddenStringValue(t *testing.T, value any, needles ...string) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGatewayV2}
+func testBoundary() aws.Boundary {
+	return aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAPIGatewayV2}
 }
 
 // fakeAPI is a minimal in-memory apiClient. It returns a single page per list
@@ -243,7 +243,7 @@ func (f *fakeAPI) GetApis(_ context.Context, _ *awsapigatewayv2.GetApisInput, _ 
 		page := f.apiPages[f.apiPageIndex]
 		out := &awsapigatewayv2.GetApisOutput{Items: page}
 		if f.apiPageIndex < len(f.apiPages)-1 {
-			out.NextToken = aws.String("next")
+			out.NextToken = awsv2.String("next")
 			f.apiPageIndex++
 		}
 		return out, nil

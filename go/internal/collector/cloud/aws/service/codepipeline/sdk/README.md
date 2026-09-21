@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/codepipeline/awssdk` adapts AWS SDK for Go
+`internal/collector/cloud/aws/service/codepipeline/sdk` adapts AWS SDK for Go
 v2 CodePipeline responses to the scanner-owned `codepipeline.Client` contract.
 It owns CodePipeline pagination, pipeline-declaration resolution, tag reads,
 action-configuration value dropping, target-identifier allowlisting,
@@ -38,9 +38,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels and the shared `RedactString` redaction helper.
-- `internal/collector/awscloud/service/codepipeline` for scanner-owned result
+- `internal/collector/cloud/aws/service/codepipeline` for scanner-owned result
   types.
 - `internal/redact` for the redaction key applied to source-revision summaries.
 - `internal/telemetry` for AWS API call and throttle instruments.
@@ -77,7 +77,7 @@ labels.
 - `mapWebhook` never reads `AuthenticationConfiguration.SecretToken`. It keeps
   the authentication type, target pipeline, and target action only.
 - `mapSourceRevisions` routes the commit-message summary through
-  `awscloud.RedactString`; the raw summary never reaches the scanner type.
+  `aws.RedactString`; the raw summary never reaches the scanner type.
 - `ListCustomActionTypes` filters to `ActionOwnerCustom` so AWS-owned and
   ThirdParty action types are excluded.
 - Recent executions are bounded to `recentExecutionLimit` (25) per pipeline so

@@ -25,7 +25,7 @@ type Scanner struct {
 }
 
 // Scan observes ECS resources through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ecs scanner client is required")
 	}
@@ -33,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ecs scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceECS:
+	case "", aws.ServiceECS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceECS
+		boundary.ServiceKind = aws.ServiceECS
 	default:
 		return nil, fmt.Errorf("ecs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -48,7 +48,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	var envelopes []facts.Envelope
 	seenTaskDefinitions := map[string]struct{}{}
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
@@ -94,17 +94,17 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) serviceEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	service Service,
 	seenTaskDefinitions map[string]struct{},
 ) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(serviceObservation(boundary, service))
+	resource, err := aws.NewResourceEnvelope(serviceObservation(boundary, service))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if strings.TrimSpace(service.TaskDefinitionARN) != "" {
-		relationship, err := awscloud.NewRelationshipEnvelope(serviceTaskDefinitionRelationship(boundary, service))
+		relationship, err := aws.NewRelationshipEnvelope(serviceTaskDefinitionRelationship(boundary, service))
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func (s Scanner) serviceEnvelopes(
 		envelopes = append(envelopes, taskDefinitionEnvelopes...)
 	}
 	for _, loadBalancer := range service.LoadBalancers {
-		relationship, err := awscloud.NewRelationshipEnvelope(serviceLoadBalancerRelationship(boundary, service, loadBalancer))
+		relationship, err := aws.NewRelationshipEnvelope(serviceLoadBalancerRelationship(boundary, service, loadBalancer))
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +127,7 @@ func (s Scanner) serviceEnvelopes(
 
 func (s Scanner) taskDefinitionEnvelopes(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	taskDefinitionARN string,
 	seen map[string]struct{},
 ) ([]facts.Envelope, error) {
@@ -146,13 +146,13 @@ func (s Scanner) taskDefinitionEnvelopes(
 	if taskDefinition == nil {
 		return nil, nil
 	}
-	resource, err := awscloud.NewResourceEnvelope(s.taskDefinitionObservation(boundary, *taskDefinition))
+	resource, err := aws.NewResourceEnvelope(s.taskDefinitionObservation(boundary, *taskDefinition))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range taskDefinitionImageRelationships(boundary, *taskDefinition) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -161,13 +161,13 @@ func (s Scanner) taskDefinitionEnvelopes(
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster Cluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   clusterARN,
-		ResourceType: awscloud.ResourceTypeECSCluster,
+		ResourceType: aws.ResourceTypeECSCluster,
 		Name:         cluster.Name,
 		State:        cluster.Status,
 		Tags:         cluster.Tags,
@@ -182,13 +182,13 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 	}
 }
 
-func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.ResourceObservation {
+func serviceObservation(boundary aws.Boundary, service Service) aws.ResourceObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          serviceARN,
 		ResourceID:   serviceARN,
-		ResourceType: awscloud.ResourceTypeECSService,
+		ResourceType: aws.ResourceTypeECSService,
 		Name:         service.Name,
 		State:        service.Status,
 		Tags:         service.Tags,
@@ -208,15 +208,15 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 }
 
 func (s Scanner) taskDefinitionObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	taskDefinition TaskDefinition,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	taskDefinitionARN := strings.TrimSpace(taskDefinition.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          taskDefinitionARN,
 		ResourceID:   firstNonEmpty(taskDefinitionARN, taskDefinition.Family+":"+strconv.Itoa(int(taskDefinition.Revision))),
-		ResourceType: awscloud.ResourceTypeECSTaskDefinition,
+		ResourceType: aws.ResourceTypeECSTaskDefinition,
 		Name:         strings.TrimSpace(taskDefinition.Family),
 		State:        taskDefinition.Status,
 		Tags:         taskDefinition.Tags,
@@ -240,13 +240,13 @@ func (s Scanner) taskDefinitionObservation(
 	}
 }
 
-func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObservation {
+func taskObservation(boundary aws.Boundary, task Task) aws.ResourceObservation {
 	taskARN := strings.TrimSpace(task.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          taskARN,
 		ResourceID:   taskARN,
-		ResourceType: awscloud.ResourceTypeECSTask,
+		ResourceType: aws.ResourceTypeECSTask,
 		Name:         taskARN,
 		State:        task.LastStatus,
 		Attributes: map[string]any{
@@ -267,14 +267,14 @@ func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObs
 	}
 }
 
-func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(taskObservation(boundary, task))
+func taskEnvelopes(boundary aws.Boundary, task Task) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(taskObservation(boundary, task))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, observation := range taskNetworkInterfaceRelationships(boundary, task) {
-		relationship, err := awscloud.NewRelationshipEnvelope(observation)
+		relationship, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -288,35 +288,35 @@ func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, err
 	return envelopes, nil
 }
 
-func serviceTaskDefinitionRelationship(boundary awscloud.Boundary, service Service) awscloud.RelationshipObservation {
+func serviceTaskDefinitionRelationship(boundary aws.Boundary, service Service) aws.RelationshipObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
 	taskDefinitionARN := strings.TrimSpace(service.TaskDefinitionARN)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipECSServiceUsesTaskDefinition,
+		RelationshipType: aws.RelationshipECSServiceUsesTaskDefinition,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: taskDefinitionARN,
 		TargetARN:        taskDefinitionARN,
-		TargetType:       awscloud.ResourceTypeECSTaskDefinition,
+		TargetType:       aws.ResourceTypeECSTaskDefinition,
 		SourceRecordID:   serviceARN + "#task-definition#" + taskDefinitionARN,
 	}
 }
 
 func serviceLoadBalancerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	service Service,
 	loadBalancer LoadBalancer,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
 	targetID := firstNonEmpty(loadBalancer.TargetGroupARN, loadBalancer.LoadBalancerName)
 	targetType := "aws_elb_load_balancer"
 	if strings.TrimSpace(loadBalancer.TargetGroupARN) != "" {
 		targetType = "aws_elbv2_target_group"
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipECSServiceTargetsLoadBalancer,
+		RelationshipType: aws.RelationshipECSServiceTargetsLoadBalancer,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: targetID,
@@ -359,7 +359,7 @@ func environmentVariableMaps(
 		source := "ecs.task_definition.container.environment." + strings.TrimSpace(variable.Name)
 		output = append(output, map[string]any{
 			"name":  strings.TrimSpace(variable.Name),
-			"value": awscloud.RedactString(variable.Value, source, key),
+			"value": aws.RedactString(variable.Value, source, key),
 		})
 	}
 	return output

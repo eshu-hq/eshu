@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/organizations guidance
+# AGENTS.md - internal/collector/cloud/aws/service/organizations guidance
 
 ## Read First
 
@@ -32,10 +32,10 @@
 
 - Add a new Organizations metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
+  `aws` envelope builders.
 - Add relationship evidence only when the Organizations API reports both sides
   directly and the target identity is not sensitive.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 - If a future security-reviewed opt-in persists policy bodies, add a separate
   explicit contract, tests, docs, redaction/security review, and operator
   configuration. Do not broaden this default scanner path.

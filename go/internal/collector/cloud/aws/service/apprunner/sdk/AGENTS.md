@@ -1,4 +1,4 @@
-# AGENTS.md - services/apprunner/awssdk guidance
+# AGENTS.md - services/apprunner/sdk guidance
 
 ## Read First
 

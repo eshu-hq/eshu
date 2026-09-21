@@ -21,15 +21,15 @@ type Scanner struct {
 
 // Scan observes GuardDuty detectors and metadata-only child resources through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("guardduty scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGuardDuty:
+	case "", aws.ServiceGuardDuty:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGuardDuty
+		boundary.ServiceKind = aws.ServiceGuardDuty
 	default:
 		return nil, fmt.Errorf("guardduty scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -49,8 +49,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func detectorEnvelopes(boundary awscloud.Boundary, detector Detector) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(detectorObservation(boundary, detector))
+func detectorEnvelopes(boundary aws.Boundary, detector Detector) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(detectorObservation(boundary, detector))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func detectorEnvelopes(boundary awscloud.Boundary, detector Detector) ([]facts.E
 		}
 	}
 	for _, filter := range detector.Filters {
-		envelope, err := awscloud.NewResourceEnvelope(filterObservation(boundary, detector, filter))
+		envelope, err := aws.NewResourceEnvelope(filterObservation(boundary, detector, filter))
 		if err != nil {
 			return nil, err
 		}
@@ -107,26 +107,26 @@ func detectorEnvelopes(boundary awscloud.Boundary, detector Detector) ([]facts.E
 
 func appendResourceAndRelationship(
 	envelopes []facts.Envelope,
-	resource awscloud.ResourceObservation,
-	relationship awscloud.RelationshipObservation,
+	resource aws.ResourceObservation,
+	relationship aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
-	resourceEnvelope, err := awscloud.NewResourceEnvelope(resource)
+	resourceEnvelope, err := aws.NewResourceEnvelope(resource)
 	if err != nil {
 		return nil, err
 	}
-	relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+	relationshipEnvelope, err := aws.NewRelationshipEnvelope(relationship)
 	if err != nil {
 		return nil, err
 	}
 	return append(envelopes, resourceEnvelope, relationshipEnvelope), nil
 }
 
-func detectorObservation(boundary awscloud.Boundary, detector Detector) awscloud.ResourceObservation {
+func detectorObservation(boundary aws.Boundary, detector Detector) aws.ResourceObservation {
 	detectorID := strings.TrimSpace(detector.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   detectorID,
-		ResourceType: awscloud.ResourceTypeGuardDutyDetector,
+		ResourceType: aws.ResourceTypeGuardDutyDetector,
 		Name:         detectorID,
 		State:        strings.TrimSpace(detector.Status),
 		Tags:         cloneStringMap(detector.Tags),
@@ -148,12 +148,12 @@ func detectorObservation(boundary awscloud.Boundary, detector Detector) awscloud
 	}
 }
 
-func memberObservation(boundary awscloud.Boundary, detector Detector, member MemberAccount) awscloud.ResourceObservation {
+func memberObservation(boundary aws.Boundary, detector Detector, member MemberAccount) aws.ResourceObservation {
 	resourceID := detectorChildID(detector.ID, "member", member.AccountID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyMemberAccount,
+		ResourceType: aws.ResourceTypeGuardDutyMemberAccount,
 		Name:         strings.TrimSpace(member.AccountID),
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Attributes: map[string]any{
@@ -170,12 +170,12 @@ func memberObservation(boundary awscloud.Boundary, detector Detector, member Mem
 	}
 }
 
-func filterObservation(boundary awscloud.Boundary, detector Detector, filter FilterSummary) awscloud.ResourceObservation {
+func filterObservation(boundary aws.Boundary, detector Detector, filter FilterSummary) aws.ResourceObservation {
 	resourceID := detectorChildID(detector.ID, "filter", filter.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyFilter,
+		ResourceType: aws.ResourceTypeGuardDutyFilter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"detector_id": strings.TrimSpace(detector.ID),
@@ -185,16 +185,16 @@ func filterObservation(boundary awscloud.Boundary, detector Detector, filter Fil
 }
 
 func publishingDestinationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	detector Detector,
 	destination PublishingDestination,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	resourceID := detectorChildID(detector.ID, "publishing-destination", destination.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(destination.DestinationARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyPublishingDestination,
+		ResourceType: aws.ResourceTypeGuardDutyPublishingDestination,
 		Name:         strings.TrimSpace(destination.ID),
 		State:        strings.TrimSpace(destination.Status),
 		Tags:         cloneStringMap(destination.Tags),
@@ -209,12 +209,12 @@ func publishingDestinationObservation(
 	}
 }
 
-func threatIntelSetObservation(boundary awscloud.Boundary, detector Detector, set ThreatIntelSet) awscloud.ResourceObservation {
+func threatIntelSetObservation(boundary aws.Boundary, detector Detector, set ThreatIntelSet) aws.ResourceObservation {
 	resourceID := detectorChildID(detector.ID, "threat-intel-set", set.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyThreatIntelSet,
+		ResourceType: aws.ResourceTypeGuardDutyThreatIntelSet,
 		Name:         strings.TrimSpace(set.Name),
 		State:        strings.TrimSpace(set.Status),
 		Tags:         cloneStringMap(set.Tags),
@@ -228,12 +228,12 @@ func threatIntelSetObservation(boundary awscloud.Boundary, detector Detector, se
 	}
 }
 
-func ipSetObservation(boundary awscloud.Boundary, detector Detector, set IPSet) awscloud.ResourceObservation {
+func ipSetObservation(boundary aws.Boundary, detector Detector, set IPSet) aws.ResourceObservation {
 	resourceID := detectorChildID(detector.ID, "ip-set", set.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyIPSet,
+		ResourceType: aws.ResourceTypeGuardDutyIPSet,
 		Name:         strings.TrimSpace(set.Name),
 		State:        strings.TrimSpace(set.Status),
 		Tags:         cloneStringMap(set.Tags),

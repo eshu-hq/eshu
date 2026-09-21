@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/secretsmanager/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/secretsmanager/sdk` adapts AWS SDK for
 Go v2 Secrets Manager control-plane responses into the scanner-owned metadata
-model used by `internal/collector/awscloud/service/secretsmanager`.
+model used by `internal/collector/cloud/aws/service/secretsmanager`.
 
 ## Ownership boundary
 
@@ -29,9 +29,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundary identity and API-call status
+- `internal/collector/cloud/aws` for boundary identity and API-call status
   recording.
-- `internal/collector/awscloud/service/secretsmanager` for scanner-owned
+- `internal/collector/cloud/aws/service/secretsmanager` for scanner-owned
   metadata types.
 - `internal/telemetry` for AWS collector spans and metric attributes.
 - AWS SDK for Go v2 `secretsmanager` and Smithy error contracts.

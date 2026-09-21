@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/amplify` owns the Amplify scanner contract
+`internal/collector/cloud/aws/service/amplify` owns the Amplify scanner contract
 for the AWS cloud collector. It converts Amplify app and branch metadata, plus
 custom-domain associations, into `aws_resource` facts and emits relationship
 evidence for app-to-source-repository (an external `git_repository` join anchor),
@@ -40,7 +40,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -49,9 +49,9 @@ Go v2 so tests can use fake clients and the runtime adapter can own SDK behavior
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Amplify API call counts, throttles, and pagination
+`sdk` adapter records Amplify API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -78,7 +78,7 @@ spans.
   scanner's domain-name anchor; duplicate CloudFront domains across subdomains
   collapse to one edge.
 - Synthesized ARNs derive their partition from the scan boundary via
-  `awscloud.PartitionForBoundary`, never a hardcoded `arn:aws:`, so GovCloud and
+  `aws.PartitionForBoundary`, never a hardcoded `arn:aws:`, so GovCloud and
   China apps resolve to ARNs in their own partition instead of dangling.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from app, branch, or domain
@@ -87,7 +87,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/amplify/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/amplify/...` covers the bounded
 Amplify metadata path: one paginated ListApps stream, one paginated ListBranches
 stream per app, and one paginated ListDomainAssociations stream per app, with no
 GetApp/GetBranch point reads (their structs carry the same secret-bearing fields
@@ -95,7 +95,7 @@ and are unnecessary), no Create/Update/Delete/Start-job/Start-deployment calls,
 no token reads, no mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
+`go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...` covers
 Amplify app and branch metadata fact emission, app-to-repository (`git_repository`
 anchor), app-to-IAM-role (service + compute role), app-to-Route 53 hosted zone
 (normalized domain join key), app-to-CloudFront distribution (`*.cloudfront.net`

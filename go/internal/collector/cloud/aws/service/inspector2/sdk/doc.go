@@ -10,4 +10,4 @@
 // finding aggregations, code-snippet reads, SBOM exports, CIS scan-result
 // reads, filter-criteria reads, and every mutation API. A reflection test over
 // the internal apiClient interface enforces that exclusion.
-package awssdk
+package sdk

@@ -13,4 +13,4 @@
 // credentials, or OAuth tokens, and never calls StartFlow, StopFlow, or any
 // Create/Update/Delete AppFlow API. The accepted SDK surface excludes those
 // operations by construction.
-package awssdk
+package sdk

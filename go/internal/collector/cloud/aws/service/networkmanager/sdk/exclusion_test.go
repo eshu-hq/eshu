@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"reflect"
@@ -68,9 +68,9 @@ func TestGlobalServiceRegionIsPartitionAware(t *testing.T) {
 		partition string
 		want      string
 	}{
-		{awscloud.PartitionAWS, "us-west-2"},
-		{awscloud.PartitionGovCloud, "us-gov-west-1"},
-		{awscloud.PartitionChina, "cn-north-1"},
+		{aws.PartitionAWS, "us-west-2"},
+		{aws.PartitionGovCloud, "us-gov-west-1"},
+		{aws.PartitionChina, "cn-north-1"},
 		{"unknown-partition", "us-west-2"},
 	}
 	for _, tc := range cases {

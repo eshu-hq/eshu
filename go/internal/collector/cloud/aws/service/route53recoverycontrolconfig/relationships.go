@@ -14,9 +14,9 @@ import (
 // publishes as its resource_id, so the edge joins the cluster node exactly. It
 // returns nil when either endpoint identity is missing.
 func controlPanelInClusterRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	panel ControlPanel,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := controlPanelResourceID(panel)
 	targetID := strings.TrimSpace(panel.ClusterARN)
 	if sourceID == "" || targetID == "" {
@@ -26,16 +26,16 @@ func controlPanelInClusterRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+		RelationshipType: aws.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(panel.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigCluster,
+		TargetType:       aws.ResourceTypeRoute53RecoveryControlConfigCluster,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster + ":" + targetID,
+			aws.RelationshipRoute53RecoveryControlConfigControlPanelInCluster + ":" + targetID,
 	}
 }
 
@@ -44,9 +44,9 @@ func controlPanelInClusterRelationship(
 // control panel ARN the panel node publishes as its resource_id. It returns nil
 // when either endpoint identity is missing.
 func routingControlInControlPanelRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	control RoutingControl,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := routingControlResourceID(control)
 	targetID := strings.TrimSpace(control.ControlPanelARN)
 	if sourceID == "" || targetID == "" {
@@ -56,16 +56,16 @@ func routingControlInControlPanelRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
+		RelationshipType: aws.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(control.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		TargetType:       aws.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel + ":" + targetID,
+			aws.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel + ":" + targetID,
 	}
 }
 
@@ -74,9 +74,9 @@ func routingControlInControlPanelRelationship(
 // the panel node publishes as its resource_id. It returns nil when either
 // endpoint identity is missing.
 func safetyRuleInControlPanelRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	rule SafetyRule,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := safetyRuleResourceID(rule)
 	targetID := strings.TrimSpace(rule.ControlPanelARN)
 	if sourceID == "" || targetID == "" {
@@ -86,15 +86,15 @@ func safetyRuleInControlPanelRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
+		RelationshipType: aws.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		TargetType:       aws.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel + ":" + targetID,
+			aws.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel + ":" + targetID,
 	}
 }

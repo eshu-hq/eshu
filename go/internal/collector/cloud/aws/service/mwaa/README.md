@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/mwaa` owns the Amazon Managed Workflows
+`internal/collector/cloud/aws/service/mwaa` owns the Amazon Managed Workflows
 for Apache Airflow (MWAA) scanner contract for the AWS cloud collector. It
 converts MWAA environment metadata into `aws_resource` facts and emits
 relationship evidence for the S3 DAG bucket, VPC subnets, VPC security groups,
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -48,9 +48,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records MWAA API call counts, throttles, and pagination
+The `sdk` adapter records MWAA API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -93,7 +93,7 @@ spans.
 ## Evidence
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/mwaa/...` covers the bounded
+`go test ./internal/collector/cloud/aws/service/mwaa/...` covers the bounded
 MWAA metadata path: one paginated ListEnvironments stream followed by one
 GetEnvironment point read per environment, no CreateEnvironment,
 UpdateEnvironment, DeleteEnvironment, CreateCliToken, CreateWebLoginToken,
@@ -101,7 +101,7 @@ InvokeRestApi, PublishMetrics, TagResource, or UntagResource calls, no
 mutations, and no graph writes in the collector.
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/mwaa/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/mwaa/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers MWAA environment metadata fact emission, the environment-to-S3-bucket,
 environment-to-subnet, environment-to-security-group, environment-to-IAM-role,
 environment-to-KMS-key, and environment-to-CloudWatch-log-group relationship

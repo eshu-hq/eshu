@@ -40,7 +40,7 @@ type Snapshot struct {
 	VPCConnections map[string]VPCConnection
 	// Warnings carries non-fatal partial-scan observations such as a
 	// not-subscribed account or sustained throttling that omitted a component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // VPCConnection is the scanner-owned resolved view of a QuickSight VPC

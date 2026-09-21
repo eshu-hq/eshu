@@ -29,7 +29,7 @@ type Scanner struct {
 // and recent deployments through the configured client. It returns one
 // aws_resource fact per resource plus aws_relationship facts for the
 // deployment-group edges CodeDeploy reports directly.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("codedeploy scanner client is required")
 	}
@@ -37,10 +37,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codedeploy scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeDeploy:
+	case "", aws.ServiceCodeDeploy:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeDeploy
+		boundary.ServiceKind = aws.ServiceCodeDeploy
 	default:
 		return nil, fmt.Errorf("codedeploy scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -52,7 +52,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeDeploy applications: %w", err)
 	}
 	for _, application := range applications {
-		resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application))
+		resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application))
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +70,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeDeploy deployment configs: %w", err)
 	}
 	for _, config := range configs {
-		resource, err := awscloud.NewResourceEnvelope(deploymentConfigObservation(boundary, config))
+		resource, err := aws.NewResourceEnvelope(deploymentConfigObservation(boundary, config))
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list CodeDeploy recent deployments: %w", err)
 	}
 	for _, deployment := range deployments {
-		resource, err := awscloud.NewResourceEnvelope(deploymentObservation(boundary, deployment))
+		resource, err := aws.NewResourceEnvelope(deploymentObservation(boundary, deployment))
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +94,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func (s Scanner) scanDeploymentGroups(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	applicationName string,
 ) ([]facts.Envelope, error) {
 	groups, err := s.Client.ListDeploymentGroups(ctx, applicationName)
@@ -103,7 +103,7 @@ func (s Scanner) scanDeploymentGroups(
 	}
 	var envelopes []facts.Envelope
 	for _, group := range groups {
-		resource, err := awscloud.NewResourceEnvelope(deploymentGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(deploymentGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
@@ -119,12 +119,12 @@ func (s Scanner) scanDeploymentGroups(
 }
 
 func relationshipEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 ) ([]facts.Envelope, error) {
 	var envelopes []facts.Envelope
 	for _, observation := range deploymentGroupRelationships(boundary, group) {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}

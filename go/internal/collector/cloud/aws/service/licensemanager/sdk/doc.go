@@ -11,4 +11,4 @@
 // CheckoutLicense, CheckInLicense, GetAccessToken, every grant API, and all
 // Create/Update/Delete mutation APIs, so the adapter cannot grant, check out,
 // or mutate a license or read a license entitlement token or usage record.
-package awssdk
+package sdk

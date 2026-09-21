@@ -83,7 +83,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Summary resource.
-	summaries := resourcesByType(t, envelopes, awscloud.ResourceTypeComputeOptimizerRecommendationSummary)
+	summaries := resourcesByType(t, envelopes, aws.ResourceTypeComputeOptimizerRecommendationSummary)
 	if len(summaries) != 1 {
 		t.Fatalf("summary count = %d, want 1", len(summaries))
 	}
@@ -92,7 +92,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, summaryAttrs, "savings_opportunity_percentage", 12.5)
 
 	// Four recommendation resources (instance, asg, volume, lambda).
-	recs := resourcesByType(t, envelopes, awscloud.ResourceTypeComputeOptimizerRecommendation)
+	recs := resourcesByType(t, envelopes, aws.ResourceTypeComputeOptimizerRecommendation)
 	if len(recs) != 4 {
 		t.Fatalf("recommendation count = %d, want 4", len(recs))
 	}
@@ -104,7 +104,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "instance_id", "i-0abc123def4567890")
 
 	// instance recommendation -> EC2 instance edge keyed by bare instance id.
-	instEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance)
+	instEdge := relationshipByType(t, envelopes, aws.RelationshipComputeOptimizerRecommendationTargetsInstance)
 	assertEdgeTarget(t, instEdge, "aws_ec2_instance", "i-0abc123def4567890")
 	if got, want := instEdge.Payload["source_resource_id"], testInstanceARN; got != want {
 		t.Fatalf("instance edge source_resource_id = %#v, want %q", got, want)
@@ -115,15 +115,15 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 
 	// asg recommendation -> ASG edge keyed by group name (no target_arn, since the
 	// autoscaling scanner publishes its group resource_id as the bare name).
-	asgEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup)
-	assertEdgeTarget(t, asgEdge, awscloud.ResourceTypeAutoScalingGroup, "web-asg")
+	asgEdge := relationshipByType(t, envelopes, aws.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup)
+	assertEdgeTarget(t, asgEdge, aws.ResourceTypeAutoScalingGroup, "web-asg")
 	if got := asgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("asg edge target_arn = %#v, want empty (name-keyed target)", got)
 	}
 
 	// lambda recommendation -> function edge keyed by ARN.
-	lambdaEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction)
-	assertEdgeTarget(t, lambdaEdge, awscloud.ResourceTypeLambdaFunction, testFunctionARN)
+	lambdaEdge := relationshipByType(t, envelopes, aws.RelationshipComputeOptimizerRecommendationTargetsFunction)
+	assertEdgeTarget(t, lambdaEdge, aws.ResourceTypeLambdaFunction, testFunctionARN)
 	if got, want := lambdaEdge.Payload["target_arn"], testFunctionARN; got != want {
 		t.Fatalf("lambda edge target_arn = %#v, want %q", got, want)
 	}
@@ -133,7 +133,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["target_type"].(string); got == awscloud.ResourceTypeEC2Volume {
+		if got, _ := envelope.Payload["target_type"].(string); got == aws.ResourceTypeEC2Volume {
 			t.Fatalf("unexpected EBS volume edge emitted: %#v", envelope.Payload)
 		}
 	}
@@ -203,8 +203,8 @@ func TestScannerOmitsInstanceEdgeForNonInstanceARN(t *testing.T) {
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	boundary := testBoundary()
 	snap := fullSnapshot()
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		instanceTargetRelationship(boundary, snap.InstanceRecommendations[0]),
 		autoScalingGroupTargetRelationship(boundary, snap.AutoScalingGroupRecommendations[0]),
 		lambdaFunctionTargetRelationship(boundary, snap.LambdaFunctionRecommendations[0]),
@@ -229,7 +229,7 @@ func TestScannerSupportsGovCloudInstanceEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance)
+	edge := relationshipByType(t, envelopes, aws.RelationshipComputeOptimizerRecommendationTargetsInstance)
 	if got, want := edge.Payload["target_resource_id"], "i-0gov11112222"; got != want {
 		t.Fatalf("GovCloud instance edge target_resource_id = %#v, want %q", got, want)
 	}
@@ -237,7 +237,7 @@ func TestScannerSupportsGovCloudInstanceEdge(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -253,9 +253,9 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Compute Optimizer GetEC2InstanceRecommendations throttled after SDK retries; instance recommendations omitted for this scan",
 			SourceRecordID: "compute_optimizer_instances_throttled",
@@ -265,17 +265,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceComputeOptimizer,
+		ServiceKind:         aws.ServiceComputeOptimizer,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:computeoptimizer:1",
 		CollectorInstanceID: "aws-prod",

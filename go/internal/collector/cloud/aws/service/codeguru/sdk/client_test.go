@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsprofiler "github.com/aws/aws-sdk-go-v2/service/codeguruprofiler"
 	profilertypes "github.com/aws/aws-sdk-go-v2/service/codeguruprofiler/types"
 	awsreviewer "github.com/aws/aws-sdk-go-v2/service/codegurureviewer"
@@ -26,10 +26,10 @@ func TestClientSnapshotsCodeGuruMetadataOnly(t *testing.T) {
 	reviewer := &fakeReviewerAPI{
 		listPages: []*awsreviewer.ListRepositoryAssociationsOutput{{
 			RepositoryAssociationSummaries: []reviewertypes.RepositoryAssociationSummary{{
-				AssociationArn: aws.String(associationARN),
-				AssociationId:  aws.String("abc"),
-				Name:           aws.String("payments-api"),
-				Owner:          aws.String("123456789012"),
+				AssociationArn: awsv2.String(associationARN),
+				AssociationId:  awsv2.String("abc"),
+				Name:           awsv2.String("payments-api"),
+				Owner:          awsv2.String("123456789012"),
 				ProviderType:   reviewertypes.ProviderTypeCodeCommit,
 				State:          reviewertypes.RepositoryAssociationStateAssociated,
 			}},
@@ -37,15 +37,15 @@ func TestClientSnapshotsCodeGuruMetadataOnly(t *testing.T) {
 		describe: map[string]*awsreviewer.DescribeRepositoryAssociationOutput{
 			associationARN: {
 				RepositoryAssociation: &reviewertypes.RepositoryAssociation{
-					AssociationArn:   aws.String(associationARN),
-					Name:             aws.String("payments-api"),
-					Owner:            aws.String("123456789012"),
+					AssociationArn:   awsv2.String(associationARN),
+					Name:             awsv2.String("payments-api"),
+					Owner:            awsv2.String("123456789012"),
 					ProviderType:     reviewertypes.ProviderTypeCodeCommit,
 					State:            reviewertypes.RepositoryAssociationStateAssociated,
-					CreatedTimeStamp: aws.Time(createdAt),
+					CreatedTimeStamp: awsv2.Time(createdAt),
 					KMSKeyDetails: &reviewertypes.KMSKeyDetails{
 						EncryptionOption: reviewertypes.EncryptionOptionCmCmk,
-						KMSKeyId:         aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+						KMSKeyId:         awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 					},
 				},
 				Tags: map[string]string{"Team": "payments"},
@@ -55,13 +55,13 @@ func TestClientSnapshotsCodeGuruMetadataOnly(t *testing.T) {
 	profiler := &fakeProfilerAPI{
 		listPages: []*awsprofiler.ListProfilingGroupsOutput{{
 			ProfilingGroups: []profilertypes.ProfilingGroupDescription{{
-				Arn:             aws.String(groupARN),
-				Name:            aws.String("payments-api"),
+				Arn:             awsv2.String(groupARN),
+				Name:            awsv2.String("payments-api"),
 				ComputePlatform: profilertypes.ComputePlatformAwslambda,
 				AgentOrchestrationConfig: &profilertypes.AgentOrchestrationConfig{
 					ProfilingEnabled: &enabled,
 				},
-				CreatedAt: aws.Time(createdAt),
+				CreatedAt: awsv2.Time(createdAt),
 				Tags:      map[string]string{"Team": "payments"},
 			}},
 		}},
@@ -115,8 +115,8 @@ func TestClientListProfilingGroupsRequestsDescription(t *testing.T) {
 	profiler := &fakeProfilerAPI{
 		listPages: []*awsprofiler.ListProfilingGroupsOutput{{
 			ProfilingGroups: []profilertypes.ProfilingGroupDescription{{
-				Arn:  aws.String("arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g"),
-				Name: aws.String("g"),
+				Arn:  awsv2.String("arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g"),
+				Name: awsv2.String("g"),
 			}},
 		}},
 	}
@@ -153,7 +153,7 @@ func (f *fakeReviewerAPI) DescribeRepositoryAssociation(
 	input *awsreviewer.DescribeRepositoryAssociationInput,
 	_ ...func(*awsreviewer.Options),
 ) (*awsreviewer.DescribeRepositoryAssociationOutput, error) {
-	if out, ok := f.describe[aws.ToString(input.AssociationArn)]; ok {
+	if out, ok := f.describe[awsv2.ToString(input.AssociationArn)]; ok {
 		return out, nil
 	}
 	return &awsreviewer.DescribeRepositoryAssociationOutput{}, nil
@@ -170,7 +170,7 @@ func (f *fakeProfilerAPI) ListProfilingGroups(
 	input *awsprofiler.ListProfilingGroupsInput,
 	_ ...func(*awsprofiler.Options),
 ) (*awsprofiler.ListProfilingGroupsOutput, error) {
-	if aws.ToBool(input.IncludeDescription) {
+	if awsv2.ToBool(input.IncludeDescription) {
 		f.includeDescriptionSeen = true
 	}
 	if f.listCall >= len(f.listPages) {
@@ -181,10 +181,10 @@ func (f *fakeProfilerAPI) ListProfilingGroups(
 	return page, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodeGuru,
+		ServiceKind: aws.ServiceCodeGuru,
 	}
 }

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsdax "github.com/aws/aws-sdk-go-v2/service/dax"
 	awsdaxtypes "github.com/aws/aws-sdk-go-v2/service/dax/types"
 	"github.com/aws/smithy-go"
@@ -57,15 +57,15 @@ type apiClient interface {
 // individual parameter values, or any mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a DAX SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -88,7 +88,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]daxservice.Cluster, error)
 			var err error
 			page, err = c.client.DescribeClusters(callCtx, &awsdax.DescribeClustersInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -99,14 +99,14 @@ func (c *Client) ListClusters(ctx context.Context) ([]daxservice.Cluster, error)
 			return clusters, nil
 		}
 		for _, raw := range page.Clusters {
-			tags, err := c.listTags(ctx, aws.ToString(raw.ClusterArn))
+			tags, err := c.listTags(ctx, awsv2.ToString(raw.ClusterArn))
 			if err != nil {
 				return nil, err
 			}
 			clusters = append(clusters, mapCluster(raw, tags))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return clusters, nil
 		}
 	}
@@ -123,7 +123,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]daxservice.SubnetGroup
 			var err error
 			page, err = c.client.DescribeSubnetGroups(callCtx, &awsdax.DescribeSubnetGroupsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -137,7 +137,7 @@ func (c *Client) ListSubnetGroups(ctx context.Context) ([]daxservice.SubnetGroup
 			groups = append(groups, mapSubnetGroup(raw))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return groups, nil
 		}
 	}
@@ -155,7 +155,7 @@ func (c *Client) ListParameterGroups(ctx context.Context) ([]daxservice.Paramete
 			var err error
 			page, err = c.client.DescribeParameterGroups(callCtx, &awsdax.DescribeParameterGroupsInput{
 				NextToken:  token,
-				MaxResults: aws.Int32(describeMaxResults),
+				MaxResults: awsv2.Int32(describeMaxResults),
 			})
 			return err
 		})
@@ -169,7 +169,7 @@ func (c *Client) ListParameterGroups(ctx context.Context) ([]daxservice.Paramete
 			groups = append(groups, mapParameterGroup(raw))
 		}
 		token = page.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return groups, nil
 		}
 	}
@@ -189,7 +189,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		err := c.recordAPICall(ctx, "ListTags", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTags(callCtx, &awsdax.ListTagsInput{
-				ResourceName: aws.String(resourceARN),
+				ResourceName: awsv2.String(resourceARN),
 				NextToken:    token,
 			})
 			return err
@@ -202,7 +202,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 		}
 		tags = append(tags, output.Tags...)
 		token = output.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			break
 		}
 	}
@@ -227,7 +227,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

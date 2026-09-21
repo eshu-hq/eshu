@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ecr guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ecr guidance
 
 ## Read First
 
@@ -23,10 +23,10 @@
 ## Common Changes
 
 - Add a new ECR resource by extending the scanner-owned type, writing a focused
-  scanner test first, then mapping it through `awscloud` envelope builders.
+  scanner test first, then mapping it through `aws` envelope builders.
 - Add image-reference fields only when the ECR API reports them directly or the
   mapping is documented in the ADR.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

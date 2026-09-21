@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "codebuild".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceCodeBuild + "  "
+	boundary.ServiceKind = "  " + aws.ServiceCodeBuild + "  "
 
 	envelopes, err := Scanner{Client: sampleClient(), RedactionKey: testKey(t)}.
 		Scan(context.Background(), boundary)
@@ -28,7 +28,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceCodeBuild; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceCodeBuild; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

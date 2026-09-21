@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awslightsail "github.com/aws/aws-sdk-go-v2/service/lightsail"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/metric"
@@ -39,15 +39,15 @@ type apiClient interface {
 // never reads default key-pair private material or database master passwords.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Lightsail SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -83,7 +83,7 @@ func (c *Client) ListInstances(ctx context.Context) ([]lightsailservice.Instance
 			instances = append(instances, mapInstance(instance))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return instances, nil
 		}
 	}
@@ -113,7 +113,7 @@ func (c *Client) ListDatabases(ctx context.Context) ([]lightsailservice.Database
 			databases = append(databases, mapDatabase(database))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return databases, nil
 		}
 	}
@@ -143,7 +143,7 @@ func (c *Client) ListLoadBalancers(ctx context.Context) ([]lightsailservice.Load
 			loadBalancers = append(loadBalancers, mapLoadBalancer(loadBalancer))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return loadBalancers, nil
 		}
 	}
@@ -173,7 +173,7 @@ func (c *Client) ListDisks(ctx context.Context) ([]lightsailservice.Disk, error)
 			disks = append(disks, mapDisk(disk))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return disks, nil
 		}
 	}
@@ -203,7 +203,7 @@ func (c *Client) ListStaticIPs(ctx context.Context) ([]lightsailservice.StaticIP
 			staticIPs = append(staticIPs, mapStaticIP(staticIP))
 		}
 		pageToken = page.NextPageToken
-		if aws.ToString(pageToken) == "" {
+		if awsv2.ToString(pageToken) == "" {
 			return staticIPs, nil
 		}
 	}
@@ -227,7 +227,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

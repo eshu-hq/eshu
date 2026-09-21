@@ -17,7 +17,7 @@ import (
 // Declared here rather than imported from go/internal/collector/cloud/aws to keep
 // the reducer free of a dependency on collector internals, matching how
 // readinessDeferredFailureClasses is duplicated in the golden-corpus gate. The
-// value must stay equal to awscloud.RelationshipEC2InstanceUsesAMI; a drift
+// value must stay equal to aws.RelationshipEC2InstanceUsesAMI; a drift
 // makes this gate silently stop firing, which is why
 // TestAWSRelationshipInstanceNodeGateMatchesTheCollectorConstant pins them
 // together.

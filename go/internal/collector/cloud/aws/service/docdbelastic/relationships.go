@@ -13,8 +13,8 @@ import (
 // one edge per VPC subnet, one per security group, the KMS-key edge, and the
 // admin-secret edge. Each builder returns nil when its target identity is
 // missing so the edge is skipped rather than dangled.
-func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
-	var relationships []awscloud.RelationshipObservation
+func clusterRelationships(boundary aws.Boundary, cluster Cluster) []aws.RelationshipObservation {
+	var relationships []aws.RelationshipObservation
 	for _, subnetID := range cluster.SubnetIDs {
 		if rel := clusterSubnetRelationship(boundary, cluster, subnetID); rel != nil {
 			relationships = append(relationships, *rel)
@@ -40,23 +40,23 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 // edge is keyed by that bare id with no synthesized ARN. It returns nil when
 // either endpoint identity is missing.
 func clusterSubnetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	subnetID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	subnetID = strings.TrimSpace(subnetID)
 	sourceID := clusterResourceID(cluster)
 	if subnetID == "" || sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterInSubnet,
+		RelationshipType: aws.RelationshipDocDBElasticClusterInSubnet,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: subnetID,
-		TargetType:       awscloud.ResourceTypeEC2Subnet,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterInSubnet + ":" + subnetID,
+		TargetType:       aws.ResourceTypeEC2Subnet,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDocDBElasticClusterInSubnet + ":" + subnetID,
 	}
 }
 
@@ -66,23 +66,23 @@ func clusterSubnetRelationship(
 // security-group resource_id, so the edge is keyed by that bare id with no
 // synthesized ARN. It returns nil when either endpoint identity is missing.
 func clusterSecurityGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	cluster Cluster,
 	groupID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	groupID = strings.TrimSpace(groupID)
 	sourceID := clusterResourceID(cluster)
 	if groupID == "" || sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup,
+		RelationshipType: aws.RelationshipDocDBElasticClusterUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup + ":" + groupID,
+		TargetType:       aws.ResourceTypeEC2SecurityGroup,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDocDBElasticClusterUsesSecurityGroup + ":" + groupID,
 	}
 }
 
@@ -90,7 +90,7 @@ func clusterSecurityGroupRelationship(
 // encryption key dependency. AWS reports a key id or key ARN, which matches how
 // the KMS scanner publishes its key resource_id (bare id or ARN). target_arn is
 // set only for an ARN-shaped identifier. It returns nil when no key is reported.
-func clusterKMSRelationship(boundary awscloud.Boundary, cluster Cluster) *awscloud.RelationshipObservation {
+func clusterKMSRelationship(boundary aws.Boundary, cluster Cluster) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(cluster.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -103,15 +103,15 @@ func clusterKMSRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesKMSKey,
+		RelationshipType: aws.RelationshipDocDBElasticClusterUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDocDBElasticClusterUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -121,7 +121,7 @@ func clusterKMSRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 // which matches how the Secrets Manager scanner publishes its secret
 // resource_id (the ARN). The secret value is never read. It returns nil when no
 // secret ARN is reported.
-func clusterAdminSecretRelationship(boundary awscloud.Boundary, cluster Cluster) *awscloud.RelationshipObservation {
+func clusterAdminSecretRelationship(boundary aws.Boundary, cluster Cluster) *aws.RelationshipObservation {
 	secretARN := strings.TrimSpace(cluster.AdminSecretARN)
 	if secretARN == "" || !isARN(secretARN) {
 		return nil
@@ -130,14 +130,14 @@ func clusterAdminSecretRelationship(boundary awscloud.Boundary, cluster Cluster)
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesAdminSecret,
+		RelationshipType: aws.RelationshipDocDBElasticClusterUsesAdminSecret,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: secretARN,
 		TargetARN:        secretARN,
-		TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesAdminSecret + ":" + secretARN,
+		TargetType:       aws.ResourceTypeSecretsManagerSecret,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDocDBElasticClusterUsesAdminSecret + ":" + secretARN,
 	}
 }

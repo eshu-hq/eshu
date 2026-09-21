@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/route53/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/route53/sdk` adapts AWS SDK for Go v2
 Route 53 responses to the scanner-owned `route53.Client` contract. It owns
 Route 53 API pagination, hosted-zone tag reads, response mapping, throttle
 classification, and per-call telemetry.
@@ -15,7 +15,7 @@ admission, or query behavior.
 
 ```mermaid
 flowchart LR
-  A["awsruntime.DefaultScannerFactory"] --> B["Client"]
+  A["runtime.DefaultScannerFactory"] --> B["Client"]
   B --> C["Client.ListHostedZones"]
   B --> D["Client.ListResourceRecordSets"]
   B --> E["ListTagsForResource"]
@@ -34,8 +34,8 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - AWS SDK for Go v2 `service/route53`.
-- `internal/collector/awscloud` for claim boundary labels.
-- `internal/collector/awscloud/service/route53` for scanner-owned target
+- `internal/collector/cloud/aws` for claim boundary labels.
+- `internal/collector/cloud/aws/service/route53` for scanner-owned target
   types.
 - `internal/telemetry` for AWS API counters, throttle counters, and pagination
   spans.

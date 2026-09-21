@@ -17,23 +17,23 @@ import (
 // relationship identity is keyed on the policy id and the account id, never on
 // the member account's position in the API response.
 func policyMemberAccountRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	policy Policy,
 	accountID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	policyID := strings.TrimSpace(policy.ID)
 	accountID = strings.TrimSpace(accountID)
 	if policyID == "" || accountID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	sourceID := firstNonEmpty(strings.TrimSpace(policy.ARN), policyID)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFMSPolicyAppliesToAccount,
+		RelationshipType: aws.RelationshipFMSPolicyAppliesToAccount,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: accountID,
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       aws.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"security_service_type": strings.TrimSpace(policy.SecurityServiceType),
 			"managed_resource_type": strings.TrimSpace(policy.ResourceType),

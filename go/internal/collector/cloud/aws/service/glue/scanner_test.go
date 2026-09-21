@@ -121,7 +121,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	database := resourceByType(t, envelopes, awscloud.ResourceTypeGlueDatabase)
+	database := resourceByType(t, envelopes, aws.ResourceTypeGlueDatabase)
 	if got, want := database.Payload["name"], databaseName; got != want {
 		t.Fatalf("database name = %#v, want %q", got, want)
 	}
@@ -130,7 +130,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("database location_uri = %#v, want %q", got, want)
 	}
 
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeGlueTable)
+	table := resourceByType(t, envelopes, aws.ResourceTypeGlueTable)
 	if got, want := table.Payload["name"], tableName; got != want {
 		t.Fatalf("table name = %#v, want %q", got, want)
 	}
@@ -144,7 +144,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		}
 	}
 
-	crawler := resourceByType(t, envelopes, awscloud.ResourceTypeGlueCrawler)
+	crawler := resourceByType(t, envelopes, aws.ResourceTypeGlueCrawler)
 	crawlerAttributes := attributesOf(t, crawler)
 	if got, want := crawlerAttributes["table_prefix"], "raw_"; got != want {
 		t.Fatalf("crawler table_prefix = %#v, want %q", got, want)
@@ -156,7 +156,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("crawler classifier_patterns attribute persisted; custom classifier patterns must stay out of facts")
 	}
 
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeGlueJob)
+	job := resourceByType(t, envelopes, aws.ResourceTypeGlueJob)
 	jobAttributes := attributesOf(t, job)
 	if _, exists := jobAttributes["script_body"]; exists {
 		t.Fatalf("job script_body attribute persisted; job script bodies must never be stored")
@@ -177,18 +177,18 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("job script_location = %#v, want %q", got, want)
 	}
 
-	trigger := resourceByType(t, envelopes, awscloud.ResourceTypeGlueTrigger)
+	trigger := resourceByType(t, envelopes, aws.ResourceTypeGlueTrigger)
 	triggerAttributes := attributesOf(t, trigger)
 	if got, want := triggerAttributes["workflow_name"], workflowName; got != want {
 		t.Fatalf("trigger workflow_name = %#v, want %q", got, want)
 	}
 
-	workflow := resourceByType(t, envelopes, awscloud.ResourceTypeGlueWorkflow)
+	workflow := resourceByType(t, envelopes, aws.ResourceTypeGlueWorkflow)
 	if got, want := workflow.Payload["name"], workflowName; got != want {
 		t.Fatalf("workflow name = %#v, want %q", got, want)
 	}
 
-	connection := resourceByType(t, envelopes, awscloud.ResourceTypeGlueConnection)
+	connection := resourceByType(t, envelopes, aws.ResourceTypeGlueConnection)
 	connectionAttributes := attributesOf(t, connection)
 	if _, exists := connectionAttributes["connection_properties"]; exists {
 		t.Fatalf("connection connection_properties persisted; property values are credential-bearing")
@@ -204,19 +204,19 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		}
 	}
 
-	tableInDatabase := relationshipByType(t, envelopes, awscloud.RelationshipGlueTableInDatabase)
+	tableInDatabase := relationshipByType(t, envelopes, aws.RelationshipGlueTableInDatabase)
 	if got, want := tableInDatabase.Payload["target_resource_id"], databaseName; got != want {
 		t.Fatalf("table_in_database target_resource_id = %#v, want %q", got, want)
 	}
 
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipGlueTableStoredAtS3Location)
+	tableS3 := relationshipByType(t, envelopes, aws.RelationshipGlueTableStoredAtS3Location)
 	if got, want := tableS3.Payload["target_resource_id"], "arn:aws:s3:::analytics-warehouse"; got != want {
 		t.Fatalf("table->s3 target_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := tableS3.Payload["target_arn"], "arn:aws:s3:::analytics-warehouse"; got != want {
 		t.Fatalf("table->s3 target_arn = %#v, want %q", got, want)
 	}
-	if got, want := tableS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := tableS3.Payload["target_type"], aws.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("table->s3 target_type = %#v, want %q", got, want)
 	}
 	tableS3Attributes := attributesOf(t, tableS3)
@@ -230,7 +230,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("table->s3 object_key_prefix attribute = %#v, want %q", got, want)
 	}
 
-	crawlerDB := relationshipByType(t, envelopes, awscloud.RelationshipGlueCrawlerTargetsDatabase)
+	crawlerDB := relationshipByType(t, envelopes, aws.RelationshipGlueCrawlerTargetsDatabase)
 	if got, want := crawlerDB.Payload["source_resource_id"], crawlerName; got != want {
 		t.Fatalf("crawler->db source_resource_id = %#v, want %q", got, want)
 	}
@@ -238,15 +238,15 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("crawler->db target_resource_id = %#v, want %q", got, want)
 	}
 
-	crawlerRole := relationshipByType(t, envelopes, awscloud.RelationshipGlueCrawlerUsesIAMRole)
+	crawlerRole := relationshipByType(t, envelopes, aws.RelationshipGlueCrawlerUsesIAMRole)
 	if got, want := crawlerRole.Payload["target_arn"], crawlerRoleARN; got != want {
 		t.Fatalf("crawler->role target_arn = %#v, want %q", got, want)
 	}
-	if got, want := crawlerRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := crawlerRole.Payload["target_type"], aws.ResourceTypeIAMRole; got != want {
 		t.Fatalf("crawler->role target_type = %#v, want %q", got, want)
 	}
 
-	jobRole := relationshipByType(t, envelopes, awscloud.RelationshipGlueJobUsesIAMRole)
+	jobRole := relationshipByType(t, envelopes, aws.RelationshipGlueJobUsesIAMRole)
 	if got, want := jobRole.Payload["source_resource_id"], jobName; got != want {
 		t.Fatalf("job->role source_resource_id = %#v, want %q", got, want)
 	}
@@ -254,7 +254,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("job->role target_arn = %#v, want %q", got, want)
 	}
 
-	triggerJob := relationshipByType(t, envelopes, awscloud.RelationshipGlueTriggerInvokesJob)
+	triggerJob := relationshipByType(t, envelopes, aws.RelationshipGlueTriggerInvokesJob)
 	if got, want := triggerJob.Payload["source_resource_id"], triggerName; got != want {
 		t.Fatalf("trigger->job source_resource_id = %#v, want %q", got, want)
 	}
@@ -277,7 +277,7 @@ func TestScannerOmitsTableS3RelationshipWhenLocationIsNotS3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipGlueTableStoredAtS3Location); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipGlueTableStoredAtS3Location); got != 0 {
 		t.Fatalf("table->s3 relationship count = %d, want 0 for non-s3 storage location", got)
 	}
 }
@@ -296,7 +296,7 @@ func TestScannerTableS3RelationshipTargetsBucketARNWithoutObjectKeyPrefix(t *tes
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipGlueTableStoredAtS3Location)
+	tableS3 := relationshipByType(t, envelopes, aws.RelationshipGlueTableStoredAtS3Location)
 	if got, want := tableS3.Payload["target_resource_id"], "arn:aws:s3:::lakehouse"; got != want {
 		t.Fatalf("table->s3 target_resource_id = %#v, want %q", got, want)
 	}
@@ -326,7 +326,7 @@ func TestScannerOmitsTableS3RelationshipWhenLocationHasNoBucket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipGlueTableStoredAtS3Location); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipGlueTableStoredAtS3Location); got != 0 {
 		t.Fatalf("table->s3 relationship count = %d, want 0 for bucketless s3:// uri", got)
 	}
 }
@@ -341,10 +341,10 @@ func TestScannerOmitsRoleRelationshipsWhenRoleIsNotARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipGlueJobUsesIAMRole); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipGlueJobUsesIAMRole); got != 0 {
 		t.Fatalf("job->role relationship count = %d, want 0 for non-ARN role", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipGlueCrawlerUsesIAMRole); got != 0 {
+	if got := countRelationships(envelopes, aws.RelationshipGlueCrawlerUsesIAMRole); got != 0 {
 		t.Fatalf("crawler->role relationship count = %d, want 0 for non-ARN role", got)
 	}
 }
@@ -359,7 +359,7 @@ func TestScannerEmitsOneRelationshipPerTriggerAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipGlueTriggerInvokesJob); got != 2 {
+	if got := countRelationships(envelopes, aws.RelationshipGlueTriggerInvokesJob); got != 2 {
 		t.Fatalf("trigger->job relationship count = %d, want 2", got)
 	}
 }
@@ -381,7 +381,7 @@ func TestScannerDropsSecretShapedDefaultArgumentKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeGlueJob)
+	job := resourceByType(t, envelopes, aws.ResourceTypeGlueJob)
 	keys, ok := attributesOf(t, job)["default_argument_keys"].([]string)
 	if !ok {
 		t.Fatalf("default_argument_keys = %#v, want []string", attributesOf(t, job)["default_argument_keys"])
@@ -415,7 +415,7 @@ func TestScannerDropsSecretShapedConnectionPropertyKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	connection := resourceByType(t, envelopes, awscloud.ResourceTypeGlueConnection)
+	connection := resourceByType(t, envelopes, aws.ResourceTypeGlueConnection)
 	keys, ok := attributesOf(t, connection)["property_keys"].([]string)
 	if !ok {
 		t.Fatalf("property_keys = %#v, want []string", attributesOf(t, connection)["property_keys"])
@@ -441,7 +441,7 @@ func TestScannerDropsSecretShapedConnectionPropertyKeys(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = aws.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -456,11 +456,11 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceGlue,
+		ServiceKind:         aws.ServiceGlue,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:glue:1",
 		CollectorInstanceID: "aws-prod",

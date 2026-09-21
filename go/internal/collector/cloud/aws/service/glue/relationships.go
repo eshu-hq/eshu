@@ -9,23 +9,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func tableInDatabaseRelationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
+func tableInDatabaseRelationship(boundary aws.Boundary, table Table) *aws.RelationshipObservation {
 	tableID := tableResourceID(table)
 	databaseName := strings.TrimSpace(table.DatabaseName)
 	if tableID == "" || databaseName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueTableInDatabase,
+		RelationshipType: aws.RelationshipGlueTableInDatabase,
 		SourceResourceID: tableID,
 		TargetResourceID: databaseName,
-		TargetType:       awscloud.ResourceTypeGlueDatabase,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipGlueTableInDatabase + ":" + databaseName,
+		TargetType:       aws.ResourceTypeGlueDatabase,
+		SourceRecordID:   tableID + "->" + aws.RelationshipGlueTableInDatabase + ":" + databaseName,
 	}
 }
 
-func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
+func tableS3LocationRelationship(boundary aws.Boundary, table Table) *aws.RelationshipObservation {
 	location := strings.TrimSpace(table.StorageLocation)
 	bucket, prefix, ok := parseS3Location(location)
 	if !ok {
@@ -35,7 +35,7 @@ func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscl
 	if tableID == "" {
 		return nil
 	}
-	bucketARN := "arn:" + awscloud.PartitionForBoundary(boundary) + ":s3:::" + bucket
+	bucketARN := "arn:" + aws.PartitionForBoundary(boundary) + ":s3:::" + bucket
 	attributes := map[string]any{
 		"storage_location": location,
 		"bucket":           bucket,
@@ -43,15 +43,15 @@ func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscl
 	if prefix != "" {
 		attributes["object_key_prefix"] = prefix
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueTableStoredAtS3Location,
+		RelationshipType: aws.RelationshipGlueTableStoredAtS3Location,
 		SourceResourceID: tableID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipGlueTableStoredAtS3Location + ":" + bucketARN,
+		SourceRecordID:   tableID + "->" + aws.RelationshipGlueTableStoredAtS3Location + ":" + bucketARN,
 	}
 }
 
@@ -80,23 +80,23 @@ func parseS3Location(location string) (bucket string, prefix string, ok bool) {
 	return bucket, prefix, true
 }
 
-func crawlerDatabaseRelationship(boundary awscloud.Boundary, crawler Crawler) *awscloud.RelationshipObservation {
+func crawlerDatabaseRelationship(boundary aws.Boundary, crawler Crawler) *aws.RelationshipObservation {
 	crawlerName := strings.TrimSpace(crawler.Name)
 	databaseName := strings.TrimSpace(crawler.DatabaseName)
 	if crawlerName == "" || databaseName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueCrawlerTargetsDatabase,
+		RelationshipType: aws.RelationshipGlueCrawlerTargetsDatabase,
 		SourceResourceID: crawlerName,
 		TargetResourceID: databaseName,
-		TargetType:       awscloud.ResourceTypeGlueDatabase,
-		SourceRecordID:   crawlerName + "->" + awscloud.RelationshipGlueCrawlerTargetsDatabase + ":" + databaseName,
+		TargetType:       aws.ResourceTypeGlueDatabase,
+		SourceRecordID:   crawlerName + "->" + aws.RelationshipGlueCrawlerTargetsDatabase + ":" + databaseName,
 	}
 }
 
-func crawlerRoleRelationship(boundary awscloud.Boundary, crawler Crawler) *awscloud.RelationshipObservation {
+func crawlerRoleRelationship(boundary aws.Boundary, crawler Crawler) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(crawler.RoleARN)
 	if !isARN(roleARN) {
 		return nil
@@ -105,18 +105,18 @@ func crawlerRoleRelationship(boundary awscloud.Boundary, crawler Crawler) *awscl
 	if crawlerName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueCrawlerUsesIAMRole,
+		RelationshipType: aws.RelationshipGlueCrawlerUsesIAMRole,
 		SourceResourceID: crawlerName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   crawlerName + "->" + awscloud.RelationshipGlueCrawlerUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   crawlerName + "->" + aws.RelationshipGlueCrawlerUsesIAMRole + ":" + roleARN,
 	}
 }
 
-func jobRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.RelationshipObservation {
+func jobRoleRelationship(boundary aws.Boundary, job Job) *aws.RelationshipObservation {
 	roleARN := strings.TrimSpace(job.RoleARN)
 	if !isARN(roleARN) {
 		return nil
@@ -125,23 +125,23 @@ func jobRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.Relation
 	if jobName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueJobUsesIAMRole,
+		RelationshipType: aws.RelationshipGlueJobUsesIAMRole,
 		SourceResourceID: jobName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   jobName + "->" + awscloud.RelationshipGlueJobUsesIAMRole + ":" + roleARN,
+		TargetType:       aws.ResourceTypeIAMRole,
+		SourceRecordID:   jobName + "->" + aws.RelationshipGlueJobUsesIAMRole + ":" + roleARN,
 	}
 }
 
-func triggerJobRelationships(boundary awscloud.Boundary, trigger Trigger) []awscloud.RelationshipObservation {
+func triggerJobRelationships(boundary aws.Boundary, trigger Trigger) []aws.RelationshipObservation {
 	triggerName := strings.TrimSpace(trigger.Name)
 	if triggerName == "" || len(trigger.ActionJobs) == 0 {
 		return nil
 	}
-	observations := make([]awscloud.RelationshipObservation, 0, len(trigger.ActionJobs))
+	observations := make([]aws.RelationshipObservation, 0, len(trigger.ActionJobs))
 	seen := make(map[string]struct{}, len(trigger.ActionJobs))
 	for _, jobName := range trigger.ActionJobs {
 		target := strings.TrimSpace(jobName)
@@ -152,13 +152,13 @@ func triggerJobRelationships(boundary awscloud.Boundary, trigger Trigger) []awsc
 			continue
 		}
 		seen[target] = struct{}{}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGlueTriggerInvokesJob,
+			RelationshipType: aws.RelationshipGlueTriggerInvokesJob,
 			SourceResourceID: triggerName,
 			TargetResourceID: target,
-			TargetType:       awscloud.ResourceTypeGlueJob,
-			SourceRecordID:   triggerName + "->" + awscloud.RelationshipGlueTriggerInvokesJob + ":" + target,
+			TargetType:       aws.ResourceTypeGlueJob,
+			SourceRecordID:   triggerName + "->" + aws.RelationshipGlueTriggerInvokesJob + ":" + target,
 		})
 	}
 	if len(observations) == 0 {

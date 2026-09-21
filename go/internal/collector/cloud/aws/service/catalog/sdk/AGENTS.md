@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/catalog/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/catalog/sdk guidance
 
 ## Read First
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elb` owns the scanner-side Classic Load
+`internal/collector/cloud/aws/service/elb` owns the scanner-side Classic Load
 Balancer (ELB v1) fact selection for the AWS cloud collector. It converts each
 Classic load balancer and its reported registered instances, subnets, security
 groups, VPC, and HTTPS/SSL listener certificates into `aws_resource` and
@@ -22,8 +22,8 @@ claims, graph writes, reducer admission, or query behavior.
 flowchart LR
   A["elb.Client"] --> B["Scanner.Scan"]
   B --> C["LoadBalancer"]
-  C --> D["awscloud.ResourceObservation"]
-  C --> E["awscloud.RelationshipObservation"]
+  C --> D["aws.ResourceObservation"]
+  C --> E["aws.RelationshipObservation"]
   D --> F["aws_resource facts"]
   E --> G["aws_relationship facts"]
 ```
@@ -33,7 +33,7 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Scanner` - emits Classic ELB facts for one claimed AWS boundary.
-- `Client` - scanner-owned read surface implemented by `awssdk.Client`.
+- `Client` - scanner-owned read surface implemented by `sdk.Client`.
 - `LoadBalancer`, `Listener`, and `HealthCheck` - scanner-owned Classic ELB
   records.
 
@@ -67,13 +67,13 @@ Every edge sources from the synthesized load balancer ARN:
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 - `internal/redact` is not used here; Classic ELB facts carry no secret values.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
+This package emits no metrics or spans directly. The `sdk` adapter emits AWS
 API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants
@@ -93,7 +93,7 @@ API call counters, throttle counters, and pagination spans.
 ## Evidence
 
 No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/elb/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
+`go test ./internal/collector/cloud/aws/service/elb/... ./internal/collector/cloud/aws/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers Classic load balancer resource emission with the synthesized
 partition-aware ARN, registered-instance / subnet / security-group / VPC / ACM-
 certificate / IAM-server-certificate relationship emission with the
@@ -107,7 +107,7 @@ new metadata-only scanner with no graph-write, queue, or hot-path behavior
 change.
 
 No-Observability-Change: the scanner reuses the existing AWS collector telemetry
-contract. The `awssdk` adapter emits the shared `aws.service.pagination.page`
+contract. The `sdk` adapter emits the shared `aws.service.pagination.page`
 span and `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total` counters
 labeled by service, account, region, operation, and result only. No new metric,
 span, label, or status field is introduced, and no metric label carries an ARN,

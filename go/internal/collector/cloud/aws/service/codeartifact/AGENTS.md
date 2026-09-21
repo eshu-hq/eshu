@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/codeartifact guidance
+# AGENTS.md - internal/collector/cloud/aws/service/codeartifact guidance
 
 ## Read First
 
@@ -20,12 +20,12 @@
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or deployable-unit truth from domain or repository names.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant (or the documented
+  `aws.ResourceType*` constant (or the documented
   `public_package_registry` allowlist entry) and a `target_resource_id` matching
   how the target scanner publishes its `resource_id`.
 - Use API-reported ARNs directly so they stay partition-aware. If you ever
   synthesize an ARN, derive the partition through
-  `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - Preserve stable domain and repository identities across repeated observations
   in the same AWS generation.
 - Keep encryption-key ARNs, repository descriptions, and external-connection
@@ -36,8 +36,8 @@
 - Add a new CodeArtifact resource or edge by extending the scanner-owned type,
   writing a focused scanner test first (resource counts, every edge's
   `target_type` and `target_resource_id`, a `relguard.AssertObservations`
-  call), then mapping it through `awscloud` envelope builders.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+  call), then mapping it through `aws` envelope builders.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

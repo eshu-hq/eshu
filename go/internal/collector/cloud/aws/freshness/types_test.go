@@ -20,8 +20,8 @@ func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
 		Kind:         EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-1",
 		ObservedAt:   time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
 	}
@@ -40,7 +40,7 @@ func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
 	if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
 		t.Fatalf("AcceptanceUnitID() JSON decode error = %v", err)
 	}
-	if got, want := decoded["service_kind"], awscloud.ServiceLambda; got != want {
+	if got, want := decoded["service_kind"], aws.ServiceLambda; got != want {
 		t.Fatalf("service_kind = %q, want %q", got, want)
 	}
 }
@@ -61,7 +61,7 @@ func TestTriggerValidateRejectsWildcardAndUnknownService(t *testing.T) {
 				Kind:        EventKindConfigChange,
 				AccountID:   "123456789012",
 				Region:      "*",
-				ServiceKind: awscloud.ServiceLambda,
+				ServiceKind: aws.ServiceLambda,
 				ObservedAt:  observedAt,
 			},
 			want: "region must not contain wildcard",
@@ -104,8 +104,8 @@ func TestStoredTriggerKeysCoalesceByTarget(t *testing.T) {
 		Kind:         EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  aws.ServiceLambda,
+		ResourceType: aws.ResourceTypeLambdaFunction,
 		ResourceID:   "function-a",
 		ObservedAt:   observedAt,
 	}

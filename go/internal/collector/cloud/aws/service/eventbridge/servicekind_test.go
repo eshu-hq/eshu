@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "eventbridge".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceEventBridge + "  "
+	boundary.ServiceKind = "  " + aws.ServiceEventBridge + "  "
 	client := fakeClient{buses: []EventBus{{
 		ARN:  "arn:aws:events:us-east-1:123456789012:event-bus/padded",
 		Name: "padded",
@@ -31,7 +31,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceEventBridge; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceEventBridge; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "mq".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceMQ + "  "
+	boundary.ServiceKind = "  " + aws.ServiceMQ + "  "
 	client := fakeClient{brokers: []Broker{{
 		ARN:  "arn:aws:mq:us-east-1:123456789012:broker:padded:b-1111",
 		ID:   "b-1111",
@@ -32,7 +32,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMQ; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceMQ; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

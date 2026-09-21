@@ -13,4 +13,4 @@
 // mutation API, so the adapter cannot read policy bodies or mutate VPC Lattice
 // state. GetService and GetTargetGroup are read-only detail reads used for the
 // certificate ARN and backing VPC identifier the list summaries omit.
-package awssdk
+package sdk

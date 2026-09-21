@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elasticbeanstalk` owns the Elastic
+`internal/collector/cloud/aws/service/elasticbeanstalk` owns the Elastic
 Beanstalk scanner contract for the AWS cloud collector. It converts
 applications, environments, application versions, and the relationships Elastic
 Beanstalk reports into AWS cloud fact envelopes.
@@ -38,7 +38,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, redaction helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 - `internal/redact` for HMAC-SHA256 option-setting value markers.
@@ -48,9 +48,9 @@ Go v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource/relationship counts after `Scanner.Scan`
-returns. The `awssdk` adapter records Elastic Beanstalk API call counts,
+returns. The `sdk` adapter records Elastic Beanstalk API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -84,7 +84,7 @@ throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/elasticbeanstalk/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/elasticbeanstalk/...`
 covers the bounded Elastic Beanstalk metadata path: one DescribeApplications
 call, one paginated DescribeApplicationVersions stream, one paginated
 DescribeEnvironments stream, and a per-environment DescribeEnvironmentResources
@@ -92,7 +92,7 @@ plus DescribeConfigurationSettings fan-out. No mutation, environment-rebuild,
 CNAME-swap, environment-info data-plane, or configuration-validation API is
 reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers application, environment, and application-version fact emission, every
 relationship's non-empty target type and join key, redaction of every
 option-setting value, structural absence of clear-text secret values in emitted

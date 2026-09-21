@@ -22,7 +22,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsForeignServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceVPC
+	boundary.ServiceKind = aws.ServiceVPC
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatal("Scan() error = nil, want error for foreign service_kind")
@@ -55,7 +55,7 @@ func TestScannerEmitsConnection(t *testing.T) {
 		}},
 	})
 
-	conn := resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectConnection)
+	conn := resourceByType(t, envelopes, aws.ResourceTypeDirectConnectConnection)
 	if got, _ := conn.Payload["resource_id"].(string); got != "dxcon-1" {
 		t.Fatalf("connection resource_id = %q", got)
 	}
@@ -91,15 +91,15 @@ func TestScannerEmitsConnectionInLAG(t *testing.T) {
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectLAG)
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipDirectConnectConnectionInLAG)
+	resourceByType(t, envelopes, aws.ResourceTypeDirectConnectLAG)
+	edge := relationshipByType(t, envelopes, aws.RelationshipDirectConnectConnectionInLAG)
 	if got, _ := edge.Payload["source_resource_id"].(string); got != "dxcon-1" {
 		t.Fatalf("connection->lag source = %q", got)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != "dxlag-1" {
 		t.Fatalf("connection->lag target = %q", got)
 	}
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeDirectConnectLAG {
+	if got, _ := edge.Payload["target_type"].(string); got != aws.ResourceTypeDirectConnectLAG {
 		t.Fatalf("connection->lag target_type = %q", got)
 	}
 }
@@ -118,7 +118,7 @@ func TestScannerEmitsVirtualInterfaceEdges(t *testing.T) {
 		}},
 	})
 
-	vif := resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectVirtualInterface)
+	vif := resourceByType(t, envelopes, aws.ResourceTypeDirectConnectVirtualInterface)
 	attributes := attributesOf(t, vif)
 	if got := attributes["virtual_interface_type"]; got != "transit" {
 		t.Fatalf("virtual_interface_type = %#v", got)
@@ -130,19 +130,19 @@ func TestScannerEmitsVirtualInterfaceEdges(t *testing.T) {
 		t.Fatalf("bgp_asn = %#v, want 65000", got)
 	}
 
-	toGateway := relationshipByType(t, envelopes, awscloud.RelationshipDirectConnectVirtualInterfaceToGateway)
+	toGateway := relationshipByType(t, envelopes, aws.RelationshipDirectConnectVirtualInterfaceToGateway)
 	if got, _ := toGateway.Payload["target_resource_id"].(string); got != "dxgw-1" {
 		t.Fatalf("vif->gateway target = %q", got)
 	}
-	if got, _ := toGateway.Payload["target_type"].(string); got != awscloud.ResourceTypeDirectConnectGateway {
+	if got, _ := toGateway.Payload["target_type"].(string); got != aws.ResourceTypeDirectConnectGateway {
 		t.Fatalf("vif->gateway target_type = %q", got)
 	}
 
-	toConnection := relationshipByType(t, envelopes, awscloud.RelationshipDirectConnectVirtualInterfaceToConnection)
+	toConnection := relationshipByType(t, envelopes, aws.RelationshipDirectConnectVirtualInterfaceToConnection)
 	if got, _ := toConnection.Payload["target_resource_id"].(string); got != "dxcon-1" {
 		t.Fatalf("vif->connection target = %q", got)
 	}
-	if got, _ := toConnection.Payload["target_type"].(string); got != awscloud.ResourceTypeDirectConnectConnection {
+	if got, _ := toConnection.Payload["target_type"].(string); got != aws.ResourceTypeDirectConnectConnection {
 		t.Fatalf("vif->connection target_type = %q", got)
 	}
 }
@@ -160,11 +160,11 @@ func TestVirtualInterfaceWithoutGatewayEmitsNoGatewayEdge(t *testing.T) {
 		}},
 	})
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectVirtualInterface)
-	if hasRelationship(envelopes, awscloud.RelationshipDirectConnectVirtualInterfaceToGateway) {
+	resourceByType(t, envelopes, aws.ResourceTypeDirectConnectVirtualInterface)
+	if hasRelationship(envelopes, aws.RelationshipDirectConnectVirtualInterfaceToGateway) {
 		t.Fatal("public virtual interface fabricated a gateway edge")
 	}
-	if hasRelationship(envelopes, awscloud.RelationshipDirectConnectVirtualInterfaceToConnection) {
+	if hasRelationship(envelopes, aws.RelationshipDirectConnectVirtualInterfaceToConnection) {
 		t.Fatal("virtual interface without a connection fabricated a connection edge")
 	}
 }
@@ -185,7 +185,7 @@ func TestScannerEmitsGatewayMatchingTransitGatewayEdgeTarget(t *testing.T) {
 		}},
 	})
 
-	gw := resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectGateway)
+	gw := resourceByType(t, envelopes, aws.ResourceTypeDirectConnectGateway)
 	if got, _ := gw.Payload["resource_type"].(string); got != "aws_direct_connect_gateway" {
 		t.Fatalf("gateway resource_type = %q, want aws_direct_connect_gateway (matches TGW edge target_type)", got)
 	}
@@ -210,15 +210,15 @@ func TestScannerEmitsGatewayToTransitGatewayAssociation(t *testing.T) {
 		}},
 	})
 
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipDirectConnectGatewayToTransitGateway)
+	edge := relationshipByType(t, envelopes, aws.RelationshipDirectConnectGatewayToTransitGateway)
 	if got, _ := edge.Payload["source_resource_id"].(string); got != "dxgw-1" {
 		t.Fatalf("dxgw->tgw source = %q", got)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != "tgw-1" {
 		t.Fatalf("dxgw->tgw target = %q", got)
 	}
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeTransitGateway {
-		t.Fatalf("dxgw->tgw target_type = %q, want %q", got, awscloud.ResourceTypeTransitGateway)
+	if got, _ := edge.Payload["target_type"].(string); got != aws.ResourceTypeTransitGateway {
+		t.Fatalf("dxgw->tgw target_type = %q, want %q", got, aws.ResourceTypeTransitGateway)
 	}
 }
 
@@ -236,12 +236,12 @@ func TestScannerEmitsGatewayToVPNGatewayAssociation(t *testing.T) {
 		}},
 	})
 
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipDirectConnectGatewayToVPNGateway)
+	edge := relationshipByType(t, envelopes, aws.RelationshipDirectConnectGatewayToVPNGateway)
 	if got, _ := edge.Payload["target_resource_id"].(string); got != "vgw-1" {
 		t.Fatalf("dxgw->vgw target = %q", got)
 	}
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeVPCVPNGateway {
-		t.Fatalf("dxgw->vgw target_type = %q, want %q", got, awscloud.ResourceTypeVPCVPNGateway)
+	if got, _ := edge.Payload["target_type"].(string); got != aws.ResourceTypeVPCVPNGateway {
+		t.Fatalf("dxgw->vgw target_type = %q, want %q", got, aws.ResourceTypeVPCVPNGateway)
 	}
 }
 
@@ -259,8 +259,8 @@ func TestGatewayAssociationUnknownTypeEmitsNoEdge(t *testing.T) {
 	})
 
 	for _, forbidden := range []string{
-		awscloud.RelationshipDirectConnectGatewayToTransitGateway,
-		awscloud.RelationshipDirectConnectGatewayToVPNGateway,
+		aws.RelationshipDirectConnectGatewayToTransitGateway,
+		aws.RelationshipDirectConnectGatewayToVPNGateway,
 	} {
 		if hasRelationship(envelopes, forbidden) {
 			t.Fatalf("unknown associated gateway type fabricated edge %q", forbidden)
@@ -334,7 +334,7 @@ func TestVirtualInterfaceAttributesNeverIncludeAuthKey(t *testing.T) {
 			ASN:   65000,
 		}},
 	})
-	vif := resourceByType(t, envelopes, awscloud.ResourceTypeDirectConnectVirtualInterface)
+	vif := resourceByType(t, envelopes, aws.ResourceTypeDirectConnectVirtualInterface)
 	attributes := attributesOf(t, vif)
 	for key := range attributes {
 		lower := strings.ToLower(key)
@@ -350,14 +350,14 @@ func TestVirtualInterfaceAttributesNeverIncludeAuthKey(t *testing.T) {
 // targets.
 func TestResourceTypesDisjointFromOtherScanners(t *testing.T) {
 	foreign := map[string]struct{}{
-		awscloud.ResourceTypeTransitGateway: {},
-		awscloud.ResourceTypeVPCVPNGateway:  {},
+		aws.ResourceTypeTransitGateway: {},
+		aws.ResourceTypeVPCVPNGateway:  {},
 	}
 	emitted := []string{
-		awscloud.ResourceTypeDirectConnectConnection,
-		awscloud.ResourceTypeDirectConnectVirtualInterface,
-		awscloud.ResourceTypeDirectConnectGateway,
-		awscloud.ResourceTypeDirectConnectLAG,
+		aws.ResourceTypeDirectConnectConnection,
+		aws.ResourceTypeDirectConnectVirtualInterface,
+		aws.ResourceTypeDirectConnectGateway,
+		aws.ResourceTypeDirectConnectLAG,
 	}
 	seen := map[string]struct{}{}
 	for _, resourceType := range emitted {

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsfirehose "github.com/aws/aws-sdk-go-v2/service/firehose"
 	awsfirehosetypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
 	awskinesis "github.com/aws/aws-sdk-go-v2/service/kinesis"
@@ -24,16 +24,16 @@ func TestClientListDataStreamsMapsSummaryAndTags(t *testing.T) {
 			StreamNames: []string{"orders"},
 		}},
 		summary: &awskinesistypes.StreamDescriptionSummary{
-			StreamARN:            aws.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders"),
-			StreamName:           aws.String("orders"),
+			StreamARN:            awsv2.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders"),
+			StreamName:           awsv2.String("orders"),
 			StreamStatus:         awskinesistypes.StreamStatusActive,
-			OpenShardCount:       aws.Int32(8),
-			RetentionPeriodHours: aws.Int32(72),
+			OpenShardCount:       awsv2.Int32(8),
+			RetentionPeriodHours: awsv2.Int32(72),
 			EncryptionType:       awskinesistypes.EncryptionTypeKms,
-			KeyId:                aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+			KeyId:                awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
 			StreamModeDetails:    &awskinesistypes.StreamModeDetails{StreamMode: awskinesistypes.StreamModeOnDemand},
 		},
-		tags: []awskinesistypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		tags: []awskinesistypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 	}
 	adapter := &Client{dataStreams: fake, boundary: testBoundary()}
 
@@ -72,15 +72,15 @@ func TestClientListDataStreamsContinuesWithExclusiveStartStreamName(t *testing.T
 		listPages: []*awskinesis.ListStreamsOutput{
 			{
 				StreamNames:    []string{"alpha", "bravo"},
-				HasMoreStreams: aws.Bool(true),
+				HasMoreStreams: awsv2.Bool(true),
 			},
 			{
 				StreamNames:    []string{"charlie"},
-				HasMoreStreams: aws.Bool(false),
+				HasMoreStreams: awsv2.Bool(false),
 			},
 		},
 		summary: &awskinesistypes.StreamDescriptionSummary{
-			StreamName:   aws.String("placeholder"),
+			StreamName:   awsv2.String("placeholder"),
 			StreamStatus: awskinesistypes.StreamStatusActive,
 		},
 	}
@@ -97,10 +97,10 @@ func TestClientListDataStreamsContinuesWithExclusiveStartStreamName(t *testing.T
 		t.Fatalf("ListStreams call count = %d, want %d", got, want)
 	}
 	second := fake.listInputs[1]
-	if got := aws.ToString(second.ExclusiveStartStreamName); got != "bravo" {
+	if got := awsv2.ToString(second.ExclusiveStartStreamName); got != "bravo" {
 		t.Fatalf("second ExclusiveStartStreamName = %q, want bravo", got)
 	}
-	if got := aws.ToString(second.NextToken); got != "" {
+	if got := awsv2.ToString(second.NextToken); got != "" {
 		t.Fatalf("second NextToken = %q, want empty; stream name must not be sent as an opaque token", got)
 	}
 }
@@ -111,13 +111,13 @@ func TestClientListFirehoseMapsDestinationsWithoutSecretsAndExtractsLambda(t *te
 			DeliveryStreamNames: []string{"ingest"},
 		}},
 		description: &awsfirehosetypes.DeliveryStreamDescription{
-			DeliveryStreamARN:    aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/ingest"),
-			DeliveryStreamName:   aws.String("ingest"),
+			DeliveryStreamARN:    awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/ingest"),
+			DeliveryStreamName:   awsv2.String("ingest"),
 			DeliveryStreamStatus: awsfirehosetypes.DeliveryStreamStatusActive,
 			DeliveryStreamType:   awsfirehosetypes.DeliveryStreamTypeKinesisStreamAsSource,
 			Source: &awsfirehosetypes.SourceDescription{
 				KinesisStreamSourceDescription: &awsfirehosetypes.KinesisStreamSourceDescription{
-					KinesisStreamARN: aws.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders"),
+					KinesisStreamARN: awsv2.String("arn:aws:kinesis:us-east-1:123456789012:stream/orders"),
 				},
 			},
 			DeliveryStreamEncryptionConfiguration: &awsfirehosetypes.DeliveryStreamEncryptionConfiguration{
@@ -126,22 +126,22 @@ func TestClientListFirehoseMapsDestinationsWithoutSecretsAndExtractsLambda(t *te
 			},
 			Destinations: []awsfirehosetypes.DestinationDescription{
 				{
-					DestinationId: aws.String("destinationId-000000000001"),
+					DestinationId: awsv2.String("destinationId-000000000001"),
 					ExtendedS3DestinationDescription: &awsfirehosetypes.ExtendedS3DestinationDescription{
-						BucketARN: aws.String("arn:aws:s3:::ingest-bucket"),
-						RoleARN:   aws.String("arn:aws:iam::123456789012:role/firehose-delivery"),
+						BucketARN: awsv2.String("arn:aws:s3:::ingest-bucket"),
+						RoleARN:   awsv2.String("arn:aws:iam::123456789012:role/firehose-delivery"),
 						ProcessingConfiguration: &awsfirehosetypes.ProcessingConfiguration{
-							Enabled: aws.Bool(true),
+							Enabled: awsv2.Bool(true),
 							Processors: []awsfirehosetypes.Processor{{
 								Type: awsfirehosetypes.ProcessorTypeLambda,
 								Parameters: []awsfirehosetypes.ProcessorParameter{
 									{
 										ParameterName:  awsfirehosetypes.ProcessorParameterNameLambdaArn,
-										ParameterValue: aws.String("arn:aws:lambda:us-east-1:123456789012:function:transform"),
+										ParameterValue: awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:transform"),
 									},
 									{
 										ParameterName:  awsfirehosetypes.ProcessorParameterNameBufferSizeInMb,
-										ParameterValue: aws.String("3"),
+										ParameterValue: awsv2.String("3"),
 									},
 								},
 							}},
@@ -150,7 +150,7 @@ func TestClientListFirehoseMapsDestinationsWithoutSecretsAndExtractsLambda(t *te
 				},
 			},
 		},
-		tags: []awsfirehosetypes.Tag{{Key: aws.String("team"), Value: aws.String("data")}},
+		tags: []awsfirehosetypes.Tag{{Key: awsv2.String("team"), Value: awsv2.String("data")}},
 	}
 	adapter := &Client{firehose: fake, boundary: testBoundary()}
 
@@ -192,14 +192,14 @@ func TestClientListFirehoseRedshiftDoesNotMapUsernameOrPassword(t *testing.T) {
 			DeliveryStreamNames: []string{"warehouse"},
 		}},
 		description: &awsfirehosetypes.DeliveryStreamDescription{
-			DeliveryStreamARN:  aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/warehouse"),
-			DeliveryStreamName: aws.String("warehouse"),
+			DeliveryStreamARN:  awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/warehouse"),
+			DeliveryStreamName: awsv2.String("warehouse"),
 			Destinations: []awsfirehosetypes.DestinationDescription{{
-				DestinationId: aws.String("destinationId-000000000001"),
+				DestinationId: awsv2.String("destinationId-000000000001"),
 				RedshiftDestinationDescription: &awsfirehosetypes.RedshiftDestinationDescription{
-					RoleARN:        aws.String("arn:aws:iam::123456789012:role/firehose-redshift"),
-					ClusterJDBCURL: aws.String("jdbc:redshift://analytics-cluster.abc123.us-east-1.redshift.amazonaws.com:5439/dev"),
-					Username:       aws.String("masteruser"),
+					RoleARN:        awsv2.String("arn:aws:iam::123456789012:role/firehose-redshift"),
+					ClusterJDBCURL: awsv2.String("jdbc:redshift://analytics-cluster.abc123.us-east-1.redshift.amazonaws.com:5439/dev"),
+					Username:       awsv2.String("masteruser"),
 				},
 			}},
 		},
@@ -227,15 +227,15 @@ func TestClientListFirehoseHTTPEndpointMapsURLNotAccessKey(t *testing.T) {
 			DeliveryStreamNames: []string{"webhook"},
 		}},
 		description: &awsfirehosetypes.DeliveryStreamDescription{
-			DeliveryStreamARN:  aws.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/webhook"),
-			DeliveryStreamName: aws.String("webhook"),
+			DeliveryStreamARN:  awsv2.String("arn:aws:firehose:us-east-1:123456789012:deliverystream/webhook"),
+			DeliveryStreamName: awsv2.String("webhook"),
 			Destinations: []awsfirehosetypes.DestinationDescription{{
-				DestinationId: aws.String("destinationId-000000000001"),
+				DestinationId: awsv2.String("destinationId-000000000001"),
 				HttpEndpointDestinationDescription: &awsfirehosetypes.HttpEndpointDestinationDescription{
-					RoleARN: aws.String("arn:aws:iam::123456789012:role/firehose-http"),
+					RoleARN: awsv2.String("arn:aws:iam::123456789012:role/firehose-http"),
 					EndpointConfiguration: &awsfirehosetypes.HttpEndpointDescription{
-						Name: aws.String("partner"),
-						Url:  aws.String("https://collector.example.com/ingest"),
+						Name: awsv2.String("partner"),
+						Url:  awsv2.String("https://collector.example.com/ingest"),
 					},
 				},
 			}},
@@ -265,12 +265,12 @@ func TestClientListVideoStreamsMapsStreamInfoAndTags(t *testing.T) {
 	fake := &fakeVideoAPI{
 		listPages: []*awskinesisvideo.ListStreamsOutput{{
 			StreamInfoList: []awskinesisvideotypes.StreamInfo{{
-				StreamARN:            aws.String("arn:aws:kinesisvideo:us-east-1:123456789012:stream/door-cam/1"),
-				StreamName:           aws.String("door-cam"),
+				StreamARN:            awsv2.String("arn:aws:kinesisvideo:us-east-1:123456789012:stream/door-cam/1"),
+				StreamName:           awsv2.String("door-cam"),
 				Status:               awskinesisvideotypes.StatusActive,
-				KmsKeyId:             aws.String("arn:aws:kms:us-east-1:123456789012:key/video"),
-				MediaType:            aws.String("video/h264"),
-				DataRetentionInHours: aws.Int32(48),
+				KmsKeyId:             awsv2.String("arn:aws:kms:us-east-1:123456789012:key/video"),
+				MediaType:            awsv2.String("video/h264"),
+				DataRetentionInHours: awsv2.Int32(48),
 			}},
 		}},
 		tags: map[string]string{"Site": "hq"},
@@ -299,8 +299,8 @@ func TestClientListVideoStreamsMapsStreamInfoAndTags(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKinesis}
+func testBoundary() aws.Boundary {
+	return aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceKinesis}
 }
 
 type fakeDataStreamsAPI struct {

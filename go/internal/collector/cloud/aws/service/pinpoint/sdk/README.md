@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/pinpoint/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/pinpoint/sdk` adapts AWS SDK for Go v2
 Pinpoint responses to the scanner-owned `Client` contract. It owns application
 pagination, per-application segment pagination, channel-settings reads, the
 email-channel SES-reference enrichment read, throttle classification, and
@@ -37,9 +37,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/pinpoint` for scanner-owned result
+- `internal/collector/cloud/aws/service/pinpoint` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `pinpoint` and Smithy error contracts.

@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +50,7 @@ func TestAWSScanStatusStoreUsesFenceGuard(t *testing.T) {
 	database := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 1}}}
 	store := NewAWSScanStatusStore(database)
 	startedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
-	err := store.StartAWSScan(context.Background(), awscloud.ScanStatusStart{
+	err := store.StartAWSScan(context.Background(), aws.ScanStatusStart{
 		Boundary:  awsScanStatusBoundary(startedAt),
 		StartedAt: startedAt,
 	})
@@ -127,12 +129,12 @@ func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
 
 	cases := []struct {
 		name string
-		do   func(t *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error
+		do   func(t *testing.T, store AWSScanStatusStore, boundary aws.Boundary, now time.Time) error
 	}{
 		{
 			name: "start",
-			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
-				return store.StartAWSScan(context.Background(), awscloud.ScanStatusStart{
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary aws.Boundary, now time.Time) error {
+				return store.StartAWSScan(context.Background(), aws.ScanStatusStart{
 					Boundary:  boundary,
 					StartedAt: now,
 				})
@@ -140,20 +142,20 @@ func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
 		},
 		{
 			name: "observe",
-			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
-				return store.ObserveAWSScan(context.Background(), awscloud.ScanStatusObservation{
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary aws.Boundary, now time.Time) error {
+				return store.ObserveAWSScan(context.Background(), aws.ScanStatusObservation{
 					Boundary:   boundary,
-					Status:     awscloud.ScanStatusFailed,
+					Status:     aws.ScanStatusFailed,
 					ObservedAt: now,
 				})
 			},
 		},
 		{
 			name: "commit",
-			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
-				return store.CommitAWSScan(context.Background(), awscloud.ScanStatusCommit{
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary aws.Boundary, now time.Time) error {
+				return store.CommitAWSScan(context.Background(), aws.ScanStatusCommit{
 					Boundary:     boundary,
-					CommitStatus: awscloud.ScanCommitFailed,
+					CommitStatus: aws.ScanCommitFailed,
 					CompletedAt:  now,
 				})
 			},
@@ -173,8 +175,8 @@ func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
 			if err == nil {
 				t.Fatalf("%s returned nil, want stale fence error", tc.name)
 			}
-			if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
-				t.Fatalf("%s err = %v, want errors.Is awscloud.ErrScanStatusStaleFence", tc.name, err)
+			if !errors.Is(err, aws.ErrScanStatusStaleFence) {
+				t.Fatalf("%s err = %v, want errors.Is aws.ErrScanStatusStaleFence", tc.name, err)
 			}
 		})
 	}
@@ -192,16 +194,16 @@ func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
 	store := NewAWSScanStatusStore(database)
 	observedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	boundary := awsScanStatusBoundary(observedAt)
-	if err := store.ObserveAWSScan(context.Background(), awscloud.ScanStatusObservation{
+	if err := store.ObserveAWSScan(context.Background(), aws.ScanStatusObservation{
 		Boundary:   boundary,
-		Status:     awscloud.ScanStatusSucceeded,
+		Status:     aws.ScanStatusSucceeded,
 		ObservedAt: observedAt,
 	}); err != nil {
 		t.Fatalf("ObserveAWSScan() error = %v, want nil", err)
 	}
-	if err := store.CommitAWSScan(context.Background(), awscloud.ScanStatusCommit{
+	if err := store.CommitAWSScan(context.Background(), aws.ScanStatusCommit{
 		Boundary:     boundary,
-		CommitStatus: awscloud.ScanCommitCommitted,
+		CommitStatus: aws.ScanCommitCommitted,
 		CompletedAt:  observedAt,
 	}); err != nil {
 		t.Fatalf("CommitAWSScan() error = %v, want nil", err)
@@ -237,12 +239,38 @@ func TestAWSScanStatusStoreClearsCommitFailureAfterSuccessfulCommit(t *testing.T
 	}
 }
 
-func awsScanStatusBoundary(observedAt time.Time) awscloud.Boundary {
-	return awscloud.Boundary{
+func assertPostgresPlaceholdersMatchArgs(t *testing.T, query string, argCount int) {
+	t.Helper()
+
+	matches := regexp.MustCompile(`\$(\d+)`).FindAllStringSubmatch(query, -1)
+	seen := make(map[int]bool, len(matches))
+	maxPlaceholder := 0
+	for _, match := range matches {
+		placeholder, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("parse placeholder %q: %v", match[0], err)
+		}
+		seen[placeholder] = true
+		if placeholder > maxPlaceholder {
+			maxPlaceholder = placeholder
+		}
+	}
+	if maxPlaceholder != argCount {
+		t.Fatalf("query max placeholder = $%d, args = %d:\n%s", maxPlaceholder, argCount, query)
+	}
+	for placeholder := 1; placeholder <= maxPlaceholder; placeholder++ {
+		if !seen[placeholder] {
+			t.Fatalf("query skips placeholder $%d:\n%s", placeholder, query)
+		}
+	}
+}
+
+func awsScanStatusBoundary(observedAt time.Time) aws.Boundary {
+	return aws.Boundary{
 		CollectorInstanceID: "aws-prod",
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         aws.ServiceECR,
 		ScopeID:             "aws:123456789012:us-east-1:ecr",
 		GenerationID:        "generation-1",
 		FencingToken:        4,

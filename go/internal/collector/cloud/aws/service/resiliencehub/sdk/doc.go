@@ -11,4 +11,4 @@
 // never calls a mutation, resource-import, or assessment-start API. The accepted
 // SDK surface is enforced at build time by a reflection guard test over the
 // apiClient interface.
-package awssdk
+package sdk

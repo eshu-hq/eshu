@@ -17,7 +17,7 @@ import (
 // key on the canonical "computeoptimizer".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceComputeOptimizer + "  "
+	boundary.ServiceKind = "  " + aws.ServiceComputeOptimizer + "  "
 	envelopes, err := (Scanner{Client: fakeClient{snapshot: fullSnapshot()}}).Scan(context.Background(), boundary)
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
@@ -26,7 +26,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceComputeOptimizer; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceComputeOptimizer; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

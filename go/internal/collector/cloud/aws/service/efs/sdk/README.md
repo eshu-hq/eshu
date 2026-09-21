@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/efs/awssdk` adapts AWS SDK for Go v2 EFS
+`internal/collector/cloud/aws/service/efs/sdk` adapts AWS SDK for Go v2 EFS
 responses to the scanner-owned `efs.Client` contract. It owns EFS describe
 pagination, mount target security group reads, lifecycle configuration reads,
 throttle classification, and per-call AWS API telemetry.
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/efs` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/efs` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `efs` and Smithy error contracts.
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awsruntime
+package runtime
 
 import (
 	"context"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/checkpoint"
@@ -24,16 +24,16 @@ const (
 
 	// WarningAssumeRoleFailed is emitted when claim-scoped credential
 	// acquisition fails before a service scan can start.
-	WarningAssumeRoleFailed = awscloud.WarningAssumeRoleFailed
+	WarningAssumeRoleFailed = aws.WarningAssumeRoleFailed
 	// WarningBudgetExhausted is emitted when a service scan yields after
 	// exhausting its configured API budget.
-	WarningBudgetExhausted = awscloud.WarningBudgetExhausted
+	WarningBudgetExhausted = aws.WarningBudgetExhausted
 	// WarningThrottleSustained is emitted when a service scan omits optional
 	// metadata after an AWS API stays throttled past the SDK retry budget.
-	WarningThrottleSustained = awscloud.WarningThrottleSustained
+	WarningThrottleSustained = aws.WarningThrottleSustained
 	// WarningOrganizationsOrgAccessSkipped is emitted when Organizations
 	// credentials are not management or delegated-admin credentials.
-	WarningOrganizationsOrgAccessSkipped = awscloud.WarningOrganizationsOrgAccessSkipped
+	WarningOrganizationsOrgAccessSkipped = aws.WarningOrganizationsOrgAccessSkipped
 )
 
 // CredentialMode identifies how the runtime obtains AWS credentials for one
@@ -87,18 +87,18 @@ type CredentialLease interface {
 // lease. Scanner factories use it to build service-specific AWS SDK clients.
 type AWSConfigLease interface {
 	CredentialLease
-	AWSConfig() aws.Config
+	AWSConfig() awsv2.Config
 }
 
 // ScannerFactory builds a service scanner for one authorized target and
 // credential lease.
 type ScannerFactory interface {
-	Scanner(context.Context, Target, awscloud.Boundary, CredentialLease) (ServiceScanner, error)
+	Scanner(context.Context, Target, aws.Boundary, CredentialLease) (ServiceScanner, error)
 }
 
 // ServiceScanner scans one AWS service claim into durable fact envelopes.
 type ServiceScanner interface {
-	Scan(context.Context, awscloud.Boundary) ([]facts.Envelope, error)
+	Scan(context.Context, aws.Boundary) ([]facts.Envelope, error)
 }
 
 // CheckpointStore persists AWS pagination progress for long service scans.
@@ -106,6 +106,6 @@ type CheckpointStore = checkpoint.Store
 
 // ScanStatusStore persists per-claim AWS scan status for admin reports.
 type ScanStatusStore interface {
-	StartAWSScan(context.Context, awscloud.ScanStatusStart) error
-	ObserveAWSScan(context.Context, awscloud.ScanStatusObservation) error
+	StartAWSScan(context.Context, aws.ScanStatusStart) error
+	ObserveAWSScan(context.Context, aws.ScanStatusObservation) error
 }

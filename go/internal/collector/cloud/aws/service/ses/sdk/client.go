@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssesv2 "github.com/aws/aws-sdk-go-v2/service/sesv2"
 	awssesv2types "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/smithy-go"
@@ -68,15 +68,15 @@ type apiClient interface {
 // documents, or SMTP credentials.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an SES v2 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -138,7 +138,7 @@ func (c *Client) listEmailIdentities(ctx context.Context) ([]sesservice.EmailIde
 			identities = append(identities, identity)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return identities, nil
 		}
 	}
@@ -160,7 +160,7 @@ func (c *Client) getEmailIdentity(
 	err := c.recordAPICall(ctx, "GetEmailIdentity", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetEmailIdentity(callCtx, &awssesv2.GetEmailIdentityInput{
-			EmailIdentity: aws.String(identity.Name),
+			EmailIdentity: awsv2.String(identity.Name),
 		})
 		return err
 	})
@@ -198,7 +198,7 @@ func (c *Client) listConfigurationSets(ctx context.Context) ([]sesservice.Config
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -222,7 +222,7 @@ func (c *Client) getConfigurationSet(ctx context.Context, name string) (sesservi
 	err := c.recordAPICall(ctx, "GetConfigurationSet", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetConfigurationSet(callCtx, &awssesv2.GetConfigurationSetInput{
-			ConfigurationSetName: aws.String(set.Name),
+			ConfigurationSetName: awsv2.String(set.Name),
 		})
 		return err
 	})
@@ -251,7 +251,7 @@ func (c *Client) getEventDestinations(ctx context.Context, setName string) ([]se
 		output, err = c.client.GetConfigurationSetEventDestinations(
 			callCtx,
 			&awssesv2.GetConfigurationSetEventDestinationsInput{
-				ConfigurationSetName: aws.String(setName),
+				ConfigurationSetName: awsv2.String(setName),
 			},
 		)
 		return err
@@ -293,7 +293,7 @@ func (c *Client) listDedicatedIPPools(ctx context.Context) ([]sesservice.Dedicat
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return pools, nil
 		}
 	}
@@ -317,7 +317,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

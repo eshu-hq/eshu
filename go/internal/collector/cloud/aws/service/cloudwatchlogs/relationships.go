@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
-func kmsRelationship(boundary awscloud.Boundary, logGroup LogGroup) *awscloud.RelationshipObservation {
+func kmsRelationship(boundary aws.Boundary, logGroup LogGroup) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(logGroup.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -19,15 +19,15 @@ func kmsRelationship(boundary awscloud.Boundary, logGroup LogGroup) *awscloud.Re
 	if strings.HasPrefix(targetID, "arn:") {
 		targetARN = targetID
 	}
-	relationship := awscloud.RelationshipObservation{
+	relationship := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudWatchLogsLogGroupUsesKMSKey,
+		RelationshipType: aws.RelationshipCloudWatchLogsLogGroupUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(logGroup.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       "aws_kms_key",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudWatchLogsLogGroupUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipCloudWatchLogsLogGroupUsesKMSKey + ":" + targetID,
 	}
 	return &relationship
 }

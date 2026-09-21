@@ -14,22 +14,22 @@ import (
 // the resource_id the global-network node publishes, so the edge joins it. It
 // returns nil when either endpoint identity is missing.
 func parentGlobalNetworkRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	relationshipType, sourceID, sourceARN, globalNetworkID string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID = strings.TrimSpace(sourceID)
 	parentARN := globalNetworkARN(boundary, globalNetworkID)
 	if sourceID == "" || parentARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(sourceARN),
 		TargetResourceID: parentARN,
 		TargetARN:        parentARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerGlobalNetwork,
+		TargetType:       aws.ResourceTypeNetworkManagerGlobalNetwork,
 		SourceRecordID:   sourceID + "->" + relationshipType + ":" + parentARN,
 	}
 }
@@ -37,42 +37,42 @@ func parentGlobalNetworkRelationship(
 // deviceInSiteRelationship records a device's placement at a site, keyed by the
 // site ARN the site node publishes. It returns nil when the device reports no
 // site or either endpoint identity is missing.
-func deviceInSiteRelationship(boundary awscloud.Boundary, device Device) *awscloud.RelationshipObservation {
+func deviceInSiteRelationship(boundary aws.Boundary, device Device) *aws.RelationshipObservation {
 	sourceID := deviceResourceID(boundary, device)
 	targetARN := siteARN(boundary, device.GlobalNetworkID, device.SiteID)
 	if sourceID == "" || targetARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerDeviceInSite,
+		RelationshipType: aws.RelationshipNetworkManagerDeviceInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(device.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerDeviceInSite + ":" + targetARN,
+		TargetType:       aws.ResourceTypeNetworkManagerSite,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipNetworkManagerDeviceInSite + ":" + targetARN,
 	}
 }
 
 // linkInSiteRelationship records a link's placement at a site, keyed by the site
 // ARN the site node publishes. It returns nil when the link reports no site or
 // either endpoint identity is missing.
-func linkInSiteRelationship(boundary awscloud.Boundary, link Link) *awscloud.RelationshipObservation {
+func linkInSiteRelationship(boundary aws.Boundary, link Link) *aws.RelationshipObservation {
 	sourceID := linkResourceID(boundary, link)
 	targetARN := siteARN(boundary, link.GlobalNetworkID, link.SiteID)
 	if sourceID == "" || targetARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerLinkInSite,
+		RelationshipType: aws.RelationshipNetworkManagerLinkInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(link.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerLinkInSite + ":" + targetARN,
+		TargetType:       aws.ResourceTypeNetworkManagerSite,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipNetworkManagerLinkInSite + ":" + targetARN,
 	}
 }
 
@@ -80,23 +80,23 @@ func linkInSiteRelationship(boundary awscloud.Boundary, link Link) *awscloud.Rel
 // GetLinkAssociations, keyed by the link ARN the link node publishes. It returns
 // nil when either endpoint identity is missing.
 func deviceUsesLinkRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association LinkAssociation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceARN := deviceARN(boundary, association.GlobalNetworkID, association.DeviceID)
 	targetARN := linkARN(boundary, association.GlobalNetworkID, association.LinkID)
 	if sourceARN == "" || targetARN == "" {
 		return nil
 	}
-	rel := &awscloud.RelationshipObservation{
+	rel := &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerDeviceUsesLink,
+		RelationshipType: aws.RelationshipNetworkManagerDeviceUsesLink,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerLink,
-		SourceRecordID:   sourceARN + "->" + awscloud.RelationshipNetworkManagerDeviceUsesLink + ":" + targetARN,
+		TargetType:       aws.ResourceTypeNetworkManagerLink,
+		SourceRecordID:   sourceARN + "->" + aws.RelationshipNetworkManagerDeviceUsesLink + ":" + targetARN,
 	}
 	if state := strings.TrimSpace(association.State); state != "" {
 		rel.Attributes = map[string]any{"association_state": state}
@@ -108,28 +108,28 @@ func deviceUsesLinkRelationship(
 // endpoint devices, each keyed by the device ARN the device node publishes. A
 // connection always names a first device and may name a connected second device.
 func connectionDeviceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	connection Connection,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	sourceID := connectionResourceID(boundary, connection)
 	if sourceID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 	for _, deviceID := range []string{connection.DeviceID, connection.ConnectedDeviceID} {
 		targetARN := deviceARN(boundary, connection.GlobalNetworkID, deviceID)
 		if targetARN == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkManagerConnectionConnectsDevice,
+			RelationshipType: aws.RelationshipNetworkManagerConnectionConnectsDevice,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(connection.ARN),
 			TargetResourceID: targetARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeNetworkManagerDevice,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerConnectionConnectsDevice + ":" + targetARN,
+			TargetType:       aws.ResourceTypeNetworkManagerDevice,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipNetworkManagerConnectionConnectsDevice + ":" + targetARN,
 		})
 	}
 	return observations
@@ -141,23 +141,23 @@ func connectionDeviceRelationships(
 // gateway node publishes, extracted from the reported ARN. It returns nil when
 // either endpoint identity is missing.
 func registrationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	globalNetworkID string,
 	registration TransitGatewayRegistration,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceARN := globalNetworkARN(boundary, globalNetworkID)
 	tgwID := transitGatewayID(registration.TransitGatewayARN)
 	if sourceARN == "" || tgwID == "" {
 		return nil
 	}
-	rel := &awscloud.RelationshipObservation{
+	rel := &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway,
+		RelationshipType: aws.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
-		SourceRecordID:   sourceARN + "->" + awscloud.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway + ":" + tgwID,
+		TargetType:       aws.ResourceTypeTransitGateway,
+		SourceRecordID:   sourceARN + "->" + aws.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway + ":" + tgwID,
 	}
 	if tgwARN := strings.TrimSpace(registration.TransitGatewayARN); isARN(tgwARN) {
 		rel.Attributes = map[string]any{"transit_gateway_arn": tgwARN}
@@ -174,10 +174,10 @@ func registrationRelationship(
 // coreNetworkRelationship records a core network's membership in its parent
 // global network, keyed by the parent global-network ARN. It returns nil when
 // either endpoint identity is missing.
-func coreNetworkRelationship(boundary awscloud.Boundary, core CoreNetwork) *awscloud.RelationshipObservation {
+func coreNetworkRelationship(boundary aws.Boundary, core CoreNetwork) *aws.RelationshipObservation {
 	return parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerCoreNetworkInGlobalNetwork,
+		aws.RelationshipNetworkManagerCoreNetworkInGlobalNetwork,
 		coreNetworkResourceID(boundary, core),
 		core.ARN,
 		core.GlobalNetworkID,

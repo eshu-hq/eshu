@@ -24,15 +24,15 @@ type Scanner struct {
 
 // Scan observes Kinesis data streams, Firehose delivery streams, and video
 // streams through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("kinesis scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKinesis:
+	case "", aws.ServiceKinesis:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKinesis
+		boundary.ServiceKind = aws.ServiceKinesis
 	default:
 		return nil, fmt.Errorf("kinesis scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -52,7 +52,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, stream := range dataStreams {
-		resource, err := awscloud.NewResourceEnvelope(dataStreamObservation(boundary, stream))
+		resource, err := aws.NewResourceEnvelope(dataStreamObservation(boundary, stream))
 		if err != nil {
 			return nil, err
 		}
@@ -64,7 +64,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, relationships...)
 	}
 	for _, stream := range deliveryStreams {
-		resource, err := awscloud.NewResourceEnvelope(deliveryStreamObservation(boundary, stream))
+		resource, err := aws.NewResourceEnvelope(deliveryStreamObservation(boundary, stream))
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +76,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, relationships...)
 	}
 	for _, stream := range videoStreams {
-		resource, err := awscloud.NewResourceEnvelope(videoStreamObservation(boundary, stream))
+		resource, err := aws.NewResourceEnvelope(videoStreamObservation(boundary, stream))
 		if err != nil {
 			return nil, err
 		}
@@ -90,13 +90,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if len(observations) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(observations))
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -105,13 +105,13 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 	return envelopes, nil
 }
 
-func dataStreamObservation(boundary awscloud.Boundary, stream DataStream) awscloud.ResourceObservation {
+func dataStreamObservation(boundary aws.Boundary, stream DataStream) aws.ResourceObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisDataStream,
+		ResourceType: aws.ResourceTypeKinesisDataStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),
@@ -128,13 +128,13 @@ func dataStreamObservation(boundary awscloud.Boundary, stream DataStream) awsclo
 	}
 }
 
-func deliveryStreamObservation(boundary awscloud.Boundary, stream FirehoseDeliveryStream) awscloud.ResourceObservation {
+func deliveryStreamObservation(boundary aws.Boundary, stream FirehoseDeliveryStream) aws.ResourceObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisFirehoseDeliveryStream,
+		ResourceType: aws.ResourceTypeKinesisFirehoseDeliveryStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),
@@ -152,13 +152,13 @@ func deliveryStreamObservation(boundary awscloud.Boundary, stream FirehoseDelive
 	}
 }
 
-func videoStreamObservation(boundary awscloud.Boundary, stream VideoStream) awscloud.ResourceObservation {
+func videoStreamObservation(boundary aws.Boundary, stream VideoStream) aws.ResourceObservation {
 	streamARN := strings.TrimSpace(stream.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisVideoStream,
+		ResourceType: aws.ResourceTypeKinesisVideoStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),

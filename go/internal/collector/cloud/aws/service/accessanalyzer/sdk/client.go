@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsaccessanalyzer "github.com/aws/aws-sdk-go-v2/service/accessanalyzer"
 	awsaccessanalyzertypes "github.com/aws/aws-sdk-go-v2/service/accessanalyzer/types"
 	"github.com/aws/smithy-go"
@@ -35,15 +35,15 @@ type apiClient interface {
 // Client adapts AWS SDK Access Analyzer reads into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an Access Analyzer SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -84,7 +84,7 @@ func (c *Client) ListAnalyzers(ctx context.Context) ([]accessanalyzerservice.Ana
 			analyzers = append(analyzers, analyzer)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return analyzers, nil
 		}
 	}
@@ -95,13 +95,13 @@ func (c *Client) analyzerMetadata(
 	summary awsaccessanalyzertypes.AnalyzerSummary,
 ) (accessanalyzerservice.Analyzer, error) {
 	analyzer := accessanalyzerservice.Analyzer{
-		ARN:                    strings.TrimSpace(aws.ToString(summary.Arn)),
-		Name:                   strings.TrimSpace(aws.ToString(summary.Name)),
+		ARN:                    strings.TrimSpace(awsv2.ToString(summary.Arn)),
+		Name:                   strings.TrimSpace(awsv2.ToString(summary.Name)),
 		Type:                   strings.TrimSpace(string(summary.Type)),
 		Status:                 strings.TrimSpace(string(summary.Status)),
-		CreatedAt:              aws.ToTime(summary.CreatedAt),
-		LastResourceAnalyzed:   strings.TrimSpace(aws.ToString(summary.LastResourceAnalyzed)),
-		LastResourceAnalyzedAt: aws.ToTime(summary.LastResourceAnalyzedAt),
+		CreatedAt:              awsv2.ToTime(summary.CreatedAt),
+		LastResourceAnalyzed:   strings.TrimSpace(awsv2.ToString(summary.LastResourceAnalyzed)),
+		LastResourceAnalyzedAt: awsv2.ToTime(summary.LastResourceAnalyzedAt),
 		Tags:                   cloneStringMap(summary.Tags),
 	}
 	if !isSupportedAnalyzerType(analyzer.Type) {
@@ -147,7 +147,7 @@ func (c *Client) listArchiveRules(
 		err := c.recordAPICall(ctx, "ListArchiveRules", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListArchiveRules(callCtx, &awsaccessanalyzer.ListArchiveRulesInput{
-				AnalyzerName: aws.String(analyzer.Name),
+				AnalyzerName: awsv2.String(analyzer.Name),
 				NextToken:    nextToken,
 			})
 			return err
@@ -160,14 +160,14 @@ func (c *Client) listArchiveRules(
 		}
 		for _, rule := range page.ArchiveRules {
 			rules = append(rules, accessanalyzerservice.ArchiveRule{
-				Name:        strings.TrimSpace(aws.ToString(rule.RuleName)),
+				Name:        strings.TrimSpace(awsv2.ToString(rule.RuleName)),
 				AnalyzerARN: analyzer.ARN,
-				CreatedAt:   aws.ToTime(rule.CreatedAt),
-				UpdatedAt:   aws.ToTime(rule.UpdatedAt),
+				CreatedAt:   awsv2.ToTime(rule.CreatedAt),
+				UpdatedAt:   awsv2.ToTime(rule.UpdatedAt),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return rules, nil
 		}
 	}
@@ -184,7 +184,7 @@ func (c *Client) listExternalFindingCounts(
 		err := c.recordAPICall(ctx, "ListFindings", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListFindings(callCtx, &awsaccessanalyzer.ListFindingsInput{
-				AnalyzerArn: aws.String(analyzerARN),
+				AnalyzerArn: awsv2.String(analyzerARN),
 				NextToken:   nextToken,
 			})
 			return err
@@ -199,7 +199,7 @@ func (c *Client) listExternalFindingCounts(
 			incrementFindingCount(counts, string(finding.Status), string(finding.ResourceType))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return findingCounts(counts), nil
 		}
 	}
@@ -208,10 +208,10 @@ func (c *Client) listExternalFindingCounts(
 func (c *Client) listUnusedFindings(
 	ctx context.Context,
 	analyzer accessanalyzerservice.Analyzer,
-) ([]accessanalyzerservice.FindingCount, []accessanalyzerservice.UnusedAccessSummary, []awscloud.WarningObservation, error) {
+) ([]accessanalyzerservice.FindingCount, []accessanalyzerservice.UnusedAccessSummary, []aws.WarningObservation, error) {
 	counts := map[findingBucket]int64{}
 	var summaries []accessanalyzerservice.UnusedAccessSummary
-	var warnings []awscloud.WarningObservation
+	var warnings []aws.WarningObservation
 	var nextToken *string
 	detailReads := 0
 	detailBudgetExceeded := false
@@ -220,7 +220,7 @@ func (c *Client) listUnusedFindings(
 		err := c.recordAPICall(ctx, "ListFindingsV2", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.ListFindingsV2(callCtx, &awsaccessanalyzer.ListFindingsV2Input{
-				AnalyzerArn: aws.String(analyzer.ARN),
+				AnalyzerArn: awsv2.String(analyzer.ARN),
 				NextToken:   nextToken,
 			})
 			return err
@@ -250,16 +250,16 @@ func (c *Client) listUnusedFindings(
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return findingCounts(counts), summaries, warnings, nil
 		}
 	}
 }
 
-func unusedAccessDetailBudgetWarning(boundary awscloud.Boundary, analyzerARN string) awscloud.WarningObservation {
-	return awscloud.WarningObservation{
+func unusedAccessDetailBudgetWarning(boundary aws.Boundary, analyzerARN string) aws.WarningObservation {
+	return aws.WarningObservation{
 		Boundary:       boundary,
-		WarningKind:    awscloud.WarningBudgetExhausted,
+		WarningKind:    aws.WarningBudgetExhausted,
 		ErrorClass:     "unused_access_detail_budget_exhausted",
 		Message:        "unused access detail reads exceeded the bounded Access Analyzer detail-read budget",
 		SourceRecordID: strings.TrimSpace(analyzerARN) + "#unused-access-detail-budget",
@@ -274,18 +274,18 @@ func (c *Client) unusedAccessSummary(
 	analyzerARN string,
 	finding awsaccessanalyzertypes.FindingSummaryV2,
 ) (accessanalyzerservice.UnusedAccessSummary, error) {
-	if strings.TrimSpace(aws.ToString(finding.Id)) == "" {
+	if strings.TrimSpace(awsv2.ToString(finding.Id)) == "" {
 		return accessanalyzerservice.UnusedAccessSummary{}, nil
 	}
 	summary := accessanalyzerservice.UnusedAccessSummary{
-		FindingID:            strings.TrimSpace(aws.ToString(finding.Id)),
+		FindingID:            strings.TrimSpace(awsv2.ToString(finding.Id)),
 		FindingType:          strings.TrimSpace(string(finding.FindingType)),
-		ResourceID:           strings.TrimSpace(aws.ToString(finding.Resource)),
-		ResourceOwnerAccount: strings.TrimSpace(aws.ToString(finding.ResourceOwnerAccount)),
+		ResourceID:           strings.TrimSpace(awsv2.ToString(finding.Resource)),
+		ResourceOwnerAccount: strings.TrimSpace(awsv2.ToString(finding.ResourceOwnerAccount)),
 		ResourceType:         strings.TrimSpace(string(finding.ResourceType)),
 		Status:               strings.TrimSpace(string(finding.Status)),
-		AnalyzedAt:           aws.ToTime(finding.AnalyzedAt),
-		UpdatedAt:            aws.ToTime(finding.UpdatedAt),
+		AnalyzedAt:           awsv2.ToTime(finding.AnalyzedAt),
+		UpdatedAt:            awsv2.ToTime(finding.UpdatedAt),
 	}
 	var nextToken *string
 	for {
@@ -293,7 +293,7 @@ func (c *Client) unusedAccessSummary(
 		err := c.recordAPICall(ctx, "GetFindingV2", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.GetFindingV2(callCtx, &awsaccessanalyzer.GetFindingV2Input{
-				AnalyzerArn: aws.String(analyzerARN),
+				AnalyzerArn: awsv2.String(analyzerARN),
 				Id:          finding.Id,
 				NextToken:   nextToken,
 			})
@@ -307,10 +307,10 @@ func (c *Client) unusedAccessSummary(
 		}
 		summary.LastAccessedAt = latestTime(summary.LastAccessedAt, lastAccessedFromDetails(output.FindingDetails))
 		if summary.ResourceID == "" {
-			summary.ResourceID = strings.TrimSpace(aws.ToString(output.Resource))
+			summary.ResourceID = strings.TrimSpace(awsv2.ToString(output.Resource))
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return summary, nil
 		}
 	}
@@ -321,13 +321,13 @@ func lastAccessedFromDetails(details []awsaccessanalyzertypes.FindingDetails) ti
 	for _, detail := range details {
 		switch typed := detail.(type) {
 		case *awsaccessanalyzertypes.FindingDetailsMemberUnusedIamRoleDetails:
-			latest = latestTime(latest, aws.ToTime(typed.Value.LastAccessed))
+			latest = latestTime(latest, awsv2.ToTime(typed.Value.LastAccessed))
 		case *awsaccessanalyzertypes.FindingDetailsMemberUnusedIamUserAccessKeyDetails:
-			latest = latestTime(latest, aws.ToTime(typed.Value.LastAccessed))
+			latest = latestTime(latest, awsv2.ToTime(typed.Value.LastAccessed))
 		case *awsaccessanalyzertypes.FindingDetailsMemberUnusedIamUserPasswordDetails:
-			latest = latestTime(latest, aws.ToTime(typed.Value.LastAccessed))
+			latest = latestTime(latest, awsv2.ToTime(typed.Value.LastAccessed))
 		case *awsaccessanalyzertypes.FindingDetailsMemberUnusedPermissionDetails:
-			latest = latestTime(latest, aws.ToTime(typed.Value.LastAccessed))
+			latest = latestTime(latest, awsv2.ToTime(typed.Value.LastAccessed))
 		}
 	}
 	return latest
@@ -424,7 +424,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

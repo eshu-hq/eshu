@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsproton "github.com/aws/aws-sdk-go-v2/service/proton"
 	awsprotontypes "github.com/aws/aws-sdk-go-v2/service/proton/types"
 
@@ -23,54 +23,54 @@ func TestClientSnapshotsProtonMetadataOnly(t *testing.T) {
 
 	api := &fakeProtonAPI{
 		environments: []awsprotontypes.EnvironmentSummary{{
-			Arn:                  aws.String(envARN),
-			Name:                 aws.String("prod"),
-			TemplateName:         aws.String("fargate-env"),
+			Arn:                  awsv2.String(envARN),
+			Name:                 awsv2.String("prod"),
+			TemplateName:         awsv2.String("fargate-env"),
 			Provisioning:         awsprotontypes.ProvisioningCustomerManaged,
 			DeploymentStatus:     awsprotontypes.DeploymentStatusSucceeded,
-			ProtonServiceRoleArn: aws.String(roleARN),
-			CreatedAt:            aws.Time(createdAt),
+			ProtonServiceRoleArn: awsv2.String(roleARN),
+			CreatedAt:            awsv2.Time(createdAt),
 		}},
 		services: []awsprotontypes.ServiceSummary{{
-			Arn:          aws.String(serviceARN),
-			Name:         aws.String("orders"),
-			TemplateName: aws.String("lb-web"),
+			Arn:          awsv2.String(serviceARN),
+			Name:         awsv2.String("orders"),
+			TemplateName: awsv2.String("lb-web"),
 			Status:       awsprotontypes.ServiceStatusActive,
-			CreatedAt:    aws.Time(createdAt),
+			CreatedAt:    awsv2.Time(createdAt),
 		}},
 		serviceDetail: map[string]*awsprotontypes.Service{
 			"orders": {
-				Arn:          aws.String(serviceARN),
-				Name:         aws.String("orders"),
-				TemplateName: aws.String("lb-web"),
-				BranchName:   aws.String("main"),
-				RepositoryId: aws.String("acme/orders"),
+				Arn:          awsv2.String(serviceARN),
+				Name:         awsv2.String("orders"),
+				TemplateName: awsv2.String("lb-web"),
+				BranchName:   awsv2.String("main"),
+				RepositoryId: awsv2.String("acme/orders"),
 				// Spec body is present on the SDK detail but must never be mapped.
-				Spec: aws.String("---\nproton: ServiceSpec\npipeline:\n  secret: do-not-persist\n"),
+				Spec: awsv2.String("---\nproton: ServiceSpec\npipeline:\n  secret: do-not-persist\n"),
 			},
 		},
 		environmentTemplates: []awsprotontypes.EnvironmentTemplateSummary{{
-			Arn:                aws.String("arn:aws:proton:us-east-1:123456789012:environment-template/fargate-env"),
-			Name:               aws.String("fargate-env"),
-			DisplayName:        aws.String("Fargate Environment"),
+			Arn:                awsv2.String("arn:aws:proton:us-east-1:123456789012:environment-template/fargate-env"),
+			Name:               awsv2.String("fargate-env"),
+			DisplayName:        awsv2.String("Fargate Environment"),
 			Provisioning:       awsprotontypes.ProvisioningCustomerManaged,
-			RecommendedVersion: aws.String("1.0"),
+			RecommendedVersion: awsv2.String("1.0"),
 		}},
 		serviceTemplates: []awsprotontypes.ServiceTemplateSummary{{
-			Arn:                  aws.String("arn:aws:proton:us-east-1:123456789012:service-template/lb-web"),
-			Name:                 aws.String("lb-web"),
-			DisplayName:          aws.String("Load Balanced Web"),
+			Arn:                  awsv2.String("arn:aws:proton:us-east-1:123456789012:service-template/lb-web"),
+			Name:                 awsv2.String("lb-web"),
+			DisplayName:          awsv2.String("Load Balanced Web"),
 			PipelineProvisioning: awsprotontypes.ProvisioningCustomerManaged,
-			RecommendedVersion:   aws.String("2.1"),
+			RecommendedVersion:   awsv2.String("2.1"),
 		}},
 		serviceInstances: []awsprotontypes.ServiceInstanceSummary{{
-			Name:            aws.String("orders-1"),
-			ServiceName:     aws.String("orders"),
-			EnvironmentName: aws.String("prod"),
+			Name:            awsv2.String("orders-1"),
+			ServiceName:     awsv2.String("orders"),
+			EnvironmentName: awsv2.String("prod"),
 		}},
 		tags: map[string][]awsprotontypes.Tag{
-			envARN:     {{Key: aws.String("Environment"), Value: aws.String("prod")}},
-			serviceARN: {{Key: aws.String("Team"), Value: aws.String("checkout")}},
+			envARN:     {{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
+			serviceARN: {{Key: awsv2.String("Team"), Value: awsv2.String("checkout")}},
 		},
 	}
 
@@ -130,8 +130,8 @@ func TestClientSnapshotsProtonMetadataOnly(t *testing.T) {
 func TestClientPaginatesEnvironments(t *testing.T) {
 	api := &fakeProtonAPI{
 		environmentPages: [][]awsprotontypes.EnvironmentSummary{
-			{{Arn: aws.String("arn:aws:proton:us-east-1:123456789012:environment/a"), Name: aws.String("a")}},
-			{{Arn: aws.String("arn:aws:proton:us-east-1:123456789012:environment/b"), Name: aws.String("b")}},
+			{{Arn: awsv2.String("arn:aws:proton:us-east-1:123456789012:environment/a"), Name: awsv2.String("a")}},
+			{{Arn: awsv2.String("arn:aws:proton:us-east-1:123456789012:environment/b"), Name: awsv2.String("b")}},
 		},
 	}
 	client := &Client{client: api, boundary: testBoundary()}
@@ -169,7 +169,7 @@ func (f *fakeProtonAPI) ListEnvironments(
 		f.environmentCall++
 		var next *string
 		if f.environmentCall < len(f.environmentPages) {
-			next = aws.String("more")
+			next = awsv2.String("more")
 		}
 		return &awsproton.ListEnvironmentsOutput{Environments: page, NextToken: next}, nil
 	}
@@ -189,7 +189,7 @@ func (f *fakeProtonAPI) GetService(
 	input *awsproton.GetServiceInput,
 	_ ...func(*awsproton.Options),
 ) (*awsproton.GetServiceOutput, error) {
-	return &awsproton.GetServiceOutput{Service: f.serviceDetail[aws.ToString(input.Name)]}, nil
+	return &awsproton.GetServiceOutput{Service: f.serviceDetail[awsv2.ToString(input.Name)]}, nil
 }
 
 func (f *fakeProtonAPI) ListEnvironmentTemplates(
@@ -221,13 +221,13 @@ func (f *fakeProtonAPI) ListTagsForResource(
 	input *awsproton.ListTagsForResourceInput,
 	_ ...func(*awsproton.Options),
 ) (*awsproton.ListTagsForResourceOutput, error) {
-	return &awsproton.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(input.ResourceArn)]}, nil
+	return &awsproton.ListTagsForResourceOutput{Tags: f.tags[awsv2.ToString(input.ResourceArn)]}, nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceProton,
+		ServiceKind: aws.ServiceProton,
 	}
 }

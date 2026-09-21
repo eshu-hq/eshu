@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awseb "github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
 	ebtypes "github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk/types"
 	"github.com/aws/smithy-go"
@@ -36,7 +36,7 @@ type apiClient interface {
 // Client adapts AWS SDK Elastic Beanstalk responses into scanner-owned records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -44,8 +44,8 @@ type Client struct {
 // NewClient builds an Elastic Beanstalk SDK adapter for one claimed AWS
 // boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -103,7 +103,7 @@ func (c *Client) DescribeEnvironments(ctx context.Context) ([]ebservice.Environm
 			environments = append(environments, mapEnvironment(environment))
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -134,7 +134,7 @@ func (c *Client) DescribeApplicationVersions(ctx context.Context) ([]ebservice.A
 			versions = append(versions, mapApplicationVersion(version))
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			break
 		}
 	}
@@ -155,7 +155,7 @@ func (c *Client) DescribeEnvironmentResources(
 	err := c.recordAPICall(ctx, "DescribeEnvironmentResources", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeEnvironmentResources(callCtx, &awseb.DescribeEnvironmentResourcesInput{
-			EnvironmentId: aws.String(environmentID),
+			EnvironmentId: awsv2.String(environmentID),
 		})
 		return err
 	})
@@ -183,8 +183,8 @@ func (c *Client) DescribeConfigurationSettings(
 	err := c.recordAPICall(ctx, "DescribeConfigurationSettings", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.DescribeConfigurationSettings(callCtx, &awseb.DescribeConfigurationSettingsInput{
-			ApplicationName: aws.String(applicationName),
-			EnvironmentName: aws.String(environmentName),
+			ApplicationName: awsv2.String(applicationName),
+			EnvironmentName: awsv2.String(environmentName),
 		})
 		return err
 	})
@@ -202,56 +202,56 @@ func (c *Client) DescribeConfigurationSettings(
 
 func mapApplication(application ebtypes.ApplicationDescription) ebservice.Application {
 	return ebservice.Application{
-		ARN:                    aws.ToString(application.ApplicationArn),
-		Name:                   aws.ToString(application.ApplicationName),
-		Description:            aws.ToString(application.Description),
+		ARN:                    awsv2.ToString(application.ApplicationArn),
+		Name:                   awsv2.ToString(application.ApplicationName),
+		Description:            awsv2.ToString(application.Description),
 		ConfigurationTemplates: cloneStrings(application.ConfigurationTemplates),
 		VersionLabels:          cloneStrings(application.Versions),
-		DateCreated:            aws.ToTime(application.DateCreated),
-		DateUpdated:            aws.ToTime(application.DateUpdated),
+		DateCreated:            awsv2.ToTime(application.DateCreated),
+		DateUpdated:            awsv2.ToTime(application.DateUpdated),
 	}
 }
 
 func mapEnvironment(environment ebtypes.EnvironmentDescription) ebservice.Environment {
 	mapped := ebservice.Environment{
-		ARN:               aws.ToString(environment.EnvironmentArn),
-		ID:                aws.ToString(environment.EnvironmentId),
-		Name:              aws.ToString(environment.EnvironmentName),
-		ApplicationName:   aws.ToString(environment.ApplicationName),
+		ARN:               awsv2.ToString(environment.EnvironmentArn),
+		ID:                awsv2.ToString(environment.EnvironmentId),
+		Name:              awsv2.ToString(environment.EnvironmentName),
+		ApplicationName:   awsv2.ToString(environment.ApplicationName),
 		Status:            string(environment.Status),
 		Health:            string(environment.Health),
 		HealthStatus:      string(environment.HealthStatus),
-		PlatformARN:       aws.ToString(environment.PlatformArn),
-		SolutionStackName: aws.ToString(environment.SolutionStackName),
-		CNAME:             aws.ToString(environment.CNAME),
-		EndpointURL:       aws.ToString(environment.EndpointURL),
-		VersionLabel:      aws.ToString(environment.VersionLabel),
-		TemplateName:      aws.ToString(environment.TemplateName),
-		OperationsRole:    aws.ToString(environment.OperationsRole),
-		DateCreated:       aws.ToTime(environment.DateCreated),
-		DateUpdated:       aws.ToTime(environment.DateUpdated),
+		PlatformARN:       awsv2.ToString(environment.PlatformArn),
+		SolutionStackName: awsv2.ToString(environment.SolutionStackName),
+		CNAME:             awsv2.ToString(environment.CNAME),
+		EndpointURL:       awsv2.ToString(environment.EndpointURL),
+		VersionLabel:      awsv2.ToString(environment.VersionLabel),
+		TemplateName:      awsv2.ToString(environment.TemplateName),
+		OperationsRole:    awsv2.ToString(environment.OperationsRole),
+		DateCreated:       awsv2.ToTime(environment.DateCreated),
+		DateUpdated:       awsv2.ToTime(environment.DateUpdated),
 	}
 	if environment.Tier != nil {
-		mapped.TierName = aws.ToString(environment.Tier.Name)
-		mapped.TierType = aws.ToString(environment.Tier.Type)
+		mapped.TierName = awsv2.ToString(environment.Tier.Name)
+		mapped.TierType = awsv2.ToString(environment.Tier.Type)
 	}
 	return mapped
 }
 
 func mapApplicationVersion(version ebtypes.ApplicationVersionDescription) ebservice.ApplicationVersion {
 	mapped := ebservice.ApplicationVersion{
-		ARN:             aws.ToString(version.ApplicationVersionArn),
-		ApplicationName: aws.ToString(version.ApplicationName),
-		VersionLabel:    aws.ToString(version.VersionLabel),
-		Description:     aws.ToString(version.Description),
+		ARN:             awsv2.ToString(version.ApplicationVersionArn),
+		ApplicationName: awsv2.ToString(version.ApplicationName),
+		VersionLabel:    awsv2.ToString(version.VersionLabel),
+		Description:     awsv2.ToString(version.Description),
 		Status:          string(version.Status),
-		BuildARN:        aws.ToString(version.BuildArn),
-		DateCreated:     aws.ToTime(version.DateCreated),
-		DateUpdated:     aws.ToTime(version.DateUpdated),
+		BuildARN:        awsv2.ToString(version.BuildArn),
+		DateCreated:     awsv2.ToTime(version.DateCreated),
+		DateUpdated:     awsv2.ToTime(version.DateUpdated),
 	}
 	if version.SourceBundle != nil {
-		mapped.SourceS3Bucket = aws.ToString(version.SourceBundle.S3Bucket)
-		mapped.SourceS3Key = aws.ToString(version.SourceBundle.S3Key)
+		mapped.SourceS3Bucket = awsv2.ToString(version.SourceBundle.S3Bucket)
+		mapped.SourceS3Key = awsv2.ToString(version.SourceBundle.S3Key)
 	}
 	if version.SourceBuildInformation != nil {
 		mapped.SourceRepository = string(version.SourceBuildInformation.SourceRepository)
@@ -265,17 +265,17 @@ func mapEnvironmentResources(resources *ebtypes.EnvironmentResourceDescription) 
 	}
 	mapped := ebservice.EnvironmentResources{}
 	for _, group := range resources.AutoScalingGroups {
-		if name := strings.TrimSpace(aws.ToString(group.Name)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(group.Name)); name != "" {
 			mapped.AutoScalingGroupNames = append(mapped.AutoScalingGroupNames, name)
 		}
 	}
 	for _, template := range resources.LaunchTemplates {
-		if id := strings.TrimSpace(aws.ToString(template.Id)); id != "" {
+		if id := strings.TrimSpace(awsv2.ToString(template.Id)); id != "" {
 			mapped.LaunchTemplateIDs = append(mapped.LaunchTemplateIDs, id)
 		}
 	}
 	for _, loadBalancer := range resources.LoadBalancers {
-		if name := strings.TrimSpace(aws.ToString(loadBalancer.Name)); name != "" {
+		if name := strings.TrimSpace(awsv2.ToString(loadBalancer.Name)); name != "" {
 			mapped.LoadBalancerNames = append(mapped.LoadBalancerNames, name)
 		}
 	}
@@ -289,9 +289,9 @@ func mapOptionSettings(settings []ebtypes.ConfigurationOptionSetting) []ebservic
 	output := make([]ebservice.OptionSetting, 0, len(settings))
 	for _, setting := range settings {
 		output = append(output, ebservice.OptionSetting{
-			Namespace:  aws.ToString(setting.Namespace),
-			OptionName: aws.ToString(setting.OptionName),
-			Value:      aws.ToString(setting.Value),
+			Namespace:  awsv2.ToString(setting.Namespace),
+			OptionName: awsv2.ToString(setting.OptionName),
+			Value:      awsv2.ToString(setting.Value),
 		})
 	}
 	return output
@@ -331,7 +331,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsga "github.com/aws/aws-sdk-go-v2/service/globalaccelerator"
 	awsgatypes "github.com/aws/aws-sdk-go-v2/service/globalaccelerator/types"
 
@@ -26,24 +26,24 @@ func TestClientListsGlobalAcceleratorTopologyMetadataOnly(t *testing.T) {
 		acceleratorPages: []*awsga.ListAcceleratorsOutput{
 			{
 				Accelerators: []awsgatypes.Accelerator{{
-					AcceleratorArn:   aws.String(acceleratorARN),
-					Name:             aws.String("edge-front-door"),
+					AcceleratorArn:   awsv2.String(acceleratorARN),
+					Name:             awsv2.String("edge-front-door"),
 					Status:           awsgatypes.AcceleratorStatusDeployed,
-					Enabled:          aws.Bool(true),
+					Enabled:          awsv2.Bool(true),
 					IpAddressType:    awsgatypes.IpAddressTypeIpv4,
-					DnsName:          aws.String("a1234567890abcdef.awsglobalaccelerator.com"),
-					DualStackDnsName: aws.String("a1234567890abcdef.dualstack.awsglobalaccelerator.com"),
+					DnsName:          awsv2.String("a1234567890abcdef.awsglobalaccelerator.com"),
+					DualStackDnsName: awsv2.String("a1234567890abcdef.dualstack.awsglobalaccelerator.com"),
 					IpSets: []awsgatypes.IpSet{{
 						IpAddressFamily: awsgatypes.IpAddressFamilyIPv4,
 						IpAddresses:     []string{"75.2.0.1", "99.83.0.1"},
 					}},
 				}},
-				NextToken: aws.String("acc-page-2"),
+				NextToken: awsv2.String("acc-page-2"),
 			},
 			{
 				Accelerators: []awsgatypes.Accelerator{{
-					AcceleratorArn: aws.String("arn:aws:globalaccelerator::123456789012:accelerator/second"),
-					Name:           aws.String("second"),
+					AcceleratorArn: awsv2.String("arn:aws:globalaccelerator::123456789012:accelerator/second"),
+					Name:           awsv2.String("second"),
 					Status:         awsgatypes.AcceleratorStatusInProgress,
 				}},
 			},
@@ -51,25 +51,25 @@ func TestClientListsGlobalAcceleratorTopologyMetadataOnly(t *testing.T) {
 		listenerPages: map[string][]*awsga.ListListenersOutput{
 			acceleratorARN: {{
 				Listeners: []awsgatypes.Listener{{
-					ListenerArn:    aws.String(listenerARN),
+					ListenerArn:    awsv2.String(listenerARN),
 					Protocol:       awsgatypes.ProtocolTcp,
 					ClientAffinity: awsgatypes.ClientAffinitySourceIp,
-					PortRanges:     []awsgatypes.PortRange{{FromPort: aws.Int32(443), ToPort: aws.Int32(443)}},
+					PortRanges:     []awsgatypes.PortRange{{FromPort: awsv2.Int32(443), ToPort: awsv2.Int32(443)}},
 				}},
 			}},
 		},
 		endpointGroupPages: map[string][]*awsga.ListEndpointGroupsOutput{
 			listenerARN: {{
 				EndpointGroups: []awsgatypes.EndpointGroup{{
-					EndpointGroupArn:      aws.String(endpointGroupAR),
-					EndpointGroupRegion:   aws.String("us-west-2"),
-					TrafficDialPercentage: aws.Float32(80),
+					EndpointGroupArn:      awsv2.String(endpointGroupAR),
+					EndpointGroupRegion:   awsv2.String("us-west-2"),
+					TrafficDialPercentage: awsv2.Float32(80),
 					HealthCheckProtocol:   awsgatypes.HealthCheckProtocolTcp,
-					HealthCheckPort:       aws.Int32(8080),
+					HealthCheckPort:       awsv2.Int32(8080),
 					EndpointDescriptions: []awsgatypes.EndpointDescription{{
-						EndpointId:                  aws.String(loadBalancerARN),
-						Weight:                      aws.Int32(128),
-						ClientIPPreservationEnabled: aws.Bool(true),
+						EndpointId:                  awsv2.String(loadBalancerARN),
+						Weight:                      awsv2.Int32(128),
+						ClientIPPreservationEnabled: awsv2.Bool(true),
 						HealthState:                 awsgatypes.HealthStateHealthy,
 					}},
 				}},
@@ -77,8 +77,8 @@ func TestClientListsGlobalAcceleratorTopologyMetadataOnly(t *testing.T) {
 		},
 		tags: map[string]*awsga.ListTagsForResourceOutput{
 			acceleratorARN: {Tags: []awsgatypes.Tag{{
-				Key:   aws.String("Environment"),
-				Value: aws.String("prod"),
+				Key:   awsv2.String("Environment"),
+				Value: awsv2.String("prod"),
 			}}},
 		},
 	}
@@ -137,11 +137,11 @@ func TestClientListsGlobalAcceleratorTopologyMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceGlobalAccelerator,
+		ServiceKind: aws.ServiceGlobalAccelerator,
 	}
 }
 
@@ -161,7 +161,7 @@ func (f *fakeAPI) ListAccelerators(
 	input *awsga.ListAcceleratorsInput,
 	_ ...func(*awsga.Options),
 ) (*awsga.ListAcceleratorsOutput, error) {
-	f.acceleratorTokens = append(f.acceleratorTokens, aws.ToString(input.NextToken))
+	f.acceleratorTokens = append(f.acceleratorTokens, awsv2.ToString(input.NextToken))
 	if f.acceleratorCalls >= len(f.acceleratorPages) {
 		return &awsga.ListAcceleratorsOutput{}, nil
 	}
@@ -178,7 +178,7 @@ func (f *fakeAPI) ListListeners(
 	if f.listenerCalls == nil {
 		f.listenerCalls = map[string]int{}
 	}
-	arn := aws.ToString(input.AcceleratorArn)
+	arn := awsv2.ToString(input.AcceleratorArn)
 	pages := f.listenerPages[arn]
 	idx := f.listenerCalls[arn]
 	if idx >= len(pages) {
@@ -196,7 +196,7 @@ func (f *fakeAPI) ListEndpointGroups(
 	if f.endpointGroupCalls == nil {
 		f.endpointGroupCalls = map[string]int{}
 	}
-	arn := aws.ToString(input.ListenerArn)
+	arn := awsv2.ToString(input.ListenerArn)
 	pages := f.endpointGroupPages[arn]
 	idx := f.endpointGroupCalls[arn]
 	if idx >= len(pages) {
@@ -211,7 +211,7 @@ func (f *fakeAPI) ListTagsForResource(
 	input *awsga.ListTagsForResourceInput,
 	_ ...func(*awsga.Options),
 ) (*awsga.ListTagsForResourceOutput, error) {
-	if output := f.tags[aws.ToString(input.ResourceArn)]; output != nil {
+	if output := f.tags[awsv2.ToString(input.ResourceArn)]; output != nil {
 		return output, nil
 	}
 	return &awsga.ListTagsForResourceOutput{}, nil

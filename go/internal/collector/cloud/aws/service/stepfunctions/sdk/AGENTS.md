@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/stepfunctions/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/stepfunctions/sdk guidance
 
 ## Read First
 

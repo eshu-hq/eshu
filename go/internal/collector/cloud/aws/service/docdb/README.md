@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/docdb` owns the Amazon DocumentDB scanner
+`internal/collector/cloud/aws/service/docdb` owns the Amazon DocumentDB scanner
 contract for the AWS cloud collector. It converts DocumentDB control-plane
 metadata into `aws_resource` facts for DB clusters, cluster instances, cluster
 parameter groups, cluster snapshots, subnet groups, global clusters, and event
@@ -57,7 +57,7 @@ group VPC), `docdb_db_cluster_in_subnet_group`, `docdb_db_cluster_uses_kms_key`,
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -66,10 +66,10 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns;
 `eshu_dp_aws_resources_emitted_total{service="docdb"}` carries the emitted
-resource count. The `awssdk` adapter records DocumentDB API call counts,
+resource count. The `sdk` adapter records DocumentDB API call counts,
 throttles, and pagination spans.
 
 ## Gotchas / invariants
@@ -97,7 +97,7 @@ throttles, and pagination spans.
 ## Evidence
 
 Collector Performance Evidence: `go test
-./internal/collector/awscloud/service/docdb/...` covers the bounded
+./internal/collector/cloud/aws/service/docdb/...` covers the bounded
 DocumentDB metadata path: paginated DescribeDBClusters, DescribeDBInstances,
 DescribeDBClusterParameterGroups, DescribeDBClusterParameters (counted, never
 persisted), DescribeDBClusterSnapshots, DescribeDBSubnetGroups,
@@ -109,7 +109,7 @@ document reads, snapshot content reads, parameter-value reads, mutations, or
 graph writes occur in the collector.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud
-./internal/collector/awscloud/...` covers DocumentDB metadata fact emission,
+./internal/collector/cloud/aws/...` covers DocumentDB metadata fact emission,
 direct relationship emission, omission of password/secret/document/parameter-
 value fields, runtime registration, command configuration, and the SDK
 adapter's safe metadata mapping. The DocumentDB scanner adds a new bounded

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awssd "github.com/aws/aws-sdk-go-v2/service/servicediscovery"
 	sdtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 	"go.opentelemetry.io/otel/trace"
@@ -42,15 +42,15 @@ type apiClient interface {
 // attribute reader.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Cloud Map SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -71,7 +71,7 @@ func (c *Client) ListNamespaceInventory(ctx context.Context) ([]sdservice.Namesp
 	}
 	namespaces := make([]sdservice.Namespace, 0, len(summaries))
 	for _, summary := range summaries {
-		namespaceID := strings.TrimSpace(aws.ToString(summary.Id))
+		namespaceID := strings.TrimSpace(awsv2.ToString(summary.Id))
 		if namespaceID == "" {
 			continue
 		}
@@ -169,7 +169,7 @@ func (c *Client) resourceTags(ctx context.Context, arn string) (map[string]strin
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		page, callErr = c.client.ListTagsForResource(callCtx, &awssd.ListTagsForResourceInput{
-			ResourceARN: aws.String(arn),
+			ResourceARN: awsv2.String(arn),
 		})
 		return callErr
 	})

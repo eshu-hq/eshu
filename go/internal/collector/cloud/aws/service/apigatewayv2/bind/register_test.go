@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind_test
+package bind_test
 
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
@@ -16,13 +16,13 @@ import (
 // TestAPIGatewayV2RuntimeBindRegisters confirms importing the binding installs
 // the API Gateway v2 scanner builder.
 func TestAPIGatewayV2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAPIGatewayV2)
+	build, ok := runtime.LookupBuilder(aws.ServiceAPIGatewayV2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAPIGatewayV2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", aws.ServiceAPIGatewayV2)
 	}
-	scanner, err := build(awsruntime.ScannerDeps{
-		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGatewayV2},
+	scanner, err := build(runtime.ScannerDeps{
+		AWSConfig: awsv2.Config{Region: "us-east-1"},
+		Boundary:  aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAPIGatewayV2},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -36,7 +36,7 @@ func TestAPIGatewayV2RuntimeBindRegisters(t *testing.T) {
 // drops secrets and templates by not mapping them, so it carries no redaction
 // requirement.
 func TestAPIGatewayV2RuntimeBindDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceAPIGatewayV2) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceAPIGatewayV2)
+	if runtime.ServiceRequiresRedactionKey(aws.ServiceAPIGatewayV2) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", aws.ServiceAPIGatewayV2)
 	}
 }

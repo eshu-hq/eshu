@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsacm "github.com/aws/aws-sdk-go-v2/service/acm"
 	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
 
@@ -39,22 +39,22 @@ func TestClientListCertificatesReadsOnlyDescribeAndTagsAndOmitsCertificateBody(t
 	api := &fakeACMAPI{
 		listPages: []*awsacm.ListCertificatesOutput{{
 			CertificateSummaryList: []acmtypes.CertificateSummary{{
-				CertificateArn: aws.String(certificateARN),
-				DomainName:     aws.String("example.com"),
+				CertificateArn: awsv2.String(certificateARN),
+				DomainName:     awsv2.String("example.com"),
 			}},
 		}},
 		descriptions: map[string]*acmtypes.CertificateDetail{
 			certificateARN: {
-				CertificateArn:          aws.String(certificateARN),
-				DomainName:              aws.String("example.com"),
+				CertificateArn:          awsv2.String(certificateARN),
+				DomainName:              awsv2.String("example.com"),
 				SubjectAlternativeNames: []string{"example.com", "www.example.com"},
 				Status:                  acmtypes.CertificateStatusIssued,
 				Type:                    acmtypes.CertificateTypeAmazonIssued,
-				Issuer:                  aws.String("Amazon"),
+				Issuer:                  awsv2.String("Amazon"),
 				NotBefore:               &notBefore,
 				NotAfter:                &notAfter,
 				KeyAlgorithm:            acmtypes.KeyAlgorithmRsa2048,
-				SignatureAlgorithm:      aws.String("SHA256WITHRSA"),
+				SignatureAlgorithm:      awsv2.String("SHA256WITHRSA"),
 				InUseBy: []string{
 					"arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc",
 				},
@@ -62,13 +62,13 @@ func TestClientListCertificatesReadsOnlyDescribeAndTagsAndOmitsCertificateBody(t
 		},
 		tags: map[string][]acmtypes.Tag{
 			certificateARN: {
-				{Key: aws.String("Environment"), Value: aws.String("prod")},
+				{Key: awsv2.String("Environment"), Value: awsv2.String("prod")},
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())
@@ -131,14 +131,14 @@ func TestClientListCertificatesIncludesACMPCAIssuedCertificatesWithoutCallingPCA
 	api := &fakeACMAPI{
 		listPages: []*awsacm.ListCertificatesOutput{{
 			CertificateSummaryList: []acmtypes.CertificateSummary{{
-				CertificateArn: aws.String(certificateARN),
-				DomainName:     aws.String("internal.example"),
+				CertificateArn: awsv2.String(certificateARN),
+				DomainName:     awsv2.String("internal.example"),
 			}},
 		}},
 		descriptions: map[string]*acmtypes.CertificateDetail{
 			certificateARN: {
-				CertificateArn: aws.String(certificateARN),
-				DomainName:     aws.String("internal.example"),
+				CertificateArn: awsv2.String(certificateARN),
+				DomainName:     awsv2.String("internal.example"),
 				Status:         acmtypes.CertificateStatusIssued,
 				Type:           acmtypes.CertificateTypePrivate,
 			},
@@ -146,7 +146,7 @@ func TestClientListCertificatesIncludesACMPCAIssuedCertificatesWithoutCallingPCA
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())
@@ -166,32 +166,32 @@ func TestClientListCertificatesPaginates(t *testing.T) {
 		listPages: []*awsacm.ListCertificatesOutput{
 			{
 				CertificateSummaryList: []acmtypes.CertificateSummary{{
-					CertificateArn: aws.String("arn:aws:acm:us-east-1:123456789012:certificate/a"),
-					DomainName:     aws.String("a.example"),
+					CertificateArn: awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/a"),
+					DomainName:     awsv2.String("a.example"),
 				}},
-				NextToken: aws.String("token-1"),
+				NextToken: awsv2.String("token-1"),
 			},
 			{
 				CertificateSummaryList: []acmtypes.CertificateSummary{{
-					CertificateArn: aws.String("arn:aws:acm:us-east-1:123456789012:certificate/b"),
-					DomainName:     aws.String("b.example"),
+					CertificateArn: awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/b"),
+					DomainName:     awsv2.String("b.example"),
 				}},
 			},
 		},
 		descriptions: map[string]*acmtypes.CertificateDetail{
 			"arn:aws:acm:us-east-1:123456789012:certificate/a": {
-				CertificateArn: aws.String("arn:aws:acm:us-east-1:123456789012:certificate/a"),
+				CertificateArn: awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/a"),
 				Status:         acmtypes.CertificateStatusIssued,
 			},
 			"arn:aws:acm:us-east-1:123456789012:certificate/b": {
-				CertificateArn: aws.String("arn:aws:acm:us-east-1:123456789012:certificate/b"),
+				CertificateArn: awsv2.String("arn:aws:acm:us-east-1:123456789012:certificate/b"),
 				Status:         acmtypes.CertificateStatusIssued,
 			},
 		},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())
@@ -236,7 +236,7 @@ func (f *fakeACMAPI) DescribeCertificate(
 	_ ...func(*awsacm.Options),
 ) (*awsacm.DescribeCertificateOutput, error) {
 	f.describeCalls++
-	arn := aws.ToString(input.CertificateArn)
+	arn := awsv2.ToString(input.CertificateArn)
 	detail, ok := f.descriptions[arn]
 	if !ok {
 		return &awsacm.DescribeCertificateOutput{}, nil
@@ -250,7 +250,7 @@ func (f *fakeACMAPI) ListTagsForCertificate(
 	_ ...func(*awsacm.Options),
 ) (*awsacm.ListTagsForCertificateOutput, error) {
 	f.listTagsCalls++
-	arn := aws.ToString(input.CertificateArn)
+	arn := awsv2.ToString(input.CertificateArn)
 	return &awsacm.ListTagsForCertificateOutput{Tags: f.tags[arn]}, nil
 }
 

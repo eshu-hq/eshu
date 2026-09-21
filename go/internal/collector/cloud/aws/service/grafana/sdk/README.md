@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/grafana/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/grafana/sdk` adapts AWS SDK for Go v2
 Managed Grafana responses to the scanner-owned `Client` contract. It owns
 workspace pagination, per-workspace point reads, resource-tag reads,
 partition-aware workspace ARN synthesis, throttle classification, and per-call
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, service boundary labels,
+- `internal/collector/cloud/aws` for account, region, service boundary labels,
   and partition helpers.
-- `internal/collector/awscloud/service/grafana` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/grafana` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `grafana` and Smithy error contracts.
 
@@ -61,7 +61,7 @@ out of metric labels.
 - Managed Grafana does not report an ARN on the workspace description. The
   adapter synthesizes a partition-aware ARN
   (`arn:<partition>:grafana:<region>:<account>:/workspaces/<id>`) via
-  `awscloud.PartitionForBoundary`; never hardcode `arn:aws:`.
+  `aws.PartitionForBoundary`; never hardcode `arn:aws:`.
 - The adapter reads metadata only. It must never call
   `DescribeWorkspaceAuthentication` (which returns SAML / IAM Identity Center
   configuration), `DescribeWorkspaceConfiguration`, `CreateWorkspaceApiKey`, any

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/transitgateway guidance
+# AGENTS.md - internal/collector/cloud/aws/service/transitgateway guidance
 
 ## Read First
 
@@ -31,7 +31,7 @@
   that is a downstream org-context join.
 - Never emit `aws_vpc_route_table`, `aws_vpc_vpn_connection`, or any EC2-owned
   resource. Cross-package edges reference the owning scanner's type by
-  `awscloud.ResourceTypeXxx`. `scanner_test.go::TestResourceTypesDisjointFromVPC`
+  `aws.ResourceTypeXxx`. `scanner_test.go::TestResourceTypesDisjointFromVPC`
   pins the boundary.
 - Preserve stable transit gateway, route table, attachment, multicast domain,
   and policy table identities across repeated observations in the same AWS
@@ -42,13 +42,13 @@
 
 - Add a new Transit Gateway metadata field by extending the scanner-owned
   record in `types.go`, writing a focused scanner or adapter test first, then
-  mapping it through `awscloud` envelope builders.
+  mapping it through `aws` envelope builders.
 - Add new relationship evidence only when the AWS API reports both sides
   directly and the target type already exists (or you add a new
-  `awscloud.RelationshipTransitGatewayXxx` constant alphabetically in
+  `aws.RelationshipTransitGatewayXxx` constant alphabetically in
   `constants_transitgateway.go`).
 - Extend SDK pagination, mutation guards, and the apiClient interface only in
-  the `awssdk` adapter, never here.
+  the `sdk` adapter, never here.
 
 ## What Not To Change Without An ADR
 

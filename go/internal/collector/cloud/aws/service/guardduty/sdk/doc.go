@@ -9,4 +9,4 @@
 // It intentionally excludes finding-body reads, filter detail reads, mutation
 // APIs, and any S3 reads that would resolve threat intel set or IP set
 // locations into list contents.
-package awssdk
+package sdk

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappsync "github.com/aws/aws-sdk-go-v2/service/appsync"
 	awsappsynctypes "github.com/aws/aws-sdk-go-v2/service/appsync/types"
 
@@ -62,58 +62,58 @@ func TestAppSyncAPIExcludesForbiddenMethods(t *testing.T) {
 func TestSnapshotMapsMetadataAndExcludesPayloads(t *testing.T) {
 	fake := &fakeAPI{
 		apis: []awsappsynctypes.GraphqlApi{{
-			ApiId:              aws.String("api-1"),
-			Arn:                aws.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1"),
-			Name:               aws.String("orders"),
+			ApiId:              awsv2.String("api-1"),
+			Arn:                awsv2.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1"),
+			Name:               awsv2.String("orders"),
 			AuthenticationType: awsappsynctypes.AuthenticationTypeAmazonCognitoUserPools,
 			XrayEnabled:        true,
 			UserPoolConfig: &awsappsynctypes.UserPoolConfig{
-				UserPoolId: aws.String("us-east-1_abc123"),
-				AwsRegion:  aws.String("us-east-1"),
+				UserPoolId: awsv2.String("us-east-1_abc123"),
+				AwsRegion:  awsv2.String("us-east-1"),
 			},
 			OpenIDConnectConfig: &awsappsynctypes.OpenIDConnectConfig{
-				Issuer: aws.String("https://issuer.example.com"),
+				Issuer: awsv2.String("https://issuer.example.com"),
 			},
 			LogConfig: &awsappsynctypes.LogConfig{
 				FieldLogLevel:         awsappsynctypes.FieldLogLevelError,
-				CloudWatchLogsRoleArn: aws.String("arn:aws:iam::123456789012:role/logs"),
+				CloudWatchLogsRoleArn: awsv2.String("arn:aws:iam::123456789012:role/logs"),
 			},
 		}},
 		dataSources: []awsappsynctypes.DataSource{{
-			Name:          aws.String("orders-lambda"),
-			DataSourceArn: aws.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/datasources/orders-lambda"),
+			Name:          awsv2.String("orders-lambda"),
+			DataSourceArn: awsv2.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/datasources/orders-lambda"),
 			Type:          awsappsynctypes.DataSourceTypeAwsLambda,
-			LambdaConfig:  &awsappsynctypes.LambdaDataSourceConfig{LambdaFunctionArn: aws.String("arn:aws:lambda:us-east-1:123456789012:function:orders")},
+			LambdaConfig:  &awsappsynctypes.LambdaDataSourceConfig{LambdaFunctionArn: awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:orders")},
 		}},
 		types: []awsappsynctypes.Type{
-			{Name: aws.String("Query"), Definition: aws.String("type Query { getOrder: Order }")},
-			{Name: aws.String("Order"), Definition: aws.String("type Order { id: ID! }")},
+			{Name: awsv2.String("Query"), Definition: awsv2.String("type Query { getOrder: Order }")},
+			{Name: awsv2.String("Order"), Definition: awsv2.String("type Order { id: ID! }")},
 		},
 		resolversByType: map[string][]awsappsynctypes.Resolver{
 			"Query": {{
-				TypeName:                aws.String("Query"),
-				FieldName:               aws.String("getOrder"),
+				TypeName:                awsv2.String("Query"),
+				FieldName:               awsv2.String("getOrder"),
 				Kind:                    awsappsynctypes.ResolverKindUnit,
-				DataSourceName:          aws.String("orders-lambda"),
-				ResolverArn:             aws.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/types/Query/resolvers/getOrder"),
-				RequestMappingTemplate:  aws.String("#set($x = $ctx.identity.sub)"),
-				ResponseMappingTemplate: aws.String("$util.toJson($ctx.result)"),
-				Code:                    aws.String("export function request(ctx){ return {} }"),
+				DataSourceName:          awsv2.String("orders-lambda"),
+				ResolverArn:             awsv2.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/types/Query/resolvers/getOrder"),
+				RequestMappingTemplate:  awsv2.String("#set($x = $ctx.identity.sub)"),
+				ResponseMappingTemplate: awsv2.String("$util.toJson($ctx.result)"),
+				Code:                    awsv2.String("export function request(ctx){ return {} }"),
 			}},
 		},
 		functions: []awsappsynctypes.FunctionConfiguration{{
-			FunctionId:              aws.String("func-1"),
-			Name:                    aws.String("fetchOrder"),
-			FunctionArn:             aws.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/functions/func-1"),
-			DataSourceName:          aws.String("orders-lambda"),
-			Code:                    aws.String("export function request(ctx){ return {} }"),
-			RequestMappingTemplate:  aws.String("#set($y = 1)"),
-			ResponseMappingTemplate: aws.String("$util.toJson($ctx.result)"),
-			Runtime:                 &awsappsynctypes.AppSyncRuntime{Name: awsappsynctypes.RuntimeNameAppsyncJs, RuntimeVersion: aws.String("1.0.0")},
+			FunctionId:              awsv2.String("func-1"),
+			Name:                    awsv2.String("fetchOrder"),
+			FunctionArn:             awsv2.String("arn:aws:appsync:us-east-1:123456789012:apis/api-1/functions/func-1"),
+			DataSourceName:          awsv2.String("orders-lambda"),
+			Code:                    awsv2.String("export function request(ctx){ return {} }"),
+			RequestMappingTemplate:  awsv2.String("#set($y = 1)"),
+			ResponseMappingTemplate: awsv2.String("$util.toJson($ctx.result)"),
+			Runtime:                 &awsappsynctypes.AppSyncRuntime{Name: awsappsynctypes.RuntimeNameAppsyncJs, RuntimeVersion: awsv2.String("1.0.0")},
 		}},
 		apiKeys: []awsappsynctypes.ApiKey{{
-			Id:          aws.String("da2-secretvalue"),
-			Description: aws.String("default"),
+			Id:          awsv2.String("da2-secretvalue"),
+			Description: awsv2.String("default"),
 			Expires:     1893456000,
 		}},
 		schemaStatus: awsappsynctypes.SchemaStatusSuccess,
@@ -177,8 +177,8 @@ func TestSnapshotStopsPaginationOnNilPage(t *testing.T) {
 func TestSnapshotPaginatesGraphQLAPIs(t *testing.T) {
 	fake := &fakeAPI{
 		apiPages: [][]awsappsynctypes.GraphqlApi{
-			{{ApiId: aws.String("api-1"), Name: aws.String("a")}},
-			{{ApiId: aws.String("api-2"), Name: aws.String("b")}},
+			{{ApiId: awsv2.String("api-1"), Name: awsv2.String("a")}},
+			{{ApiId: awsv2.String("api-2"), Name: awsv2.String("b")}},
 		},
 		schemaStatus: awsappsynctypes.SchemaStatusNotApplicable,
 	}
@@ -209,8 +209,8 @@ func assertNoForbiddenStringValue(t *testing.T, value any, needles ...string) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppSync}
+func testBoundary() aws.Boundary {
+	return aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceAppSync}
 }
 
 // fakeAPI is a minimal in-memory appsyncAPI. It returns a single page per list
@@ -236,7 +236,7 @@ func (f *fakeAPI) ListGraphqlApis(_ context.Context, _ *awsappsync.ListGraphqlAp
 		page := f.apiPages[f.apiPageIndex]
 		out := &awsappsync.ListGraphqlApisOutput{GraphqlApis: page}
 		if f.apiPageIndex < len(f.apiPages)-1 {
-			out.NextToken = aws.String("next")
+			out.NextToken = awsv2.String("next")
 			f.apiPageIndex++
 		}
 		return out, nil
@@ -253,7 +253,7 @@ func (f *fakeAPI) ListTypes(_ context.Context, _ *awsappsync.ListTypesInput, _ .
 }
 
 func (f *fakeAPI) ListResolvers(_ context.Context, in *awsappsync.ListResolversInput, _ ...func(*awsappsync.Options)) (*awsappsync.ListResolversOutput, error) {
-	return &awsappsync.ListResolversOutput{Resolvers: f.resolversByType[aws.ToString(in.TypeName)]}, nil
+	return &awsappsync.ListResolversOutput{Resolvers: f.resolversByType[awsv2.ToString(in.TypeName)]}, nil
 }
 
 func (f *fakeAPI) ListFunctions(_ context.Context, _ *awsappsync.ListFunctionsInput, _ ...func(*awsappsync.Options)) (*awsappsync.ListFunctionsOutput, error) {

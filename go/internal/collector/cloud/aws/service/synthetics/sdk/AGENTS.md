@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/synthetics/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/synthetics/sdk guidance
 
 ## Read First
 
@@ -25,7 +25,7 @@
   result.
 - Persist only safe canary metadata plus the inline resource tags. Never read or
   persist canary script source code, run artifacts, or run results.
-- Synthesize the canary ARN with `awscloud.PartitionForBoundary`; never hardcode
+- Synthesize the canary ARN with `aws.PartitionForBoundary`; never hardcode
   `arn:aws:`. Copy only the run-artifact S3 encryption configuration and the VPC
   config; never the artifacts themselves.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime

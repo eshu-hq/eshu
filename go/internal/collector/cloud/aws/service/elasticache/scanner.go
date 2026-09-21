@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes ElastiCache cache clusters, replication groups, parameter
 // groups, subnet groups, users, user groups, and snapshot metadata through
 // the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("elasticache scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceElastiCache:
+	case "", aws.ServiceElastiCache:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceElastiCache
+		boundary.ServiceKind = aws.ServiceElastiCache
 	default:
 		return nil, fmt.Errorf("elasticache scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -70,13 +70,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, cluster := range clusters {
-		resource, err := awscloud.NewResourceEnvelope(clusterObservation(boundary, cluster))
+		resource, err := aws.NewResourceEnvelope(clusterObservation(boundary, cluster))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range clusterRelationships(boundary, cluster) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -84,13 +84,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, group := range replicationGroups {
-		resource, err := awscloud.NewResourceEnvelope(replicationGroupObservation(boundary, group))
+		resource, err := aws.NewResourceEnvelope(replicationGroupObservation(boundary, group))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range replicationGroupRelationships(boundary, group, clusterIDs) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -98,34 +98,34 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, subnetGroup := range subnetGroups {
-		resource, err := awscloud.NewResourceEnvelope(subnetGroupObservation(boundary, subnetGroup))
+		resource, err := aws.NewResourceEnvelope(subnetGroupObservation(boundary, subnetGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, parameterGroup := range parameterGroups {
-		resource, err := awscloud.NewResourceEnvelope(parameterGroupObservation(boundary, parameterGroup))
+		resource, err := aws.NewResourceEnvelope(parameterGroupObservation(boundary, parameterGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, user := range users {
-		resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
+		resource, err := aws.NewResourceEnvelope(userObservation(boundary, user))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 	}
 	for _, userGroup := range userGroups {
-		resource, err := awscloud.NewResourceEnvelope(userGroupObservation(boundary, userGroup))
+		resource, err := aws.NewResourceEnvelope(userGroupObservation(boundary, userGroup))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
 		for _, relationship := range userGroupRelationships(boundary, userGroup, userIDs) {
-			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+			envelope, err := aws.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
 			}
@@ -133,7 +133,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 	}
 	for _, snapshot := range snapshots {
-		resource, err := awscloud.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
+		resource, err := aws.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
 		if err != nil {
 			return nil, err
 		}
@@ -142,15 +142,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func clusterObservation(boundary awscloud.Boundary, cluster CacheCluster) awscloud.ResourceObservation {
+func clusterObservation(boundary aws.Boundary, cluster CacheCluster) aws.ResourceObservation {
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	id := strings.TrimSpace(cluster.ID)
 	resourceID := firstNonEmpty(clusterARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheCacheCluster,
+		ResourceType: aws.ResourceTypeElastiCacheCacheCluster,
 		Name:         id,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -190,15 +190,15 @@ func clusterAttributes(cluster CacheCluster) map[string]any {
 	}
 }
 
-func replicationGroupObservation(boundary awscloud.Boundary, group ReplicationGroup) awscloud.ResourceObservation {
+func replicationGroupObservation(boundary aws.Boundary, group ReplicationGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	id := strings.TrimSpace(group.ID)
 	resourceID := firstNonEmpty(groupARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheReplicationGroup,
+		ResourceType: aws.ResourceTypeElastiCacheReplicationGroup,
 		Name:         id,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -224,15 +224,15 @@ func replicationGroupObservation(boundary awscloud.Boundary, group ReplicationGr
 	}
 }
 
-func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscloud.ResourceObservation {
+func subnetGroupObservation(boundary aws.Boundary, group SubnetGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheSubnetGroup,
+		ResourceType: aws.ResourceTypeElastiCacheSubnetGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -245,15 +245,15 @@ func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscl
 	}
 }
 
-func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup) awscloud.ResourceObservation {
+func parameterGroupObservation(boundary aws.Boundary, group ParameterGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	name := strings.TrimSpace(group.Name)
 	resourceID := firstNonEmpty(groupARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheParameterGroup,
+		ResourceType: aws.ResourceTypeElastiCacheParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -266,15 +266,15 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup)
 	}
 }
 
-func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObservation {
+func userObservation(boundary aws.Boundary, user User) aws.ResourceObservation {
 	userARN := strings.TrimSpace(user.ARN)
 	id := strings.TrimSpace(user.ID)
 	resourceID := firstNonEmpty(userARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheUser,
+		ResourceType: aws.ResourceTypeElastiCacheUser,
 		Name:         strings.TrimSpace(user.Name),
 		State:        strings.TrimSpace(user.Status),
 		Tags:         cloneStringMap(user.Tags),
@@ -290,15 +290,15 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 	}
 }
 
-func userGroupObservation(boundary awscloud.Boundary, group UserGroup) awscloud.ResourceObservation {
+func userGroupObservation(boundary aws.Boundary, group UserGroup) aws.ResourceObservation {
 	groupARN := strings.TrimSpace(group.ARN)
 	id := strings.TrimSpace(group.ID)
 	resourceID := firstNonEmpty(groupARN, id)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheUserGroup,
+		ResourceType: aws.ResourceTypeElastiCacheUserGroup,
 		Name:         id,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -311,15 +311,15 @@ func userGroupObservation(boundary awscloud.Boundary, group UserGroup) awscloud.
 	}
 }
 
-func snapshotObservation(boundary awscloud.Boundary, snapshot SnapshotMetadata) awscloud.ResourceObservation {
+func snapshotObservation(boundary aws.Boundary, snapshot SnapshotMetadata) aws.ResourceObservation {
 	snapshotARN := strings.TrimSpace(snapshot.ARN)
 	name := strings.TrimSpace(snapshot.Name)
 	resourceID := firstNonEmpty(snapshotARN, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheSnapshot,
+		ResourceType: aws.ResourceTypeElastiCacheSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

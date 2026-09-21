@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ssm` owns the AWS Systems Manager
+`internal/collector/cloud/aws/service/ssm` owns the AWS Systems Manager
 Parameter Store scanner contract for the AWS cloud collector. It converts
 parameter control-plane metadata into `aws_resource` facts and emits
 relationship evidence when AWS directly reports a KMS key dependency.
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -46,9 +46,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records SSM API call counts, throttles, and pagination
+The `sdk` adapter records SSM API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -66,14 +66,14 @@ spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/ssm/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/ssm/...`
 covers the bounded SSM Parameter Store metadata path: paginated
 DescribeParameters with MaxResults=50 and one ListTagsForResource read per
 parameter name. The collector does not call GetParameter, GetParameters,
 GetParametersByPath, GetParameterHistory, decryption, mutation APIs, or graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers SSM parameter metadata fact emission, direct KMS relationship emission,
 omission of values/history/descriptions/allowed-patterns/policy JSON, SDK
 pagination, tag reads, runtime registration, command configuration, and the SDK

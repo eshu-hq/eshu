@@ -26,7 +26,7 @@ type Client interface {
 // Snapshot is the scanner-owned metadata view of AppSync GraphQL APIs, data
 // sources, resolvers, functions, schema metadata, and API key metadata.
 type Snapshot struct {
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 	APIs     []GraphQLAPI
 }
 

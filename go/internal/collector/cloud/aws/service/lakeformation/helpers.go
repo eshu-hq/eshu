@@ -16,8 +16,8 @@ import (
 // value, keeping GovCloud and China graph joins from dangling. Registered
 // Lake Formation locations carry an S3 ARN whose partition is preferred over
 // the boundary; this helper is the fallback when no source ARN is available.
-func partition(boundary awscloud.Boundary) string {
-	return awscloud.PartitionForBoundary(boundary)
+func partition(boundary aws.Boundary) string {
+	return aws.PartitionForBoundary(boundary)
 }
 
 // bucketARNFromS3LocationARN extracts the bucket-scoped S3 ARN
@@ -28,7 +28,7 @@ func partition(boundary awscloud.Boundary) string {
 // fallback when the source ARN's partition segment is blank. It returns
 // ok=false when the value is not an S3 location ARN or carries no bucket
 // segment.
-func bucketARNFromS3LocationARN(boundary awscloud.Boundary, locationARN string) (bucketARN string, bucket string, prefix string, ok bool) {
+func bucketARNFromS3LocationARN(boundary aws.Boundary, locationARN string) (bucketARN string, bucket string, prefix string, ok bool) {
 	trimmed := strings.TrimSpace(locationARN)
 	if !strings.HasPrefix(trimmed, "arn:") {
 		return "", "", "", false

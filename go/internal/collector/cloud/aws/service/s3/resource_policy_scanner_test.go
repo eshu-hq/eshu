@@ -22,7 +22,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Resources:           []string{"arn:aws:s3:::orders-artifacts/*"},
 				PrincipalAccountIDs: []string{"999988887777"},
 				PrincipalARNs:       []string{"arn:aws:iam::999988887777:role/partner"},
-				PrincipalTypes:      []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes:      []string{aws.ResourcePolicyPrincipalTypeAWS},
 				IsCrossAccount:      true,
 			},
 			{
@@ -31,7 +31,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Actions:        []string{"s3:*"},
 				Resources:      []string{"arn:aws:s3:::orders-artifacts/*"},
 				ConditionKeys:  []string{"aws:SecureTransport"},
-				PrincipalTypes: []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes: []string{aws.ResourcePolicyPrincipalTypeAWS},
 				IsPublic:       true,
 			},
 		},
@@ -49,8 +49,8 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 
 	allow := resourcePolicyPermissionByEffect(t, envelopes, "Allow")
 	assertPayloadEquals(t, allow.Payload, "resource_arn", "arn:aws:s3:::orders-artifacts")
-	assertPayloadEquals(t, allow.Payload, "resource_type", awscloud.ResourceTypeS3Bucket)
-	assertPayloadEquals(t, allow.Payload, "policy_source", awscloud.ResourcePolicySourceResource)
+	assertPayloadEquals(t, allow.Payload, "resource_type", aws.ResourceTypeS3Bucket)
+	assertPayloadEquals(t, allow.Payload, "policy_source", aws.ResourcePolicySourceResource)
 	assertPayloadEquals(t, allow.Payload, "is_cross_account", true)
 	if got, _ := allow.Payload["principal_account_ids"].([]string); len(got) != 1 || got[0] != "999988887777" {
 		t.Fatalf("allow principal_account_ids = %#v, want [999988887777]", allow.Payload["principal_account_ids"])

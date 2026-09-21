@@ -10,14 +10,14 @@ import (
 )
 
 func distributionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	distribution Distribution,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	distributionID := distributionResourceID(distribution)
 	if distributionID == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	if relationship, ok := acmCertificateRelationship(boundary, distribution, distributionID); ok {
 		relationships = append(relationships, relationship)
 	}
@@ -28,17 +28,17 @@ func distributionRelationships(
 }
 
 func acmCertificateRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	distribution Distribution,
 	distributionID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	certificateARN := strings.TrimSpace(distribution.ViewerCertificate.ACMCertificateARN)
 	if certificateARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudFrontDistributionUsesACMCertificate,
+		RelationshipType: aws.RelationshipCloudFrontDistributionUsesACMCertificate,
 		SourceResourceID: distributionID,
 		SourceARN:        strings.TrimSpace(distribution.ARN),
 		TargetResourceID: certificateARN,
@@ -52,21 +52,21 @@ func acmCertificateRelationship(
 }
 
 func wafWebACLRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	distribution Distribution,
 	distributionID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	webACLID := strings.TrimSpace(distribution.WebACLID)
 	if webACLID == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	webACLARN := ""
 	if isARN(webACLID) {
 		webACLARN = webACLID
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudFrontDistributionUsesWAFWebACL,
+		RelationshipType: aws.RelationshipCloudFrontDistributionUsesWAFWebACL,
 		SourceResourceID: distributionID,
 		SourceARN:        strings.TrimSpace(distribution.ARN),
 		TargetResourceID: webACLID,

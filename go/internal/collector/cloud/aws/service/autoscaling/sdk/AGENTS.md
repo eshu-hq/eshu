@@ -1,4 +1,4 @@
-# AGENTS.md - services/autoscaling/awssdk guidance
+# AGENTS.md - services/autoscaling/sdk guidance
 
 ## Read First
 

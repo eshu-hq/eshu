@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/amp/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/amp/sdk` adapts AWS SDK for Go v2
 Amazon Managed Service for Prometheus (aps) responses to the scanner-owned
 `Client` contract. It owns workspace pagination, per-workspace rule-groups
 namespace pagination, scraper pagination, scraper source/destination union
@@ -35,9 +35,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/amp` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/amp` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `amp` and Smithy error contracts.
 

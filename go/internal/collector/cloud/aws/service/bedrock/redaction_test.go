@@ -97,8 +97,8 @@ func TestAgentAndGuardrailEmitNoForbiddenAttributeKeys(t *testing.T) {
 	}
 
 	envelopes := scanFixture(t, client)
-	agent := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockAgent)
-	guardrail := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockGuardrail)
+	agent := resourceByType(t, envelopes, aws.ResourceTypeBedrockAgent)
+	guardrail := resourceByType(t, envelopes, aws.ResourceTypeBedrockGuardrail)
 	for _, envelope := range []facts.Envelope{agent, guardrail} {
 		attributes, ok := envelope.Payload["attributes"].(map[string]any)
 		if !ok {

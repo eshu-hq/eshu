@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsredshift "github.com/aws/aws-sdk-go-v2/service/redshift"
 	awsserverless "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/smithy-go"
@@ -43,7 +43,7 @@ type serverlessAPI interface {
 type Client struct {
 	provisioned provisionedAPI
 	serverless  serverlessAPI
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
@@ -51,8 +51,8 @@ type Client struct {
 // NewClient builds a Redshift SDK adapter for one claimed AWS boundary covering
 // provisioned Redshift and Redshift Serverless.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -76,7 +76,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]redshiftservice.Cluster, e
 			var err error
 			page, err = c.provisioned.DescribeClusters(callCtx, &awsredshift.DescribeClustersInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -90,7 +90,7 @@ func (c *Client) ListClusters(ctx context.Context) ([]redshiftservice.Cluster, e
 			clusters = append(clusters, mapCluster(raw, c.boundary))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return clusters, nil
 		}
 	}
@@ -107,7 +107,7 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]redshiftserv
 			var err error
 			page, err = c.provisioned.DescribeClusterParameterGroups(callCtx, &awsredshift.DescribeClusterParameterGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -121,7 +121,7 @@ func (c *Client) ListClusterParameterGroups(ctx context.Context) ([]redshiftserv
 			groups = append(groups, mapClusterParameterGroup(c.boundary, raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -138,7 +138,7 @@ func (c *Client) ListClusterSubnetGroups(ctx context.Context) ([]redshiftservice
 			var err error
 			page, err = c.provisioned.DescribeClusterSubnetGroups(callCtx, &awsredshift.DescribeClusterSubnetGroupsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -152,7 +152,7 @@ func (c *Client) ListClusterSubnetGroups(ctx context.Context) ([]redshiftservice
 			groups = append(groups, mapClusterSubnetGroup(c.boundary, raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return groups, nil
 		}
 	}
@@ -169,7 +169,7 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]redshiftservice.Cl
 			var err error
 			page, err = c.provisioned.DescribeClusterSnapshots(callCtx, &awsredshift.DescribeClusterSnapshotsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -183,7 +183,7 @@ func (c *Client) ListClusterSnapshots(ctx context.Context) ([]redshiftservice.Cl
 			snapshots = append(snapshots, mapClusterSnapshot(c.boundary, raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return snapshots, nil
 		}
 	}
@@ -200,7 +200,7 @@ func (c *Client) ListScheduledActions(ctx context.Context) ([]redshiftservice.Sc
 			var err error
 			page, err = c.provisioned.DescribeScheduledActions(callCtx, &awsredshift.DescribeScheduledActionsInput{
 				Marker:     marker,
-				MaxRecords: aws.Int32(describeMaxRecords),
+				MaxRecords: awsv2.Int32(describeMaxRecords),
 			})
 			return err
 		})
@@ -214,7 +214,7 @@ func (c *Client) ListScheduledActions(ctx context.Context) ([]redshiftservice.Sc
 			actions = append(actions, mapScheduledAction(raw))
 		}
 		marker = page.Marker
-		if aws.ToString(marker) == "" {
+		if awsv2.ToString(marker) == "" {
 			return actions, nil
 		}
 	}
@@ -241,14 +241,14 @@ func (c *Client) ListServerlessNamespaces(ctx context.Context) ([]redshiftservic
 			return namespaces, nil
 		}
 		for _, raw := range page.Namespaces {
-			tags, err := c.serverlessTags(ctx, aws.ToString(raw.NamespaceArn))
+			tags, err := c.serverlessTags(ctx, awsv2.ToString(raw.NamespaceArn))
 			if err != nil {
 				return nil, err
 			}
 			namespaces = append(namespaces, mapServerlessNamespace(raw, tags))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return namespaces, nil
 		}
 	}
@@ -275,14 +275,14 @@ func (c *Client) ListServerlessWorkgroups(ctx context.Context) ([]redshiftservic
 			return workgroups, nil
 		}
 		for _, raw := range page.Workgroups {
-			tags, err := c.serverlessTags(ctx, aws.ToString(raw.WorkgroupArn))
+			tags, err := c.serverlessTags(ctx, awsv2.ToString(raw.WorkgroupArn))
 			if err != nil {
 				return nil, err
 			}
 			workgroups = append(workgroups, mapServerlessWorkgroup(raw, tags))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return workgroups, nil
 		}
 	}
@@ -297,7 +297,7 @@ func (c *Client) serverlessTags(ctx context.Context, resourceARN string) (map[st
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var err error
 		output, err = c.serverless.ListTagsForResource(callCtx, &awsserverless.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return err
 	})
@@ -325,7 +325,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

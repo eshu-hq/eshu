@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/imagebuilder/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/imagebuilder/sdk guidance
 
 ## Read First
 

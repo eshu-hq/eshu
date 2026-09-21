@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsvp "github.com/aws/aws-sdk-go-v2/service/verifiedpermissions"
 	awsvptypes "github.com/aws/aws-sdk-go-v2/service/verifiedpermissions/types"
 
@@ -24,50 +24,50 @@ func TestClientSnapshotsVerifiedPermissionsMetadataOnly(t *testing.T) {
 	api := &fakeVPAPI{
 		storePages: []*awsvp.ListPolicyStoresOutput{{
 			PolicyStores: []awsvptypes.PolicyStoreItem{{
-				Arn:           aws.String(storeARN),
-				PolicyStoreId: aws.String(storeID),
-				Description:   aws.String("prod authz"),
-				CreatedDate:   aws.Time(createdAt),
+				Arn:           awsv2.String(storeARN),
+				PolicyStoreId: awsv2.String(storeID),
+				Description:   awsv2.String("prod authz"),
+				CreatedDate:   awsv2.Time(createdAt),
 			}},
 		}},
 		storeDetail: map[string]*awsvp.GetPolicyStoreOutput{
 			storeID: {
-				Arn:                aws.String(storeARN),
-				PolicyStoreId:      aws.String(storeID),
+				Arn:                awsv2.String(storeARN),
+				PolicyStoreId:      awsv2.String(storeID),
 				ValidationSettings: &awsvptypes.ValidationSettings{Mode: awsvptypes.ValidationModeStrict},
 				DeletionProtection: awsvptypes.DeletionProtectionEnabled,
 				CedarVersion:       awsvptypes.CedarVersionCedar4,
 				EncryptionState:    &awsvptypes.EncryptionStateMemberKmsEncryptionState{},
-				CreatedDate:        aws.Time(createdAt),
-				LastUpdatedDate:    aws.Time(createdAt),
+				CreatedDate:        awsv2.Time(createdAt),
+				LastUpdatedDate:    awsv2.Time(createdAt),
 				Tags:               map[string]string{"Environment": "prod"},
 			},
 		},
 		policyPages: map[string][]*awsvp.ListPoliciesOutput{
 			storeID: {{
 				Policies: []awsvptypes.PolicyItem{{
-					PolicyId:        aws.String("SPEXAMPLE222222"),
-					PolicyStoreId:   aws.String(storeID),
+					PolicyId:        awsv2.String("SPEXAMPLE222222"),
+					PolicyStoreId:   awsv2.String(storeID),
 					PolicyType:      awsvptypes.PolicyTypeStatic,
 					Effect:          awsvptypes.PolicyEffectPermit,
-					CreatedDate:     aws.Time(createdAt),
-					LastUpdatedDate: aws.Time(createdAt),
+					CreatedDate:     awsv2.Time(createdAt),
+					LastUpdatedDate: awsv2.Time(createdAt),
 				}},
 			}},
 		},
 		identityPages: map[string][]*awsvp.ListIdentitySourcesOutput{
 			storeID: {{
 				IdentitySources: []awsvptypes.IdentitySourceItem{{
-					IdentitySourceId:    aws.String("ISEXAMPLE333333"),
-					PolicyStoreId:       aws.String(storeID),
-					PrincipalEntityType: aws.String("MyCorp::User"),
-					CreatedDate:         aws.Time(createdAt),
-					LastUpdatedDate:     aws.Time(createdAt),
+					IdentitySourceId:    awsv2.String("ISEXAMPLE333333"),
+					PolicyStoreId:       awsv2.String(storeID),
+					PrincipalEntityType: awsv2.String("MyCorp::User"),
+					CreatedDate:         awsv2.Time(createdAt),
+					LastUpdatedDate:     awsv2.Time(createdAt),
 					Configuration: &awsvptypes.ConfigurationItemMemberCognitoUserPoolConfiguration{
 						Value: awsvptypes.CognitoUserPoolConfigurationItem{
-							UserPoolArn: aws.String(userPoolARN),
+							UserPoolArn: awsv2.String(userPoolARN),
 							ClientIds:   []string{"clientA", "clientB"},
-							Issuer:      aws.String("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_1a2b3c4d5"),
+							Issuer:      awsv2.String("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_1a2b3c4d5"),
 						},
 					},
 				}},
@@ -130,21 +130,21 @@ func TestClientMapsDeprecatedIdentitySourceDetails(t *testing.T) {
 	api := &fakeVPAPI{
 		storePages: []*awsvp.ListPolicyStoresOutput{{
 			PolicyStores: []awsvptypes.PolicyStoreItem{{
-				Arn:           aws.String("arn:aws:verifiedpermissions::123456789012:policy-store/PSDEP"),
-				PolicyStoreId: aws.String(storeID),
-				CreatedDate:   aws.Time(time.Now()),
+				Arn:           awsv2.String("arn:aws:verifiedpermissions::123456789012:policy-store/PSDEP"),
+				PolicyStoreId: awsv2.String(storeID),
+				CreatedDate:   awsv2.Time(time.Now()),
 			}},
 		}},
-		storeDetail: map[string]*awsvp.GetPolicyStoreOutput{storeID: {PolicyStoreId: aws.String(storeID)}},
+		storeDetail: map[string]*awsvp.GetPolicyStoreOutput{storeID: {PolicyStoreId: awsv2.String(storeID)}},
 		identityPages: map[string][]*awsvp.ListIdentitySourcesOutput{
 			storeID: {{
 				IdentitySources: []awsvptypes.IdentitySourceItem{{
-					IdentitySourceId: aws.String("ISDEP"),
-					PolicyStoreId:    aws.String(storeID),
-					CreatedDate:      aws.Time(time.Now()),
-					LastUpdatedDate:  aws.Time(time.Now()),
+					IdentitySourceId: awsv2.String("ISDEP"),
+					PolicyStoreId:    awsv2.String(storeID),
+					CreatedDate:      awsv2.Time(time.Now()),
+					LastUpdatedDate:  awsv2.Time(time.Now()),
 					Details: &awsvptypes.IdentitySourceItemDetails{
-						UserPoolArn: aws.String(userPoolARN),
+						UserPoolArn: awsv2.String(userPoolARN),
 						ClientIds:   []string{"only-one"},
 					},
 				}},
@@ -193,7 +193,7 @@ func (f *fakeVPAPI) GetPolicyStore(
 	input *awsvp.GetPolicyStoreInput,
 	_ ...func(*awsvp.Options),
 ) (*awsvp.GetPolicyStoreOutput, error) {
-	return f.storeDetail[aws.ToString(input.PolicyStoreId)], nil
+	return f.storeDetail[awsv2.ToString(input.PolicyStoreId)], nil
 }
 
 func (f *fakeVPAPI) ListPolicies(
@@ -204,7 +204,7 @@ func (f *fakeVPAPI) ListPolicies(
 	if f.policyCalls == nil {
 		f.policyCalls = map[string]int{}
 	}
-	id := aws.ToString(input.PolicyStoreId)
+	id := awsv2.ToString(input.PolicyStoreId)
 	pages := f.policyPages[id]
 	idx := f.policyCalls[id]
 	if idx >= len(pages) {
@@ -222,7 +222,7 @@ func (f *fakeVPAPI) ListIdentitySources(
 	if f.identityCalls == nil {
 		f.identityCalls = map[string]int{}
 	}
-	id := aws.ToString(input.PolicyStoreId)
+	id := awsv2.ToString(input.PolicyStoreId)
 	pages := f.identityPages[id]
 	idx := f.identityCalls[id]
 	if idx >= len(pages) {
@@ -232,10 +232,10 @@ func (f *fakeVPAPI) ListIdentitySources(
 	return pages[idx], nil
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceVerifiedPermissions,
+		ServiceKind: aws.ServiceVerifiedPermissions,
 	}
 }

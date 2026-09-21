@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/elbv2` owns the scanner-side ELBv2 fact
+`internal/collector/cloud/aws/service/elbv2` owns the scanner-side ELBv2 fact
 selection for the AWS cloud collector. It converts load balancers, listeners,
 target groups, listener rules, and routing edges into `aws_resource` and
 `aws_relationship` facts.
@@ -20,8 +20,8 @@ writes, reducer admission, or query behavior.
 flowchart LR
   A["elbv2.Client"] --> B["Scanner.Scan"]
   B --> C["LoadBalancer / Listener / Rule / TargetGroup"]
-  C --> D["awscloud.ResourceObservation"]
-  C --> E["awscloud.RelationshipObservation"]
+  C --> D["aws.ResourceObservation"]
+  C --> E["aws.RelationshipObservation"]
   D --> F["aws_resource facts"]
   E --> G["aws_relationship facts"]
 ```
@@ -31,20 +31,20 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Scanner` - emits ELBv2 facts for one claimed AWS boundary.
-- `Client` - scanner-owned read surface implemented by `awssdk.Client`.
+- `Client` - scanner-owned read surface implemented by `sdk.Client`.
 - `LoadBalancer`, `Listener`, `Rule`, and `TargetGroup` - scanner-owned ELBv2
   records.
 - `Action` and `Condition` - typed routing action and rule-condition evidence.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/collector/cloud/aws` for AWS boundaries and fact envelopes.
 - `internal/facts` for durable fact envelopes.
 - `internal/redact` is not used here; ELBv2 facts do not contain secret values.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits
+This package emits no metrics or spans directly. The `sdk` adapter emits
 AWS API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants

@@ -30,7 +30,7 @@ type Snapshot struct {
 	Sites []Site
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Outpost is the scanner-owned AWS Outposts outpost model. It carries

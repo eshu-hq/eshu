@@ -25,7 +25,7 @@ type Snapshot struct {
 	Instances    []Instance
 	Applications []Application
 	Principals   []Principal
-	Warnings     []awscloud.WarningObservation
+	Warnings     []aws.WarningObservation
 }
 
 // Instance is the metadata-only scanner view of an IAM Identity Center

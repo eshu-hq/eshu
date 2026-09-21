@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/storagegateway/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/storagegateway/sdk guidance
 
 ## Read First
 

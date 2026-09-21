@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/ssm/awssdk` adapts AWS SDK for Go v2 SSM
+`internal/collector/cloud/aws/service/ssm/sdk` adapts AWS SDK for Go v2 SSM
 control-plane responses into the scanner-owned metadata model used by
-`internal/collector/awscloud/service/ssm`.
+`internal/collector/cloud/aws/service/ssm`.
 
 ## Ownership boundary
 
@@ -29,9 +29,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundary identity and API-call status
+- `internal/collector/cloud/aws` for boundary identity and API-call status
   recording.
-- `internal/collector/awscloud/service/ssm` for scanner-owned metadata types.
+- `internal/collector/cloud/aws/service/ssm` for scanner-owned metadata types.
 - `internal/telemetry` for AWS collector spans and metric attributes.
 - AWS SDK for Go v2 `ssm` and Smithy error contracts.
 

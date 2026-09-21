@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsimagebuilder "github.com/aws/aws-sdk-go-v2/service/imagebuilder"
 	awsimagebuildertypes "github.com/aws/aws-sdk-go-v2/service/imagebuilder/types"
 
@@ -25,58 +25,58 @@ func TestClientSnapshotsImageBuilderMetadataOnly(t *testing.T) {
 
 	api := &fakeImageBuilderAPI{
 		pipelines: []awsimagebuildertypes.ImagePipeline{{
-			Arn:                            aws.String(pipelineARN),
-			Name:                           aws.String("web"),
+			Arn:                            awsv2.String(pipelineARN),
+			Name:                           awsv2.String("web"),
 			Status:                         awsimagebuildertypes.PipelineStatusEnabled,
-			ImageRecipeArn:                 aws.String(recipeARN),
-			InfrastructureConfigurationArn: aws.String(infraARN),
+			ImageRecipeArn:                 awsv2.String(recipeARN),
+			InfrastructureConfigurationArn: awsv2.String(infraARN),
 		}},
-		imageRecipeSummaries: []awsimagebuildertypes.ImageRecipeSummary{{Arn: aws.String(recipeARN)}},
+		imageRecipeSummaries: []awsimagebuildertypes.ImageRecipeSummary{{Arn: awsv2.String(recipeARN)}},
 		imageRecipes: map[string]awsimagebuildertypes.ImageRecipe{recipeARN: {
-			Arn:         aws.String(recipeARN),
-			Name:        aws.String("web"),
+			Arn:         awsv2.String(recipeARN),
+			Name:        awsv2.String("web"),
 			Platform:    awsimagebuildertypes.PlatformLinux,
-			Version:     aws.String("1.0.0"),
-			ParentImage: aws.String("ami-0123456789abcdef0"),
+			Version:     awsv2.String("1.0.0"),
+			ParentImage: awsv2.String("ami-0123456789abcdef0"),
 			Components: []awsimagebuildertypes.ComponentConfiguration{{
-				ComponentArn: aws.String("arn:aws:imagebuilder:us-east-1:aws:component/update-linux/1.0.0"),
+				ComponentArn: awsv2.String("arn:aws:imagebuilder:us-east-1:aws:component/update-linux/1.0.0"),
 			}},
 		}},
-		containerRecipeSummaries: []awsimagebuildertypes.ContainerRecipeSummary{{Arn: aws.String(contARN)}},
+		containerRecipeSummaries: []awsimagebuildertypes.ContainerRecipeSummary{{Arn: awsv2.String(contARN)}},
 		containerRecipes: map[string]awsimagebuildertypes.ContainerRecipe{contARN: {
-			Arn:                    aws.String(contARN),
-			Name:                   aws.String("api"),
+			Arn:                    awsv2.String(contARN),
+			Name:                   awsv2.String("api"),
 			ContainerType:          awsimagebuildertypes.ContainerTypeDocker,
-			KmsKeyId:               aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
-			DockerfileTemplateData: aws.String("FROM amazonlinux\nRUN secret-build-step"),
+			KmsKeyId:               awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+			DockerfileTemplateData: awsv2.String("FROM amazonlinux\nRUN secret-build-step"),
 			TargetRepository: &awsimagebuildertypes.TargetContainerRepository{
-				RepositoryName: aws.String("app-images"),
+				RepositoryName: awsv2.String("app-images"),
 				Service:        awsimagebuildertypes.ContainerRepositoryServiceEcr,
 			},
 		}},
-		infraSummaries: []awsimagebuildertypes.InfrastructureConfigurationSummary{{Arn: aws.String(infraARN)}},
+		infraSummaries: []awsimagebuildertypes.InfrastructureConfigurationSummary{{Arn: awsv2.String(infraARN)}},
 		infraConfigs: map[string]awsimagebuildertypes.InfrastructureConfiguration{infraARN: {
-			Arn:                 aws.String(infraARN),
-			Name:                aws.String("builders"),
-			InstanceProfileName: aws.String("ImageBuilderInstanceProfile"),
-			SubnetId:            aws.String("subnet-0abc123"),
+			Arn:                 awsv2.String(infraARN),
+			Name:                awsv2.String("builders"),
+			InstanceProfileName: awsv2.String("ImageBuilderInstanceProfile"),
+			SubnetId:            awsv2.String("subnet-0abc123"),
 			SecurityGroupIds:    []string{"sg-0aaa111"},
-			SnsTopicArn:         aws.String("arn:aws:sns:us-east-1:123456789012:events"),
-			KeyPair:             aws.String("builder-key"),
+			SnsTopicArn:         awsv2.String("arn:aws:sns:us-east-1:123456789012:events"),
+			KeyPair:             awsv2.String("builder-key"),
 			Logging: &awsimagebuildertypes.Logging{
 				S3Logs: &awsimagebuildertypes.S3Logs{
-					S3BucketName: aws.String("imagebuilder-logs"),
-					S3KeyPrefix:  aws.String("builds/"),
+					S3BucketName: awsv2.String("imagebuilder-logs"),
+					S3KeyPrefix:  awsv2.String("builds/"),
 				},
 			},
 		}},
-		distSummaries: []awsimagebuildertypes.DistributionConfigurationSummary{{Arn: aws.String(distARN)}},
+		distSummaries: []awsimagebuildertypes.DistributionConfigurationSummary{{Arn: awsv2.String(distARN)}},
 		distConfigs: map[string]awsimagebuildertypes.DistributionConfiguration{distARN: {
-			Arn:  aws.String(distARN),
-			Name: aws.String("multi"),
+			Arn:  awsv2.String(distARN),
+			Name: awsv2.String("multi"),
 			Distributions: []awsimagebuildertypes.Distribution{
-				{Region: aws.String("us-east-1")},
-				{Region: aws.String("us-west-2")},
+				{Region: awsv2.String("us-east-1")},
+				{Region: awsv2.String("us-west-2")},
 			},
 		}},
 	}
@@ -117,11 +117,11 @@ func TestClientSnapshotsImageBuilderMetadataOnly(t *testing.T) {
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceImageBuilder,
+		ServiceKind: aws.ServiceImageBuilder,
 	}
 }
 
@@ -152,7 +152,7 @@ func (f *fakeImageBuilderAPI) ListImageRecipes(
 func (f *fakeImageBuilderAPI) GetImageRecipe(
 	_ context.Context, input *awsimagebuilder.GetImageRecipeInput, _ ...func(*awsimagebuilder.Options),
 ) (*awsimagebuilder.GetImageRecipeOutput, error) {
-	recipe := f.imageRecipes[aws.ToString(input.ImageRecipeArn)]
+	recipe := f.imageRecipes[awsv2.ToString(input.ImageRecipeArn)]
 	return &awsimagebuilder.GetImageRecipeOutput{ImageRecipe: &recipe}, nil
 }
 
@@ -165,7 +165,7 @@ func (f *fakeImageBuilderAPI) ListContainerRecipes(
 func (f *fakeImageBuilderAPI) GetContainerRecipe(
 	_ context.Context, input *awsimagebuilder.GetContainerRecipeInput, _ ...func(*awsimagebuilder.Options),
 ) (*awsimagebuilder.GetContainerRecipeOutput, error) {
-	recipe := f.containerRecipes[aws.ToString(input.ContainerRecipeArn)]
+	recipe := f.containerRecipes[awsv2.ToString(input.ContainerRecipeArn)]
 	return &awsimagebuilder.GetContainerRecipeOutput{ContainerRecipe: &recipe}, nil
 }
 
@@ -180,7 +180,7 @@ func (f *fakeImageBuilderAPI) ListInfrastructureConfigurations(
 func (f *fakeImageBuilderAPI) GetInfrastructureConfiguration(
 	_ context.Context, input *awsimagebuilder.GetInfrastructureConfigurationInput, _ ...func(*awsimagebuilder.Options),
 ) (*awsimagebuilder.GetInfrastructureConfigurationOutput, error) {
-	config := f.infraConfigs[aws.ToString(input.InfrastructureConfigurationArn)]
+	config := f.infraConfigs[awsv2.ToString(input.InfrastructureConfigurationArn)]
 	return &awsimagebuilder.GetInfrastructureConfigurationOutput{InfrastructureConfiguration: &config}, nil
 }
 
@@ -195,6 +195,6 @@ func (f *fakeImageBuilderAPI) ListDistributionConfigurations(
 func (f *fakeImageBuilderAPI) GetDistributionConfiguration(
 	_ context.Context, input *awsimagebuilder.GetDistributionConfigurationInput, _ ...func(*awsimagebuilder.Options),
 ) (*awsimagebuilder.GetDistributionConfigurationOutput, error) {
-	config := f.distConfigs[aws.ToString(input.DistributionConfigurationArn)]
+	config := f.distConfigs[awsv2.ToString(input.DistributionConfigurationArn)]
 	return &awsimagebuilder.GetDistributionConfigurationOutput{DistributionConfiguration: &config}, nil
 }

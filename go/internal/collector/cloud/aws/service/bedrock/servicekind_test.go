@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "bedrock".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceBedrock + "  "
+	boundary.ServiceKind = "  " + aws.ServiceBedrock + "  "
 	client := &fakeClient{
 		foundationModels: []FoundationModel{{
 			ARN:             "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3",
@@ -35,7 +35,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceBedrock; got != want {
+		if got, want := envelope.Payload["service_kind"], aws.ServiceBedrock; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes AppConfig applications, their environments and configuration
 // profiles, the account-level deployment strategies, and the direct CloudWatch
 // alarm and IAM role monitor dependencies through the configured client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("appconfig scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppConfig:
+	case "", aws.ServiceAppConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppConfig
+		boundary.ServiceKind = aws.ServiceAppConfig
 	default:
 		return nil, fmt.Errorf("appconfig scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		envelopes = append(envelopes, next...)
 	}
 	for _, strategy := range snapshot.DeploymentStrategies {
-		resource, err := awscloud.NewResourceEnvelope(deploymentStrategyObservation(boundary, strategy))
+		resource, err := aws.NewResourceEnvelope(deploymentStrategyObservation(boundary, strategy))
 		if err != nil {
 			return nil, err
 		}
@@ -65,9 +65,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -76,9 +76,9 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func applicationEnvelopes(boundary awscloud.Boundary, application Application) ([]facts.Envelope, error) {
+func applicationEnvelopes(boundary aws.Boundary, application Application) ([]facts.Envelope, error) {
 	appARN := applicationARN(boundary, application.ID)
-	resource, err := awscloud.NewResourceEnvelope(applicationObservation(boundary, application, appARN))
+	resource, err := aws.NewResourceEnvelope(applicationObservation(boundary, application, appARN))
 	if err != nil {
 		return nil, err
 	}
@@ -101,17 +101,17 @@ func applicationEnvelopes(boundary awscloud.Boundary, application Application) (
 }
 
 func environmentEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	appARN string,
 	environment Environment,
 ) ([]facts.Envelope, error) {
 	envARN := environmentARN(boundary, environment.ApplicationID, environment.ID)
-	resource, err := awscloud.NewResourceEnvelope(environmentObservation(boundary, environment, envARN))
+	resource, err := aws.NewResourceEnvelope(environmentObservation(boundary, environment, envARN))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	relationships := []*awscloud.RelationshipObservation{
+	relationships := []*aws.RelationshipObservation{
 		environmentInApplicationRelationship(boundary, envARN, appARN),
 	}
 	for _, monitor := range environment.Monitors {
@@ -129,30 +129,30 @@ func environmentEnvelopes(
 }
 
 func profileEnvelopes(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	appARN string,
 	profile ConfigurationProfile,
 ) ([]facts.Envelope, error) {
 	profARN := profileARN(boundary, profile.ApplicationID, profile.ID)
-	resource, err := awscloud.NewResourceEnvelope(profileObservation(boundary, profile, profARN))
+	resource, err := aws.NewResourceEnvelope(profileObservation(boundary, profile, profARN))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
-	return appendRelationships(envelopes, []*awscloud.RelationshipObservation{
+	return appendRelationships(envelopes, []*aws.RelationshipObservation{
 		profileInApplicationRelationship(boundary, profARN, appARN),
 	})
 }
 
 func appendRelationships(
 	envelopes []facts.Envelope,
-	relationships []*awscloud.RelationshipObservation,
+	relationships []*aws.RelationshipObservation,
 ) ([]facts.Envelope, error) {
 	for _, relationship := range relationships {
 		if relationship == nil {
 			continue
 		}
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -162,18 +162,18 @@ func appendRelationships(
 }
 
 func applicationObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	application Application,
 	appARN string,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(application.ID)
 	name := strings.TrimSpace(application.Name)
 	resourceID := firstNonEmptyID(appARN, id, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          appARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigApplication,
+		ResourceType: aws.ResourceTypeAppConfigApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -186,18 +186,18 @@ func applicationObservation(
 }
 
 func environmentObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	environment Environment,
 	envARN string,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(environment.ID)
 	name := strings.TrimSpace(environment.Name)
 	resourceID := firstNonEmptyID(envARN, id, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          envARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigEnvironment,
+		ResourceType: aws.ResourceTypeAppConfigEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.State),
 		Tags:         cloneStringMap(environment.Tags),
@@ -213,18 +213,18 @@ func environmentObservation(
 }
 
 func profileObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	profile ConfigurationProfile,
 	profARN string,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(profile.ID)
 	name := strings.TrimSpace(profile.Name)
 	resourceID := firstNonEmptyID(profARN, id, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          profARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigConfigurationProfile,
+		ResourceType: aws.ResourceTypeAppConfigConfigurationProfile,
 		Name:         name,
 		Tags:         cloneStringMap(profile.Tags),
 		Attributes: map[string]any{
@@ -240,18 +240,18 @@ func profileObservation(
 }
 
 func deploymentStrategyObservation(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	strategy DeploymentStrategy,
-) awscloud.ResourceObservation {
+) aws.ResourceObservation {
 	id := strings.TrimSpace(strategy.ID)
 	name := strings.TrimSpace(strategy.Name)
 	strategyARN := deploymentStrategyARN(boundary, id)
 	resourceID := firstNonEmptyID(strategyARN, id, name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strategyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigDeploymentStrategy,
+		ResourceType: aws.ResourceTypeAppConfigDeploymentStrategy,
 		Name:         name,
 		Tags:         cloneStringMap(strategy.Tags),
 		Attributes: map[string]any{

@@ -23,9 +23,9 @@ const providerCodeCommit = "CodeCommit"
 // returns nil for non-CodeCommit providers and when the synthesized target ARN
 // or the source identity is missing, so the edge never dangles.
 func associationCodeCommitRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	association RepositoryAssociation,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	if !strings.EqualFold(strings.TrimSpace(association.ProviderType), providerCodeCommit) {
 		return nil
 	}
@@ -37,18 +37,18 @@ func associationCodeCommitRelationship(
 	if targetARN == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository,
+		RelationshipType: aws.RelationshipCodeGuruAssociationReviewsCodeCommitRepository,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(association.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeCodeCommitRepository,
+		TargetType:       aws.ResourceTypeCodeCommitRepository,
 		Attributes: map[string]any{
 			"repository_name": strings.TrimSpace(association.Name),
 		},
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository + ":" + targetARN,
+			aws.RelationshipCodeGuruAssociationReviewsCodeCommitRepository + ":" + targetARN,
 	}
 }

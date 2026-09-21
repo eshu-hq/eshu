@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsorg "github.com/aws/aws-sdk-go-v2/service/organizations"
 	awsorgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/smithy-go"
@@ -20,16 +20,16 @@ func TestClientSnapshotReadsOrganizationsMetadataOnly(t *testing.T) {
 	client := &fakeOrganizationsAPI{
 		describeOrganization: &awsorg.DescribeOrganizationOutput{
 			Organization: &awsorgtypes.Organization{
-				Arn:             aws.String("arn:aws:organizations::123456789012:organization/o-exampleorgid"),
-				Id:              aws.String("o-exampleorgid"),
-				MasterAccountId: aws.String("123456789012"),
+				Arn:             awsv2.String("arn:aws:organizations::123456789012:organization/o-exampleorgid"),
+				Id:              awsv2.String("o-exampleorgid"),
+				MasterAccountId: awsv2.String("123456789012"),
 				FeatureSet:      awsorgtypes.OrganizationFeatureSetAll,
 			},
 		},
 		roots: []awsorgtypes.Root{{
-			Arn:  aws.String("arn:aws:organizations::123456789012:root/o-exampleorgid/r-root"),
-			Id:   aws.String("r-root"),
-			Name: aws.String("Root"),
+			Arn:  awsv2.String("arn:aws:organizations::123456789012:root/o-exampleorgid/r-root"),
+			Id:   awsv2.String("r-root"),
+			Name: awsv2.String("Root"),
 			PolicyTypes: []awsorgtypes.PolicyTypeSummary{{
 				Type:   awsorgtypes.PolicyTypeServiceControlPolicy,
 				Status: awsorgtypes.PolicyTypeStatusEnabled,
@@ -37,56 +37,56 @@ func TestClientSnapshotReadsOrganizationsMetadataOnly(t *testing.T) {
 		}},
 		childOUs: map[string][]awsorgtypes.OrganizationalUnit{
 			"r-root": {{
-				Arn:  aws.String("arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-platform"),
-				Id:   aws.String("ou-root-platform"),
-				Name: aws.String("Platform"),
+				Arn:  awsv2.String("arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-platform"),
+				Id:   awsv2.String("ou-root-platform"),
+				Name: awsv2.String("Platform"),
 			}},
 		},
 		childAccounts: map[string][]awsorgtypes.Account{
 			"ou-root-platform": {{
-				Arn:             aws.String("arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333"),
-				Email:           aws.String("owner@example.com"),
-				Id:              aws.String("111122223333"),
+				Arn:             awsv2.String("arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333"),
+				Email:           awsv2.String("owner@example.com"),
+				Id:              awsv2.String("111122223333"),
 				JoinedMethod:    awsorgtypes.AccountJoinedMethodInvited,
-				JoinedTimestamp: aws.Time(time.Date(2026, 5, 27, 13, 0, 0, 0, time.UTC)),
-				Name:            aws.String("payments-prod"),
+				JoinedTimestamp: awsv2.Time(time.Date(2026, 5, 27, 13, 0, 0, 0, time.UTC)),
+				Name:            awsv2.String("payments-prod"),
 				Status:          awsorgtypes.AccountStatusActive,
 			}},
 		},
 		policies: map[awsorgtypes.PolicyType][]awsorgtypes.PolicySummary{
 			awsorgtypes.PolicyTypeServiceControlPolicy: {{
-				Arn:         aws.String("arn:aws:organizations::123456789012:policy/o-exampleorgid/service_control_policy/p-abcd1234"),
+				Arn:         awsv2.String("arn:aws:organizations::123456789012:policy/o-exampleorgid/service_control_policy/p-abcd1234"),
 				AwsManaged:  false,
-				Description: aws.String("baseline policy"),
-				Id:          aws.String("p-abcd1234"),
-				Name:        aws.String("deny-public-s3"),
+				Description: awsv2.String("baseline policy"),
+				Id:          awsv2.String("p-abcd1234"),
+				Name:        awsv2.String("deny-public-s3"),
 				Type:        awsorgtypes.PolicyTypeServiceControlPolicy,
 			}},
 		},
 		targets: map[string][]awsorgtypes.PolicyTargetSummary{
 			"p-abcd1234": {{
-				Arn:      aws.String("arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-platform"),
-				Name:     aws.String("Platform"),
-				TargetId: aws.String("ou-root-platform"),
+				Arn:      awsv2.String("arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-platform"),
+				Name:     awsv2.String("Platform"),
+				TargetId: awsv2.String("ou-root-platform"),
 				Type:     awsorgtypes.TargetTypeOrganizationalUnit,
 			}},
 		},
 		delegatedAdmins: []awsorgtypes.DelegatedAdministrator{{
-			Arn:                   aws.String("arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333"),
-			DelegationEnabledDate: aws.Time(time.Date(2026, 5, 27, 14, 0, 0, 0, time.UTC)),
-			Id:                    aws.String("111122223333"),
+			Arn:                   awsv2.String("arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333"),
+			DelegationEnabledDate: awsv2.Time(time.Date(2026, 5, 27, 14, 0, 0, 0, time.UTC)),
+			Id:                    awsv2.String("111122223333"),
 		}},
 		delegatedServices: map[string][]awsorgtypes.DelegatedService{
 			"111122223333": {{
-				DelegationEnabledDate: aws.Time(time.Date(2026, 5, 27, 14, 0, 0, 0, time.UTC)),
-				ServicePrincipal:      aws.String("config.amazonaws.com"),
+				DelegationEnabledDate: awsv2.Time(time.Date(2026, 5, 27, 14, 0, 0, 0, time.UTC)),
+				ServicePrincipal:      awsv2.String("config.amazonaws.com"),
 			}},
 		},
-		tags: []awsorgtypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		tags: []awsorgtypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -126,12 +126,12 @@ func TestClientSnapshotSkipsUnavailablePolicyFamilies(t *testing.T) {
 	client := &fakeOrganizationsAPI{
 		describeOrganization: &awsorg.DescribeOrganizationOutput{
 			Organization: &awsorgtypes.Organization{
-				Id:         aws.String("o-exampleorgid"),
+				Id:         awsv2.String("o-exampleorgid"),
 				FeatureSet: awsorgtypes.OrganizationFeatureSetAll,
 			},
 		},
 		roots: []awsorgtypes.Root{{
-			Id: aws.String("r-root"),
+			Id: awsv2.String("r-root"),
 			PolicyTypes: []awsorgtypes.PolicyTypeSummary{{
 				Type:   awsorgtypes.PolicyTypeServiceControlPolicy,
 				Status: awsorgtypes.PolicyTypeStatusEnabled,
@@ -139,8 +139,8 @@ func TestClientSnapshotSkipsUnavailablePolicyFamilies(t *testing.T) {
 		}},
 		policies: map[awsorgtypes.PolicyType][]awsorgtypes.PolicySummary{
 			awsorgtypes.PolicyTypeServiceControlPolicy: {{
-				Id:   aws.String("p-scp"),
-				Name: aws.String("baseline"),
+				Id:   awsv2.String("p-scp"),
+				Name: awsv2.String("baseline"),
 				Type: awsorgtypes.PolicyTypeServiceControlPolicy,
 			}},
 		},
@@ -151,7 +151,7 @@ func TestClientSnapshotSkipsUnavailablePolicyFamilies(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -169,13 +169,13 @@ func TestClientSnapshotSkipsUnavailablePolicyFamilies(t *testing.T) {
 func TestClientSnapshotSkipsWhenCredentialsAreNotOrgAware(t *testing.T) {
 	client := &fakeOrganizationsAPI{
 		describeOrganization: &awsorg.DescribeOrganizationOutput{
-			Organization: &awsorgtypes.Organization{Id: aws.String("o-exampleorgid")},
+			Organization: &awsorgtypes.Organization{Id: awsv2.String("o-exampleorgid")},
 		},
 		listRootsErr: &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"},
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "222233334444", Region: "us-west-2", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: aws.Boundary{AccountID: "222233334444", Region: "us-west-2", ServiceKind: aws.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -185,8 +185,8 @@ func TestClientSnapshotSkipsWhenCredentialsAreNotOrgAware(t *testing.T) {
 	if got, want := len(snapshot.Warnings), 1; got != want {
 		t.Fatalf("len(Warnings) = %d, want %d", got, want)
 	}
-	if got := snapshot.Warnings[0].WarningKind; got != awscloud.WarningOrganizationsOrgAccessSkipped {
-		t.Fatalf("warning kind = %q, want %q", got, awscloud.WarningOrganizationsOrgAccessSkipped)
+	if got := snapshot.Warnings[0].WarningKind; got != aws.WarningOrganizationsOrgAccessSkipped {
+		t.Fatalf("warning kind = %q, want %q", got, aws.WarningOrganizationsOrgAccessSkipped)
 	}
 	if got := snapshot.Warnings[0].Attributes["skip_reason"]; got != "org_access_denied" {
 		t.Fatalf("skip_reason = %#v, want org_access_denied", got)
@@ -194,8 +194,8 @@ func TestClientSnapshotSkipsWhenCredentialsAreNotOrgAware(t *testing.T) {
 }
 
 func TestNewClientForcesOrganizationsEndpointRegion(t *testing.T) {
-	config := aws.Config{Region: "us-west-2"}
-	client := NewClient(config, awscloud.Boundary{ServiceKind: awscloud.ServiceOrganizations}, nil, nil)
+	config := awsv2.Config{Region: "us-west-2"}
+	client := NewClient(config, aws.Boundary{ServiceKind: aws.ServiceOrganizations}, nil, nil)
 	if got, want := client.region, OrganizationsEndpointRegion; got != want {
 		t.Fatalf("client region = %q, want %q", got, want)
 	}
@@ -241,7 +241,7 @@ func (f *fakeOrganizationsAPI) ListOrganizationalUnitsForParent(
 	_ ...func(*awsorg.Options),
 ) (*awsorg.ListOrganizationalUnitsForParentOutput, error) {
 	return &awsorg.ListOrganizationalUnitsForParentOutput{
-		OrganizationalUnits: f.childOUs[aws.ToString(input.ParentId)],
+		OrganizationalUnits: f.childOUs[awsv2.ToString(input.ParentId)],
 	}, nil
 }
 
@@ -251,7 +251,7 @@ func (f *fakeOrganizationsAPI) ListAccountsForParent(
 	_ ...func(*awsorg.Options),
 ) (*awsorg.ListAccountsForParentOutput, error) {
 	return &awsorg.ListAccountsForParentOutput{
-		Accounts: f.childAccounts[aws.ToString(input.ParentId)],
+		Accounts: f.childAccounts[awsv2.ToString(input.ParentId)],
 	}, nil
 }
 
@@ -271,7 +271,7 @@ func (f *fakeOrganizationsAPI) ListTargetsForPolicy(
 	input *awsorg.ListTargetsForPolicyInput,
 	_ ...func(*awsorg.Options),
 ) (*awsorg.ListTargetsForPolicyOutput, error) {
-	return &awsorg.ListTargetsForPolicyOutput{Targets: f.targets[aws.ToString(input.PolicyId)]}, nil
+	return &awsorg.ListTargetsForPolicyOutput{Targets: f.targets[awsv2.ToString(input.PolicyId)]}, nil
 }
 
 func (f *fakeOrganizationsAPI) ListDelegatedAdministrators(
@@ -288,7 +288,7 @@ func (f *fakeOrganizationsAPI) ListDelegatedServicesForAccount(
 	_ ...func(*awsorg.Options),
 ) (*awsorg.ListDelegatedServicesForAccountOutput, error) {
 	return &awsorg.ListDelegatedServicesForAccountOutput{
-		DelegatedServices: f.delegatedServices[aws.ToString(input.AccountId)],
+		DelegatedServices: f.delegatedServices[awsv2.ToString(input.AccountId)],
 	}, nil
 }
 

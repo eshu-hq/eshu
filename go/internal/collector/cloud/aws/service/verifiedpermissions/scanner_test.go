@@ -60,7 +60,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Policy store resource node.
-	store := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsPolicyStore)
+	store := resourceByType(t, envelopes, aws.ResourceTypeVerifiedPermissionsPolicyStore)
 	if got, want := store.Payload["resource_id"], testStoreARN; got != want {
 		t.Fatalf("store resource_id = %#v, want %q", got, want)
 	}
@@ -75,7 +75,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, storeAttrs, "policy_store_id", testStoreID)
 
 	// Policy resource node.
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsPolicy)
+	policy := resourceByType(t, envelopes, aws.ResourceTypeVerifiedPermissionsPolicy)
 	wantPolicyID := testStoreID + "/" + testPolicyID
 	if got, want := policy.Payload["resource_id"], wantPolicyID; got != want {
 		t.Fatalf("policy resource_id = %#v, want %q", got, want)
@@ -86,7 +86,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, policyAttrs, "policy_id", testPolicyID)
 
 	// Identity source resource node.
-	source := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsIdentitySource)
+	source := resourceByType(t, envelopes, aws.ResourceTypeVerifiedPermissionsIdentitySource)
 	wantSourceID := testStoreID + "/" + testSourceID
 	if got, want := source.Payload["resource_id"], wantSourceID; got != want {
 		t.Fatalf("identity source resource_id = %#v, want %q", got, want)
@@ -97,23 +97,23 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, sourceAttrs, "client_id_count", 2)
 
 	// policy -> store edge, keyed by the store ARN the store node publishes.
-	policyInStore := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsPolicyInStore)
-	assertEdgeTarget(t, policyInStore, awscloud.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
+	policyInStore := relationshipByType(t, envelopes, aws.RelationshipVerifiedPermissionsPolicyInStore)
+	assertEdgeTarget(t, policyInStore, aws.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
 	if got, want := policyInStore.Payload["source_resource_id"], wantPolicyID; got != want {
 		t.Fatalf("policy->store source_resource_id = %#v, want %q", got, want)
 	}
 
 	// identity source -> store edge.
-	sourceInStore := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore)
-	assertEdgeTarget(t, sourceInStore, awscloud.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
+	sourceInStore := relationshipByType(t, envelopes, aws.RelationshipVerifiedPermissionsIdentitySourceInStore)
+	assertEdgeTarget(t, sourceInStore, aws.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
 	if got, want := sourceInStore.Payload["source_resource_id"], wantSourceID; got != want {
 		t.Fatalf("source->store source_resource_id = %#v, want %q", got, want)
 	}
 
 	// identity source -> Cognito user pool edge, keyed by the BARE user pool id
 	// the Cognito scanner publishes for a user pool node.
-	sourceCognito := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
-	assertEdgeTarget(t, sourceCognito, awscloud.ResourceTypeCognitoUserPool, testUserPoolID)
+	sourceCognito := relationshipByType(t, envelopes, aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
+	assertEdgeTarget(t, sourceCognito, aws.ResourceTypeCognitoUserPool, testUserPoolID)
 	// The user pool node publishes the bare id as resource_id, so the edge leaves
 	// target_arn empty (relguard contract); the ARN survives as an attribute.
 	if got := sourceCognito.Payload["target_arn"]; got != "" {
@@ -158,13 +158,13 @@ func TestScannerEmitsOIDCIdentitySourceWithoutCognitoEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	source := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsIdentitySource)
+	source := resourceByType(t, envelopes, aws.ResourceTypeVerifiedPermissionsIdentitySource)
 	assertAttribute(t, attributesOf(t, source), "openid_issuer", testOIDCIssuerURL)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
 			t.Fatalf("OIDC identity source must not emit a Cognito user pool edge")
 		}
 	}
@@ -187,7 +187,7 @@ func TestScannerExtractsUserPoolIDFromGovCloudARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
+	edge := relationshipByType(t, envelopes, aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
 	if got, want := edge.Payload["target_resource_id"], "us-gov-west-1_govpool99"; got != want {
 		t.Fatalf("GovCloud user pool target_resource_id = %#v, want %q", got, want)
 	}
@@ -217,7 +217,7 @@ func TestScannerOmitsCognitoEdgeForMalformedARN(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
 			t.Fatalf("malformed user pool ARN must skip the Cognito edge, not dangle it")
 		}
 	}
@@ -256,8 +256,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	storeID := policyStoreResourceID(store)
 	policy := Policy{ID: testPolicyID, PolicyStoreID: testStoreID}
 	source := IdentitySource{ID: testSourceID, PolicyStoreID: testStoreID, CognitoUserPoolARN: testUserPoolARN}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		policyInStoreRelationship(boundary, storeID, policy),
 		identitySourceInStoreRelationship(boundary, storeID, source),
 		identitySourceCognitoRelationship(boundary, source),
@@ -272,7 +272,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -283,9 +283,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		PolicyStores: []PolicyStore{{ARN: testStoreARN, ID: testStoreID}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Verified Permissions ListPolicies throttled after SDK retries; policy metadata omitted for this scan",
 			SourceRecordID: "verifiedpermissions_policies_throttled",
@@ -296,17 +296,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceVerifiedPermissions,
+		ServiceKind:         aws.ServiceVerifiedPermissions,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:verifiedpermissions:1",
 		CollectorInstanceID: "aws-prod",

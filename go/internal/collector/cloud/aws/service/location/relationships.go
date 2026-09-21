@@ -15,7 +15,7 @@ import (
 // the identifier is ARN-shaped, matching how the KMS scanner publishes its key
 // resource_id (bare id or ARN) and carries the key ARN as a correlation anchor.
 // It returns nil when no key is reported.
-func trackerKMSRelationship(boundary awscloud.Boundary, tracker Tracker) *awscloud.RelationshipObservation {
+func trackerKMSRelationship(boundary aws.Boundary, tracker Tracker) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(tracker.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -28,15 +28,15 @@ func trackerKMSRelationship(boundary awscloud.Boundary, tracker Tracker) *awsclo
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationTrackerUsesKMSKey,
+		RelationshipType: aws.RelationshipLocationTrackerUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(tracker.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationTrackerUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipLocationTrackerUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -46,9 +46,9 @@ func trackerKMSRelationship(boundary awscloud.Boundary, tracker Tracker) *awsclo
 // only when the identifier is ARN-shaped. It returns nil when no key is
 // reported.
 func geofenceCollectionKMSRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	collection GeofenceCollection,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetID := strings.TrimSpace(collection.KMSKeyID)
 	if targetID == "" {
 		return nil
@@ -61,15 +61,15 @@ func geofenceCollectionKMSRelationship(
 	if isARN(targetID) {
 		targetARN = targetID
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey,
+		RelationshipType: aws.RelationshipLocationGeofenceCollectionUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey + ":" + targetID,
+		TargetType:       aws.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipLocationGeofenceCollectionUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -80,10 +80,10 @@ func geofenceCollectionKMSRelationship(
 // collection node this scanner emits. It returns nil when either endpoint
 // identity is missing. The consumer ARN is ARN-shaped, so target_arn is set.
 func trackerConsumerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	tracker Tracker,
 	consumerARN string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	consumerARN = strings.TrimSpace(consumerARN)
 	if consumerARN == "" {
 		return nil
@@ -96,14 +96,14 @@ func trackerConsumerRelationship(
 	if isARN(consumerARN) {
 		targetARN = consumerARN
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationTrackerConsumesGeofenceCollection,
+		RelationshipType: aws.RelationshipLocationTrackerConsumesGeofenceCollection,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(tracker.ARN),
 		TargetResourceID: consumerARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLocationGeofenceCollection,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationTrackerConsumesGeofenceCollection + ":" + consumerARN,
+		TargetType:       aws.ResourceTypeLocationGeofenceCollection,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipLocationTrackerConsumesGeofenceCollection + ":" + consumerARN,
 	}
 }

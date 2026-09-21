@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/catalog/awssdk` adapts AWS SDK for
+`internal/collector/cloud/aws/service/catalog/sdk` adapts AWS SDK for
 Go v2 Service Catalog responses to the scanner-owned `Client` contract. It owns
 portfolio pagination, product pagination, provisioned-product pagination, the
 `SearchProvisionedProducts` physical-id index that resolves the deployed
@@ -44,9 +44,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/catalog` for scanner-owned result
+- `internal/collector/cloud/aws/service/catalog` for scanner-owned result
   types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `servicecatalog` and Smithy error contracts.

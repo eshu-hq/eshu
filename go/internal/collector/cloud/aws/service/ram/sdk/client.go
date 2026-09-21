@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsram "github.com/aws/aws-sdk-go-v2/service/ram"
 	awsramtypes "github.com/aws/aws-sdk-go-v2/service/ram/types"
 	"github.com/aws/smithy-go"
@@ -42,15 +42,15 @@ type apiClient interface {
 // share metadata records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a RAM SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -165,7 +165,7 @@ func (c *Client) listPrincipals(ctx context.Context, shareARN string) ([]ramserv
 
 func (c *Client) listSharePermissions(ctx context.Context, shareARN string) ([]ramservice.Permission, error) {
 	paginator := awsram.NewListResourceSharePermissionsPaginator(c.client, &awsram.ListResourceSharePermissionsInput{
-		ResourceShareArn: aws.String(shareARN),
+		ResourceShareArn: awsv2.String(shareARN),
 	})
 	var permissions []ramservice.Permission
 	for paginator.HasMorePages() {
@@ -203,7 +203,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

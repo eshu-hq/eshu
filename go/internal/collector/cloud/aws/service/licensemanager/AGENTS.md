@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/licensemanager guidance
+# AGENTS.md - internal/collector/cloud/aws/service/licensemanager guidance
 
 ## Read First
 
@@ -34,7 +34,7 @@
   `SYSTEMS_MANAGER_MANAGED_INSTANCE` associations: there is no resolvable target
   node, so an edge would dangle. Record them only as configuration metadata.
 - Every relationship sets a non-empty `target_type` that is a declared
-  `awscloud.ResourceType*` constant or a documented
+  `aws.ResourceType*` constant or a documented
   `relguard.KnownTargetTypeAllowlist` value, and a `target_resource_id` matching
   how the target node is keyed.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -47,12 +47,12 @@
 
 - Add a new License Manager metadata field by extending the scanner-owned type,
   writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders. If the field can carry an entitlement token or
+  `aws` envelope builders. If the field can carry an entitlement token or
   usage measurement, leave it out of the scanner contract.
 - Add new relationship evidence only when the License Manager API reports both
   sides directly and the target identity matches an existing scanner's published
   resource_id shape (the bare `i-...` id for an EC2 instance).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

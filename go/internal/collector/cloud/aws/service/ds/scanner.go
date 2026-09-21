@@ -28,15 +28,15 @@ type Scanner struct {
 // directories plus directory-to-VPC, directory-to-subnet, trust-to-directory,
 // shared-directory-to-owner-directory, and shared-directory-to-owner-account
 // relationship evidence.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ds scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDirectoryService:
+	case "", aws.ServiceDirectoryService:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDirectoryService
+		boundary.ServiceKind = aws.ServiceDirectoryService
 	default:
 		return nil, fmt.Errorf("ds scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -50,7 +50,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	var envelopes []facts.Envelope
 	for _, directory := range directories {
-		resource, err := awscloud.NewResourceEnvelope(directoryObservation(boundary, directory))
+		resource, err := aws.NewResourceEnvelope(directoryObservation(boundary, directory))
 		if err != nil {
 			return nil, err
 		}
@@ -83,14 +83,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 // scanTrusts emits one resource fact and one trust-to-directory edge per trust
 // relationship reported for the directory.
-func (s Scanner) scanTrusts(ctx context.Context, boundary awscloud.Boundary, directoryID string) ([]facts.Envelope, error) {
+func (s Scanner) scanTrusts(ctx context.Context, boundary aws.Boundary, directoryID string) ([]facts.Envelope, error) {
 	trusts, err := s.Client.ListTrusts(ctx, directoryID)
 	if err != nil {
 		return nil, fmt.Errorf("list Directory Service trusts for %s: %w", directoryID, err)
 	}
 	var envelopes []facts.Envelope
 	for _, trust := range trusts {
-		resource, err := awscloud.NewResourceEnvelope(trustObservation(boundary, trust))
+		resource, err := aws.NewResourceEnvelope(trustObservation(boundary, trust))
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +108,7 @@ func (s Scanner) scanTrusts(ctx context.Context, boundary awscloud.Boundary, dir
 // owner-account edges per shared-directory invitation reported for the directory.
 func (s Scanner) scanSharedDirectories(
 	ctx context.Context,
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	directoryID string,
 	directoryIDs map[string]struct{},
 ) ([]facts.Envelope, error) {
@@ -118,7 +118,7 @@ func (s Scanner) scanSharedDirectories(
 	}
 	var envelopes []facts.Envelope
 	for _, share := range shares {
-		resource, err := awscloud.NewResourceEnvelope(sharedDirectoryObservation(boundary, share))
+		resource, err := aws.NewResourceEnvelope(sharedDirectoryObservation(boundary, share))
 		if err != nil {
 			return nil, err
 		}
@@ -132,13 +132,13 @@ func (s Scanner) scanSharedDirectories(
 	return envelopes, nil
 }
 
-func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]facts.Envelope, error) {
+func relationshipEnvelopes(observations []aws.RelationshipObservation) ([]facts.Envelope, error) {
 	if len(observations) == 0 {
 		return nil, nil
 	}
 	envelopes := make([]facts.Envelope, 0, len(observations))
 	for _, observation := range observations {
-		envelope, err := awscloud.NewRelationshipEnvelope(observation)
+		envelope, err := aws.NewRelationshipEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -147,12 +147,12 @@ func relationshipEnvelopes(observations []awscloud.RelationshipObservation) ([]f
 	return envelopes, nil
 }
 
-func directoryObservation(boundary awscloud.Boundary, directory Directory) awscloud.ResourceObservation {
+func directoryObservation(boundary aws.Boundary, directory Directory) aws.ResourceObservation {
 	id := strings.TrimSpace(directory.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDSDirectory,
+		ResourceType: aws.ResourceTypeDSDirectory,
 		Name:         strings.TrimSpace(directory.Name),
 		State:        strings.TrimSpace(directory.Stage),
 		Tags:         cloneStringMap(directory.Tags),
@@ -179,12 +179,12 @@ func directoryObservation(boundary awscloud.Boundary, directory Directory) awscl
 	}
 }
 
-func trustObservation(boundary awscloud.Boundary, trust Trust) awscloud.ResourceObservation {
+func trustObservation(boundary aws.Boundary, trust Trust) aws.ResourceObservation {
 	id := strings.TrimSpace(trust.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDSTrust,
+		ResourceType: aws.ResourceTypeDSTrust,
 		Name:         strings.TrimSpace(trust.RemoteDomainName),
 		State:        strings.TrimSpace(trust.State),
 		Attributes: map[string]any{
@@ -200,12 +200,12 @@ func trustObservation(boundary awscloud.Boundary, trust Trust) awscloud.Resource
 	}
 }
 
-func sharedDirectoryObservation(boundary awscloud.Boundary, share SharedDirectory) awscloud.ResourceObservation {
+func sharedDirectoryObservation(boundary aws.Boundary, share SharedDirectory) aws.ResourceObservation {
 	resourceID := sharedDirectoryResourceID(share)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDSSharedDirectory,
+		ResourceType: aws.ResourceTypeDSSharedDirectory,
 		State:        strings.TrimSpace(share.ShareStatus),
 		Attributes: map[string]any{
 			"owner_account_id":    strings.TrimSpace(share.OwnerAccountID),

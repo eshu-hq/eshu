@@ -21,21 +21,21 @@ import (
 // not falsely marked ARN-keyed. The AWS-reported resource type string is kept on
 // the edge attributes for transparency.
 func groupContainsMemberRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group Group,
 	member ResourceMember,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	groupARN := strings.TrimSpace(group.ARN)
 	if groupARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	target, ok := classifyMember(member)
 	if !ok {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	rel := awscloud.RelationshipObservation{
+	rel := aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResourceGroupsGroupContainsResource,
+		RelationshipType: aws.RelationshipResourceGroupsGroupContainsResource,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: target.ResourceID,
@@ -59,31 +59,31 @@ func groupContainsMemberRelationship(
 // identifier comes from the API (never a synthesized partition), so the edge
 // joins the real stack node in any partition.
 func groupBackedByStackRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group Group,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	groupARN := strings.TrimSpace(group.ARN)
 	if groupARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	if strings.TrimSpace(group.QueryType) != queryTypeCloudFormationStack {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	stackID := strings.TrimSpace(group.StackIdentifier)
 	// The cloudformation scanner keys a stack by its StackId, which is an ARN.
 	// Only emit when the reported identifier is ARN-shaped so the edge joins the
 	// stack node rather than dangling on a bare stack name.
 	if !strings.HasPrefix(stackID, "arn:") {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResourceGroupsGroupBackedByStack,
+		RelationshipType: aws.RelationshipResourceGroupsGroupBackedByStack,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: stackID,
 		TargetARN:        stackID,
-		TargetType:       awscloud.ResourceTypeCloudFormationStack,
+		TargetType:       aws.ResourceTypeCloudFormationStack,
 		SourceRecordID:   groupARN + "#stack#" + stackID,
 	}, true
 }

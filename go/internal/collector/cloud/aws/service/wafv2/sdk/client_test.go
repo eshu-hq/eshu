@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awswafv2 "github.com/aws/aws-sdk-go-v2/service/wafv2"
 	awswafv2types "github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 
@@ -23,46 +23,46 @@ func TestClientListWebACLsExtractsRefsAndManagedRulesNotStatementBodies(t *testi
 
 	fake := &fakeWAFv2API{
 		webACLSummaries: []awswafv2types.WebACLSummary{{
-			ARN:  aws.String(webACLARN),
-			Id:   aws.String("abc"),
-			Name: aws.String("edge"),
+			ARN:  awsv2.String(webACLARN),
+			Id:   awsv2.String("abc"),
+			Name: awsv2.String("edge"),
 		}},
 		webACL: &awswafv2types.WebACL{
-			ARN:           aws.String(webACLARN),
-			Id:            aws.String("abc"),
-			Name:          aws.String("edge"),
+			ARN:           awsv2.String(webACLARN),
+			Id:            awsv2.String("abc"),
+			Name:          awsv2.String("edge"),
 			Capacity:      500,
 			DefaultAction: &awswafv2types.DefaultAction{Allow: &awswafv2types.AllowAction{}},
 			Rules: []awswafv2types.Rule{
 				{
-					Name: aws.String("group-ref"),
+					Name: awsv2.String("group-ref"),
 					Statement: &awswafv2types.Statement{
 						RuleGroupReferenceStatement: &awswafv2types.RuleGroupReferenceStatement{
-							ARN: aws.String(ruleGroupARN),
+							ARN: awsv2.String(ruleGroupARN),
 						},
 					},
 				},
 				{
-					Name: aws.String("managed"),
+					Name: awsv2.String("managed"),
 					Statement: &awswafv2types.Statement{
 						ManagedRuleGroupStatement: &awswafv2types.ManagedRuleGroupStatement{
-							VendorName: aws.String("AWS"),
-							Name:       aws.String("AWSManagedRulesCommonRuleSet"),
-							Version:    aws.String("Version_1.0"),
+							VendorName: awsv2.String("AWS"),
+							Name:       awsv2.String("AWSManagedRulesCommonRuleSet"),
+							Version:    awsv2.String("Version_1.0"),
 						},
 					},
 				},
 				{
 					// Nested references inside AND/OR/NOT must still be found,
 					// but the byte-match search string must never be persisted.
-					Name: aws.String("nested"),
+					Name: awsv2.String("nested"),
 					Statement: &awswafv2types.Statement{
 						AndStatement: &awswafv2types.AndStatement{
 							Statements: []awswafv2types.Statement{
-								{IPSetReferenceStatement: &awswafv2types.IPSetReferenceStatement{ARN: aws.String(ipSetARN)}},
+								{IPSetReferenceStatement: &awswafv2types.IPSetReferenceStatement{ARN: awsv2.String(ipSetARN)}},
 								{NotStatement: &awswafv2types.NotStatement{
 									Statement: &awswafv2types.Statement{
-										RegexPatternSetReferenceStatement: &awswafv2types.RegexPatternSetReferenceStatement{ARN: aws.String(regexSetARN)},
+										RegexPatternSetReferenceStatement: &awswafv2types.RegexPatternSetReferenceStatement{ARN: awsv2.String(regexSetARN)},
 									},
 								}},
 								{ByteMatchStatement: &awswafv2types.ByteMatchStatement{
@@ -79,7 +79,7 @@ func TestClientListWebACLsExtractsRefsAndManagedRulesNotStatementBodies(t *testi
 		},
 		webACLTags: map[string]string{"Environment": "prod"},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceWAFv2})
 
 	webACLs, err := adapter.ListWebACLs(context.Background())
 	if err != nil {
@@ -118,19 +118,19 @@ func TestClientListIPSetsReturnsCountNotAddresses(t *testing.T) {
 	ipSetARN := "arn:aws:wafv2:us-east-1:123456789012:regional/ipset/blocklist/ip1"
 	fake := &fakeWAFv2API{
 		ipSetSummaries: []awswafv2types.IPSetSummary{{
-			ARN:  aws.String(ipSetARN),
-			Id:   aws.String("ip1"),
-			Name: aws.String("blocklist"),
+			ARN:  awsv2.String(ipSetARN),
+			Id:   awsv2.String("ip1"),
+			Name: awsv2.String("blocklist"),
 		}},
 		ipSet: &awswafv2types.IPSet{
-			ARN:              aws.String(ipSetARN),
-			Id:               aws.String("ip1"),
-			Name:             aws.String("blocklist"),
+			ARN:              awsv2.String(ipSetARN),
+			Id:               awsv2.String("ip1"),
+			Name:             awsv2.String("blocklist"),
 			IPAddressVersion: awswafv2types.IPAddressVersionIpv4,
 			Addresses:        []string{"10.0.0.0/8", "192.168.1.1/32", "172.16.0.0/12"},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceWAFv2})
 
 	ipSets, err := adapter.ListIPSets(context.Background())
 	if err != nil {
@@ -151,21 +151,21 @@ func TestClientListRegexPatternSetsReturnsCountNotBodies(t *testing.T) {
 	regexSetARN := "arn:aws:wafv2:us-east-1:123456789012:regional/regexpatternset/badpaths/rx1"
 	fake := &fakeWAFv2API{
 		regexSummaries: []awswafv2types.RegexPatternSetSummary{{
-			ARN:  aws.String(regexSetARN),
-			Id:   aws.String("rx1"),
-			Name: aws.String("badpaths"),
+			ARN:  awsv2.String(regexSetARN),
+			Id:   awsv2.String("rx1"),
+			Name: awsv2.String("badpaths"),
 		}},
 		regexSet: &awswafv2types.RegexPatternSet{
-			ARN:  aws.String(regexSetARN),
-			Id:   aws.String("rx1"),
-			Name: aws.String("badpaths"),
+			ARN:  awsv2.String(regexSetARN),
+			Id:   awsv2.String("rx1"),
+			Name: awsv2.String("badpaths"),
 			RegularExpressionList: []awswafv2types.Regex{
-				{RegexString: aws.String("(?i)/admin")},
-				{RegexString: aws.String("\\.\\./")},
+				{RegexString: awsv2.String("(?i)/admin")},
+				{RegexString: awsv2.String("\\.\\./")},
 			},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceWAFv2})
 
 	regexSets, err := adapter.ListRegexPatternSets(context.Background())
 	if err != nil {
@@ -183,23 +183,23 @@ func TestClientListRuleGroupsReturnsCustomerMetadata(t *testing.T) {
 	ruleGroupARN := "arn:aws:wafv2:us-east-1:123456789012:regional/rulegroup/custom/rg1"
 	fake := &fakeWAFv2API{
 		ruleGroupSummaries: []awswafv2types.RuleGroupSummary{{
-			ARN:  aws.String(ruleGroupARN),
-			Id:   aws.String("rg1"),
-			Name: aws.String("custom"),
+			ARN:  awsv2.String(ruleGroupARN),
+			Id:   awsv2.String("rg1"),
+			Name: awsv2.String("custom"),
 		}},
 		ruleGroup: &awswafv2types.RuleGroup{
-			ARN:      aws.String(ruleGroupARN),
-			Id:       aws.String("rg1"),
-			Name:     aws.String("custom"),
-			Capacity: aws.Int64(200),
+			ARN:      awsv2.String(ruleGroupARN),
+			Id:       awsv2.String("rg1"),
+			Name:     awsv2.String("custom"),
+			Capacity: awsv2.Int64(200),
 			Rules: []awswafv2types.Rule{
-				{Name: aws.String("r1"), Statement: &awswafv2types.Statement{
+				{Name: awsv2.String("r1"), Statement: &awswafv2types.Statement{
 					ByteMatchStatement: &awswafv2types.ByteMatchStatement{SearchString: []byte("never-persist")},
 				}},
 			},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceWAFv2})
 
 	ruleGroups, err := adapter.ListRuleGroups(context.Background())
 	if err != nil {
@@ -218,7 +218,7 @@ func TestClientListRuleGroupsReturnsCustomerMetadata(t *testing.T) {
 
 func TestClientUsesCloudFrontScopeForGlobalBoundary(t *testing.T) {
 	fake := &fakeWAFv2API{}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "aws-global", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "aws-global", ServiceKind: aws.ServiceWAFv2})
 
 	if _, err := adapter.ListWebACLs(context.Background()); err != nil {
 		t.Fatalf("ListWebACLs() error = %v, want nil", err)
@@ -230,7 +230,7 @@ func TestClientUsesCloudFrontScopeForGlobalBoundary(t *testing.T) {
 
 func TestClientUsesRegionalScopeForRegionalBoundary(t *testing.T) {
 	fake := &fakeWAFv2API{}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-west-2", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-west-2", ServiceKind: aws.ServiceWAFv2})
 
 	if _, err := adapter.ListIPSets(context.Background()); err != nil {
 		t.Fatalf("ListIPSets() error = %v, want nil", err)
@@ -262,7 +262,7 @@ func TestScopeForBoundarySelectsScopeFromCanonicalRegionLabel(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.region, func(t *testing.T) {
-			got := scopeForBoundary(awscloud.Boundary{Region: tc.region})
+			got := scopeForBoundary(aws.Boundary{Region: tc.region})
 			if got != tc.want {
 				t.Fatalf("scopeForBoundary(%q) = %q, want %q", tc.region, got, tc.want)
 			}
@@ -279,18 +279,18 @@ func TestClientListIPSetsFollowsNextMarker(t *testing.T) {
 	page2ARN := "arn:aws:wafv2:us-east-1:123456789012:regional/ipset/allowlist/ip2"
 	fake := &fakeWAFv2API{
 		ipSetSummaries: []awswafv2types.IPSetSummary{{
-			ARN:  aws.String(page1ARN),
-			Id:   aws.String("ip1"),
-			Name: aws.String("blocklist"),
+			ARN:  awsv2.String(page1ARN),
+			Id:   awsv2.String("ip1"),
+			Name: awsv2.String("blocklist"),
 		}},
 		ipSetSecondPage: []awswafv2types.IPSetSummary{{
-			ARN:  aws.String(page2ARN),
-			Id:   aws.String("ip2"),
-			Name: aws.String("allowlist"),
+			ARN:  awsv2.String(page2ARN),
+			Id:   awsv2.String("ip2"),
+			Name: awsv2.String("allowlist"),
 		}},
 		ipSet: &awswafv2types.IPSet{IPAddressVersion: awswafv2types.IPAddressVersionIpv4},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceWAFv2})
 
 	ipSets, err := adapter.ListIPSets(context.Background())
 	if err != nil {

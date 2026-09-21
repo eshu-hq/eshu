@@ -11,4 +11,4 @@
 // permission API, and all Put/Cancel/Revoke/Add/Remove/Tag mutation APIs, so the
 // adapter cannot start a signing operation, read signing material private keys,
 // read signed-object payloads, or mutate Signer state.
-package awssdk
+package sdk

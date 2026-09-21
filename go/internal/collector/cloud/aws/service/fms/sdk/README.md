@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/fms/awssdk` adapts AWS SDK for Go v2
+`internal/collector/cloud/aws/service/fms/sdk` adapts AWS SDK for Go v2
 Firewall Manager responses to the scanner-owned `Client` contract. It owns
 policy pagination, per-policy member-account resolution from compliance status,
 throttle classification, and per-call AWS API telemetry.
@@ -33,9 +33,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for account, region, and service boundary
+- `internal/collector/cloud/aws` for account, region, and service boundary
   labels.
-- `internal/collector/awscloud/service/fms` for scanner-owned result types.
+- `internal/collector/cloud/aws/service/fms` for scanner-owned result types.
 - `internal/telemetry` for AWS API call and throttle instruments.
 - AWS SDK for Go v2 `fms` and Smithy error contracts.
 

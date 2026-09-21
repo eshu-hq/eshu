@@ -63,7 +63,7 @@ func TestScannerEmitsKMSKeyAliasAndGrantMetadataOnly(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	key := resourceByType(t, envelopes, awscloud.ResourceTypeKMSKey)
+	key := resourceByType(t, envelopes, aws.ResourceTypeKMSKey)
 	if got, want := key.Payload["arn"], keyARN; got != want {
 		t.Fatalf("key arn = %#v, want %q", got, want)
 	}
@@ -104,7 +104,7 @@ func TestScannerEmitsKMSKeyAliasAndGrantMetadataOnly(t *testing.T) {
 		}
 	}
 
-	alias := resourceByType(t, envelopes, awscloud.ResourceTypeKMSAlias)
+	alias := resourceByType(t, envelopes, aws.ResourceTypeKMSAlias)
 	if got, want := alias.Payload["arn"], aliasARN; got != want {
 		t.Fatalf("alias arn = %#v, want %q", got, want)
 	}
@@ -114,7 +114,7 @@ func TestScannerEmitsKMSKeyAliasAndGrantMetadataOnly(t *testing.T) {
 	aliasAttributes := attributesOf(t, alias)
 	assertAttribute(t, aliasAttributes, "target_key_id", keyID)
 
-	grant := resourceByType(t, envelopes, awscloud.ResourceTypeKMSGrant)
+	grant := resourceByType(t, envelopes, aws.ResourceTypeKMSGrant)
 	if got, want := grant.Payload["name"], "eshu-app-grant"; got != want {
 		t.Fatalf("grant name = %#v, want %q", got, want)
 	}
@@ -136,16 +136,16 @@ func TestScannerEmitsKMSKeyAliasAndGrantMetadataOnly(t *testing.T) {
 		}
 	}
 
-	assertRelationshipType(t, envelopes, awscloud.RelationshipKMSAliasTargetsKey)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipKMSGrantOnKey)
+	assertRelationshipType(t, envelopes, aws.RelationshipKMSAliasTargetsKey)
+	assertRelationshipType(t, envelopes, aws.RelationshipKMSGrantOnKey)
 
 	// An ARN-shaped grantee mirrors the IAM principal scheme: the target
 	// identity is "AWS:<arn>", target_arn is populated, and principal_type is
 	// recorded for downstream reducers.
-	granteeRel := relationshipByType(t, envelopes, awscloud.RelationshipKMSGrantForGrantee)
+	granteeRel := relationshipByType(t, envelopes, aws.RelationshipKMSGrantForGrantee)
 	assertPayload(t, granteeRel, "target_resource_id", "AWS:"+grantee)
 	assertPayload(t, granteeRel, "target_arn", grantee)
-	assertPayload(t, granteeRel, "target_type", awscloud.ResourceTypeIAMPrincipal)
+	assertPayload(t, granteeRel, "target_type", aws.ResourceTypeIAMPrincipal)
 	assertAttribute(t, attributesOf(t, granteeRel), "principal_type", "AWS")
 }
 
@@ -178,9 +178,9 @@ func TestScannerEncodesServicePrincipalGranteeWithoutARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	granteeRel := relationshipByType(t, envelopes, awscloud.RelationshipKMSGrantForGrantee)
+	granteeRel := relationshipByType(t, envelopes, aws.RelationshipKMSGrantForGrantee)
 	assertPayload(t, granteeRel, "target_resource_id", "Service:"+servicePrincipal)
-	assertPayload(t, granteeRel, "target_type", awscloud.ResourceTypeIAMPrincipal)
+	assertPayload(t, granteeRel, "target_type", aws.ResourceTypeIAMPrincipal)
 	if got := granteeRel.Payload["target_arn"]; got != "" {
 		t.Fatalf("target_arn = %#v, want empty for a service principal grantee", got)
 	}
@@ -203,7 +203,7 @@ func TestScannerOmitsRotationStatusWhenNotReported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	key := resourceByType(t, envelopes, awscloud.ResourceTypeKMSKey)
+	key := resourceByType(t, envelopes, aws.ResourceTypeKMSKey)
 	keyAttributes := attributesOf(t, key)
 	if got, exists := keyAttributes["rotation_enabled"]; exists {
 		t.Fatalf("rotation_enabled persisted (%#v) when rotation status unknown; omit it", got)
@@ -215,7 +215,7 @@ func TestScannerOmitsRotationStatusWhenNotReported(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = aws.ServiceECR
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -289,11 +289,11 @@ func TestClientInterfaceExposesNoCryptographicOrLifecycleOperations(t *testing.T
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKMS,
+		ServiceKind:         aws.ServiceKMS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:kms:1",
 		CollectorInstanceID: "aws-prod",

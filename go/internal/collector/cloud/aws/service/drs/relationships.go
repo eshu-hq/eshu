@@ -24,22 +24,22 @@ const ec2InstanceTargetType = "aws_ec2_instance"
 // the same DRS scan. It returns nil when either endpoint identity is missing, so
 // the edge never dangles.
 func sourceServerRecoversToInstanceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	server SourceServer,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := sourceServerResourceID(server)
 	recoveryInstanceID := strings.TrimSpace(server.RecoveryInstanceID)
 	if sourceID == "" || recoveryInstanceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDRSSourceServerRecoversToInstance,
+		RelationshipType: aws.RelationshipDRSSourceServerRecoversToInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: recoveryInstanceID,
-		TargetType:       awscloud.ResourceTypeDRSRecoveryInstance,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDRSSourceServerRecoversToInstance + ":" + recoveryInstanceID,
+		TargetType:       aws.ResourceTypeDRSRecoveryInstance,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDRSSourceServerRecoversToInstance + ":" + recoveryInstanceID,
 	}
 }
 
@@ -50,21 +50,21 @@ func sourceServerRecoversToInstanceRelationship(
 // leaves target_arn empty (no EC2 instance resource is scanned yet). It returns
 // nil when either endpoint identity is missing, so the edge never dangles.
 func recoveryInstanceRunsOnEC2InstanceRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	instance RecoveryInstance,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID := recoveryInstanceResourceID(instance)
 	ec2InstanceID := strings.TrimSpace(instance.EC2InstanceID)
 	if sourceID == "" || ec2InstanceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance,
+		RelationshipType: aws.RelationshipDRSRecoveryInstanceRunsOnEC2Instance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(instance.ARN),
 		TargetResourceID: ec2InstanceID,
 		TargetType:       ec2InstanceTargetType,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance + ":" + ec2InstanceID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDRSRecoveryInstanceRunsOnEC2Instance + ":" + ec2InstanceID,
 	}
 }

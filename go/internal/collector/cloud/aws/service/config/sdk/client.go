@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/service/configservice"
 	cfgtypes "github.com/aws/aws-sdk-go-v2/service/configservice/types"
 	"go.opentelemetry.io/otel/trace"
@@ -40,15 +40,15 @@ type apiClient interface {
 // records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AWS Config SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -129,7 +129,7 @@ func (c *Client) ConfigRules(ctx context.Context) ([]configservice.ConfigRule, e
 			rules = append(rules, mapConfigRule(rule))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return rules, nil
 		}
 	}
@@ -151,17 +151,17 @@ func (c *Client) ConformancePacks(ctx context.Context) ([]configservice.Conforma
 	}
 	packs := make([]configservice.ConformancePack, 0, len(details))
 	for _, detail := range details {
-		name := strings.TrimSpace(aws.ToString(detail.ConformancePackName))
+		name := strings.TrimSpace(awsv2.ToString(detail.ConformancePackName))
 		ruleNames, err := c.describeConformancePackRuleNames(ctx, name)
 		if err != nil {
 			return nil, err
 		}
 		packs = append(packs, configservice.ConformancePack{
 			Name:      name,
-			ARN:       strings.TrimSpace(aws.ToString(detail.ConformancePackArn)),
-			ID:        strings.TrimSpace(aws.ToString(detail.ConformancePackId)),
+			ARN:       strings.TrimSpace(awsv2.ToString(detail.ConformancePackArn)),
+			ID:        strings.TrimSpace(awsv2.ToString(detail.ConformancePackId)),
 			Status:    statusByName[name],
-			CreatedBy: strings.TrimSpace(aws.ToString(detail.CreatedBy)),
+			CreatedBy: strings.TrimSpace(awsv2.ToString(detail.CreatedBy)),
 			RuleNames: ruleNames,
 		})
 	}
@@ -186,7 +186,7 @@ func (c *Client) describeConformancePackDetails(ctx context.Context) ([]cfgtypes
 		}
 		details = append(details, page.ConformancePackDetails...)
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return details, nil
 		}
 	}
@@ -209,13 +209,13 @@ func (c *Client) describeConformancePackStatus(ctx context.Context) (map[string]
 			return statusByName, nil
 		}
 		for _, status := range page.ConformancePackStatusDetails {
-			name := strings.TrimSpace(aws.ToString(status.ConformancePackName))
+			name := strings.TrimSpace(awsv2.ToString(status.ConformancePackName))
 			if name != "" {
 				statusByName[name] = string(status.ConformancePackState)
 			}
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return statusByName, nil
 		}
 	}
@@ -233,7 +233,7 @@ func (c *Client) describeConformancePackRuleNames(ctx context.Context, packName 
 		err := c.recordAPICall(ctx, "DescribeConformancePackCompliance", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.DescribeConformancePackCompliance(callCtx, &awsconfig.DescribeConformancePackComplianceInput{
-				ConformancePackName: aws.String(packName),
+				ConformancePackName: awsv2.String(packName),
 				NextToken:           nextToken,
 			})
 			return err
@@ -245,7 +245,7 @@ func (c *Client) describeConformancePackRuleNames(ctx context.Context, packName 
 			return ruleNames, nil
 		}
 		for _, rule := range page.ConformancePackRuleComplianceList {
-			name := strings.TrimSpace(aws.ToString(rule.ConfigRuleName))
+			name := strings.TrimSpace(awsv2.ToString(rule.ConfigRuleName))
 			if name == "" {
 				continue
 			}
@@ -256,7 +256,7 @@ func (c *Client) describeConformancePackRuleNames(ctx context.Context, packName 
 			ruleNames = append(ruleNames, name)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ruleNames, nil
 		}
 	}
@@ -284,7 +284,7 @@ func (c *Client) ConfigurationAggregators(ctx context.Context) ([]configservice.
 			aggregators = append(aggregators, mapAggregator(aggregator))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return aggregators, nil
 		}
 	}
@@ -309,12 +309,12 @@ func (c *Client) RetentionConfigurations(ctx context.Context) ([]configservice.R
 		}
 		for _, retention := range page.RetentionConfigurations {
 			retentions = append(retentions, configservice.RetentionConfiguration{
-				Name:                  strings.TrimSpace(aws.ToString(retention.Name)),
-				RetentionPeriodInDays: aws.ToInt32(retention.RetentionPeriodInDays),
+				Name:                  strings.TrimSpace(awsv2.ToString(retention.Name)),
+				RetentionPeriodInDays: awsv2.ToInt32(retention.RetentionPeriodInDays),
 			})
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return retentions, nil
 		}
 	}
@@ -322,7 +322,7 @@ func (c *Client) RetentionConfigurations(ctx context.Context) ([]configservice.R
 
 func mapRecorder(recorder cfgtypes.ConfigurationRecorder) configservice.ConfigurationRecorder {
 	mapped := configservice.ConfigurationRecorder{
-		Name: strings.TrimSpace(aws.ToString(recorder.Name)),
+		Name: strings.TrimSpace(awsv2.ToString(recorder.Name)),
 	}
 	group := recorder.RecordingGroup
 	if group == nil {
@@ -355,11 +355,11 @@ func mapResourceTypes(types []cfgtypes.ResourceType) []string {
 
 func mapDeliveryChannel(channel cfgtypes.DeliveryChannel) configservice.DeliveryChannel {
 	mapped := configservice.DeliveryChannel{
-		Name:         strings.TrimSpace(aws.ToString(channel.Name)),
-		S3BucketName: strings.TrimSpace(aws.ToString(channel.S3BucketName)),
-		S3KeyPrefix:  strings.TrimSpace(aws.ToString(channel.S3KeyPrefix)),
-		S3KMSKeyARN:  strings.TrimSpace(aws.ToString(channel.S3KmsKeyArn)),
-		SNSTopicARN:  strings.TrimSpace(aws.ToString(channel.SnsTopicARN)),
+		Name:         strings.TrimSpace(awsv2.ToString(channel.Name)),
+		S3BucketName: strings.TrimSpace(awsv2.ToString(channel.S3BucketName)),
+		S3KeyPrefix:  strings.TrimSpace(awsv2.ToString(channel.S3KeyPrefix)),
+		S3KMSKeyARN:  strings.TrimSpace(awsv2.ToString(channel.S3KmsKeyArn)),
+		SNSTopicARN:  strings.TrimSpace(awsv2.ToString(channel.SnsTopicARN)),
 	}
 	if channel.ConfigSnapshotDeliveryProperties != nil {
 		mapped.SnapshotDeliveryInterval = string(channel.ConfigSnapshotDeliveryProperties.DeliveryFrequency)
@@ -369,14 +369,14 @@ func mapDeliveryChannel(channel cfgtypes.DeliveryChannel) configservice.Delivery
 
 func mapConfigRule(rule cfgtypes.ConfigRule) configservice.ConfigRule {
 	mapped := configservice.ConfigRule{
-		Name:  strings.TrimSpace(aws.ToString(rule.ConfigRuleName)),
-		ARN:   strings.TrimSpace(aws.ToString(rule.ConfigRuleArn)),
-		ID:    strings.TrimSpace(aws.ToString(rule.ConfigRuleId)),
+		Name:  strings.TrimSpace(awsv2.ToString(rule.ConfigRuleName)),
+		ARN:   strings.TrimSpace(awsv2.ToString(rule.ConfigRuleArn)),
+		ID:    strings.TrimSpace(awsv2.ToString(rule.ConfigRuleId)),
 		State: string(rule.ConfigRuleState),
 	}
 	if rule.Source != nil {
 		mapped.Owner = string(rule.Source.Owner)
-		identifier := strings.TrimSpace(aws.ToString(rule.Source.SourceIdentifier))
+		identifier := strings.TrimSpace(awsv2.ToString(rule.Source.SourceIdentifier))
 		// For a CUSTOM_LAMBDA rule, AWS Config stores the evaluator Lambda
 		// function ARN in SourceIdentifier. Route it to LambdaFunctionARN so the
 		// scanner can build the custom-rule-to-Lambda edge; managed and policy
@@ -395,9 +395,9 @@ func mapConfigRule(rule cfgtypes.ConfigRule) configservice.ConfigRule {
 
 func mapAggregator(aggregator cfgtypes.ConfigurationAggregator) configservice.ConfigurationAggregator {
 	mapped := configservice.ConfigurationAggregator{
-		Name:      strings.TrimSpace(aws.ToString(aggregator.ConfigurationAggregatorName)),
-		ARN:       strings.TrimSpace(aws.ToString(aggregator.ConfigurationAggregatorArn)),
-		CreatedBy: strings.TrimSpace(aws.ToString(aggregator.CreatedBy)),
+		Name:      strings.TrimSpace(awsv2.ToString(aggregator.ConfigurationAggregatorName)),
+		ARN:       strings.TrimSpace(awsv2.ToString(aggregator.ConfigurationAggregatorArn)),
+		CreatedBy: strings.TrimSpace(awsv2.ToString(aggregator.CreatedBy)),
 	}
 	for _, source := range aggregator.AccountAggregationSources {
 		mapped.SourceAccountIDs = append(mapped.SourceAccountIDs, trimStrings(source.AccountIds)...)
@@ -407,7 +407,7 @@ func mapAggregator(aggregator cfgtypes.ConfigurationAggregator) configservice.Co
 		}
 	}
 	if org := aggregator.OrganizationAggregationSource; org != nil {
-		mapped.OrganizationRoleARN = strings.TrimSpace(aws.ToString(org.RoleArn))
+		mapped.OrganizationRoleARN = strings.TrimSpace(awsv2.ToString(org.RoleArn))
 		mapped.OrganizationAllAWSRegions = org.AllAwsRegions
 		mapped.SourceRegions = append(mapped.SourceRegions, trimStrings(org.AwsRegions)...)
 	}

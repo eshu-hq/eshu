@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsresiliencehub "github.com/aws/aws-sdk-go-v2/service/resiliencehub"
 	awsresiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
 	"github.com/aws/smithy-go"
@@ -83,15 +83,15 @@ type apiClient interface {
 // assessment-start API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Resilience Hub SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -148,7 +148,7 @@ func (c *Client) listPolicies(ctx context.Context) ([]resiliencehubservice.Resil
 			policies = append(policies, mapped)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return policies, nil
 		}
 	}
@@ -158,7 +158,7 @@ func (c *Client) mapPolicy(
 	ctx context.Context,
 	policy awsresiliencehubtypes.ResiliencyPolicy,
 ) (resiliencehubservice.ResiliencyPolicy, error) {
-	arn := strings.TrimSpace(aws.ToString(policy.PolicyArn))
+	arn := strings.TrimSpace(awsv2.ToString(policy.PolicyArn))
 	tags := cloneTags(policy.Tags)
 	if len(tags) == 0 && arn != "" {
 		fetched, err := c.listTags(ctx, arn)
@@ -169,13 +169,13 @@ func (c *Client) mapPolicy(
 	}
 	return resiliencehubservice.ResiliencyPolicy{
 		ARN:                    arn,
-		Name:                   strings.TrimSpace(aws.ToString(policy.PolicyName)),
-		Description:            strings.TrimSpace(aws.ToString(policy.PolicyDescription)),
+		Name:                   strings.TrimSpace(awsv2.ToString(policy.PolicyName)),
+		Description:            strings.TrimSpace(awsv2.ToString(policy.PolicyDescription)),
 		Tier:                   strings.TrimSpace(string(policy.Tier)),
 		EstimatedCostTier:      strings.TrimSpace(string(policy.EstimatedCostTier)),
 		DataLocationConstraint: strings.TrimSpace(string(policy.DataLocationConstraint)),
 		FailureTargets:         mapFailurePolicy(policy.Policy),
-		CreationTime:           aws.ToTime(policy.CreationTime),
+		CreationTime:           awsv2.ToTime(policy.CreationTime),
 		Tags:                   tags,
 	}, nil
 }
@@ -212,7 +212,7 @@ func (c *Client) listTags(ctx context.Context, resourceARN string) (map[string]s
 	err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.ListTagsForResource(callCtx, &awsresiliencehub.ListTagsForResourceInput{
-			ResourceArn: aws.String(resourceARN),
+			ResourceArn: awsv2.String(resourceARN),
 		})
 		return callErr
 	})
@@ -258,7 +258,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

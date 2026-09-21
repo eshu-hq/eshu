@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/amp guidance
+# AGENTS.md - internal/collector/cloud/aws/service/amp guidance
 
 ## Read First
 
@@ -36,7 +36,7 @@
   (`aws_ec2_subnet` / `aws_ec2_security_group`). A non-EKS scraper source emits
   no EKS, subnet, or security-group edge.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
+  `aws.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from workspace, namespace, or
@@ -49,7 +49,7 @@
 ## Common Changes
 
 - Add a new AMP metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry rule definitions, scrape
   configuration, alert-manager definitions, or ingested samples, leave it out of
   the scanner contract.
@@ -57,7 +57,7 @@
   directly and the target identity matches an existing scanner's published
   resource_id shape (ARN-equality for KMS keys, EKS clusters, and workspaces;
   bare ids for subnets and security groups).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

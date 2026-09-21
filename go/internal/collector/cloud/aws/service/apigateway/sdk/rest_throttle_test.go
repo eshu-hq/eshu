@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsapigateway "github.com/aws/aws-sdk-go-v2/service/apigateway"
 	awsapigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 	awsapigatewayv2 "github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
@@ -20,8 +20,8 @@ func TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle(t *testing.T) {
 	adapter := newThrottleTestClient(&fakeRESTAPI{
 		restAPIPages: []*awsapigateway.GetRestApisOutput{{
 			Items: []awsapigatewaytypes.RestApi{{
-				Id:   aws.String("rest-1"),
-				Name: aws.String("orders-rest"),
+				Id:   awsv2.String("rest-1"),
+				Name: awsv2.String("orders-rest"),
 			}},
 		}},
 		restStagePages: []*awsapigateway.GetStagesOutput{{}},
@@ -31,8 +31,8 @@ func TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle(t *testing.T) {
 		}},
 		restDomainPages: []*awsapigateway.GetDomainNamesOutput{{}},
 	})
-	recorder := awscloud.NewAPICallStatsRecorder(adapter.boundary)
-	ctx := awscloud.ContextWithAPICallRecorder(context.Background(), recorder)
+	recorder := aws.NewAPICallStatsRecorder(adapter.boundary)
+	ctx := aws.ContextWithAPICallRecorder(context.Background(), recorder)
 
 	snapshot, err := adapter.Snapshot(ctx)
 	if err != nil {
@@ -48,8 +48,8 @@ func TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle(t *testing.T) {
 		t.Fatalf("len(Warnings) = %d, want %d", got, want)
 	}
 	warning := snapshot.Warnings[0]
-	if warning.WarningKind != awscloud.WarningThrottleSustained {
-		t.Fatalf("warning kind = %q, want %q", warning.WarningKind, awscloud.WarningThrottleSustained)
+	if warning.WarningKind != aws.WarningThrottleSustained {
+		t.Fatalf("warning kind = %q, want %q", warning.WarningKind, aws.WarningThrottleSustained)
 	}
 	if warning.ErrorClass != "throttled" {
 		t.Fatalf("warning error class = %q, want throttled", warning.ErrorClass)
@@ -64,23 +64,23 @@ func TestClientSnapshotDiscardsPartialRESTIntegrationsWhenLaterPageThrottles(t *
 	adapter := newThrottleTestClient(&fakeRESTAPI{
 		restAPIPages: []*awsapigateway.GetRestApisOutput{{
 			Items: []awsapigatewaytypes.RestApi{{
-				Id:   aws.String("rest-1"),
-				Name: aws.String("orders-rest"),
+				Id:   awsv2.String("rest-1"),
+				Name: awsv2.String("orders-rest"),
 			}},
 		}},
 		restStagePages: []*awsapigateway.GetStagesOutput{{}},
 		restResourcePages: []*awsapigateway.GetResourcesOutput{{
 			Items: []awsapigatewaytypes.Resource{{
-				Id:   aws.String("res-1"),
-				Path: aws.String("/orders"),
+				Id:   awsv2.String("res-1"),
+				Path: awsv2.String("/orders"),
 				ResourceMethods: map[string]awsapigatewaytypes.Method{"POST": {
 					MethodIntegration: &awsapigatewaytypes.Integration{
 						Type: awsapigatewaytypes.IntegrationTypeAwsProxy,
-						Uri:  aws.String("arn:aws:lambda:us-east-1:123456789012:function:orders"),
+						Uri:  awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:orders"),
 					},
 				}},
 			}},
-			Position: aws.String("next-page"),
+			Position: awsv2.String("next-page"),
 		}},
 		restResourceErrors: []error{nil, &smithy.GenericAPIError{
 			Code:    "TooManyRequestsException",
@@ -105,11 +105,11 @@ func TestClientSnapshotDeduplicatesRESTResourceThrottleWarnings(t *testing.T) {
 	adapter := newThrottleTestClient(&fakeRESTAPI{
 		restAPIPages: []*awsapigateway.GetRestApisOutput{{
 			Items: []awsapigatewaytypes.RestApi{{
-				Id:   aws.String("rest-1"),
-				Name: aws.String("orders-rest"),
+				Id:   awsv2.String("rest-1"),
+				Name: awsv2.String("orders-rest"),
 			}, {
-				Id:   aws.String("rest-2"),
-				Name: aws.String("billing-rest"),
+				Id:   awsv2.String("rest-2"),
+				Name: awsv2.String("billing-rest"),
 			}},
 		}},
 		restStagePages: []*awsapigateway.GetStagesOutput{{}, {}},
@@ -136,10 +136,10 @@ func newThrottleTestClient(rest *fakeRESTAPI) *Client {
 	return &Client{
 		rest: rest,
 		v2:   &fakeV2API{v2APIPages: []*awsapigatewayv2.GetApisOutput{{}}, v2DomainPages: []*awsapigatewayv2.GetDomainNamesOutput{{}}},
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceAPIGateway,
+			ServiceKind:         aws.ServiceAPIGateway,
 			ScopeID:             "aws:123456789012:us-east-1:apigateway",
 			GenerationID:        "generation-1",
 			CollectorInstanceID: "collector-1",

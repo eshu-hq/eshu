@@ -1,23 +1,23 @@
-# AGENTS.md - services/shield/runtimebind guidance
+# AGENTS.md - services/shield/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration.
 3. `../README.md` - Shield Advanced scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceShield`.
+- Register exactly once from `init()` with `aws.ServiceShield`.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
-- Do not validate or transform claims here. Validation belongs to awsruntime
+- Do not validate or transform claims here. Validation belongs to runtime
   and the scanner. The builder body stays a constructor call.
-- Do not import anything else from `internal/collector/awscloud/service`.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 - Keep the matching blank import in
-  `internal/collector/awscloud/awsruntime/bindings/bindings.go` alphabetically
+  `internal/collector/cloud/aws/runtime/bindings/bindings.go` alphabetically
   sorted. The derived supported-service guard fails if it is missing.
 
 ## Common Changes

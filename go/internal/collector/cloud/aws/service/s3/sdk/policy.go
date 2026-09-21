@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"encoding/json"
@@ -274,10 +274,10 @@ func grantsForPrincipalEntry(entry principalEntry, owner, statementSID string) [
 				continue
 			}
 			grants = append(grants, principalGrant{
-				Kind:             awscloud.S3ExternalPrincipalKindAWSService,
+				Kind:             aws.S3ExternalPrincipalKindAWSService,
 				Value:            service,
 				Service:          service,
-				Outcome:          awscloud.S3ExternalPrincipalGrantOutcomeAWSService,
+				Outcome:          aws.S3ExternalPrincipalGrantOutcomeAWSService,
 				ServicePrincipal: true,
 				StatementSID:     statementSID,
 				PrincipalIsExact: true,
@@ -290,9 +290,9 @@ func grantsForPrincipalEntry(entry principalEntry, owner, statementSID string) [
 			return nil
 		}
 		return []principalGrant{{
-			Kind:           awscloud.S3ExternalPrincipalKindUnsupported,
+			Kind:           aws.S3ExternalPrincipalKindUnsupported,
 			Value:          key,
-			Outcome:        awscloud.S3ExternalPrincipalGrantOutcomeUnsupported,
+			Outcome:        aws.S3ExternalPrincipalGrantOutcomeUnsupported,
 			Unsupported:    true,
 			UnsupportedKey: key,
 			StatementSID:   statementSID,
@@ -307,9 +307,9 @@ func grantForAWSPrincipal(identifier, owner, statementSID string) (principalGran
 	}
 	if isPublicPrincipal(identifier) {
 		return principalGrant{
-			Kind:         awscloud.S3ExternalPrincipalKindPublic,
+			Kind:         aws.S3ExternalPrincipalKindPublic,
 			Value:        "*",
-			Outcome:      awscloud.S3ExternalPrincipalGrantOutcomePublic,
+			Outcome:      aws.S3ExternalPrincipalGrantOutcomePublic,
 			Public:       true,
 			StatementSID: statementSID,
 		}, true
@@ -319,10 +319,10 @@ func grantForAWSPrincipal(identifier, owner, statementSID string) (principalGran
 		if owner == "" || accountID == owner {
 			return principalGrant{}, false
 		}
-		kind := awscloud.S3ExternalPrincipalKindAWSAccount
+		kind := aws.S3ExternalPrincipalKindAWSAccount
 		partition := ""
 		if strings.HasPrefix(identifier, "arn:") {
-			kind = awscloud.S3ExternalPrincipalKindAWSARN
+			kind = aws.S3ExternalPrincipalKindAWSARN
 			partition = partitionFromPrincipal(identifier)
 		}
 		return principalGrant{
@@ -330,16 +330,16 @@ func grantForAWSPrincipal(identifier, owner, statementSID string) (principalGran
 			Value:            identifier,
 			AccountID:        accountID,
 			Partition:        partition,
-			Outcome:          awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount,
+			Outcome:          aws.S3ExternalPrincipalGrantOutcomeCrossAccount,
 			CrossAccount:     true,
 			StatementSID:     statementSID,
 			PrincipalIsExact: true,
 		}, true
 	}
 	return principalGrant{
-		Kind:           awscloud.S3ExternalPrincipalKindUnsupported,
+		Kind:           aws.S3ExternalPrincipalKindUnsupported,
 		Value:          "AWS",
-		Outcome:        awscloud.S3ExternalPrincipalGrantOutcomeUnsupported,
+		Outcome:        aws.S3ExternalPrincipalGrantOutcomeUnsupported,
 		Unsupported:    true,
 		UnsupportedKey: "AWS",
 		StatementSID:   statementSID,

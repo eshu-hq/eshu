@@ -23,15 +23,15 @@ type Scanner struct {
 // Scan observes GraphQL API, data source, resolver, function, schema, and API
 // key metadata through the configured client and emits resource and
 // relationship facts.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("appsync scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppSync:
+	case "", aws.ServiceAppSync:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppSync
+		boundary.ServiceKind = aws.ServiceAppSync
 	default:
 		return nil, fmt.Errorf("appsync scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -51,7 +51,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendAPI(envelopes *[]facts.Envelope, boundary awscloud.Boundary, api GraphQLAPI) error {
+func appendAPI(envelopes *[]facts.Envelope, boundary aws.Boundary, api GraphQLAPI) error {
 	apiID := strings.TrimSpace(api.ID)
 	if apiID == "" {
 		return nil
@@ -107,9 +107,9 @@ func appendAPI(envelopes *[]facts.Envelope, boundary awscloud.Boundary, api Grap
 	return nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -118,8 +118,8 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceObservation) error {
-	envelope, err := awscloud.NewResourceEnvelope(observation)
+func appendResource(envelopes *[]facts.Envelope, observation aws.ResourceObservation) error {
+	envelope, err := aws.NewResourceEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -127,8 +127,8 @@ func appendResource(envelopes *[]facts.Envelope, observation awscloud.ResourceOb
 	return nil
 }
 
-func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.RelationshipObservation) error {
-	envelope, err := awscloud.NewRelationshipEnvelope(observation)
+func appendRelationship(envelopes *[]facts.Envelope, observation aws.RelationshipObservation) error {
+	envelope, err := aws.NewRelationshipEnvelope(observation)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func appendRelationship(envelopes *[]facts.Envelope, observation awscloud.Relati
 	return nil
 }
 
-func apiObservation(boundary awscloud.Boundary, api GraphQLAPI) awscloud.ResourceObservation {
+func apiObservation(boundary aws.Boundary, api GraphQLAPI) aws.ResourceObservation {
 	apiID := strings.TrimSpace(api.ID)
 	apiARN := strings.TrimSpace(api.ARN)
 	attributes := map[string]any{
@@ -156,11 +156,11 @@ func apiObservation(boundary awscloud.Boundary, api GraphQLAPI) awscloud.Resourc
 			"exclude_verbose_content":  api.LogConfig.ExcludeVerboseContent,
 		}
 	}
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:           boundary,
 		ARN:                apiARN,
 		ResourceID:         apiID,
-		ResourceType:       awscloud.ResourceTypeAppSyncGraphQLAPI,
+		ResourceType:       aws.ResourceTypeAppSyncGraphQLAPI,
 		Name:               firstNonEmpty(strings.TrimSpace(api.Name), apiID),
 		Tags:               cloneStringMap(api.Tags),
 		Attributes:         attributes,
@@ -169,13 +169,13 @@ func apiObservation(boundary awscloud.Boundary, api GraphQLAPI) awscloud.Resourc
 	}
 }
 
-func dataSourceObservation(boundary awscloud.Boundary, api GraphQLAPI, ds DataSource) awscloud.ResourceObservation {
+func dataSourceObservation(boundary aws.Boundary, api GraphQLAPI, ds DataSource) aws.ResourceObservation {
 	resourceID := dataSourceResourceID(api.ID, ds.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(ds.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncDataSource,
+		ResourceType: aws.ResourceTypeAppSyncDataSource,
 		Name:         strings.TrimSpace(ds.Name),
 		Attributes: map[string]any{
 			"api_id":           strings.TrimSpace(api.ID),
@@ -188,13 +188,13 @@ func dataSourceObservation(boundary awscloud.Boundary, api GraphQLAPI, ds DataSo
 	}
 }
 
-func resolverObservation(boundary awscloud.Boundary, api GraphQLAPI, resolver Resolver) awscloud.ResourceObservation {
+func resolverObservation(boundary aws.Boundary, api GraphQLAPI, resolver Resolver) aws.ResourceObservation {
 	resourceID := resolverResourceID(api.ID, resolver.TypeName, resolver.FieldName)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(resolver.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncResolver,
+		ResourceType: aws.ResourceTypeAppSyncResolver,
 		Name:         resolverName(resolver),
 		Attributes: map[string]any{
 			"api_id":                strings.TrimSpace(api.ID),
@@ -211,13 +211,13 @@ func resolverObservation(boundary awscloud.Boundary, api GraphQLAPI, resolver Re
 	}
 }
 
-func functionObservation(boundary awscloud.Boundary, api GraphQLAPI, function Function) awscloud.ResourceObservation {
+func functionObservation(boundary aws.Boundary, api GraphQLAPI, function Function) aws.ResourceObservation {
 	resourceID := functionResourceID(api.ID, function.ID, function.Name)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(function.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncFunction,
+		ResourceType: aws.ResourceTypeAppSyncFunction,
 		Name:         firstNonEmpty(strings.TrimSpace(function.Name), strings.TrimSpace(function.ID)),
 		Attributes: map[string]any{
 			"api_id":           strings.TrimSpace(api.ID),
@@ -232,12 +232,12 @@ func functionObservation(boundary awscloud.Boundary, api GraphQLAPI, function Fu
 	}
 }
 
-func schemaObservation(boundary awscloud.Boundary, api GraphQLAPI, schema SchemaMetadata) awscloud.ResourceObservation {
+func schemaObservation(boundary aws.Boundary, api GraphQLAPI, schema SchemaMetadata) aws.ResourceObservation {
 	resourceID := schemaResourceID(api.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncSchema,
+		ResourceType: aws.ResourceTypeAppSyncSchema,
 		Name:         resourceID,
 		State:        strings.TrimSpace(schema.Status),
 		Attributes: map[string]any{
@@ -250,12 +250,12 @@ func schemaObservation(boundary awscloud.Boundary, api GraphQLAPI, schema Schema
 	}
 }
 
-func apiKeyObservation(boundary awscloud.Boundary, api GraphQLAPI, key APIKey) awscloud.ResourceObservation {
+func apiKeyObservation(boundary aws.Boundary, api GraphQLAPI, key APIKey) aws.ResourceObservation {
 	resourceID := apiKeyResourceID(api.ID, key.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncAPIKey,
+		ResourceType: aws.ResourceTypeAppSyncAPIKey,
 		Name:         strings.TrimSpace(key.ID),
 		Attributes: map[string]any{
 			"api_id":      strings.TrimSpace(api.ID),

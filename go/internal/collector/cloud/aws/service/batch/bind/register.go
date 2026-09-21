@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtimebind
+package bind
 
 import (
 	"fmt"
@@ -13,10 +13,10 @@ import (
 )
 
 func init() {
-	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind:          awscloud.ServiceBatch,
+	runtime.Register(runtime.ScannerRegistration{
+		ServiceKind:          aws.ServiceBatch,
 		RequiresRedactionKey: true,
-		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
+		Build: func(d runtime.ScannerDeps) (runtime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("batch scanner redaction key is required")
 			}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awspinpoint "github.com/aws/aws-sdk-go-v2/service/pinpoint"
 	awspinpointtypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
 	"github.com/aws/smithy-go"
@@ -57,15 +57,15 @@ type apiClient interface {
 // never calls a Send or mutation API.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a Pinpoint SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -122,7 +122,7 @@ func (c *Client) listApplications(ctx context.Context) ([]pinpointservice.Applic
 			applications = append(applications, mapApplication(app))
 		}
 		token = page.ApplicationsResponse.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return applications, nil
 		}
 	}
@@ -140,7 +140,7 @@ func (c *Client) listSegments(ctx context.Context, applicationID string) ([]pinp
 		err := c.recordAPICall(ctx, "GetSegments", func(callCtx context.Context) error {
 			var err error
 			page, err = c.client.GetSegments(callCtx, &awspinpoint.GetSegmentsInput{
-				ApplicationId: aws.String(applicationID),
+				ApplicationId: awsv2.String(applicationID),
 				Token:         token,
 			})
 			return err
@@ -155,7 +155,7 @@ func (c *Client) listSegments(ctx context.Context, applicationID string) ([]pinp
 			segments = append(segments, mapSegment(segment, applicationID))
 		}
 		token = page.SegmentsResponse.NextToken
-		if aws.ToString(token) == "" {
+		if awsv2.ToString(token) == "" {
 			return segments, nil
 		}
 	}
@@ -170,7 +170,7 @@ func (c *Client) listChannels(ctx context.Context, applicationID string) ([]pinp
 	err := c.recordAPICall(ctx, "GetChannels", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetChannels(callCtx, &awspinpoint.GetChannelsInput{
-			ApplicationId: aws.String(applicationID),
+			ApplicationId: awsv2.String(applicationID),
 		})
 		return callErr
 	})
@@ -202,7 +202,7 @@ func (c *Client) enrichEmailChannel(
 	err := c.recordAPICall(ctx, "GetEmailChannel", func(callCtx context.Context) error {
 		var callErr error
 		output, callErr = c.client.GetEmailChannel(callCtx, &awspinpoint.GetEmailChannelInput{
-			ApplicationId: aws.String(applicationID),
+			ApplicationId: awsv2.String(applicationID),
 		})
 		return callErr
 	})
@@ -212,8 +212,8 @@ func (c *Client) enrichEmailChannel(
 	if output == nil || output.EmailChannelResponse == nil {
 		return nil
 	}
-	configSet := strings.TrimSpace(aws.ToString(output.EmailChannelResponse.ConfigurationSet))
-	identity := strings.TrimSpace(aws.ToString(output.EmailChannelResponse.Identity))
+	configSet := strings.TrimSpace(awsv2.ToString(output.EmailChannelResponse.ConfigurationSet))
+	identity := strings.TrimSpace(awsv2.ToString(output.EmailChannelResponse.Identity))
 	for i := range channels {
 		if !strings.EqualFold(channels[i].ChannelType, channelTypeEmail) {
 			continue
@@ -226,24 +226,24 @@ func (c *Client) enrichEmailChannel(
 
 func mapApplication(app awspinpointtypes.ApplicationResponse) pinpointservice.Application {
 	return pinpointservice.Application{
-		ID:           strings.TrimSpace(aws.ToString(app.Id)),
-		ARN:          strings.TrimSpace(aws.ToString(app.Arn)),
-		Name:         strings.TrimSpace(aws.ToString(app.Name)),
-		CreationTime: parseISO8601(aws.ToString(app.CreationDate)),
+		ID:           strings.TrimSpace(awsv2.ToString(app.Id)),
+		ARN:          strings.TrimSpace(awsv2.ToString(app.Arn)),
+		Name:         strings.TrimSpace(awsv2.ToString(app.Name)),
+		CreationTime: parseISO8601(awsv2.ToString(app.CreationDate)),
 		Tags:         cloneTags(app.Tags),
 	}
 }
 
 func mapSegment(segment awspinpointtypes.SegmentResponse, applicationID string) pinpointservice.Segment {
 	mapped := pinpointservice.Segment{
-		ID:               strings.TrimSpace(aws.ToString(segment.Id)),
-		ARN:              strings.TrimSpace(aws.ToString(segment.Arn)),
-		Name:             strings.TrimSpace(aws.ToString(segment.Name)),
-		ApplicationID:    firstNonEmpty(strings.TrimSpace(aws.ToString(segment.ApplicationId)), applicationID),
+		ID:               strings.TrimSpace(awsv2.ToString(segment.Id)),
+		ARN:              strings.TrimSpace(awsv2.ToString(segment.Arn)),
+		Name:             strings.TrimSpace(awsv2.ToString(segment.Name)),
+		ApplicationID:    firstNonEmpty(strings.TrimSpace(awsv2.ToString(segment.ApplicationId)), applicationID),
 		SegmentType:      strings.TrimSpace(string(segment.SegmentType)),
-		Version:          aws.ToInt32(segment.Version),
-		CreationTime:     parseISO8601(aws.ToString(segment.CreationDate)),
-		LastModifiedTime: parseISO8601(aws.ToString(segment.LastModifiedDate)),
+		Version:          awsv2.ToInt32(segment.Version),
+		CreationTime:     parseISO8601(awsv2.ToString(segment.CreationDate)),
+		LastModifiedTime: parseISO8601(awsv2.ToString(segment.LastModifiedDate)),
 		Tags:             cloneTags(segment.Tags),
 	}
 	// Record only the presence, format, and aggregate size of an S3 import.
@@ -252,7 +252,7 @@ func mapSegment(segment awspinpointtypes.SegmentResponse, applicationID string) 
 	if imported := segment.ImportDefinition; imported != nil {
 		mapped.ImportedFromS3 = true
 		mapped.ImportFormat = strings.TrimSpace(string(imported.Format))
-		mapped.ImportSize = aws.ToInt32(imported.Size)
+		mapped.ImportSize = awsv2.ToInt32(imported.Size)
 	}
 	return mapped
 }
@@ -272,11 +272,11 @@ func mapChannels(applicationID string, channels map[string]awspinpointtypes.Chan
 		mapped = append(mapped, pinpointservice.Channel{
 			ApplicationID:    applicationID,
 			ChannelType:      strings.TrimSpace(kind),
-			Enabled:          aws.ToBool(channel.Enabled),
-			Archived:         aws.ToBool(channel.IsArchived),
-			Version:          aws.ToInt32(channel.Version),
-			CreationTime:     parseISO8601(aws.ToString(channel.CreationDate)),
-			LastModifiedTime: parseISO8601(aws.ToString(channel.LastModifiedDate)),
+			Enabled:          awsv2.ToBool(channel.Enabled),
+			Archived:         awsv2.ToBool(channel.IsArchived),
+			Version:          awsv2.ToInt32(channel.Version),
+			CreationTime:     parseISO8601(awsv2.ToString(channel.CreationDate)),
+			LastModifiedTime: parseISO8601(awsv2.ToString(channel.LastModifiedDate)),
 		})
 	}
 	return mapped
@@ -309,7 +309,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

@@ -31,7 +31,7 @@ type Snapshot struct {
 	CRLs []CRL
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // TrustAnchor is the scanner-owned Roles Anywhere trust anchor model. It carries

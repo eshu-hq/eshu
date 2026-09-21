@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/inspector2` owns the Amazon Inspector v2
+`internal/collector/cloud/aws/service/inspector2` owns the Amazon Inspector v2
 scanner contract for the AWS cloud collector. It converts account scan status,
 enabled scan features (EC2, ECR, Lambda, Lambda code), member-account, findings
 filter non-criteria identity (ARN, name, action, owner ID), and CIS scan
@@ -43,7 +43,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants,
+- `internal/collector/cloud/aws` for boundaries, resource constants,
   relationship constants, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -52,9 +52,9 @@ v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
+This scanner emits no spans or logs directly. `runtime.ClaimedSource`
 records scan duration and emitted resource counts after `Scanner.Scan` returns.
-The `awssdk` adapter records Inspector v2 API call counts, throttles, and
+The `sdk` adapter records Inspector v2 API call counts, throttles, and
 pagination spans. The required resource signal is
 `eshu_dp_aws_resources_emitted_total{service="inspector2"}` with the existing
 bounded AWS collector labels.
@@ -79,7 +79,7 @@ bounded AWS collector labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/inspector2/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/inspector2/...`
 covers the bounded Inspector v2 metadata path: one account status read,
 paginated member, filter, and CIS scan configuration list reads, and
 relationship fan-out bounded by the member set and the CIS target account set.
@@ -87,7 +87,7 @@ Feature status is an account attribute, not a relationship. The scanner issues
 no per-finding read, so handler cost scales with configuration cardinality, not
 finding volume.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers Inspector v2 resource and relationship fact emission, omission of
 finding details, omission of filter criteria, standalone-account member
 suppression, runtime registration, command configuration, and the SDK adapter's

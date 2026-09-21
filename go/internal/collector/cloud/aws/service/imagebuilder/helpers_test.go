@@ -11,11 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           testAccountID,
 		Region:              testRegion,
-		ServiceKind:         awscloud.ServiceImageBuilder,
+		ServiceKind:         aws.ServiceImageBuilder,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:imagebuilder:1",
 		CollectorInstanceID: "aws-prod",

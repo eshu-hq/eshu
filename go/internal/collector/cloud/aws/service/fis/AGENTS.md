@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/fis guidance
+# AGENTS.md - internal/collector/cloud/aws/service/fis guidance
 
 ## Read First
 
@@ -41,12 +41,12 @@
   the log-group edge joins the cloudwatchlogs node.
 - Emit the template-to-S3 edge only when an S3 log destination is configured.
   FIS reports a bucket NAME, so synthesize the bucket ARN with
-  `awscloud.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
+  `aws.PartitionForBoundary` and never hardcode `arn:aws:` - GovCloud and
   China must resolve to the real bucket node.
 - Emit the stop-condition edge only for `aws:cloudwatch:alarm` conditions whose
   Value is an alarm ARN; the implicit `none` condition emits no edge.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant or a documented `relguard`
+  `aws.ResourceType*` constant or a documented `relguard`
   `KnownTargetTypeAllowlist` anchor, and a `target_resource_id` matching how the
   target scanner publishes its resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -58,13 +58,13 @@
 ## Common Changes
 
 - Add a new FIS metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry parameter, filter, or run-output
   values, leave it out of the scanner contract.
 - Add new relationship evidence only when the FIS API reports both sides
   directly and the target identity matches an existing scanner's published
   resource_id shape.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

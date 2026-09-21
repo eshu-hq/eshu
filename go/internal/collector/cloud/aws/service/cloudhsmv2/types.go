@@ -31,7 +31,7 @@ type Snapshot struct {
 	Backups []Backup
 	// Warnings carries non-fatal partial-scan observations such as sustained
 	// throttling that omitted a metadata component.
-	Warnings []awscloud.WarningObservation
+	Warnings []aws.WarningObservation
 }
 
 // Cluster is the scanner-owned CloudHSM v2 cluster model. It carries

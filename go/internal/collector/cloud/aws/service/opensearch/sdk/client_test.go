@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsopensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
 	awsopensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	awsserverless "github.com/aws/aws-sdk-go-v2/service/opensearchserverless"
@@ -23,48 +23,48 @@ func TestClientListsOpenSearchDomainMetadataOnly(t *testing.T) {
 
 	domain := &fakeDomainAPI{
 		domainNames: &awsopensearch.ListDomainNamesOutput{
-			DomainNames: []awsopensearchtypes.DomainInfo{{DomainName: aws.String("orders-search")}},
+			DomainNames: []awsopensearchtypes.DomainInfo{{DomainName: awsv2.String("orders-search")}},
 		},
 		domains: &awsopensearch.DescribeDomainsOutput{
 			DomainStatusList: []awsopensearchtypes.DomainStatus{{
-				ARN:           aws.String(domainARN),
-				DomainId:      aws.String("123456789012/orders-search"),
-				DomainName:    aws.String("orders-search"),
-				EngineVersion: aws.String("OpenSearch_2.11"),
-				Created:       aws.Bool(true),
-				Processing:    aws.Bool(false),
+				ARN:           awsv2.String(domainARN),
+				DomainId:      awsv2.String("123456789012/orders-search"),
+				DomainName:    awsv2.String("orders-search"),
+				EngineVersion: awsv2.String("OpenSearch_2.11"),
+				Created:       awsv2.Bool(true),
+				Processing:    awsv2.Bool(false),
 				ClusterConfig: &awsopensearchtypes.ClusterConfig{
 					InstanceType:           awsopensearchtypes.OpenSearchPartitionInstanceType("r6g.large.search"),
-					InstanceCount:          aws.Int32(3),
-					DedicatedMasterEnabled: aws.Bool(true),
+					InstanceCount:          awsv2.Int32(3),
+					DedicatedMasterEnabled: awsv2.Bool(true),
 					DedicatedMasterType:    awsopensearchtypes.OpenSearchPartitionInstanceType("r6g.large.search"),
-					DedicatedMasterCount:   aws.Int32(3),
-					ZoneAwarenessEnabled:   aws.Bool(true),
+					DedicatedMasterCount:   awsv2.Int32(3),
+					ZoneAwarenessEnabled:   awsv2.Bool(true),
 				},
 				EncryptionAtRestOptions: &awsopensearchtypes.EncryptionAtRestOptions{
-					Enabled:  aws.Bool(true),
-					KmsKeyId: aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+					Enabled:  awsv2.Bool(true),
+					KmsKeyId: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
 				},
-				NodeToNodeEncryptionOptions: &awsopensearchtypes.NodeToNodeEncryptionOptions{Enabled: aws.Bool(true)},
+				NodeToNodeEncryptionOptions: &awsopensearchtypes.NodeToNodeEncryptionOptions{Enabled: awsv2.Bool(true)},
 				VPCOptions: &awsopensearchtypes.VPCDerivedInfo{
-					VPCId:            aws.String("vpc-123"),
+					VPCId:            awsv2.String("vpc-123"),
 					SubnetIds:        []string{"subnet-a", "subnet-b"},
 					SecurityGroupIds: []string{"sg-123"},
 				},
 				AdvancedSecurityOptions: &awsopensearchtypes.AdvancedSecurityOptions{
-					Enabled:                     aws.Bool(true),
-					InternalUserDatabaseEnabled: aws.Bool(false),
-					SAMLOptions:                 &awsopensearchtypes.SAMLOptionsOutput{Enabled: aws.Bool(true)},
+					Enabled:                     awsv2.Bool(true),
+					InternalUserDatabaseEnabled: awsv2.Bool(false),
+					SAMLOptions:                 &awsopensearchtypes.SAMLOptionsOutput{Enabled: awsv2.Bool(true)},
 				},
 				// AccessPolicies is an IAM resource policy body. The adapter must
 				// extract role ARNs without persisting the policy body.
-				AccessPolicies: aws.String(accessPolicy),
+				AccessPolicies: awsv2.String(accessPolicy),
 				// Endpoint is the domain HTTP endpoint; it must never be persisted.
-				Endpoint: aws.String("vpc-orders-search.us-east-1.es.amazonaws.com"),
+				Endpoint: awsv2.String("vpc-orders-search.us-east-1.es.amazonaws.com"),
 			}},
 		},
 		tags: map[string]*awsopensearch.ListTagsOutput{
-			domainARN: {TagList: []awsopensearchtypes.Tag{{Key: aws.String("Environment"), Value: aws.String("prod")}}},
+			domainARN: {TagList: []awsopensearchtypes.Tag{{Key: awsv2.String("Environment"), Value: awsv2.String("prod")}}},
 		},
 	}
 	client := newTestClient(domain, &fakeServerlessAPI{})
@@ -102,24 +102,24 @@ func TestClientPaginatesPackagesAndAssociations(t *testing.T) {
 		packagePages: []*awsopensearch.DescribePackagesOutput{
 			{
 				PackageDetailsList: []awsopensearchtypes.PackageDetails{{
-					PackageID:     aws.String("F1"),
-					PackageName:   aws.String("synonyms"),
+					PackageID:     awsv2.String("F1"),
+					PackageName:   awsv2.String("synonyms"),
 					PackageType:   awsopensearchtypes.PackageTypeTxtDictionary,
 					PackageStatus: awsopensearchtypes.PackageStatusAvailable,
 				}},
-				NextToken: aws.String("page2"),
+				NextToken: awsv2.String("page2"),
 			},
 			{
 				PackageDetailsList: []awsopensearchtypes.PackageDetails{{
-					PackageID:   aws.String("F2"),
-					PackageName: aws.String("stopwords"),
+					PackageID:   awsv2.String("F2"),
+					PackageName: awsv2.String("stopwords"),
 				}},
 			},
 		},
 		associationPages: []*awsopensearch.ListDomainsForPackageOutput{{
 			DomainPackageDetailsList: []awsopensearchtypes.DomainPackageDetails{{
-				PackageID:           aws.String("F1"),
-				DomainName:          aws.String("orders-search"),
+				PackageID:           awsv2.String("F1"),
+				DomainName:          awsv2.String("orders-search"),
 				DomainPackageStatus: awsopensearchtypes.DomainPackageStatusActive,
 			}},
 		}},
@@ -149,37 +149,37 @@ func TestClientPaginatesPackagesAndAssociations(t *testing.T) {
 func TestClientListsServerlessCollectionsAndEndpoints(t *testing.T) {
 	serverless := &fakeServerlessAPI{
 		collectionList: &awsserverless.ListCollectionsOutput{
-			CollectionSummaries: []awsserverlesstypes.CollectionSummary{{Id: aws.String("abc123")}},
+			CollectionSummaries: []awsserverlesstypes.CollectionSummary{{Id: awsv2.String("abc123")}},
 		},
 		collectionDetail: &awsserverless.BatchGetCollectionOutput{
 			CollectionDetails: []awsserverlesstypes.CollectionDetail{{
-				Arn:       aws.String("arn:aws:aoss:us-east-1:123456789012:collection/abc123"),
-				Id:        aws.String("abc123"),
-				Name:      aws.String("orders-vectors"),
+				Arn:       awsv2.String("arn:aws:aoss:us-east-1:123456789012:collection/abc123"),
+				Id:        awsv2.String("abc123"),
+				Name:      awsv2.String("orders-vectors"),
 				Type:      awsserverlesstypes.CollectionTypeVectorsearch,
 				Status:    awsserverlesstypes.CollectionStatusActive,
-				KmsKeyArn: aws.String("arn:aws:kms:us-east-1:123456789012:key/serverless"),
+				KmsKeyArn: awsv2.String("arn:aws:kms:us-east-1:123456789012:key/serverless"),
 				// CollectionEndpoint and DashboardEndpoint must never be persisted.
-				CollectionEndpoint: aws.String("https://abc123.us-east-1.aoss.amazonaws.com"),
-				DashboardEndpoint:  aws.String("https://abc123.us-east-1.aoss.amazonaws.com/_dashboards"),
+				CollectionEndpoint: awsv2.String("https://abc123.us-east-1.aoss.amazonaws.com"),
+				DashboardEndpoint:  awsv2.String("https://abc123.us-east-1.aoss.amazonaws.com/_dashboards"),
 			}},
 		},
 		securityConfigList: &awsserverless.ListSecurityConfigsOutput{
 			SecurityConfigSummaries: []awsserverlesstypes.SecurityConfigSummary{{
-				Id:            aws.String("saml/orders/okta"),
+				Id:            awsv2.String("saml/orders/okta"),
 				Type:          awsserverlesstypes.SecurityConfigTypeSaml,
-				ConfigVersion: aws.String("MTcw"),
+				ConfigVersion: awsv2.String("MTcw"),
 			}},
 		},
 		endpointList: &awsserverless.ListVpcEndpointsOutput{
-			VpcEndpointSummaries: []awsserverlesstypes.VpcEndpointSummary{{Id: aws.String("vpce-aoss-123")}},
+			VpcEndpointSummaries: []awsserverlesstypes.VpcEndpointSummary{{Id: awsv2.String("vpce-aoss-123")}},
 		},
 		endpointDetail: &awsserverless.BatchGetVpcEndpointOutput{
 			VpcEndpointDetails: []awsserverlesstypes.VpcEndpointDetail{{
-				Id:               aws.String("vpce-aoss-123"),
-				Name:             aws.String("orders-aoss-endpoint"),
+				Id:               awsv2.String("vpce-aoss-123"),
+				Name:             awsv2.String("orders-aoss-endpoint"),
 				Status:           awsserverlesstypes.VpcEndpointStatusActive,
-				VpcId:            aws.String("vpc-123"),
+				VpcId:            awsv2.String("vpc-123"),
 				SubnetIds:        []string{"subnet-a"},
 				SecurityGroupIds: []string{"sg-456"},
 			}},
@@ -234,18 +234,18 @@ func newTestClient(domain domainAPI, serverless serverlessAPI) *Client {
 	return &Client{
 		domain:     domain,
 		serverless: serverless,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceOpenSearch,
+			ServiceKind: aws.ServiceOpenSearch,
 		},
 	}
 }
 
 func emptyDomainStatus() awsopensearchtypes.DomainStatus {
 	return awsopensearchtypes.DomainStatus{
-		ARN:           aws.String("arn:aws:es:us-east-1:123456789012:domain/empty"),
-		DomainName:    aws.String("empty"),
+		ARN:           awsv2.String("arn:aws:es:us-east-1:123456789012:domain/empty"),
+		DomainName:    awsv2.String("empty"),
 		ClusterConfig: &awsopensearchtypes.ClusterConfig{},
 	}
 }
@@ -286,7 +286,7 @@ func (f *fakeDomainAPI) ListTags(_ context.Context, in *awsopensearch.ListTagsIn
 	if f.tags == nil {
 		return &awsopensearch.ListTagsOutput{}, nil
 	}
-	if out, ok := f.tags[aws.ToString(in.ARN)]; ok {
+	if out, ok := f.tags[awsv2.ToString(in.ARN)]; ok {
 		return out, nil
 	}
 	return &awsopensearch.ListTagsOutput{}, nil

@@ -15,16 +15,16 @@ import (
 // not relationships because a tag filter names no concrete resource; those
 // summaries stay on the deployment-group resource attributes.
 func deploymentGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	groupARN := deploymentGroupARN(boundary, group.ApplicationName, group.Name)
 	groupID := firstNonEmpty(groupARN, group.Name)
 	if groupID == "" {
 		return nil
 	}
 
-	var observations []awscloud.RelationshipObservation
+	var observations []aws.RelationshipObservation
 
 	if rel, ok := applicationRelationship(boundary, group, groupARN, groupID); ok {
 		observations = append(observations, rel)
@@ -41,66 +41,66 @@ func deploymentGroupRelationships(
 }
 
 func applicationRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	appName := strings.TrimSpace(group.ApplicationName)
 	if appName == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 	appARN := applicationARN(boundary, appName)
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupBelongsToApplication,
+		RelationshipType: aws.RelationshipCodeDeployDeploymentGroupBelongsToApplication,
 		SourceResourceID: groupID,
 		SourceARN:        groupARN,
 		TargetResourceID: firstNonEmpty(appARN, appName),
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeCodeDeployApplication,
+		TargetType:       aws.ResourceTypeCodeDeployApplication,
 		SourceRecordID:   groupID + "#application#" + appName,
 	}, true
 }
 
 func serviceRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) (awscloud.RelationshipObservation, bool) {
+) (aws.RelationshipObservation, bool) {
 	roleARN := strings.TrimSpace(group.ServiceRoleARN)
 	if roleARN == "" {
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupUsesIAMRole,
+		RelationshipType: aws.RelationshipCodeDeployDeploymentGroupUsesIAMRole,
 		SourceResourceID: groupID,
 		SourceARN:        groupARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   groupID + "#service-role#" + roleARN,
 	}, true
 }
 
 func autoScalingGroupRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, asg := range group.AutoScalingGroups {
 		name := strings.TrimSpace(asg)
 		if name == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup,
+			RelationshipType: aws.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+			TargetType:       aws.ResourceTypeAutoScalingGroup,
 			SourceRecordID:   groupID + "#asg#" + name,
 		})
 	}
@@ -108,11 +108,11 @@ func autoScalingGroupRelationships(
 }
 
 func ecsServiceRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, service := range group.ECSServices {
 		cluster := strings.TrimSpace(service.ClusterName)
 		name := strings.TrimSpace(service.ServiceName)
@@ -124,14 +124,14 @@ func ecsServiceRelationships(
 		// ARN. Fall back to the cluster/service pair only when the ARN cannot
 		// be built so the edge still carries a stable record id.
 		target := firstNonEmpty(serviceARN, cluster+"/"+name)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsECSService,
+			RelationshipType: aws.RelationshipCodeDeployDeploymentGroupTargetsECSService,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: target,
 			TargetARN:        serviceARN,
-			TargetType:       awscloud.ResourceTypeECSService,
+			TargetType:       aws.ResourceTypeECSService,
 			Attributes: map[string]any{
 				"cluster_name": cluster,
 				"service_name": name,
@@ -143,11 +143,11 @@ func ecsServiceRelationships(
 }
 
 func lambdaFunctionRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, function := range group.LambdaFunctions {
 		name := strings.TrimSpace(function)
 		if name == "" {
@@ -158,14 +158,14 @@ func lambdaFunctionRelationships(
 		// function ARN. Fall back to the bare name only when the ARN cannot be
 		// built.
 		target := firstNonEmpty(functionARN, name)
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction,
+			RelationshipType: aws.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: target,
 			TargetARN:        functionARN,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       aws.ResourceTypeLambdaFunction,
 			SourceRecordID:   groupID + "#lambda#" + name,
 		})
 	}
@@ -173,24 +173,24 @@ func lambdaFunctionRelationships(
 }
 
 func snsTriggerRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	group DeploymentGroup,
 	groupARN, groupID string,
-) []awscloud.RelationshipObservation {
-	var observations []awscloud.RelationshipObservation
+) []aws.RelationshipObservation {
+	var observations []aws.RelationshipObservation
 	for _, trigger := range group.SNSTriggers {
 		topicARN := strings.TrimSpace(trigger.TopicARN)
 		if topicARN == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic,
+			RelationshipType: aws.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       aws.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"trigger_name":   strings.TrimSpace(trigger.Name),
 				"trigger_events": cloneStrings(trigger.Events),

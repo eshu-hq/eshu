@@ -10,36 +10,36 @@ import (
 )
 
 func acceleratorListenerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	acceleratorARN string,
 	listenerARN string,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorAcceleratorHasListener,
+		RelationshipType: aws.RelationshipGlobalAcceleratorAcceleratorHasListener,
 		SourceResourceID: acceleratorARN,
 		SourceARN:        acceleratorARN,
 		TargetResourceID: listenerARN,
 		TargetARN:        listenerARN,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorListener,
+		TargetType:       aws.ResourceTypeGlobalAcceleratorListener,
 		SourceRecordID:   acceleratorARN + "#listener#" + listenerARN,
 	}
 }
 
 func listenerEndpointGroupRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	listenerARN string,
 	groupARN string,
 	region string,
-) awscloud.RelationshipObservation {
-	return awscloud.RelationshipObservation{
+) aws.RelationshipObservation {
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorListenerHasEndpointGroup,
+		RelationshipType: aws.RelationshipGlobalAcceleratorListenerHasEndpointGroup,
 		SourceResourceID: listenerARN,
 		SourceARN:        listenerARN,
 		TargetResourceID: groupARN,
 		TargetARN:        groupARN,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorEndpointGroup,
+		TargetType:       aws.ResourceTypeGlobalAcceleratorEndpointGroup,
 		Attributes: map[string]any{
 			"endpoint_group_region": strings.TrimSpace(region),
 		},
@@ -48,24 +48,24 @@ func listenerEndpointGroupRelationship(
 }
 
 func endpointGroupEndpointRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	groupARN string,
 	endpointResourceID string,
 	endpoint Endpoint,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	attributes := map[string]any{
 		"endpoint_id": strings.TrimSpace(endpoint.EndpointID),
 	}
 	if endpoint.Weight != nil {
 		attributes["weight"] = *endpoint.Weight
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint,
+		RelationshipType: aws.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: endpointResourceID,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorEndpoint,
+		TargetType:       aws.ResourceTypeGlobalAcceleratorEndpoint,
 		Attributes:       attributes,
 		SourceRecordID:   groupARN + "#endpoint#" + endpointResourceID,
 	}
@@ -76,10 +76,10 @@ func endpointGroupEndpointRelationship(
 // allocation id, or an EC2 instance id; target_type names the family and
 // target_arn is set only when the id is ARN-shaped.
 func endpointTargetRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	endpointResourceID string,
 	endpoint Endpoint,
-) awscloud.RelationshipObservation {
+) aws.RelationshipObservation {
 	endpointID := strings.TrimSpace(endpoint.EndpointID)
 	targetARN := ""
 	if isARN(endpointID) {
@@ -91,9 +91,9 @@ func endpointTargetRelationship(
 	if endpoint.ClientIPPreservationEnabled != nil {
 		attributes["client_ip_preservation_enabled"] = *endpoint.ClientIPPreservationEnabled
 	}
-	return awscloud.RelationshipObservation{
+	return aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorEndpointTargetsResource,
+		RelationshipType: aws.RelationshipGlobalAcceleratorEndpointTargetsResource,
 		SourceResourceID: endpointResourceID,
 		TargetResourceID: endpointID,
 		TargetARN:        targetARN,

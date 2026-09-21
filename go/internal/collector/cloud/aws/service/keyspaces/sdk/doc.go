@@ -7,4 +7,4 @@
 // telemetry. It reads keyspace and table metadata only: it never executes CQL,
 // never runs ExecuteStatement, BatchStatement, or Select, never reads table rows
 // or cells, never restores tables, and never mutates keyspaces or tables.
-package awssdk
+package sdk

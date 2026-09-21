@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsnetfw "github.com/aws/aws-sdk-go-v2/service/networkfirewall"
 	awsnetfwtypes "github.com/aws/aws-sdk-go-v2/service/networkfirewall/types"
 
@@ -21,23 +21,23 @@ import (
 func TestListFirewallsPaginatesAndMaps(t *testing.T) {
 	fake := &fakeAPIClient{
 		firewallPages: [][]awsnetfwtypes.FirewallMetadata{
-			{{FirewallArn: aws.String("arn:fw:1"), FirewallName: aws.String("fw1")}},
-			{{FirewallArn: aws.String("arn:fw:2"), FirewallName: aws.String("fw2")}},
+			{{FirewallArn: awsv2.String("arn:fw:1"), FirewallName: awsv2.String("fw1")}},
+			{{FirewallArn: awsv2.String("arn:fw:2"), FirewallName: awsv2.String("fw2")}},
 		},
 		firewalls: map[string]*awsnetfw.DescribeFirewallOutput{
 			"arn:fw:1": {
 				Firewall: &awsnetfwtypes.Firewall{
-					FirewallArn:       aws.String("arn:fw:1"),
-					FirewallId:        aws.String("id1"),
-					FirewallName:      aws.String("fw1"),
-					VpcId:             aws.String("vpc-1"),
-					FirewallPolicyArn: aws.String("arn:fp:1"),
+					FirewallArn:       awsv2.String("arn:fw:1"),
+					FirewallId:        awsv2.String("id1"),
+					FirewallName:      awsv2.String("fw1"),
+					VpcId:             awsv2.String("vpc-1"),
+					FirewallPolicyArn: awsv2.String("arn:fp:1"),
 					DeleteProtection:  true,
 					SubnetMappings: []awsnetfwtypes.SubnetMapping{
-						{SubnetId: aws.String("subnet-1")},
-						{SubnetId: aws.String("subnet-2")},
+						{SubnetId: awsv2.String("subnet-1")},
+						{SubnetId: awsv2.String("subnet-2")},
 					},
-					Tags: []awsnetfwtypes.Tag{{Key: aws.String("env"), Value: aws.String("prod")}},
+					Tags: []awsnetfwtypes.Tag{{Key: awsv2.String("env"), Value: awsv2.String("prod")}},
 				},
 				FirewallStatus: &awsnetfwtypes.FirewallStatus{
 					Status:                        awsnetfwtypes.FirewallStatusValueReady,
@@ -46,9 +46,9 @@ func TestListFirewallsPaginatesAndMaps(t *testing.T) {
 			},
 			"arn:fw:2": {
 				Firewall: &awsnetfwtypes.Firewall{
-					FirewallArn:  aws.String("arn:fw:2"),
-					FirewallName: aws.String("fw2"),
-					VpcId:        aws.String("vpc-2"),
+					FirewallArn:  awsv2.String("arn:fw:2"),
+					FirewallName: awsv2.String("fw2"),
+					VpcId:        awsv2.String("vpc-2"),
 				},
 			},
 		},
@@ -80,27 +80,27 @@ func TestListFirewallsPaginatesAndMaps(t *testing.T) {
 func TestListFirewallPoliciesMapsActionsAndReferences(t *testing.T) {
 	fake := &fakeAPIClient{
 		policyPages: [][]awsnetfwtypes.FirewallPolicyMetadata{
-			{{Arn: aws.String("arn:fp:1"), Name: aws.String("fp1")}},
+			{{Arn: awsv2.String("arn:fp:1"), Name: awsv2.String("fp1")}},
 		},
 		policies: map[string]*awsnetfw.DescribeFirewallPolicyOutput{
 			"arn:fp:1": {
 				FirewallPolicyResponse: &awsnetfwtypes.FirewallPolicyResponse{
-					FirewallPolicyArn:    aws.String("arn:fp:1"),
-					FirewallPolicyId:     aws.String("fpid1"),
-					FirewallPolicyName:   aws.String("fp1"),
+					FirewallPolicyArn:    awsv2.String("arn:fp:1"),
+					FirewallPolicyId:     awsv2.String("fpid1"),
+					FirewallPolicyName:   awsv2.String("fp1"),
 					FirewallPolicyStatus: awsnetfwtypes.ResourceStatusActive,
-					NumberOfAssociations: aws.Int32(2),
+					NumberOfAssociations: awsv2.Int32(2),
 				},
 				FirewallPolicy: &awsnetfwtypes.FirewallPolicy{
 					StatelessDefaultActions:         []string{"aws:forward_to_sfe"},
 					StatelessFragmentDefaultActions: []string{"aws:drop"},
 					StatefulDefaultActions:          []string{"aws:drop_strict"},
-					TLSInspectionConfigurationArn:   aws.String("arn:tls:1"),
+					TLSInspectionConfigurationArn:   awsv2.String("arn:tls:1"),
 					StatefulRuleGroupReferences: []awsnetfwtypes.StatefulRuleGroupReference{
-						{ResourceArn: aws.String("arn:rg:stateful")},
+						{ResourceArn: awsv2.String("arn:rg:stateful")},
 					},
 					StatelessRuleGroupReferences: []awsnetfwtypes.StatelessRuleGroupReference{
-						{ResourceArn: aws.String("arn:rg:stateless"), Priority: aws.Int32(1)},
+						{ResourceArn: awsv2.String("arn:rg:stateless"), Priority: awsv2.Int32(1)},
 					},
 				},
 			},
@@ -139,19 +139,19 @@ func TestListFirewallPoliciesMapsActionsAndReferences(t *testing.T) {
 func TestListRuleGroupsUsesMetadataReadAndTags(t *testing.T) {
 	fake := &fakeAPIClient{
 		ruleGroupPages: [][]awsnetfwtypes.RuleGroupMetadata{
-			{{Arn: aws.String("arn:rg:1"), Name: aws.String("rg1")}},
+			{{Arn: awsv2.String("arn:rg:1"), Name: awsv2.String("rg1")}},
 		},
 		ruleGroupMetadata: map[string]*awsnetfw.DescribeRuleGroupMetadataOutput{
 			"arn:rg:1": {
-				RuleGroupArn:  aws.String("arn:rg:1"),
-				RuleGroupName: aws.String("rg1"),
+				RuleGroupArn:  awsv2.String("arn:rg:1"),
+				RuleGroupName: awsv2.String("rg1"),
 				Type:          awsnetfwtypes.RuleGroupTypeStateful,
-				Capacity:      aws.Int32(1000),
-				Description:   aws.String("threats"),
+				Capacity:      awsv2.Int32(1000),
+				Description:   awsv2.String("threats"),
 			},
 		},
 		tags: map[string][]awsnetfwtypes.Tag{
-			"arn:rg:1": {{Key: aws.String("team"), Value: aws.String("sec")}},
+			"arn:rg:1": {{Key: awsv2.String("team"), Value: awsv2.String("sec")}},
 		},
 	}
 	client := newTestClient(fake)
@@ -181,16 +181,16 @@ func TestListRuleGroupsUsesMetadataReadAndTags(t *testing.T) {
 func TestListTLSInspectionConfigurationsMapsMetadata(t *testing.T) {
 	fake := &fakeAPIClient{
 		tlsPages: [][]awsnetfwtypes.TLSInspectionConfigurationMetadata{
-			{{Arn: aws.String("arn:tls:1"), Name: aws.String("tls1")}},
+			{{Arn: awsv2.String("arn:tls:1"), Name: awsv2.String("tls1")}},
 		},
 		tlsConfigs: map[string]*awsnetfw.DescribeTLSInspectionConfigurationOutput{
 			"arn:tls:1": {
 				TLSInspectionConfigurationResponse: &awsnetfwtypes.TLSInspectionConfigurationResponse{
-					TLSInspectionConfigurationArn:    aws.String("arn:tls:1"),
-					TLSInspectionConfigurationId:     aws.String("tlsid1"),
-					TLSInspectionConfigurationName:   aws.String("tls1"),
+					TLSInspectionConfigurationArn:    awsv2.String("arn:tls:1"),
+					TLSInspectionConfigurationId:     awsv2.String("tlsid1"),
+					TLSInspectionConfigurationName:   awsv2.String("tls1"),
 					TLSInspectionConfigurationStatus: awsnetfwtypes.ResourceStatusActive,
-					NumberOfAssociations:             aws.Int32(1),
+					NumberOfAssociations:             awsv2.Int32(1),
 				},
 			},
 		},
@@ -251,10 +251,10 @@ func TestScannerOwnedTypesDeclareNoRuleBodyField(t *testing.T) {
 func newTestClient(fake *fakeAPIClient) *Client {
 	return &Client{
 		client: fake,
-		boundary: awscloud.Boundary{
+		boundary: aws.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceNetworkFirewall,
+			ServiceKind: aws.ServiceNetworkFirewall,
 		},
 	}
 }
@@ -279,11 +279,11 @@ type fakeAPIClient struct {
 }
 
 func pageToken(index int) *string {
-	return aws.String("page-" + strconv.Itoa(index))
+	return awsv2.String("page-" + strconv.Itoa(index))
 }
 
 func tokenIndex(token *string) int {
-	idx, _ := strconv.Atoi(strings.TrimPrefix(aws.ToString(token), "page-"))
+	idx, _ := strconv.Atoi(strings.TrimPrefix(awsv2.ToString(token), "page-"))
 	return idx
 }
 
@@ -300,7 +300,7 @@ func (f *fakeAPIClient) ListFirewalls(_ context.Context, in *awsnetfw.ListFirewa
 }
 
 func (f *fakeAPIClient) DescribeFirewall(_ context.Context, in *awsnetfw.DescribeFirewallInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.DescribeFirewallOutput, error) {
-	return f.firewalls[aws.ToString(in.FirewallArn)], nil
+	return f.firewalls[awsv2.ToString(in.FirewallArn)], nil
 }
 
 func (f *fakeAPIClient) ListFirewallPolicies(_ context.Context, in *awsnetfw.ListFirewallPoliciesInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.ListFirewallPoliciesOutput, error) {
@@ -316,7 +316,7 @@ func (f *fakeAPIClient) ListFirewallPolicies(_ context.Context, in *awsnetfw.Lis
 }
 
 func (f *fakeAPIClient) DescribeFirewallPolicy(_ context.Context, in *awsnetfw.DescribeFirewallPolicyInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.DescribeFirewallPolicyOutput, error) {
-	return f.policies[aws.ToString(in.FirewallPolicyArn)], nil
+	return f.policies[awsv2.ToString(in.FirewallPolicyArn)], nil
 }
 
 func (f *fakeAPIClient) ListRuleGroups(_ context.Context, in *awsnetfw.ListRuleGroupsInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.ListRuleGroupsOutput, error) {
@@ -333,7 +333,7 @@ func (f *fakeAPIClient) ListRuleGroups(_ context.Context, in *awsnetfw.ListRuleG
 
 func (f *fakeAPIClient) DescribeRuleGroupMetadata(_ context.Context, in *awsnetfw.DescribeRuleGroupMetadataInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.DescribeRuleGroupMetadataOutput, error) {
 	f.describeRuleGroupMetadataCalls++
-	return f.ruleGroupMetadata[aws.ToString(in.RuleGroupArn)], nil
+	return f.ruleGroupMetadata[awsv2.ToString(in.RuleGroupArn)], nil
 }
 
 func (f *fakeAPIClient) ListTLSInspectionConfigurations(_ context.Context, in *awsnetfw.ListTLSInspectionConfigurationsInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.ListTLSInspectionConfigurationsOutput, error) {
@@ -349,9 +349,9 @@ func (f *fakeAPIClient) ListTLSInspectionConfigurations(_ context.Context, in *a
 }
 
 func (f *fakeAPIClient) DescribeTLSInspectionConfiguration(_ context.Context, in *awsnetfw.DescribeTLSInspectionConfigurationInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.DescribeTLSInspectionConfigurationOutput, error) {
-	return f.tlsConfigs[aws.ToString(in.TLSInspectionConfigurationArn)], nil
+	return f.tlsConfigs[awsv2.ToString(in.TLSInspectionConfigurationArn)], nil
 }
 
 func (f *fakeAPIClient) ListTagsForResource(_ context.Context, in *awsnetfw.ListTagsForResourceInput, _ ...func(*awsnetfw.Options)) (*awsnetfw.ListTagsForResourceOutput, error) {
-	return &awsnetfw.ListTagsForResourceOutput{Tags: f.tags[aws.ToString(in.ResourceArn)]}, nil
+	return &awsnetfw.ListTagsForResourceOutput{Tags: f.tags[awsv2.ToString(in.ResourceArn)]}, nil
 }

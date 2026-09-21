@@ -22,9 +22,9 @@ const ec2InstanceTargetType = "aws_ec2_instance"
 // so the edge joins the application node by that id. It returns nil when either
 // endpoint identity is missing.
 func applicationContainsSourceServerRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	server SourceServer,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	applicationID := strings.TrimSpace(server.ApplicationID)
 	sourceID := sourceServerResourceID(server)
 	if applicationID == "" || sourceID == "" {
@@ -33,13 +33,13 @@ func applicationContainsSourceServerRelationship(
 	// The source-server node publishes its resource_id as the bare MGN source
 	// server id, so the target join key is that bare id and target_arn stays
 	// empty (relguard rejects a bare join key alongside a populated ARN).
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNApplicationContainsSourceServer,
+		RelationshipType: aws.RelationshipMGNApplicationContainsSourceServer,
 		SourceResourceID: applicationID,
 		TargetResourceID: sourceID,
-		TargetType:       awscloud.ResourceTypeMGNSourceServer,
-		SourceRecordID:   applicationID + "->" + awscloud.RelationshipMGNApplicationContainsSourceServer + ":" + sourceID,
+		TargetType:       aws.ResourceTypeMGNSourceServer,
+		SourceRecordID:   applicationID + "->" + aws.RelationshipMGNApplicationContainsSourceServer + ":" + sourceID,
 	}
 }
 
@@ -49,9 +49,9 @@ func applicationContainsSourceServerRelationship(
 // bare id and target_arn stays empty (relguard rejects a bare join key with a
 // populated ARN). It returns nil when no launched instance is reported.
 func sourceServerLaunchedEC2Relationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	server SourceServer,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	instanceID := strings.TrimSpace(server.LaunchedEC2InstanceID)
 	if !isInstanceID(instanceID) {
 		return nil
@@ -60,14 +60,14 @@ func sourceServerLaunchedEC2Relationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNSourceServerLaunchedEC2Instance,
+		RelationshipType: aws.RelationshipMGNSourceServerLaunchedEC2Instance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: instanceID,
 		TargetType:       ec2InstanceTargetType,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMGNSourceServerLaunchedEC2Instance + ":" + instanceID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipMGNSourceServerLaunchedEC2Instance + ":" + instanceID,
 	}
 }
 
@@ -77,9 +77,9 @@ func sourceServerLaunchedEC2Relationship(
 // under, so the target join key is the bare id and target_arn stays empty. It
 // returns nil when the launch configuration references no launch template.
 func launchConfigurationUsesLaunchTemplateRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	server SourceServer,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	config := server.LaunchConfiguration
 	if config == nil {
 		return nil
@@ -92,13 +92,13 @@ func launchConfigurationUsesLaunchTemplateRelationship(
 	if sourceID == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate,
+		RelationshipType: aws.RelationshipMGNLaunchConfigurationUsesLaunchTemplate,
 		SourceResourceID: sourceID,
 		TargetResourceID: templateID,
-		TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate + ":" + templateID,
+		TargetType:       aws.ResourceTypeEC2LaunchTemplate,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipMGNLaunchConfigurationUsesLaunchTemplate + ":" + templateID,
 	}
 }
 
@@ -107,15 +107,15 @@ func launchConfigurationUsesLaunchTemplateRelationship(
 // source-server node publishes, so the edges join those nodes. Duplicate
 // participating ids produce one edge. Unknown or empty ids are skipped.
 func jobTargetsSourceServerRelationships(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	job Job,
-) []awscloud.RelationshipObservation {
+) []aws.RelationshipObservation {
 	jobID := jobResourceID(job)
 	if jobID == "" {
 		return nil
 	}
 	seen := make(map[string]struct{})
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 	for _, serverID := range job.ParticipatingSourceServerIDs {
 		serverID = strings.TrimSpace(serverID)
 		if serverID == "" {
@@ -125,14 +125,14 @@ func jobTargetsSourceServerRelationships(
 			continue
 		}
 		seen[serverID] = struct{}{}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMGNJobTargetsSourceServer,
+			RelationshipType: aws.RelationshipMGNJobTargetsSourceServer,
 			SourceResourceID: jobID,
 			SourceARN:        strings.TrimSpace(job.ARN),
 			TargetResourceID: serverID,
-			TargetType:       awscloud.ResourceTypeMGNSourceServer,
-			SourceRecordID:   jobID + "->" + awscloud.RelationshipMGNJobTargetsSourceServer + ":" + serverID,
+			TargetType:       aws.ResourceTypeMGNSourceServer,
+			SourceRecordID:   jobID + "->" + aws.RelationshipMGNJobTargetsSourceServer + ":" + serverID,
 		})
 	}
 	return relationships

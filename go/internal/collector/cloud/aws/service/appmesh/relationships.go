@@ -11,20 +11,20 @@ import (
 
 // virtualServiceRelationships emits the virtual-service-to-mesh edge. The mesh
 // is keyed by its own ARN so the join lands on the mesh resource.
-func virtualServiceRelationships(boundary awscloud.Boundary, mesh Mesh, service VirtualService) []awscloud.RelationshipObservation {
+func virtualServiceRelationships(boundary aws.Boundary, mesh Mesh, service VirtualService) []aws.RelationshipObservation {
 	serviceARN := strings.TrimSpace(service.ARN)
 	meshARN := strings.TrimSpace(mesh.ARN)
 	if serviceARN == "" || meshARN == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshVirtualServiceInMesh,
+		RelationshipType: aws.RelationshipAppMeshVirtualServiceInMesh,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: meshARN,
 		TargetARN:        meshARN,
-		TargetType:       awscloud.ResourceTypeAppMeshMesh,
+		TargetType:       aws.ResourceTypeAppMeshMesh,
 		SourceRecordID:   serviceARN + "->" + meshARN,
 	}}
 }
@@ -32,12 +32,12 @@ func virtualServiceRelationships(boundary awscloud.Boundary, mesh Mesh, service 
 // virtualNodeRelationships emits the backend, certificate-authority trust, and
 // service-discovery edges for one virtual node. Backend virtual service ARNs
 // are synthesized from the node's own ARN so the partition is never hardcoded.
-func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []awscloud.RelationshipObservation {
+func virtualNodeRelationships(boundary aws.Boundary, node VirtualNode) []aws.RelationshipObservation {
 	nodeARN := strings.TrimSpace(node.ARN)
 	if nodeARN == "" {
 		return nil
 	}
-	var relationships []awscloud.RelationshipObservation
+	var relationships []aws.RelationshipObservation
 
 	for _, backend := range node.BackendVirtualServiceNames {
 		backendName := strings.TrimSpace(backend)
@@ -48,14 +48,14 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 		if backendARN == "" {
 			continue
 		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeBackendVirtualService,
+			RelationshipType: aws.RelationshipAppMeshVirtualNodeBackendVirtualService,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: backendARN,
 			TargetARN:        backendARN,
-			TargetType:       awscloud.ResourceTypeAppMeshVirtualService,
+			TargetType:       aws.ResourceTypeAppMeshVirtualService,
 			Attributes:       map[string]any{"virtual_service_name": backendName},
 			SourceRecordID:   nodeARN + "->" + backendARN,
 		})
@@ -71,14 +71,14 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 		// the target on the CA ARN with the acm-pca target type lets the edge
 		// join an ACM Private CA certificate authority resource instead of
 		// dangling against the public ACM scanner.
-		relationships = append(relationships, awscloud.RelationshipObservation{
+		relationships = append(relationships, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority,
+			RelationshipType: aws.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: caARN,
 			TargetARN:        caARN,
-			TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
+			TargetType:       aws.ResourceTypeACMPCACertificateAuthority,
 			SourceRecordID:   nodeARN + "->" + caARN,
 		})
 	}
@@ -93,22 +93,22 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 // serviceDiscoveryRelationship emits the Cloud Map or DNS service-discovery
 // edge for a virtual node. Cloud Map keys on "namespace/service" because Cloud
 // Map has no Eshu scanner; DNS keys on the hostname.
-func serviceDiscoveryRelationship(boundary awscloud.Boundary, node VirtualNode, nodeARN string) (awscloud.RelationshipObservation, bool) {
+func serviceDiscoveryRelationship(boundary aws.Boundary, node VirtualNode, nodeARN string) (aws.RelationshipObservation, bool) {
 	switch strings.TrimSpace(node.ServiceDiscoveryKind) {
 	case "aws_cloud_map":
 		namespace := strings.TrimSpace(node.CloudMapNamespaceName)
 		serviceName := strings.TrimSpace(node.CloudMapServiceName)
 		if namespace == "" || serviceName == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
 		target := namespace + "/" + serviceName
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeUsesCloudMapService,
+			RelationshipType: aws.RelationshipAppMeshVirtualNodeUsesCloudMapService,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: target,
-			TargetType:       awscloud.TargetTypeCloudMapService,
+			TargetType:       aws.TargetTypeCloudMapService,
 			Attributes: map[string]any{
 				"cloud_map_namespace_name": namespace,
 				"cloud_map_service_name":   serviceName,
@@ -118,57 +118,57 @@ func serviceDiscoveryRelationship(boundary awscloud.Boundary, node VirtualNode, 
 	case "dns":
 		hostname := strings.TrimSpace(node.DNSHostname)
 		if hostname == "" {
-			return awscloud.RelationshipObservation{}, false
+			return aws.RelationshipObservation{}, false
 		}
-		return awscloud.RelationshipObservation{
+		return aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeUsesDNSHostname,
+			RelationshipType: aws.RelationshipAppMeshVirtualNodeUsesDNSHostname,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: hostname,
-			TargetType:       awscloud.TargetTypeDNSHostname,
+			TargetType:       aws.TargetTypeDNSHostname,
 			SourceRecordID:   nodeARN + "->dns:" + hostname,
 		}, true
 	default:
-		return awscloud.RelationshipObservation{}, false
+		return aws.RelationshipObservation{}, false
 	}
 }
 
 // routeRelationships emits the route-to-virtual-router edge. The router is
 // keyed by the parent virtual router ARN App Mesh reports for the route.
-func routeRelationships(boundary awscloud.Boundary, route Route) []awscloud.RelationshipObservation {
+func routeRelationships(boundary aws.Boundary, route Route) []aws.RelationshipObservation {
 	routeARN := strings.TrimSpace(route.ARN)
 	routerARN := strings.TrimSpace(route.VirtualRouterARN)
 	if routeARN == "" || routerARN == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshRouteInVirtualRouter,
+		RelationshipType: aws.RelationshipAppMeshRouteInVirtualRouter,
 		SourceResourceID: routeARN,
 		SourceARN:        routeARN,
 		TargetResourceID: routerARN,
 		TargetARN:        routerARN,
-		TargetType:       awscloud.ResourceTypeAppMeshVirtualRouter,
+		TargetType:       aws.ResourceTypeAppMeshVirtualRouter,
 		SourceRecordID:   routeARN + "->" + routerARN,
 	}}
 }
 
 // virtualGatewayRelationships emits the virtual-gateway-to-mesh edge.
-func virtualGatewayRelationships(boundary awscloud.Boundary, mesh Mesh, gateway VirtualGateway) []awscloud.RelationshipObservation {
+func virtualGatewayRelationships(boundary aws.Boundary, mesh Mesh, gateway VirtualGateway) []aws.RelationshipObservation {
 	gatewayARN := strings.TrimSpace(gateway.ARN)
 	meshARN := strings.TrimSpace(mesh.ARN)
 	if gatewayARN == "" || meshARN == "" {
 		return nil
 	}
-	return []awscloud.RelationshipObservation{{
+	return []aws.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshVirtualGatewayInMesh,
+		RelationshipType: aws.RelationshipAppMeshVirtualGatewayInMesh,
 		SourceResourceID: gatewayARN,
 		SourceARN:        gatewayARN,
 		TargetResourceID: meshARN,
 		TargetARN:        meshARN,
-		TargetType:       awscloud.ResourceTypeAppMeshMesh,
+		TargetType:       aws.ResourceTypeAppMeshMesh,
 		SourceRecordID:   gatewayARN + "->" + meshARN,
 	}}
 }

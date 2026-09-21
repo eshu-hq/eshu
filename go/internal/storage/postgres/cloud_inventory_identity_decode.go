@@ -42,7 +42,7 @@ import (
 // caller: it routes account_id resolution through this seam instead of a
 // tolerant raw map[string]any + coerceJSONString lookup (#5881 review
 // follow-up to #5238), because account_id is a REQUIRED identity field on
-// every aws_resource fact -- the collector emitter (awscloud.
+// every aws_resource fact -- the collector emitter (aws.
 // NewResourceEnvelope) validates it non-empty, and the #5238 rollout-gap
 // signal (cloud_inventory_rollout_signal.go) depends on that being
 // structurally true: coerceJSONString would otherwise silently accept a

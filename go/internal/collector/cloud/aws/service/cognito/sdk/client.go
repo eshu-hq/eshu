@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsidentity "github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
 	awsidentitytypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentity/types"
 	awsidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
@@ -57,15 +57,15 @@ type identityPoolAPI interface {
 type Client struct {
 	userPoolClient userPoolClientAPI
 	identityClient identityPoolAPI
-	boundary       awscloud.Boundary
+	boundary       aws.Boundary
 	tracer         trace.Tracer
 	instruments    *telemetry.Instruments
 }
 
 // NewClient builds a Cognito SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -87,7 +87,7 @@ func (c *Client) ListUserPools(ctx context.Context) ([]cognitoservice.UserPool, 
 		err := c.recordAPICall(ctx, "ListUserPools", func(callCtx context.Context) error {
 			var err error
 			page, err = c.userPoolClient.ListUserPools(callCtx, &awsidp.ListUserPoolsInput{
-				MaxResults: aws.Int32(listUserPoolsPageSize),
+				MaxResults: awsv2.Int32(listUserPoolsPageSize),
 				NextToken:  nextToken,
 			})
 			return err
@@ -96,7 +96,7 @@ func (c *Client) ListUserPools(ctx context.Context) ([]cognitoservice.UserPool, 
 			return nil, err
 		}
 		for _, summary := range page.UserPools {
-			pool, err := c.describeUserPool(ctx, aws.ToString(summary.Id))
+			pool, err := c.describeUserPool(ctx, awsv2.ToString(summary.Id))
 			if err != nil {
 				return nil, err
 			}
@@ -104,7 +104,7 @@ func (c *Client) ListUserPools(ctx context.Context) ([]cognitoservice.UserPool, 
 				pools = append(pools, *pool)
 			}
 		}
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -121,7 +121,7 @@ func (c *Client) describeUserPool(ctx context.Context, poolID string) (*cognitos
 	err := c.recordAPICall(ctx, "DescribeUserPool", func(callCtx context.Context) error {
 		var err error
 		output, err = c.userPoolClient.DescribeUserPool(callCtx, &awsidp.DescribeUserPoolInput{
-			UserPoolId: aws.String(poolID),
+			UserPoolId: awsv2.String(poolID),
 		})
 		return err
 	})
@@ -149,7 +149,7 @@ func (c *Client) ListUserPoolClients(ctx context.Context, poolID string) ([]cogn
 		err := c.recordAPICall(ctx, "ListUserPoolClients", func(callCtx context.Context) error {
 			var err error
 			page, err = c.userPoolClient.ListUserPoolClients(callCtx, &awsidp.ListUserPoolClientsInput{
-				UserPoolId: aws.String(poolID),
+				UserPoolId: awsv2.String(poolID),
 				NextToken:  nextToken,
 			})
 			return err
@@ -158,9 +158,9 @@ func (c *Client) ListUserPoolClients(ctx context.Context, poolID string) ([]cogn
 			return nil, err
 		}
 		for _, summary := range page.UserPoolClients {
-			clientIDs = append(clientIDs, aws.ToString(summary.ClientId))
+			clientIDs = append(clientIDs, awsv2.ToString(summary.ClientId))
 		}
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -187,8 +187,8 @@ func (c *Client) describeUserPoolClient(ctx context.Context, poolID, clientID st
 	err := c.recordAPICall(ctx, "DescribeUserPoolClient", func(callCtx context.Context) error {
 		var err error
 		output, err = c.userPoolClient.DescribeUserPoolClient(callCtx, &awsidp.DescribeUserPoolClientInput{
-			UserPoolId: aws.String(poolID),
-			ClientId:   aws.String(clientID),
+			UserPoolId: awsv2.String(poolID),
+			ClientId:   awsv2.String(clientID),
 		})
 		return err
 	})
@@ -216,8 +216,8 @@ func (c *Client) ListIdentityProviders(ctx context.Context, poolID string) ([]co
 		err := c.recordAPICall(ctx, "ListIdentityProviders", func(callCtx context.Context) error {
 			var err error
 			page, err = c.userPoolClient.ListIdentityProviders(callCtx, &awsidp.ListIdentityProvidersInput{
-				UserPoolId: aws.String(poolID),
-				MaxResults: aws.Int32(60),
+				UserPoolId: awsv2.String(poolID),
+				MaxResults: awsv2.Int32(60),
 				NextToken:  nextToken,
 			})
 			return err
@@ -228,7 +228,7 @@ func (c *Client) ListIdentityProviders(ctx context.Context, poolID string) ([]co
 		for _, provider := range page.Providers {
 			providers = append(providers, mapIdentityProvider(poolID, provider))
 		}
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -249,8 +249,8 @@ func (c *Client) ListResourceServers(ctx context.Context, poolID string) ([]cogn
 		err := c.recordAPICall(ctx, "ListResourceServers", func(callCtx context.Context) error {
 			var err error
 			page, err = c.userPoolClient.ListResourceServers(callCtx, &awsidp.ListResourceServersInput{
-				UserPoolId: aws.String(poolID),
-				MaxResults: aws.Int32(50),
+				UserPoolId: awsv2.String(poolID),
+				MaxResults: awsv2.Int32(50),
 				NextToken:  nextToken,
 			})
 			return err
@@ -261,7 +261,7 @@ func (c *Client) ListResourceServers(ctx context.Context, poolID string) ([]cogn
 		for _, resourceServer := range page.ResourceServers {
 			resourceServers = append(resourceServers, mapResourceServer(resourceServer))
 		}
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -283,7 +283,7 @@ func (c *Client) ListGroups(ctx context.Context, poolID string) ([]cognitoservic
 		err := c.recordAPICall(ctx, "ListGroups", func(callCtx context.Context) error {
 			var err error
 			page, err = c.userPoolClient.ListGroups(callCtx, &awsidp.ListGroupsInput{
-				UserPoolId: aws.String(poolID),
+				UserPoolId: awsv2.String(poolID),
 				NextToken:  nextToken,
 			})
 			return err
@@ -294,7 +294,7 @@ func (c *Client) ListGroups(ctx context.Context, poolID string) ([]cognitoservic
 		for _, group := range page.Groups {
 			groups = append(groups, mapGroup(group))
 		}
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
@@ -312,7 +312,7 @@ func (c *Client) ListIdentityPools(ctx context.Context) ([]cognitoservice.Identi
 		err := c.recordAPICall(ctx, "ListIdentityPools", func(callCtx context.Context) error {
 			var err error
 			page, err = c.identityClient.ListIdentityPools(callCtx, &awsidentity.ListIdentityPoolsInput{
-				MaxResults: aws.Int32(60),
+				MaxResults: awsv2.Int32(60),
 				NextToken:  nextToken,
 			})
 			return err
@@ -321,14 +321,14 @@ func (c *Client) ListIdentityPools(ctx context.Context) ([]cognitoservice.Identi
 			return nil, err
 		}
 		summaries = append(summaries, page.IdentityPools...)
-		if page.NextToken == nil || strings.TrimSpace(aws.ToString(page.NextToken)) == "" {
+		if page.NextToken == nil || strings.TrimSpace(awsv2.ToString(page.NextToken)) == "" {
 			break
 		}
 		nextToken = page.NextToken
 	}
 	var pools []cognitoservice.IdentityPool
 	for _, summary := range summaries {
-		pool, err := c.describeIdentityPool(ctx, aws.ToString(summary.IdentityPoolId))
+		pool, err := c.describeIdentityPool(ctx, awsv2.ToString(summary.IdentityPoolId))
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +348,7 @@ func (c *Client) describeIdentityPool(ctx context.Context, poolID string) (*cogn
 	err := c.recordAPICall(ctx, "DescribeIdentityPool", func(callCtx context.Context) error {
 		var err error
 		output, err = c.identityClient.DescribeIdentityPool(callCtx, &awsidentity.DescribeIdentityPoolInput{
-			IdentityPoolId: aws.String(poolID),
+			IdentityPoolId: awsv2.String(poolID),
 		})
 		return err
 	})
@@ -371,7 +371,7 @@ func (c *Client) identityPoolRoles(ctx context.Context, poolID string) (map[stri
 	err := c.recordAPICall(ctx, "GetIdentityPoolRoles", func(callCtx context.Context) error {
 		var err error
 		output, err = c.identityClient.GetIdentityPoolRoles(callCtx, &awsidentity.GetIdentityPoolRolesInput{
-			IdentityPoolId: aws.String(poolID),
+			IdentityPoolId: awsv2.String(poolID),
 		})
 		return err
 	})
@@ -402,7 +402,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

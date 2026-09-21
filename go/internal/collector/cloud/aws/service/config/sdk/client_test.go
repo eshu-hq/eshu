@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/service/configservice"
 	cfgtypes "github.com/aws/aws-sdk-go-v2/service/configservice/types"
 
@@ -61,7 +61,7 @@ func TestClientReadsConfigMetadata(t *testing.T) {
 	api := &fakeConfigAPI{
 		recorders: &awsconfig.DescribeConfigurationRecordersOutput{
 			ConfigurationRecorders: []cfgtypes.ConfigurationRecorder{{
-				Name: aws.String("default"),
+				Name: awsv2.String("default"),
 				RecordingGroup: &cfgtypes.RecordingGroup{
 					AllSupported:               false,
 					IncludeGlobalResourceTypes: true,
@@ -72,11 +72,11 @@ func TestClientReadsConfigMetadata(t *testing.T) {
 		},
 		channels: &awsconfig.DescribeDeliveryChannelsOutput{
 			DeliveryChannels: []cfgtypes.DeliveryChannel{{
-				Name:         aws.String("default"),
-				S3BucketName: aws.String("config-bucket"),
-				S3KeyPrefix:  aws.String("prefix"),
-				S3KmsKeyArn:  aws.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
-				SnsTopicARN:  aws.String("arn:aws:sns:us-east-1:123456789012:topic"),
+				Name:         awsv2.String("default"),
+				S3BucketName: awsv2.String("config-bucket"),
+				S3KeyPrefix:  awsv2.String("prefix"),
+				S3KmsKeyArn:  awsv2.String("arn:aws:kms:us-east-1:123456789012:key/abc"),
+				SnsTopicARN:  awsv2.String("arn:aws:sns:us-east-1:123456789012:topic"),
 				ConfigSnapshotDeliveryProperties: &cfgtypes.ConfigSnapshotDeliveryProperties{
 					DeliveryFrequency: cfgtypes.MaximumExecutionFrequencyTwentyFourHours,
 				},
@@ -85,55 +85,55 @@ func TestClientReadsConfigMetadata(t *testing.T) {
 		rulePages: []*awsconfig.DescribeConfigRulesOutput{{
 			ConfigRules: []cfgtypes.ConfigRule{
 				{
-					ConfigRuleName:  aws.String("managed-rule"),
-					ConfigRuleArn:   aws.String("arn:aws:config:us-east-1:123456789012:config-rule/config-rule-aaaa"),
-					ConfigRuleId:    aws.String("config-rule-aaaa"),
+					ConfigRuleName:  awsv2.String("managed-rule"),
+					ConfigRuleArn:   awsv2.String("arn:aws:config:us-east-1:123456789012:config-rule/config-rule-aaaa"),
+					ConfigRuleId:    awsv2.String("config-rule-aaaa"),
 					ConfigRuleState: cfgtypes.ConfigRuleStateActive,
 					Source: &cfgtypes.Source{
 						Owner:            cfgtypes.OwnerAws,
-						SourceIdentifier: aws.String("S3_BUCKET_PUBLIC_READ_PROHIBITED"),
+						SourceIdentifier: awsv2.String("S3_BUCKET_PUBLIC_READ_PROHIBITED"),
 					},
 					Scope: &cfgtypes.Scope{ComplianceResourceTypes: []string{"AWS::S3::Bucket"}},
 				},
 				{
-					ConfigRuleName:  aws.String("custom-lambda-rule"),
-					ConfigRuleArn:   aws.String("arn:aws:config:us-east-1:123456789012:config-rule/config-rule-bbbb"),
+					ConfigRuleName:  awsv2.String("custom-lambda-rule"),
+					ConfigRuleArn:   awsv2.String("arn:aws:config:us-east-1:123456789012:config-rule/config-rule-bbbb"),
 					ConfigRuleState: cfgtypes.ConfigRuleStateActive,
 					Source: &cfgtypes.Source{
 						Owner:            cfgtypes.OwnerCustomLambda,
-						SourceIdentifier: aws.String("arn:aws:lambda:us-east-1:123456789012:function:evaluator"),
+						SourceIdentifier: awsv2.String("arn:aws:lambda:us-east-1:123456789012:function:evaluator"),
 					},
 				},
 			},
 		}},
 		packPages: []*awsconfig.DescribeConformancePacksOutput{{
 			ConformancePackDetails: []cfgtypes.ConformancePackDetail{{
-				ConformancePackName: aws.String("best-practices"),
-				ConformancePackArn:  aws.String("arn:aws:config:us-east-1:123456789012:conformance-pack/best-practices-abc"),
-				ConformancePackId:   aws.String("conformance-pack-abc"),
+				ConformancePackName: awsv2.String("best-practices"),
+				ConformancePackArn:  awsv2.String("arn:aws:config:us-east-1:123456789012:conformance-pack/best-practices-abc"),
+				ConformancePackId:   awsv2.String("conformance-pack-abc"),
 			}},
 		}},
 		statusPages: []*awsconfig.DescribeConformancePackStatusOutput{{
 			ConformancePackStatusDetails: []cfgtypes.ConformancePackStatusDetail{{
-				ConformancePackName:  aws.String("best-practices"),
-				ConformancePackArn:   aws.String("arn:aws:config:us-east-1:123456789012:conformance-pack/best-practices-abc"),
-				ConformancePackId:    aws.String("conformance-pack-abc"),
+				ConformancePackName:  awsv2.String("best-practices"),
+				ConformancePackArn:   awsv2.String("arn:aws:config:us-east-1:123456789012:conformance-pack/best-practices-abc"),
+				ConformancePackId:    awsv2.String("conformance-pack-abc"),
 				ConformancePackState: cfgtypes.ConformancePackStateCreateComplete,
 			}},
 		}},
 		compliancePagesByPack: map[string][]*awsconfig.DescribeConformancePackComplianceOutput{
 			"best-practices": {{
-				ConformancePackName: aws.String("best-practices"),
+				ConformancePackName: awsv2.String("best-practices"),
 				ConformancePackRuleComplianceList: []cfgtypes.ConformancePackRuleCompliance{
-					{ConfigRuleName: aws.String("rule-a"), ComplianceType: cfgtypes.ConformancePackComplianceTypeCompliant},
-					{ConfigRuleName: aws.String("rule-b"), ComplianceType: cfgtypes.ConformancePackComplianceTypeNonCompliant},
+					{ConfigRuleName: awsv2.String("rule-a"), ComplianceType: cfgtypes.ConformancePackComplianceTypeCompliant},
+					{ConfigRuleName: awsv2.String("rule-b"), ComplianceType: cfgtypes.ConformancePackComplianceTypeNonCompliant},
 				},
 			}},
 		},
 		aggregatorPages: []*awsconfig.DescribeConfigurationAggregatorsOutput{{
 			ConfigurationAggregators: []cfgtypes.ConfigurationAggregator{{
-				ConfigurationAggregatorName: aws.String("org-aggregator"),
-				ConfigurationAggregatorArn:  aws.String("arn:aws:config:us-east-1:123456789012:config-aggregator/config-aggregator-zzzz"),
+				ConfigurationAggregatorName: awsv2.String("org-aggregator"),
+				ConfigurationAggregatorArn:  awsv2.String("arn:aws:config:us-east-1:123456789012:config-aggregator/config-aggregator-zzzz"),
 				AccountAggregationSources: []cfgtypes.AccountAggregationSource{{
 					AccountIds: []string{"111122223333", "444455556666"},
 					AwsRegions: []string{"us-east-1"},
@@ -142,14 +142,14 @@ func TestClientReadsConfigMetadata(t *testing.T) {
 		}},
 		retentionPages: []*awsconfig.DescribeRetentionConfigurationsOutput{{
 			RetentionConfigurations: []cfgtypes.RetentionConfiguration{{
-				Name:                  aws.String("default"),
-				RetentionPeriodInDays: aws.Int32(2557),
+				Name:                  awsv2.String("default"),
+				RetentionPeriodInDays: awsv2.Int32(2557),
 			}},
 		}},
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceConfig},
+		boundary: aws.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: aws.ServiceConfig},
 	}
 
 	recorders, err := adapter.ConfigurationRecorders(context.Background())

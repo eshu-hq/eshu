@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscodecommit "github.com/aws/aws-sdk-go-v2/service/codecommit"
 	awscodecommittypes "github.com/aws/aws-sdk-go-v2/service/codecommit/types"
 	"github.com/aws/smithy-go"
@@ -42,15 +42,15 @@ type apiClient interface {
 // Client adapts AWS SDK CodeCommit pagination into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds a CodeCommit SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -79,12 +79,12 @@ func (c *Client) ListRepositories(ctx context.Context) ([]ccservice.Repository, 
 	}
 	repositories := make([]ccservice.Repository, 0, len(metadata))
 	for _, repository := range metadata {
-		name := aws.ToString(repository.RepositoryName)
+		name := awsv2.ToString(repository.RepositoryName)
 		triggers, err := c.getRepositoryTriggers(ctx, name)
 		if err != nil {
 			return nil, err
 		}
-		tags, err := c.listTags(ctx, aws.ToString(repository.Arn))
+		tags, err := c.listTags(ctx, awsv2.ToString(repository.Arn))
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func (c *Client) listRepositoryNames(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		for _, pair := range page.Repositories {
-			if name := strings.TrimSpace(aws.ToString(pair.RepositoryName)); name != "" {
+			if name := strings.TrimSpace(awsv2.ToString(pair.RepositoryName)); name != "" {
 				names = append(names, name)
 			}
 		}
@@ -149,7 +149,7 @@ func (c *Client) getRepositoryTriggers(ctx context.Context, name string) ([]awsc
 	err := c.recordAPICall(ctx, "GetRepositoryTriggers", func(callCtx context.Context) error {
 		var err error
 		output, err = c.client.GetRepositoryTriggers(callCtx, &awscodecommit.GetRepositoryTriggersInput{
-			RepositoryName: aws.String(name),
+			RepositoryName: awsv2.String(name),
 		})
 		return err
 	})
@@ -174,7 +174,7 @@ func (c *Client) listTags(ctx context.Context, repositoryARN string) (map[string
 		err := c.recordAPICall(ctx, "ListTagsForResource", func(callCtx context.Context) error {
 			var err error
 			output, err = c.client.ListTagsForResource(callCtx, &awscodecommit.ListTagsForResourceInput{
-				ResourceArn: aws.String(repositoryARN),
+				ResourceArn: awsv2.String(repositoryARN),
 				NextToken:   nextToken,
 			})
 			return err
@@ -191,7 +191,7 @@ func (c *Client) listTags(ctx context.Context, repositoryARN string) (map[string
 			}
 		}
 		nextToken = output.NextToken
-		if nextToken == nil || strings.TrimSpace(aws.ToString(nextToken)) == "" {
+		if nextToken == nil || strings.TrimSpace(awsv2.ToString(nextToken)) == "" {
 			break
 		}
 	}
@@ -207,16 +207,16 @@ func mapRepository(
 	tags map[string]string,
 ) ccservice.Repository {
 	return ccservice.Repository{
-		ARN:            aws.ToString(repository.Arn),
-		Name:           aws.ToString(repository.RepositoryName),
-		ID:             aws.ToString(repository.RepositoryId),
-		AccountID:      aws.ToString(repository.AccountId),
-		DefaultBranch:  aws.ToString(repository.DefaultBranch),
-		CloneURLHTTP:   aws.ToString(repository.CloneUrlHttp),
-		CloneURLSSH:    aws.ToString(repository.CloneUrlSsh),
-		KMSKeyID:       aws.ToString(repository.KmsKeyId),
-		CreatedAt:      aws.ToTime(repository.CreationDate),
-		LastModifiedAt: aws.ToTime(repository.LastModifiedDate),
+		ARN:            awsv2.ToString(repository.Arn),
+		Name:           awsv2.ToString(repository.RepositoryName),
+		ID:             awsv2.ToString(repository.RepositoryId),
+		AccountID:      awsv2.ToString(repository.AccountId),
+		DefaultBranch:  awsv2.ToString(repository.DefaultBranch),
+		CloneURLHTTP:   awsv2.ToString(repository.CloneUrlHttp),
+		CloneURLSSH:    awsv2.ToString(repository.CloneUrlSsh),
+		KMSKeyID:       awsv2.ToString(repository.KmsKeyId),
+		CreatedAt:      awsv2.ToTime(repository.CreationDate),
+		LastModifiedAt: awsv2.ToTime(repository.LastModifiedDate),
 		Triggers:       mapTriggers(triggers),
 		Tags:           tags,
 	}
@@ -229,8 +229,8 @@ func mapTriggers(triggers []awscodecommittypes.RepositoryTrigger) []ccservice.Tr
 	output := make([]ccservice.Trigger, 0, len(triggers))
 	for _, trigger := range triggers {
 		output = append(output, ccservice.Trigger{
-			Name:           aws.ToString(trigger.Name),
-			DestinationARN: aws.ToString(trigger.DestinationArn),
+			Name:           awsv2.ToString(trigger.Name),
+			DestinationARN: awsv2.ToString(trigger.DestinationArn),
 			Events:         mapTriggerEvents(trigger.Events),
 			Branches:       cloneStrings(trigger.Branches),
 		})
@@ -285,7 +285,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

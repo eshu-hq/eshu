@@ -26,15 +26,15 @@ type Scanner struct {
 // (load-balancer-to-instance, instance-to-disk, instance-to-static-IP). Every
 // node resource_id and every relationship join key is the bare Lightsail
 // resource name so the internal edges resolve the nodes this scanner publishes.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("lightsail scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLightsail:
+	case "", aws.ServiceLightsail:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLightsail
+		boundary.ServiceKind = aws.ServiceLightsail
 	default:
 		return nil, fmt.Errorf("lightsail scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -46,7 +46,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Lightsail instances: %w", err)
 	}
 	for _, instance := range instances {
-		envelope, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
+		envelope, err := aws.NewResourceEnvelope(instanceObservation(boundary, instance))
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +58,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list Lightsail databases: %w", err)
 	}
 	for _, database := range databases {
-		envelope, err := awscloud.NewResourceEnvelope(databaseObservation(boundary, database))
+		envelope, err := aws.NewResourceEnvelope(databaseObservation(boundary, database))
 		if err != nil {
 			return nil, err
 		}
@@ -104,14 +104,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func loadBalancerEnvelopes(boundary awscloud.Boundary, lb LoadBalancer) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(loadBalancerObservation(boundary, lb))
+func loadBalancerEnvelopes(boundary aws.Boundary, lb LoadBalancer) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(loadBalancerObservation(boundary, lb))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range loadBalancerInstanceRelationships(boundary, lb) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -120,14 +120,14 @@ func loadBalancerEnvelopes(boundary awscloud.Boundary, lb LoadBalancer) ([]facts
 	return envelopes, nil
 }
 
-func diskEnvelopes(boundary awscloud.Boundary, disk Disk) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(diskObservation(boundary, disk))
+func diskEnvelopes(boundary aws.Boundary, disk Disk) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(diskObservation(boundary, disk))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := instanceDiskRelationship(boundary, disk); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -136,14 +136,14 @@ func diskEnvelopes(boundary awscloud.Boundary, disk Disk) ([]facts.Envelope, err
 	return envelopes, nil
 }
 
-func staticIPEnvelopes(boundary awscloud.Boundary, staticIP StaticIP) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(staticIPObservation(boundary, staticIP))
+func staticIPEnvelopes(boundary aws.Boundary, staticIP StaticIP) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(staticIPObservation(boundary, staticIP))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	if relationship := instanceStaticIPRelationship(boundary, staticIP); relationship != nil {
-		envelope, err := awscloud.NewRelationshipEnvelope(*relationship)
+		envelope, err := aws.NewRelationshipEnvelope(*relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -152,14 +152,14 @@ func staticIPEnvelopes(boundary awscloud.Boundary, staticIP StaticIP) ([]facts.E
 	return envelopes, nil
 }
 
-func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud.ResourceObservation {
+func instanceObservation(boundary aws.Boundary, instance Instance) aws.ResourceObservation {
 	name := strings.TrimSpace(instance.Name)
 	arn := strings.TrimSpace(instance.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailInstance,
+		ResourceType: aws.ResourceTypeLightsailInstance,
 		Name:         name,
 		State:        strings.TrimSpace(instance.State),
 		Tags:         instance.Tags,
@@ -181,14 +181,14 @@ func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud
 	}
 }
 
-func databaseObservation(boundary awscloud.Boundary, database Database) awscloud.ResourceObservation {
+func databaseObservation(boundary aws.Boundary, database Database) aws.ResourceObservation {
 	name := strings.TrimSpace(database.Name)
 	arn := strings.TrimSpace(database.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailDatabase,
+		ResourceType: aws.ResourceTypeLightsailDatabase,
 		Name:         name,
 		State:        strings.TrimSpace(database.State),
 		Tags:         database.Tags,
@@ -213,14 +213,14 @@ func databaseObservation(boundary awscloud.Boundary, database Database) awscloud
 	}
 }
 
-func loadBalancerObservation(boundary awscloud.Boundary, lb LoadBalancer) awscloud.ResourceObservation {
+func loadBalancerObservation(boundary aws.Boundary, lb LoadBalancer) aws.ResourceObservation {
 	name := strings.TrimSpace(lb.Name)
 	arn := strings.TrimSpace(lb.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailLoadBalancer,
+		ResourceType: aws.ResourceTypeLightsailLoadBalancer,
 		Name:         name,
 		State:        strings.TrimSpace(lb.State),
 		Tags:         lb.Tags,
@@ -241,14 +241,14 @@ func loadBalancerObservation(boundary awscloud.Boundary, lb LoadBalancer) awsclo
 	}
 }
 
-func diskObservation(boundary awscloud.Boundary, disk Disk) awscloud.ResourceObservation {
+func diskObservation(boundary aws.Boundary, disk Disk) aws.ResourceObservation {
 	name := strings.TrimSpace(disk.Name)
 	arn := strings.TrimSpace(disk.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailDisk,
+		ResourceType: aws.ResourceTypeLightsailDisk,
 		Name:         name,
 		State:        strings.TrimSpace(disk.State),
 		Tags:         disk.Tags,
@@ -268,14 +268,14 @@ func diskObservation(boundary awscloud.Boundary, disk Disk) awscloud.ResourceObs
 	}
 }
 
-func staticIPObservation(boundary awscloud.Boundary, staticIP StaticIP) awscloud.ResourceObservation {
+func staticIPObservation(boundary aws.Boundary, staticIP StaticIP) aws.ResourceObservation {
 	name := strings.TrimSpace(staticIP.Name)
 	arn := strings.TrimSpace(staticIP.ARN)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailStaticIP,
+		ResourceType: aws.ResourceTypeLightsailStaticIP,
 		Name:         name,
 		Tags:         nil,
 		Attributes: map[string]any{

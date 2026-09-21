@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/mwaa guidance
+# AGENTS.md - internal/collector/cloud/aws/service/mwaa guidance
 
 ## Read First
 
@@ -48,13 +48,13 @@
 
 - Add a new MWAA metadata field by extending the scanner-owned `Environment`
   type, writing a focused scanner or adapter test first, then mapping it
-  through `awscloud` envelope builders. If the field can carry configuration,
+  through `aws` envelope builders. If the field can carry configuration,
   connection, or credential material, leave it out of the scanner contract
   until an ADR documents a sanitized exception.
 - Add new relationship evidence only when the MWAA API reports both sides
   directly and the target identity matches an existing scanner's published
   `resource_id` shape.
-- Extend SDK pagination and point reads in the `awssdk` adapter, not here.
+- Extend SDK pagination and point reads in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

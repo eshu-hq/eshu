@@ -51,7 +51,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Database resource node.
-	database := resourceByType(t, envelopes, awscloud.ResourceTypeTimestreamDatabase)
+	database := resourceByType(t, envelopes, aws.ResourceTypeTimestreamDatabase)
 	if got, want := database.Payload["resource_id"], testDatabaseARN; got != want {
 		t.Fatalf("database resource_id = %#v, want %q", got, want)
 	}
@@ -64,7 +64,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, dbAttrs, "database_name", "metrics")
 
 	// Table resource node.
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeTimestreamTable)
+	table := resourceByType(t, envelopes, aws.ResourceTypeTimestreamTable)
 	if got, want := table.Payload["resource_id"], testTableARN; got != want {
 		t.Fatalf("table resource_id = %#v, want %q", got, want)
 	}
@@ -79,8 +79,8 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, tableAttrs, "partition_key_names", []string{"host"})
 
 	// table -> database edge, keyed by the database ARN the database node publishes.
-	tableInDB := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableInDatabase)
-	assertEdgeTarget(t, tableInDB, awscloud.ResourceTypeTimestreamDatabase, testDatabaseARN)
+	tableInDB := relationshipByType(t, envelopes, aws.RelationshipTimestreamTableInDatabase)
+	assertEdgeTarget(t, tableInDB, aws.ResourceTypeTimestreamDatabase, testDatabaseARN)
 	if got, want := tableInDB.Payload["source_resource_id"], testTableARN; got != want {
 		t.Fatalf("table->database source_resource_id = %#v, want %q", got, want)
 	}
@@ -89,8 +89,8 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	}
 
 	// database -> KMS key edge.
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamDatabaseUsesKMSKey)
-	assertEdgeTarget(t, dbKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	dbKMS := relationshipByType(t, envelopes, aws.RelationshipTimestreamDatabaseUsesKMSKey)
+	assertEdgeTarget(t, dbKMS, aws.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dbKMS.Payload["source_resource_id"], testDatabaseARN; got != want {
 		t.Fatalf("database->kms source_resource_id = %#v, want %q", got, want)
 	}
@@ -100,9 +100,9 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 
 	// table -> S3 bucket edge, keyed by the synthesized partition-aware ARN the
 	// S3 scanner publishes for a bucket node.
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, aws.RelationshipTimestreamTableRejectsToS3)
 	wantBucketARN := "arn:aws:s3:::rejected-data-bucket"
-	assertEdgeTarget(t, tableS3, awscloud.ResourceTypeS3Bucket, wantBucketARN)
+	assertEdgeTarget(t, tableS3, aws.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := tableS3.Payload["source_resource_id"], testTableARN; got != want {
 		t.Fatalf("table->s3 source_resource_id = %#v, want %q", got, want)
 	}
@@ -146,7 +146,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, aws.RelationshipTimestreamTableRejectsToS3)
 	wantARN := "arn:aws-us-gov:s3:::gov-rejected-bucket"
 	if got := tableS3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud table->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -174,7 +174,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, aws.RelationshipTimestreamTableRejectsToS3)
 	wantARN := "arn:aws-cn:s3:::cn-rejected-bucket"
 	if got := tableS3.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China table->s3 target_arn = %#v, want %q", got, wantARN)
@@ -210,7 +210,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamDatabaseUsesKMSKey)
+	dbKMS := relationshipByType(t, envelopes, aws.RelationshipTimestreamDatabaseUsesKMSKey)
 	if got, want := dbKMS.Payload["target_resource_id"], "alias/timestream-metrics"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -229,8 +229,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		DatabaseName:         "metrics",
 		RejectedDataS3Bucket: "rejected-data-bucket",
 	}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		databaseKMSRelationship(boundary, database),
 		tableInDatabaseRelationship(boundary, databaseID, table),
 		tableRejectedDataS3Relationship(boundary, table),
@@ -245,7 +245,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -256,9 +256,9 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Databases: []Database{{ARN: testDatabaseARN, Name: "metrics"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Timestream ListTables throttled after SDK retries; table metadata omitted for this scan",
 			SourceRecordID: "timestream_tables_throttled",
@@ -269,17 +269,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceTimestream,
+		ServiceKind:         aws.ServiceTimestream,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:timestream:1",
 		CollectorInstanceID: "aws-prod",

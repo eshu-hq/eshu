@@ -13,7 +13,7 @@ import (
 // bucket. DataBrew reports a bucket NAME, so the scanner synthesizes the
 // partition-aware bucket ARN to match the S3 scanner's published bucket
 // resource_id. It returns nil when no S3 input bucket is configured.
-func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *awscloud.RelationshipObservation {
+func datasetReadsS3Relationship(boundary aws.Boundary, dataset Dataset) *aws.RelationshipObservation {
 	bucket := strings.TrimSpace(dataset.S3Bucket)
 	if bucket == "" {
 		return nil
@@ -22,7 +22,7 @@ func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *aw
 	if sourceID == "" {
 		return nil
 	}
-	bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), bucket)
+	bucketARN := arnForBucket(aws.PartitionForBoundary(boundary), bucket)
 	if bucketARN == "" {
 		return nil
 	}
@@ -30,16 +30,16 @@ func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *aw
 	if key := strings.TrimSpace(dataset.S3Key); key != "" {
 		attributes["object_key"] = key
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatabrewDatasetReadsS3,
+		RelationshipType: aws.RelationshipDatabrewDatasetReadsS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(dataset.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       aws.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewDatasetReadsS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDatabrewDatasetReadsS3 + ":" + bucketARN,
 	}
 }
 
@@ -51,9 +51,9 @@ func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *aw
 // such inputs, never a Redshift cluster ARN or identifier, so an edge to the
 // Redshift cluster node would dangle.
 func datasetReadsGlueTableRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	dataset Dataset,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	targetID := glueTableResourceID(dataset.GlueDatabaseName, dataset.GlueTableName)
 	if targetID == "" {
 		return nil
@@ -69,15 +69,15 @@ func datasetReadsGlueTableRelationship(
 	if catalog := strings.TrimSpace(dataset.GlueCatalogID); catalog != "" {
 		attributes["catalog_id"] = catalog
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatabrewDatasetReadsGlueTable,
+		RelationshipType: aws.RelationshipDatabrewDatasetReadsGlueTable,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(dataset.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeGlueTable,
+		TargetType:       aws.ResourceTypeGlueTable,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewDatasetReadsGlueTable + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + aws.RelationshipDatabrewDatasetReadsGlueTable + ":" + targetID,
 	}
 }
 
@@ -85,28 +85,28 @@ func datasetReadsGlueTableRelationship(
 // DataBrew job writes to. DataBrew reports bucket NAMES, so the scanner
 // synthesizes partition-aware bucket ARNs to match the S3 scanner's published
 // bucket resource_id. It returns nil when no S3 output bucket is configured.
-func jobWritesS3Relationships(boundary awscloud.Boundary, job Job) []awscloud.RelationshipObservation {
+func jobWritesS3Relationships(boundary aws.Boundary, job Job) []aws.RelationshipObservation {
 	sourceID := jobResourceID(job)
 	if sourceID == "" {
 		return nil
 	}
-	partition := awscloud.PartitionForBoundary(boundary)
-	var observations []awscloud.RelationshipObservation
+	partition := aws.PartitionForBoundary(boundary)
+	var observations []aws.RelationshipObservation
 	for _, bucket := range job.OutputS3Buckets {
 		bucketARN := arnForBucket(partition, bucket)
 		if bucketARN == "" {
 			continue
 		}
-		observations = append(observations, awscloud.RelationshipObservation{
+		observations = append(observations, aws.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDatabrewJobWritesS3,
+			RelationshipType: aws.RelationshipDatabrewJobWritesS3,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(job.ARN),
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       aws.ResourceTypeS3Bucket,
 			Attributes:       map[string]any{"bucket": strings.TrimSpace(bucket)},
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewJobWritesS3 + ":" + bucketARN,
+			SourceRecordID:   sourceID + "->" + aws.RelationshipDatabrewJobWritesS3 + ":" + bucketARN,
 		})
 	}
 	return observations
@@ -115,68 +115,68 @@ func jobWritesS3Relationships(boundary awscloud.Boundary, job Job) []awscloud.Re
 // jobAssumesRoleRelationship records the IAM role a DataBrew job assumes. AWS
 // reports a role ARN, which matches how the IAM scanner publishes its role
 // resource_id. It returns nil when no role ARN is reported.
-func jobAssumesRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.RelationshipObservation {
+func jobAssumesRoleRelationship(boundary aws.Boundary, job Job) *aws.RelationshipObservation {
 	return assumesRoleRelationship(
 		boundary,
 		jobResourceID(job),
 		strings.TrimSpace(job.ARN),
 		strings.TrimSpace(job.RoleARN),
-		awscloud.RelationshipDatabrewJobAssumesRole,
+		aws.RelationshipDatabrewJobAssumesRole,
 	)
 }
 
 // jobProcessesDatasetRelationship records the DataBrew dataset a job processes.
 // The target is keyed by the dataset name the dataset node publishes. It
 // returns nil when the job reports no dataset.
-func jobProcessesDatasetRelationship(boundary awscloud.Boundary, job Job) *awscloud.RelationshipObservation {
+func jobProcessesDatasetRelationship(boundary aws.Boundary, job Job) *aws.RelationshipObservation {
 	return internalNameRelationship(
 		boundary,
 		jobResourceID(job),
 		strings.TrimSpace(job.ARN),
 		strings.TrimSpace(job.DatasetName),
-		awscloud.RelationshipDatabrewJobProcessesDataset,
-		awscloud.ResourceTypeDatabrewDataset,
+		aws.RelationshipDatabrewJobProcessesDataset,
+		aws.ResourceTypeDatabrewDataset,
 	)
 }
 
 // projectUsesDatasetRelationship records the dataset a DataBrew project binds.
 // The target is keyed by the dataset name the dataset node publishes. It
 // returns nil when the project reports no dataset.
-func projectUsesDatasetRelationship(boundary awscloud.Boundary, project Project) *awscloud.RelationshipObservation {
+func projectUsesDatasetRelationship(boundary aws.Boundary, project Project) *aws.RelationshipObservation {
 	return internalNameRelationship(
 		boundary,
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.DatasetName),
-		awscloud.RelationshipDatabrewProjectUsesDataset,
-		awscloud.ResourceTypeDatabrewDataset,
+		aws.RelationshipDatabrewProjectUsesDataset,
+		aws.ResourceTypeDatabrewDataset,
 	)
 }
 
 // projectUsesRecipeRelationship records the recipe a DataBrew project develops.
 // The target is keyed by the recipe name the recipe node publishes. It returns
 // nil when the project reports no recipe.
-func projectUsesRecipeRelationship(boundary awscloud.Boundary, project Project) *awscloud.RelationshipObservation {
+func projectUsesRecipeRelationship(boundary aws.Boundary, project Project) *aws.RelationshipObservation {
 	return internalNameRelationship(
 		boundary,
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.RecipeName),
-		awscloud.RelationshipDatabrewProjectUsesRecipe,
-		awscloud.ResourceTypeDatabrewRecipe,
+		aws.RelationshipDatabrewProjectUsesRecipe,
+		aws.ResourceTypeDatabrewRecipe,
 	)
 }
 
 // projectAssumesRoleRelationship records the IAM role a DataBrew project
 // assumes. AWS reports a role ARN, which matches how the IAM scanner publishes
 // its role resource_id. It returns nil when no role ARN is reported.
-func projectAssumesRoleRelationship(boundary awscloud.Boundary, project Project) *awscloud.RelationshipObservation {
+func projectAssumesRoleRelationship(boundary aws.Boundary, project Project) *aws.RelationshipObservation {
 	return assumesRoleRelationship(
 		boundary,
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.RoleARN),
-		awscloud.RelationshipDatabrewProjectAssumesRole,
+		aws.RelationshipDatabrewProjectAssumesRole,
 	)
 }
 
@@ -184,12 +184,12 @@ func projectAssumesRoleRelationship(boundary awscloud.Boundary, project Project)
 // resource_id the IAM scanner publishes for a role. It returns nil when either
 // endpoint identity is missing.
 func assumesRoleRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID string,
 	sourceARN string,
 	roleARN string,
 	relationshipType string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID = strings.TrimSpace(sourceID)
 	roleARN = strings.TrimSpace(roleARN)
 	if sourceID == "" || roleARN == "" {
@@ -199,14 +199,14 @@ func assumesRoleRelationship(
 	if isARN(roleARN) {
 		targetARN = roleARN
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       aws.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + relationshipType + ":" + roleARN,
 	}
 }
@@ -215,19 +215,19 @@ func assumesRoleRelationship(
 // keyed by its name, the resource_id those nodes publish. It returns nil when
 // either endpoint identity is missing.
 func internalNameRelationship(
-	boundary awscloud.Boundary,
+	boundary aws.Boundary,
 	sourceID string,
 	sourceARN string,
 	targetName string,
 	relationshipType string,
 	targetType string,
-) *awscloud.RelationshipObservation {
+) *aws.RelationshipObservation {
 	sourceID = strings.TrimSpace(sourceID)
 	targetName = strings.TrimSpace(targetName)
 	if sourceID == "" || targetName == "" {
 		return nil
 	}
-	return &awscloud.RelationshipObservation{
+	return &aws.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
 		SourceResourceID: sourceID,

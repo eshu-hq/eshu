@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/batch/awssdk` adapts the AWS SDK for Go
+`internal/collector/cloud/aws/service/batch/sdk` adapts the AWS SDK for Go
 v2 Batch client into the scanner-owned records the Batch scanner consumes. It
 owns pagination, batched describe calls, SDK-to-scanner mapping, and AWS API
 telemetry for the Batch read surface.
@@ -29,9 +29,9 @@ surface stays explicit and auditable.
 
 - `github.com/aws/aws-sdk-go-v2/service/batch` and its `types` package for the
   Batch client, paginators, and response shapes.
-- `internal/collector/awscloud` for the boundary, API-call recording, and the
+- `internal/collector/cloud/aws` for the boundary, API-call recording, and the
   shared throttle/telemetry helpers.
-- `internal/collector/awscloud/service/batch` for the scanner-owned record
+- `internal/collector/cloud/aws/service/batch` for the scanner-owned record
   types this adapter produces.
 - `internal/telemetry` for the AWS API-call counters and pagination span name.
 
@@ -65,7 +65,7 @@ metric labels.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/service/batch/...`
+Collector Performance Evidence: `go test ./internal/collector/cloud/aws/service/batch/...`
 covers the bounded Batch metadata path: one paginated
 DescribeComputeEnvironments stream, one paginated DescribeJobQueues stream, one
 paginated DescribeJobDefinitions stream filtered to ACTIVE definitions, one
@@ -75,7 +75,7 @@ per-queue ListJobs fan-out bounded by `recentJobsPerStatus` across five active
 states. No mutation or job-control API is reachable, and the collector performs
 no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/cloud/aws/...`
 covers compute-environment, job-queue, job-definition, scheduling-policy, and
 recent-job fact emission, IAM-role/subnet/security-group/launch-template and
 container-image relationship emission with non-empty target types, redaction of
@@ -100,6 +100,6 @@ No new instrument or label was added.
 ## Related docs
 
 - `../README.md` for the Batch scanner contract.
-- `../../../awsruntime/README.md` for the runtime surface.
+- `../../../runtime/README.md` for the runtime surface.
 - `docs/public/services/collector-aws-cloud-scanners.md` for the user-facing
   coverage table.

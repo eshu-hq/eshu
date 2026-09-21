@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/awscloud/service/synthetics` owns the Amazon CloudWatch
+`internal/collector/cloud/aws/service/synthetics` owns the Amazon CloudWatch
 Synthetics scanner contract for the AWS cloud collector. It converts canary
 control-plane metadata into `aws_resource` facts and emits relationship evidence
 for the canary's S3 artifact bucket, IAM execution role, and (for VPC-configured
@@ -35,7 +35,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, resource constants, relationship
+- `internal/collector/cloud/aws` for boundaries, resource constants, relationship
   constants, partition helpers, and envelope builders.
 - `internal/facts` for emitted fact envelope kinds.
 
@@ -44,9 +44,9 @@ v2 so tests can use fake clients and the runtime adapter can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource` records
+This scanner emits no spans or logs directly. `runtime.ClaimedSource` records
 scan duration and emitted resource counts after `Scanner.Scan` returns. The
-`awssdk` adapter records Synthetics API call counts, throttles, and pagination
+`sdk` adapter records Synthetics API call counts, throttles, and pagination
 spans.
 
 ## Gotchas / invariants
@@ -57,7 +57,7 @@ spans.
   start, stop, or delete a canary.
 - `DescribeCanaries` returns no canary ARN field, so the adapter synthesizes the
   partition-aware ARN (`arn:<partition>:synthetics:<region>:<account>:canary:<name>`)
-  from the scan boundary via `awscloud.PartitionForBoundary`. The canary node
+  from the scan boundary via `aws.PartitionForBoundary`. The canary node
   publishes that ARN as its resource_id (falling back to the canary name).
 - The canary-to-S3 edge is emitted only when an artifact location is reported.
   Synthetics reports a `bucket/prefix` location PATH, not an ARN, so the scanner
@@ -74,12 +74,12 @@ spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/synthetics/...` green.
+No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/cloud/aws/service/synthetics/...` green.
 
 No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
 
 Collector Performance Evidence:
-`go test ./internal/collector/awscloud/service/synthetics/...` covers the
+`go test ./internal/collector/cloud/aws/service/synthetics/...` covers the
 bounded Synthetics metadata path: one paginated DescribeCanaries stream, no run
 reads, no code reads, no mutations, and no graph writes in the collector.
 

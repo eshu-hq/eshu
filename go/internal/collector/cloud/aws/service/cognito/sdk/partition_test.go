@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ func TestIdentityPoolARNDerivesPartition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			boundary := awscloud.Boundary{Region: tc.region, AccountID: "123456789012"}
+			boundary := aws.Boundary{Region: tc.region, AccountID: "123456789012"}
 			if got := identityPoolARN(boundary, "us-east-1:pool"); got != tc.want {
 				t.Fatalf("identityPoolARN(%q) = %q, want %q", tc.region, got, tc.want)
 			}

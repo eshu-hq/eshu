@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/securitylake/awssdk guidance
+# AGENTS.md - internal/collector/cloud/aws/service/securitylake/sdk guidance
 
 ## Read First
 

@@ -13,4 +13,4 @@
 // content and cannot mutate Pinpoint state. The email from-address is never
 // copied off the GetEmailChannel response; only the SES configuration-set and
 // identity references are kept.
-package awssdk
+package sdk

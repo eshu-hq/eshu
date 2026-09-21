@@ -1,15 +1,15 @@
-# AGENTS.md - services/cloudformation/runtimebind guidance
+# AGENTS.md - services/cloudformation/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
 2. `bind.go` - the actual registration and redaction-key guard.
 3. `../README.md` - CloudFormation scanner contract.
-4. `../../../awsruntime/README.md` - awsruntime registry and runtime surface.
+4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
 ## Invariants
 
-- Register exactly once from `init()` with `awscloud.ServiceCloudFormation`.
+- Register exactly once from `init()` with `aws.ServiceCloudFormation`.
 - Keep the redaction-key guard: return a typed error naming "redaction key" when
   `d.RedactionKey.IsZero()`. The CloudFormation scanner cannot redact stack
   outputs without it.
@@ -19,8 +19,8 @@
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here beyond the redaction-key guard.
-  Validation belongs to awsruntime and the scanner.
-- Do not import anything else from `internal/collector/awscloud/service`.
+  Validation belongs to runtime and the scanner.
+- Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

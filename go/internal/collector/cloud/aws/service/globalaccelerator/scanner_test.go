@@ -20,11 +20,11 @@ const (
 	testLoadBalancerARN = "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/api/abc123"
 )
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-west-2",
-		ServiceKind:         awscloud.ServiceGlobalAccelerator,
+		ServiceKind:         aws.ServiceGlobalAccelerator,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-1",
@@ -101,7 +101,7 @@ func TestScannerEmitsFullTopology(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	accelerator := assertResource(t, envelopes, awscloud.ResourceTypeGlobalAcceleratorAccelerator)
+	accelerator := assertResource(t, envelopes, aws.ResourceTypeGlobalAcceleratorAccelerator)
 	if got := accelerator.Payload["arn"]; got != testAcceleratorARN {
 		t.Fatalf("accelerator arn = %v, want %v", got, testAcceleratorARN)
 	}
@@ -116,7 +116,7 @@ func TestScannerEmitsFullTopology(t *testing.T) {
 		t.Fatalf("accelerator ip_sets missing, got %#v", attrs["ip_sets"])
 	}
 
-	listener := assertResource(t, envelopes, awscloud.ResourceTypeGlobalAcceleratorListener)
+	listener := assertResource(t, envelopes, aws.ResourceTypeGlobalAcceleratorListener)
 	listenerAttrs := listener.Payload["attributes"].(map[string]any)
 	if got := listenerAttrs["client_affinity"]; got != "SOURCE_IP" {
 		t.Fatalf("listener client_affinity = %v", got)
@@ -125,7 +125,7 @@ func TestScannerEmitsFullTopology(t *testing.T) {
 		t.Fatalf("listener accelerator_arn = %v", got)
 	}
 
-	group := assertResource(t, envelopes, awscloud.ResourceTypeGlobalAcceleratorEndpointGroup)
+	group := assertResource(t, envelopes, aws.ResourceTypeGlobalAcceleratorEndpointGroup)
 	groupAttrs := group.Payload["attributes"].(map[string]any)
 	if got := groupAttrs["endpoint_group_region"]; got != "us-west-2" {
 		t.Fatalf("endpoint group region = %v", got)
@@ -134,7 +134,7 @@ func TestScannerEmitsFullTopology(t *testing.T) {
 		t.Fatalf("endpoint group traffic_dial_percentage = %v", got)
 	}
 
-	endpoints := allResources(envelopes, awscloud.ResourceTypeGlobalAcceleratorEndpoint)
+	endpoints := allResources(envelopes, aws.ResourceTypeGlobalAcceleratorEndpoint)
 	if got, want := len(endpoints), 4; got != want {
 		t.Fatalf("endpoint resource count = %d, want %d", got, want)
 	}
@@ -147,7 +147,7 @@ func TestScannerEndpointTargetTypesAreTyped(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	targets := allRelationships(envelopes, awscloud.RelationshipGlobalAcceleratorEndpointTargetsResource)
+	targets := allRelationships(envelopes, aws.RelationshipGlobalAcceleratorEndpointTargetsResource)
 	if got, want := len(targets), 4; got != want {
 		t.Fatalf("endpoint target relationship count = %d, want %d", got, want)
 	}
@@ -162,8 +162,8 @@ func TestScannerEndpointTargetTypesAreTyped(t *testing.T) {
 		targetType string
 		wantARN    string
 	}{
-		{testLoadBalancerARN, awscloud.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN},
-		{"eipalloc-0a1b2c3d4e5f", awscloud.ResourceTypeVPCElasticIP, ""},
+		{testLoadBalancerARN, aws.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN},
+		{"eipalloc-0a1b2c3d4e5f", aws.ResourceTypeVPCElasticIP, ""},
 		{"i-0abc123def456", "aws_ec2_instance", ""},
 		{"custom-target-id", "aws_resource", ""},
 	}
@@ -191,18 +191,18 @@ func TestScannerEmitsMembershipRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	hasListener := assertRelationship(t, envelopes, awscloud.RelationshipGlobalAcceleratorAcceleratorHasListener)
+	hasListener := assertRelationship(t, envelopes, aws.RelationshipGlobalAcceleratorAcceleratorHasListener)
 	if got := hasListener.Payload["source_resource_id"]; got != testAcceleratorARN {
 		t.Fatalf("accelerator->listener source = %v", got)
 	}
 	if got := hasListener.Payload["target_resource_id"]; got != testListenerARN {
 		t.Fatalf("accelerator->listener target = %v", got)
 	}
-	if got := hasListener.Payload["target_type"]; got != awscloud.ResourceTypeGlobalAcceleratorListener {
+	if got := hasListener.Payload["target_type"]; got != aws.ResourceTypeGlobalAcceleratorListener {
 		t.Fatalf("accelerator->listener target_type = %v", got)
 	}
 
-	hasGroup := assertRelationship(t, envelopes, awscloud.RelationshipGlobalAcceleratorListenerHasEndpointGroup)
+	hasGroup := assertRelationship(t, envelopes, aws.RelationshipGlobalAcceleratorListenerHasEndpointGroup)
 	if got := hasGroup.Payload["source_resource_id"]; got != testListenerARN {
 		t.Fatalf("listener->group source = %v", got)
 	}
@@ -210,11 +210,11 @@ func TestScannerEmitsMembershipRelationships(t *testing.T) {
 		t.Fatalf("listener->group target = %v", got)
 	}
 
-	hasEndpoint := assertRelationship(t, envelopes, awscloud.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint)
+	hasEndpoint := assertRelationship(t, envelopes, aws.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint)
 	if got := hasEndpoint.Payload["source_resource_id"]; got != testEndpointGroupAR {
 		t.Fatalf("group->endpoint source = %v", got)
 	}
-	if got := hasEndpoint.Payload["target_type"]; got != awscloud.ResourceTypeGlobalAcceleratorEndpoint {
+	if got := hasEndpoint.Payload["target_type"]; got != aws.ResourceTypeGlobalAcceleratorEndpoint {
 		t.Fatalf("group->endpoint target_type = %v", got)
 	}
 }
@@ -252,9 +252,9 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resource := assertResource(t, envelopes, awscloud.ResourceTypeGlobalAcceleratorAccelerator)
-	if got := resource.Payload["service_kind"]; got != awscloud.ServiceGlobalAccelerator {
-		t.Fatalf("service_kind = %v, want %v", got, awscloud.ServiceGlobalAccelerator)
+	resource := assertResource(t, envelopes, aws.ResourceTypeGlobalAcceleratorAccelerator)
+	if got := resource.Payload["service_kind"]; got != aws.ServiceGlobalAccelerator {
+		t.Fatalf("service_kind = %v, want %v", got, aws.ServiceGlobalAccelerator)
 	}
 }
 

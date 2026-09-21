@@ -27,15 +27,15 @@ type Scanner struct {
 // Scan observes FIS experiment templates and their direct IAM, target,
 // logging, and stop-condition dependency metadata through the configured
 // client.
-func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+func (s Scanner) Scan(ctx context.Context, boundary aws.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("fis scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFIS:
+	case "", aws.ServiceFIS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFIS
+		boundary.ServiceKind = aws.ServiceFIS
 	default:
 		return nil, fmt.Errorf("fis scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -58,9 +58,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+func appendWarnings(envelopes *[]facts.Envelope, observations []aws.WarningObservation) error {
 	for _, observation := range observations {
-		envelope, err := awscloud.NewWarningEnvelope(observation)
+		envelope, err := aws.NewWarningEnvelope(observation)
 		if err != nil {
 			return err
 		}
@@ -69,14 +69,14 @@ func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.Warning
 	return nil
 }
 
-func templateEnvelopes(boundary awscloud.Boundary, template ExperimentTemplate) ([]facts.Envelope, error) {
-	resource, err := awscloud.NewResourceEnvelope(templateObservation(boundary, template))
+func templateEnvelopes(boundary aws.Boundary, template ExperimentTemplate) ([]facts.Envelope, error) {
+	resource, err := aws.NewResourceEnvelope(templateObservation(boundary, template))
 	if err != nil {
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
 	for _, relationship := range templateRelationships(boundary, template) {
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
+		envelope, err := aws.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err
 		}
@@ -85,15 +85,15 @@ func templateEnvelopes(boundary awscloud.Boundary, template ExperimentTemplate) 
 	return envelopes, nil
 }
 
-func templateObservation(boundary awscloud.Boundary, template ExperimentTemplate) awscloud.ResourceObservation {
+func templateObservation(boundary aws.Boundary, template ExperimentTemplate) aws.ResourceObservation {
 	templateARN := strings.TrimSpace(template.ARN)
 	resourceID := templateResourceID(template)
 	name := firstNonEmpty(template.Name, template.ID)
-	return awscloud.ResourceObservation{
+	return aws.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          templateARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFISExperimentTemplate,
+		ResourceType: aws.ResourceTypeFISExperimentTemplate,
 		Name:         name,
 		Tags:         cloneStringMap(template.Tags),
 		Attributes: map[string]any{

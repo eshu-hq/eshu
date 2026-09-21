@@ -1,4 +1,4 @@
-# AGENTS.md - services/ram/awssdk guidance
+# AGENTS.md - services/ram/sdk guidance
 
 ## Read First
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsappflow "github.com/aws/aws-sdk-go-v2/service/appflow"
 	awsappflowtypes "github.com/aws/aws-sdk-go-v2/service/appflow/types"
 	"github.com/aws/smithy-go"
@@ -38,15 +38,15 @@ type apiClient interface {
 // credentials ARN.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an AppFlow SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -89,7 +89,7 @@ func (c *Client) ListFlows(ctx context.Context) ([]appflowservice.Flow, error) {
 			flows = append(flows, flow)
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return flows, nil
 		}
 	}
@@ -99,17 +99,17 @@ func (c *Client) describeFlow(
 	ctx context.Context,
 	definition awsappflowtypes.FlowDefinition,
 ) (appflowservice.Flow, error) {
-	name := strings.TrimSpace(aws.ToString(definition.FlowName))
+	name := strings.TrimSpace(awsv2.ToString(definition.FlowName))
 	flow := appflowservice.Flow{
-		ARN:                      strings.TrimSpace(aws.ToString(definition.FlowArn)),
+		ARN:                      strings.TrimSpace(awsv2.ToString(definition.FlowArn)),
 		Name:                     name,
-		Description:              strings.TrimSpace(aws.ToString(definition.Description)),
+		Description:              strings.TrimSpace(awsv2.ToString(definition.Description)),
 		Status:                   strings.TrimSpace(string(definition.FlowStatus)),
 		SourceConnectorType:      strings.TrimSpace(string(definition.SourceConnectorType)),
 		DestinationConnectorType: strings.TrimSpace(string(definition.DestinationConnectorType)),
 		TriggerType:              strings.TrimSpace(string(definition.TriggerType)),
-		CreatedAt:                aws.ToTime(definition.CreatedAt),
-		LastUpdatedAt:            aws.ToTime(definition.LastUpdatedAt),
+		CreatedAt:                awsv2.ToTime(definition.CreatedAt),
+		LastUpdatedAt:            awsv2.ToTime(definition.LastUpdatedAt),
 	}
 	if name == "" {
 		return flow, nil
@@ -119,7 +119,7 @@ func (c *Client) describeFlow(
 	err := c.recordAPICall(ctx, "DescribeFlow", func(callCtx context.Context) error {
 		var err error
 		detail, err = c.client.DescribeFlow(callCtx, &awsappflow.DescribeFlowInput{
-			FlowName: aws.String(name),
+			FlowName: awsv2.String(name),
 		})
 		return err
 	})
@@ -130,13 +130,13 @@ func (c *Client) describeFlow(
 		return flow, nil
 	}
 
-	if arn := strings.TrimSpace(aws.ToString(detail.FlowArn)); arn != "" {
+	if arn := strings.TrimSpace(awsv2.ToString(detail.FlowArn)); arn != "" {
 		flow.ARN = arn
 	}
 	if status := strings.TrimSpace(string(detail.FlowStatus)); status != "" {
 		flow.Status = status
 	}
-	flow.KMSKeyARN = strings.TrimSpace(aws.ToString(detail.KmsArn))
+	flow.KMSKeyARN = strings.TrimSpace(awsv2.ToString(detail.KmsArn))
 	if detail.TriggerConfig != nil {
 		if triggerType := strings.TrimSpace(string(detail.TriggerConfig.TriggerType)); triggerType != "" {
 			flow.TriggerType = triggerType
@@ -158,9 +158,9 @@ func applySourceFlowConfig(flow *appflowservice.Flow, config *awsappflowtypes.So
 	if connectorType := strings.TrimSpace(string(config.ConnectorType)); connectorType != "" {
 		flow.SourceConnectorType = connectorType
 	}
-	flow.SourceConnectorProfileName = strings.TrimSpace(aws.ToString(config.ConnectorProfileName))
+	flow.SourceConnectorProfileName = strings.TrimSpace(awsv2.ToString(config.ConnectorProfileName))
 	if props := config.SourceConnectorProperties; props != nil && props.S3 != nil {
-		flow.SourceS3Bucket = strings.TrimSpace(aws.ToString(props.S3.BucketName))
+		flow.SourceS3Bucket = strings.TrimSpace(awsv2.ToString(props.S3.BucketName))
 	}
 }
 
@@ -176,10 +176,10 @@ func applyDestinationFlowConfig(flow *appflowservice.Flow, configs []awsappflowt
 	for _, config := range configs {
 		destination := appflowservice.FlowDestination{
 			ConnectorType:        strings.TrimSpace(string(config.ConnectorType)),
-			ConnectorProfileName: strings.TrimSpace(aws.ToString(config.ConnectorProfileName)),
+			ConnectorProfileName: strings.TrimSpace(awsv2.ToString(config.ConnectorProfileName)),
 		}
 		if props := config.DestinationConnectorProperties; props != nil && props.S3 != nil {
-			destination.S3Bucket = strings.TrimSpace(aws.ToString(props.S3.BucketName))
+			destination.S3Bucket = strings.TrimSpace(awsv2.ToString(props.S3.BucketName))
 		}
 		flow.Destinations = append(flow.Destinations, destination)
 
@@ -221,7 +221,7 @@ func (c *Client) ListConnectorProfiles(ctx context.Context) ([]appflowservice.Co
 			profiles = append(profiles, mapConnectorProfile(profile))
 		}
 		nextToken = page.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return profiles, nil
 		}
 	}
@@ -229,14 +229,14 @@ func (c *Client) ListConnectorProfiles(ctx context.Context) ([]appflowservice.Co
 
 func mapConnectorProfile(profile awsappflowtypes.ConnectorProfile) appflowservice.ConnectorProfile {
 	return appflowservice.ConnectorProfile{
-		ARN:            strings.TrimSpace(aws.ToString(profile.ConnectorProfileArn)),
-		Name:           strings.TrimSpace(aws.ToString(profile.ConnectorProfileName)),
+		ARN:            strings.TrimSpace(awsv2.ToString(profile.ConnectorProfileArn)),
+		Name:           strings.TrimSpace(awsv2.ToString(profile.ConnectorProfileName)),
 		ConnectorType:  strings.TrimSpace(string(profile.ConnectorType)),
-		ConnectorLabel: strings.TrimSpace(aws.ToString(profile.ConnectorLabel)),
+		ConnectorLabel: strings.TrimSpace(awsv2.ToString(profile.ConnectorLabel)),
 		ConnectionMode: strings.TrimSpace(string(profile.ConnectionMode)),
-		CredentialsARN: strings.TrimSpace(aws.ToString(profile.CredentialsArn)),
-		CreatedAt:      aws.ToTime(profile.CreatedAt),
-		LastUpdatedAt:  aws.ToTime(profile.LastUpdatedAt),
+		CredentialsARN: strings.TrimSpace(awsv2.ToString(profile.CredentialsArn)),
+		CreatedAt:      awsv2.ToTime(profile.CreatedAt),
+		LastUpdatedAt:  awsv2.ToTime(profile.LastUpdatedAt),
 	}
 }
 
@@ -258,7 +258,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

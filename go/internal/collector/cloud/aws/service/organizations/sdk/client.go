@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awsorg "github.com/aws/aws-sdk-go-v2/service/organizations"
 	awsorgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"go.opentelemetry.io/otel/trace"
@@ -36,7 +36,7 @@ type apiClient interface {
 // Client adapts AWS SDK Organizations pagination into scanner-owned metadata.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 	region      string
@@ -44,8 +44,8 @@ type Client struct {
 
 // NewClient builds an Organizations SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -116,9 +116,9 @@ func (c *Client) describeOrganization(ctx context.Context) (organizationsservice
 	}
 	org := output.Organization
 	return organizationsservice.Organization{
-		ARN:               strings.TrimSpace(aws.ToString(org.Arn)),
-		ID:                strings.TrimSpace(aws.ToString(org.Id)),
-		ManagementAccount: strings.TrimSpace(aws.ToString(org.MasterAccountId)),
+		ARN:               strings.TrimSpace(awsv2.ToString(org.Arn)),
+		ID:                strings.TrimSpace(awsv2.ToString(org.Id)),
+		ManagementAccount: strings.TrimSpace(awsv2.ToString(org.MasterAccountId)),
 		FeatureSet:        strings.TrimSpace(string(org.FeatureSet)),
 	}, nil
 }
@@ -147,22 +147,22 @@ func (c *Client) listRoots(ctx context.Context) ([]organizationsservice.Root, er
 			roots = append(roots, mapped)
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return roots, nil
 		}
 	}
 }
 
 func (c *Client) mapRoot(ctx context.Context, root awsorgtypes.Root) (organizationsservice.Root, error) {
-	rootID := aws.ToString(root.Id)
+	rootID := awsv2.ToString(root.Id)
 	tags, err := c.listTags(ctx, rootID)
 	if err != nil {
 		return organizationsservice.Root{}, err
 	}
 	return organizationsservice.Root{
-		ARN:         strings.TrimSpace(aws.ToString(root.Arn)),
+		ARN:         strings.TrimSpace(awsv2.ToString(root.Arn)),
 		ID:          strings.TrimSpace(rootID),
-		Name:        strings.TrimSpace(aws.ToString(root.Name)),
+		Name:        strings.TrimSpace(awsv2.ToString(root.Name)),
 		PolicyTypes: policyTypeSummaries(root.PolicyTypes),
 		Tags:        tags,
 	}, nil
@@ -207,7 +207,7 @@ func (c *Client) listOUsForParent(
 			var err error
 			output, err = c.client.ListOrganizationalUnitsForParent(callCtx, &awsorg.ListOrganizationalUnitsForParentInput{
 				NextToken: nextToken,
-				ParentId:  aws.String(parentID),
+				ParentId:  awsv2.String(parentID),
 			})
 			return err
 		})
@@ -225,7 +225,7 @@ func (c *Client) listOUsForParent(
 			ous = append(ous, mapped)
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return ous, nil
 		}
 	}
@@ -236,15 +236,15 @@ func (c *Client) mapOU(
 	parentID string,
 	ou awsorgtypes.OrganizationalUnit,
 ) (organizationsservice.OrganizationalUnit, error) {
-	ouID := aws.ToString(ou.Id)
+	ouID := awsv2.ToString(ou.Id)
 	tags, err := c.listTags(ctx, ouID)
 	if err != nil {
 		return organizationsservice.OrganizationalUnit{}, err
 	}
 	return organizationsservice.OrganizationalUnit{
-		ARN:      strings.TrimSpace(aws.ToString(ou.Arn)),
+		ARN:      strings.TrimSpace(awsv2.ToString(ou.Arn)),
 		ID:       strings.TrimSpace(ouID),
-		Name:     strings.TrimSpace(aws.ToString(ou.Name)),
+		Name:     strings.TrimSpace(awsv2.ToString(ou.Name)),
 		ParentID: strings.TrimSpace(parentID),
 		Tags:     tags,
 	}, nil
@@ -259,7 +259,7 @@ func (c *Client) listAccountsForParent(ctx context.Context, parentID string) ([]
 			var err error
 			output, err = c.client.ListAccountsForParent(callCtx, &awsorg.ListAccountsForParentInput{
 				NextToken: nextToken,
-				ParentId:  aws.String(parentID),
+				ParentId:  awsv2.String(parentID),
 			})
 			return err
 		})
@@ -277,7 +277,7 @@ func (c *Client) listAccountsForParent(ctx context.Context, parentID string) ([]
 			accounts = append(accounts, mapped)
 		}
 		nextToken = output.NextToken
-		if aws.ToString(nextToken) == "" {
+		if awsv2.ToString(nextToken) == "" {
 			return accounts, nil
 		}
 	}
@@ -288,18 +288,18 @@ func (c *Client) mapAccount(
 	parentID string,
 	account awsorgtypes.Account,
 ) (organizationsservice.Account, error) {
-	accountID := aws.ToString(account.Id)
+	accountID := awsv2.ToString(account.Id)
 	tags, err := c.listTags(ctx, accountID)
 	if err != nil {
 		return organizationsservice.Account{}, err
 	}
 	return organizationsservice.Account{
-		ARN:       strings.TrimSpace(aws.ToString(account.Arn)),
-		Email:     strings.TrimSpace(aws.ToString(account.Email)),
+		ARN:       strings.TrimSpace(awsv2.ToString(account.Arn)),
+		Email:     strings.TrimSpace(awsv2.ToString(account.Email)),
 		ID:        strings.TrimSpace(accountID),
-		JoinedAt:  aws.ToTime(account.JoinedTimestamp),
+		JoinedAt:  awsv2.ToTime(account.JoinedTimestamp),
 		JoinedVia: strings.TrimSpace(string(account.JoinedMethod)),
-		Name:      strings.TrimSpace(aws.ToString(account.Name)),
+		Name:      strings.TrimSpace(awsv2.ToString(account.Name)),
 		ParentID:  strings.TrimSpace(parentID),
 		State:     strings.TrimSpace(string(account.State)),
 		Status:    strings.TrimSpace(string(account.Status)),

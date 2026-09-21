@@ -58,7 +58,7 @@ func TestScannerEmitsPinpointMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Application resource node, keyed by the application id.
-	application := resourceByType(t, envelopes, awscloud.ResourceTypePinpointApplication)
+	application := resourceByType(t, envelopes, aws.ResourceTypePinpointApplication)
 	if got, want := application.Payload["resource_id"], testAppID; got != want {
 		t.Fatalf("application resource_id = %#v, want %q", got, want)
 	}
@@ -69,7 +69,7 @@ func TestScannerEmitsPinpointMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, appAttrs, "application_id", testAppID)
 
 	// Segment resource node.
-	segment := resourceByType(t, envelopes, awscloud.ResourceTypePinpointSegment)
+	segment := resourceByType(t, envelopes, aws.ResourceTypePinpointSegment)
 	if got, want := segment.Payload["resource_id"], testSegmentARN; got != want {
 		t.Fatalf("segment resource_id = %#v, want %q", got, want)
 	}
@@ -80,7 +80,7 @@ func TestScannerEmitsPinpointMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, segAttrs, "import_size", int32(4200))
 
 	// Channel resource node, keyed by app-id/channel-type.
-	channel := resourceByType(t, envelopes, awscloud.ResourceTypePinpointChannel)
+	channel := resourceByType(t, envelopes, aws.ResourceTypePinpointChannel)
 	if got, want := channel.Payload["resource_id"], testAppID+"/EMAIL"; got != want {
 		t.Fatalf("channel resource_id = %#v, want %q", got, want)
 	}
@@ -95,22 +95,22 @@ func TestScannerEmitsPinpointMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, chAttrs, "ses_identity", "example.com")
 
 	// application -> segment edge, keyed by the application id the app node publishes.
-	appSegment := relationshipByType(t, envelopes, awscloud.RelationshipPinpointApplicationHasSegment)
-	assertEdgeTarget(t, appSegment, awscloud.ResourceTypePinpointSegment, testSegmentARN)
+	appSegment := relationshipByType(t, envelopes, aws.RelationshipPinpointApplicationHasSegment)
+	assertEdgeTarget(t, appSegment, aws.ResourceTypePinpointSegment, testSegmentARN)
 	if got, want := appSegment.Payload["source_resource_id"], testAppID; got != want {
 		t.Fatalf("app->segment source_resource_id = %#v, want %q", got, want)
 	}
 
 	// channel -> application edge.
-	channelApp := relationshipByType(t, envelopes, awscloud.RelationshipPinpointChannelInApplication)
-	assertEdgeTarget(t, channelApp, awscloud.ResourceTypePinpointApplication, testAppID)
+	channelApp := relationshipByType(t, envelopes, aws.RelationshipPinpointChannelInApplication)
+	assertEdgeTarget(t, channelApp, aws.ResourceTypePinpointApplication, testAppID)
 
 	// email channel -> SES identity edge, keyed by the bare identity name the SES
 	// email-identity node publishes. target_arn must NOT be set (the SES node is
 	// name-keyed, not ARN-keyed); the reported identity ARN is kept as evidence
 	// in the edge attributes instead.
-	channelIdentity := relationshipByType(t, envelopes, awscloud.RelationshipPinpointEmailChannelUsesSESIdentity)
-	assertEdgeTarget(t, channelIdentity, awscloud.ResourceTypeSESEmailIdentity, "example.com")
+	channelIdentity := relationshipByType(t, envelopes, aws.RelationshipPinpointEmailChannelUsesSESIdentity)
+	assertEdgeTarget(t, channelIdentity, aws.ResourceTypeSESEmailIdentity, "example.com")
 	if got := channelIdentity.Payload["target_arn"]; got != "" {
 		t.Fatalf("channel->identity target_arn = %#v, want empty (name-keyed target)", got)
 	}
@@ -118,8 +118,8 @@ func TestScannerEmitsPinpointMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, identityEdgeAttrs, "ses_identity_arn", testSESIdentity)
 
 	// email channel -> SES configuration set edge, keyed by the config set name.
-	channelConfig := relationshipByType(t, envelopes, awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet)
-	assertEdgeTarget(t, channelConfig, awscloud.ResourceTypeSESConfigurationSet, "marketing-config-set")
+	channelConfig := relationshipByType(t, envelopes, aws.RelationshipPinpointEmailChannelUsesSESConfigurationSet)
+	assertEdgeTarget(t, channelConfig, aws.ResourceTypeSESConfigurationSet, "marketing-config-set")
 
 	// No endpoint / address / message / targeting leakage anywhere in the payloads.
 	for _, envelope := range envelopes {
@@ -161,7 +161,7 @@ func TestScannerSkipsSESIdentityEdgeForNonIdentityARN(t *testing.T) {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipPinpointEmailChannelUsesSESIdentity {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == aws.RelationshipPinpointEmailChannelUsesSESIdentity {
 			t.Fatalf("unexpected SES-identity edge for non-identity ARN: %#v", envelope.Payload)
 		}
 	}
@@ -189,12 +189,12 @@ func TestScannerOmitsEmailEdgesWhenChannelHasNoSESReferences(t *testing.T) {
 		}
 		relType, _ := envelope.Payload["relationship_type"].(string)
 		switch relType {
-		case awscloud.RelationshipPinpointEmailChannelUsesSESIdentity,
-			awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet:
+		case aws.RelationshipPinpointEmailChannelUsesSESIdentity,
+			aws.RelationshipPinpointEmailChannelUsesSESConfigurationSet:
 			t.Fatalf("unexpected email edge for SMS channel: %#v", envelope.Payload)
 		}
 	}
-	channel := resourceByType(t, envelopes, awscloud.ResourceTypePinpointChannel)
+	channel := resourceByType(t, envelopes, aws.ResourceTypePinpointChannel)
 	if got, want := channel.Payload["state"], "DISABLED"; got != want {
 		t.Fatalf("disabled channel state = %#v, want %q", got, want)
 	}
@@ -212,8 +212,8 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 		SESConfigurationSet: "marketing-config-set",
 		SESIdentityARN:      testSESIdentity,
 	}
-	var observations []awscloud.RelationshipObservation
-	for _, rel := range []*awscloud.RelationshipObservation{
+	var observations []aws.RelationshipObservation
+	for _, rel := range []*aws.RelationshipObservation{
 		applicationHasSegmentRelationship(boundary, applicationID, segment),
 		channelInApplicationRelationship(boundary, applicationID, channel),
 		emailChannelSESIdentityRelationship(boundary, channel),
@@ -229,7 +229,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = aws.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -250,9 +250,9 @@ func TestScannerReturnsCleanlyForEmptyAccount(t *testing.T) {
 func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Applications: []Application{{ID: testAppID, ARN: testAppARN, Name: "marketing"}},
-		Warnings: []awscloud.WarningObservation{{
+		Warnings: []aws.WarningObservation{{
 			Boundary:       testBoundary(),
-			WarningKind:    awscloud.WarningThrottleSustained,
+			WarningKind:    aws.WarningThrottleSustained,
 			ErrorClass:     "throttled",
 			Message:        "Pinpoint GetSegments throttled after SDK retries; segment metadata omitted for this scan",
 			SourceRecordID: "pinpoint_segments_throttled",
@@ -263,17 +263,17 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	warning := warningByKind(t, envelopes, awscloud.WarningThrottleSustained)
+	warning := warningByKind(t, envelopes, aws.WarningThrottleSustained)
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
 }
 
-func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{
+func testBoundary() aws.Boundary {
+	return aws.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServicePinpoint,
+		ServiceKind:         aws.ServicePinpoint,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:pinpoint:1",
 		CollectorInstanceID: "aws-prod",

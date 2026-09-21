@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/mgn guidance
+# AGENTS.md - internal/collector/cloud/aws/service/mgn guidance
 
 ## Read First
 
@@ -35,7 +35,7 @@
   config node and this edge share the synthesized id
   `<source-server-id>/launch-configuration`.
 - Every relationship sets a non-empty `target_type` naming a declared
-  `awscloud.ResourceType*` constant or a documented `relguard` allowlist anchor
+  `aws.ResourceType*` constant or a documented `relguard` allowlist anchor
   and a `target_resource_id` matching how the target scanner publishes its
   resource_id.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -49,7 +49,7 @@
 ## Common Changes
 
 - Add a new MGN metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
+  focused scanner or adapter test first, then mapping it through `aws`
   envelope builders. If the field can carry replication-agent credentials,
   replication secrets, or replicated disk contents, leave it out of the scanner
   contract.
@@ -57,7 +57,7 @@
   directly and the target identity matches an existing scanner's published
   resource_id shape (bare `i-` instance id, bare `lt-` launch template id, bare
   MGN source server id).
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/awscloud/service/ssoadmin guidance
+# AGENTS.md - internal/collector/cloud/aws/service/ssoadmin guidance
 
 ## Read First
 
@@ -20,7 +20,7 @@
 - AWS managed policies are ARN references only; bodies stay in IAM.
 - NEVER persist application access-scope attributes; they can carry sensitive
   group filters.
-- Redact principal display names through `awscloud.RedactString`. Read only the
+- Redact principal display names through `aws.RedactString`. Read only the
   identity store `DisplayName`; never read addresses, emails, phone numbers,
   birthdate, structured name, or memberships.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -34,10 +34,10 @@
 
 - Add a new Identity Center metadata field by extending the relevant
   scanner-owned type, writing a focused scanner or adapter test first, then
-  mapping it through `awscloud` envelope builders.
+  mapping it through `aws` envelope builders.
 - Add new relationship evidence only when sso-admin reports both sides
   directly.
-- Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend SDK pagination in the `sdk` adapter, not here.
 
 ## What Not To Change Without An ADR
 

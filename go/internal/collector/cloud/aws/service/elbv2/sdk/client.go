@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awssdk
+package sdk
 
 import (
 	"context"
 	"errors"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awselbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	awselbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/aws/smithy-go"
@@ -33,15 +33,15 @@ type apiClient interface {
 // Client adapts AWS SDK ELBv2 pagination into scanner-owned ELBv2 records.
 type Client struct {
 	client      apiClient
-	boundary    awscloud.Boundary
+	boundary    aws.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewClient builds an ELBv2 SDK adapter for one claimed AWS boundary.
 func NewClient(
-	config aws.Config,
-	boundary awscloud.Boundary,
+	config awsv2.Config,
+	boundary aws.Boundary,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) *Client {
@@ -71,7 +71,7 @@ func (c *Client) ListLoadBalancers(ctx context.Context) ([]elbv2service.LoadBala
 		}
 		for _, loadBalancer := range page.LoadBalancers {
 			raw = append(raw, loadBalancer)
-			arns = append(arns, aws.ToString(loadBalancer.LoadBalancerArn))
+			arns = append(arns, awsv2.ToString(loadBalancer.LoadBalancerArn))
 		}
 	}
 	tagSets, err := c.describeTags(ctx, arns)
@@ -80,7 +80,7 @@ func (c *Client) ListLoadBalancers(ctx context.Context) ([]elbv2service.LoadBala
 	}
 	loadBalancers := make([]elbv2service.LoadBalancer, 0, len(raw))
 	for _, loadBalancer := range raw {
-		loadBalancers = append(loadBalancers, mapLoadBalancer(loadBalancer, tagSets[aws.ToString(loadBalancer.LoadBalancerArn)]))
+		loadBalancers = append(loadBalancers, mapLoadBalancer(loadBalancer, tagSets[awsv2.ToString(loadBalancer.LoadBalancerArn)]))
 	}
 	return loadBalancers, nil
 }
@@ -91,7 +91,7 @@ func (c *Client) ListListeners(
 	loadBalancer elbv2service.LoadBalancer,
 ) ([]elbv2service.Listener, error) {
 	paginator := awselbv2.NewDescribeListenersPaginator(c.client, &awselbv2.DescribeListenersInput{
-		LoadBalancerArn: aws.String(loadBalancer.ARN),
+		LoadBalancerArn: awsv2.String(loadBalancer.ARN),
 	})
 	var raw []awselbv2types.Listener
 	var arns []string
@@ -107,7 +107,7 @@ func (c *Client) ListListeners(
 		}
 		for _, listener := range page.Listeners {
 			raw = append(raw, listener)
-			arns = append(arns, aws.ToString(listener.ListenerArn))
+			arns = append(arns, awsv2.ToString(listener.ListenerArn))
 		}
 	}
 	tagSets, err := c.describeTags(ctx, arns)
@@ -116,7 +116,7 @@ func (c *Client) ListListeners(
 	}
 	listeners := make([]elbv2service.Listener, 0, len(raw))
 	for _, listener := range raw {
-		listeners = append(listeners, mapListener(listener, tagSets[aws.ToString(listener.ListenerArn)]))
+		listeners = append(listeners, mapListener(listener, tagSets[awsv2.ToString(listener.ListenerArn)]))
 	}
 	return listeners, nil
 }
@@ -124,7 +124,7 @@ func (c *Client) ListListeners(
 // ListRules returns all rules on one ELBv2 listener.
 func (c *Client) ListRules(ctx context.Context, listener elbv2service.Listener) ([]elbv2service.Rule, error) {
 	paginator := awselbv2.NewDescribeRulesPaginator(c.client, &awselbv2.DescribeRulesInput{
-		ListenerArn: aws.String(listener.ARN),
+		ListenerArn: awsv2.String(listener.ARN),
 	})
 	var raw []awselbv2types.Rule
 	var arns []string
@@ -140,7 +140,7 @@ func (c *Client) ListRules(ctx context.Context, listener elbv2service.Listener) 
 		}
 		for _, rule := range page.Rules {
 			raw = append(raw, rule)
-			arns = append(arns, aws.ToString(rule.RuleArn))
+			arns = append(arns, awsv2.ToString(rule.RuleArn))
 		}
 	}
 	tagSets, err := c.describeTags(ctx, arns)
@@ -149,7 +149,7 @@ func (c *Client) ListRules(ctx context.Context, listener elbv2service.Listener) 
 	}
 	rules := make([]elbv2service.Rule, 0, len(raw))
 	for _, rule := range raw {
-		rules = append(rules, mapRule(listener.ARN, rule, tagSets[aws.ToString(rule.RuleArn)]))
+		rules = append(rules, mapRule(listener.ARN, rule, tagSets[awsv2.ToString(rule.RuleArn)]))
 	}
 	return rules, nil
 }
@@ -172,7 +172,7 @@ func (c *Client) ListTargetGroups(ctx context.Context) ([]elbv2service.TargetGro
 		}
 		for _, targetGroup := range page.TargetGroups {
 			raw = append(raw, targetGroup)
-			arns = append(arns, aws.ToString(targetGroup.TargetGroupArn))
+			arns = append(arns, awsv2.ToString(targetGroup.TargetGroupArn))
 		}
 	}
 	tagSets, err := c.describeTags(ctx, arns)
@@ -181,7 +181,7 @@ func (c *Client) ListTargetGroups(ctx context.Context) ([]elbv2service.TargetGro
 	}
 	targetGroups := make([]elbv2service.TargetGroup, 0, len(raw))
 	for _, targetGroup := range raw {
-		targetGroups = append(targetGroups, mapTargetGroup(targetGroup, tagSets[aws.ToString(targetGroup.TargetGroupArn)]))
+		targetGroups = append(targetGroups, mapTargetGroup(targetGroup, tagSets[awsv2.ToString(targetGroup.TargetGroupArn)]))
 	}
 	return targetGroups, nil
 }
@@ -201,7 +201,7 @@ func (c *Client) describeTags(ctx context.Context, arns []string) (map[string]ma
 			return nil, err
 		}
 		for _, description := range page.TagDescriptions {
-			output[aws.ToString(description.ResourceArn)] = mapTags(description.Tags)
+			output[awsv2.ToString(description.ResourceArn)] = mapTags(description.Tags)
 		}
 	}
 	return output, nil
@@ -225,7 +225,7 @@ func (c *Client) recordAPICall(ctx context.Context, operation string, call func(
 		result = "error"
 	}
 	throttled := isThrottleError(err)
-	awscloud.RecordAPICall(ctx, awscloud.APICallEvent{
+	aws.RecordAPICall(ctx, aws.APICallEvent{
 		Boundary:  c.boundary,
 		Operation: operation,
 		Result:    result,

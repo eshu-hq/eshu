@@ -14,4 +14,4 @@
 // authorizer invocation URIs, or credential ARNs. Callers handle AWS
 // authorization, throttling, and partial service failures as normal scanner
 // errors.
-package awssdk
+package sdk
