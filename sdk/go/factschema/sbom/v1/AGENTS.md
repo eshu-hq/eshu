@@ -56,7 +56,7 @@ remain independent from Eshu internals.
     attestation statement.
 - **Every kind is wired.** `DependencyRelationship` and `ExternalReference`
   were wired to the reducer in #5370; `SLSAProvenance` in #5371 (SBOM runtime
-  collector emitter in `go/internal/collector/sbomruntime/attestation.go`,
+  collector emitter in `go/internal/collector/sbom/runtime/attestation.go`,
   reducer decode/join in `sbom_attestation_attachment_index.go`). Do not add
   speculative optional fields beyond what an emitter actually produces.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major

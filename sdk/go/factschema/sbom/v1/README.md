@@ -89,7 +89,7 @@ All eight fact kinds in this package now have both a collector emitter and a
 reducer decode/consume path — `DependencyRelationship` and `ExternalReference`
 were wired in #5370, and `SLSAProvenance` (the last typed-but-deferred kind)
 in #5371: the SBOM runtime collector
-(`go/internal/collector/sbomruntime/attestation.go`) emits it for a statement
+(`go/internal/collector/sbom/runtime/attestation.go`) emits it for a statement
 whose `predicateType` matches the closed SLSA provenance URI set, and
 `go/internal/reducer/sbom_attestation_attachment_index.go` decodes and joins
 it by `StatementID` onto that statement's attachment decision.
