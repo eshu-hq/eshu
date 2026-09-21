@@ -77,11 +77,12 @@ type IntentResult struct {
 // ReducerIntentWriter is the injected collaborator that admits reducer intents
 // into the queue. It is an interface so the projector can be driven against a
 // fake in tests, and production wires more than one implementation:
-// postgres.ReducerQueue is the durable one, cmd/ingester decorates it with an
-// admission-aware writer, and the local_lightweight profile substitutes a
-// writer that returns len(intents). IntentResult.Count therefore means
-// "admitted" only for implementations that report what the write accepted --
-// see IntentResult.
+// postgres.ReducerQueue is the durable one, and the local_lightweight profile
+// substitutes a writer that returns len(intents). IntentResult.Count therefore
+// means "admitted" only for implementations that report what the write
+// accepted -- see IntentResult. cmd/ingester's admission-aware decorator does
+// not affect that: it defers or delegates, returning the inner writer's result
+// unchanged.
 type ReducerIntentWriter interface {
 	// Enqueue admits intents into the reducer queue and reports how many rows
 	// were actually inserted in the returned IntentResult.Count -- see
