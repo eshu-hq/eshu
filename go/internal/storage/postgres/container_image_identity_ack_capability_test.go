@@ -151,7 +151,8 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 			for index := range test.intents {
 				test.intents[index].ClaimedAt = &claimedAt
 			}
-			target, cicd, unrelated, splitErr := splitReducerAckBatchIntents(test.intents)
+			split, splitErr := splitReducerAckBatchIntents(test.intents)
+			target, cicd, unrelated := split.target, split.cicd, split.unrelated
 			if splitErr != nil {
 				t.Fatalf("split intents: %v", splitErr)
 			}

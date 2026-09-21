@@ -96,12 +96,13 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		}
 	}
 
-	targetIntents, cicdIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
+	split, err := splitReducerAckBatchIntents(intents)
 	if err != nil {
 		return err
 	}
+	targetIntents, cicdIntents, unrelatedIntents := split.target, split.cicd, split.unrelated
 
-	claimRejected := false
+	claimRejected := split.supersededClaims > 0
 
 	unrelatedIntents, refreshGroups := splitValueFlowRefreshAckIntents(unrelatedIntents, resultByID)
 	for _, group := range refreshGroups {
@@ -206,46 +207,6 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 	}
 
 	return nil
-}
-
-func splitReducerAckBatchIntents(
-	intents []reducer.Intent,
-) ([]reducer.Intent, []reducer.Intent, []reducer.Intent, error) {
-	seen := make(map[string]reducer.Intent, len(intents))
-	target := make([]reducer.Intent, 0, len(intents))
-	cicd := make([]reducer.Intent, 0, len(intents))
-	unrelated := make([]reducer.Intent, 0, len(intents))
-	for _, intent := range intents {
-		if prior, ok := seen[intent.IntentID]; ok {
-			if prior.Domain != intent.Domain ||
-				prior.ClaimEpoch != intent.ClaimEpoch ||
-				!sameClaimedAt(prior.ClaimedAt, intent.ClaimedAt) {
-				return nil, nil, nil, fmt.Errorf(
-					"batch ack reducer work item %q has conflicting claim epochs or domains",
-					intent.IntentID,
-				)
-			}
-			continue
-		}
-		seen[intent.IntentID] = intent
-		if intent.Domain == reducer.DomainContainerImageIdentity {
-			target = append(target, intent)
-			continue
-		}
-		if intent.Domain == reducer.DomainCICDRunCorrelation {
-			cicd = append(cicd, intent)
-			continue
-		}
-		unrelated = append(unrelated, intent)
-	}
-	return target, cicd, unrelated, nil
-}
-
-func sameClaimedAt(left, right *time.Time) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return left.Equal(*right)
 }
 
 func ackContainerImageIdentityReducerWorkBatchQuery(
