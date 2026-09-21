@@ -1,0 +1,28 @@
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 250-255,259-263,280,282-285,291,299,305-333,344-347
+go/cmd/golden-corpus-gate/README.md
+  h_78a442cba0b3e6 57-61,71-74,200-201
+go/cmd/golden-corpus-gate/backenddiff.go
+  h_78a442cba0b3e6 12,21-26,41-50,52-113
+go/cmd/golden-corpus-gate/doc.go
+  h_78a442cba0b3e6 46-48
+go/cmd/golden-corpus-gate/main.go
+  h_78a442cba0b3e6 68-69,101-102
+go/internal/backendconformance/differential_kinds.go
+  h_78a442cba0b3e6 175-213
+go/internal/backendconformance/differential_kinds_test.go
+  h_78a442cba0b3e6 79-126
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2617-2619
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e435d9d16b5b84be00573a387939fef500a434e1",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
