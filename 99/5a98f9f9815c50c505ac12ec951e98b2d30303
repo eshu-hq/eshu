@@ -1,0 +1,18 @@
+docs/internal/evidence/6782-slice3-differential-oracle.md
+  h_78a442cba0b3e6 241-252
+go/internal/query/impacttrace/cloud_resource_dependencies.go
+  h_78a442cba0b3e6 26-32
+go/internal/query/impacttrace/cloud_resource_dependencies_test.go
+  h_78a442cba0b3e6 45-48,88-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "995a98f9f9815c50c505ac12ec951e98b2d30303",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
