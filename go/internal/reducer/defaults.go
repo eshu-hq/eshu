@@ -148,6 +148,9 @@ type DefaultHandlers struct {
 	// PriorGenerationCheck reports whether a scope has any prior generation.
 	// Nil keeps retract behavior conservative for handlers that need cleanup.
 	PriorGenerationCheck PriorGenerationCheck
+	// PriorGeneration resolves the predecessor generation id for the #6887
+	// generation-diff cloud node retract. Nil skips that retract.
+	PriorGeneration PriorGenerationID
 
 	// Tracer and Instruments for cross-repo resolution telemetry.
 	Tracer      trace.Tracer
@@ -175,6 +178,12 @@ type DefaultHandlers struct {
 	// the graph.
 	CloudResourceNodeWriter CloudResourceNodeWriter
 
+	// CloudResourceNodeRetracter deletes predecessor-only CloudResource uids
+	// under the globally-gated #6887 retract (graphowner.CloudResourceRetracter
+	// in production). Nil skips the retract; the materialization domains
+	// register and write exactly as before.
+	CloudResourceNodeRetracter CloudResourceNodeRetracter
+
 	// EC2InstanceNodeWriter materializes ec2_instance_posture facts into canonical
 	// :CloudResource graph nodes on the existing cloud_resource_uid keyspace (issue
 	// #1146 PR-A). It must be non-nil alongside FactLoader for the registry to
@@ -185,6 +194,11 @@ type DefaultHandlers struct {
 	// PR-B) can gate on it exactly like the AWS relationship edge gates on the
 	// CloudResource node phase (#805).
 	EC2InstanceNodeWriter ec2instance.EC2InstanceNodeWriter
+
+	// EC2InstanceNodeRetracter deletes predecessor-only EC2 instance uids
+	// under the globally-gated #6887 retract (graphowner.EC2InstanceRetracter
+	// in production). Nil skips the retract.
+	EC2InstanceNodeRetracter ec2instance.EC2InstanceNodeRetracter
 
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
 	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It

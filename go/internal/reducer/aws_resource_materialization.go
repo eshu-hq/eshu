@@ -96,6 +96,13 @@ type AWSResourceMaterializationHandler struct {
 	// Tracer bounds the refresh emit-gate read in a span. Nil skips the span
 	// (test wiring); production wires the reducer tracer.
 	Tracer trace.Tracer
+	// NodeRetracter deletes predecessor-only uids under the globally-gated
+	// #6887 retract. Nil skips the retract so the domain stays safe to
+	// register before the retract slice is wired.
+	NodeRetracter CloudResourceNodeRetracter
+	// PriorGeneration resolves the predecessor generation for the
+	// generation-diff retract. Nil skips the retract.
+	PriorGeneration PriorGenerationID
 }
 
 // Handle executes one AWS resource materialization intent.
@@ -165,6 +172,35 @@ func (h AWSResourceMaterializationHandler) Handle(
 		}
 	}
 
+	// Retract predecessor-only nodes after the write succeeds and before the
+	// phase publishes, so Stage B never resolves edges against nodes the
+	// retract is about to delete. A retract failure fails the intent so the
+	// durable queue retries it; the write and retract it re-runs are both
+	// idempotent.
+	retractStart := time.Now()
+	retractedNodes, err := retractDeadCloudResourceNodes(
+		ctx,
+		h.FactLoader,
+		h.PriorGeneration,
+		h.NodeRetracter,
+		intent.ScopeID,
+		intent.GenerationID,
+		[]string{facts.AWSResourceFactKind},
+		func(prior []facts.Envelope) (map[string]struct{}, error) {
+			priorRows, _, err := ExtractCloudResourceNodeRows(prior)
+			if err != nil {
+				return nil, err
+			}
+			return cloudRowUIDSet(priorRows), nil
+		},
+		cloudRowUIDSet(rows),
+		awsResourceEvidenceSource,
+	)
+	if err != nil {
+		return Result{}, err
+	}
+	retractDuration := time.Since(retractStart)
+
 	// Publish the canonical-nodes-committed readiness phase only after the node
 	// write succeeds (or is a legitimate no-op for an empty generation). Stage B
 	// gates its edge projection on this phase: publishing before a successful
@@ -190,6 +226,8 @@ func (h AWSResourceMaterializationHandler) Handle(
 		loadDuration:         loadDuration,
 		extractDuration:      extractDuration,
 		writeDuration:        writeDuration,
+		retractedNodes:       retractedNodes,
+		retractDuration:      retractDuration,
 		phasePublishDuration: phasePublishDuration,
 		totalDuration:        time.Since(totalStart),
 	})
@@ -199,10 +237,11 @@ func (h AWSResourceMaterializationHandler) Handle(
 		Domain:   DomainAWSResourceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical cloud resource node(s) from %d aws resource fact(s); %d input_invalid fact(s) quarantined",
+			"materialized %d canonical cloud resource node(s) from %d aws resource fact(s); %d input_invalid fact(s) quarantined; %d dead node(s) retracted",
 			len(rows),
 			len(envelopes),
 			inputInvalidCount,
+			retractedNodes,
 		),
 		CanonicalWrites: len(rows),
 		SubSignals:      h.refreshResultSignals(ctx, intent, inputInvalidSubSignals(inputInvalidCount), len(rows), rows),
@@ -375,6 +414,8 @@ type awsResourceMaterializationTiming struct {
 	loadDuration         time.Duration
 	extractDuration      time.Duration
 	writeDuration        time.Duration
+	retractedNodes       int
+	retractDuration      time.Duration
 	phasePublishDuration time.Duration
 	totalDuration        time.Duration
 }
@@ -393,6 +434,8 @@ func logAWSResourceMaterializationCompleted(
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
+		slog.Int("retracted_node_count", timing.retractedNodes),
+		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)

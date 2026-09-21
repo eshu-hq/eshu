@@ -258,4 +258,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// Numbered 117 because main merged the #6785 value-flow refresh
 	// migrations as 112-116 first.
 	"code_function_fingerprint_shingles",
+	// migration 118 (#6887) serves the generation-diff retract's global
+	// live-check as a point lookup: a partial expression index on the
+	// admission uid within the reducer_cloud_resource_identity /
+	// non-tombstone slice. Numbered 118 because main merged the #6837
+	// shingles migration as 117 first.
+	"cloud_resource_retract_liveness_index",
 }

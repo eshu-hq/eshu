@@ -131,6 +131,21 @@ func defaultFillCloudResourceRow(row map[string]any) {
 	}
 }
 
+// canonicalCloudResourceRetractCypher deletes CloudResource nodes for the
+// #6887 generation-diff retract. MATCH anchors on the stable uid identity
+// only — never a bare-label scan (a bare-label DETACH DELETE costs a
+// whole-store scan on NornicDB even with zero matches, #6822) — and carries
+// no evidence_source predicate: the caller (graphowner Gate) already proved
+// via the global PG live-check that no family admits the uid, and predicating
+// on last-writer evidence_source would strand nodes a sibling family
+// rewrote. The statement is intentionally NOT marked for the bounded-drain
+// rewrite: UNWIND batching already bounds every execution to batchSize point
+// lookups, and the drain rewrite's ORDER BY elementId would add a sort over
+// them for no benefit.
+const canonicalCloudResourceRetractCypher = `UNWIND $rows AS row
+MATCH (n:CloudResource {uid: row.uid})
+DETACH DELETE n`
+
 // CloudResourceNodeWriter materializes aws_resource facts into canonical
 // CloudResource graph nodes. It satisfies the reducer-owned
 // CloudResourceNodeWriter consumer interface and writes through the
@@ -194,6 +209,51 @@ func (w *CloudResourceNodeWriter) WriteCloudResourceNodes(
 			return WrapRetryableNeo4jError(err)
 		}
 		return nil
+	}
+
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// RetractCloudResourceNodes deletes the CloudResource nodes for the given
+// uids in input order using batched UNWIND statements. The caller MUST have
+// proved every uid dead across all scopes (the graphowner Gate's global PG
+// live-check): the delete is unconditional once issued. Statements run
+// sequentially through Execute, never ExecuteGroup — on NornicDB a retract
+// inside a managed transaction can under-apply even as a single statement
+// (#4367/#5128/#5146/#5152).
+func (w *CloudResourceNodeWriter) RetractCloudResourceNodes(
+	ctx context.Context,
+	uids []string,
+	evidenceSource string,
+) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("cloud resource node writer executor is required")
+	}
+
+	rows := make([]map[string]any, 0, len(uids))
+	for _, uid := range uids {
+		rows = append(rows, map[string]any{"uid": uid})
+	}
+
+	stmts := BuildBatchedStatements(canonicalCloudResourceRetractCypher, rows, w.batchSize)
+	for index := range stmts {
+		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
+		stmts[index].Operation = OperationCanonicalRetract
+		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCloudResource
+		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "CloudResource"
+		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+			"label=CloudResource retract rows=%d evidence_source=%s",
+			len(batchRows),
+			evidenceSource,
+		)
 	}
 
 	for _, stmt := range stmts {

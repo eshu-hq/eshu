@@ -16,11 +16,13 @@ func appendAzureResourceMaterializationDomain(
 	}
 	azureResources := azureResourceMaterializationDomainDefinition()
 	azureResources.Handler = AzureResourceMaterializationHandler{
-		FactLoader:     handlers.FactLoader,
-		NodeWriter:     handlers.CloudResourceNodeWriter,
-		PhasePublisher: handlers.GraphProjectionPhasePublisher,
-		PresenceWriter: handlers.EndpointPresenceWriter,
-		Instruments:    handlers.Instruments,
+		FactLoader:      handlers.FactLoader,
+		NodeWriter:      handlers.CloudResourceNodeWriter,
+		PhasePublisher:  handlers.GraphProjectionPhasePublisher,
+		PresenceWriter:  handlers.EndpointPresenceWriter,
+		Instruments:     handlers.Instruments,
+		NodeRetracter:   handlers.CloudResourceNodeRetracter,
+		PriorGeneration: handlers.PriorGeneration,
 	}
 	return append(definitions, azureResources)
 }

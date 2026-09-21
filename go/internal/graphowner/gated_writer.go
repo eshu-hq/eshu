@@ -59,6 +59,16 @@ type graphNodeOwnerResolver interface {
 		entries []postgres.GraphNodeOwnerEntry,
 		updatedAt time.Time,
 	) (owned map[string]struct{}, contendedLost int, err error)
+	LockUIDs(
+		ctx context.Context,
+		tx db.ExecQueryer,
+		uids []string,
+	) error
+	ReleaseOwnedUIDs(
+		ctx context.Context,
+		tx db.ExecQueryer,
+		uids []string,
+	) error
 }
 
 // Gate resolves #5007 cross-scope node ownership before a graph node write. A

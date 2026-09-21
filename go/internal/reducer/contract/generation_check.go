@@ -14,3 +14,33 @@ type GenerationFreshnessCheck func(ctx context.Context, scopeID, generationID st
 // given generation. Retract paths use it to skip no-op cleanup on first writes
 // while preserving cleanup on refreshes and retries.
 type PriorGenerationCheck func(ctx context.Context, scopeID, generationID string) (bool, error)
+
+// PriorGenerationID returns the scope's generation immediately before the
+// given generation, ordered by observation time with the generation id as the
+// deterministic tie-break. It reports found=false when the scope has no
+// earlier generation (first write: no diff source, no retract). Generation
+// diff retracts (#6887) load the predecessor's facts through the standard
+// FactLoader and diff their extracted uids against the current generation's
+// to enumerate delete candidates.
+type PriorGenerationID func(ctx context.Context, scopeID, generationID string) (prior string, found bool, err error)
+
+// EC2PostureCandidate is one EC2 instance identity for the #6887 liveness
+// probe: the graph node uid a handler extracted plus the posture identity
+// tuple that proves it. The tuple fields may be unnormalized (blank
+// resource_type, surrounding whitespace); the probe normalizes them with the
+// unscoped reader's semantics before matching, so handlers pass extraction
+// output through unchanged.
+type EC2PostureCandidate struct {
+	// UID is the canonical cloud_resource_uid of the candidate node.
+	UID string
+	// AccountID is the raw provider account identifier.
+	AccountID string
+	// Region is the provider region.
+	Region string
+	// ResourceType is the posture resource_type (blank means the EC2 default).
+	ResourceType string
+	// InstanceID is the instance id when known.
+	InstanceID string
+	// ARN is the instance ARN fallback when the instance id is unknown.
+	ARN string
+}

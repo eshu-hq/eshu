@@ -217,6 +217,8 @@ type ec2InstanceNodeMaterializationTiming struct {
 	loadDuration         time.Duration
 	extractDuration      time.Duration
 	writeDuration        time.Duration
+	retractedNodes       int
+	retractDuration      time.Duration
 	phasePublishDuration time.Duration
 	totalDuration        time.Duration
 }
@@ -237,6 +239,8 @@ func logEC2InstanceNodeMaterializationCompleted(
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
+		slog.Int("retracted_node_count", timing.retractedNodes),
+		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)

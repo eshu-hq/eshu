@@ -1,0 +1,234 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
+// TestCloudResourceLivenessLive proves the #6887 global live-check against a
+// live Postgres: admission-uid and EC2-tuple probes across scopes'
+// current generations, with superseded generations, tombstones, and pending
+// generations correctly reading dead. It also proves the ledger release the
+// retract pairs with the delete.
+//
+// Skipped by default; set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN.
+// Every seeded id is uniquely prefixed per run so parallel databases never
+// collide.
+func TestCloudResourceLivenessLive(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("ESHU_CLOUD_RETRACT_LIVE")) == "" {
+		t.Skip("set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN to run the cloud retract liveness proof")
+	}
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set")
+	}
+	ctx := context.Background()
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	prefix := fmt.Sprintf("retract-live-%d", time.Now().UnixNano())
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	seedScope := func(scopeID, activeGen string) {
+		t.Helper()
+		var activeGenAny any
+		if activeGen != "" {
+			activeGenAny = activeGen
+		}
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO ingestion_scopes
+  (scope_id, scope_kind, source_system, source_key, collector_kind,
+   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
+VALUES ($1, 'aws', 'aws', $1, 'aws', $1, $2, $2, 'active', $3, '{}'::jsonb)
+ON CONFLICT (scope_id) DO UPDATE SET active_generation_id = EXCLUDED.active_generation_id`,
+			scopeID, now, activeGenAny,
+		); err != nil {
+			t.Fatalf("seed scope %s: %v", scopeID, err)
+		}
+	}
+	seedGeneration := func(genID, scopeID, status string) {
+		t.Helper()
+		var activatedAt any
+		if status == "active" {
+			activatedAt = now
+		}
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations
+  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+VALUES ($1, $2, 'manual', $3, $3, $4, $5)
+ON CONFLICT (generation_id) DO UPDATE SET status = EXCLUDED.status, activated_at = EXCLUDED.activated_at`,
+			genID, scopeID, now, status, activatedAt,
+		); err != nil {
+			t.Fatalf("seed generation %s: %v", genID, err)
+		}
+	}
+	seedFact := func(scopeID, genID, kind, key string, tombstone bool, payload string) {
+		t.Helper()
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records
+  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+   observed_at, ingested_at, is_tombstone, payload)
+VALUES ($1, $2, $3, $4, $5, 'aws', $5, $6, $6, $7, $8::jsonb)`,
+			prefix+"-fact-"+key, scopeID, genID, kind, key, now, tombstone, payload,
+		); err != nil {
+			t.Fatalf("seed fact %s/%s: %v", genID, key, err)
+		}
+	}
+
+	// Scope A: active A2, superseded A1. Scope B: active B1 only.
+	// Scope C: no active generation (pending C0) — its facts must read dead.
+	scopeA, scopeB, scopeC := prefix+"-a", prefix+"-b", prefix+"-c"
+	genA1, genA2, genB1, genC0 := prefix+"-a1", prefix+"-a2", prefix+"-b1", prefix+"-c0"
+	seedScope(scopeA, genA2)
+	seedScope(scopeB, genB1)
+	seedScope(scopeC, "")
+	seedGeneration(genA1, scopeA, "superseded")
+	seedGeneration(genA2, scopeA, "active")
+	seedGeneration(genB1, scopeB, "active")
+	seedGeneration(genC0, scopeC, "pending")
+
+	uidAliveA := prefix + "-alive-a"
+	uidShared := prefix + "-shared"
+	uidDead := prefix + "-dead"
+	uidTomb := prefix + "-tomb"
+	uidPendingScope := prefix + "-pending-scope"
+	admission := func(uid string) string {
+		return fmt.Sprintf(`{"cloud_resource_uid": %q}`, uid)
+	}
+	seedFact(scopeA, genA2, cloudRetractAdmissionFactKind, "k-alive-a", false, admission(uidAliveA))
+	seedFact(scopeA, genA1, cloudRetractAdmissionFactKind, "k-shared-a1", false, admission(uidShared))
+	seedFact(scopeB, genB1, cloudRetractAdmissionFactKind, "k-shared-b1", false, admission(uidShared))
+	seedFact(scopeA, genA1, cloudRetractAdmissionFactKind, "k-dead", false, admission(uidDead))
+	seedFact(scopeA, genA2, cloudRetractAdmissionFactKind, "k-tomb", true, admission(uidTomb))
+	seedFact(scopeA, genA1, cloudRetractAdmissionFactKind, "k-tomb-old", false, admission(uidTomb))
+	seedFact(scopeC, genC0, cloudRetractAdmissionFactKind, "k-pending", false, admission(uidPendingScope))
+
+	posture := func(account, region, rtype, instance, arn string) string {
+		return fmt.Sprintf(
+			`{"account_id": %q, "region": %q, "resource_type": %q, "instance_id": %q, "arn": %q}`,
+			account, region, rtype, instance, arn,
+		)
+	}
+	// tuple-live: current-gen posture in scope B.
+	// tuple-dead: superseded-gen only.
+	// tuple-tomb: superseded-gen live row + current-gen tombstone.
+	// tuple-arn-fallback: no instance_id, arn only, blank resource_type
+	//   (exercises the reader's COALESCE fallbacks on both axes).
+	seedFact(scopeB, genB1, cloudRetractEC2PostureFactKind, "p-live", false,
+		posture("111", "us-east-1", "aws_ec2_instance", "i-live", ""))
+	seedFact(scopeA, genA1, cloudRetractEC2PostureFactKind, "p-dead", false,
+		posture("111", "us-east-1", "aws_ec2_instance", "i-dead", ""))
+	seedFact(scopeA, genA1, cloudRetractEC2PostureFactKind, "p-tomb-old", false,
+		posture("111", "us-east-1", "aws_ec2_instance", "i-tomb", ""))
+	seedFact(scopeA, genA2, cloudRetractEC2PostureFactKind, "p-tomb", true,
+		posture("111", "us-east-1", "aws_ec2_instance", "i-tomb", ""))
+	seedFact(scopeB, genB1, cloudRetractEC2PostureFactKind, "p-arn", false,
+		posture("222", "eu-west-1", "", "", "arn:aws:ec2:eu-west-1:222:instance/i-arn"))
+	seedFact(scopeB, genB1, cloudRetractEC2PostureFactKind, "p-inst-only", false,
+		posture("333", "us-west-2", "aws_ec2_instance", "i-only", ""))
+
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := sqlTxExecQueryer{tx}
+
+	t.Run("admission_uids", func(t *testing.T) {
+		alive, err := LiveAdmissionCloudUIDs(ctx, q, []string{
+			uidAliveA, uidShared, uidDead, uidTomb, uidPendingScope, prefix + "-never-existed",
+		})
+		if err != nil {
+			t.Fatalf("LiveAdmissionCloudUIDs: %v", err)
+		}
+		for _, want := range []string{uidAliveA, uidShared} {
+			if _, ok := alive[want]; !ok {
+				t.Errorf("uid %q must read live", want)
+			}
+		}
+		for _, wantDead := range []string{uidDead, uidTomb, uidPendingScope, prefix + "-never-existed"} {
+			if _, ok := alive[wantDead]; ok {
+				t.Errorf("uid %q must read dead", wantDead)
+			}
+		}
+	})
+
+	t.Run("ec2_tuples", func(t *testing.T) {
+		uidLive, uidDeadT, uidTombT, uidArn := prefix+"-ec2-live", prefix+"-ec2-dead", prefix+"-ec2-tomb", prefix+"-ec2-arn"
+		uidInstOnly := prefix + "-ec2-inst-only"
+		alive, err := LiveEC2PostureUIDs(ctx, q, []reducercontract.EC2PostureCandidate{
+			{UID: uidLive, AccountID: "111", Region: "us-east-1", ResourceType: "aws_ec2_instance", InstanceID: "i-live"},
+			{UID: uidDeadT, AccountID: "111", Region: "us-east-1", ResourceType: "aws_ec2_instance", InstanceID: "i-dead"},
+			{UID: uidTombT, AccountID: "111", Region: "us-east-1", ResourceType: "aws_ec2_instance", InstanceID: "i-tomb"},
+			{UID: uidArn, AccountID: "222", Region: "eu-west-1", InstanceID: "", ARN: "arn:aws:ec2:eu-west-1:222:instance/i-arn"},
+			{UID: uidInstOnly, AccountID: "333", Region: "us-west-2", ResourceType: "aws_ec2_instance", InstanceID: "i-only"},
+			{UID: prefix + "-ec2-noid", AccountID: "222", Region: "eu-west-1"},
+		})
+		if err != nil {
+			t.Fatalf("LiveEC2PostureUIDs: %v", err)
+		}
+		for _, want := range []string{uidLive, uidArn, uidInstOnly} {
+			if _, ok := alive[want]; !ok {
+				t.Errorf("uid %q must read live", want)
+			}
+		}
+		for _, wantDead := range []string{uidDeadT, uidTombT, prefix + "-ec2-noid"} {
+			if _, ok := alive[wantDead]; ok {
+				t.Errorf("uid %q must read dead", wantDead)
+			}
+		}
+	})
+
+	t.Run("empty_inputs", func(t *testing.T) {
+		alive, err := LiveAdmissionCloudUIDs(ctx, q, nil)
+		if err != nil || len(alive) != 0 {
+			t.Fatalf("empty admission probe = %v, %v; want empty, nil", alive, err)
+		}
+		aliveEC2, err := LiveEC2PostureUIDs(ctx, q, nil)
+		if err != nil || len(aliveEC2) != 0 {
+			t.Fatalf("empty ec2 probe = %v, %v; want empty, nil", aliveEC2, err)
+		}
+	})
+
+	t.Run("ledger_release", func(t *testing.T) {
+		store := NewGraphNodeOwnerStore()
+		uid := prefix + "-release-me"
+		if _, _, err := store.ResolveOwnedUIDs(ctx, q, []GraphNodeOwnerEntry{
+			{UID: uid, SourceOrderKey: "9999-z", WinningRow: []byte(`{}`)},
+		}, now); err != nil {
+			t.Fatalf("resolve: %v", err)
+		}
+		if err := store.ReleaseOwnedUIDs(ctx, q, []string{uid}); err != nil {
+			t.Fatalf("release: %v", err)
+		}
+		var count int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM graph_node_owner WHERE uid = $1`, uid).Scan(&count); err != nil {
+			t.Fatalf("count ledger row: %v", err)
+		}
+		if count != 0 {
+			t.Fatalf("ledger rows for %q = %d, want 0 after release", uid, count)
+		}
+		// Releasing twice is a no-op so retries and replays reconverge.
+		if err := store.ReleaseOwnedUIDs(ctx, q, []string{uid}); err != nil {
+			t.Fatalf("second release: %v", err)
+		}
+		if err := store.ReleaseOwnedUIDs(ctx, q, nil); err != nil {
+			t.Fatalf("empty release: %v", err)
+		}
+	})
+}

@@ -19,11 +19,13 @@ func appendGCPResourceMaterializationDomain(
 	}
 	gcpResources := gcpResourceMaterializationDomainDefinition()
 	gcpResources.Handler = GCPResourceMaterializationHandler{
-		FactLoader:     handlers.FactLoader,
-		NodeWriter:     handlers.CloudResourceNodeWriter,
-		PhasePublisher: handlers.GraphProjectionPhasePublisher,
-		PresenceWriter: handlers.EndpointPresenceWriter,
-		Instruments:    handlers.Instruments,
+		FactLoader:      handlers.FactLoader,
+		NodeWriter:      handlers.CloudResourceNodeWriter,
+		PhasePublisher:  handlers.GraphProjectionPhasePublisher,
+		PresenceWriter:  handlers.EndpointPresenceWriter,
+		Instruments:     handlers.Instruments,
+		NodeRetracter:   handlers.CloudResourceNodeRetracter,
+		PriorGeneration: handlers.PriorGeneration,
 	}
 	return append(definitions, gcpResources)
 }

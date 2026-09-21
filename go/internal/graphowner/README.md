@@ -128,6 +128,13 @@ unwrapped: retraction removes properties by scope (`WHERE
 r.<x>_scope_id IN $scope_ids`), not by an explicit uid list, so there is no
 row-level uid set to lock ahead of the write the way there is for `Write*`.
 
+Node deletes are the opposite case and never go through that unwrapped path.
+`CloudResourceRetracter` and `EC2InstanceRetracter` (`retract_writers.go`)
+serve the #6887 generation-diff retract: explicit candidate uids, so they run
+through `Gate.RetractDeadUIDs` (`retract.go`) — per-uid advisory lock, global
+PG live-check inside the lock, owner-ledger release, then the uid-anchored
+graph delete, chunked at `lockChunkSize` exactly like `Gate.write`.
+
 **Measured proof (`lock_only_gate_prove_theory_live_test.go`,
 `lock_only_gate_perf_live_test.go`):** for this writer pair's actual Cypher
 shape — both sides are unconditional `MATCH`/`MERGE ... SET`, matching
