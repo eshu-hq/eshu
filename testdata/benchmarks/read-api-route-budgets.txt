@@ -83,9 +83,17 @@
 # (go/cmd/read-api-latency-gate/latency_exemption.go), tracked against #6858.
 # That issue moved the route's unscoped search and summary onto
 # infra_resource_entities and removed the grant, so the 2s ceiling blocks
-# again; the route's work budget still blocks it as before, and
-# EvaluateBudgets/printReport no longer have an exempt route to mark
-# BREACH-EXEMPT. (3) A retracted claim: earlier revisions of this header said the
+# again; the route's work budget still blocks it as before.
+#
+# CURRENTLY EXEMPT: /api/v0/infra/resources/count and
+# /api/v0/infra/resources/inventory measure 2.07s to 2.34s p95 against their
+# 2s ceilings on CI runners (runs 35561409959, 35574822547, 35566424509,
+# 35590760445, main and PR alike) with identical work every time (3 calls,
+# 221025 buffers; 44 and 8 rows), inside their work budgets. Their latency
+# ceilings are advisory via LatencyExemptions
+# (go/cmd/read-api-latency-gate/latency_exemption.go), tracked against #6909;
+# the work budgets still block, and production SLO (2500ms) holds.
+# (3) A retracted claim: earlier revisions of this header said the
 # infra graph was seeded with 150k nodes per label and measured well under
 # 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
 # range(0, $count - 1) with a parameter bound as a single element; see

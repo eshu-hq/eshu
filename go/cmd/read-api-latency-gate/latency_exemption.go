@@ -31,7 +31,22 @@ type LatencyExemption struct {
 // read the active-inventory CTE; that issue moved the unscoped search and
 // summary onto infra_resource_entities, so the grant is removed and the 2s
 // ceiling blocks again.
-var LatencyExemptions = map[string]LatencyExemption{}
+//
+// GET /api/v0/infra/resources/count and
+// GET /api/v0/infra/resources/inventory are exempt under #6909: identical
+// Postgres work every run (3 calls, 221025 buffers) with p95 swinging
+// 1.6-2.3s against the 2s ceiling on shared runners, while production SLO
+// (2500ms) holds. Their work budgets keep blocking.
+var LatencyExemptions = map[string]LatencyExemption{
+	"GET /api/v0/infra/resources/count": {
+		Issue:  "#6909",
+		Reason: "deterministic Postgres work with runner-speed p95 variance against the 2s ceiling; production SLO holds",
+	},
+	"GET /api/v0/infra/resources/inventory": {
+		Issue:  "#6909",
+		Reason: "deterministic Postgres work with runner-speed p95 variance against the 2s ceiling; production SLO holds",
+	},
+}
 
 // ValidateLatencyExemptions rejects any entry with an empty Issue or Reason.
 // An untracked exemption can never be found and removed, so the gate refuses
