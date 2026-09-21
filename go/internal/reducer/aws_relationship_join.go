@@ -34,6 +34,13 @@ const (
 	// joinModeUnresolved labels relationship facts whose endpoint could not be
 	// resolved to a materialized CloudResource node in this scope generation.
 	joinModeUnresolved = "unresolved"
+
+	// joinModeCrossScopeEndpoint counts a relationship refused because an
+	// endpoint was scanned in a different ingestion scope than the intent being
+	// executed. CloudResourceEdgeWriter stamps rel.scope_id/rel.generation_id
+	// from the intent, never from the row, so admitting such a row attributes
+	// another scope's resource to this one (#6162).
+	joinModeCrossScopeEndpoint = "cross_scope_endpoint"
 )
 
 // resolveCloudResourceSource forwards to [cloudjoin.ResolveSource]. That
@@ -115,14 +122,22 @@ type awsRelationshipEdgeTally struct {
 	// keyed by target_type (the relationship's own classification), for the
 	// completion log diagnostic.
 	unresolvedSource map[string]int
+	// crossScopeEndpoint counts relationships refused because an endpoint
+	// belongs to another ingestion scope, keyed by target_type. This is an
+	// invariant violation rather than graceful degradation: the fact loader is
+	// scoped, so a non-zero count means cross-scope facts reached this join
+	// (#6162). Kept separate from unresolved so the two are distinguishable in
+	// the completion log.
+	crossScopeEndpoint map[string]int
 }
 
 func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 	return awsRelationshipEdgeTally{
-		byRelTypeMode:    make(map[relTypeMode]int),
-		resolved:         make(map[string]int),
-		unresolved:       make(map[string]int),
-		unresolvedSource: make(map[string]int),
+		byRelTypeMode:      make(map[relTypeMode]int),
+		resolved:           make(map[string]int),
+		unresolved:         make(map[string]int),
+		unresolvedSource:   make(map[string]int),
+		crossScopeEndpoint: make(map[string]int),
 	}
 }
 
@@ -143,6 +158,7 @@ func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 func ExtractAWSRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
+	intentScopeID string,
 ) ([]map[string]any, awsRelationshipEdgeTally, []quarantinedFact, error) {
 	tally := newAWSRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
@@ -196,11 +212,21 @@ func ExtractAWSRelationshipEdgeRows(
 			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++
 			continue
 		}
+		if !index.ScopeInBounds(sourceUID, intentScopeID) {
+			tally.crossScopeEndpoint[targetType]++
+			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeCrossScopeEndpoint}]++
+			continue
+		}
 
 		targetUID, mode, targetOK := resolveCloudResourceTarget(index, targetARN, targetResourceID)
 		if !targetOK {
 			tally.unresolved[targetType]++
 			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++
+			continue
+		}
+		if !index.ScopeInBounds(targetUID, intentScopeID) {
+			tally.crossScopeEndpoint[targetType]++
+			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeCrossScopeEndpoint}]++
 			continue
 		}
 
