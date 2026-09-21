@@ -31,6 +31,9 @@ var (
 // secretsiam/v1.VaultAuthRole.TokenPolicyJoinKeys for the motivating case).
 var redactionSafePayloadKeys = map[string]struct{}{
 	"token_policy_join_keys": {},
+	// token_count is an integer body-size metric (lexer tokens), not a
+	// credential; see reducerderived/v1.CodeDriftedMember.TokenCount.
+	"token_count": {},
 }
 
 // Validator validates extension results against the host-declared contract.

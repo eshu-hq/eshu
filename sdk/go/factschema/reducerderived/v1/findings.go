@@ -220,7 +220,12 @@ type CodeDriftedMember struct {
 	Language     string `json:"language"`
 	StartLine    int    `json:"start_line"`
 	EndLine      int    `json:"end_line"`
-	TokenCount   int    `json:"token_count"`
+	// TokenCount is the member body size in lexer tokens, used as the
+	// fingerprint token floor for drift candidacy. It is an integer size
+	// metric, never a secret, so it is allowlisted in
+	// collector.redactionSafePayloadKeys despite tripping the
+	// token-substring heuristic.
+	TokenCount int `json:"token_count"`
 }
 
 // CodeDriftedFinding is the schema-version-1 payload for
