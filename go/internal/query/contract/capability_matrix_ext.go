@@ -18,12 +18,13 @@ func init() {
 	register(codequery.CompareCodePathsCapability, capabilitySupport{
 		// POST /api/v0/code/call-chain/compare (#6838) enumerates distinct
 		// simple paths with a bounded Go BFS over anchored one-hop reads.
-		// Local-only claim: compose and remote-validation proof land in
-		// #6840, so full-stack and production stay unsupported here until
-		// that evidence exists.
+		// The read is backend-identical across local profiles, so
+		// full-stack is supported like the sibling call-chain path; only
+		// production stays unsupported until remote validation lands in
+		// #6840.
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     nil,
+		LocalFullStackMax:     &truthExact,
 		ProductionMax:         nil,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	})

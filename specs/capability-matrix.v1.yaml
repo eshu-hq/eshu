@@ -213,7 +213,7 @@ capabilities:
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-compare-paths}], notes: requires authoritative graph mode}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query/codequery}, {go_test: ./internal/mcp/code/intel}], notes: bounded BFS over anchored one-hop reads}
-      local_full_stack: {status: unsupported, max_truth_level: unsupported, required_runtime: full_stack, p95_latency_ms: null, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query/codequery}], notes: full-stack claim deferred until compose proof lands (#6840)}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 3000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query/codequery}], notes: backend-identical bounded BFS read, proven by the B-12 MCP golden shape on the full stack}
       production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query/codequery}], notes: production claim deferred until remote validation lands in docs/internal/remote-validation/code-divergence.md (#6840)}
   - capability: call_graph.route_to_caller
     tools: [trace_route_callers]

@@ -1283,9 +1283,10 @@
           "max_scope_size": "active_repo"
         },
         "local_full_stack": {
-          "status": "unsupported",
-          "max_truth_level": "unsupported",
+          "status": "supported",
+          "max_truth_level": "exact",
           "required_runtime": "full_stack",
+          "p95_latency_ms": 3000,
           "max_scope_size": "indexed_workspace"
         },
         "local_lightweight": {
