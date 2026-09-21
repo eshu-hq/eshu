@@ -62,10 +62,12 @@ func FingerprintStatement(cypher string, params map[string]any) (DifferentialFin
 }
 
 // HasOrderBy reports whether cypher carries an ORDER BY clause. Matching is
-// case-insensitive over whole words outside single-quoted string literals
-// (so a literal reading 'ORDER BY please' does not count). Backtick-quoted
-// identifiers are not unquoted: an identifier spelling "order by" would
-// false-positive, which Cypher forbids as an unescaped identifier anyway.
+// case-insensitive over whole words outside string literals, backtick-quoted
+// identifiers, and line/block comments, so none of those can force an
+// order-sensitive digest and a false divergence. Both quote styles honor the
+// backslash escape and the doubled-quote escape. Skipping is one-directional
+// by design: an ORDER BY hidden inside a comment or literal would read as
+// unordered, but production builders emit clauses, not prose about clauses.
 func HasOrderBy(cypher string) bool {
 	var words []string
 	var current strings.Builder
@@ -75,29 +77,58 @@ func HasOrderBy(cypher string) bool {
 			current.Reset()
 		}
 	}
-	inString := false
-	for i := 0; i < len(cypher); i++ {
-		c := cypher[i]
-		if inString {
-			if c == '\'' {
-				if i+1 < len(cypher) && cypher[i+1] == '\'' {
-					i++
+	// skipQuoted consumes a quoted span starting at i (the opening quote or
+	// backtick) and returns the index just past its closer. A backslash
+	// escapes the next byte; otherwise a doubled quote is one escaped quote.
+	skipQuoted := func(i int, quote byte) int {
+		for j := i + 1; j < len(cypher); j++ {
+			switch cypher[j] {
+			case '\\':
+				j++
+			case quote:
+				if j+1 < len(cypher) && cypher[j+1] == quote {
+					j++
 					continue
 				}
-				inString = false
+				return j + 1
 			}
-			continue
 		}
+		return len(cypher)
+	}
+	for i := 0; i < len(cypher); {
+		c := cypher[i]
 		switch {
-		case c == '\'':
-			inString = true
+		case c == '/' && i+1 < len(cypher) && cypher[i+1] == '/':
+			next := strings.IndexByte(cypher[i:], '\n')
+			if next < 0 {
+				flush()
+				return hasOrderByWords(words)
+			}
+			i += next
+		case c == '/' && i+1 < len(cypher) && cypher[i+1] == '*':
+			end := strings.Index(cypher[i+2:], "*/")
+			if end < 0 {
+				flush()
+				return hasOrderByWords(words)
+			}
+			i += end + 4
+		case c == '\'' || c == '"' || c == '`':
+			flush()
+			i = skipQuoted(i, c)
 		case c == '_' || c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z':
 			current.WriteByte(c)
+			i++
 		default:
 			flush()
+			i++
 		}
 	}
 	flush()
+	return hasOrderByWords(words)
+}
+
+// hasOrderByWords reports whether adjacent upper-cased words spell ORDER BY.
+func hasOrderByWords(words []string) bool {
 	for i := 0; i+1 < len(words); i++ {
 		if words[i] == "ORDER" && words[i+1] == "BY" {
 			return true

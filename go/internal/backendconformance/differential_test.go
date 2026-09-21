@@ -110,6 +110,13 @@ func TestHasOrderByDetection(t *testing.T) {
 		{"MATCH (n) RETURN n", false},
 		{"MATCH (n) WHERE n.note = 'ORDER BY please' RETURN n", false},
 		{"MATCH (n:Reorder) RETURN n", false},
+		{"// ORDER BY in a line comment\nMATCH (n) RETURN n", false},
+		{"MATCH (n) RETURN n /* ORDER BY trailing block */", false},
+		{"MATCH (n) WHERE n.note = \"ORDER BY please\" RETURN n", false},
+		{`MATCH (n) WHERE n.a = 'it\'s ORDER BY x' RETURN n`, false},
+		{"MATCH (`order by`) RETURN `order by`", false},
+		{"// comment\nMATCH (n) RETURN n ORDER BY n.x", true},
+		{"MATCH (n) WHERE n.a = 'x' RETURN n ORDER BY n.a", true},
 	} {
 		if got := HasOrderBy(tc.cypher); got != tc.want {
 			t.Errorf("HasOrderBy(%q) = %v, want %v", tc.cypher, got, tc.want)
@@ -203,6 +210,26 @@ type stubDifferentialProbeExecutor struct {
 func (s *stubDifferentialProbeExecutor) ExecuteProbe(_ context.Context, stmt sourcecypher.Statement) (bool, error) {
 	s.executed = append(s.executed, stmt)
 	return s.found, s.err
+}
+
+// stubDifferentialGroupExecutor adds group and phase support to the stub,
+// recording how many inner calls each fan-out costs.
+type stubDifferentialGroupExecutor struct {
+	stubDifferentialExecutor
+	groupCalls int
+	phaseCalls int
+}
+
+func (s *stubDifferentialGroupExecutor) ExecuteGroup(_ context.Context, stmts []sourcecypher.Statement) error {
+	s.groupCalls++
+	s.executed = append(s.executed, stmts...)
+	return s.err
+}
+
+func (s *stubDifferentialGroupExecutor) ExecutePhaseGroup(_ context.Context, stmts []sourcecypher.Statement) error {
+	s.phaseCalls++
+	s.executed = append(s.executed, stmts...)
+	return s.err
 }
 
 func TestRecordingExecutorCapturesWrites(t *testing.T) {
@@ -319,6 +346,101 @@ func TestRecordingExecutorProbeRequiresInnerSupport(t *testing.T) {
 	}
 	if len(recorder.Records()) != 0 {
 		t.Fatalf("failed probe recorded %d records", len(recorder.Records()))
+	}
+}
+
+func TestRecordingExecutorFansGroupOutToStatements(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	inner := &stubDifferentialGroupExecutor{}
+	exec := WrapExecutor(inner, recorder, "nornicdb")
+	stmts := []sourcecypher.Statement{
+		{Cypher: "MERGE (a:A {id: $id})", Parameters: map[string]any{"id": 1}},
+		{Cypher: "MERGE (b:B {id: $id})", Parameters: map[string]any{"id": 2}},
+	}
+	grouped, ok := exec.(interface {
+		ExecuteGroup(context.Context, []sourcecypher.Statement) error
+	})
+	if !ok {
+		t.Fatal("wrapped executor must preserve the group surface for capability probing")
+	}
+	if err := grouped.ExecuteGroup(context.Background(), stmts); err != nil {
+		t.Fatal(err)
+	}
+	if inner.groupCalls != 1 {
+		t.Fatalf("inner group calls = %d, want exactly 1 (no per-statement split)", inner.groupCalls)
+	}
+	records := recorder.Records()
+	if len(records) != 2 {
+		t.Fatalf("records = %d, want one per grouped statement", len(records))
+	}
+	for _, rec := range records {
+		if rec.Failed || rec.Backend != "nornicdb" || rec.Digest != "" || rec.RowCount != 0 {
+			t.Fatalf("record = %+v, want a clean write record carrying the call outcome", rec)
+		}
+	}
+	if records[0].Fingerprint == records[1].Fingerprint {
+		t.Fatal("grouped statements share a fingerprint, the diff could not tell them apart")
+	}
+}
+
+func TestRecordingExecutorFansFailedGroupOutToStatements(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	inner := &stubDifferentialGroupExecutor{stubDifferentialExecutor: stubDifferentialExecutor{err: errors.New("commit failed")}}
+	exec := WrapExecutor(inner, recorder, "nornicdb")
+	phased, ok := exec.(interface {
+		ExecutePhaseGroup(context.Context, []sourcecypher.Statement) error
+	})
+	if !ok {
+		t.Fatal("wrapped executor must preserve the phase surface for capability probing")
+	}
+	stmts := []sourcecypher.Statement{{Cypher: "MERGE (a)"}, {Cypher: "MERGE (b)"}}
+	if err := phased.ExecutePhaseGroup(context.Background(), stmts); err == nil {
+		t.Fatal("expected the inner phase error to propagate")
+	}
+	if inner.phaseCalls != 1 {
+		t.Fatalf("inner phase calls = %d, want 1", inner.phaseCalls)
+	}
+	records := recorder.Records()
+	if len(records) != 2 {
+		t.Fatalf("records = %d, want one failed entry per phased statement", len(records))
+	}
+	for _, rec := range records {
+		if !rec.Failed {
+			t.Fatalf("record = %+v, want the call error carried", rec)
+		}
+	}
+}
+
+func TestRecordingGraphQueryCapturesSingle(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	query := WrapGraphQuery(stubDifferentialGraphQuery{rows: []map[string]any{{"n": 1}}}, recorder, "neo4j")
+	row, err := query.RunSingle(context.Background(), "MATCH (n) RETURN n LIMIT 1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row["n"] != 1 {
+		t.Fatalf("passthrough row = %v, want map[n:1]", row)
+	}
+	records := recorder.Records()
+	if len(records) != 1 || records[0].RowCount != 1 || records[0].Failed {
+		t.Fatalf("records = %+v, want one clean single-row record", records)
+	}
+}
+
+func TestRecordingGraphQueryCapturesSingleNilRow(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	query := WrapGraphQuery(stubDifferentialGraphQuery{}, recorder, "neo4j")
+	row, err := query.RunSingle(context.Background(), "MATCH (n) RETURN n LIMIT 1", nil)
+	if err != nil || row != nil {
+		t.Fatalf("passthrough = (%v, %v), want (nil, nil)", row, err)
+	}
+	records := recorder.Records()
+	if len(records) != 1 || records[0].RowCount != 0 || records[0].Digest == "" {
+		t.Fatalf("records = %+v, want one clean empty record", records)
 	}
 }
 
