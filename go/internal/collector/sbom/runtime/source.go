@@ -141,7 +141,7 @@ func (s *ClaimedSource) envelopes(
 	sourceRecordID := firstNonBlank(document.SourceRecordID, target.SourceRecordID, target.ReferrerDigest, target.DocumentURL, target.ScopeID)
 	switch target.ArtifactKind {
 	case ArtifactKindSBOM:
-		envs, err := sbomEnvelopes(item, target, document.Body, observedAt, sourceURI, sourceRecordID)
+		envs, err := envelopes(item, target, document.Body, observedAt, sourceURI, sourceRecordID)
 		return envs, observedAt, err
 	case ArtifactKindAttestation:
 		envs, err := attestationEnvelopes(item, target, document.Body, observedAt, sourceURI, sourceRecordID)
@@ -151,7 +151,7 @@ func (s *ClaimedSource) envelopes(
 	}
 }
 
-func sbomEnvelopes(
+func envelopes(
 	item workflow.WorkItem,
 	target TargetConfig,
 	raw []byte,

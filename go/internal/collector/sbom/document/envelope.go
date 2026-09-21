@@ -20,7 +20,7 @@ import (
 func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string, payload map[string]any) facts.Envelope {
 	schemaVersion, _ := facts.SBOMAttestationSchemaVersion(factKind)
 	return facts.Envelope{
-		FactID:           sbomDocumentFactID(factKind, stableKey, ctx.ScopeID, ctx.GenerationID),
+		FactID:           factID(factKind, stableKey, ctx.ScopeID, ctx.GenerationID),
 		ScopeID:          ctx.ScopeID,
 		GenerationID:     ctx.GenerationID,
 		FactKind:         factKind,
@@ -42,7 +42,7 @@ func newEnvelope(ctx FixtureContext, factKind, stableKey, sourceRecordID string,
 	}
 }
 
-func sbomDocumentFactID(factKind, stableFactKey, scopeID, generationID string) string {
+func factID(factKind, stableFactKey, scopeID, generationID string) string {
 	return facts.StableID("SBOMDocumentFact", map[string]any{
 		"fact_kind":       factKind,
 		"generation_id":   generationID,
