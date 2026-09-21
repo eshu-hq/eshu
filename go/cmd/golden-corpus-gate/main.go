@@ -65,6 +65,8 @@ type options struct {
 	diffLeft                    string
 	diffRight                   string
 	diffAllowlist               string
+	diffLeft2                   string
+	diffRight2                  string
 }
 
 func parseFlags(args []string) (options, error) {
@@ -96,6 +98,8 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.diffLeft, "diff-left", "", "directory of differential capture recordings for the left backend run (nornicdb side of the #6782 comparison)")
 	fs.StringVar(&o.diffRight, "diff-right", "", "directory of differential capture recordings for the right backend run (neo4j side of the #6782 comparison)")
 	fs.StringVar(&o.diffAllowlist, "diff-allowlist", "specs/backend-divergence-allowlist.v1.yaml", "path to the backend-divergence allowlist excusing known NornicDB-vs-Neo4j divergences (#6782)")
+	fs.StringVar(&o.diffLeft2, "diff-left2", "", "second-pairing nornicdb capture directory for multi-leg quorum mode (#6782): with -diff-right2, the gate fails only on divergences reproducing across both pairings")
+	fs.StringVar(&o.diffRight2, "diff-right2", "", "second-pairing neo4j capture directory for multi-leg quorum mode (#6782): with -diff-left2, the gate fails only on divergences reproducing across both pairings")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

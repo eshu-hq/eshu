@@ -247,17 +247,20 @@ jobs:
         run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" down -v || true
 
   # #6782: the differential oracle. Replays the same B-7 corpus on each
-  # backend with differential capture on, then fails the run on any
-  # divergence the committed allowlist does not excuse. Self-contained
-  # (the matrix legs above stay untouched) and sequential (one runner, so
-  # the two compose stacks reuse the same host ports after teardown).
+  # backend with differential capture on, twice per backend (two pairings),
+  # then fails the run only on divergences the committed allowlist does not
+  # excuse AND that reproduce across both pairings (multi-leg quorum).
+  # Self-contained (the matrix legs above stay untouched) and sequential
+  # (one runner, so the two compose stacks reuse the same host ports after
+  # teardown).
   differential:
     name: differential nornicdb vs neo4j
     runs-on: ubuntu-latest
-    # Two sequential B-7 legs (30m each, mirroring corpus-gate) plus setup,
-    # build, compare, and upload. 90m keeps slow runners from timing out
-    # loudly on a green oracle.
-    timeout-minutes: 90
+    # Four sequential B-7 legs (30m each, mirroring corpus-gate) plus setup,
+    # build, compare, and upload: two nornicdb-vs-neo4j pairings for the
+    # multi-leg quorum (#6782 slice 3, owner direction 2026-09-21). 150m
+    # keeps slow runners from timing out loudly on a green oracle.
+    timeout-minutes: 150
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -274,16 +277,18 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
-      # Both legs stage the corpus at the same fixed repos dir (wiped
+      # All four legs stage the corpus at the same fixed repos dir (wiped
       # between legs): identical absolute local_path values pair across
-      # runs, while per-run mktemp dirs would never match (#6782).
-      - name: Run B-7 with differential capture (nornicdb)
+      # runs, while per-run mktemp dirs would never match (#6782). Each
+      # pairing captures into its own directory: a stale capture from an
+      # earlier leg must never leak into a later pairing's compare.
+      - name: Run B-7 with differential capture (pairing 1, nornicdb)
         env:
           ESHU_GRAPH_BACKEND: nornicdb
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           ESHU_DIFFERENTIAL_CAPTURE: 1
-          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/nornicdb
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/pair1/nornicdb
           ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
           GATE_COMPOSE_PROJECT: eshu-differential-nornicdb
         run: bash scripts/verify-golden-corpus-gate.sh
@@ -291,13 +296,41 @@ jobs:
       - name: Wipe shared corpus dir between legs
         run: rm -rf "${{ runner.temp }}/eshu-diff-corpus"
 
-      - name: Run B-7 with differential capture (neo4j)
+      - name: Run B-7 with differential capture (pairing 1, neo4j)
         env:
           ESHU_GRAPH_BACKEND: neo4j
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           ESHU_DIFFERENTIAL_CAPTURE: 1
-          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/neo4j
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/pair1/neo4j
+          ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
+          GATE_COMPOSE_PROJECT: eshu-differential-neo4j
+        run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Wipe shared corpus dir between legs
+        run: rm -rf "${{ runner.temp }}/eshu-diff-corpus"
+
+      - name: Run B-7 with differential capture (pairing 2, nornicdb)
+        env:
+          ESHU_GRAPH_BACKEND: nornicdb
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+          ESHU_DIFFERENTIAL_CAPTURE: 1
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/pair2/nornicdb
+          ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
+          GATE_COMPOSE_PROJECT: eshu-differential-nornicdb
+        run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Wipe shared corpus dir between legs
+        run: rm -rf "${{ runner.temp }}/eshu-diff-corpus"
+
+      - name: Run B-7 with differential capture (pairing 2, neo4j)
+        env:
+          ESHU_GRAPH_BACKEND: neo4j
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+          ESHU_DIFFERENTIAL_CAPTURE: 1
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/pair2/neo4j
           ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
           GATE_COMPOSE_PROJECT: eshu-differential-neo4j
         run: bash scripts/verify-golden-corpus-gate.sh
@@ -308,8 +341,10 @@ jobs:
       - name: Compare backend recordings
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=backend-diff
-          "-diff-left=${{ runner.temp }}/diff-capture/nornicdb"
-          "-diff-right=${{ runner.temp }}/diff-capture/neo4j"
+          "-diff-left=${{ runner.temp }}/diff-capture/pair1/nornicdb"
+          "-diff-right=${{ runner.temp }}/diff-capture/pair1/neo4j"
+          "-diff-left2=${{ runner.temp }}/diff-capture/pair2/nornicdb"
+          "-diff-right2=${{ runner.temp }}/diff-capture/pair2/neo4j"
           -diff-allowlist=specs/backend-divergence-allowlist.v1.yaml
 
       - name: Upload capture recordings on failure

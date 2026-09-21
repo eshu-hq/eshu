@@ -43,7 +43,9 @@
 //     and a Neo4j run agree, modulo the committed
 //     specs/backend-divergence-allowlist.v1.yaml (#6782). Opt-in and excluded
 //     from "all": it needs two backends' recording directories, and a run
-//     that recorded only one backend fails closed.
+//     that recorded only one backend fails closed. With -diff-left2 and
+//     -diff-right2 the phase runs multi-leg quorum: only divergences
+//     reproducing across both pairings fail the gate.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use

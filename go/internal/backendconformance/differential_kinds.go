@@ -172,3 +172,42 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 	})
 	return diffs
 }
+
+// quorumKey identifies one divergence across leg pairings: the same
+// fingerprint diverging in the same way. Counts and error texts legitimately
+// vary run to run, so Detail is not part of the key; a kind flip between
+// pairings (results here, executions there) is a different phenomenon, not
+// a reproduction.
+type quorumKey struct {
+	fingerprint DifferentialFingerprint
+	kind        string
+}
+
+// QuorumIntersection keeps the divergences that reproduce across two leg
+// pairings (#6782 multi-leg quorum): a divergence fails the gate only when
+// both pairings report it under the same fingerprint and kind. Pairing-local
+// noise — drain timing, retries, regrouped batches — drops out, while a
+// systematic backend divergence reproduces and still fails. The kept Detail
+// comes from the first pairing; output order matches CompareRecordings.
+func QuorumIntersection(first, second []DifferentialDifference) []DifferentialDifference {
+	inSecond := make(map[quorumKey]struct{}, len(second))
+	for _, diff := range second {
+		inSecond[quorumKey{fingerprint: diff.Fingerprint, kind: diff.Kind}] = struct{}{}
+	}
+	var kept []DifferentialDifference
+	for _, diff := range first {
+		if _, ok := inSecond[quorumKey{fingerprint: diff.Fingerprint, kind: diff.Kind}]; ok {
+			kept = append(kept, diff)
+		}
+	}
+	slices.SortFunc(kept, func(x, y DifferentialDifference) int {
+		if x.Fingerprint.Statement != y.Fingerprint.Statement {
+			return strings.Compare(x.Fingerprint.Statement, y.Fingerprint.Statement)
+		}
+		if x.Fingerprint.Parameters != y.Fingerprint.Parameters {
+			return strings.Compare(x.Fingerprint.Parameters, y.Fingerprint.Parameters)
+		}
+		return strings.Compare(x.Kind, y.Kind)
+	})
+	return kept
+}

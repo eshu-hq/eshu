@@ -76,3 +76,51 @@ func TestCompareRecordingsKeepsFailuresKind(t *testing.T) {
 		t.Fatalf("kind = %q, want failures", diffs[0].Kind)
 	}
 }
+
+// TestQuorumIntersectionKeepsReproducedDivergences pins the #6782 multi-leg
+// quorum: only a divergence present in both leg pairings — same fingerprint
+// and same kind — fails the gate. Pairing-local noise stays visible in the
+// report but never reds the gate on its own.
+func TestQuorumIntersectionKeepsReproducedDivergences(t *testing.T) {
+	t.Parallel()
+	systematic := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
+	noiseA := DifferentialFingerprint{Statement: "MATCH (m) RETURN m", Parameters: `{}`}
+	noiseB := DifferentialFingerprint{Statement: "MATCH (k) RETURN k", Parameters: `{}`}
+	kindFlip := DifferentialFingerprint{Statement: "MATCH (j) RETURN j", Parameters: `{}`}
+	first := []DifferentialDifference{
+		{Fingerprint: systematic, Kind: "results", Detail: "row digest differs (nornicdb=14 rows, neo4j=12 rows)"},
+		{Fingerprint: noiseA, Kind: "executions", Detail: "execution count differs with agreeing results (nornicdb=7, neo4j=14)"},
+		{Fingerprint: kindFlip, Kind: "results", Detail: "row digest differs (nornicdb=58 rows, neo4j=59 rows)"},
+	}
+	second := []DifferentialDifference{
+		{Fingerprint: systematic, Kind: "results", Detail: "row digest differs (nornicdb=14 rows, neo4j=12 rows)"},
+		{Fingerprint: noiseB, Kind: "failures", Detail: "failed executions differ (nornicdb=1, neo4j=0)"},
+		{Fingerprint: kindFlip, Kind: "executions", Detail: "execution count differs with agreeing results (nornicdb=7, neo4j=7)"},
+	}
+	kept := QuorumIntersection(first, second)
+	if len(kept) != 1 {
+		t.Fatalf("quorum kept %d divergences (%v), want only the reproduced systematic one", len(kept), kept)
+	}
+	if kept[0].Fingerprint != systematic || kept[0].Kind != "results" {
+		t.Fatalf("quorum kept %+v, want the systematic results divergence", kept[0])
+	}
+}
+
+// TestQuorumIntersectionDropsDisjointPairings pins the empty case: two red
+// pairings with nothing in common still pass quorum — the gate stays green
+// on leg-local noise and says so in the report.
+func TestQuorumIntersectionDropsDisjointPairings(t *testing.T) {
+	t.Parallel()
+	first := []DifferentialDifference{
+		{Fingerprint: DifferentialFingerprint{Statement: "MATCH (a) RETURN a"}, Kind: "executions"},
+	}
+	second := []DifferentialDifference{
+		{Fingerprint: DifferentialFingerprint{Statement: "MATCH (b) RETURN b"}, Kind: "executions"},
+	}
+	if kept := QuorumIntersection(first, second); len(kept) != 0 {
+		t.Fatalf("quorum kept %v for disjoint pairings, want none", kept)
+	}
+	if kept := QuorumIntersection(first, nil); len(kept) != 0 {
+		t.Fatalf("quorum kept %v against an empty pairing, want none", kept)
+	}
+}

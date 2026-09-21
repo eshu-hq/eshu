@@ -2614,6 +2614,9 @@ gates:
     # divergence the committed allowlist does not excuse. A silently dropped
     # capture cannot false-green: empty recording dirs fail closed in Compare
     # (both backends required), and the failure upload carries the recordings.
+    # Multi-leg quorum (slice 3, owner direction 2026-09-21): CI runs two
+    # pairings (-diff-left2/-diff-right2) and fails only on divergences
+    # reproducing across both; pairing-local scheduling noise is advisory.
 
   # #5538 task 4 root-cause fix: three review rounds each found more packages
   # missing from golden-corpus-gate's own path filter because completeness was
