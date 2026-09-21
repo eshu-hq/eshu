@@ -172,4 +172,12 @@ var coreEntries = []Entry{
 	{Name: "ESHU_COMPONENT_REVOKE_IDS", Type: VarString, Subsystem: "component", Description: "Comma-separated revoke list of component IDs."},
 	{Name: "ESHU_COMPONENT_REVOKE_PUBLISHERS", Type: VarString, Subsystem: "component", Description: "Comma-separated revoke list of component publishers."},
 	{Name: "ESHU_COMPONENT_CORE_VERSION", Type: VarString, Subsystem: "component", Description: "Required core version for component compatibility."},
+
+	// backend-conformance: contributor test knobs cited on docs/public pages,
+	// carried here per the package doc so the docs-cli-env-refs ratchet has
+	// code ownership for every public citation. Gate tooling only; never set
+	// any of these in production.
+	{Name: "ESHU_DIFFERENTIAL_CAPTURE", Type: VarString, Subsystem: "backend-conformance", Description: "Set to 1 to record differential statement fingerprints during a gate run; recording additionally requires ESHU_DIFFERENTIAL_CAPTURE_DIR, and a stray flag alone never records outside a gate run."},
+	{Name: "ESHU_DIFFERENTIAL_CAPTURE_DIR", Type: VarString, Subsystem: "backend-conformance", Description: "Directory differential recording files land in; the run fails closed when ESHU_DIFFERENTIAL_CAPTURE is set without it."},
+	{Name: "ESHU_REPOS_DIR", Type: VarString, Subsystem: "backend-conformance", Description: "Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset."},
 }

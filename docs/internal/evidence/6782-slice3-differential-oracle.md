@@ -30,14 +30,14 @@ Neo4j `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0ea
 
 1. `resolved_id` embeds the run generation
    (`deployable-unit-correlation:<gen>:<key>`, proven at
-   `go/internal/reducer/deployable_unit_correlation_edges.go:399`).
+   `go/internal/reducer/deployable_unit_correlation_edges.go` (`deployableUnitCorrelationRow`)).
    Normalized by middle segment under the `resolved_id` key only; bare
    content hashes never match the rule prefix shape.
 2. `evidence-artifact:` keys are `sha1(resolvedID|kind|path|value)` (proven at
-   `go/internal/storage/cypher/edge/writer/row_metadata.go:148`), hence
+   `go/internal/storage/cypher/edge/writer/row_metadata.go` (`repoEvidenceArtifactID`)), hence
    disjoint per run by construction. Never normalized in fingerprints.
 3. Cross-generation `resolved_<hex>` edge ids are `sha1` over the generation
-   plus endpoints (`go/internal/relationships/models.go:231`), so they are
+   plus endpoints (`go/internal/relationships/models.go` (`ResolvedRelationshipID`)), so they are
    un-invertible run lineage. Blind in digest rows only.
 4. Backend-conditional write emission: NornicDB runs phased MATCH+SET /
    decomposed upserts, Neo4j runs single-statement semantic upserts

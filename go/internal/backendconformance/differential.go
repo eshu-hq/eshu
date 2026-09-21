@@ -34,8 +34,9 @@ import (
 // mirror the InstrumentedExecutor loud-fail precedent.
 
 // captureEnvVar is the opt-in for differential recording. It is gate
-// tooling, not operator config, so it stays out of the env registry like
-// the other test-gating ESHU_* variables.
+// tooling, not operator config, but it is carried in the env registry under
+// the backend-conformance subsystem because docs/public cites it and the
+// docs-cli-env-refs ratchet requires code ownership for every citation.
 const captureEnvVar = "ESHU_DIFFERENTIAL_CAPTURE"
 
 // CaptureEnabled reports whether differential statement recording is on.
