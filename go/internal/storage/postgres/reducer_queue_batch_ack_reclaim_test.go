@@ -240,3 +240,69 @@ func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
 		)
 	}
 }
+
+// A mixed-domain batch is the normal shape for this acker, and it is where the
+// supersession signal used to disappear. The container-image block assigned
+// claimRejected outright instead of accumulating into it, so a batch holding a
+// superseded claim in one domain AND a container-image sub-batch that acked
+// cleanly reported success: AckBatch returned nil, the batch acker never
+// reached logReducerAckClaimRejected, and the lease race #6162 exists to make
+// visible went unrecorded again.
+//
+// Found by independent review after #6926 merged. The overwrite predates that
+// PR, but seeding claimRejected from supersededClaims is what put the fix's own
+// signal in its path.
+func TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck(t *testing.T) {
+	t.Parallel()
+
+	const supersededID = "intent-6162-mixed-superseded"
+	staleClaim := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
+	freshClaim := staleClaim.Add(900 * time.Millisecond)
+
+	// Both sub-batches ack every row they are given, so nothing but the
+	// supersession can set claimRejected.
+	database := &fakeExecQueryer{execResults: []sql.Result{
+		rowsAffectedResult{rowsAffected: 1},
+		rowsAffectedResult{rowsAffected: 1},
+	}}
+	queue := ReducerQueue{
+		database:      database,
+		LeaseOwner:    "reducer-6162",
+		LeaseDuration: time.Minute,
+	}
+
+	err := queue.AckBatch(
+		context.Background(),
+		[]reducer.Intent{
+			{
+				IntentID:     "intent-6162-mixed-target",
+				Domain:       reducer.DomainContainerImageIdentity,
+				AttemptCount: 1,
+				ClaimEpoch:   7,
+				ClaimedAt:    &freshClaim,
+			},
+			{
+				IntentID:     supersededID,
+				Domain:       reducer.DomainGCPResourceMaterialization,
+				AttemptCount: 1,
+				ClaimedAt:    &staleClaim,
+			},
+			{
+				IntentID:     supersededID,
+				Domain:       reducer.DomainGCPResourceMaterialization,
+				AttemptCount: 2,
+				ClaimedAt:    &freshClaim,
+			},
+		},
+		nil,
+	)
+	if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
+		t.Fatalf(
+			"AckBatch() error = %v, want a claim rejection: a clean container-image ack must not erase the superseded claim",
+			err,
+		)
+	}
+	if got, want := len(database.execs), 2; got != want {
+		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+	}
+}
