@@ -20,8 +20,9 @@ import (
 var upstreamIssueRE = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[0-9]+$`)
 
 // AllowlistEntry is one accepted backend divergence: the normalized
-// statement text it excuses (plus optional bound parameters), the reason it
-// is accepted, the upstream issue tracking it, and its owner.
+// statement text it excuses (plus optional bound parameters), the divergence
+// kind it excuses (see the tier vocabulary below), the reason it is
+// accepted, the upstream issue tracking it, and its owner.
 type AllowlistEntry struct {
 	Statement  string `yaml:"statement"`
 	Parameters string `yaml:"parameters"`
@@ -29,6 +30,24 @@ type AllowlistEntry struct {
 	Reason     string `yaml:"reason"`
 	Upstream   string `yaml:"upstream"`
 	Owner      string `yaml:"owner"`
+}
+
+// The tier vocabulary scopes an entry to one divergence kind, so an excuse
+// for scheduling noise can never cover a result disagreement on the same
+// statement. "statement" excuses any kind on the named statement (a genuine
+// whole-statement dialect divergence); any other tier excuses only its named
+// kind (see backendconformance.Divergence*). An executions-tier entry is
+// result-agreement-conditional by construction — it only matches when both
+// backends returned the same result sets — so it is exempt from the stale
+// match requirement: poll iteration counts agree exactly on some runs, and a
+// flap between stale-failure and excuse would make the gate nondeterministic.
+var allowlistTiers = map[string]string{
+	"statement":  "",
+	"missing":    backendconformance.DivergenceMissing,
+	"results":    backendconformance.DivergenceResults,
+	"executions": backendconformance.DivergenceExecutions,
+	"failures":   backendconformance.DivergenceFailures,
+	"rowcount":   backendconformance.DivergenceRowCount,
 }
 
 // Allowlist is the parsed divergence allowlist. It is empty by default:
@@ -51,6 +70,9 @@ func ParseAllowlist(raw []byte) (*Allowlist, error) {
 	for i, entry := range document.Entries {
 		if strings.TrimSpace(entry.Statement) == "" {
 			return nil, fmt.Errorf("divergence allowlist entry %d: statement is required", i)
+		}
+		if _, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]; !ok {
+			return nil, fmt.Errorf("divergence allowlist entry %d (%q): tier must be one of statement, missing, results, executions, failures, rowcount", i, entry.Statement)
 		}
 		if strings.TrimSpace(entry.Reason) == "" {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): reason is required", i, entry.Statement)
@@ -86,7 +108,8 @@ func (a *Allowlist) Excuse(diffs []backendconformance.DifferentialDifference) ([
 		}
 	}
 	for i, entry := range a.entries {
-		if !matched[i] {
+		kind := allowlistTiers[strings.TrimSpace(entry.Tier)]
+		if !matched[i] && kind != backendconformance.DivergenceExecutions {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): matched no divergence in this run (stale)", i, entry.Statement)
 		}
 	}
@@ -104,9 +127,13 @@ func (a *Allowlist) Validate(diffs []backendconformance.DifferentialDifference) 
 
 // entryMatches reports whether entry excuses diff. Parameters narrow the
 // match when set; an empty parameters field excuses the statement under
-// any bindings.
+// any bindings. The tier scopes the match to one divergence kind, except
+// the statement tier, which excuses any kind on the named statement.
 func entryMatches(entry AllowlistEntry, diff backendconformance.DifferentialDifference) bool {
 	if entry.Statement != diff.Fingerprint.Statement {
+		return false
+	}
+	if kind, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]; ok && kind != "" && kind != diff.Kind {
 		return false
 	}
 	return entry.Parameters == "" || entry.Parameters == diff.Fingerprint.Parameters

@@ -38,8 +38,9 @@ capture/
 ## Ownership boundary
 
 `capture` owns recording persistence, the diff driver, and the allowlist
-contract. It does not own statement fingerprinting, row digests, or the
-seam decorators — those live in `backendconformance` (`differential.go`)
+contract. It does not own statement fingerprinting, row digests, comparison
+kinds, or the seam decorators — those live in `backendconformance`
+(`differential.go`, `differential_kinds.go`)
 — and it does not own the replay, the gate phases, or the CI job, which
 live in `cmd/golden-corpus-gate`, `scripts/verify-golden-corpus-gate.sh`,
 and `.github/workflows/golden-corpus-gate.yml`.
@@ -51,7 +52,11 @@ and `.github/workflows/golden-corpus-gate.yml`.
 - `Compare(left, right string, allow *Allowlist, w io.Writer) error` —
   diffs two recording directories, excusing allowlisted divergences.
 - `ParseAllowlist` — parses `specs/backend-divergence-allowlist.v1.yaml`;
-  missing reason, missing/non-issue upstream, and stale entries fail.
+  missing reason, missing/unknown tier, missing/non-issue upstream, and
+  stale entries fail. The tier scopes each entry to one divergence kind
+  (`missing`, `results`, `executions`, `failures`, `rowcount`) or to the
+  whole statement; executions-tier entries are exempt from staleness
+  because agreeing counts match nothing on some runs.
 - `OpenDir` / `LoadDir` — JSONL sink and loader; unknown backends fail on
   both sides.
 

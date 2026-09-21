@@ -130,6 +130,79 @@ func TestCompareExcusesAllowlistedDivergence(t *testing.T) {
 	}
 }
 
+// writeExecutionsOnlyPair stores two recordings of the same statement with
+// the same row digest but different execution counts — the synthetic shape of
+// poll-iteration scheduling noise with agreeing results.
+func writeExecutionsOnlyPair(t *testing.T, left, right string) {
+	t.Helper()
+	appendExecutions := func(t *testing.T, dir, backend string, n int) {
+		t.Helper()
+		sink, err := OpenDir(dir, backend, "drain-test")
+		if err != nil {
+			t.Fatalf("OpenDir() error = %v", err)
+		}
+		for range n {
+			record := backendconformance.DifferentialRecord{
+				Fingerprint: backendconformance.DifferentialFingerprint{Statement: "MATCH (n:EvidenceArtifact) RETURN n", Parameters: "null"},
+				Backend:     backend,
+				RowCount:    1,
+				Digest:      "same",
+			}
+			if err := sink.Append(record); err != nil {
+				t.Fatalf("Append() error = %v", err)
+			}
+		}
+		if err := sink.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	}
+	appendExecutions(t, left, "nornicdb", 2)
+	appendExecutions(t, right, "neo4j", 3)
+}
+
+// TestCompareFailsOnExecutionsOnlyDifference pins the fail-closed default:
+// agreeing results with different execution counts still fail without an
+// allowlist entry, so a doubled write is visible until explicitly excused.
+func TestCompareFailsOnExecutionsOnlyDifference(t *testing.T) {
+	left := t.TempDir()
+	right := t.TempDir()
+	writeExecutionsOnlyPair(t, left, right)
+	allow, err := ParseAllowlist([]byte(`entries: []`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	var report strings.Builder
+	if err := Compare(left, right, allow, &report); err == nil {
+		t.Fatal("Compare() error = nil, want executions-only failure by default")
+	}
+	if !strings.Contains(report.String(), "MATCH (n:EvidenceArtifact) RETURN n") {
+		t.Fatalf("Compare() report = %q, want it to name the statement", report.String())
+	}
+}
+
+// TestCompareExcusesExecutionsKindViaTier is the GREEN half for kind-scoped
+// excuses: the same executions-only pair passes with an executions-tier
+// entry naming the statement.
+func TestCompareExcusesExecutionsKindViaTier(t *testing.T) {
+	left := t.TempDir()
+	right := t.TempDir()
+	writeExecutionsOnlyPair(t, left, right)
+	allow, err := ParseAllowlist([]byte(`entries:
+- statement: "MATCH (n:EvidenceArtifact) RETURN n"
+  tier: executions
+  reason: poll iteration counts vary run to run with agreeing results
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	var report strings.Builder
+	if err := Compare(left, right, allow, &report); err != nil {
+		t.Fatalf("Compare() error = %v", err)
+	}
+}
+
 // failingWriter errors on every write, proving a truncated report fails the
 // comparison instead of printing half a report that looks clean.
 type failingWriter struct{}

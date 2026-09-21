@@ -155,18 +155,22 @@ func hasOrderByWords(words []string) bool {
 // DigestRows digests result rows for differential comparison. Each row is
 // normalized to its JSON encoding (which sorts map keys and erases driver
 // value-type differences such as int64 versus int), matching
-// [compareReadRows]. Rows sort before digesting unless ordered is true: a
-// backend is free to return an unordered result in any order, but an
+// [compareReadRows]. Backend-typed graph values canonicalize first
+// ([canonicalizeGraphValue]), then lineage and clock cells blind
+// ([canonicalizeDigestValue]): backend-assigned node/relationship identity,
+// run-scoped lineage digests, and wall-clock observations are serialization
+// or lineage, not graph truth. Rows sort before digesting unless ordered is
+// true: a backend is free to return an unordered result in any order, but an
 // ORDER BY statement's row order is significant and an order regression
 // must change the digest.
 func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	encoded := make([]string, 0, len(rows))
 	for _, row := range rows {
-		normalized, err := normalizeComparisonValue(row)
+		normalized, err := normalizeComparisonValue(canonicalizeGraphValue(row))
 		if err != nil {
 			return "", fmt.Errorf("encode differential row %v: %w", row, err)
 		}
-		raw, err := json.Marshal(normalized)
+		raw, err := json.Marshal(canonicalizeDigestValue(normalized))
 		if err != nil {
 			return "", fmt.Errorf("encode differential row %v: %w", row, err)
 		}
@@ -230,104 +234,6 @@ func (r *DifferentialRecorder) Records() []DifferentialRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.records)
-}
-
-// DifferentialDifference is one divergence between two recordings.
-type DifferentialDifference struct {
-	Fingerprint DifferentialFingerprint
-	Detail      string
-}
-
-// CompareRecordings diffs two recordings statement by statement, keyed by
-// fingerprint. Executions group per fingerprint as a multiset of digests:
-// a fingerprint present on only one side, a digest-multiset mismatch, a
-// failed-execution count mismatch, or a row-count mismatch each yields one
-// difference naming the statement. Grouping (rather than last-write-wins)
-// keeps a statement that answers differently across repeated executions
-// from masking itself.
-func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
-	byFingerprint := func(records []DifferentialRecord) map[DifferentialFingerprint][]DifferentialRecord {
-		out := make(map[DifferentialFingerprint][]DifferentialRecord)
-		for _, rec := range records {
-			out[rec.Fingerprint] = append(out[rec.Fingerprint], rec)
-		}
-		return out
-	}
-	left, right := byFingerprint(a), byFingerprint(b)
-	digests := func(recs []DifferentialRecord) []string {
-		out := make([]string, 0, len(recs))
-		for _, rec := range recs {
-			out = append(out, rec.Digest)
-		}
-		slices.Sort(out)
-		return out
-	}
-	counts := func(recs []DifferentialRecord) int {
-		total := 0
-		for _, rec := range recs {
-			total += rec.RowCount
-		}
-		return total
-	}
-	failures := func(recs []DifferentialRecord) int {
-		total := 0
-		for _, rec := range recs {
-			if rec.Failed {
-				total++
-			}
-		}
-		return total
-	}
-	backend := func(recs []DifferentialRecord) string {
-		if len(recs) == 0 {
-			return ""
-		}
-		return recs[0].Backend
-	}
-	var diffs []DifferentialDifference
-	for fp, lrecs := range left {
-		rrecs, ok := right[fp]
-		if !ok {
-			diffs = append(diffs, DifferentialDifference{Fingerprint: fp, Detail: "recorded on the first backend only"})
-			continue
-		}
-		if !slices.Equal(digests(lrecs), digests(rrecs)) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("row digest differs (%s=%d rows, %s=%d rows)", backend(lrecs), counts(lrecs), backend(rrecs), counts(rrecs)),
-			})
-			continue
-		}
-		// Writes carry no rows, so a one-sided write failure shares the
-		// empty digest on both sides: the failed-execution count is part
-		// of the comparison, or the slice-3 gate would miss exactly the
-		// divergence it exists to catch.
-		if failures(lrecs) != failures(rrecs) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("failed executions differ (%s=%d, %s=%d)", backend(lrecs), failures(lrecs), backend(rrecs), failures(rrecs)),
-			})
-			continue
-		}
-		if counts(lrecs) != counts(rrecs) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("row count differs (%s=%d, %s=%d) with equal digests", backend(lrecs), counts(lrecs), backend(rrecs), counts(rrecs)),
-			})
-		}
-	}
-	for fp := range right {
-		if _, ok := left[fp]; !ok {
-			diffs = append(diffs, DifferentialDifference{Fingerprint: fp, Detail: "recorded on the second backend only"})
-		}
-	}
-	slices.SortFunc(diffs, func(x, y DifferentialDifference) int {
-		if x.Fingerprint.Statement != y.Fingerprint.Statement {
-			return strings.Compare(x.Fingerprint.Statement, y.Fingerprint.Statement)
-		}
-		return strings.Compare(x.Fingerprint.Parameters, y.Fingerprint.Parameters)
-	})
-	return diffs
 }
 
 // differentialExecutorRecorder decorates a sourcecypher.Executor with

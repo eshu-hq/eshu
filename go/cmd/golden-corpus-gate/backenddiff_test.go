@@ -107,7 +107,7 @@ func TestRunBackendDiffAllowlisted(t *testing.T) {
 	left := writeBackendDiffDir(t, "nornicdb", "abc123")
 	right := writeBackendDiffDir(t, "neo4j", "def456")
 	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
-	raw := "entries:\n- statement: \"MATCH (n) RETURN n\"\n  reason: \"seeded test divergence\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n"
+	raw := "entries:\n- statement: \"MATCH (n) RETURN n\"\n  tier: \"statement\"\n  reason: \"seeded test divergence\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n"
 	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

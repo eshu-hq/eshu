@@ -6,8 +6,10 @@
    exported surface.
 2. `go/internal/graph/capture/doc.go` — the package contract anchor.
 3. `go/internal/backendconformance/differential.go` — the fingerprint,
-   digest, recorder, and `CompareRecordings` this package persists and
-   diffs; do not reimplement any of them here.
+   digest, and recorder, plus `differential_kinds.go` (`CompareRecordings`
+   with divergence kinds) and `differential_unwind.go` (batch explosion)
+   that this package persists and diffs; do not reimplement any of them
+   here.
 
 ## Invariants this package enforces
 
@@ -34,6 +36,9 @@
   in `allowlist.go` with a test that a named entry excuses it and an
   unnamed one still fails; update
   `specs/backend-divergence-allowlist.v1.yaml` docs in the same change.
+  Scope the tier to the narrowest kind the excuse needs — a scheduling
+  excuse must never match `results` — and keep executions-tier staleness
+  exemption limited to result-agreement-conditional excuses.
 - **Richer diff output** → keep `maxReportedDiffs` bounded; the full
   recordings stay in the CI artifact for the unbounded case.
 - **New capture tier** → open the session once at binary startup with
@@ -45,4 +50,4 @@
 - The JSONL record envelope: the diff job and any external artifact
   tooling read it; version the schema rather than mutating in place.
 - The allowlist's empty-by-default policy: every divergence fails until
-  named with a reason and an upstream issue link.
+  named with a reason, a tier, and an upstream issue link.
