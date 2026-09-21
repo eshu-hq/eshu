@@ -14,4 +14,9 @@
 // cloud sink statements the reducer runs and the aggregation and
 // optional-match shapes that older NornicDB builds answered wrongly with no
 // error, so a backend regression on them fails the live run.
+//
+// Differential recording ([DifferentialRecorder] with the WrapGraphQuery and
+// WrapExecutor decorators) captures statement fingerprints and result digests
+// per execution for the NornicDB-vs-Neo4j comparison; it stays out of the hot
+// path unless ESHU_DIFFERENTIAL_CAPTURE=1.
 package backendconformance

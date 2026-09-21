@@ -48,3 +48,25 @@ The live write corpus includes the source-local shape that matters for canonical
 projection parity: repository, directory, file, function, and
 `File-[:CONTAINS]->Function`. The live test runs the write corpus twice before
 readback so both official backends prove the relationship stays idempotent.
+
+## Differential capture (issue #6782, slice 2)
+
+`differential.go` records per-statement fingerprints and result digests at the
+`GraphQuery` and sourcecypher executor seams for the NornicDB-vs-Neo4j
+comparison. The wrappers return the inner seam unchanged unless
+`ESHU_DIFFERENTIAL_CAPTURE=1`, so normal runs never allocate a record.
+
+No-Regression Evidence: baseline has no capture code and no wrapped seam;
+after this change production still runs unwrapped (no Go file references the
+qualified constructors `backendconformance.WrapGraphQuery` or
+`backendconformance.WrapExecutor` — the other `WrapExecutor` hits are the
+unrelated `graphbackpressure.WrapExecutorWithGate`).
+`go test ./internal/backendconformance/ -count=1` passes in 0.016s with no
+live backend (unit statements plus fake seams, no Bolt, no NornicDB or Neo4j
+version involved). No Cypher text, schema, queue, lease, or batching changed,
+so there is no hot-path shape to bench before/after; the passthrough is
+pinned by `TestWrappersPassThroughWhenCaptureDisabled`.
+
+No-Observability-Change: no new metrics, spans, or log keys; the recorder is
+process memory only with no operator surface, and existing telemetry signals
+are untouched.
