@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-default_repository="timothyswt/nornicdb-cpu-bge"
-default_index_digest="sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
-default_child_digest="sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
-default_image="${default_repository}:v1.3.3@${default_index_digest}"
+default_repository="ghcr.io/eshu-hq/nornicdb-amd64-cpu"
+default_index_digest="sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+default_child_digest="sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"
+default_image="${default_repository}:fix-490-a427a468@${default_index_digest}"
 rendered_image="${IFA_TEST_RENDERED_IMAGE:-${NORNICDB_IMAGE:-${default_image}}}"
 rendered_platform="${IFA_TEST_RENDERED_PLATFORM:-${NORNICDB_PLATFORM:-linux/amd64}}"
 runtime_image_id="${IFA_TEST_RUNTIME_IMAGE_ID:-sha256:9999999999999999999999999999999999999999999999999999999999999999}"

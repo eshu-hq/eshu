@@ -143,14 +143,32 @@ func TestLatencyExemptionsIsEmptyUnlessExplicitlyGranted(t *testing.T) {
 	}
 }
 
-// TestLatencyExemptionsIsEmptyAfter6858 pins that the gate ships with no
-// standing grant: #6858 moved unscoped /iac/resources onto
-// infra_resource_entities and removed its exemption, so a silent addition
-// fails a test instead of drifting unnoticed. Update this test deliberately
-// if a new grant is ever added.
-func TestLatencyExemptionsIsEmptyAfter6858(t *testing.T) {
-	if len(LatencyExemptions) != 0 {
-		t.Fatalf("LatencyExemptions has %d entries, want 0 (#6858 removed the last grant); update this test deliberately if the grant set changes", len(LatencyExemptions))
+// TestLatencyExemptionsGrantsOnly6909InfraRoutes pins the shipped grant set:
+// exactly the two infra/resources routes exempt under #6909, each with its
+// issue reference and reason, so a silent addition still fails a test
+// instead of drifting unnoticed. Update this test deliberately if the grant
+// set ever changes.
+func TestLatencyExemptionsGrantsOnly6909InfraRoutes(t *testing.T) {
+	want := map[string]bool{
+		"GET /api/v0/infra/resources/count":     false,
+		"GET /api/v0/infra/resources/inventory": false,
+	}
+	if len(LatencyExemptions) != len(want) {
+		t.Fatalf("LatencyExemptions has %d entries, want %d (the #6909 infra pair); update this test deliberately if the grant set changes", len(LatencyExemptions), len(want))
+	}
+	for route := range LatencyExemptions {
+		if _, ok := want[route]; !ok {
+			t.Fatalf("unexpected LatencyExemptions entry %q; update this test deliberately if the grant set changes", route)
+		}
+	}
+	for route := range want {
+		ex, ok := LatencyExemptions[route]
+		if !ok {
+			t.Fatalf("LatencyExemptions missing %q", route)
+		}
+		if ex.Issue != "#6909" || ex.Reason == "" {
+			t.Errorf("LatencyExemptions[%q] = %+v, want Issue #6909 with a reason", route, ex)
+		}
 	}
 	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
 		t.Errorf("the shipped LatencyExemptions table fails its own validation: %v", err)

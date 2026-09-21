@@ -101,6 +101,9 @@ func TestParseRouteBudgetsRejectsDuplicateRoute(t *testing.T) {
 }
 
 func TestEvaluateBudgetsReportsBreaches(t *testing.T) {
+	// Isolated from the shipped LatencyExemptions table so grant changes
+	// cannot silently flip this breach-reporting contract.
+	withExemption(t, map[string]LatencyExemption{})
 	budgets, err := ParseRouteBudgets(strings.NewReader(testBudgetFile))
 	if err != nil {
 		t.Fatalf("ParseRouteBudgets: %v", err)

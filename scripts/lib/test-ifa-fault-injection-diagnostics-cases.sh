@@ -258,7 +258,7 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 	jq -e '
 		.services == {
 			nornicdb: {
-				image: "timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f",
+				image: "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555",
 				platform: "linux/amd64"
 			}
 		}
@@ -289,14 +289,14 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 		fail "backend environment captured a non-allowlisted secret"
 	fi
 	jq -e '
-		.rendered_image == "timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
-		and .expected_index_digest == "sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+		.rendered_image == "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+		and .expected_index_digest == "sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
 		and .rendered_platform == "linux/amd64"
 		and .runtime_platform == "linux/amd64"
-		and .accepted_runtime_repo_digest == "timothyswt/nornicdb-cpu-bge@sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
+		and .accepted_runtime_repo_digest == "ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"
 		and .backend_source_revision == "unavailable"
 	' "${case_dir}/backend-provenance.json" >/dev/null \
-		|| fail "backend provenance did not bind the rendered v1.3.3 image to its amd64 artifact"
+		|| fail "backend provenance did not bind the rendered pinned image to its amd64 artifact"
 )
 
 test_ifa_fault_restart_completeness_requires_each_boundary_artifact() (
@@ -437,7 +437,7 @@ test_ifa_fault_failure_artifact_contract() {
 		|| fail "failure diagnostics do not retain the durable GCP fact inputs"
 	rg --fixed-strings --quiet -- 'backend_source_revision: "unavailable"' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not record unavailable backend source revision honestly"
-	rg --fixed-strings --quiet -- 'v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f' "${diagnostics_lib}" \
+	rg --fixed-strings --quiet -- 'fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not require the proven immutable backend index"
 	rg --fixed-strings --quiet -- 'config --format json' "${diagnostics_lib}" \
 		|| fail "diagnostics do not derive backend provenance from rendered Compose config"

@@ -169,10 +169,10 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-### Immutable NornicDB v1.3.3 default
+### Immutable NornicDB default
 
-The default Compose NornicDB service uses the published multi-architecture image
-`timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f`.
+The default Compose NornicDB service uses the eshu-hq self-built multi-architecture image
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555`.
 That exact artifact passes Eshu's restart fault cell without the cross-scope
 relationship corruption observed on the previous source-built backend. The
 default pull policy `missing` downloads the immutable artifact once and reuses
@@ -200,12 +200,12 @@ Confirm the configured digest and the backend's reported version before treating
 the stack as evidence:
 
 ```bash
-docker compose config --images | rg 'nornicdb-cpu-bge:v1.3.3@sha256:81cedbf4'
+docker compose config --images | rg 'nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530f'
 docker compose exec nornicdb /app/nornicdb version
 ```
 
-The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the v1.3.3 tag and immutable
-digest above; the binary string alone cannot identify this release. The official image also omits an OCI source-revision label, so the tag plus digest,
+The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the fix-490-a427a468 tag and immutable
+digest above; the binary string alone cannot identify this release. The pinned image likewise carries no OCI source-revision label, so the tag plus digest,
 selected platform child, and honest binary self-report form the provenance contract.
 
 ### Existing graph volumes
