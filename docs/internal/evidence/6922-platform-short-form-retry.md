@@ -25,7 +25,15 @@ not parse; the constraint address names the exact Platform id key the workload
 finalizer MERGEs, so MERGE-guarded replay converges on the winning node.
 Short forms naming any other label or property, UNIQUE mentions without the
 commit prefix, non-MERGE Cypher, and ordinary syntax errors stay terminal
-(pinned by `TestNornicDBPlatformCommitUniqueConflictRetryStaysNarrow`).
+(pinned by `TestNornicDBPlatformCommitUniqueConflictRetryStaysNarrow`,
+including a short-form x CREATE row so a future guard refactor cannot
+silently retry non-idempotent writes). Two sibling sites deliberately still
+require the `already exists` tail and classify a short form as terminal: the
+`TransactionCommitFailed`/`TransactionOutdated` branch of
+`isNornicDBCommitTimeUniqueConflictError` and the string-fallback
+`isNornicDBCommitTimeUniqueConflict` in the same file. That narrowness is
+correct for the single captured wire shape in #6922 (SyntaxError code); do
+not broaden either site without fresh wire evidence.
 Retry budget is unchanged (default MaxRetries 3, backoff); exhaustion still
 surfaces queue-retryable via `neo4jRetryableError`. No worker, batch, query,
 schema, or conflict-key change.

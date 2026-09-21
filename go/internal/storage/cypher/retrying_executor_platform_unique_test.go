@@ -176,6 +176,18 @@ func TestNornicDBPlatformCommitUniqueConflictRetryStaysNarrow(t *testing.T) {
 			},
 			cypher: "MERGE (p:Platform {id: $id})",
 		},
+		{
+			// Review pin (#6936): the short-form OR-branch must never
+			// retry a non-idempotent write. The MERGE guard is shared and
+			// unchanged, but this row fails first if a future refactor
+			// moves or weakens it.
+			name: "short form without merge stays terminal",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg:  "commit failed: constraint violation: UNIQUE on Platform.[id]",
+			},
+			cypher: "CREATE (p:Platform {id: $id})",
+		},
 	}
 
 	for _, tt := range tests {
