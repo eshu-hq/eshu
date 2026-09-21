@@ -54,9 +54,12 @@ and `.github/workflows/golden-corpus-gate.yml`.
 - `ParseAllowlist` — parses `specs/backend-divergence-allowlist.v1.yaml`;
   missing reason, missing/unknown tier, missing/non-issue upstream, and
   stale entries fail. The tier scopes each entry to one divergence kind
-  (`missing`, `results`, `executions`, `failures`, `rowcount`) or to the
-  whole statement; executions-tier entries are exempt from staleness
-  because agreeing counts match nothing on some runs.
+  (`missing`, `results`, `failures`, `rowcount`) or to the whole
+  statement. There is no `executions` tier: execution-count divergences
+  with agreeing results are advisory at the gate
+  (`backendconformance.AdvisoryKind`, #6782), `Compare` prints them as
+  advisory lines and returns nil for them, and the parser rejects the tier
+  so retired entries cannot linger.
 - `OpenDir` / `LoadDir` — JSONL sink and loader; unknown backends fail on
   both sides.
 

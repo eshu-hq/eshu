@@ -45,7 +45,8 @@
 //     from "all": it needs two backends' recording directories, and a run
 //     that recorded only one backend fails closed. With -diff-left2 and
 //     -diff-right2 the phase runs multi-leg quorum: only divergences
-//     reproducing across both pairings fail the gate.
+//     reproducing across both pairings fail the gate. Execution-count
+//     divergences with agreeing results are advisory in both modes.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use

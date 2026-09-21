@@ -36,9 +36,11 @@
   in `allowlist.go` with a test that a named entry excuses it and an
   unnamed one still fails; update
   `specs/backend-divergence-allowlist.v1.yaml` docs in the same change.
-  Scope the tier to the narrowest kind the excuse needs — a scheduling
-  excuse must never match `results` — and keep executions-tier staleness
-  exemption limited to result-agreement-conditional excuses.
+  Scope the tier to the narrowest kind the excuse needs — a dialect
+  excuse must never match `results` on a read that should agree. Never
+  reintroduce an `executions` tier: that kind is advisory at the gate
+  (`backendconformance.AdvisoryKind`), so an entry for it is dead weight
+  and the parser rejects it.
 - **Richer diff output** → keep `maxReportedDiffs` bounded; the full
   recordings stay in the CI artifact for the unbounded case.
 - **New capture tier** → open the session once at binary startup with

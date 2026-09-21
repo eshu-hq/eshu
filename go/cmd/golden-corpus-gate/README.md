@@ -71,7 +71,12 @@ as a required finding; a run that recorded only one backend fails closed.
 With `-diff-left2`/`-diff-right2` the phase runs multi-leg quorum instead:
 both pairings are excused independently and only divergences reproducing
 across pairings (same fingerprint and kind) fail as required; pairing-local
-noise is reported as an advisory finding.
+noise is reported as an advisory finding. Reproduced execution-count
+divergences with agreeing results (`executions` kind) are also advisory
+(`nornicdb_vs_neo4j_executions`, #6782 permanent disposition): the two
+backends drain at systematically different speeds, so pass counts reproduce
+across pairings and quorum cannot filter them, while row truth is still
+compared through the `results` and `missing` kinds on every read.
 
 Environment variables match the services under test: `ESHU_POSTGRES_DSN`,
 `ESHU_GRAPH_BACKEND`, `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` /

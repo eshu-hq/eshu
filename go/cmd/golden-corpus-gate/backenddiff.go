@@ -22,8 +22,9 @@ import (
 // With -diff-left2/-diff-right2 set, the phase runs multi-leg quorum mode:
 // both pairings are excused independently (stale-allowlist enforcement is
 // unchanged per pairing) and only divergences reproducing across pairings —
-// same fingerprint and kind — fail the gate. Pairing-local noise stays
-// visible as an advisory finding, never as a failure.
+// same fingerprint and kind — fail the gate. Pairing-local noise and
+// reproduced execution-count noise stay visible as advisory findings, never
+// as a failure.
 func runBackendDiff(o options, stdout io.Writer, r *Report) error {
 	left := strings.TrimSpace(o.diffLeft)
 	right := strings.TrimSpace(o.diffRight)
@@ -80,9 +81,10 @@ func unexcusedPairing(leftDir, rightDir string, allow *capture.Allowlist) ([]bac
 }
 
 // runBackendDiffQuorum compares two leg pairings and fails the gate only on
-// reproduced divergences. Non-reproducing divergences are reported as an
-// advisory finding so a genuine regression stays visible while leg-local
-// scheduling noise cannot red the gate on its own.
+// reproduced divergences of a required kind. Non-reproducing divergences
+// and reproduced execution-count noise are each reported as an advisory
+// finding so a genuine regression stays visible while scheduling noise —
+// leg-local or systematic — cannot red the gate on its own.
 func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer, r *Report) error {
 	pairs := [][2]string{
 		{strings.TrimSpace(o.diffLeft), strings.TrimSpace(o.diffRight)},
@@ -104,14 +106,25 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		}
 		unexcused = append(unexcused, remaining)
 	}
-	kept := backendconformance.QuorumIntersection(unexcused[0], unexcused[1])
+	reproduced := backendconformance.QuorumIntersection(unexcused[0], unexcused[1])
+	kept, advisory := backendconformance.SplitAdvisory(reproduced)
 	detail := "nornicdb and neo4j recordings agree across both pairings"
 	if len(kept) != 0 {
 		first := kept[0]
 		detail = fmt.Sprintf("differential comparison found %d reproduced divergence(s), first: %s: %s", len(kept), first.Fingerprint.Statement, first.Detail)
 	}
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_quorum", len(kept) == 0, true, detail)
-	dropped := len(unexcused[0]) + len(unexcused[1]) - 2*len(kept)
+	// Reproduced execution-count noise is reported, never failed: the two
+	// backends drain at systematically different speeds, so pass counts
+	// reproduce across pairings and quorum cannot filter them (#6782
+	// permanent disposition; see backendconformance.AdvisoryKind).
+	advisoryDetail := "no reproduced execution-count divergences"
+	if len(advisory) != 0 {
+		first := advisory[0]
+		advisoryDetail = fmt.Sprintf("%d reproduced execution-count divergence(s) with agreeing results held advisory (scheduling noise), first: %s: %s", len(advisory), first.Fingerprint.Statement, first.Detail)
+	}
+	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions", len(advisory) == 0, false, advisoryDetail)
+	dropped := len(unexcused[0]) + len(unexcused[1]) - 2*len(reproduced)
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_nonreproducing", true, false,
 		fmt.Sprintf("%d pairing-local divergence(s) did not reproduce across pairings (quorum dropped, see pairing reports above)", dropped))
 	return nil

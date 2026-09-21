@@ -17,14 +17,17 @@ design: >
   Every divergence fails the gate until an entry names it with a reason, a
   tier, and an upstream issue link (enforced by ParseAllowlist — a missing
   reason, tier, or non-issue upstream link fails the parse). The tier scopes
-  the excuse to one divergence kind (missing, results, executions, failures,
-  rowcount) or to the whole statement: an executions-tier entry excuses
-  poll-iteration counts only when both backends returned the same result
-  sets, so a result change on the same statement still fails. An entry must
-  match at least one divergence in the run, so a fixed bug cannot linger as
-  a permanent exemption (enforced by Excuse — a stale entry fails even a
-  green run; executions-tier entries are exempt because agreeing counts make
-  them match nothing on some runs). Excuse narrowly: name the exact
+  the excuse to one divergence kind (missing, results, failures, rowcount)
+  or to the whole statement. There is no executions tier: execution-count
+  differences with agreeing result sets are scheduling noise by the
+  classifier's own definition (drain passes, retries, regrouped batches),
+  the two backends drain at systematically different speeds so they
+  reproduce across quorum pairings, and the gate holds them advisory
+  (backendconformance.AdvisoryKind, #6782 permanent disposition
+  2026-09-21) instead of excusing them one statement at a time. An entry
+  must match at least one divergence in the run, so a fixed bug cannot
+  linger as a permanent exemption (enforced by Excuse — a stale entry fails
+  even a green run). Excuse narrowly: name the exact
   statement fingerprint, narrow parameters only when the divergence is
   binding-specific, and link the issue tracking the fix — #6906 for
   dialect-divergent reads, #6782 for oracle dispositions (by-design phased
@@ -251,56 +254,6 @@ entries:
   reason: "Order-dependent cross-repo correlation write attempts: repo sets (32/32) and scope sets (31/31) are identical across legs, and post-normalization element sets are identical modulo run-scoped lineage cells (proven by analysis). Final correlation truth verifies through paired correlation reads with agreeing result sets."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
-- statement: "MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository) WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source DELETE rel"
-  tier: executions
-  reason: "Stale-generation image-lineage retraction pass; iteration counts vary with drain timing; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction) WHERE fn.uid IN $function_uids MATCH (fn)-[:RUNS_IN]->(workload:Workload) RETURN fn.uid AS function_uid, action.action AS action, workload.id AS workload_id"
-  tier: executions
-  reason: "Cloud-action poll; iteration counts vary run to run; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: query
-- statement: "MATCH (repo:Repository {id: $repo_id})-[:DEFINES]->(w:Workload) MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w) MATCH (i)-[rel:RUNS_ON]->(:Platform) WHERE rel.evidence_source = $evidence_source DELETE rel"
-  tier: executions
-  reason: "Stale-generation workload retraction pass; iteration counts vary with drain timing; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "MATCH (source_repo:Repository {id: $repo_id}) MATCH (source_repo)-[rel:DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM]->(:Repository) WHERE rel.evidence_source = $evidence_source DELETE rel"
-  tier: executions
-  reason: "Stale-generation correlation retraction pass; iteration counts vary with drain timing; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "MATCH (source_repo:Repository {id: $repo_id}) MATCH (source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact) WHERE rel.evidence_source = $evidence_source DETACH DELETE artifact"
-  tier: executions
-  reason: "Deployment-evidence retraction pass; iteration counts vary with drain timing; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $anchors AS anchor MATCH (workload:Workload {id: anchor.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance) WHERE instance.environment = anchor.environment RETURN workload.id AS ready_workload_id, instance.environment AS ready_environment"
-  tier: executions
-  reason: "Workload readiness poll; iteration counts vary run to run; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: query
-- statement: "UNWIND $rows AS row MATCH (img:ContainerImage {digest: row.digest}) MATCH (repo:Repository {id: row.repository_id}) MERGE (img)-[rel:BUILT_FROM { scope_id: row.scope_id, evidence_source: row.evidence_source }]->(repo) SET rel.generation_id = row.generation_id, rel.evidence_kinds = row.evidence_kinds, rel.source_tool = row.source_tool"
-  tier: executions
-  reason: "Idempotent image-lineage merge retried across passes; same element sets attempted; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MATCH (s:Function {uid: row.source_function_uid}) MATCH (t:Function {uid: row.sink_function_uid}) MERGE (s)-[rel:TAINT_FLOWS_TO {evidence_uid: row.uid}]->(t) SET rel.sink_kind = row.sink_kind, rel.source_kind = row.source_kind, rel.confidence = row.confidence, rel.cloud = row.cloud, rel.relative_path = row.relative_path, rel.why_trail_json = row.why_trail_json, rel.why_trail_truncated = row.why_trail_truncated, rel.scope_id = row.scope_id, rel.generation_id = row.generation_id, rel.evidence_source = row.evidence_source"
-  tier: executions
-  reason: "Idempotent taint-edge merge retried across passes; same element sets attempted; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $source_uids AS suid MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.evidence_source = $evidence_source DELETE rel"
-  tier: executions
-  reason: "Taint retraction pass; iteration counts vary with drain timing; result sets agree."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "CALL { UNWIND $repo_ids AS repo_id MATCH (source:Repository {id: repo_id})-[:DEPENDS_ON]->(target:Repository) RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id UNION UNWIND $repo_ids AS repo_id MATCH (source:Repository)-[:DEPENDS_ON]->(target:Repository {id: repo_id}) RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id } RETURN source_repo_id, target_repo_id"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
 - statement: "MATCH (e:Function) OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE coalesce(e.cyclomatic_complexity, 0) > 0 RETURN e.id as id, e.name as name, labels(e) as labels, f.relative_path as file_path, repo.id as repo_id, repo.name as repo_name, coalesce(e.language, f.language) as language, e.start_line as start_line, e.end_line as end_line, e.docstring as docstring, e.class_context as class_context, e.method_kind as method_kind, e.constructor_kind as constructor_kind, e.annotation_kind as annotation_kind, e.context as context, e.type_annotation_count as type_annotation_count, e.type_annotation_kinds as type_annotation_kinds, e.type_parameters as type_parameters, e.dead_code_root_kinds as dead_code_root_kinds, e.type_alias_kind as type_alias_kind, e.framework as framework, e.module_kind as module_kind, e.jsx_fragment_shorthand as jsx_fragment_shorthand, e.component_type_assertion as component_type_assertion, e.component_wrapper_kind as component_wrapper_kind, e.protocol as protocol, e.implemented_for as implemented_for, e.attribute_kind as attribute_kind, e.value as value, e.declaration_merge_group as declaration_merge_group, e.declaration_merge_count as declaration_merge_count, e.declaration_merge_kinds as declaration_merge_kinds, e.kind as kind, e.target_kind as target_kind, e.type as type, e.decorators as decorators, e.async as async, e.semantic_kind as semantic_kind, e.metaclass as metaclass, e.source as source, e.terraform_source as terraform_source, e.config_path as config_path, e.includes as includes, e.inputs as inputs, e.locals as locals, e.deployment_name as deployment_name, e.repo_name as entity_repo_name, e.create_deploy as create_deploy, e.cluster_name as cluster_name, e.zone_id as zone_id, e.deploy_entry_point as deploy_entry_point, e.qualified_name as qualified_name, e.sql_entity_type as sql_entity_type, e.schema as schema, e.data_type as data_type, e.table_name as table_name, e.column_name as column_name, e.routine_kind as routine_kind, e.function_language as function_language, coalesce(e.cyclomatic_complexity, 0) as complexity ORDER BY complexity DESC, e.name, e.id LIMIT $limit"
   tier: results
   reason: "NornicDB ORDER BY delivery diverges on distinct keys (cell proof: identical row multisets, different order, calibrated by digest replication); callers truncate without Go re-sort, so API answers differ. Tracked in #6915."
@@ -321,11 +274,6 @@ entries:
   reason: "NornicDB ORDER BY delivery diverges on distinct keys (cell proof: identical row multisets, different order, calibrated by digest replication); callers truncate without Go re-sort, so API answers differ. Tracked in #6915."
   upstream: https://github.com/eshu-hq/eshu/issues/6915
   owner: query
-- statement: "MATCH (source:Workload)-[rel:DEPENDS_ON]->(target:Workload) WHERE source.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source RETURN DISTINCT source.repo_id AS repo_id"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
 - statement: "MATCH path = (start:CloudResource {id: $start_id})-[*1..4]->(repo:Repository) RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels ORDER BY depth, repo_name, repo_id LIMIT $limit"
   tier: results
   reason: "Full graph objects embed run-scoped bare-hex generation ids that cannot be blinded safely (hex collides with content SHAs); all other cells agree. #6782 disposition."
@@ -336,53 +284,3 @@ entries:
   reason: "Full graph objects embed run-scoped bare-hex generation ids that cannot be blinded safely (hex collides with content SHAs); all other cells agree. #6782 disposition."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: query
-- statement: "UNWIND $repo_ids AS requested_repo_id MATCH (i:WorkloadInstance {repo_id: requested_repo_id}) WHERE i.evidence_source = $evidence_source RETURN DISTINCT i.repo_id AS repo_id, i.id AS instance_id"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: query
-- statement: "UNWIND $repo_ids AS rid MATCH (r:Repository {id: rid}) MATCH (r)-[:DEFINES]->(w:Workload) MATCH (fn:Function)-[:RUNS_IN]->(w) MATCH (fn)-[:INVOKES_CLOUD_ACTION]->(:CloudAction) RETURN r.id AS repo_id"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: query
-- statement: "UNWIND $rows AS row MATCH (i:WorkloadInstance {id: row.instance_id}) MATCH (p:Platform {id: row.platform_id}) MATCH (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p) WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source SET rel.confidence = row.platform_confidence, rel.reason = 'Workload instance runs on inferred platform', rel.evidence_source = row.evidence_source, rel.source_tool = null"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MATCH (i:WorkloadInstance {id: row.instance_id}) MATCH (p:Platform {id: row.platform_id}) MATCH (i)-[rel:RUNS_ON]->(p) WHERE rel.identity_key IS NULL DELETE rel"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MATCH (i:WorkloadInstance {id: row.instance_id}) MATCH (p:Platform {id: row.platform_id}) MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MATCH (i:WorkloadInstance {id: row.instance_id}) MATCH (w:Workload {id: row.workload_id}) MERGE (i)-[rel:INSTANCE_OF]->(w) SET rel.confidence = row.materialization_confidence, rel.reason = 'Workload instance belongs to workload', rel.evidence_source = row.evidence_source"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MATCH (repo:Repository {id: row.repo_id}) MATCH (w:Workload {id: row.workload_id}) MERGE (repo)-[rel:DEFINES]->(w) SET rel.confidence = row.materialization_confidence, rel.reason = 'Repository defines workload', rel.evidence_source = row.evidence_source"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MERGE (i:WorkloadInstance {id: row.instance_id}) SET i.type = 'workload_instance', i.name = row.workload_name, i.kind = row.workload_kind, i.classification = row.classification, i.environment = row.environment, i.workload_id = row.workload_id, i.repo_id = row.repo_id, i.materialization_confidence = row.materialization_confidence, i.materialization_provenance = row.materialization_provenance, i.evidence_source = row.evidence_source"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MERGE (p:Platform {id: row.platform_id}) ON CREATE SET p.evidence_source = row.evidence_source SET p.type = 'platform', p.name = row.platform_name, p.kind = row.platform_kind, p.provider = row.platform_provider, p.environment = row.environment, p.region = row.platform_region, p.locator = row.platform_locator"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
-- statement: "UNWIND $rows AS row MERGE (w:Workload {id: row.workload_id}) SET w.type = 'workload', w.name = row.workload_name, w.kind = row.workload_kind, w.classification = row.classification, w.repo_id = row.repo_id, w.materialization_confidence = row.materialization_confidence, w.materialization_provenance = row.materialization_provenance, w.evidence_source = row.evidence_source"
-  tier: executions
-  reason: "Poll/retry iteration counts differ with agreeing result sets; scheduling noise per the executions-tier contract. #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: graph
