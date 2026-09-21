@@ -39,6 +39,11 @@
 //     within its testdata/golden/e2e-baseline.json baseline (band OR absolute
 //     slack). The per-phase check is advisory on shared CI runners
 //     (-phase-regression-advisory) and blocking on a controlled host.
+//   - backend-diff: the differential capture recordings from a NornicDB run
+//     and a Neo4j run agree, modulo the committed
+//     specs/backend-divergence-allowlist.v1.yaml (#6782). Opt-in and excluded
+//     from "all": it needs two backends' recording directories, and a run
+//     that recorded only one backend fails closed.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use

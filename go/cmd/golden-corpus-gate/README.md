@@ -50,7 +50,19 @@ ESHU_GRAPH_BACKEND=nornicdb NEO4J_URI=... ESHU_API_KEY=... \
 
 # Timing (orchestrator passes observed wall time):
 golden-corpus-gate -phase=timing -budget-seconds=900 -elapsed-seconds=1100 -budget-multiplier=2
+
+# Backend-diff (compare NornicDB vs Neo4j differential capture recordings):
+golden-corpus-gate -phase=backend-diff \
+  -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j
 ```
+
+The backend-diff phase is opt-in and excluded from `-phase=all`: it needs
+two backends' recording directories, which a normal single-backend B-7 run
+never has. Recordings come from replaying the corpus with
+`ESHU_DIFFERENTIAL_CAPTURE=1` and `ESHU_DIFFERENTIAL_CAPTURE_DIR` set (one
+directory per backend). Every divergence the committed
+`specs/backend-divergence-allowlist.v1.yaml` does not excuse fails the gate
+as a required finding; a run that recorded only one backend fails closed.
 
 Environment variables match the services under test: `ESHU_POSTGRES_DSN`,
 `ESHU_GRAPH_BACKEND`, `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` /
@@ -175,6 +187,8 @@ scans an entire response.
   via `go/internal/demospec`, execute each question live (its `surface` or, for a
   playbook, its `surface.execute` target), and assert a populated answer (#4776).
 - `report.go` — finding aggregation, severity, and rendering.
+- `backenddiff.go` — the backend-diff phase: compare two backends'
+  differential capture directories against the divergence allowlist (#6782).
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
 ## SQL relationship and CODEOWNERS query coverage (#5410)

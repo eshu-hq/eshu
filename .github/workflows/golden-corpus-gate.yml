@@ -160,6 +160,12 @@ on:
       # the Neo4j image digest; a digest-only bump must re-run the gate too
       # (#6782 round-4 review P3-4).
       - 'docker-compose.neo4j.yml'
+      # #6782: the differential job compares the two backends' recordings with
+      # the committed allowlist, so an allowlist edit must re-run it too.
+      - 'specs/backend-divergence-allowlist.v1.yaml'
+      # #6782: the comparison itself (CompareRecordings, record shape) lives
+      # here; a change that alters what is compared must re-run the oracle.
+      - 'go/internal/backendconformance/**'
       - '.github/workflows/golden-corpus-gate.yml'
 
 concurrency:
@@ -235,3 +241,73 @@ jobs:
       - name: Tear down Docker services
         if: always()
         run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" down -v || true
+
+  # #6782: the differential oracle. Replays the same B-7 corpus on each
+  # backend with differential capture on, then fails the run on any
+  # divergence the committed allowlist does not excuse. Self-contained
+  # (the matrix legs above stay untouched) and sequential (one runner, so
+  # the two compose stacks reuse the same host ports after teardown).
+  differential:
+    name: differential nornicdb vs neo4j
+    runs-on: ubuntu-latest
+    # Two sequential B-7 legs (30m each, mirroring corpus-gate) plus compare.
+    timeout-minutes: 75
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run B-7 with differential capture (nornicdb)
+        env:
+          ESHU_GRAPH_BACKEND: nornicdb
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+          ESHU_DIFFERENTIAL_CAPTURE: 1
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/nornicdb
+          GATE_COMPOSE_PROJECT: eshu-differential-nornicdb
+        run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Run B-7 with differential capture (neo4j)
+        env:
+          ESHU_GRAPH_BACKEND: neo4j
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_POSTGRES_PASSWORD: change-me
+          ESHU_DIFFERENTIAL_CAPTURE: 1
+          ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/neo4j
+          GATE_COMPOSE_PROJECT: eshu-differential-neo4j
+        run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Build golden-corpus-gate
+        run: go -C go build -o "${{ runner.temp }}/golden-corpus-gate" ./cmd/golden-corpus-gate
+
+      - name: Compare backend recordings
+        run: >
+          "${{ runner.temp }}/golden-corpus-gate" -phase=backend-diff
+          "-diff-left=${{ runner.temp }}/diff-capture/nornicdb"
+          "-diff-right=${{ runner.temp }}/diff-capture/neo4j"
+          -diff-allowlist=specs/backend-divergence-allowlist.v1.yaml
+
+      - name: Upload capture recordings on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-capture
+          path: ${{ runner.temp }}/diff-capture
+          if-no-files-found: error
+
+      - name: Tear down Docker services
+        if: always()
+        run: |
+          docker compose -p eshu-differential-nornicdb -f docker-compose.yaml down -v || true
+          docker compose -p eshu-differential-neo4j -f docker-compose.neo4j.yml down -v || true

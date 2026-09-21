@@ -1,0 +1,26 @@
+version: backend-divergence-allowlist/v1
+updated_at: 2026-09-21
+issue: 6782
+parent_issue: 6788
+owners:
+  - graph
+  - query
+
+purpose: >
+  Name the NornicDB-vs-Neo4j divergences the differential oracle is allowed
+  to excuse. This spec is the acceptance oracle for issue #6782: the
+  golden-corpus-gate backend-diff phase fails on every divergence this file
+  does not name, so a silent semantic drift between the two backends can
+  never pass as clean.
+
+design: >
+  The file starts empty on purpose: every divergence fails the gate until
+  an entry names it with a reason and an upstream issue link (enforced by
+  ParseAllowlist — a missing reason or a non-issue upstream link fails the
+  parse). An entry must match at least one divergence in the run, so a
+  fixed bug cannot linger as a permanent exemption (enforced by Excuse —
+  a stale entry fails even a green run). Excuse narrowly: name the exact
+  statement fingerprint, narrow parameters only when the divergence is
+  binding-specific, and link the issue tracking the backend fix.
+
+entries: []
