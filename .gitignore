@@ -152,3 +152,8 @@ skill-fragments/capabilities.local.yaml
 go/.gocache/
 go/.gocache2/
 go/.gocache-*/
+
+# Local pre-push review marker written by the agent review hook. It is a
+# machine-local signal that a self-review ran; nothing in the repository reads
+# it, so it must never be committed.
+.claude-review-ok
