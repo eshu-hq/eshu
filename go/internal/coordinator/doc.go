@@ -20,8 +20,8 @@
 // scopes; GCP planning creates workflow rows but does not resolve credentials
 // or call Google Cloud APIs.
 //
-// PackageRegistryWorkPlanner and
-// VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
+// packages.WorkPlanner and
+// vulnerability.IntelligenceWorkPlanner each plan bounded work items without
 // opening provider connections. Package and
 // vulnerability planners preserve direct and owned target priority ahead of
 // broad fanout and report aggregate skipped-target evidence when an
@@ -125,13 +125,14 @@
 // plan-key grammar. The contract package validates only the string. Service
 // keeps ordering, admission, persistence, retry, and telemetry ownership.
 //
-// SemanticProviderWorker is the egress-gated semantic-provider execution worker.
+// semantic.ProviderWorker is the egress-gated semantic-provider execution worker,
+// reached through the optional Service.SemanticProviderWorker field.
 // It claims semantic extraction jobs, re-checks semantic egress fail-closed with
 // semanticpolicy.EvaluateEgress before any provider dispatch, audits every egress
 // decision, and dispatches only through an explicitly enabled provider client.
 // The worker ships no real provider traffic by default: it is OFF unless
 // ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED is set, and the default
-// DisabledSemanticProviderClient performs no network I/O, so an egress-allowed
+// semantic.DisabledProviderClient performs no network I/O, so an egress-allowed
 // claim terminates as provider_execution_not_enabled. Real outbound traffic
 // additionally requires the default-OFF ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED
 // flag and a concrete enabled client supplied by a future security-reviewed PR.

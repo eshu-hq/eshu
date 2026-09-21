@@ -43,6 +43,13 @@ live in the repository today.
 | `go/internal/coordinator/planner/tfstate/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
 | `go/internal/coordinator/vault/` | documentation-only namespace for coordinator-side Vault planning contracts |
 | `go/internal/coordinator/vault/live/` | Vault metadata scheduler request validation and deterministic workflow planning |
+| `go/internal/coordinator/egress/` | collector and component-extension egress policy parsing and fail-closed allow/deny decisions |
+| `go/internal/coordinator/environment/` | environment-variable parsing shared by coordinator config loading and the semantic-provider worker |
+| `go/internal/coordinator/governance/audit/` | redacted governance-audit scope hashing, correlation identity, service identity, and append timeout |
+| `go/internal/coordinator/registry/package/` | package-registry target derivation, ecosystem target construction, and deterministic workflow planning (Go package name `packages`) |
+| `go/internal/coordinator/schedule/` | shared scheduling substrate: target classes and ranking, derived-target budget and skip evidence, rotation offsets, plan keys, and derivation helpers |
+| `go/internal/coordinator/semantic/` | egress-gated semantic-provider execution worker, its configuration, and its claim telemetry |
+| `go/internal/coordinator/vulnerability/` | vulnerability-intelligence target derivation, OSV query batching and chunk sizing, and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP ordered assembly, global route fanout and adapters, dispatch, authorization, transport, timeouts, response budgets, envelopes, and telemetry |

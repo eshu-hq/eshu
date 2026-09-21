@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -235,7 +236,7 @@ func (s Service) finishIncidentFreshnessHandoff(
 func (s Service) incidentFreshnessPlanKey(observedAt time.Time) string {
 	interval := s.Config.ReconcileInterval
 	if interval <= 0 {
-		interval = defaultReconcileInterval
+		interval = schedule.DefaultReconcileInterval
 	}
 	return "freshness-" + observedAt.UTC().Truncate(interval).Format("20060102T150405Z")
 }

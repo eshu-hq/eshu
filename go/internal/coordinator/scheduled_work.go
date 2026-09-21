@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -122,7 +123,7 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 		return fmt.Errorf("%s %s must be at least %s", scanIntervalConfigKey, interval, minScanInterval)
 	}
 	if reconcileInterval <= 0 {
-		reconcileInterval = defaultReconcileInterval
+		reconcileInterval = schedule.DefaultReconcileInterval
 	}
 	if interval < reconcileInterval {
 		return fmt.Errorf(
@@ -159,7 +160,7 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 func (s Service) scanInterval(instance workflow.CollectorInstance) (time.Duration, error) {
 	global := s.Config.ReconcileInterval
 	if global <= 0 {
-		global = defaultReconcileInterval
+		global = schedule.DefaultReconcileInterval
 	}
 	if instance.Bootstrap {
 		return global, nil
@@ -188,7 +189,7 @@ func scheduledPlanKey(instance workflow.CollectorInstance, observedAt time.Time,
 		return "bootstrap"
 	}
 	if interval <= 0 {
-		interval = defaultReconcileInterval
+		interval = schedule.DefaultReconcileInterval
 	}
 	prefix := strings.TrimSpace(string(instance.Mode))
 	if prefix == "" {

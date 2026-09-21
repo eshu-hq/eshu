@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	packages "github.com/eshu-hq/eshu/go/internal/coordinator/registry/package"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakePackageRegistryPlanner struct {
-	requests []PackageRegistryPlanRequest
+	requests []packages.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -21,7 +23,7 @@ type fakePackageRegistryPlanner struct {
 
 func (f *fakePackageRegistryPlanner) PlanPackageRegistryWork(
 	_ context.Context,
-	request PackageRegistryPlanRequest,
+	request packages.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -171,7 +173,7 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 	if targetReader.requests[0].VersionSpecific {
 		t.Fatalf("package-registry target reader requested version-specific rows")
 	}
-	if got, want := targetReader.requests[0].RotationOffset, derivedTargetRotationOffset(now, time.Hour, 125); got != want {
+	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 125); got != want {
 		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
 	}
 	if got, want := len(planner.requests[0].OwnedPackageTargets), 1; got != want {
@@ -191,4 +193,8 @@ func testServicePackageRegistryInstance(observedAt time.Time) workflow.Collector
 		CreatedAt:      observedAt,
 		UpdatedAt:      observedAt,
 	}
+}
+
+func testPackageRegistryConfiguration() string {
+	return `{"targets":[{"provider":"jfrog","ecosystem":"generic","registry":"https://artifactory.example.com","scope_id":"package-registry://jfrog/generic/team-api","packages":["team-api"],"package_limit":10,"version_limit":25,"metadata_url":"https://artifactory.example.com/api/storage/generic/team-api"}]}`
 }

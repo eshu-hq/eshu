@@ -38,8 +38,11 @@ Five production files and one test file import this package; none owns it:
 This is why the package exists here rather than inside
 `planner/component/extension`: moving it into the planner package would force
 `pagerduty_service.go` and `governance_audit.go` — unrelated providers — to
-import a scheduler-specific package, the same shape #6057 forbids for
-`owned_package_target_helpers.go` and `target_priority.go`. This package
+import a scheduler-specific package, the same shape #6057 forbids for the
+shared derived-target helpers. Those helpers took the other route under #6781:
+they moved down into `coordinator/schedule`, a neutral package below both the
+root and the families that share them, rather than being exported from one
+family to another. This package
 landed as its own commit before the scheduler extraction, not alongside it:
 it is that extraction's prerequisite (root imports the child for its
 request type, so the child cannot import root back, and this type cannot

@@ -32,10 +32,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
+	packages "github.com/eshu-hq/eshu/go/internal/coordinator/registry/package"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
+	coordinatorsemantic "github.com/eshu-hq/eshu/go/internal/coordinator/semantic"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
@@ -96,7 +99,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	semanticWorkerCfg, err := coordinator.LoadSemanticProviderWorkerConfig(os.Getenv)
+	semanticWorkerCfg, err := coordinatorsemantic.LoadProviderWorkerConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -106,7 +109,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return fmt.Errorf("coordinator metrics: %w", err)
 	}
-	semanticWorkerMetrics, err := coordinator.NewSemanticProviderWorkerMetrics(meter)
+	semanticWorkerMetrics, err := coordinatorsemantic.NewProviderWorkerMetrics(meter, coordinator.MetricPrefix)
 	if err != nil {
 		return fmt.Errorf("semantic provider worker metrics: %w", err)
 	}
@@ -187,8 +190,8 @@ func run(parent context.Context) error {
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
 		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
-		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
-		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
+		PackageRegistryPlanner:            packages.WorkPlanner{},
+		VulnerabilityIntelligencePlanner:  vulnerability.IntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              alert.WorkPlanner{},
@@ -223,10 +226,10 @@ func run(parent context.Context) error {
 		// not wired here. A concrete enabled client is supplied by a future,
 		// security-reviewed PR. With this default the worker only claims, gates
 		// egress, audits decisions, and terminates allowed jobs as provider-disabled.
-		serviceRunner.SemanticProviderWorker = &coordinator.SemanticProviderWorker{
+		serviceRunner.SemanticProviderWorker = &coordinatorsemantic.ProviderWorker{
 			Config:          semanticWorkerCfg,
 			Claimer:         semanticstore.NewSemanticExtractionQueueStore(postgres.SQLDB{DB: db}),
-			Client:          coordinator.DisabledSemanticProviderClient{},
+			Client:          coordinatorsemantic.DisabledProviderClient{},
 			GovernanceAudit: governanceAuditStore,
 			Metrics:         semanticWorkerMetrics,
 			Logger:          logger,

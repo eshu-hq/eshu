@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	"go.opentelemetry.io/otel/metric"
 )
 
 const (
@@ -389,7 +391,7 @@ func (s Service) markGCPFreshnessFailed(
 func (s Service) gcpFreshnessPlanKey(observedAt time.Time) string {
 	interval := s.Config.ReconcileInterval
 	if interval <= 0 {
-		interval = defaultReconcileInterval
+		interval = schedule.DefaultReconcileInterval
 	}
 	return "freshness-" + observedAt.UTC().Truncate(interval).Format("20060102T150405Z")
 }

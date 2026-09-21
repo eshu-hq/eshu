@@ -5,40 +5,36 @@ package coordinator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/governance/audit"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-)
-
-const (
-	governanceAuditAppendTimeout = 500 * time.Millisecond
-	governanceAuditServiceID     = "svc:workflow-coordinator"
 )
 
 func (s Service) recordCollectorEgressAudit(
 	ctx context.Context,
 	observedAt time.Time,
 	instance workflow.CollectorInstance,
-	decision CollectorEgressDecision,
+	decision egress.CollectorDecision,
 ) error {
-	if s.GovernanceAudit == nil || decision.Action != CollectorEgressActionDeny {
+	if s.GovernanceAudit == nil || decision.Action != egress.CollectorActionDeny {
 		return nil
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeCollectorActivation,
 		ActorClass:         governanceaudit.ActorClassServicePrincipal,
-		ServicePrincipalID: governanceAuditServiceID,
+		ServicePrincipalID: audit.ServiceID,
 		ScopeClass:         governanceaudit.ScopeClassCollectorKind,
-		ScopeIDHash:        governanceAuditHash("collector", string(instance.CollectorKind)),
+		ScopeIDHash:        audit.Hash("collector", string(instance.CollectorKind)),
 		Decision:           governanceAuditDecision(decision.Reason),
 		ReasonCode:         decision.Reason,
-		CorrelationID:      governanceAuditCorrelation("collector-egress", string(instance.CollectorKind)),
+		CorrelationID:      audit.CorrelationID("collector-egress", string(instance.CollectorKind)),
 		OccurredAt:         governanceAuditOccurredAt(observedAt, s.Config.ReconcileInterval),
 	}
 	return s.appendGovernanceAudit(ctx, event)
@@ -49,17 +45,17 @@ func (s Service) recordExtensionEgressAudit(
 	observedAt time.Time,
 	instance workflow.CollectorInstance,
 	config activation.Config,
-	decision ExtensionEgressDecision,
+	decision egress.ExtensionDecision,
 ) error {
-	if s.GovernanceAudit == nil || decision.Action != ExtensionEgressActionDeny {
+	if s.GovernanceAudit == nil || decision.Action != egress.ExtensionActionDeny {
 		return nil
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeExtensionActivation,
 		ActorClass:         governanceaudit.ActorClassServicePrincipal,
-		ServicePrincipalID: governanceAuditServiceID,
+		ServicePrincipalID: audit.ServiceID,
 		ScopeClass:         governanceaudit.ScopeClassExtensionComponent,
-		ScopeIDHash: governanceAuditHash(
+		ScopeIDHash: audit.Hash(
 			"extension",
 			config.ComponentID,
 			instance.InstanceID,
@@ -67,14 +63,14 @@ func (s Service) recordExtensionEgressAudit(
 		),
 		Decision:      governanceAuditDecision(decision.Reason),
 		ReasonCode:    decision.Reason,
-		CorrelationID: governanceAuditCorrelation("extension-egress", config.ComponentID, instance.InstanceID),
+		CorrelationID: audit.CorrelationID("extension-egress", config.ComponentID, instance.InstanceID),
 		OccurredAt:    governanceAuditOccurredAt(observedAt, s.Config.ReconcileInterval),
 	}
 	return s.appendGovernanceAudit(ctx, event)
 }
 
 func (s Service) appendGovernanceAudit(ctx context.Context, event governanceaudit.Event) error {
-	auditCtx, cancel := context.WithTimeout(ctx, governanceAuditAppendTimeout)
+	auditCtx, cancel := context.WithTimeout(ctx, audit.AppendTimeout)
 	defer cancel()
 	if err := s.GovernanceAudit.Append(auditCtx, []governanceaudit.Event{event}); err != nil {
 		return fmt.Errorf("append governance audit event: %w", err)
@@ -83,31 +79,17 @@ func (s Service) appendGovernanceAudit(ctx context.Context, event governanceaudi
 }
 
 func governanceAuditDecision(reason string) governanceaudit.Decision {
-	if strings.TrimSpace(reason) == CollectorEgressReasonMissing ||
-		strings.TrimSpace(reason) == ExtensionEgressReasonMissing {
+	if strings.TrimSpace(reason) == egress.CollectorReasonMissing ||
+		strings.TrimSpace(reason) == egress.ExtensionReasonMissing {
 		return governanceaudit.DecisionUnavailable
 	}
 	return governanceaudit.DecisionDenied
 }
 
-func governanceAuditHash(parts ...string) string {
-	normalized := make([]string, 0, len(parts))
-	for _, part := range parts {
-		normalized = append(normalized, strings.TrimSpace(part))
-	}
-	sum := sha256.Sum256([]byte(strings.Join(normalized, "\x00")))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func governanceAuditCorrelation(prefix string, parts ...string) string {
-	hash := strings.TrimPrefix(governanceAuditHash(parts...), "sha256:")
-	return strings.TrimSpace(prefix) + ":" + hash[:16]
-}
-
 func governanceAuditOccurredAt(observedAt time.Time, interval time.Duration) time.Time {
 	observedAt = observedAt.UTC()
 	if interval <= 0 {
-		interval = defaultReconcileInterval
+		interval = schedule.DefaultReconcileInterval
 	}
 	return observedAt.Truncate(interval)
 }

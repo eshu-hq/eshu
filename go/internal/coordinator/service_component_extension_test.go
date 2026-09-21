@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -206,7 +207,7 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 	if got, want := event.Decision, governanceaudit.DecisionUnavailable; got != want {
 		t.Fatalf("event.Decision = %q, want %q", got, want)
 	}
-	if got, want := event.ReasonCode, ExtensionEgressReasonMissing; got != want {
+	if got, want := event.ReasonCode, egress.ExtensionReasonMissing; got != want {
 		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
 	}
 	if event.ScopeIDHash == "" {
@@ -261,7 +262,7 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 	if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
 		t.Fatalf("event.Decision = %q, want %q", got, want)
 	}
-	if got, want := event.ReasonCode, ExtensionEgressReasonDenied; got != want {
+	if got, want := event.ReasonCode, egress.ExtensionReasonDenied; got != want {
 		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
 	}
 	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
@@ -411,12 +412,12 @@ func TestShouldScheduleComponentExtensionIgnoresUnrelatedSchemaVersionConfig(t *
 	}
 }
 
-func mustParseExtensionEgressPolicy(t *testing.T, raw string) ExtensionEgressPolicy {
+func mustParseExtensionEgressPolicy(t *testing.T, raw string) egress.ExtensionPolicy {
 	t.Helper()
 
-	policy, err := ParseExtensionEgressPolicyJSON(raw)
+	policy, err := egress.ParseExtensionPolicyJSON(raw)
 	if err != nil {
-		t.Fatalf("ParseExtensionEgressPolicyJSON() error = %v, want nil", err)
+		t.Fatalf("egress.ParseExtensionPolicyJSON() error = %v, want nil", err)
 	}
 	return policy
 }
