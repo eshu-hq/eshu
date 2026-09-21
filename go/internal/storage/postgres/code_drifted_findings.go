@@ -33,7 +33,11 @@ JOIN ingestion_scopes AS scope
 WHERE fact.fact_kind = $1
   AND fact.is_tombstone = false
   AND fact.payload->>'repo_id' = $2
-  AND (cardinality($3::text[]) = 0 OR fact.payload->>'finding_id' = ANY($3))
+  -- $3 binds NULL when the caller passes a nil window
+  -- (pgarray.StringArray(nil).Value() is SQL NULL) and cardinality(NULL)
+  -- is NULL, so the bare cardinality test would drop every row. COALESCE
+  -- keeps the empty-window-means-all contract for both NULL and '{}'.
+  AND (COALESCE(cardinality($3::text[]), 0) = 0 OR fact.payload->>'finding_id' = ANY($3))
 `
 
 // PostgresCodeDriftedFindingStore serves admitted drifted pairs back to the

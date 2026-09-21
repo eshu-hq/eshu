@@ -60,6 +60,26 @@ func (w PostgresCodeDriftedWriter) WriteDriftedFindings(
 	// no longer verifies. Runs after the insert succeeds so the retire only
 	// ever removes rows this pass's own fresh write has superseded, never a
 	// still-in-flight batch's rows.
+	//
+	// Why no transaction or admission fencing (cf. the sibling AWS drift
+	// writer, #5848/#5875): the insert and the retire converge without one.
+	// Inserts upsert on stable content-addressed fact ids (ON CONFLICT
+	// DO UPDATE with all fencing tokens 0, so every conflicting row
+	// applies: last-writer-wins, never a duplicate), and the retire is an
+	// absolute DELETE ... NOT IN keep, not an incremental tombstone. Every
+	// completed pass therefore ends with its retire, and the last retire to
+	// run leaves exactly its own complete keep set -- after all in-flight
+	// passes settle the table is always one pass's full assessment, never
+	// a partial mix (TestDriftedPassRetireConvergesLive proves this on live
+	// Postgres). There is no admission watermark table whose monotonic
+	// state a partial application could corrupt, which is the hazard the
+	// sibling's tx + fencing-token pattern exists for; and fencing could
+	// not order drifted passes anyway, because the loader carries no
+	// evidence-as-of watermark to rank them by. Residual windows, stated
+	// so the next reader need not re-derive them: readers can observe a
+	// mid-pass mix (self-corrects at pass end), and a crash between the
+	// insert and the retire leaves inserted-but-unretired rows until the
+	// next full-pass retry re-assesses and retires them.
 	if err := retireDriftedFindings(ctx, w.DB, write.ScopeID, write.GenerationID, findingIDs); err != nil {
 		return DriftedWriteResult{}, err
 	}
@@ -108,7 +128,7 @@ func driftedPairFactRow(
 		MemberB:       driftedMemberPayload(admitted.Pair.B),
 		TruthLevel:    facts.SourceConfidenceDerived,
 		Suppressions:  suppressionCountsPayload(write.Suppressions),
-		Evidence:      payloadcore.NonNilMapSlice(driftEvidencePayload(admitted.Evidence)),
+		Evidence:      payloadcore.NonNilMapSlice(driftEvidencePayload(stampDriftedEvidenceIdentity(admitted.Evidence, findingID, write.ScopeID))),
 		SourceLayers:  []string{"source_declaration"},
 	})
 	if err != nil {
@@ -162,6 +182,32 @@ func suppressionCountsPayload(counts map[string]int) map[string]any {
 		out[rule] = count
 	}
 	return out
+}
+
+// driftedEvidenceSourceSystem identifies the drifted reducer domain as the
+// evidence source, matching the sibling drift writers' reducer/<domain>
+// shape. It is a literal, not the write's intent source system: the atoms
+// are reducer-measured output (Jaccard over persisted shingle sets),
+// regardless of which collector feed triggered the intent.
+const driftedEvidenceSourceSystem = "reducer/code_drifted"
+
+// stampDriftedEvidenceIdentity fills the identity fields ApplyRules cannot
+// know. The verifier is a context-free pair check with no repo or scope
+// in sight, while the writer derives the finding id; stamping here keeps one
+// identity-derivation site. Every shipped atom gets a finding-scoped id
+// (findingID + "/" + atom key), the domain source system, the write scope,
+// and confidence 1, so consumers joining or filtering on evidence identity
+// never see empty strings.
+func stampDriftedEvidenceIdentity(atoms []model.EvidenceAtom, findingID, scopeID string) []model.EvidenceAtom {
+	stamped := make([]model.EvidenceAtom, 0, len(atoms))
+	for _, atom := range atoms {
+		atom.ID = findingID + "/" + atom.Key
+		atom.SourceSystem = driftedEvidenceSourceSystem
+		atom.ScopeID = scopeID
+		atom.Confidence = 1
+		stamped = append(stamped, atom)
+	}
+	return stamped
 }
 
 // driftEvidencePayload renders the drift evidence atoms into the payload's

@@ -50,7 +50,7 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set; test files suppress by default",
+					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},
@@ -81,7 +81,7 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set; test files suppress by default",
+					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},

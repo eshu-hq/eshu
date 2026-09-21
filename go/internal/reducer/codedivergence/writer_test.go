@@ -112,6 +112,27 @@ func TestPostgresCodeDriftedWriterPersistsOneFactPerPair(t *testing.T) {
 	if decoded.FindingID != DriftedFindingID("repo-1", write.Pairs[0].Pair.A, write.Pairs[0].Pair.B) {
 		t.Fatal("payload FindingID must equal the stable pair identity")
 	}
+	// Shipped evidence atoms carry joinable identity: a finding-scoped id,
+	// the domain source system, the write scope, and measured confidence.
+	// Consumers filtering on evidence identity must never see empty strings.
+	if len(decoded.Evidence) != 2 {
+		t.Fatalf("evidence atoms = %d, want 2 (similarity, differs_in_ranges)", len(decoded.Evidence))
+	}
+	for _, atom := range decoded.Evidence {
+		wantID := decoded.FindingID + "/" + atom["key"].(string)
+		if atom["id"] != wantID {
+			t.Errorf("evidence id = %v, want %q", atom["id"], wantID)
+		}
+		if atom["source_system"] != "reducer/code_drifted" {
+			t.Errorf("evidence source_system = %v, want reducer/code_drifted", atom["source_system"])
+		}
+		if atom["scope_id"] != "repo:repo-1" {
+			t.Errorf("evidence scope_id = %v, want repo:repo-1", atom["scope_id"])
+		}
+		if atom["confidence"] != 1.0 {
+			t.Errorf("evidence confidence = %v, want 1", atom["confidence"])
+		}
+	}
 	assertDriftedRetireCall(t, db.Execs[1], write.ScopeID, write.GenerationID, []string{row.FactID})
 }
 

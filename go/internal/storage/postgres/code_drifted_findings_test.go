@@ -132,7 +132,7 @@ func TestDriftedFindingsQueryShape(t *testing.T) {
 	if !strings.Contains(driftedFindingsQuery, "payload->>'finding_id' = ANY($3)") {
 		t.Errorf("drifted findings query must hydrate by finding id, got:\n%s", driftedFindingsQuery)
 	}
-	if !strings.Contains(driftedFindingsQuery, "cardinality($3::text[]) = 0") {
-		t.Errorf("drifted findings query must read all active rows when the window is empty, got:\n%s", driftedFindingsQuery)
+	if !strings.Contains(driftedFindingsQuery, "COALESCE(cardinality($3::text[]), 0) = 0") {
+		t.Errorf("drifted findings query must read all active rows when the window is empty or NULL, got:\n%s", driftedFindingsQuery)
 	}
 }

@@ -31,7 +31,10 @@ var errDivergenceFindingsUnavailable = errors.New("divergence findings content i
 // body. RepoID is required and resolved against the caller's grant (an
 // ungranted repo rejects with 400 before any read); Kind selects the family
 // ("" reads all three: exact, renamed, and drifted); IncludeTests opts
-// test-file copies back into the member set.
+// test-file copies back into the member set for the exact and renamed
+// families. It has no effect on drifted: pairs touching test files are
+// dropped at write, so no drifted fact ever carries a test member to
+// resurrect.
 type DivergenceFindingsRequest struct {
 	RepoID       string `json:"repo_id"`
 	Kind         string `json:"kind"`

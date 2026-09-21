@@ -28,7 +28,7 @@ const Divergence = `
                   "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted"], "default": "", "description": "Family; blank reads all three"},
                   "limit": {"type": "integer", "default": 25, "maximum": 100},
                   "offset": {"type": "integer", "default": 0, "maximum": 10000},
-                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set"}
+                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }
               }
             }
@@ -68,7 +68,7 @@ const Divergence = `
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
                   "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted"]},
                   "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry"},
-                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set"}
+                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }
               }
             }
