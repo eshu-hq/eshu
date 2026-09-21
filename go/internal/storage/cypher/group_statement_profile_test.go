@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestExecuteProfiledStatementGroupLogsStatementMetadata(t *testing.T) {
@@ -111,9 +111,9 @@ func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
 func TestCanonicalFileWriterStatementsAllHaveProfiles(t *testing.T) {
 	t.Parallel()
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 100, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID: "scope", GenerationID: "generation", RepoID: "repo",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{RepoID: "repo", Path: "/repo/root.go", RelativePath: "root.go", Name: "root.go"},
 			{RepoID: "repo", Path: "/repo/dir/nested.go", RelativePath: "dir/nested.go", DirPath: "/repo/dir", Name: "nested.go"},
 		},

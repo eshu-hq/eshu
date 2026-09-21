@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -162,7 +162,7 @@ func seedRefinalizeResetReducerWork(
 	t.Helper()
 
 	queue := NewReducerQueue(SQLDB{DB: db}, "refinalize-reset-test", time.Minute)
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainCodeCallMaterialization,
@@ -171,7 +171,7 @@ func seedRefinalizeResetReducerWork(
 		FactID:       "fact-" + entityKey,
 		SourceSystem: "git",
 	}
-	if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 		t.Fatalf("seed reducer work item %s: %v", entityKey, err)
 	}
 

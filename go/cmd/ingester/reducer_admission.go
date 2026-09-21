@@ -13,15 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -131,13 +130,13 @@ func ingesterReducerIntentWriter(
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (projector.ReducerIntentWriter, error) {
+) (runtime.ReducerIntentWriter, error) {
 	writer := reducerIntentWriterForProfile(getenv, postgres.NewReducerQueue(database, "ingester", time.Minute))
 	return reducerIntentWriterWithAdmission(database, writer, getenv, instruments, logger)
 }
 
 type reducerAdmissionWriter struct {
-	inner       projector.ReducerIntentWriter
+	inner       runtime.ReducerIntentWriter
 	depthReader reducerAdmissionDepthReader
 	config      reducerAdmissionConfig
 	instruments *telemetry.Instruments
@@ -154,11 +153,11 @@ type reducerAdmissionWriter struct {
 
 func reducerIntentWriterWithAdmission(
 	database db.Queryer,
-	inner projector.ReducerIntentWriter,
+	inner runtime.ReducerIntentWriter,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (projector.ReducerIntentWriter, error) {
+) (runtime.ReducerIntentWriter, error) {
 	if ingesterLocalLightweight(getenv) {
 		return inner, nil
 	}
@@ -286,32 +285,32 @@ func clampRetryingLowWaterMark(high int64) int64 {
 
 func (w reducerAdmissionWriter) Enqueue(
 	ctx context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
 	if len(intents) == 0 {
-		return projector.IntentResult{Count: 0}, nil
+		return runtime.IntentResult{Count: 0}, nil
 	}
 	if !w.config.enabled() {
 		return w.inner.Enqueue(ctx, intents)
 	}
 	if w.inner == nil {
-		return projector.IntentResult{}, errors.New("reducer admission inner writer is required")
+		return runtime.IntentResult{}, errors.New("reducer admission inner writer is required")
 	}
 	if w.depthReader == nil {
-		return projector.IntentResult{}, errors.New("reducer admission depth reader is required")
+		return runtime.IntentResult{}, errors.New("reducer admission depth reader is required")
 	}
 
 	for {
 		reason, failureClass, depth, err := w.admissionDecision(ctx)
 		if err != nil {
-			return projector.IntentResult{}, err
+			return runtime.IntentResult{}, err
 		}
 		if reason == "" {
 			return w.inner.Enqueue(ctx, intents)
 		}
 		w.recordDeferral(ctx, reason, failureClass, depth, len(intents))
 		if err := w.wait(ctx); err != nil {
-			return projector.IntentResult{}, err
+			return runtime.IntentResult{}, err
 		}
 	}
 }

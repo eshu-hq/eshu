@@ -11,7 +11,7 @@ package cypher
 // startup error: a nil ownership resolver means OwningRepoID never populates
 // and terraformStateMatchesConfigEdgeStatements filters every row out, so no
 // MATCHES_STATE edge is ever written and nothing signals that at runtime.
-// cmd/* wiring-level tests type-assert their constructed projector.CanonicalWriter
+// cmd/* wiring-level tests type-assert their constructed runtime.CanonicalWriter
 // to *CanonicalNodeWriter and call this accessor to prove the deployed
 // construction path actually attaches both resolvers, not just that the
 // isolated adapter types behave correctly in unit tests.

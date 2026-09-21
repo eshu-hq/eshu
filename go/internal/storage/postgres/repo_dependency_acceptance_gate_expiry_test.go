@@ -13,12 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestRepoDependencyLeaseOwnerActiveUsesWallClockTimestamp(t *testing.T) {
@@ -193,7 +192,7 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 
 			queue := NewReducerQueue(SQLDB{DB: database}, "fence-proof-"+suffix, time.Minute)
 			queue.ClaimDomain = reducer.DomainWorkloadMaterialization
-			if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{{ScopeID: scopeID, GenerationID: generationID, Domain: reducer.DomainWorkloadMaterialization, EntityKey: entityKey, Reason: "pre-fence pass", SourceSystem: "reducer"}}); err != nil {
+			if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{ScopeID: scopeID, GenerationID: generationID, Domain: reducer.DomainWorkloadMaterialization, EntityKey: entityKey, Reason: "pre-fence pass", SourceSystem: "reducer"}}); err != nil {
 				t.Fatalf("enqueue stale workload pass: %v", err)
 			}
 			stale, ok, err := queue.Claim(ctx)

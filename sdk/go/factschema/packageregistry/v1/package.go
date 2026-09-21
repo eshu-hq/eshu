@@ -8,7 +8,7 @@ package v1
 //
 // One fact is emitted per package identity observed at a registry or in a
 // manifest. The projector materializes a canonical PackageRegistryPackage node
-// keyed by PackageID (go/internal/projector/package_registry_canonical.go
+// keyed by PackageID (go/internal/projector/canonical/package_registry.go
 // packageRegistryPackageRow), which DROPS a package whose package_id is empty
 // rather than fabricating a node. PackageID is therefore the sole REQUIRED
 // identity field: an absent package_id must dead-letter as input_invalid, not

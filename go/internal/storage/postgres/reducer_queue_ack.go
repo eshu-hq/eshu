@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -178,7 +178,7 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFence(
 		return false, errors.New("workload materialization fenced replay token is required")
 	}
 
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainWorkloadMaterialization,
@@ -195,7 +195,7 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFence(
 	if err != nil || matched {
 		return matched, err
 	}
-	inserted, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now())
+	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
 	if err != nil {
 		return false, fmt.Errorf("schedule fenced workload materialization replay: %w", err)
 	}

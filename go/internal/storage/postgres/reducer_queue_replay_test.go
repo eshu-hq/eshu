@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -292,7 +292,7 @@ func TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields(t *testing.T) {
 
 	// Real enqueue with intents - validateEnqueue() must pass without
 	// LeaseOwner / LeaseDuration set.
-	intents := []projector.ReducerIntent{{
+	intents := []runtime.ReducerIntent{{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		Domain:       reducer.DomainConfigStateDrift,
@@ -315,7 +315,7 @@ func TestReducerQueueValidateEnqueueRequiresDB(t *testing.T) {
 	t.Parallel()
 
 	var queue ReducerQueue
-	intents := []projector.ReducerIntent{{
+	intents := []runtime.ReducerIntent{{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		Domain:       reducer.DomainConfigStateDrift,
@@ -392,7 +392,7 @@ func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
 		ClaimDomain: reducer.Domain("not_a_domain"),
 	}
 
-	_, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+	_, err := queue.Enqueue(context.Background(), []runtime.ReducerIntent{{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		Domain:       reducer.DomainConfigStateDrift,

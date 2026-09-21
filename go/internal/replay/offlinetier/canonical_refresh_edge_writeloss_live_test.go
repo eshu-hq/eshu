@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -54,19 +54,19 @@ func cleanupRefreshScope(ctx context.Context, t *testing.T, exec liveExecutor) {
 	}
 }
 
-func refreshBaseMaterialization(genID string, first bool) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func refreshBaseMaterialization(genID string, first bool) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:         "git:repository:" + refreshRepoID,
 		GenerationID:    genID,
 		RepoID:          refreshRepoID,
 		RepoPath:        refreshRepoPath,
 		FirstGeneration: first,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: refreshRepoID,
 			Name:   refreshRepoID,
 			Path:   refreshRepoPath,
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: refreshRepoPath + "/dir-a", Name: "dir-a", ParentPath: refreshRepoPath, RepoID: refreshRepoID, Depth: 0},
 			{Path: refreshRepoPath + "/dir-b", Name: "dir-b", ParentPath: refreshRepoPath, RepoID: refreshRepoID, Depth: 0},
 		},
@@ -98,13 +98,13 @@ func TestRefreshFileImportEdgesGraphTruth(t *testing.T) {
 	filePath := refreshRepoPath + "/dir-a/importer.go"
 
 	gen1 := refreshBaseMaterialization("gen1", true)
-	gen1.Files = []projector.FileRow{
+	gen1.Files = []canonical.FileRow{
 		{Path: filePath, RelativePath: "dir-a/importer.go", Name: "importer.go", Language: "go", RepoID: refreshRepoID, DirPath: refreshRepoPath + "/dir-a"},
 	}
-	gen1.Modules = []projector.ModuleRow{{Name: "p0-5652-followup-module", Language: "go"}}
+	gen1.Modules = []canonical.ModuleRow{{Name: "p0-5652-followup-module", Language: "go"}}
 	// ModuleLanguage must match the Module row's Language: the edge resolves its
 	// target on the full (name, lang) Module identity.
-	gen1.Imports = []projector.ImportRow{{FilePath: filePath, ModuleName: "p0-5652-followup-module", ModuleLanguage: "go", ImportedName: "followupmod", LineNumber: 1}}
+	gen1.Imports = []canonical.ImportRow{{FilePath: filePath, ModuleName: "p0-5652-followup-module", ModuleLanguage: "go", ImportedName: "followupmod", LineNumber: 1}}
 
 	if err := writer.Write(ctx, gen1); err != nil {
 		t.Fatalf("write gen1: %v", err)
@@ -171,7 +171,7 @@ func TestRefreshDirectoryFileEdgesGraphTruth(t *testing.T) {
 	movedPathGen1 := refreshRepoPath + "/dir-a/mover.go"
 
 	gen1 := refreshBaseMaterialization("gen1", true)
-	gen1.Files = []projector.FileRow{
+	gen1.Files = []canonical.FileRow{
 		{Path: movedPathGen1, RelativePath: "dir-a/mover.go", Name: "mover.go", Language: "go", RepoID: refreshRepoID, DirPath: refreshRepoPath + "/dir-a"},
 	}
 	if err := writer.Write(ctx, gen1); err != nil {
@@ -191,7 +191,7 @@ func TestRefreshDirectoryFileEdgesGraphTruth(t *testing.T) {
 	// gen2: SAME file path (File identity is keyed by path), but its
 	// dir_path now points at dir-b -- simulates a file that was moved.
 	gen2 := refreshBaseMaterialization("gen2", false)
-	gen2.Files = []projector.FileRow{
+	gen2.Files = []canonical.FileRow{
 		{Path: movedPathGen1, RelativePath: "dir-b/mover.go", Name: "mover.go", Language: "go", RepoID: refreshRepoID, DirPath: refreshRepoPath + "/dir-b"},
 	}
 	if err := writer.Write(ctx, gen2); err != nil {
@@ -246,7 +246,7 @@ func TestRefreshDirectoryParentEdgesGraphTruth(t *testing.T) {
 	childPath := refreshRepoPath + "/dir-a/reparented-child"
 
 	gen1 := refreshBaseMaterialization("gen1", true)
-	gen1.Directories = append(gen1.Directories, projector.DirectoryRow{
+	gen1.Directories = append(gen1.Directories, canonical.DirectoryRow{
 		Path: childPath, Name: "reparented-child", ParentPath: refreshRepoPath + "/dir-a", RepoID: refreshRepoID, Depth: 1,
 	})
 	if err := writer.Write(ctx, gen1); err != nil {
@@ -265,7 +265,7 @@ func TestRefreshDirectoryParentEdgesGraphTruth(t *testing.T) {
 
 	// gen2: same child directory, reparented under dir-b.
 	gen2 := refreshBaseMaterialization("gen2", false)
-	gen2.Directories = append(gen2.Directories, projector.DirectoryRow{
+	gen2.Directories = append(gen2.Directories, canonical.DirectoryRow{
 		Path: childPath, Name: "reparented-child", ParentPath: refreshRepoPath + "/dir-b", RepoID: refreshRepoID, Depth: 1,
 	})
 	if err := writer.Write(ctx, gen2); err != nil {

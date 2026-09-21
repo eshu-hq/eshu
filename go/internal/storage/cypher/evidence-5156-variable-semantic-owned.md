@@ -4,7 +4,7 @@
 
 On NornicDB, `Variable` nodes (Elixir module attributes, TSX component-type
 assertions) were never created. The projector's canonical phase E
-(`extractEntities` in `go/internal/projector/canonical_builder.go`) deliberately
+(`extractEntities` in `go/internal/projector/canonical/builder.go`) deliberately
 skips `Variable` — nothing else in the canonical writer creates the base node.
 The only other writer, `SemanticEntityWriter`, ran in `canonical-node-owned`
 mode on NornicDB

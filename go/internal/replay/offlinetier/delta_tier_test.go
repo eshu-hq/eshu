@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 )
@@ -262,7 +262,7 @@ func loadDeltaCassette(t *testing.T) *cassette.Source {
 	return src
 }
 
-func assertEntitySourceFiles(t *testing.T, materialization projector.CanonicalMaterialization) {
+func assertEntitySourceFiles(t *testing.T, materialization canonical.CanonicalMaterialization) {
 	t.Helper()
 	files := make(map[string]struct{}, len(materialization.Files))
 	for _, file := range materialization.Files {
@@ -275,7 +275,7 @@ func assertEntitySourceFiles(t *testing.T, materialization projector.CanonicalMa
 	}
 }
 
-func assertDirectoryParentPath(t *testing.T, dirs []projector.DirectoryRow, childPath, wantParentPath string) {
+func assertDirectoryParentPath(t *testing.T, dirs []canonical.DirectoryRow, childPath, wantParentPath string) {
 	t.Helper()
 	for _, dir := range dirs {
 		if dir.Path != childPath {
@@ -289,7 +289,7 @@ func assertDirectoryParentPath(t *testing.T, dirs []projector.DirectoryRow, chil
 	t.Fatalf("missing directory %q", childPath)
 }
 
-func assertGitlabJobNeeds(t *testing.T, entities []projector.EntityRow, uid, wantNeeds string) {
+func assertGitlabJobNeeds(t *testing.T, entities []canonical.EntityRow, uid, wantNeeds string) {
 	t.Helper()
 	for _, entity := range entities {
 		if entity.Label != "GitlabJob" || entity.EntityID != uid {
@@ -304,7 +304,7 @@ func assertGitlabJobNeeds(t *testing.T, entities []projector.EntityRow, uid, wan
 	t.Fatalf("missing GitlabJob %q", uid)
 }
 
-func assertGitlabJobPresent(t *testing.T, entities []projector.EntityRow, uid string) {
+func assertGitlabJobPresent(t *testing.T, entities []canonical.EntityRow, uid string) {
 	t.Helper()
 	for _, entity := range entities {
 		if entity.Label == "GitlabJob" && entity.EntityID == uid {

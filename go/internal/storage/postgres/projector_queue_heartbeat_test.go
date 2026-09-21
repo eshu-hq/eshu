@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // This file holds the ProjectorQueue Heartbeat lifecycle unit tests plus the
@@ -92,8 +92,8 @@ func TestProjectorQueueHeartbeatRejectsStaleClaim(t *testing.T) {
 		t.Fatalf("Heartbeat() error = %v, want %v", err, ErrProjectorClaimRejected)
 	}
 	// The projector service drops a lost claim only when it can see this.
-	if !errors.Is(err, projector.ErrWorkClaimLost) {
-		t.Fatalf("Heartbeat() error = %v, want projector.ErrWorkClaimLost", err)
+	if !errors.Is(err, failure.ErrWorkClaimLost) {
+		t.Fatalf("Heartbeat() error = %v, want failure.ErrWorkClaimLost", err)
 	}
 }
 
@@ -117,8 +117,8 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	}
 
 	err := queue.Heartbeat(context.Background(), work)
-	if !errors.Is(err, projector.ErrWorkSuperseded) {
-		t.Fatalf("Heartbeat() error = %v, want %v", err, projector.ErrWorkSuperseded)
+	if !errors.Is(err, failure.ErrWorkSuperseded) {
+		t.Fatalf("Heartbeat() error = %v, want %v", err, failure.ErrWorkSuperseded)
 	}
 	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)

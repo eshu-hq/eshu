@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
@@ -134,7 +134,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 	}
 	enqueue := func(generation string) {
 		t.Helper()
-		if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{{
+		if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{
 			ScopeID: scopeID, GenerationID: generation, Domain: reducer.DomainIAMCanPerformMaterialization,
 			EntityKey: "aws_resource_materialization:" + scopeID, Reason: "iam permissions observed", SourceSystem: "aws",
 		}}); err != nil {

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // TestConfigStateDriftRuntimeTriggerEnqueuesOneIntentForActivatedGeneration
@@ -127,14 +127,14 @@ func TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey(t *tes
 	scopeID := "state_snapshot:s3:hash-1"
 	generationID := "gen-state-1"
 
-	bootstrapIntent := projector.ReducerIntent{
+	bootstrapIntent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       "config_state_drift",
 		Reason:       driftIntentReason,
 		SourceSystem: driftIntentSourceSystem,
 	}
-	runtimeIntent := projector.ReducerIntent{
+	runtimeIntent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       "config_state_drift",
@@ -168,14 +168,14 @@ func TestConfigStateDriftRuntimeTriggerDistinctGenerationsProduceDistinctWorkIte
 	scopeID := "state_snapshot:s3:hash-1"
 	lineage := "lineage-abc"
 
-	firstApply := projector.ReducerIntent{
+	firstApply := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: "terraform_state:" + scopeID + ":" + lineage + ":serial:1",
 		Domain:       "config_state_drift",
 		Reason:       driftRuntimeTriggerReason,
 		SourceSystem: driftRuntimeTriggerSourceSystem,
 	}
-	secondApply := projector.ReducerIntent{
+	secondApply := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: "terraform_state:" + scopeID + ":" + lineage + ":serial:2",
 		Domain:       "config_state_drift",
@@ -226,6 +226,6 @@ type failingReducerIntentWriter struct {
 	err error
 }
 
-func (f failingReducerIntentWriter) Enqueue(context.Context, []projector.ReducerIntent) (projector.IntentResult, error) {
-	return projector.IntentResult{}, f.err
+func (f failingReducerIntentWriter) Enqueue(context.Context, []runtime.ReducerIntent) (runtime.IntentResult, error) {
+	return runtime.IntentResult{}, f.err
 }

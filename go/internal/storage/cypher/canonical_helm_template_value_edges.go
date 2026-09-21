@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // helmTemplateValueReferenceEvidenceKind isolates the Helm template-value
@@ -100,7 +100,7 @@ type helmTemplateValueEntity struct {
 // `<chart>/values.yaml`, so two charts that both define `image.tag` do not
 // cross-link. Edges are resolved in Go and matched by uid, which is robust where
 // bound-variable property matching is not.
-func helmTemplateValueEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func helmTemplateValueEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	var usages []helmTemplateValueEntity
 	// definitionUIDByChartAndName: "<chartDir>\x00<dotted.path>" -> definition uid.
 	definitionUIDByChartAndName := make(map[string]string)

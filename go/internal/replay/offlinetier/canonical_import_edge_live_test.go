@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -57,22 +57,22 @@ func importEdgeCleanup(ctx context.Context, t *testing.T, exec liveExecutor) {
 	}
 }
 
-func importEdgeMaterialization(generationID string, first bool, imports []projector.ImportRow) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func importEdgeMaterialization(generationID string, first bool, imports []canonical.ImportRow) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:         "git:repository:" + importEdgeRepoID,
 		GenerationID:    generationID,
 		RepoID:          importEdgeRepoID,
 		RepoPath:        importEdgeRepoPath,
 		FirstGeneration: first,
-		Repository:      &projector.RepositoryRow{RepoID: importEdgeRepoID, Name: importEdgeRepoID, Path: importEdgeRepoPath},
-		Directories: []projector.DirectoryRow{
+		Repository:      &canonical.RepositoryRow{RepoID: importEdgeRepoID, Name: importEdgeRepoID, Path: importEdgeRepoPath},
+		Directories: []canonical.DirectoryRow{
 			{Path: importEdgeRepoPath + "/src", Name: "src", ParentPath: importEdgeRepoPath, RepoID: importEdgeRepoID, Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: importEdgeRepoPath + "/src/app.ts", RelativePath: "src/app.ts", Name: "app.ts", Language: "typescript", RepoID: importEdgeRepoID, DirPath: importEdgeRepoPath + "/src"},
 			{Path: importEdgeRepoPath + "/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: importEdgeRepoID, DirPath: importEdgeRepoPath + "/src"},
 		},
-		Modules: []projector.ModuleRow{
+		Modules: []canonical.ModuleRow{
 			{Name: "5691-test-express", Language: "typescript"},
 			{Name: "5691-test-fmt", Language: "go"},
 		},
@@ -84,8 +84,8 @@ func importEdgeMaterialization(generationID string, first bool, imports []projec
 // the Module rows above. Module identity is (name, lang), so the edge statement
 // resolves its target on both properties; a row that named the module but not
 // its language would match no node and the edge would simply not be written.
-func importEdgeRows() []projector.ImportRow {
-	return []projector.ImportRow{
+func importEdgeRows() []canonical.ImportRow {
+	return []canonical.ImportRow{
 		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ModuleLanguage: "typescript", ImportedName: "Router", Alias: "R", LineNumber: 2},
 		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ModuleLanguage: "go", ImportedName: "", LineNumber: 4},
 	}

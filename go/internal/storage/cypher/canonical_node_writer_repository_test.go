@@ -8,15 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterReplacesRepositoryConflictsBeforeIDMerge(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
-		Repository: &projector.RepositoryRow{
+	mat := canonical.CanonicalMaterialization{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repository:r_new",
 			Name:      "service",
 			Path:      "/repos/service",
@@ -53,9 +53,9 @@ func TestCanonicalNodeWriterSkipsRepositoryCleanupForFirstGeneration(t *testing.
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		FirstGeneration: true,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repository:r_new",
 			Name:      "service",
 			Path:      "/repos/service",
@@ -74,12 +74,12 @@ func TestCanonicalNodeWriterCommitsRepositoryPathCleanupBeforeRepositoryUpsert(t
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repository:r_new",
 		RepoPath:     "/repos/service",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repository:r_new",
 			Name:      "service",
 			Path:      "/repos/service",
@@ -120,18 +120,18 @@ func TestCanonicalNodeWriterWritesDirectoriesAfterRepositoryUpsert(t *testing.T)
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repository:r_new",
 		RepoPath:     "/repos/service",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repository:r_new",
 			Name:      "service",
 			Path:      "/repos/service",
 			LocalPath: "/repos/service",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/service/schema/data-plane", Name: "data-plane", ParentPath: "/repos/service", RepoID: "repository:r_new", Depth: 0},
 		},
 	})

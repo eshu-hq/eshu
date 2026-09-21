@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -42,7 +45,7 @@ func TestServiceRunStopsGracefullyWhenHeartbeatSupersedesWork(t *testing.T) {
 	}
 	heartbeater := &stubProjectorWorkHeartbeater{
 		failAfter: 1,
-		err:       ErrWorkSuperseded,
+		err:       failure.ErrWorkSuperseded,
 	}
 	sink := &stubProjectorWorkSink{}
 	service := Service{
@@ -70,7 +73,7 @@ func TestServiceRunStopsGracefullyWhenHeartbeatSupersedesWork(t *testing.T) {
 func TestServiceRunDropsWorkWhoseClaimWasLost(t *testing.T) {
 	t.Parallel()
 
-	claimLost := fmt.Errorf("storage rejected stale attempt: %w", ErrWorkClaimLost)
+	claimLost := fmt.Errorf("storage rejected stale attempt: %w", failure.ErrWorkClaimLost)
 	tests := []struct {
 		name        string
 		runner      *stubProjectionRunner
@@ -142,7 +145,7 @@ type sequencedAckSink struct {
 	fails   int
 }
 
-func (s *sequencedAckSink) Ack(context.Context, ScopeGenerationWork, Result) error {
+func (s *sequencedAckSink) Ack(context.Context, ScopeGenerationWork, runtime.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.acks++
@@ -164,7 +167,7 @@ func (s *sequencedAckSink) Fail(context.Context, ScopeGenerationWork, error) err
 func TestServiceRunRetriesAckWhileScopeIsBusy(t *testing.T) {
 	t.Parallel()
 
-	deferred := fmt.Errorf("storage lock timeout: %w", ErrWorkAckDeferred)
+	deferred := fmt.Errorf("storage lock timeout: %w", failure.ErrWorkAckDeferred)
 	tests := []struct {
 		name           string
 		heartbeater    *stubProjectorWorkHeartbeater
@@ -183,7 +186,7 @@ func TestServiceRunRetriesAckWhileScopeIsBusy(t *testing.T) {
 			// A newer generation committed while Ack waited: stop without
 			// acking stale work.
 			name:           "stops when the renewal reports supersession",
-			heartbeater:    &stubProjectorWorkHeartbeater{failAfter: 1, err: ErrWorkSuperseded},
+			heartbeater:    &stubProjectorWorkHeartbeater{failAfter: 1, err: failure.ErrWorkSuperseded},
 			wantAcks:       1,
 			wantHeartbeats: 1,
 		},
@@ -235,14 +238,14 @@ func TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal(t *testing
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}}
 	renewal := heartbeaterFunc(func(ctx context.Context, _ ScopeGenerationWork) error {
 		cancel()
 		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
 	})
 
-	err := AckWhenScopeFree(ctx, sink, renewal, nil, ScopeGenerationWork{}, Result{}, 0, nil)
-	if !errors.Is(err, ErrWorkAckDeferred) {
+	err := AckWhenScopeFree(ctx, sink, renewal, nil, ScopeGenerationWork{}, runtime.Result{}, 0, nil)
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
 	}
 	if sink.acks != 1 {
@@ -253,9 +256,9 @@ func TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal(t *testing
 // alwaysDeferSink defers every Ack, like a scope row held indefinitely.
 type alwaysDeferSink struct{ acks int }
 
-func (s *alwaysDeferSink) Ack(context.Context, ScopeGenerationWork, Result) error {
+func (s *alwaysDeferSink) Ack(context.Context, ScopeGenerationWork, runtime.Result) error {
 	s.acks++
-	return fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)
+	return fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)
 }
 
 func (s *alwaysDeferSink) Fail(context.Context, ScopeGenerationWork, error) error { return nil }
@@ -271,8 +274,8 @@ func TestAckWhenScopeFreeGivesUpAfterMaxRetries(t *testing.T) {
 		renewals++
 		return nil
 	})
-	err := AckWhenScopeFree(context.Background(), sink, renew, nil, ScopeGenerationWork{}, Result{}, 3, nil)
-	if !errors.Is(err, ErrWorkAckDeferred) {
+	err := AckWhenScopeFree(context.Background(), sink, renew, nil, ScopeGenerationWork{}, runtime.Result{}, 3, nil)
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred after the bound", err)
 	}
 	if sink.acks != 3 || renewals != 2 {

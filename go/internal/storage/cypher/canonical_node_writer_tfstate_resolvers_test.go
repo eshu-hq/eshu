@@ -3,13 +3,15 @@
 
 package cypher
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestCanonicalNodeWriterTerraformStateResolversConfigured proves the #5443
 // wiring-visibility contract: TerraformStateResolversConfigured must report
 // each resolver's presence independently and must not panic on a nil
 // receiver, since cmd/* wiring-level tests type-assert the constructed
-// projector.CanonicalWriter and call this accessor to prove their canonical
+// runtime.CanonicalWriter and call this accessor to prove their canonical
 // writer construction actually attached both MATCHES_STATE resolvers rather
 // than silently leaving them nil (see WithTerraformStateOwnershipResolver's
 // "no MATCHES_STATE edges written" degradation).

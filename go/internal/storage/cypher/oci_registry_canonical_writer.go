@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 const canonicalPhaseOCIRegistry = "oci_registry"
@@ -154,7 +154,7 @@ SET ref.id = row.uid,
     ref.generation_id = row.generation_id,
     ref.evidence_source = 'projector/oci_registry'`
 
-func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat canonical.CanonicalMaterialization) []Statement {
 	var statements []Statement
 	if mat.OCIRegistryRepository != nil {
 		statements = append(
@@ -233,7 +233,7 @@ func ociRegistryBatchedStatements(
 	batchSize int,
 	label string,
 	phase string,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	statements := BuildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
@@ -251,7 +251,7 @@ func ociRegistryBatchedStatements(
 	return statements
 }
 
-func ociRegistryRepositoryRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociRegistryRepositoryRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	if mat.OCIRegistryRepository == nil {
 		return nil
 	}
@@ -274,7 +274,7 @@ func ociRegistryRepositoryRows(mat projector.CanonicalMaterialization) []map[str
 	}}
 }
 
-func ociImageManifestRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociImageManifestRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.OCIImageManifests))
 	for _, row := range mat.OCIImageManifests {
 		rows = append(rows, map[string]any{
@@ -302,7 +302,7 @@ func ociImageManifestRows(mat projector.CanonicalMaterialization) []map[string]a
 	return rows
 }
 
-func ociImageIndexRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociImageIndexRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.OCIImageIndexes))
 	for _, row := range mat.OCIImageIndexes {
 		rows = append(rows, map[string]any{
@@ -327,7 +327,7 @@ func ociImageIndexRows(mat projector.CanonicalMaterialization) []map[string]any 
 	return rows
 }
 
-func ociImageDescriptorRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociImageDescriptorRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.OCIImageDescriptors))
 	for _, row := range mat.OCIImageDescriptors {
 		rows = append(rows, map[string]any{
@@ -350,7 +350,7 @@ func ociImageDescriptorRows(mat projector.CanonicalMaterialization) []map[string
 	return rows
 }
 
-func ociImageTagObservationRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociImageTagObservationRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.OCIImageTagObservations))
 	for _, row := range mat.OCIImageTagObservations {
 		rows = append(rows, map[string]any{
@@ -401,7 +401,7 @@ func ociTagObservedAtValue(observedAt time.Time) string {
 	return observedAt.UTC().Format(ociTagFirstObservedLayout)
 }
 
-func ociImageReferrerRows(mat projector.CanonicalMaterialization) []map[string]any {
+func ociImageReferrerRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.OCIImageReferrers))
 	for _, row := range mat.OCIImageReferrers {
 		rows = append(rows, map[string]any{

@@ -18,7 +18,7 @@ import (
 // It self-classifies through the same interface the Postgres queue reads
 // (queueFailureMetadata via errors.As): FailureClass returns the DecodeError's
 // classification string — "input_invalid" for a missing/null required field —
-// which is byte-equal to projector.TriageClassInputInvalid and
+// which is byte-equal to failure.TriageClassInputInvalid and
 // factschema.ClassificationInputInvalid by the by-value contract Contract System
 // v1 mandates (the contracts module cannot import go/internal, so the reducer
 // maps the classification by value). Retryable returns false because a missing

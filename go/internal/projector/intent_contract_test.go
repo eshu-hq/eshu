@@ -6,19 +6,21 @@ package projector
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 var (
-	_ *projectorintent.ReducerIntent = (*ReducerIntent)(nil)
-	_ *ReducerIntent                 = (*projectorintent.ReducerIntent)(nil)
+	_ *projectorintent.ReducerIntent = (*runtime.ReducerIntent)(nil)
+	_ *runtime.ReducerIntent         = (*projectorintent.ReducerIntent)(nil)
 )
 
 func TestReducerIntentCompatibilityAliasPreservesContract(t *testing.T) {
 	t.Parallel()
 
-	intent := ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		Domain:       reducer.DomainPackageSourceCorrelation,

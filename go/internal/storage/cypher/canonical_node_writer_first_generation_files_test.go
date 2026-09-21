@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterFirstGenerationFilesUseSingleIdempotentMerge(t *testing.T) {
@@ -17,18 +17,18 @@ func TestCanonicalNodeWriterFirstGenerationFilesUseSingleIdempotentMerge(t *test
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil).WithFileBatchSize(2)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-1",
 		RepoID:          "repo-1",
 		RepoPath:        "/repos/service",
 		FirstGeneration: true,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "service",
 			Path:   "/repos/service",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/service/src/a.go",
 				RelativePath: "src/a.go",
@@ -73,18 +73,18 @@ func TestCanonicalNodeWriterPriorGenerationFilesKeepGuardedCreate(t *testing.T) 
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil).WithFileBatchSize(2)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-2",
 		RepoID:          "repo-1",
 		RepoPath:        "/repos/service",
 		FirstGeneration: false,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "service",
 			Path:   "/repos/service",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/service/src/a.go",
 				RelativePath: "src/a.go",

@@ -12,7 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -53,7 +54,7 @@ func TestReducerQueueEnqueueAndClaimRoundTrip(t *testing.T) {
 		Now:           func() time.Time { return now },
 	}
 
-	result, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+	result, err := queue.Enqueue(context.Background(), []runtime.ReducerIntent{{
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
 		Domain:       "workload_identity",
@@ -125,7 +126,7 @@ func TestReducerQueueEnqueueCountReflectsRowsAffectedNotAttemptCount(t *testing.
 		Now:           func() time.Time { return now },
 	}
 
-	result, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+	result, err := queue.Enqueue(context.Background(), []runtime.ReducerIntent{{
 		ScopeID:      "state_snapshot:s3:hash-1",
 		GenerationID: "gen-state-1",
 		Domain:       reducer.DomainConfigStateDrift,
@@ -151,7 +152,7 @@ func TestReducerQueueEnqueueRejectsUnknownDomain(t *testing.T) {
 		Now:           func() time.Time { return now },
 	}
 
-	_, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+	_, err := queue.Enqueue(context.Background(), []runtime.ReducerIntent{{
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
 		Domain:       "not_a_real_domain",
@@ -278,7 +279,7 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 	// A retryable cause that exhausted its budget is dead-lettered as the
 	// retry_exhausted triage class (the transient bucket) so an operator can tell
 	// it gave up under transient pressure rather than from a terminal defect.
-	if got, want := db.execs[0].args[1], string(projector.TriageClassRetryExhausted); got != want {
+	if got, want := db.execs[0].args[1], string(failure.TriageClassRetryExhausted); got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
@@ -313,7 +314,7 @@ func TestReducerQueueFailDeadLettersTerminalWithTriageClass(t *testing.T) {
 	if !strings.Contains(db.execs[0].query, "status = 'dead_letter'") {
 		t.Fatalf("terminal error should dead-letter, query:\n%s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[1], string(projector.TriageClassProjectionBug); got != want {
+	if got, want := db.execs[0].args[1], string(failure.TriageClassProjectionBug); got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=manual_review") {

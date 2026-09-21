@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
 // These cover the write-path half of the #6102 stale-writer fence. The schema
@@ -50,7 +50,7 @@ func TestCanonicalNodeWriterStopsAtARefusingSchemaFence(t *testing.T) {
 	}
 	// Terminal here would dead-letter a backlog the operator still wants
 	// projected by the pod that replaces this one.
-	if !projector.IsRetryable(err) {
+	if !failure.IsRetryable(err) {
 		t.Fatalf("Write() error = %v is terminal, want retryable so the work stays queued", err)
 	}
 }

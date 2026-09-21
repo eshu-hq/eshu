@@ -7,17 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterFileRowsUseRepoScopedUID(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(nil, 500, nil)
-	statements := writer.buildFileStatements(projector.CanonicalMaterialization{
+	statements := writer.buildFileStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path:         "/repo/service-entry.ts",
 			RelativePath: "service-entry.ts",
 			Name:         "service-entry.ts",
@@ -42,10 +42,10 @@ func TestCanonicalNodeWriterRootFileRowsDoNotRequireDirectoryMatch(t *testing.T)
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(nil, 500, nil)
-	statements := writer.buildFileStatements(projector.CanonicalMaterialization{
+	statements := writer.buildFileStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path:         "/repo/service-entry.ts",
 			RelativePath: "service-entry.ts",
 			Name:         "service-entry.ts",

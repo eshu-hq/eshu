@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // fluxHelmReleaseRowEntity builds a FluxHelmRelease EntityRow with the
@@ -15,7 +15,7 @@ import (
 // emits. Exactly one of (sourceRefKind/sourceRefName) or
 // (chartRefKind/chartRefName) is normally set; both empty means neither
 // spec.chart nor spec.chartRef was set on the fixture manifest.
-func fluxHelmReleaseRowEntity(uid, filePath, namespace, sourceRefKind, sourceRefName, sourceRefNamespace, chartRefKind, chartRefName, chartRefNamespace string) projector.EntityRow {
+func fluxHelmReleaseRowEntity(uid, filePath, namespace, sourceRefKind, sourceRefName, sourceRefNamespace, chartRefKind, chartRefName, chartRefNamespace string) canonical.EntityRow {
 	meta := map[string]any{}
 	if namespace != "" {
 		meta["namespace"] = namespace
@@ -38,7 +38,7 @@ func fluxHelmReleaseRowEntity(uid, filePath, namespace, sourceRefKind, sourceRef
 	if chartRefNamespace != "" {
 		meta["chart_ref_namespace"] = chartRefNamespace
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:      "FluxHelmRelease",
 		EntityID:   uid,
 		EntityName: "helmrelease",
@@ -55,9 +55,9 @@ func fluxHelmReleaseRowEntity(uid, filePath, namespace, sourceRefKind, sourceRef
 func TestFluxHelmReconcilesFromChartSourceRefT1NamespaceExact(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/helmrepository.yaml"),
 		},
@@ -97,9 +97,9 @@ func TestFluxHelmReconcilesFromChartSourceRefT1NamespaceExact(t *testing.T) {
 func TestFluxHelmReconcilesFromChartSourceRefNamespaceDefaultsFromHelmReleaseNamespace(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/helmrepository.yaml"),
 		},
@@ -122,9 +122,9 @@ func TestFluxHelmReconcilesFromChartSourceRefNamespaceDefaultsFromHelmReleaseNam
 func TestFluxHelmReconcilesFromChartSourceRefGitRepositoryAndBucketResolve(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr-git", "/repo/a.yaml", "flux-system", "GitRepository", "flux-system", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxGitRepository", "uid-git", "flux-system", "flux-system", "/repo/sources.yaml"),
 			fluxHelmReleaseRowEntity("uid-hr-bucket", "/repo/b.yaml", "flux-system", "Bucket", "flux-artifacts", "flux-system", "", "", ""),
@@ -154,9 +154,9 @@ func TestFluxHelmReconcilesFromChartSourceRefGitRepositoryAndBucketResolve(t *te
 func TestFluxHelmReconcilesFromChartRefOCIRepositoryResolves(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "", "", "", "OCIRepository", "podinfo-oci", "flux-system"),
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
 		},
@@ -184,9 +184,9 @@ func TestFluxHelmReconcilesFromChartRefOCIRepositoryResolves(t *testing.T) {
 func TestFluxHelmReconcilesFromChartRefHelmChartKindNeverLinks(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "", "", "", "HelmChart", "podinfo", "flux-system"),
 			// Even if a HelmChart-labeled node existed (it never does --
 			// HelmChart is a Chart.yaml directory, not a Flux CR), no edge may
@@ -209,9 +209,9 @@ func TestFluxHelmReconcilesFromChartRefHelmChartKindNeverLinks(t *testing.T) {
 func TestFluxHelmReconcilesFromBothChartAndChartRefSetSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "OCIRepository", "podinfo-oci", "flux-system"),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
@@ -241,7 +241,7 @@ func TestFluxHelmReconcilesFromChartBlockWithoutSourceRefPlusChartRefSkips(t *te
 	// Build the row inline: `chart` metadata present (a chart block), NO
 	// sourceRef fields, chartRef set. fluxHelmReleaseRowEntity does not set the
 	// `chart` field, so this case must be constructed directly.
-	helmRelease := projector.EntityRow{
+	helmRelease := canonical.EntityRow{
 		Label:      "FluxHelmRelease",
 		EntityID:   "uid-hr",
 		EntityName: "helmrelease",
@@ -255,9 +255,9 @@ func TestFluxHelmReconcilesFromChartBlockWithoutSourceRefPlusChartRefSkips(t *te
 		},
 	}
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			helmRelease,
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
 		},
@@ -288,7 +288,7 @@ func TestFluxHelmReconcilesFromEmptyChartBlockPlusChartRefSkips(t *testing.T) {
 	// spec.chart present-but-empty: only chart_present is set, NOT chart or any
 	// source_ref_* field. spec.chartRef is also set. fluxHelmReleaseRowEntity
 	// does not set chart_present, so build the row directly.
-	helmRelease := projector.EntityRow{
+	helmRelease := canonical.EntityRow{
 		Label:      "FluxHelmRelease",
 		EntityID:   "uid-hr",
 		EntityName: "helmrelease",
@@ -302,9 +302,9 @@ func TestFluxHelmReconcilesFromEmptyChartBlockPlusChartRefSkips(t *testing.T) {
 		},
 	}
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			helmRelease,
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
 		},
@@ -329,7 +329,7 @@ func TestFluxHelmReconcilesFromEmptyChartBlockPlusChartRefSkips(t *testing.T) {
 func TestFluxHelmReconcilesFromWellFormedChartWithChartPresentStillResolves(t *testing.T) {
 	t.Parallel()
 
-	helmRelease := projector.EntityRow{
+	helmRelease := canonical.EntityRow{
 		Label:      "FluxHelmRelease",
 		EntityID:   "uid-hr",
 		EntityName: "podinfo",
@@ -344,9 +344,9 @@ func TestFluxHelmReconcilesFromWellFormedChartWithChartPresentStillResolves(t *t
 		},
 	}
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			helmRelease,
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 		},
@@ -370,7 +370,7 @@ func TestFluxHelmReconcilesFromWellFormedChartWithChartPresentStillResolves(t *t
 func TestFluxHelmReconcilesFromChartRefOnlyStillResolves(t *testing.T) {
 	t.Parallel()
 
-	helmRelease := projector.EntityRow{
+	helmRelease := canonical.EntityRow{
 		Label:      "FluxHelmRelease",
 		EntityID:   "uid-hr",
 		EntityName: "helmrelease",
@@ -383,9 +383,9 @@ func TestFluxHelmReconcilesFromChartRefOnlyStillResolves(t *testing.T) {
 		},
 	}
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			helmRelease,
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
 		},
@@ -406,9 +406,9 @@ func TestFluxHelmReconcilesFromChartRefOnlyStillResolves(t *testing.T) {
 func TestFluxHelmReconcilesFromNeitherChartNorChartRefSetSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "", "", "", "", "", ""),
 		},
 	}
@@ -427,9 +427,9 @@ func TestFluxHelmReconcilesFromNeitherChartNorChartRefSetSkips(t *testing.T) {
 func TestFluxHelmReconcilesFromUnknownSourceRefKindSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "ExternalArtifact", "podinfo", "flux-system", "", "", ""),
 		},
 	}
@@ -447,9 +447,9 @@ func TestFluxHelmReconcilesFromUnknownSourceRefKindSkips(t *testing.T) {
 func TestFluxHelmReconcilesFromDanglingRefSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "does-not-exist", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 		},
@@ -470,9 +470,9 @@ func TestFluxHelmReconcilesFromDanglingRefSkips(t *testing.T) {
 func TestFluxHelmReconcilesFromAmbiguousTieSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/clusters/apps.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo-a", "podinfo", "flux-system", "/repo/clusters/prod/sources.yaml"),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo-b", "podinfo", "flux-system", "/repo/clusters/staging/sources.yaml"),

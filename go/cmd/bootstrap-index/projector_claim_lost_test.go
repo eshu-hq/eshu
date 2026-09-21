@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -24,7 +26,7 @@ type claimLostSink struct {
 	failed  atomic.Int64
 }
 
-func (s *claimLostSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (s *claimLostSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	s.acked.Add(1)
 	return s.ackErr
 }
@@ -40,7 +42,7 @@ func (s *claimLostSink) Fail(context.Context, projector.ScopeGenerationWork, err
 func TestDrainProjectorWorkItemDropsLostClaim(t *testing.T) {
 	t.Parallel()
 
-	claimLost := fmt.Errorf("queue rejected stale attempt: %w", projector.ErrWorkClaimLost)
+	claimLost := fmt.Errorf("queue rejected stale attempt: %w", failure.ErrWorkClaimLost)
 	tests := []struct {
 		name        string
 		runner      projector.ProjectionRunner
@@ -113,9 +115,9 @@ type deferThenAckSink struct {
 	acked atomic.Int64
 }
 
-func (s *deferThenAckSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (s *deferThenAckSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	if s.acked.Add(1) == 1 {
-		return fmt.Errorf("lock timeout: %w", projector.ErrWorkAckDeferred)
+		return fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)
 	}
 	return nil
 }

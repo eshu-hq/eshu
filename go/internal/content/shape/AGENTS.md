@@ -28,7 +28,7 @@
   filesystem parsing — Elixir module attributes and TSX component-type
   assertions from `.ex`/`.tsx` files do become `Variable` nodes. The set with no
   source-local writer is pinned by `canonicalEntityPhaseSkipOwners` in
-  `go/internal/projector/canonical_unwritten_entity_labels_test.go`; a new
+  `go/internal/projector/canonical/unwritten_entity_labels_test.go`; a new
   entry there means a label was stranded, and removing `Variable`'s means
   re-enabling plain-`Variable` projection, which changes projected truth.
 - **Every projector label is classified** — `TestEveryProjectorLabelHasASource`
@@ -77,7 +77,7 @@
   `go test ./internal/content/shape -count=1`. **Also register the same
   bucket in `go/internal/collector/repo/git/snapshot_entity_buckets.go`'s
   `snapshotEntityBuckets`** (the collector-side twin `entityBucketsFromParsed`
-  walks) **and the label in `go/internal/projector/canonical.go`'s
+  walks) **and the label in `go/internal/projector/canonical/materialization.go`'s
   `entityTypeLabelMap`** if the bucket is meant to reach the graph. Missing
   either one silently drops the entity with no error and no failing unit test
   (issue #5483 C1). `bucket_sync_gate_test.go` in this package (CI gate

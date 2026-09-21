@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterEntityLabelBatchSizeOverride(t *testing.T) {
@@ -19,12 +19,12 @@ func TestCanonicalNodeWriterEntityLabelBatchSizeOverride(t *testing.T) {
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityBatchSize(100).
 		WithEntityLabelBatchSize("Function", 2)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "c1", Label: "Class", EntityName: "One", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 1, EndLine: 2, Language: "go", RepoID: "repo-1"},
 			{EntityID: "c2", Label: "Class", EntityName: "Two", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 3, EndLine: 4, Language: "go", RepoID: "repo-1"},
 			{EntityID: "f1", Label: "Function", EntityName: "one", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 6, Language: "go", RepoID: "repo-1"},
@@ -80,14 +80,14 @@ func TestCanonicalNodeWriterFileScopedContainmentHonorsLabelBatchSizeWithinFile(
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityLabelBatchSize("K8sResource", 5)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
 	}
 	for i := 0; i < 12; i++ {
-		mat.Entities = append(mat.Entities, projector.EntityRow{
+		mat.Entities = append(mat.Entities, canonical.EntityRow{
 			EntityID:     fmt.Sprintf("k8s-%02d", i),
 			Label:        "K8sResource",
 			EntityName:   fmt.Sprintf("route-%02d", i),
@@ -123,12 +123,12 @@ func TestCanonicalNodeWriterEntityBatchesCrossFileBoundaries(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).WithEntityBatchSize(10)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "f1", Label: "Function", EntityName: "one", FilePath: "/repos/my-repo/src/a.go", RelativePath: "src/a.go", StartLine: 1, EndLine: 2, Language: "go", RepoID: "repo-1"},
 			{EntityID: "f2", Label: "Function", EntityName: "two", FilePath: "/repos/my-repo/src/b.go", RelativePath: "src/b.go", StartLine: 3, EndLine: 4, Language: "go", RepoID: "repo-1"},
 			{EntityID: "f3", Label: "Function", EntityName: "three", FilePath: "/repos/my-repo/src/a.go", RelativePath: "src/a.go", StartLine: 5, EndLine: 6, Language: "go", RepoID: "repo-1"},
@@ -160,12 +160,12 @@ func TestCanonicalNodeWriterAtomicGroupExecutorError(t *testing.T) {
 	exec := &mockGroupExecutor{groupErr: errors.New("neo4j transaction too large")}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",

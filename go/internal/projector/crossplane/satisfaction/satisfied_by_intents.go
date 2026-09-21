@@ -11,7 +11,7 @@ import (
 
 // crossplaneSatisfiedByEntityFactKind mirrors root's
 // FactKindParsedEntityObserved ("content_entity", declared in
-// go/internal/projector/stage_facts.go) exactly. This package cannot import
+// go/internal/projector/decode/fact_kind.go) exactly. This package cannot import
 // root — root imports this package to dispatch, so the reverse direction
 // cycles — so the shared literal is duplicated here rather than referenced.
 const crossplaneSatisfiedByEntityFactKind = "content_entity"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // fakeKustomizeOverlayResolver is a test double for KustomizeOverlayResolver.
@@ -25,12 +25,12 @@ func (f *fakeKustomizeOverlayResolver) ListKustomizeOverlays(_ context.Context, 
 	return f.rows[repoID], nil
 }
 
-func kustomizeOverlayEntityRow(uid, filePath string, bases []string) projector.EntityRow {
+func kustomizeOverlayEntityRow(uid, filePath string, bases []string) canonical.EntityRow {
 	meta := map[string]any{}
 	if bases != nil {
 		meta["bases"] = bases
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:    "KustomizeOverlay",
 		EntityID: uid,
 		FilePath: filePath,
@@ -55,10 +55,10 @@ func TestKustomizeExtendsBaseEdgeStatements_ResolvesLocalBase(t *testing.T) {
 			},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-2",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../base"}),
 		},
 	}
@@ -88,10 +88,10 @@ func TestKustomizeExtendsBaseEdgeStatements_DanglingBaseDropsSilently(t *testing
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../nonexistent-base"}),
 		},
 	}
@@ -125,10 +125,10 @@ func TestKustomizeExtendsBaseEdgeStatements_RepoRootEscapeDropsSilently(t *testi
 			rows: map[string][]KustomizeOverlayRow{"repo-1": {}},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			// overlays/prod is depth 1; "../../../escape" walks past repo root.
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../../escape"}),
 		},
@@ -165,10 +165,10 @@ func TestKustomizeExtendsBaseEdgeStatements_CycleTolerated(t *testing.T) {
 			},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-3",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-b", "b/kustomization.yaml", []string{"../a"}),
 		},
 	}
@@ -200,7 +200,7 @@ func TestKustomizeExtendsBaseEdgeStatements_RetractScopedToFullRepoSet(t *testin
 			},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:                "repo-1",
 		GenerationID:          "gen-4",
 		DeltaProjection:       true,
@@ -258,10 +258,10 @@ func TestKustomizeExtendsBaseEdgeStatements_PersistsBaseRefsProperty(t *testing.
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../base"}),
 		},
 	}
@@ -290,10 +290,10 @@ func TestKustomizeExtendsBaseEdgeStatements_NoResolverFailsClosed(t *testing.T) 
 	t.Parallel()
 
 	w := &CanonicalNodeWriter{}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../base"}),
 		},
 	}
@@ -323,10 +323,10 @@ func TestKustomizeExtendsBaseEdgeStatements_ResolverErrorFailsClosed(t *testing.
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{err: errors.New("boom")},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlays/prod/kustomization.yaml", []string{"../../base"}),
 		},
 	}
@@ -349,10 +349,10 @@ func TestKustomizeExtendsBaseEdgeStatements_NoKustomizeTouchIsNoop(t *testing.T)
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{Label: "Function", EntityID: "uid-fn", FilePath: "main.go"},
 		},
 	}
@@ -386,10 +386,10 @@ func TestKustomizeExtendsBaseEdgeStatements_DirectoryCollisionPicksStableWinner(
 			},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			kustomizeOverlayEntityRow("uid-overlay", "overlay/kustomization.yaml", []string{"../team"}),
 		},
 	}

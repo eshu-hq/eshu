@@ -17,6 +17,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -43,7 +44,7 @@ func TestDrainProjectorWorkItemRecordsAckWaitMetrics(t *testing.T) {
 	err = drainProjectorWorkItem(ctx,
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{}, &fakeProjectionRunner{},
-		&claimLostSink{ackErr: fmt.Errorf("lock timeout: %w", projector.ErrWorkAckDeferred)}, nil,
+		&claimLostSink{ackErr: fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}, nil,
 		time.Millisecond, 0, &completed, sdktrace.NewTracerProvider().Tracer("test"), instruments,
 		slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {

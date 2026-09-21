@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -76,7 +76,7 @@ func TestReducerConflictDomainKeyClassifiesResourceMaterializationDomains(t *tes
 				t.Fatalf("policy status = %q, want %q", policy.Status, tt.wantStatus)
 			}
 
-			gotDomain, gotKey := reducerConflictDomainKey(projector.ReducerIntent{
+			gotDomain, gotKey := reducerConflictDomainKey(runtime.ReducerIntent{
 				ScopeID:   "aws:111122223333:us-east-1:ec2",
 				Domain:    tt.domain,
 				EntityKey: tt.entityKey,
@@ -112,7 +112,7 @@ func TestReducerConflictDomainKeyRejectsRawProviderLocators(t *testing.T) {
 		t.Run(raw, func(t *testing.T) {
 			t.Parallel()
 
-			gotDomain, gotKey := reducerConflictDomainKey(projector.ReducerIntent{
+			gotDomain, gotKey := reducerConflictDomainKey(runtime.ReducerIntent{
 				ScopeID:   raw,
 				Domain:    reducer.DomainAWSResourceMaterialization,
 				EntityKey: raw,

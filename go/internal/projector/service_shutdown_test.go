@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -115,7 +117,7 @@ func TestServiceRunAcksSuccessfulProjectionAfterShutdownCancel(t *testing.T) {
 		},
 		FactStore: &stubFactStore{},
 		Runner: &stubProjectionRunner{
-			result: Result{
+			result: runtime.Result{
 				ScopeID:      "scope-123",
 				GenerationID: "generation-456",
 			},
@@ -155,7 +157,7 @@ func TestServiceRunAcksSuccessfulProjectionWhenShutdownCancelsDuringAck(t *testi
 		},
 		FactStore: &stubFactStore{},
 		Runner: &stubProjectionRunner{
-			result: Result{
+			result: runtime.Result{
 				ScopeID:      "scope-123",
 				GenerationID: "generation-456",
 			},

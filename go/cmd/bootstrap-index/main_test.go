@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
-
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestPrintBootstrapIndexVersionFlagReturnsBeforeBootstrapWorkflow(t *testing.T) {
@@ -84,7 +84,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 				committer: committer,
 			}, nil
 		},
-		func(ctx context.Context, database bootstrapDB, graphWriter projector.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
+		func(ctx context.Context, database bootstrapDB, graphWriter runtime.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
 			return projectorDeps{
 				workSource: &fakeWorkSource{
 					items: []projector.ScopeGenerationWork{
@@ -142,7 +142,7 @@ func TestRunReturnsSchemaError(t *testing.T) {
 			t.Fatal("collector builder should not be called after schema error")
 			return collectorDeps{}, nil
 		},
-		func(ctx context.Context, database bootstrapDB, graphWriter projector.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
+		func(ctx context.Context, database bootstrapDB, graphWriter runtime.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
 			t.Fatal("projector builder should not be called after schema error")
 			return projectorDeps{}, nil
 		},
@@ -183,7 +183,7 @@ func TestRunReturnsCollectorError(t *testing.T) {
 		func(ctx context.Context, database bootstrapDB, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (collectorDeps, error) {
 			return collectorDeps{}, collectorErr
 		},
-		func(ctx context.Context, database bootstrapDB, graphWriter projector.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
+		func(ctx context.Context, database bootstrapDB, graphWriter runtime.CanonicalWriter, getenv func(string) string, _ trace.Tracer, _ *telemetry.Instruments, _ *slog.Logger) (projectorDeps, error) {
 			t.Fatal("projector builder should not be called after collector error")
 			return projectorDeps{}, nil
 		},
@@ -262,9 +262,9 @@ func TestBuildBootstrapProjectorWiresPhasePublisherAndRepairQueue(t *testing.T) 
 		t.Fatalf("buildBootstrapProjector() error = %v, want nil", err)
 	}
 
-	runtime, ok := deps.runner.(projector.Runtime)
+	runtime, ok := deps.runner.(runtime.Runtime)
 	if !ok {
-		t.Fatalf("buildBootstrapProjector() runner type = %T, want projector.Runtime", deps.runner)
+		t.Fatalf("buildBootstrapProjector() runner type = %T, want runtime.Runtime", deps.runner)
 	}
 	if runtime.PhasePublisher == nil {
 		t.Fatal("buildBootstrapProjector() PhasePublisher = nil, want non-nil")

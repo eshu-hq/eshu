@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration
@@ -20,7 +20,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration(
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-p1a",
 		GenerationID:    "tf-generation-p1a-1",
 		FirstGeneration: true,
@@ -57,18 +57,18 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjectio
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-p1a",
 		GenerationID:    "tf-generation-p1a-2",
 		FirstGeneration: false,
 		DeltaProjection: true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              "tf-resource-p1a-2",
 			Address:          "aws_instance.web",
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-2",
-			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+			OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 		}},
 	}
 
@@ -108,18 +108,18 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 
 	t.Run("all rows unresolved emits nothing", func(t *testing.T) {
 		t.Parallel()
-		mat := projector.CanonicalMaterialization{
+		mat := canonical.CanonicalMaterialization{
 			ScopeID:         "tf-scope-p1-unresolved",
 			GenerationID:    "tf-generation-p1-unresolved",
 			FirstGeneration: false,
 			DeltaProjection: true,
-			TerraformStateResources: []projector.TerraformStateResourceRow{{
+			TerraformStateResources: []canonical.TerraformStateResourceRow{{
 				UID:              "tf-resource-p1-unresolved",
 				Address:          "aws_instance.web",
 				SourceConfidence: facts.SourceConfidenceObserved,
 				CollectorKind:    "terraform_state",
 				OwningRepoID:     "", // resolver hiccup this cycle
-				OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
+				OwnershipOutcome: canonical.TerraformStateOwnershipTransientFailure,
 			}},
 		}
 		statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
@@ -130,19 +130,19 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 
 	t.Run("mixed resolved and unresolved rows includes only the resolved uid", func(t *testing.T) {
 		t.Parallel()
-		mat := projector.CanonicalMaterialization{
+		mat := canonical.CanonicalMaterialization{
 			ScopeID:         "tf-scope-p1-mixed",
 			GenerationID:    "tf-generation-p1-mixed",
 			FirstGeneration: false,
 			DeltaProjection: true,
-			TerraformStateResources: []projector.TerraformStateResourceRow{
+			TerraformStateResources: []canonical.TerraformStateResourceRow{
 				{
 					UID:              "tf-resource-p1-mixed-resolved",
 					Address:          "aws_instance.web",
 					SourceConfidence: facts.SourceConfidenceObserved,
 					CollectorKind:    "terraform_state",
 					OwningRepoID:     "repo-p1-mixed-resolved",
-					OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+					OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 				},
 				{
 					UID:              "tf-resource-p1-mixed-unresolved",
@@ -150,7 +150,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 					SourceConfidence: facts.SourceConfidenceObserved,
 					CollectorKind:    "terraform_state",
 					OwningRepoID:     "", // resolver hiccup this cycle
-					OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
+					OwnershipOutcome: canonical.TerraformStateOwnershipTransientFailure,
 				},
 			},
 		}
@@ -181,19 +181,19 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNo
 
 	for _, tc := range []struct {
 		name    string
-		outcome projector.TerraformStateOwnershipOutcome
+		outcome canonical.TerraformStateOwnershipOutcome
 	}{
-		{name: "no owner", outcome: projector.TerraformStateOwnershipNoOwner},
-		{name: "ambiguous owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+		{name: "no owner", outcome: canonical.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous owner", outcome: canonical.TerraformStateOwnershipAmbiguousOwner},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			mat := projector.CanonicalMaterialization{
+			mat := canonical.CanonicalMaterialization{
 				ScopeID:         "tf-scope-p1-authoritative-" + tc.name,
 				GenerationID:    "tf-generation-p1-authoritative-" + tc.name,
 				FirstGeneration: false,
 				DeltaProjection: true,
-				TerraformStateResources: []projector.TerraformStateResourceRow{{
+				TerraformStateResources: []canonical.TerraformStateResourceRow{{
 					UID:              "tf-resource-p1-authoritative",
 					Address:          "aws_instance.web",
 					SourceConfidence: facts.SourceConfidenceObserved,
@@ -227,18 +227,18 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneratio
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-p1a",
 		GenerationID:    "tf-generation-p1a-3",
 		FirstGeneration: false,
 		DeltaProjection: false,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              "tf-resource-p1a-3",
 			Address:          "aws_instance.web",
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-3",
-			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+			OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 		}},
 	}
 
@@ -299,12 +299,12 @@ func TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge(t *testing.T) {
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).
 		WithTerraformStateConfigMatchResolver(fakeConfigMatchResolver{})
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-p1a-order",
 		GenerationID:    "tf-generation-p1a-order",
 		FirstGeneration: false,
 		DeltaProjection: false,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              "tf-resource-p1a-order",
 			Address:          "aws_instance.web",
 			Mode:             "managed",
@@ -313,7 +313,7 @@ func TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-order",
-			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+			OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 		}},
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -121,7 +122,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	projectorRuntime := projector.Runtime{
+	projectorRuntime := runtime.Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter:   contentWriter,
 		IntentWriter:    reducerQueue,

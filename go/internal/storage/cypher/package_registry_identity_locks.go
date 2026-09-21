@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
 const packageRegistryIdentitySlowLockWait = 100 * time.Millisecond
@@ -41,7 +41,7 @@ func newPackageRegistryIdentityLocks() *packageRegistryIdentityLocks {
 }
 
 func (w *CanonicalNodeWriter) lockPackageRegistryIdentities(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) packageRegistryIdentityLockLease {
 	if w == nil || w.packageRegistryLocks == nil {
 		return packageRegistryIdentityLockLease{unlock: func() {}}
@@ -94,7 +94,7 @@ func (l *packageRegistryIdentityLocks) lock(keys []string) packageRegistryIdenti
 func recordPackageRegistryIdentityLock(
 	ctx context.Context,
 	span trace.Span,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 	lease packageRegistryIdentityLockLease,
 ) {
 	if lease.keyCount == 0 {
@@ -118,7 +118,7 @@ func recordPackageRegistryIdentityLock(
 	)
 }
 
-func packageRegistryIdentityLockKeys(mat projector.CanonicalMaterialization) []string {
+func packageRegistryIdentityLockKeys(mat canonical.CanonicalMaterialization) []string {
 	keys := make(
 		[]string,
 		0,

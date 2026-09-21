@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
@@ -18,7 +18,7 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:               "scope-1",
 		GenerationID:          "gen-2",
 		RepoID:                "repo-1",
@@ -29,13 +29,13 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 		DeltaDeletedDirectoryPaths: []string{
 			"/repos/repo/old/emptydir",
 		},
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "repo",
 			Path:      "/repos/repo",
 			LocalPath: "/repos/repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/repo/changed.go",
 				RelativePath: "changed.go",
@@ -44,12 +44,12 @@ func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
 				RepoID:       "repo-1",
 			},
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/repo/parent-a", Name: "parent-a", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
 			{Path: "/repos/repo/parent-b", Name: "parent-b", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
 			{Path: "/repos/repo/parent-a/child", Name: "child", ParentPath: "/repos/repo/parent-b", RepoID: "repo-1", Depth: 1},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "repo-1:function:changed.go:Run:1",
 				Label:        "Function",
@@ -182,7 +182,7 @@ func TestCanonicalNodeWriterPrunesAncestorsForDirectoryOnlyDeltaTombstones(t *te
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-2",
 		RepoID:          "repo-1",
@@ -191,7 +191,7 @@ func TestCanonicalNodeWriterPrunesAncestorsForDirectoryOnlyDeltaTombstones(t *te
 		DeltaDeletedDirectoryPaths: []string{
 			"/repos/repo/service/empty",
 		},
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "repo",
 			Path:      "/repos/repo",

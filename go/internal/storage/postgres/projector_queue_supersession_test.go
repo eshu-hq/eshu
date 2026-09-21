@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -29,7 +30,7 @@ func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 		},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
 	if got, want := len(db.execs), 6; got != want {

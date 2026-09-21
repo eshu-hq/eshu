@@ -10,14 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/metric"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // reducerLiveLeaseUniqueConstraint is the partial unique index (migration 005)
@@ -328,7 +327,7 @@ func (q ReducerQueue) failIntent(
 	return nil
 }
 
-func reducerWorkItemID(intent projector.ReducerIntent) string {
+func reducerWorkItemID(intent runtime.ReducerIntent) string {
 	parts := []string{
 		intent.ScopeID,
 		intent.GenerationID,

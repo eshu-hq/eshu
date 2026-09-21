@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -135,7 +135,7 @@ func TestOfflineReplayTierGraphTruth(t *testing.T) {
 
 // loadCassetteMaterialization loads the committed cassette through the real
 // cassette.Source and builds the canonical materialization for its single scope.
-func loadCassetteMaterialization(t *testing.T) projector.CanonicalMaterialization {
+func loadCassetteMaterialization(t *testing.T) canonical.CanonicalMaterialization {
 	t.Helper()
 
 	src, err := cassette.NewSource(cassetteRelPath)

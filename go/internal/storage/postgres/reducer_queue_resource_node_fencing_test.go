@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -23,8 +23,8 @@ import (
 func TestCloudResourceNodeConflictKeyFencesSameResourceSeparatesDistinct(t *testing.T) {
 	t.Parallel()
 
-	intentFor := func(entityKey string) projector.ReducerIntent {
-		return projector.ReducerIntent{
+	intentFor := func(entityKey string) runtime.ReducerIntent {
+		return runtime.ReducerIntent{
 			ScopeID:   "aws:111122223333:us-east-1:ec2",
 			Domain:    reducer.DomainAWSResourceMaterialization,
 			EntityKey: entityKey,

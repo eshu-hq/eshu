@@ -15,7 +15,7 @@ Terraform-state canonical writer:
    writer, no new statement, no new REMOVE shape.
 2. Adds a provider-binding pre-pass
    (`terraformStateProviderBindingsByResource`,
-   `go/internal/projector/tfstate_canonical.go`) that decodes every
+   `go/internal/projector/canonical/terraform_state.go`) that decodes every
    `terraform_state_provider_binding` fact and joins
    `Provider`/`ProviderSourceAddress`/`ProviderAlias` onto each
    `TerraformStateResourceRow` by `ResourceAddress`, mirroring the

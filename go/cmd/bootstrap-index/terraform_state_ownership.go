@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend/canonicalwriter"
 )
@@ -35,6 +35,6 @@ type bootstrapTerraformStateOwnershipResolver struct {
 // outcome.
 func (r bootstrapTerraformStateOwnershipResolver) ResolveOwningRepoID(
 	ctx context.Context, backendKind, locatorHash string,
-) (string, projector.TerraformStateOwnershipOutcome) {
+) (string, canonical.TerraformStateOwnershipOutcome) {
 	return canonicalwriter.ResolveOwningRepoIDOutcome(ctx, r.resolver, backendKind, locatorHash)
 }

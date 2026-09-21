@@ -75,7 +75,29 @@ func resolveDecodeFiles(p Paths) ([]string, error) {
 // state, not a fail-closed misconfiguration. The reducer glob remains
 // fail-closed because the reducer always has at least the AWS decode seam.
 func resolveProjectorDecodeFiles(p Paths) ([]string, error) {
-	return resolveOptionalDecodeFiles("projector", p.ProjectorDir, p.ProjectorDecodeFiles)
+	if len(p.ProjectorDecodeFiles) > 0 {
+		return p.ProjectorDecodeFiles, nil
+	}
+	legacy, err := resolveOptionalDecodeFiles("projector", p.ProjectorDir, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Since #6781 the projector's typed decode seams live in their own package,
+	// go/internal/projector/decode, where the whole package IS the seam and a
+	// factschema_decode_* filename would repeat the directory name (the
+	// filename-stutter gate rejects that). Glob it whole. This is additive so a
+	// checkout that still carries root factschema_decode*.go files keeps working.
+	// Getting this wrong is silent: the projector glob deliberately tolerates an
+	// empty match, so a stale pattern drops kinds from the manifest instead of
+	// failing closed.
+	pkg, err := resolveOptionalDecodeFilesPattern("projector decode package",
+		filepath.Join(p.ProjectorDir, "decode"), "*.go")
+	if err != nil {
+		return nil, err
+	}
+	merged := append(legacy, pkg...)
+	sort.Strings(merged)
+	return merged, nil
 }
 
 // resolveQueryDecodeFiles returns the set of query-layer decode-seam files to
@@ -95,6 +117,26 @@ func resolveQueryDecodeFiles(p Paths) ([]string, error) {
 // surfaces whose typed coverage is allowed to be empty during incremental
 // migration. explicit, when non-empty, is returned as-is so tests and
 // callers can pin fixture files.
+// resolveOptionalDecodeFilesPattern is resolveOptionalDecodeFiles with the
+// filename pattern supplied by the caller, for a directory whose seam files do
+// not carry the factschema_decode* prefix. Like the projector glob it treats an
+// empty match as valid rather than fail-closed.
+func resolveOptionalDecodeFilesPattern(label string, dir string, pattern string) ([]string, error) {
+	matches, err := globFilesRecursive(dir, pattern)
+	if err != nil {
+		return nil, fmt.Errorf("payloadusage: glob %s decode seam files %s: %w", label, filepath.Join(dir, pattern), err)
+	}
+	files := matches[:0]
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		files = append(files, m)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
 func resolveOptionalDecodeFiles(label string, dir string, explicit []string) ([]string, error) {
 	if len(explicit) > 0 {
 		return explicit, nil

@@ -45,7 +45,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -63,42 +63,42 @@ const (
 // which generation's targets the edges point at, so the same builder produces
 // both gen1 and gen2 for the "in" scope (with the targets changed) and the
 // single write for the "out" scope.
-func govScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) projector.CanonicalMaterialization {
+func govScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) canonical.CanonicalMaterialization {
 	filePath := repoPath + "/main.py"
 	atlantisFile := repoPath + "/atlantis.yaml"
 	chartValuesFile := repoPath + "/chart/values.yaml"
 	chartTemplateFile := repoPath + "/chart/templates/deploy.yaml"
 
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:          repoID,
 		RepoPath:        repoPath,
 		GenerationID:    generationID,
 		FirstGeneration: firstGeneration,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: repoID,
 			Name:   repoID,
 			Path:   repoPath,
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: repoPath + "/dir-a", RepoID: repoID},
 			{Path: repoPath + "/dir-b", RepoID: repoID},
 			{Path: repoPath + "/chart", ParentPath: repoPath, RepoID: repoID},
 			{Path: repoPath + "/chart/templates", ParentPath: repoPath + "/chart", RepoID: repoID, Depth: 1},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: filePath, RelativePath: "main.py", Name: "main.py", RepoID: repoID},
 			{Path: atlantisFile, RelativePath: "atlantis.yaml", Name: "atlantis.yaml", RepoID: repoID},
 			{Path: chartValuesFile, RelativePath: "chart/values.yaml", Name: "values.yaml", RepoID: repoID, DirPath: repoPath + "/chart"},
 			{Path: chartTemplateFile, RelativePath: "chart/templates/deploy.yaml", Name: "deploy.yaml", RepoID: repoID, DirPath: repoPath + "/chart/templates"},
 		},
-		Modules: []projector.ModuleRow{
+		Modules: []canonical.ModuleRow{
 			{Name: repoID + ":module-a"},
 			{Name: repoID + ":module-b"},
 		},
-		Imports: []projector.ImportRow{
+		Imports: []canonical.ImportRow{
 			{FilePath: filePath, ModuleName: repoID + ":module-" + targetSuffix, ImportedName: "x", LineNumber: 1},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID: repoID + ":project-network", Label: "AtlantisProject",
 				EntityName: "network", FilePath: atlantisFile, RepoID: repoID,

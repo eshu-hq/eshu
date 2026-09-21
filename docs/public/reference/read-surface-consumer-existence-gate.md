@@ -297,7 +297,7 @@ file *path*) and a fully-populated `ReducerDomain`/`ProjectionHook`/
 are registry METADATA, populated identically whether or not any code
 actually reads the kind: `terraform_state_candidate` carries a non-empty
 `PayloadSchema` and a full pipeline triple despite
-`go/internal/projector/tfstate_canonical.go:113-116` documenting it as
+`go/internal/projector/canonical/terraform_state.go` (`terraformStateSnapshot`) documenting it as
 intentionally unhandled, so v1 passed it (and every kind sharing that shape)
 for the wrong reason. `go/internal/mcp/kind_real_consumer*.go` replaces both
 signals with real source-code evidence. A kind passes if it has at least one
@@ -333,7 +333,7 @@ of these:
    uses to consume `package_registry.source_hint`) dispatch on the raw envelope kind, scoped
    to `go/internal/reducer` only (never the projector — see
    `factsDispatchedKinds`'s doc comment for why
-   `go/internal/projector/runtime_phase.go`'s readiness-phase-tracking
+   `go/internal/projector/runtime/phase.go`'s readiness-phase-tracking
    dispatch on `terraform_state_warning` must not count as consumption).
 5. **Named per-kind store constant** — a `go/internal/storage/postgres` or
    `go/internal/replay/schedulereplay` file that declares its own top-level

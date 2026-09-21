@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -431,11 +431,11 @@ func TestNornicDBBatchedEntityContainmentFullStackUsesCrossFileBatchedEntityRows
 
 	mat := minimalCanonicalMaterialization()
 	mat.FirstGeneration = true
-	mat.Files = []projector.FileRow{
+	mat.Files = []canonical.FileRow{
 		{Path: "/repos/my-repo/src/a.go", RelativePath: "src/a.go", Name: "a.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		{Path: "/repos/my-repo/src/b.go", RelativePath: "src/b.go", Name: "b.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 	}
-	mat.Entities = []projector.EntityRow{
+	mat.Entities = []canonical.EntityRow{
 		{EntityID: "entity-1", Label: "Function", EntityName: "a", FilePath: "/repos/my-repo/src/a.go", RelativePath: "src/a.go", StartLine: 1, EndLine: 2, Language: "go", RepoID: "repo-1"},
 		{EntityID: "entity-2", Label: "Function", EntityName: "b", FilePath: "/repos/my-repo/src/b.go", RelativePath: "src/b.go", StartLine: 3, EndLine: 4, Language: "go", RepoID: "repo-1"},
 	}

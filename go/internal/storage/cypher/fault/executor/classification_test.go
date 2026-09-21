@@ -11,7 +11,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -95,13 +95,13 @@ func TestFaultOnceErrorsMatchRealTransientContract(t *testing.T) {
 // TestPlainUnclassifiedReducerFailureStillTriagesProjectionBug documents the
 // upstream default this fix routes AROUND rather than removes: a reducer-stage
 // cause that is genuinely plain (no Retryable, no FailureClass) still
-// dead-letters and triages to projection_bug via projector.ClassifyFailure.
+// dead-letters and triages to projection_bug via failure.ClassifyFailure.
 // The fix makes the fault error NOT plain; it does not change this default,
 // which correctly fails closed for a truly-unknown error.
 func TestPlainUnclassifiedReducerFailureStillTriagesProjectionBug(t *testing.T) {
 	plain := errors.New("write canonical cloud resource nodes: some unknown non-transient failure")
-	if got := projector.ClassifyFailure(plain, "reducer").FailureClass; got != projector.FailureClassProjectionBug {
+	if got := failure.ClassifyFailure(plain, "reducer").FailureClass; got != failure.FailureClassProjectionBug {
 		t.Fatalf("a genuinely unclassified reducer-stage cause should still default to %q, got %q",
-			projector.FailureClassProjectionBug, got)
+			failure.FailureClassProjectionBug, got)
 	}
 }

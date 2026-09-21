@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // tfstateSyntheticResourceRows builds n synthetic TerraformStateResourceRow
@@ -16,10 +16,10 @@ import (
 // tf_attr_instance_type attribute (#5441), the two node-property sources
 // buildTerraformStateStatements' resource phase must thread through on every
 // row.
-func tfstateSyntheticResourceRows(n int) []projector.TerraformStateResourceRow {
-	rows := make([]projector.TerraformStateResourceRow, 0, n)
+func tfstateSyntheticResourceRows(n int) []canonical.TerraformStateResourceRow {
+	rows := make([]canonical.TerraformStateResourceRow, 0, n)
 	for i := 0; i < n; i++ {
-		rows = append(rows, projector.TerraformStateResourceRow{
+		rows = append(rows, canonical.TerraformStateResourceRow{
 			UID:                   fmt.Sprintf("tf-resource-uid-%d", i),
 			Address:               fmt.Sprintf("aws_instance.web_%d", i),
 			Mode:                  "managed",
@@ -61,7 +61,7 @@ func tfstateSyntheticResourceRows(n int) []projector.TerraformStateResourceRow {
 func BenchmarkBuildTerraformStateStatementsSyntheticCorpus(b *testing.B) {
 	const resourceCount = 10_000
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:                 "tf-scope-bench",
 		GenerationID:            "tf-generation-bench",
 		TerraformStateResources: tfstateSyntheticResourceRows(resourceCount),

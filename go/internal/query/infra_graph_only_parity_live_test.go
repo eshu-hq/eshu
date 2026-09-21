@@ -16,7 +16,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -108,17 +108,17 @@ func TestLiveInfraGraphOnlyLabelsMatchFactReadModel(t *testing.T) {
 	}, "par6843-battery"); err != nil {
 		t.Fatalf("write EC2 node: %v", err)
 	}
-	tsrMat := projector.CanonicalMaterialization{
+	tsrMat := canonical.CanonicalMaterialization{
 		ScopeID:         "scope-" + suffix,
 		GenerationID:    "gen-" + suffix,
 		FirstGeneration: true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID: uidR1, Address: "aws_instance.web", Mode: "managed",
 			ResourceType: "aws_instance", Name: "web",
 			Provider: "aws", ProviderAddress: "registry.terraform.io/hashicorp/aws",
 			SourceSystem: "tfstate", SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
-			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+			OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 			OwningRepoID:     "repo-" + suffix,
 		}},
 	}

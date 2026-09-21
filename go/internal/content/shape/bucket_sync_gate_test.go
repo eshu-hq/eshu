@@ -131,7 +131,7 @@ func TestContentEntityLabelsHaveProjectorLabels(t *testing.T) {
 	canonical := parseBucketLabelSlice(t,
 		filepath.Join(root, "go/internal/content/shape/materialize_tables.go"), "contentEntityBuckets")
 	projector := parseStringMapValues(t,
-		filepath.Join(root, "go/internal/projector/canonical.go"), "entityTypeLabelMap")
+		filepath.Join(root, "go/internal/projector/canonical/materialization.go"), "entityTypeLabelMap")
 
 	if len(projector) == 0 {
 		t.Fatal("extracted 0 projector labels; the declaration moved or the parse failed")
@@ -194,7 +194,7 @@ func TestBucketSyncDriftLedgerIsHonest(t *testing.T) {
 	twin := parseBucketLabelSlice(t,
 		filepath.Join(root, "go/internal/collector/repo/git/snapshot_entity_buckets.go"), "snapshotEntityBuckets")
 	projector := parseStringMapValues(t,
-		filepath.Join(root, "go/internal/projector/canonical.go"), "entityTypeLabelMap")
+		filepath.Join(root, "go/internal/projector/canonical/materialization.go"), "entityTypeLabelMap")
 
 	for _, bucket := range sortedKeysOf(knownBucketSyncDrift) {
 		_, inCanonical := canonical[bucket]

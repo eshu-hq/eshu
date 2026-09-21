@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterRetraction(t *testing.T) {
@@ -17,17 +17,17 @@ func TestCanonicalNodeWriterRetraction(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/main.go", RelativePath: "main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo"},
 		},
 	}
@@ -108,16 +108,16 @@ func TestCanonicalNodeWriterSkipsRetractionForFirstGeneration(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 0, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "scope-first",
 		GenerationID:    "gen-first",
 		RepoID:          "repo-first",
 		FirstGeneration: true,
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path:   "/repo/main.go",
 			RepoID: "repo-first",
 		}},
-		Entities: []projector.EntityRow{{
+		Entities: []canonical.EntityRow{{
 			EntityID: "content-entity:first",
 			Label:    "Function",
 			RepoID:   "repo-first",
@@ -133,10 +133,10 @@ func TestCanonicalNodeWriterFileRetractPreservesCurrentFilePaths(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/main.go"},
 			{Path: "/repos/my-repo/internal/graph.go"},
 		},
@@ -170,14 +170,14 @@ func TestCanonicalNodeWriterRetractPreservesCurrentEntityAndDirectoryIdentities(
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo/internal"},
 			{Path: "/repos/my-repo/cmd"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "entity-function-1", Label: "Function"},
 			{EntityID: "entity-struct-1", Label: "Struct"},
 			{EntityID: "entity-k8s-1", Label: "K8sResource"},

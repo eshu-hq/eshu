@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -51,9 +52,9 @@ func TestBuildProjectorServiceWiresRetryInjectorFromEnv(t *testing.T) {
 		t.Fatalf("buildProjectorService() error = %v, want nil", err)
 	}
 
-	runtime, ok := service.Runner.(projector.Runtime)
+	runtime, ok := service.Runner.(runtime.Runtime)
 	if !ok {
-		t.Fatalf("Runner type = %T, want projector.Runtime", service.Runner)
+		t.Fatalf("Runner type = %T, want runtime.Runtime", service.Runner)
 	}
 	if runtime.RetryInjector == nil {
 		t.Fatal("RetryInjector = nil, want configured injector")
@@ -207,6 +208,6 @@ func TestNeo4jBatchSizeReturnsZeroForInvalidInput(t *testing.T) {
 // noopCanonicalWriter is a no-op canonical writer for tests.
 type noopCanonicalWriter struct{}
 
-func (*noopCanonicalWriter) Write(_ context.Context, _ projector.CanonicalMaterialization) error {
+func (*noopCanonicalWriter) Write(_ context.Context, _ canonical.CanonicalMaterialization) error {
 	return nil
 }

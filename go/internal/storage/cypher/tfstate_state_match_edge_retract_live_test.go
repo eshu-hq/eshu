@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive is the end-to-end
@@ -77,17 +77,17 @@ func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive(t *testing.T) {
 
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil)
 
-	genOneRow := projector.TerraformStateResourceRow{
+	genOneRow := canonical.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
 		OwningRepoID:     ownerRepoA,
-		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+		OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 	}
-	genOne := projector.CanonicalMaterialization{
+	genOne := canonical.CanonicalMaterialization{
 		ScopeID:                 scopeID,
 		GenerationID:            "tf-generation-5443-p1a-live-1",
 		FirstGeneration:         true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{genOneRow},
+		TerraformStateResources: []canonical.TerraformStateResourceRow{genOneRow},
 	}
 	if err := writer.Write(ctx, genOne); err != nil {
 		t.Fatalf("Write (generation 1) error: %v", err)
@@ -115,12 +115,12 @@ func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive(t *testing.T) {
 	// though the resource no longer resolves there.
 	genTwoRow := genOneRow
 	genTwoRow.OwningRepoID = ownerRepoB
-	genTwo := projector.CanonicalMaterialization{
+	genTwo := canonical.CanonicalMaterialization{
 		ScopeID:                 scopeID,
 		GenerationID:            "tf-generation-5443-p1a-live-2",
 		FirstGeneration:         false,
 		DeltaProjection:         false,
-		TerraformStateResources: []projector.TerraformStateResourceRow{genTwoRow},
+		TerraformStateResources: []canonical.TerraformStateResourceRow{genTwoRow},
 	}
 	if err := writer.Write(ctx, genTwo); err != nil {
 		t.Fatalf("Write (generation 2) error: %v", err)

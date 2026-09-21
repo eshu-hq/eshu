@@ -8,20 +8,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterRetractLeavesRemovedIdentitiesEligibleForDeletion(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/readded.go"},
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo"},
 		},
 	}
@@ -77,17 +77,17 @@ func TestCanonicalNodeWriterRefreshesCurrentFileStructuralEdges(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/main.go"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "content-entity:function", Label: "Function", EntityName: "ServeHTTP", FilePath: "/repos/my-repo/main.go", StartLine: 10},
 			{EntityID: "content-entity:class", Label: "Class", EntityName: "Handler", FilePath: "/repos/my-repo/main.go"},
 		},
-		ClassMembers: []projector.ClassMemberRow{
+		ClassMembers: []canonical.ClassMemberRow{
 			{ClassName: "Handler", FunctionName: "ServeHTTP", FilePath: "/repos/my-repo/main.go", FunctionLine: 10},
 		},
 	}
@@ -157,10 +157,10 @@ func TestCanonicalNodeWriterDeduplicatesRetractFilePaths(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/main.go"},
 			{Path: "/repos/my-repo/main.go"},
 			{Path: "/repos/my-repo/routes.go"},
@@ -200,7 +200,7 @@ func TestCanonicalNodeWriterKeepsEmptyDirectoryPathList(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
 	}

@@ -8,12 +8,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
 // ResolveOwningRepoIDOutcome adapts *tfstatebackend.Resolver.ResolveConfigCommitForBackend
-// to the (repoID string, outcome projector.TerraformStateOwnershipOutcome)
+// to the (repoID string, outcome canonical.TerraformStateOwnershipOutcome)
 // contract every cmd/* canonical-writer wiring site's own
 // sourcecypher.TerraformStateOwnershipResolver implementation needs (#5623 P1
 // review, second finding). See this package's doc.go and README.md for why
@@ -40,18 +40,18 @@ import (
 // answers, not operational problems).
 func ResolveOwningRepoIDOutcome(
 	ctx context.Context, resolver *tfstatebackend.Resolver, backendKind, locatorHash string,
-) (repoID string, outcome projector.TerraformStateOwnershipOutcome) {
+) (repoID string, outcome canonical.TerraformStateOwnershipOutcome) {
 	anchor, err := resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 	if err != nil {
 		if errors.Is(err, tfstatebackend.ErrNoConfigRepoOwnsBackend) {
-			return "", projector.TerraformStateOwnershipNoOwner
+			return "", canonical.TerraformStateOwnershipNoOwner
 		}
 		if errors.Is(err, tfstatebackend.ErrAmbiguousBackendOwner) {
-			return "", projector.TerraformStateOwnershipAmbiguousOwner
+			return "", canonical.TerraformStateOwnershipAmbiguousOwner
 		}
 		slog.WarnContext(ctx, "terraform state backend ownership resolution failed",
 			"backend_kind", backendKind, "locator_hash", locatorHash, "error", err)
-		return "", projector.TerraformStateOwnershipTransientFailure
+		return "", canonical.TerraformStateOwnershipTransientFailure
 	}
 	if anchor.RepoID == "" {
 		// Defensive, not a documented outcome: ResolveConfigCommitForBackend's
@@ -63,7 +63,7 @@ func ResolveOwningRepoIDOutcome(
 		// it the same as a transient failure -- conservative, not a guess --
 		// rather than assume it means "no owner" or fabricate a resolved
 		// answer from data that should not be possible.
-		return "", projector.TerraformStateOwnershipTransientFailure
+		return "", canonical.TerraformStateOwnershipTransientFailure
 	}
-	return anchor.RepoID, projector.TerraformStateOwnershipResolved
+	return anchor.RepoID, canonical.TerraformStateOwnershipResolved
 }

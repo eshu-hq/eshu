@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // canonicalNodeAtlantisManagesEdgeCypher links an Atlantis project to the
@@ -96,7 +96,7 @@ type atlantisProjectEntity struct {
 // or nil when there are none so the statements never run for non-Atlantis repos.
 // Edges are resolved in Go and matched by canonical key (uid / Directory.path),
 // which is robust where bound-variable property matching is not.
-func atlantisEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func atlantisEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	projects := collectAtlantisProjectEntities(mat.Entities)
 	if len(projects) == 0 {
 		return nil
@@ -216,7 +216,7 @@ func atlantisProjectSourceUIDs(projects []atlantisProjectEntity) []string {
 // collectAtlantisWorkflowUIDs maps "<filePath>\x00<workflowName>" -> uid for
 // every AtlantisWorkflow entity, so a project's workflow reference resolves to a
 // workflow node in the same atlantis.yaml.
-func collectAtlantisWorkflowUIDs(entities []projector.EntityRow) map[string]string {
+func collectAtlantisWorkflowUIDs(entities []canonical.EntityRow) map[string]string {
 	uids := map[string]string{}
 	for _, entity := range entities {
 		if entity.Label != "AtlantisWorkflow" {
@@ -229,7 +229,7 @@ func collectAtlantisWorkflowUIDs(entities []projector.EntityRow) map[string]stri
 
 // collectAtlantisProjectEntities extracts AtlantisProject entities from the
 // materialization's entity rows.
-func collectAtlantisProjectEntities(entities []projector.EntityRow) []atlantisProjectEntity {
+func collectAtlantisProjectEntities(entities []canonical.EntityRow) []atlantisProjectEntity {
 	var projects []atlantisProjectEntity
 	for _, entity := range entities {
 		if entity.Label != "AtlantisProject" {

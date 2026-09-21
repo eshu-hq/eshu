@@ -422,7 +422,7 @@ Design:
    - A **missing required field** (`ifa mutate-cassette -kind
      missing-field`) passes every earlier admission gate untouched and is
      **PER-FACT QUARANTINED** once a canonical extractor or reducer handler
-     decodes it — `go/internal/projector/factschema_quarantine.go` and its
+     decodes it — `go/internal/projector/decode/quarantine.go` and its
      reducer twin (`go/internal/reducer/schemadecode/factschema_decode.go`) skip the one
      fact, increment a metric, and log a structured error, but the
      surrounding `fact_work_items` row still **succeeds**. This is
@@ -432,7 +432,7 @@ Design:
      `dead_letter` rows.
    - A **schema-major mismatch** (`ifa mutate-cassette -kind schema-major`)
      is caught earlier, at the **projector's own admission gate**
-     (`go/internal/projector/schema_version_admission.go`'s
+     (`go/internal/projector/decode/schema_version_admission.go`'s
      `validateFactSchemaVersion`), before canonicalization even starts. That
      gate fails the **whole** projector work item for the scope/generation —
      not a per-fact skip — so the reducer's own follow-on materialization

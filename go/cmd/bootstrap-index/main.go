@@ -13,19 +13,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type bootstrapDB interface {
@@ -34,7 +34,7 @@ type bootstrapDB interface {
 }
 
 type graphDeps struct {
-	writer projector.CanonicalWriter
+	writer runtime.CanonicalWriter
 	close  func() error
 }
 
@@ -89,7 +89,7 @@ type (
 	finalizeContentSearchIndexesFn func(context.Context, bootstrapDB) error
 	openGraphFn                    func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
 	buildCollectorFn               func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
-	buildProjectorFn               func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
+	buildProjectorFn               func(context.Context, bootstrapDB, runtime.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
 	discoveryAdvisorySink          func(collector.DiscoveryAdvisoryReport) error
 )
 

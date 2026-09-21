@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -47,12 +50,12 @@ type FactStore interface {
 
 // ProjectionRunner projects one scope generation worth of facts.
 type ProjectionRunner interface {
-	Project(context.Context, scope.IngestionScope, scope.ScopeGeneration, []facts.Envelope) (Result, error)
+	Project(context.Context, scope.IngestionScope, scope.ScopeGeneration, []facts.Envelope) (runtime.Result, error)
 }
 
 // ProjectorWorkSink acknowledges or fails claimed projector work.
 type ProjectorWorkSink interface {
-	Ack(context.Context, ScopeGenerationWork, Result) error
+	Ack(context.Context, ScopeGenerationWork, runtime.Result) error
 	Fail(context.Context, ScopeGenerationWork, error) error
 }
 
@@ -334,7 +337,7 @@ func (s Service) startHeartbeat(ctx context.Context, work ScopeGenerationWork, w
 					heartbeatErr = fmt.Errorf("heartbeat projector work: %w", err)
 					// A lost claim is expected under attempt fencing; processWork
 					// logs it at WARN, so it must not page as a heartbeat failure.
-					if s.Logger != nil && !errors.Is(err, ErrWorkClaimLost) {
+					if s.Logger != nil && !errors.Is(err, failure.ErrWorkClaimLost) {
 						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
 						logAttrs := make([]any, 0, len(scopeAttrs)+4)
 						for _, a := range scopeAttrs {

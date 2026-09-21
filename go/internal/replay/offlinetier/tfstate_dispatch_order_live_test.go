@@ -35,7 +35,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -133,10 +133,10 @@ SET r.address = $address,
 	// terraformAttributePromotionAllowlist so the writer skips the
 	// attribute-remove phase, isolating this test to the resource-sweep
 	// retract statement under test.
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      scopeID,
 		GenerationID: newGen,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              survivorUID,
 			Address:          "aws_instance.survivor_5680",
 			Mode:             "managed",
@@ -320,10 +320,10 @@ SET e.evidence_source = 'projector/tfstate',
 	// (its uid is in this batch) but wires no ownership/config-match
 	// resolver, so no new MATCHES_STATE edge is written this cycle -- the
 	// only thing that can change the edge count is the retract statement.
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      scopeID,
 		GenerationID: newGen,
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              stateUID,
 			Address:          "aws_instance.edge_5680",
 			Mode:             "managed",
@@ -336,7 +336,7 @@ SET e.evidence_source = 'projector/tfstate',
 			// so terraformStateMatchesConfigEdgeRetractStatements includes
 			// this row's uid in its retract-eligible set -- see this test's
 			// own doc comment above for why.
-			OwnershipOutcome: projector.TerraformStateOwnershipNoOwner,
+			OwnershipOutcome: canonical.TerraformStateOwnershipNoOwner,
 		}},
 	}
 	if err := writer.Write(ctx, mat); err != nil {

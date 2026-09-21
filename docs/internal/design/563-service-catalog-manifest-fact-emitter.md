@@ -21,7 +21,7 @@ shipped:
   `.scorecard_result`, `.warning`; `ServiceCatalogSchemaVersionV1 = "1.0.0"`).
 - Projector intent wiring: `go/internal/projector/service/catalog/correlation_intents.go`
   (`BuildServiceCatalogCorrelationReducerIntent`); root
-  `go/internal/projector/schema_version_admission.go` rejects unsupported
+  `go/internal/projector/decode/schema_version_admission.go` rejects unsupported
   service-catalog schema versions before the builder runs.
 - Reducer handler and writer: `go/internal/reducer/servicecatalog/service_catalog_correlation.go`,
   `service_catalog_correlation_index.go`, `service_catalog_correlation_writer.go`

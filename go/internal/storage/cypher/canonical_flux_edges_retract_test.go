@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestFluxReconcilesFromOCIRepositoryAndBucketRefsResolve proves the
@@ -16,9 +16,9 @@ import (
 func TestFluxReconcilesFromOCIRepositoryAndBucketRefsResolve(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k-oci", "/repo/apps.yaml", "flux-system", "OCIRepository", "app-manifests", "flux-system"),
 			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "app-manifests", "flux-system", "/repo/sources.yaml"),
 			fluxKustomizationRowEntity("uid-k-bucket", "/repo/apps.yaml", "flux-system", "Bucket", "flux-artifacts", "flux-system"),
@@ -47,9 +47,9 @@ func TestFluxReconcilesFromOCIRepositoryAndBucketRefsResolve(t *testing.T) {
 func TestFluxReconcilesFromUnknownSourceRefKindSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "ExternalArtifact", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -70,9 +70,9 @@ func TestFluxReconcilesFromUnknownSourceRefKindSkips(t *testing.T) {
 func TestFluxReconcilesFromRetractsStaleEdgesBeforeMerge(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -118,9 +118,9 @@ func TestFluxReconcilesFromRetractsStaleEdgesBeforeMerge(t *testing.T) {
 func TestFluxReconcilesFromRetractCoversAllKustomizationUIDsRegardlessOfResolvability(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k-resolves", "/repo/apps.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 			// This one no longer has a resolvable sourceRef (kind now unknown),
@@ -149,10 +149,10 @@ func TestFluxReconcilesFromRetractCoversAllKustomizationUIDsRegardlessOfResolvab
 func TestFluxReconcilesFromFirstGenerationSkipsStaleEdgeRetract(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		FirstGeneration: true,
 		GenerationID:    "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -172,9 +172,9 @@ func TestFluxReconcilesFromFirstGenerationSkipsStaleEdgeRetract(t *testing.T) {
 func TestFluxReconcilesFromNilWithoutFluxKustomization(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{Label: "Function", EntityID: "fn-1"},
 		},
 	}

@@ -9,7 +9,7 @@ package v1
 // One fact is emitted per package version observed at a registry. The
 // projector materializes a canonical PackageRegistryVersion node keyed by
 // VersionID, joined to its owning package by PackageID
-// (go/internal/projector/package_registry_canonical.go
+// (go/internal/projector/canonical/package_registry.go
 // packageRegistryVersionRow), which DROPS a version observation missing
 // package_id, version_id, or version rather than fabricating a node under a
 // broken join. Those three fields are therefore REQUIRED. The collector

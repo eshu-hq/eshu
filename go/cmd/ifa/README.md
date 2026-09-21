@@ -292,7 +292,7 @@ mutate-cassette report, and dead-letters JSON are the operator-facing artifacts.
   `missing-field` is QUARANTINED per fact (metric + log, no durable
   `fact_work_items` row); `schema-major` trips the projector's own
   admission-time schema-version gate
-  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  (`go/internal/projector/decode/schema_version_admission.go`) BEFORE the reducer's
   typed-decode seam is ever reached, dead-lettering the whole projector work
   item durably. The durable row's `failure_class` came back `"projection_bug"`
   in that run, not the reducer's `"input_invalid"` — do not assume a fixed

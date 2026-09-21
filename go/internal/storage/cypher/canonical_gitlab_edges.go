@@ -6,7 +6,7 @@ package cypher
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // canonicalNodeGitlabDefinesJobEdgeCypher links a GitLab CI pipeline to a job it
@@ -88,7 +88,7 @@ type gitlabJobEntity struct {
 // materialization, or nil when there are none so the statements never run for
 // non-GitLab repos. Edges are resolved in Go and matched by canonical key (uid),
 // which is robust where bound-variable property matching is not.
-func gitlabEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func gitlabEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	pipelines := collectGitlabPipelineEntities(mat.Entities)
 	jobs := collectGitlabJobEntities(mat.Entities)
 	if len(pipelines) == 0 && len(jobs) == 0 {
@@ -218,7 +218,7 @@ func gitlabJobSourceUIDs(jobs []gitlabJobEntity) []string {
 
 // collectGitlabPipelineEntities extracts GitlabPipeline entities from the
 // materialization's entity rows.
-func collectGitlabPipelineEntities(entities []projector.EntityRow) []gitlabPipelineEntity {
+func collectGitlabPipelineEntities(entities []canonical.EntityRow) []gitlabPipelineEntity {
 	var pipelines []gitlabPipelineEntity
 	for _, entity := range entities {
 		if entity.Label != "GitlabPipeline" {
@@ -234,7 +234,7 @@ func collectGitlabPipelineEntities(entities []projector.EntityRow) []gitlabPipel
 
 // collectGitlabJobEntities extracts GitlabJob entities from the materialization's
 // entity rows.
-func collectGitlabJobEntities(entities []projector.EntityRow) []gitlabJobEntity {
+func collectGitlabJobEntities(entities []canonical.EntityRow) []gitlabJobEntity {
 	var jobs []gitlabJobEntity
 	for _, entity := range entities {
 		if entity.Label != "GitlabJob" {

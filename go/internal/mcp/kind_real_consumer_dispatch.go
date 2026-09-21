@@ -61,7 +61,7 @@ import (
 // from re-introducing that same false-green class.
 //
 // Callers restrict dirs to go/internal/reducer only, never the projector.
-// go/internal/projector/runtime_phase.go has a
+// go/internal/projector/runtime/phase.go has a
 // `case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:`
 // clause that dispatches purely on the fact's KIND IDENTITY to publish a
 // graph-projection-readiness phase marker (canonicalGraphPhaseStates) — it

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterErrorPropagation(t *testing.T) {
@@ -18,12 +18,12 @@ func TestCanonicalNodeWriterErrorPropagation(t *testing.T) {
 	exec := &mockExecutor{err: errors.New("neo4j connection failed")}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
@@ -56,17 +56,17 @@ func TestCanonicalNodeWriterDirectoryGenerationID(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-dir",
 		GenerationID: "gen-dir",
 		RepoID:       "repo-dir",
 		RepoPath:     "/repos/dir-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-dir",
 			Name:   "dir-repo",
 			Path:   "/repos/dir-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/dir-repo/src", Name: "src", ParentPath: "/repos/dir-repo", RepoID: "repo-dir", Depth: 0},
 			{Path: "/repos/dir-repo/src/pkg", Name: "pkg", ParentPath: "/repos/dir-repo/src", RepoID: "repo-dir", Depth: 1},
 		},
@@ -138,23 +138,23 @@ func TestCanonicalNodeWriterAtomicGroupExecutor(t *testing.T) {
 	exec := &mockGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 10, Language: "go", RepoID: "repo-1"},
 		},
 	}
@@ -233,17 +233,17 @@ func TestCanonicalNodeWriterFallsBackToSequential(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/f1.go", RelativePath: "f1.go", Name: "f1.go", Language: "go", RepoID: "repo-1", DirPath: "/src"},
 		},
 	}
@@ -265,20 +265,20 @@ func TestCanonicalNodeWriterUsesPhaseGroupExecutor(t *testing.T) {
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 10, Language: "go", RepoID: "repo-1"},
 		},
 	}
@@ -305,12 +305,12 @@ func TestCanonicalNodeWriterEntityStatementsIncludePhaseDiagnostics(t *testing.T
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "e1",
 				Label:        "Function",
@@ -350,12 +350,12 @@ func TestCanonicalNodeWriterTriggerSubstringRowStaysBatched(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "e-shortest",
 				Label:        "Function",
@@ -386,12 +386,12 @@ func TestCanonicalNodeWriterEntityBatchSizeOverride(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).WithEntityBatchSize(2)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "one", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 1, EndLine: 2, Language: "go", RepoID: "repo-1"},
 			{EntityID: "e2", Label: "Function", EntityName: "two", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 3, EndLine: 4, Language: "go", RepoID: "repo-1"},
 			{EntityID: "e3", Label: "Function", EntityName: "three", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 6, Language: "go", RepoID: "repo-1"},

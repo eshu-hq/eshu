@@ -93,7 +93,7 @@ metric, or log boundary.
   identical two-tier body, so this is NOT a behavior change — do not
   reintroduce a package-local copy.
 - `containerImageIdentityFileFactKind` duplicates root's
-  `FactKindFileObserved` (`"file"`, `go/internal/projector/stage_facts.go`)
+  `FactKindFileObserved` (`"file"`, `go/internal/projector/decode/fact_kind.go`)
   as a literal rather than an import, because root imports this package to
   dispatch and the reverse direction would cycle.
 - Workflow evidence uses this identity intent because static

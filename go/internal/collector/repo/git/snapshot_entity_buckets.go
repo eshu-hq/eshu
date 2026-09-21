@@ -28,7 +28,7 @@ var snapshotEntityBuckets = []struct {
 	// does get Variable nodes. Reasons and measurements are on the
 	// contentEntityBuckets row in go/internal/content/shape/materialize_tables.go;
 	// the source-local-unwritten set is pinned in
-	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206).
+	// go/internal/projector/canonical/unwritten_entity_labels_test.go (#6206).
 	{bucket: "variables", label: "Variable"},
 	{bucket: "type_annotations", label: "TypeAnnotation"},
 	{bucket: "traits", label: "Trait"},
@@ -128,7 +128,7 @@ var snapshotEntityBuckets = []struct {
 	// go/internal/content/shape/bucket_sync_gate_test.go (CI gate
 	// content-entity-bucket-sync). Four of the five (terraform_blocks and the
 	// three CloudFormation extended labels) are not wired into the projector's
-	// graph-write path (entityTypeLabelMap in go/internal/projector/canonical.go);
+	// graph-write path (entityTypeLabelMap in go/internal/projector/canonical/materialization.go);
 	// ProtocolImplementation IS already registered there
 	// ("protocol_implementation" -> "ProtocolImplementation") and
 	// EntityTypeLabel also recognizes the PascalCase value directly, so that

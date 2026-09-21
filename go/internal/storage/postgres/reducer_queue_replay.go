@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -234,7 +234,7 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 		return false, errors.New("workload materialization replay entity key is required")
 	}
 
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainWorkloadMaterialization,
@@ -255,7 +255,7 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	if matched > 0 {
 		return true, nil
 	}
-	inserted, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now())
+	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
 	if err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
 	}
@@ -320,7 +320,7 @@ func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 		return false, errors.New("crossplane satisfied-by redrive target generation id is required")
 	}
 
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      targetScopeID,
 		GenerationID: targetGenerationID,
 		Domain:       reducer.DomainCrossplaneSatisfiedByMaterialization,
@@ -337,7 +337,7 @@ func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 	if reopened {
 		return true, nil
 	}
-	if _, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
+	if _, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now()); err != nil {
 		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
 	}
 

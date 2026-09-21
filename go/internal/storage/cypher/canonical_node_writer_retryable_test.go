@@ -8,34 +8,35 @@ import (
 	"errors"
 	"testing"
 
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // retryableMat returns a minimal canonical materialization that exercises the
 // repository, directory, file, and entity write phases so each dispatch path in
 // CanonicalNodeWriter.Write reaches its executor.
-func retryableMat() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func retryableMat() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-retry",
 		GenerationID: "gen-retry",
 		RepoID:       "repo-retry",
 		RepoPath:     "/repos/retry",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-retry",
 			Name:      "retry",
 			Path:      "/repos/retry",
 			LocalPath: "/repos/retry",
 			RepoSlug:  "org/retry",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/retry/src", Name: "src", ParentPath: "/repos/retry", RepoID: "repo-retry", Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/retry/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-retry", DirPath: "/repos/retry/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/retry/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 10, Language: "go", RepoID: "repo-retry"},
 		},
 	}
@@ -104,8 +105,8 @@ func TestCanonicalNodeWriterWritePropagatesRetryable(t *testing.T) {
 			if err == nil {
 				t.Fatalf("Write() error = nil, want retryable failure")
 			}
-			if !projector.IsRetryable(err) {
-				t.Fatalf("projector.IsRetryable(%v) = false, want true: canonical write retry-exhaustion must requeue, not dead-letter", err)
+			if !failure.IsRetryable(err) {
+				t.Fatalf("failure.IsRetryable(%v) = false, want true: canonical write retry-exhaustion must requeue, not dead-letter", err)
 			}
 			// A genuinely non-retryable schema error must stay terminal.
 			var limit *neo4jdriver.TransactionExecutionLimit
@@ -129,7 +130,7 @@ func TestCanonicalNodeWriterWriteKeepsTerminalErrorsTerminal(t *testing.T) {
 	if err == nil {
 		t.Fatal("Write() error = nil, want terminal failure")
 	}
-	if projector.IsRetryable(err) {
-		t.Fatalf("projector.IsRetryable(%v) = true, want false: schema constraint failures must stay terminal", err)
+	if failure.IsRetryable(err) {
+		t.Fatalf("failure.IsRetryable(%v) = true, want false: schema constraint failures must stay terminal", err)
 	}
 }

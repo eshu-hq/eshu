@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -47,7 +47,7 @@ func TestReducerAdmissionReadinessBacklogDoesNotThrottle(t *testing.T) {
 		},
 	}
 
-	result, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	result, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func TestReducerAdmissionGraphWriteTimeoutBacklogThrottles(t *testing.T) {
 		},
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
@@ -141,7 +141,7 @@ func TestReducerAdmissionGraphWritePressureRecordsFailureClass(t *testing.T) {
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)

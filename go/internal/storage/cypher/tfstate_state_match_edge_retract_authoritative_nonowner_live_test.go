@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive
@@ -49,10 +49,10 @@ import (
 func TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		outcome projector.TerraformStateOwnershipOutcome
+		outcome canonical.TerraformStateOwnershipOutcome
 	}{
-		{name: "no_owner", outcome: projector.TerraformStateOwnershipNoOwner},
-		{name: "ambiguous_owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+		{name: "no_owner", outcome: canonical.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous_owner", outcome: canonical.TerraformStateOwnershipAmbiguousOwner},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := openBoltTestRunner(t)
@@ -89,17 +89,17 @@ func TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDelta
 
 			writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil)
 
-			genOneRow := projector.TerraformStateResourceRow{
+			genOneRow := canonical.TerraformStateResourceRow{
 				UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 				Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
 				OwningRepoID:     ownerRepo,
-				OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+				OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 			}
-			genOne := projector.CanonicalMaterialization{
+			genOne := canonical.CanonicalMaterialization{
 				ScopeID:                 scope,
 				GenerationID:            "tf-generation-5623-p1-followup-1-" + tc.name,
 				FirstGeneration:         true,
-				TerraformStateResources: []projector.TerraformStateResourceRow{genOneRow},
+				TerraformStateResources: []canonical.TerraformStateResourceRow{genOneRow},
 			}
 			if err := writer.Write(ctx, genOne); err != nil {
 				t.Fatalf("Write (generation 1, full) error: %v", err)
@@ -116,12 +116,12 @@ func TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDelta
 			genTwoRow := genOneRow
 			genTwoRow.OwningRepoID = ""
 			genTwoRow.OwnershipOutcome = tc.outcome
-			genTwo := projector.CanonicalMaterialization{
+			genTwo := canonical.CanonicalMaterialization{
 				ScopeID:                 scope,
 				GenerationID:            "tf-generation-5623-p1-followup-2-" + tc.name,
 				FirstGeneration:         false,
 				DeltaProjection:         true,
-				TerraformStateResources: []projector.TerraformStateResourceRow{genTwoRow},
+				TerraformStateResources: []canonical.TerraformStateResourceRow{genTwoRow},
 			}
 			if err := writer.Write(ctx, genTwo); err != nil {
 				t.Fatalf("Write (generation 2, delta, %s) error: %v", tc.name, err)

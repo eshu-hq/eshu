@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -108,7 +109,7 @@ WHERE work.work_item_id = 'projector_scope-hb_gen-old'`).Scan(&leaseSeconds, &wo
 	if err := ingestTx.Commit(); err != nil {
 		t.Fatalf("commit ingest tx: %v", err)
 	}
-	if err := queue.Heartbeat(ctx, work); !errors.Is(err, projector.ErrWorkSuperseded) {
+	if err := queue.Heartbeat(ctx, work); !errors.Is(err, failure.ErrWorkSuperseded) {
 		t.Fatalf("Heartbeat after ingestion released the scope = %v, want ErrWorkSuperseded", err)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 const canonicalPhaseTerraformState = "terraform_state"
@@ -55,7 +55,7 @@ const canonicalPhaseTerraformState = "terraform_state"
 // #5446 adds three more FIXED keys to this same SET clause --
 // r.provider, r.provider_source_address, r.provider_alias -- sourced from
 // the new provider-binding pre-pass (terraformStateProviderBindingsByResource,
-// go/internal/projector/tfstate_canonical.go), not the dynamic tf_attr_*
+// go/internal/projector/canonical/terraform_state.go), not the dynamic tf_attr_*
 // allowlist. These are ordinary UNCONDITIONAL SETs exactly like the
 // pre-existing r.mode/r.provider_address/etc fixed keys immediately above
 // them: row.provider/row.provider_source_address/row.provider_alias are
@@ -266,7 +266,7 @@ SET o.id = row.uid,
 // already-absent node, a REMOVE of an already-absent property, or a SET to
 // an already-current value are all no-ops), so a retry of the whole
 // generation after a partial failure is self-healing.
-func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat canonical.CanonicalMaterialization) []Statement {
 	var statements []Statement
 	statements = append(statements, w.terraformStateResourceMigrationStatements(mat)...)
 	statements = append(statements, w.terraformStateResourceAttributeRemoveStatements(mat)...)
@@ -314,7 +314,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 // Batched the same way as the upsert rows (w.batchSize UIDs per statement)
 // so a single materialization with many resources of one allowlisted type
 // does not send an unbounded parameter list in one statement.
-func (w *CanonicalNodeWriter) terraformStateResourceAttributeRemoveStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateResourceAttributeRemoveStatements(mat canonical.CanonicalMaterialization) []Statement {
 	byType := make(map[string][]string, len(terraformStateResourceAttributeRemoveCypherByType))
 	for _, row := range mat.TerraformStateResources {
 		if _, ok := terraformStateResourceAttributeRemoveCypherByType[row.ResourceType]; !ok {
@@ -367,7 +367,7 @@ func tfstateBatchedStatements(
 	rows []map[string]any,
 	batchSize int,
 	label string,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	statements := BuildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {

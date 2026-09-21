@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -102,7 +102,7 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 		Now:           func() time.Time { return clock },
 	}
 
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      awsScopeID,
 		GenerationID: awsGenerationID,
 		Domain:       reducer.DomainAWSCloudRuntimeDrift,
@@ -110,7 +110,7 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 		Reason:       "aws runtime resource facts observed",
 		SourceSystem: "aws",
 	}
-	if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
 	}
 

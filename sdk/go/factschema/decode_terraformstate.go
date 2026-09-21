@@ -106,7 +106,7 @@ func EncodeTerraformStateCandidate(candidate tfstatev1.Candidate) (map[string]an
 // DecodeTerraformStateProviderBinding decodes env.Payload into the latest
 // tfstatev1.ProviderBinding struct for the "terraform_state_provider_binding"
 // fact kind. Consumed by the projector's provider-binding pre-pass
-// (go/internal/projector/tfstate_canonical.go's
+// (go/internal/projector/canonical/terraform_state.go's
 // terraformStateProviderBindingsByResource, #5446), which joins the decoded
 // ProviderType/ProviderSourceAddress/ProviderAlias onto a
 // TerraformStateResource row by ResourceAddress. A payload missing either

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestCanonicalNodeWriterDirectoryDepthOrder proves directory writes are split
@@ -24,17 +24,17 @@ func TestCanonicalNodeWriterDirectoryDepthOrder(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo/src/pkg/sub", Name: "sub", ParentPath: "/repos/my-repo/src/pkg", RepoID: "repo-1", Depth: 2},
 			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
 			{Path: "/repos/my-repo/src/pkg", Name: "pkg", ParentPath: "/repos/my-repo/src", RepoID: "repo-1", Depth: 1},

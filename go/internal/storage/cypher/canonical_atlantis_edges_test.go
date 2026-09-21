@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
-func atlantisProjectRowEntity(uid, name, filePath, dir, dependsOn string) projector.EntityRow {
+func atlantisProjectRowEntity(uid, name, filePath, dir, dependsOn string) canonical.EntityRow {
 	meta := map[string]any{"dir": dir}
 	if dependsOn != "" {
 		meta["depends_on"] = dependsOn
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:      "AtlantisProject",
 		EntityID:   uid,
 		EntityName: name,
@@ -34,10 +34,10 @@ func TestAtlantisEdgeStatementsResolvesManagesAndDependsOn(t *testing.T) {
 	t.Parallel()
 
 	const file = "/repo/atlantis.yaml"
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			atlantisProjectRowEntity("uid-network", "network", file, "network", ""),
 			atlantisProjectRowEntity("uid-staging", "staging", file, "staging", "network"),
 		},
@@ -91,24 +91,24 @@ func TestAtlantisEdgeStatementsResolvesUsesWorkflow(t *testing.T) {
 	t.Parallel()
 
 	const file = "/repo/atlantis.yaml"
-	project := projector.EntityRow{
+	project := canonical.EntityRow{
 		Label:      "AtlantisProject",
 		EntityID:   "uid-app",
 		EntityName: "app",
 		FilePath:   file,
 		Metadata:   map[string]any{"dir": "app", "workflow": "custom"},
 	}
-	workflow := projector.EntityRow{
+	workflow := canonical.EntityRow{
 		Label:      "AtlantisWorkflow",
 		EntityID:   "uid-wf-custom",
 		EntityName: "custom",
 		FilePath:   file,
 		Metadata:   map[string]any{"source": "defined"},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities:     []projector.EntityRow{project, workflow},
+		Entities:     []canonical.EntityRow{project, workflow},
 	}
 
 	stmts := atlantisEdgeStatements(mat)
@@ -121,9 +121,9 @@ func TestAtlantisEdgeStatementsResolvesUsesWorkflow(t *testing.T) {
 		t.Fatalf("USES_WORKFLOW row = %+v, want app->custom", usesRows[0])
 	}
 	// A workflow reference with no matching AtlantisWorkflow node yields no edge.
-	matNoWf := projector.CanonicalMaterialization{
+	matNoWf := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1", RepoPath: "/repo",
-		Entities: []projector.EntityRow{project},
+		Entities: []canonical.EntityRow{project},
 	}
 	for _, stmt := range atlantisEdgeStatements(matNoWf) {
 		if stmt.Operation == OperationCanonicalUpsert && strings.Contains(stmt.Cypher, "USES_WORKFLOW") {
@@ -141,10 +141,10 @@ func TestAtlantisEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
 	t.Parallel()
 
 	const file = "/repo/atlantis.yaml"
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			atlantisProjectRowEntity("uid-network", "network", file, "network", ""),
 			atlantisProjectRowEntity("uid-app", "app", file, "app", "network"),
 			{
@@ -230,11 +230,11 @@ func TestAtlantisEdgeStatementsFirstGenerationSkipsStaleEdgeRetract(t *testing.T
 	t.Parallel()
 
 	const file = "/repo/atlantis.yaml"
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		FirstGeneration: true,
 		GenerationID:    "gen-1",
 		RepoPath:        "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			atlantisProjectRowEntity("uid-network", "network", file, "network", ""),
 			atlantisProjectRowEntity("uid-app", "app", file, "app", "network"),
 		},
@@ -257,10 +257,10 @@ func TestAtlantisEdgeStatementsFirstGenerationSkipsStaleEdgeRetract(t *testing.T
 func TestAtlantisEdgeStatementsScopesDependsOnPerFile(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			// In fileA, "app" depends on "network"; only fileA has a "network".
 			atlantisProjectRowEntity("uid-a-network", "network", "/repo/a/atlantis.yaml", "net", ""),
 			atlantisProjectRowEntity("uid-a-app", "app", "/repo/a/atlantis.yaml", "app", "network"),
@@ -286,10 +286,10 @@ func TestAtlantisEdgeStatementsScopesDependsOnPerFile(t *testing.T) {
 func TestAtlantisEdgeStatementsNilWithoutAtlantisProject(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{Label: "Function", EntityID: "fn-1"},
 		},
 	}

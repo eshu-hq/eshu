@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -97,7 +99,7 @@ type ActiveStateSnapshotScopeLister interface {
 // converge on the same idempotent inserts without needing a lease.
 type ConfigStateDriftCatchUpSweeper struct {
 	Active      ActiveStateSnapshotScopeLister
-	Intents     ReducerIntentWriter
+	Intents     runtime.ReducerIntentWriter
 	Limit       int
 	Interval    time.Duration
 	Wait        func(context.Context, time.Duration) error
@@ -155,9 +157,9 @@ func (s ConfigStateDriftCatchUpSweeper) RunOnce(ctx context.Context) (int, error
 	if len(scopes) == 0 {
 		return 0, nil
 	}
-	intents := make([]ReducerIntent, 0, len(scopes))
+	intents := make([]runtime.ReducerIntent, 0, len(scopes))
 	for _, pending := range scopes {
-		intents = append(intents, ReducerIntent{
+		intents = append(intents, runtime.ReducerIntent{
 			ScopeID:      pending.ScopeID,
 			GenerationID: pending.GenerationID,
 			Domain:       reducer.DomainConfigStateDrift,

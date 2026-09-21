@@ -82,7 +82,7 @@ func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[str
 // packageregistryv1.PackageArtifact struct for the
 // "package_registry.package_artifact" fact kind. Consumed by the projector's
 // #5458 canonical extractor (packageRegistryArtifactRow in
-// go/internal/projector/package_registry_canonical_artifact.go). A payload
+// go/internal/projector/canonical/package_registry_artifact.go). A payload
 // missing a required identity field (package_id, version_id, artifact_key)
 // dead-letters as input_invalid.
 //
@@ -132,7 +132,7 @@ func EncodePackageRegistryVulnerabilityHint(hint packageregistryv1.Vulnerability
 // packageregistryv1.RegistryEvent struct for the
 // "package_registry.registry_event" fact kind. Consumed by the projector's
 // #5458 canonical extractor (packageRegistryEventRow in
-// go/internal/projector/package_registry_canonical_event.go), which projects
+// go/internal/projector/canonical/package_registry_event.go), which projects
 // it onto a RegistryEvent node -- the per-version publish/yank/unyank/
 // deprecate/delete/unlist lifecycle timeline the epic names. A payload
 // missing a required field (event_key, event_type) dead-letters as

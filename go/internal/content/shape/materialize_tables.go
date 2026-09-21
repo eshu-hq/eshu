@@ -38,7 +38,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	// go/internal/storage/cypher/semantic_entity_statements.go. Full reasoning:
 	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md. The
 	// pinned set is canonicalEntityPhaseSkipOwners in
-	// go/internal/projector/canonical_unwritten_entity_labels_test.go (#6206),
+	// go/internal/projector/canonical/unwritten_entity_labels_test.go (#6206),
 	// and it means "no SOURCE-LOCAL writer", not "no writer at all";
 	// re-enabling plain-Variable projection means moving that pin with
 	// golden-corpus proof.

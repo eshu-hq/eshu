@@ -6,14 +6,14 @@ package postgres
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // BenchmarkReducerPlatformGraphConflictKey measures the cost of the new
 // domain-partitioned platform_graph conflict key derivation (#3672).
 func BenchmarkReducerPlatformGraphConflictKey(b *testing.B) {
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID: "scope:repo:acme:backend-service",
 		Domain:  reducer.DomainWorkloadMaterialization,
 	}
@@ -34,9 +34,9 @@ func BenchmarkReducerPlatformGraphConflictKeyAllDomains(b *testing.B) {
 		reducer.DomainDeployableUnitCorrelation,
 		reducer.DomainCloudAssetResolution,
 	}
-	intents := make([]projector.ReducerIntent, len(domains))
+	intents := make([]runtime.ReducerIntent, len(domains))
 	for i, d := range domains {
-		intents[i] = projector.ReducerIntent{
+		intents[i] = runtime.ReducerIntent{
 			ScopeID: "scope:repo:acme:backend-service",
 			Domain:  d,
 		}

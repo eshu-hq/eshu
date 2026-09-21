@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // This file holds the package_registry.registry_event-specific canonical
@@ -24,10 +24,10 @@ func TestCanonicalNodeWriterBuildsPackageRegistryEventStatements(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryEvents: []projector.PackageRegistryEventRow{{
+		PackageRegistryEvents: []canonical.PackageRegistryEventRow{{
 			UID:                 "package-registry-event-1",
 			PackageID:           "package://npm/registry.npmjs.org/@scope/pkg",
 			VersionID:           "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
@@ -121,10 +121,10 @@ func TestCanonicalNodeWriterPackageRegistryEventEdgeRunsAfterNodePhases(t *testi
 
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryEvents: []projector.PackageRegistryEventRow{{
+		PackageRegistryEvents: []canonical.PackageRegistryEventRow{{
 			UID:              "package-registry-event-1",
 			PackageID:        "npm://registry.npmjs.org/lodash",
 			VersionID:        "npm://registry.npmjs.org/lodash@1.0.0",

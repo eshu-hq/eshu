@@ -1,0 +1,433 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package runtime
+
+import (
+	"context"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+)
+
+func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) {
+	t.Parallel()
+
+	result, _ := canonical.BuildMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		packageRegistryFacts(),
+	)
+
+	if got, want := len(result.PackageRegistryPackages), 1; got != want {
+		t.Fatalf("len(PackageRegistryPackages) = %d, want %d", got, want)
+	}
+	pkg := result.PackageRegistryPackages[0]
+	if got, want := pkg.UID, packageRegistryPackageID(); got != want {
+		t.Fatalf("package UID = %q, want %q", got, want)
+	}
+	if got, want := pkg.Ecosystem, "npm"; got != want {
+		t.Fatalf("package Ecosystem = %q, want %q", got, want)
+	}
+	if got, want := pkg.NormalizedName, "@scope/pkg"; got != want {
+		t.Fatalf("package NormalizedName = %q, want %q", got, want)
+	}
+	if got, want := pkg.Visibility, "public"; got != want {
+		t.Fatalf("package Visibility = %q, want %q", got, want)
+	}
+	if got, want := pkg.PURL, "pkg:npm/%40scope/pkg"; got != want {
+		t.Fatalf("package PURL = %q, want %q", got, want)
+	}
+	if got, want := pkg.BOMRef, "pkg:npm/%40scope/pkg"; got != want {
+		t.Fatalf("package BOMRef = %q, want %q", got, want)
+	}
+	if got, want := pkg.PackageManager, "npm"; got != want {
+		t.Fatalf("package PackageManager = %q, want %q", got, want)
+	}
+	if got, want := pkg.SourcePath, "package.json"; got != want {
+		t.Fatalf("package SourcePath = %q, want %q", got, want)
+	}
+	if got, want := pkg.SourceSpecificID, "npm:@scope/pkg"; got != want {
+		t.Fatalf("package SourceSpecificID = %q, want %q", got, want)
+	}
+
+	if got, want := len(result.PackageRegistryVersions), 1; got != want {
+		t.Fatalf("len(PackageRegistryVersions) = %d, want %d", got, want)
+	}
+	version := result.PackageRegistryVersions[0]
+	if got, want := version.UID, packageRegistryVersionID(); got != want {
+		t.Fatalf("version UID = %q, want %q", got, want)
+	}
+	if got, want := version.PackageID, packageRegistryPackageID(); got != want {
+		t.Fatalf("version PackageID = %q, want %q", got, want)
+	}
+	if got, want := version.Version, "1.2.3"; got != want {
+		t.Fatalf("version Version = %q, want %q", got, want)
+	}
+	if got, want := version.PURL, "pkg:npm/%40scope/pkg@1.2.3"; got != want {
+		t.Fatalf("version PURL = %q, want %q", got, want)
+	}
+	if got, want := version.BOMRef, "pkg:npm/%40scope/pkg@1.2.3"; got != want {
+		t.Fatalf("version BOMRef = %q, want %q", got, want)
+	}
+	if got, want := version.PackageManager, "npm"; got != want {
+		t.Fatalf("version PackageManager = %q, want %q", got, want)
+	}
+	if !version.PublishedAt.Equal(packageRegistryPublishedAt()) {
+		t.Fatalf("version PublishedAt = %s, want %s", version.PublishedAt, packageRegistryPublishedAt())
+	}
+}
+
+func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *testing.T) {
+	t.Parallel()
+
+	result, _ := canonical.BuildMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), packageRegistryDependencyFact()),
+	)
+
+	if got, want := len(result.PackageRegistryDependencies), 1; got != want {
+		t.Fatalf("len(PackageRegistryDependencies) = %d, want %d", got, want)
+	}
+	dependency := result.PackageRegistryDependencies[0]
+	if got, want := dependency.UID, "package-registry-dependency-1"; got != want {
+		t.Fatalf("dependency UID = %q, want %q", got, want)
+	}
+	if got, want := dependency.VersionID, packageRegistryVersionID(); got != want {
+		t.Fatalf("dependency VersionID = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyPackageID, "package://npm/registry.npmjs.org/left-pad"; got != want {
+		t.Fatalf("dependency DependencyPackageID = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyPURL, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency DependencyPURL = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyBOMRef, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency DependencyBOMRef = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyManager, "npm"; got != want {
+		t.Fatalf("dependency DependencyManager = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyType, "runtime"; got != want {
+		t.Fatalf("dependency DependencyType = %q, want %q", got, want)
+	}
+	if !dependency.Optional {
+		t.Fatal("dependency Optional = false, want true")
+	}
+}
+
+// Package_registry.package_artifact-specific tests and fixture
+// (packageRegistryArtifactFact) live in
+// package_registry_canonical_artifact_test.go.
+
+func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *testing.T) {
+	t.Parallel()
+
+	dependencyFact := packageRegistryDependencyFact()
+	dependencyFact.StableFactKey = ""
+	dependencyFact.FactID = "ephemeral-package-registry-dependency-1"
+	result, _ := canonical.BuildMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), dependencyFact),
+	)
+
+	if got := len(result.PackageRegistryDependencies); got != 0 {
+		t.Fatalf("len(PackageRegistryDependencies) = %d, want 0 for missing stable fact key", got)
+	}
+}
+
+func TestBuildCanonicalMaterializationKeepsPackageSourceHintsProvenanceOnly(t *testing.T) {
+	t.Parallel()
+
+	result, _ := canonical.BuildMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), packageRegistrySourceHintFact()),
+	)
+
+	if got, want := len(result.PackageRegistryPackages), 1; got != want {
+		t.Fatalf("len(PackageRegistryPackages) = %d, want %d", got, want)
+	}
+	if got, want := len(result.PackageRegistryVersions), 1; got != want {
+		t.Fatalf("len(PackageRegistryVersions) = %d, want %d", got, want)
+	}
+	if result.Repository != nil {
+		t.Fatalf("Repository = %#v, want nil because source hints are not ownership truth", result.Repository)
+	}
+}
+
+func TestRuntimeProjectRejectsUnknownPackageRegistrySchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	runtime := Runtime{
+		CanonicalWriter: &recordingCanonicalWriter{},
+		ContentWriter:   &recordingContentWriter{},
+	}
+
+	_, err := runtime.Project(
+		context.Background(),
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		[]facts.Envelope{{
+			FactID:        "package-registry-package-1",
+			ScopeID:       "package-registry-scope-1",
+			GenerationID:  "package-registry-generation-1",
+			FactKind:      facts.PackageRegistryPackageFactKind,
+			SchemaVersion: "2.0.0",
+			Payload: map[string]any{
+				"package_id": packageRegistryPackageID(),
+			},
+		}},
+	)
+	if err == nil {
+		t.Fatal("Project() error = nil, want non-nil")
+	}
+}
+
+// TestPackageRegistryTrimmedStringMapDeterministicOnConflict is the shaped
+// regression for the #5820 P2 review finding: PackageRegistryTrimmedStringMap
+// used to iterate the input map directly, so two keys that normalize to the
+// same trimmed key via surrounding whitespace (e.g. "sha256" and " sha256 ")
+// but carry DIFFERENT values collapsed onto whichever value Go's randomized
+// map iteration order happened to visit last -- a different projected digest
+// on repeated runs of the identical fact. Iterating many times proves the
+// collision is now caught deterministically as an error regardless of
+// iteration order, not silently resolved by iteration luck (a pre-fix run of
+// this loop would pass on roughly half the iterations and is not a reliable
+// regression signal by itself).
+func TestPackageRegistryTrimmedStringMapDeterministicOnConflict(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 50; i++ {
+		values := map[string]string{
+			"sha256":   "aaa",
+			" sha256 ": "bbb",
+		}
+		_, err := canonical.PackageRegistryTrimmedStringMap(factschema.FactKindPackageRegistryPackageVersion, "checksums", values)
+		if err == nil {
+			t.Fatalf("iteration %d: PackageRegistryTrimmedStringMap() error = nil, want non-nil for a whitespace-collision carrying different values", i)
+		}
+	}
+}
+
+// TestPackageRegistryTrimmedStringMapMergesIdenticalWhitespaceCollision proves
+// the companion positive case: two keys that normalize to the same trimmed key
+// but agree on the value are NOT a conflict (they collapse cleanly, matching
+// the pre-fix behavior for that case), so the fix above does not turn a benign
+// whitespace variant into a spurious dead-letter.
+func TestPackageRegistryTrimmedStringMapMergesIdenticalWhitespaceCollision(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 50; i++ {
+		values := map[string]string{
+			"sha256":   "abc",
+			" sha256 ": "abc",
+		}
+		got, err := canonical.PackageRegistryTrimmedStringMap(factschema.FactKindPackageRegistryPackageVersion, "checksums", values)
+		if err != nil {
+			t.Fatalf("iteration %d: PackageRegistryTrimmedStringMap() error = %v, want nil for an identical-value collision", i, err)
+		}
+		if want := (map[string]string{"sha256": "abc"}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("iteration %d: PackageRegistryTrimmedStringMap() = %#v, want %#v", i, got, want)
+		}
+	}
+}
+
+func packageRegistryScope() scope.IngestionScope {
+	return scope.IngestionScope{
+		ScopeID:       "package-registry-scope-1",
+		SourceSystem:  "package_registry",
+		ScopeKind:     scope.KindPackageRegistry,
+		CollectorKind: scope.CollectorPackageRegistry,
+		PartitionKey:  packageRegistryPackageID(),
+	}
+}
+
+func packageRegistryGeneration() scope.ScopeGeneration {
+	return scope.ScopeGeneration{
+		GenerationID: "package-registry-generation-1",
+		ScopeID:      "package-registry-scope-1",
+		ObservedAt:   time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.May, 13, 14, 1, 0, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+		TriggerKind:  scope.TriggerKindSnapshot,
+	}
+}
+
+func packageRegistryFacts() []facts.Envelope {
+	observedAt := time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC)
+	return []facts.Envelope{
+		{
+			FactID:           "package-registry-package-1",
+			ScopeID:          "package-registry-scope-1",
+			GenerationID:     "package-registry-generation-1",
+			FactKind:         facts.PackageRegistryPackageFactKind,
+			StableFactKey:    packageRegistryPackageID(),
+			SchemaVersion:    facts.PackageRegistryPackageSchemaVersion,
+			CollectorKind:    "package_registry",
+			SourceConfidence: facts.SourceConfidenceReported,
+			ObservedAt:       observedAt,
+			Payload: map[string]any{
+				"collector_instance_id": "package-registry-collector-1",
+				"ecosystem":             "npm",
+				"registry":              "https://registry.npmjs.org",
+				"raw_name":              "@scope/pkg",
+				"normalized_name":       "@scope/pkg",
+				"namespace":             "scope",
+				"classifier":            "library",
+				"package_id":            packageRegistryPackageID(),
+				"purl":                  "pkg:npm/%40scope/pkg",
+				"bom_ref":               "pkg:npm/%40scope/pkg",
+				"package_manager":       "npm",
+				"source_path":           "package.json",
+				"source_specific_id":    "npm:@scope/pkg",
+				"visibility":            "public",
+				"correlation_anchors": []any{
+					packageRegistryPackageID(),
+				},
+			},
+			SourceRef: facts.Ref{
+				SourceSystem:   "package_registry",
+				ScopeID:        "package-registry-scope-1",
+				GenerationID:   "package-registry-generation-1",
+				SourceRecordID: packageRegistryPackageID(),
+			},
+		},
+		{
+			FactID:           "package-registry-version-1",
+			ScopeID:          "package-registry-scope-1",
+			GenerationID:     "package-registry-generation-1",
+			FactKind:         facts.PackageRegistryPackageVersionFactKind,
+			StableFactKey:    packageRegistryVersionID(),
+			SchemaVersion:    facts.PackageRegistryPackageVersionSchemaVersion,
+			CollectorKind:    "package_registry",
+			SourceConfidence: facts.SourceConfidenceReported,
+			ObservedAt:       observedAt,
+			Payload: map[string]any{
+				"collector_instance_id": "package-registry-collector-1",
+				"ecosystem":             "npm",
+				"registry":              "https://registry.npmjs.org",
+				"package_id":            packageRegistryPackageID(),
+				"version_id":            packageRegistryVersionID(),
+				"version":               "1.2.3",
+				"purl":                  "pkg:npm/%40scope/pkg@1.2.3",
+				"bom_ref":               "pkg:npm/%40scope/pkg@1.2.3",
+				"package_manager":       "npm",
+				"published_at":          packageRegistryPublishedAt().Format(time.RFC3339),
+				"is_yanked":             false,
+				"is_unlisted":           false,
+				"is_deprecated":         false,
+				"is_retracted":          false,
+				"artifact_urls": []any{
+					"https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz",
+				},
+				"checksums": map[string]any{
+					"sha512": "sha512-test",
+				},
+				"correlation_anchors": []any{
+					packageRegistryPackageID(),
+					packageRegistryVersionID(),
+				},
+			},
+			SourceRef: facts.Ref{
+				SourceSystem:   "package_registry",
+				ScopeID:        "package-registry-scope-1",
+				GenerationID:   "package-registry-generation-1",
+				SourceRecordID: packageRegistryVersionID(),
+			},
+		},
+	}
+}
+
+func packageRegistrySourceHintFact() facts.Envelope {
+	return facts.Envelope{
+		FactID:           "package-registry-source-hint-1",
+		ScopeID:          "package-registry-scope-1",
+		GenerationID:     "package-registry-generation-1",
+		FactKind:         facts.PackageRegistrySourceHintFactKind,
+		StableFactKey:    "source-hint-1",
+		SchemaVersion:    facts.PackageRegistrySourceHintSchemaVersion,
+		CollectorKind:    "package_registry",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
+		Payload: map[string]any{
+			"collector_instance_id": "package-registry-collector-1",
+			"ecosystem":             "npm",
+			"registry":              "https://registry.npmjs.org",
+			"package_id":            packageRegistryPackageID(),
+			"version_id":            packageRegistryVersionID(),
+			"version":               "1.2.3",
+			"hint_kind":             "repository",
+			"raw_url":               "https://github.com/example/pkg",
+			"normalized_url":        "https://github.com/example/pkg",
+			"confidence_reason":     "package metadata repository field",
+		},
+	}
+}
+
+func packageRegistryDependencyFact() facts.Envelope {
+	return facts.Envelope{
+		FactID:           "package-registry-dependency-1",
+		ScopeID:          "package-registry-scope-1",
+		GenerationID:     "package-registry-generation-1",
+		FactKind:         facts.PackageRegistryPackageDependencyFactKind,
+		StableFactKey:    "package-registry-dependency-1",
+		SchemaVersion:    facts.PackageRegistryPackageDependencySchemaVersion,
+		CollectorKind:    "package_registry",
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       time.Date(2026, time.May, 13, 14, 0, 0, 0, time.UTC),
+		Payload: map[string]any{
+			"collector_instance_id": "package-registry-collector-1",
+			"ecosystem":             "npm",
+			"registry":              "https://registry.npmjs.org",
+			"package_id":            packageRegistryPackageID(),
+			"version_id":            packageRegistryVersionID(),
+			"version":               "1.2.3",
+			"dependency_package_id": "package://npm/registry.npmjs.org/left-pad",
+			"dependency_ecosystem":  "npm",
+			"dependency_registry":   "https://registry.npmjs.org",
+			"dependency_namespace":  "",
+			"dependency_normalized": "left-pad",
+			"dependency_purl":       "pkg:npm/left-pad",
+			"dependency_bom_ref":    "pkg:npm/left-pad",
+			"dependency_manager":    "npm",
+			"dependency_range":      "^1.3.0",
+			"dependency_type":       "runtime",
+			"target_framework":      "node18",
+			"marker":                "optional peer fallback",
+			"optional":              true,
+			"excluded":              false,
+			"correlation_anchors": []any{
+				packageRegistryPackageID(),
+				packageRegistryVersionID(),
+				"package://npm/registry.npmjs.org/left-pad",
+			},
+		},
+		SourceRef: facts.Ref{
+			SourceSystem:   "package_registry",
+			ScopeID:        "package-registry-scope-1",
+			GenerationID:   "package-registry-generation-1",
+			SourceRecordID: packageRegistryVersionID() + "->package://npm/registry.npmjs.org/left-pad",
+		},
+	}
+}
+
+func packageRegistryPackageID() string {
+	return "package://npm/registry.npmjs.org/@scope/pkg"
+}
+
+func packageRegistryVersionID() string {
+	return packageRegistryPackageID() + "@1.2.3"
+}
+
+func packageRegistryPublishedAt() time.Time {
+	return time.Date(2026, time.May, 13, 13, 0, 0, 0, time.UTC)
+}

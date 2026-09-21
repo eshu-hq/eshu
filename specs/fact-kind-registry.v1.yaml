@@ -278,8 +278,8 @@ families:
       package_registry.package_dependency: "sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json"
       package_registry.source_hint: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"
       # package_artifact gained a real consumer in #5458: the projector decode
-      # wrapper (go/internal/projector/factschema_decode_packageregistry.go)
-      # and canonical extractor (go/internal/projector/package_registry_canonical.go)
+      # wrapper (go/internal/projector/decode/package_registry.go)
+      # and canonical extractor (go/internal/projector/canonical/package_registry.go)
       # project it onto a PackageArtifact node carrying the per-artifact hash
       # digests the PackageVersion node's checksum_algorithms property drops.
       package_registry.package_artifact: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json"
@@ -287,7 +287,7 @@ families:
       # vulnerability_hint is join-key-only evidence: the Postgres active-evidence
       # query (go/internal/storage/postgres/facts_active_supply_chain_impact.go:46)
       # filters on its fact_kind column but never decodes its payload; the projector
-      # (go/internal/projector/package_registry_canonical.go:120-123) intentionally
+      # (go/internal/projector/canonical/package_registry.go:120-123) intentionally
       # does not consume it, and no reducer decode seam exists for it. It has no
       # direct read surface of its own.
       # #5458 formalized this as a deliberate KEEP DISCLOSURE decision, not a
@@ -296,8 +296,8 @@ families:
       # supply-chain-impact reconciliation. Any future decode-side consumer for
       # this kind is explicitly deferred to and owned by #5462, not built here.
       # registry_event gained a real consumer in #5458's registry_event slice:
-      # the projector decode wrapper (go/internal/projector/factschema_decode_packageregistry.go)
-      # and canonical extractor (go/internal/projector/package_registry_canonical.go)
+      # the projector decode wrapper (go/internal/projector/decode/package_registry.go)
+      # and canonical extractor (go/internal/projector/canonical/package_registry.go)
       # project it onto a RegistryEvent node -- the per-version
       # publish/yank/unyank/deprecate/delete/unlist lifecycle timeline the
       # epic names -- linked to its owning PackageVersion by a
@@ -545,7 +545,7 @@ families:
     # terraform_state_provider_binding
     # gained a projector consumer in #5446
     # (terraformStateProviderBindingsByResource in
-    # go/internal/projector/tfstate_canonical.go), joined onto each
+    # go/internal/projector/canonical/terraform_state.go), joined onto each
     # TerraformStateResource row's Provider/ProviderSourceAddress/
     # ProviderAlias fields. terraform_state_candidate and _warning still have
     # NO reducer/projector consumer (projector/tfstate_canonical.go's

@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -135,7 +135,7 @@ func collectCounter(rm metricdata.ResourceMetrics, name string) int64 {
 // loadCassetteMaterialization loads the committed cassette and returns the
 // CanonicalMaterialization for its single scope. It is the same helper used by
 // the R-5 offline replay tier (offlinetier.MaterializationFromGeneration).
-func loadCassetteMaterialization(t *testing.T) projector.CanonicalMaterialization {
+func loadCassetteMaterialization(t *testing.T) canonical.CanonicalMaterialization {
 	t.Helper()
 
 	src, err := cassette.NewSource(cassetteRelPath)
@@ -279,14 +279,14 @@ func TestCostBudget_N1_ExceedsBudget(t *testing.T) {
 	// phases), so eshu_dp_canonical_atomic_writes_total accumulates N times
 	// what a correct single-batch write would produce.
 	for _, dir := range mat.Directories {
-		perDirMat := projector.CanonicalMaterialization{
+		perDirMat := canonical.CanonicalMaterialization{
 			ScopeID:         mat.ScopeID,
 			GenerationID:    mat.GenerationID,
 			RepoID:          mat.RepoID,
 			RepoPath:        mat.RepoPath,
 			FirstGeneration: mat.FirstGeneration,
 			Repository:      mat.Repository,
-			Directories:     []projector.DirectoryRow{dir},
+			Directories:     []canonical.DirectoryRow{dir},
 		}
 		if err := writer.Write(context.Background(), perDirMat); err != nil {
 			t.Fatalf("N+1 Write() error = %v", err)

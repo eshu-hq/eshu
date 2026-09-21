@@ -11,20 +11,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
-
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 type recordingCanonicalWriter struct {
-	calls []projector.CanonicalMaterialization
+	calls []canonical.CanonicalMaterialization
 }
 
-func (w *recordingCanonicalWriter) Write(_ context.Context, mat projector.CanonicalMaterialization) error {
+func (w *recordingCanonicalWriter) Write(_ context.Context, mat canonical.CanonicalMaterialization) error {
 	w.calls = append(w.calls, mat)
 	return nil
 }

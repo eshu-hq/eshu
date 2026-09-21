@@ -34,7 +34,7 @@ and `Warning`. It must remain independent from Eshu internals.
 - **Required set = today's identity/join gate only.** Mark a field required
   ONLY when its ABSENCE produces a broken or empty graph identity in the
   projector's current read path
-  (`go/internal/projector/package_registry_canonical.go`). A field the
+  (`go/internal/projector/canonical/package_registry.go`). A field the
   projector tolerates empty must stay OPTIONAL. Flipping a present-but-empty
   value into a dead-letter is an ACCURACY REGRESSION the contract forbids:
   only an ABSENT key (or explicit null) dead-letters; a present-but-empty
@@ -44,7 +44,7 @@ and `Warning`. It must remain independent from Eshu internals.
   `Optional`/`Excluded` on `PackageDependency` are OPTIONAL `*bool` with
   `omitempty`, NOT required identity keys: they are descriptive status flags,
   and the projector re-decodes STORED facts on every re-projection
-  (`go/internal/projector/runtime.go`), so a persisted, older, or out-of-tree
+  (`go/internal/projector/runtime/projection.go`), so a persisted, older, or out-of-tree
   fact that omits one must still decode and project its version/dependency node
   (the row builder derefs nil to false) rather than quarantine the whole node
   on a missing descriptive flag. This matches the ociregistry `Mutated *bool`
@@ -65,7 +65,7 @@ and `Warning`. It must remain independent from Eshu internals.
 - **Consumed today** (decode through the seam on the projector read path):
   `Package`, `PackageVersion`, `PackageDependency`, (since #5458)
   `PackageArtifact`, and (also since #5458) `RegistryEvent`
-  (`go/internal/projector/package_registry_canonical.go`).
+  (`go/internal/projector/canonical/package_registry.go`).
   `PackageArtifact` projects onto a `PackageArtifact`/`PackageRegistryPackageArtifact`
   graph node carrying the `Hashes` per-artifact algorithm-to-digest binding
   the `PackageVersion` node's `checksum_algorithms` property drops.

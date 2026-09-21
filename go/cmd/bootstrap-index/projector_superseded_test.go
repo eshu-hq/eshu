@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -34,7 +35,7 @@ func TestDrainProjectorWorkItemStopsGracefullyWhenSuperseded(t *testing.T) {
 		&blockingProjectionRunner{started: started},
 		sink,
 		projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
-			return projector.ErrWorkSuperseded
+			return failure.ErrWorkSuperseded
 		}),
 		time.Millisecond,
 		0,

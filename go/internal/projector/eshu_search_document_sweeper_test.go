@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
@@ -23,12 +25,12 @@ func (f *fakePendingLister) ListPendingSearchDocumentScopes(_ context.Context, _
 }
 
 type fakeSweepIntentWriter struct {
-	enqueued []ReducerIntent
+	enqueued []runtime.ReducerIntent
 }
 
-func (f *fakeSweepIntentWriter) Enqueue(_ context.Context, intents []ReducerIntent) (IntentResult, error) {
+func (f *fakeSweepIntentWriter) Enqueue(_ context.Context, intents []runtime.ReducerIntent) (runtime.IntentResult, error) {
 	f.enqueued = append(f.enqueued, intents...)
-	return IntentResult{Count: len(intents)}, nil
+	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
 func TestSearchDocumentSweeperEnqueuesPendingScopes(t *testing.T) {

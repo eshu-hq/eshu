@@ -204,3 +204,16 @@ docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/inter
 docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive_helpers.go
 docs/internal/evidence/6695-collector-diagram-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_diagram.go
 docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/gitrepo/git_snapshot_entity_buckets.go
+
+# #6781 Part B: the terraform_state row of this dated integration matrix cites
+# the projector's canonical path alongside nine other file:line citations on the
+# SAME line. verify-doc-citations keys each LINE record by its containing line's
+# bytes, so repointing the projector path -- or de-lining it -- invalidates every
+# sibling citation on that row and the gate refuses to re-authorize them. The row
+# records the integration surface as it stood at #4786; editing it to satisfy one
+# gate would falsify a dated record and redden another.
+docs/internal/design/4786-contract-integration-matrix.md:go/internal/projector/tfstate_canonical.go
+# ... and the burn-down row that mirrors that citation. The baseline records the
+# doc's citation verbatim, so it necessarily carries the same historical path;
+# rewriting it here without rewriting the doc would desynchronise the two.
+scripts/docs-citations-baseline.txt:go/internal/projector/tfstate_canonical.go

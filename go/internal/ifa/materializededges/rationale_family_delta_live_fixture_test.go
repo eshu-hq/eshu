@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/stage"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -59,7 +60,7 @@ func TestRationaleDeltaCassettePinsFourFactRefreshAndSurvivors(t *testing.T) {
 		}
 	}
 
-	stage := projector.ProjectWorkloadStage(envelopes)
+	stage := stage.ProjectWorkloadStage(envelopes)
 	if got := stage.SourceRunPairs[ifa.RationaleFamilyRepoID]; got != ifa.RationaleFamilySourceRunID {
 		t.Fatalf("rationale delta repository source run = %q, want %q", got, ifa.RationaleFamilySourceRunID)
 	}
@@ -99,7 +100,7 @@ func TestRationaleDeltaCassettePinsFourFactRefreshAndSurvivors(t *testing.T) {
 			expected.Edges[0], invoiceRecord)
 	}
 
-	entities := projector.ExtractEntityRows(envelopes, ifa.RationaleFamilyRepoID, ifa.RationaleFamilyLocalPath)
+	entities := canonical.ExtractEntityRows(envelopes, ifa.RationaleFamilyRepoID, ifa.RationaleFamilyLocalPath)
 	if len(entities) != 1 {
 		t.Fatalf("rationale delta canonical entities = %d, want changed charge only", len(entities))
 	}
@@ -131,7 +132,7 @@ func loadRationaleDeltaExpectedFixture(t *testing.T) rationaleDeltaExpectedFixtu
 	return fixture
 }
 
-func rationaleDeltaNodeFromEntity(entity projector.EntityRow) rationaleDeltaNode {
+func rationaleDeltaNodeFromEntity(entity canonical.EntityRow) rationaleDeltaNode {
 	return rationaleDeltaNode{
 		Labels: []string{entity.Label},
 		Props: map[string]any{

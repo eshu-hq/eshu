@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection(t *testing.T) {
@@ -15,14 +15,14 @@ func TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection(t *
 
 	tests := []struct {
 		name string
-		mat  projector.CanonicalMaterialization
+		mat  canonical.CanonicalMaterialization
 	}{
 		{
 			name: "oci registry",
-			mat: projector.CanonicalMaterialization{
+			mat: canonical.CanonicalMaterialization{
 				ScopeID:      "scope-oci",
 				GenerationID: "gen-2",
-				OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+				OCIRegistryRepository: &canonical.OCIRegistryRepositoryRow{
 					UID:        "oci-repo:example",
 					Provider:   "ghcr",
 					Registry:   "ghcr.io",
@@ -32,10 +32,10 @@ func TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection(t *
 		},
 		{
 			name: "package registry",
-			mat: projector.CanonicalMaterialization{
+			mat: canonical.CanonicalMaterialization{
 				ScopeID:      "scope-package",
 				GenerationID: "gen-2",
-				PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+				PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 					UID:            "package:npm:left-pad",
 					Ecosystem:      "npm",
 					Registry:       "registry.npmjs.org",

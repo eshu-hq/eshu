@@ -10,7 +10,7 @@ schema-generated, decode-validated contracts.
 ## Why
 
 The terraform-state collector emits eight fact kinds; the projector's
-source-local canonical extractor (`go/internal/projector/tfstate_canonical.go`)
+source-local canonical extractor (`go/internal/projector/canonical/terraform_state.go`)
 reads five of them to materialize canonical `TerraformStateResource`,
 `TerraformStateModule`, and `TerraformStateOutput` graph nodes. Before typing,
 it read each payload key with a raw lookup that returned `""` for an absent

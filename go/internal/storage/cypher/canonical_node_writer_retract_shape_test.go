@@ -10,22 +10,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterRefreshesEntityContainmentWithLabelAnchors(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "class-current", Label: "Class", EntityName: "Handler", FilePath: "/repos/my-repo/current.go"},
 			{EntityID: "method-current", Label: "Function", EntityName: "ServeHTTP", FilePath: "/repos/my-repo/current.go", StartLine: 10},
 			{EntityID: "function-empty", Label: "Function", EntityName: "topLevel", FilePath: "/repos/my-repo/current.go", StartLine: 30},
 		},
-		ClassMembers: []projector.ClassMemberRow{
+		ClassMembers: []canonical.ClassMemberRow{
 			{ClassName: "Handler", FunctionName: "ServeHTTP", FilePath: "/repos/my-repo/current.go", FunctionLine: 10},
 		},
 	}
@@ -57,10 +57,10 @@ func TestCanonicalNodeWriterRetractsStaleEntitiesWithLabelAnchors(t *testing.T) 
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "function-current", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/main.go"},
 			{EntityID: "class-current", Label: "Class", EntityName: "Server", FilePath: "/repos/my-repo/main.go"},
 			{EntityID: "k8s-current", Label: "K8sResource", EntityName: "deployment", FilePath: "/repos/my-repo/deploy.yaml"},
@@ -99,10 +99,10 @@ func TestCanonicalNodeWriterRetractsStaleEntitiesAfterCurrentEntityUpsert(t *tes
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "function-current", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/main.go"},
 		},
 	}
@@ -139,10 +139,10 @@ func TestCanonicalNodeWriterRetractsStaleFilesFromRepositoryAnchor(t *testing.T)
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/current.go"},
 		},
 	}
@@ -250,18 +250,18 @@ func TestCanonicalNodeRefreshDirectoryParentEdgesUsesCurrentDirectoryPaths(t *te
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-2",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "repo",
 			Path:      "/repos/repo",
 			LocalPath: "/repos/repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/repo/parent-a", Name: "parent-a", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
 			{Path: "/repos/repo/parent-b", Name: "parent-b", ParentPath: "/repos/repo", RepoID: "repo-1", Depth: 0},
 			{Path: "/repos/repo/parent-a/child", Name: "child", ParentPath: "/repos/repo/parent-b", RepoID: "repo-1", Depth: 1},

@@ -216,7 +216,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // repository and its files' repository from ONE value: buildCanonicalMaterialization
 // stamps mat.RepoID onto every FileRow through extractFilesWithQuarantine and
 // onto every DirectoryRow through buildDirectoryChain, which walks those same
-// file paths (all three in go/internal/projector/canonical_builder.go). Within
+// file paths (all three in go/internal/projector/canonical/builder.go). Within
 // one projection no `(d)-[:CONTAINS]->(f)` edge can cross repositories, so
 // counting files under a directory admitted by repo_id counts only granted files.
 // isRepositoryLocalRelativePath keeps that true for a file fact whose

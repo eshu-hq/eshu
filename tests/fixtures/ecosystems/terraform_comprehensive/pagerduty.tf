@@ -2,7 +2,7 @@
 # go/internal/parser/hcl/pagerduty_declarations.go recognizes a `module` block
 # whose `source` contains "pagerduty-service" (isSupportedPagerDutyModuleSource)
 # and records it as a pagerduty_declarations row, which
-# go/internal/projector/canonical.go's entityTypeLabelMap projects as a
+# go/internal/projector/canonical/materialization.go's entityTypeLabelMap projects as a
 # PagerDutyDeclaration node. Before this fixture, the corpus had zero blocks
 # matching that shape, so the label had no live end-to-end proof.
 module "orders_pagerduty_service" {

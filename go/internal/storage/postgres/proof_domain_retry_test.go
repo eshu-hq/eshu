@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -88,7 +88,7 @@ func TestProofDomainReplayRetryReplacesStaleProjectionState(t *testing.T) {
 		t.Fatalf("CommitScopeGeneration() generation B error = %v, want nil", err)
 	}
 
-	injector, err := projector.NewRetryOnceInjector(scopeValue.ScopeID + ":" + generationB.GenerationID)
+	injector, err := failure.NewRetryOnceInjector(scopeValue.ScopeID + ":" + generationB.GenerationID)
 	if err != nil {
 		t.Fatalf("NewRetryOnceInjector() error = %v, want nil", err)
 	}

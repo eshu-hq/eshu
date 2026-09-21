@@ -6,7 +6,7 @@ package offlinetier_test
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestImportEdgeFixtureImportsResolveToDeclaredModules checks the live-tier
@@ -31,12 +31,12 @@ func TestImportEdgeFixtureImportsResolveToDeclaredModules(t *testing.T) {
 		t.Fatal("fixture declares no import rows, so this check would prove nothing")
 	}
 
-	declared := make(map[projector.ModuleRow]struct{}, len(mat.Modules))
+	declared := make(map[canonical.ModuleRow]struct{}, len(mat.Modules))
 	for _, m := range mat.Modules {
-		declared[projector.ModuleRow{Name: m.Name, Language: m.Language}] = struct{}{}
+		declared[canonical.ModuleRow{Name: m.Name, Language: m.Language}] = struct{}{}
 	}
 	for _, imp := range mat.Imports {
-		key := projector.ModuleRow{Name: imp.ModuleName, Language: imp.ModuleLanguage}
+		key := canonical.ModuleRow{Name: imp.ModuleName, Language: imp.ModuleLanguage}
 		if _, ok := declared[key]; !ok {
 			t.Fatalf("import row %+v targets Module{name=%q, lang=%q}, which no fixture module row declares; "+
 				"the writer would match no node and drop the edge silently. Declared: %+v",

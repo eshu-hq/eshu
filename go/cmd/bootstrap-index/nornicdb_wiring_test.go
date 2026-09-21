@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
@@ -376,18 +376,18 @@ func (r *recordingBootstrapGroupExecutor) ExecuteGroup(_ context.Context, stmts 
 	return r.err
 }
 
-func bootstrapContainmentMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func bootstrapContainmentMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{
 				Path:       "/repos/my-repo/src",
 				Name:       "src",
@@ -396,7 +396,7 @@ func bootstrapContainmentMaterialization() projector.CanonicalMaterialization {
 				Depth:      0,
 			},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/my-repo/src/main.go",
 				RelativePath: "src/main.go",
@@ -406,7 +406,7 @@ func bootstrapContainmentMaterialization() projector.CanonicalMaterialization {
 				DirPath:      "/repos/my-repo/src",
 			},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "entity-1",
 				Label:        "Function",

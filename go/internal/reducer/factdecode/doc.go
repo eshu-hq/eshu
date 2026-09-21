@@ -15,6 +15,6 @@
 //
 // The classification string is compared by value, not by import: the contracts
 // module cannot import go/internal, so "input_invalid" is byte-equal to
-// projector.TriageClassInputInvalid and factschema.ClassificationInputInvalid by
+// failure.TriageClassInputInvalid and factschema.ClassificationInputInvalid by
 // the Contract System v1 by-value contract rather than by a shared constant.
 package factdecode

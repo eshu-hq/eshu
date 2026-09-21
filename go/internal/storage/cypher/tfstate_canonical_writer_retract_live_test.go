@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestTerraformStateResourceMigrationLive is the real-backend counterpart to
@@ -170,10 +170,10 @@ MERGE (r)-[:TEST_IDENTITY_PROBE]->(m)`
 	}
 
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      scopeID,
 		GenerationID: "tf-generation-5443-live-new",
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              stillPresentUID,
 			Address:          "aws_instance.still_present",
 			Mode:             "managed",

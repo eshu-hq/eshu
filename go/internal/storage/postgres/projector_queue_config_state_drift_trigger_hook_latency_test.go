@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ackLatencyFakeDB implements ExecQueryer + Beginner + Transaction with
@@ -78,7 +78,7 @@ func measureAck(t *testing.T, trigger ConfigStateDriftTrigger, n int) time.Durat
 
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+		if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 			t.Fatalf("Ack() error = %v, want nil", err)
 		}
 	}

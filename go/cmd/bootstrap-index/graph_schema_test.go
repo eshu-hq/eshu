@@ -10,15 +10,15 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
@@ -67,7 +67,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 				committer: &fakeCommitter{},
 			}, nil
 		},
-		func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error) {
+		func(context.Context, bootstrapDB, runtime.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error) {
 			return projectorDeps{
 				workSource: &fakeWorkSource{
 					items: []projector.ScopeGenerationWork{
@@ -118,7 +118,7 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 			t.Fatal("collector builder should not be called after graph schema error")
 			return collectorDeps{}, nil
 		},
-		func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error) {
+		func(context.Context, bootstrapDB, runtime.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error) {
 			t.Fatal("projector builder should not be called after graph schema error")
 			return projectorDeps{}, nil
 		},

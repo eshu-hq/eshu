@@ -8,7 +8,7 @@ package v1
 //
 // One fact is emitted per (module, resource) observation; the projector
 // aggregates them by module address into one canonical TerraformStateModule
-// node (go/internal/projector/tfstate_canonical.go terraformStateModuleRow and
+// node (go/internal/projector/canonical/terraform_state.go terraformStateModuleRow and
 // aggregateTerraformStateModuleRows), summing ResourceCount. The projector
 // DROPS a module observation whose module_address is empty, so ModuleAddress is
 // the sole REQUIRED identity field: an absent module_address dead-letters as
@@ -33,7 +33,7 @@ type Module struct {
 //
 // One fact is emitted per Terraform output observed in state. The projector
 // materializes a canonical TerraformStateOutput node keyed by a uid folded from
-// the output Name (go/internal/projector/tfstate_canonical.go
+// the output Name (go/internal/projector/canonical/terraform_state.go
 // terraformStateOutputRow), which DROPS an output whose name is empty. Name is
 // therefore the sole REQUIRED identity field. Sensitive, ValueShape, and the
 // redacted Value are OPTIONAL: the projector derives a value shape and a
@@ -70,7 +70,7 @@ type Output struct {
 //
 // One fact is emitted per resource tag key observed in state attributes. The
 // projector joins each tag to its resource by the pair (ResourceAddress,
-// TagKeyHash) (go/internal/projector/tfstate_canonical.go
+// TagKeyHash) (go/internal/projector/canonical/terraform_state.go
 // terraformStateTagHashesByResource), which SKIPS an observation missing either
 // key. Both are therefore REQUIRED join keys: either absent breaks the
 // tag→resource join, so an absent resource_address or tag_key_hash dead-letters

@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package decode
+
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
+)
+
+// This file holds the projector-side decode wrappers for the package_registry
+// fact family. Each wraps the contracts-module Decode* seam and, on a
+// classified *factschema.DecodeError (a missing/null required identity
+// field), returns a *Error so PartitionFailures
+// can quarantine the fact per-fact rather than the extractor computing a
+// graph identity from an empty-string segment. Only the CONSUMED
+// package_registry kinds get a wrapper here: package, package_version,
+// package_dependency, (per #5458) package_artifact — the per-artifact
+// hash-binding node the epic's provenance backbone needs — and (also per
+// #5458) registry_event, the per-version yank/deprecate/publish lifecycle
+// timeline. The four remaining typed-but-not-yet-consumed kinds (source_hint,
+// vulnerability_hint, repository_hosting, warning) have no projector read site
+// and therefore no wrapper here — decode_packageregistry.go's Decode* seam
+// exists for them already (and, for source_hint, a separate reducer domain
+// reads its payload through raw map access, not through this seam), but
+// wiring a projector wrapper with no caller would be dead code.
+
+// PackageRegistryPackage decodes one package_registry.package envelope
+// into the typed struct through the contracts seam. A missing required field
+// (package_id) yields a self-classifying *Error.
+func PackageRegistryPackage(env facts.Envelope) (packageregistryv1.Package, error) {
+	pkg, err := factschema.DecodePackageRegistryPackage(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.Package{}, NewError(factschema.FactKindPackageRegistryPackage, err)
+	}
+	return pkg, nil
+}
+
+// PackageRegistryPackageVersion decodes one
+// package_registry.package_version envelope into the typed struct. A missing
+// required field (package_id, version_id, version) yields a self-classifying
+// *Error.
+func PackageRegistryPackageVersion(env facts.Envelope) (packageregistryv1.PackageVersion, error) {
+	version, err := factschema.DecodePackageRegistryPackageVersion(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.PackageVersion{}, NewError(factschema.FactKindPackageRegistryPackageVersion, err)
+	}
+	return version, nil
+}
+
+// PackageRegistryPackageDependency decodes one
+// package_registry.package_dependency envelope into the typed struct. A
+// missing required join key (package_id, version_id,
+// dependency_package_id) yields a self-classifying *Error.
+func PackageRegistryPackageDependency(env facts.Envelope) (packageregistryv1.PackageDependency, error) {
+	dependency, err := factschema.DecodePackageRegistryPackageDependency(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.PackageDependency{}, NewError(factschema.FactKindPackageRegistryPackageDependency, err)
+	}
+	return dependency, nil
+}
+
+// PackageRegistryPackageArtifact decodes one
+// package_registry.package_artifact envelope into the typed struct through the
+// contracts seam. A missing required field (package_id, version_id,
+// artifact_key) yields a self-classifying *Error.
+func PackageRegistryPackageArtifact(env facts.Envelope) (packageregistryv1.PackageArtifact, error) {
+	artifact, err := factschema.DecodePackageRegistryPackageArtifact(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.PackageArtifact{}, NewError(factschema.FactKindPackageRegistryPackageArtifact, err)
+	}
+	return artifact, nil
+}
+
+// PackageRegistryRegistryEvent decodes one
+// package_registry.registry_event envelope into the typed struct through the
+// contracts seam. A missing required field (event_key, event_type) yields a
+// self-classifying *Error.
+func PackageRegistryRegistryEvent(env facts.Envelope) (packageregistryv1.RegistryEvent, error) {
+	event, err := factschema.DecodePackageRegistryRegistryEvent(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.RegistryEvent{}, NewError(factschema.FactKindPackageRegistryRegistryEvent, err)
+	}
+	return event, nil
+}
+
+// PackageRegistryDerefInt64 returns the value an *int64 points at, or 0 when
+// it is nil. PackageArtifact.SizeBytes is carried as *int64 so an unreported
+// size stays distinct from an observed 0 through decode; the row builder
+// substitutes 0 for an unobserved size, matching every other package_registry
+// row's plain-scalar-with-default convention (PackageRegistryDerefString,
+// PackageRegistryDerefBool).
+func PackageRegistryDerefInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+// PackageRegistryDerefString returns the value a *string points at, or "" when
+// it is nil. The typed package_registry structs carry optional fields as
+// *string so an absent key stays distinct from an observed empty value; the
+// row builders substitute "" for an unobserved field, matching the pre-typing
+// PayloadString("") behavior.
+func PackageRegistryDerefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// PackageRegistryDerefBool returns the value a *bool points at, or false when
+// it is nil. The typed package_registry structs carry the descriptive status
+// flags (is_yanked/is_unlisted/is_deprecated/is_retracted on a version,
+// optional/excluded on a dependency) as *bool so an absent key on a persisted
+// or older fact stays distinct from an observed false and still decodes; the
+// row builders substitute false for an unobserved flag, matching the pre-typing
+// PayloadBoolPtr default (a nil pointer meant false) byte-for-byte.
+func PackageRegistryDerefBool(value *bool) bool {
+	if value == nil {
+		return false
+	}
+	return *value
+}

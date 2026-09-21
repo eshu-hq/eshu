@@ -109,7 +109,7 @@ func CodeownersFamilyOdu() familyodu.CatalogOdu {
 // by the registry generator/validator, the MCP disclosure ledger, and
 // replaycoverage's depth requirements -- never by the projector. The projector's
 // own fan-out (appendScopeGenerationReducerIntents,
-// go/internal/projector/scope_generation_intents.go) has 36 build*ReducerIntent
+// go/internal/projector/runtime/scope_generation_intents.go) has 36 build*ReducerIntent
 // probes and no codeowners one; neither does documentation, which is the point:
 // both families are enqueued by a shared_followup fact instead.
 //

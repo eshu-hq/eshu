@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -73,17 +73,17 @@ func TestFileUpdateExistingEdgesGraphTruth_ExistingFile(t *testing.T) {
 
 	filePath := fileEdgeRepoPath + "/dir-a/existing.go"
 
-	gen1 := projector.CanonicalMaterialization{
+	gen1 := canonical.CanonicalMaterialization{
 		ScopeID:         "git:repository:" + fileEdgeRepoID,
 		GenerationID:    "gen1",
 		RepoID:          fileEdgeRepoID,
 		RepoPath:        fileEdgeRepoPath,
 		FirstGeneration: true,
-		Repository:      &projector.RepositoryRow{RepoID: fileEdgeRepoID, Name: fileEdgeRepoID, Path: fileEdgeRepoPath},
-		Directories: []projector.DirectoryRow{
+		Repository:      &canonical.RepositoryRow{RepoID: fileEdgeRepoID, Name: fileEdgeRepoID, Path: fileEdgeRepoPath},
+		Directories: []canonical.DirectoryRow{
 			{Path: fileEdgeRepoPath + "/dir-a", Name: "dir-a", ParentPath: fileEdgeRepoPath, RepoID: fileEdgeRepoID, Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: filePath, RelativePath: "dir-a/existing.go", Name: "existing.go", Language: "go", RepoID: fileEdgeRepoID, DirPath: fileEdgeRepoPath + "/dir-a"},
 		},
 	}
@@ -139,17 +139,17 @@ func TestFileUpdateExistingEdgesGraphTruth_BrandNewFile(t *testing.T) {
 	existingPath := fileEdgeRepoPath + "/dir-a/existing.go"
 	newPath := fileEdgeRepoPath + "/dir-a/brand-new.go"
 
-	gen1 := projector.CanonicalMaterialization{
+	gen1 := canonical.CanonicalMaterialization{
 		ScopeID:         "git:repository:" + fileEdgeRepoID,
 		GenerationID:    "gen1",
 		RepoID:          fileEdgeRepoID,
 		RepoPath:        fileEdgeRepoPath,
 		FirstGeneration: true,
-		Repository:      &projector.RepositoryRow{RepoID: fileEdgeRepoID, Name: fileEdgeRepoID, Path: fileEdgeRepoPath},
-		Directories: []projector.DirectoryRow{
+		Repository:      &canonical.RepositoryRow{RepoID: fileEdgeRepoID, Name: fileEdgeRepoID, Path: fileEdgeRepoPath},
+		Directories: []canonical.DirectoryRow{
 			{Path: fileEdgeRepoPath + "/dir-a", Name: "dir-a", ParentPath: fileEdgeRepoPath, RepoID: fileEdgeRepoID, Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: existingPath, RelativePath: "dir-a/existing.go", Name: "existing.go", Language: "go", RepoID: fileEdgeRepoID, DirPath: fileEdgeRepoPath + "/dir-a"},
 		},
 	}
@@ -161,7 +161,7 @@ func TestFileUpdateExistingEdgesGraphTruth_BrandNewFile(t *testing.T) {
 	// PLUS a brand-new file that never existed before, in the SAME batch --
 	// so both rows travel through the SAME UpdateExisting/CreateMissing
 	// statement pair within the SAME phase-group ExecuteGroup transaction.
-	gen2 := projector.CanonicalMaterialization{
+	gen2 := canonical.CanonicalMaterialization{
 		ScopeID:         gen1.ScopeID,
 		GenerationID:    "gen2",
 		RepoID:          fileEdgeRepoID,
@@ -169,7 +169,7 @@ func TestFileUpdateExistingEdgesGraphTruth_BrandNewFile(t *testing.T) {
 		FirstGeneration: false,
 		Repository:      gen1.Repository,
 		Directories:     gen1.Directories,
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: existingPath, RelativePath: "dir-a/existing.go", Name: "existing.go", Language: "go", RepoID: fileEdgeRepoID, DirPath: fileEdgeRepoPath + "/dir-a"},
 			{Path: newPath, RelativePath: "dir-a/brand-new.go", Name: "brand-new.go", Language: "go", RepoID: fileEdgeRepoID, DirPath: fileEdgeRepoPath + "/dir-a"},
 		},

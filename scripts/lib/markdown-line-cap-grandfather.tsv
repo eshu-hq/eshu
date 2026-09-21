@@ -78,7 +78,7 @@ go/internal/collector/terraformstate/README.md	501
 go/internal/coordinator/README.md	687
 go/internal/mcp/README.md	666
 go/internal/parser/README.md	901
-go/internal/projector/README.md	797
+go/internal/projector/README.md	759
 go/internal/query/README.md	1418
 go/internal/query/evidence-notes.md	1197
 go/internal/query/read-models.md	805

@@ -85,7 +85,7 @@ no queue, storage, graph, span, metric, or log boundary.
   derivation.
 - `crossplaneSatisfiedByEntityFactKind` duplicates root's
   `FactKindParsedEntityObserved` (`"content_entity"`,
-  `go/internal/projector/stage_facts.go`) as a literal rather than an import,
+  `go/internal/projector/decode/fact_kind.go`) as a literal rather than an import,
   because root imports this package to dispatch and the reverse direction
   would cycle.
 - Do not decode a second payload field beyond `entity_type`/`entity_kind`,

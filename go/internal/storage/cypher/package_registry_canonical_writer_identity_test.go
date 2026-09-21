@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // This file holds the package_registry canonical writer's identity/dedup
@@ -26,10 +26,10 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets(t *test
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	statements := writer.buildPackageRegistryDependencyPackageStatements(projector.CanonicalMaterialization{
+	statements := writer.buildPackageRegistryDependencyPackageStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{
 			{
 				UID:                  "dependency-1",
 				DependencyPackageID:  "npm://registry.npmjs.org/graphql16",
@@ -75,10 +75,10 @@ func TestCanonicalNodeWriterSkipsDependencyTargetsCoveredByPackageRows(t *testin
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	statements := writer.buildPackageRegistryDependencyPackageStatements(projector.CanonicalMaterialization{
+	statements := writer.buildPackageRegistryDependencyPackageStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{
 			{
 				UID:              "npm://registry.npmjs.org/eslint-plugin-es-x",
 				Ecosystem:        "npm",
@@ -92,7 +92,7 @@ func TestCanonicalNodeWriterSkipsDependencyTargetsCoveredByPackageRows(t *testin
 				CollectorKind:    "package_registry",
 			},
 		},
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{
 			{
 				UID:                  "dependency-1",
 				DependencyPackageID:  "npm://registry.npmjs.org/eslint-plugin-es-x",
@@ -116,10 +116,10 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	statements := writer.buildPackageRegistryPackageStatements(projector.CanonicalMaterialization{
+	statements := writer.buildPackageRegistryPackageStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{
 			{
 				UID:              "npm://registry.npmjs.org/graphql",
 				Ecosystem:        "npm",
@@ -184,10 +184,10 @@ func TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch(t *tes
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+		PackageRegistryArtifacts: []canonical.PackageRegistryArtifactRow{{
 			UID:           "artifact-1",
 			PackageID:     "package-a",
 			VersionID:     "version-owned-by-b",
@@ -234,10 +234,10 @@ func TestCanonicalNodeWriterEventEdgeCypherPinsPackageIDOnVersionMatch(t *testin
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryEvents: []projector.PackageRegistryEventRow{{
+		PackageRegistryEvents: []canonical.PackageRegistryEventRow{{
 			UID:           "event-1",
 			PackageID:     "package-a",
 			VersionID:     "version-owned-by-b",

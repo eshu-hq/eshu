@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestReducerWorkItemIDDeterministic(t *testing.T) {
 	t.Parallel()
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		Domain:       "workload_identity",
@@ -33,7 +33,7 @@ func TestReducerWorkItemIDDeterministic(t *testing.T) {
 
 func TestReducerWorkItemIDSanitizesSpecialChars(t *testing.T) {
 	t.Parallel()
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      "org/repo",
 		GenerationID: "gen:1",
 		Domain:       "workload_identity",
@@ -121,7 +121,7 @@ func TestReducerConflictDomainKeySplitsCodeAndPlatformGraphFamilies(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotDomain, gotKey := reducerConflictDomainKey(projector.ReducerIntent{
+			gotDomain, gotKey := reducerConflictDomainKey(runtime.ReducerIntent{
 				ScopeID: " scope-1 ",
 				Domain:  tt.domain,
 			})
@@ -142,9 +142,9 @@ func TestReducerQueueBatchEnqueue(t *testing.T) {
 	queue := NewReducerQueue(recorder, "test-owner", 30*time.Second)
 
 	// Create 1200 intents to test batching (should use 3 batches: 500 + 500 + 200)
-	intents := make([]projector.ReducerIntent, 1200)
+	intents := make([]runtime.ReducerIntent, 1200)
 	for i := 0; i < 1200; i++ {
-		intents[i] = projector.ReducerIntent{
+		intents[i] = runtime.ReducerIntent{
 			ScopeID:      "scope-1",
 			GenerationID: "gen-1",
 			Domain:       reducer.DomainWorkloadIdentity,

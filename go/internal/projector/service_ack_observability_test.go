@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -63,7 +65,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 			}},
 		},
 		Runner: &stubProjectionRunner{
-			result: Result{
+			result: runtime.Result{
 				ScopeID:      "scope-ack",
 				GenerationID: "generation-ack",
 			},

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -42,7 +44,7 @@ func TestServiceRunDoesNotCountFailedOutcomeForLostClaim(t *testing.T) {
 		}}},
 		FactStore:   &stubFactStore{},
 		Runner:      &stubProjectionRunner{runErr: errors.New("projection failed")},
-		WorkSink:    &stubProjectorWorkSink{failErr: fmt.Errorf("stale attempt: %w", ErrWorkClaimLost)},
+		WorkSink:    &stubProjectorWorkSink{failErr: fmt.Errorf("stale attempt: %w", failure.ErrWorkClaimLost)},
 		Instruments: instruments,
 		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
 		Wait:        func(context.Context, time.Duration) error { return context.Canceled },

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterSerializesConcurrentDuplicatePackageUIDs(t *testing.T) {
@@ -174,21 +174,21 @@ func TestCanonicalNodeWriterAllowsConcurrentDistinctPackageUIDs(t *testing.T) {
 func TestPackageRegistryIdentityLockKeysCoverPackageSources(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+	mat := canonical.CanonicalMaterialization{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 			UID: " npm://registry.npmjs.org/eslint ",
 		}},
-		PackageRegistryVersions: []projector.PackageRegistryVersionRow{{
+		PackageRegistryVersions: []canonical.PackageRegistryVersionRow{{
 			PackageID: "npm://registry.npmjs.org/mocha",
 		}},
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{{
 			PackageID:           "npm://registry.npmjs.org/@aws-sdk/util-utf8-browser",
 			DependencyPackageID: "npm://registry.npmjs.org/@aws-sdk/property-provider",
 		}},
-		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+		PackageRegistryArtifacts: []canonical.PackageRegistryArtifactRow{{
 			PackageID: "npm://registry.npmjs.org/lodash",
 		}},
-		PackageRegistryEvents: []projector.PackageRegistryEventRow{{
+		PackageRegistryEvents: []canonical.PackageRegistryEventRow{{
 			PackageID: "npm://registry.npmjs.org/left-pad",
 		}},
 	}
@@ -207,11 +207,11 @@ func TestPackageRegistryIdentityLockKeysCoverPackageSources(t *testing.T) {
 	}
 }
 
-func packageRegistryPackageOnlyMaterialization(scopeID, generationID, uid string) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func packageRegistryPackageOnlyMaterialization(scopeID, generationID, uid string) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 			UID:              uid,
 			Ecosystem:        "npm",
 			Registry:         "https://registry.npmjs.org",
@@ -227,11 +227,11 @@ func packageRegistryPackageOnlyMaterialization(scopeID, generationID, uid string
 	}
 }
 
-func packageRegistryDependencyTargetMaterialization(scopeID, generationID, uid string) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func packageRegistryDependencyTargetMaterialization(scopeID, generationID, uid string) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{{
 			UID:                  generationID + "-dependency",
 			DependencyPackageID:  uid,
 			DependencyEcosystem:  "npm",

@@ -33,7 +33,7 @@ internals.
   derivations together.
 - **Required set = today's identity/join gate only.** Mark a field required
   ONLY when its ABSENCE produces a broken or empty graph identity in the
-  projector's current read path (`go/internal/projector/tfstate_canonical.go`).
+  projector's current read path (`go/internal/projector/canonical/terraform_state.go`).
   A field the projector tolerates empty must stay OPTIONAL. Flipping a
   present-but-empty value into a dead-letter is an ACCURACY REGRESSION the
   contract forbids: only an ABSENT key (or explicit null) dead-letters; a

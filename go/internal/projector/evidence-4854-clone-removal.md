@@ -4,7 +4,7 @@
 # Evidence — #4854 drop per-fact Clone() in buildProjection
 
 Tracked performance/observability evidence for the change at
-`go/internal/projector/runtime.go` (buildProjection per-fact loop). Retained in
+`go/internal/projector/runtime/projection.go` (buildProjection per-fact loop). Retained in
 the repository so future agents have the proof without re-deriving it.
 
 ## Change

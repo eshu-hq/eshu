@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterProjectsInfrastructureIdentityMetadata(t *testing.T) {
@@ -18,17 +18,17 @@ func TestCanonicalNodeWriterProjectsInfrastructureIdentityMetadata(t *testing.T)
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-infra-1",
 		GenerationID: "gen-infra-1",
 		RepoID:       "repo-infra-1",
 		RepoPath:     "/repos/infra",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-infra-1",
 			Name:   "infra-repo",
 			Path:   "/repos/infra",
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "claim-1",
 				Label:        "CrossplaneClaim",
@@ -156,7 +156,7 @@ func TestCanonicalNodeWriterKeepsDeadCodeRootKindsOutOfGraphHotPath(t *testing.T
 	t.Parallel()
 
 	props := canonicalEntityProperties(
-		projector.EntityRow{
+		canonical.EntityRow{
 			EntityID:     "function-root",
 			Label:        "Function",
 			EntityName:   "ExecuteGroup",
@@ -198,17 +198,17 @@ func TestCanonicalNodeWriterBatching(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 2, nil) // batch size = 2
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/f1.go", RelativePath: "f1.go", Name: "f1.go", Language: "go", RepoID: "repo-1", DirPath: "/src"},
 			{Path: "/f2.go", RelativePath: "f2.go", Name: "f2.go", Language: "go", RepoID: "repo-1", DirPath: "/src"},
 			{Path: "/f3.go", RelativePath: "f3.go", Name: "f3.go", Language: "go", RepoID: "repo-1", DirPath: "/src"},
@@ -267,10 +267,10 @@ func TestCanonicalNodeWriterFileBatchSizeOverride(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil).WithFileBatchSize(3)
 
-	files := make([]projector.FileRow, 0, 7)
+	files := make([]canonical.FileRow, 0, 7)
 	for i := range 7 {
 		name := fmt.Sprintf("file-%d.go", i)
-		files = append(files, projector.FileRow{
+		files = append(files, canonical.FileRow{
 			Path:         "/repo/" + name,
 			RelativePath: name,
 			Name:         name,
@@ -280,12 +280,12 @@ func TestCanonicalNodeWriterFileBatchSizeOverride(t *testing.T) {
 		})
 	}
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "repo",
 			Path:   "/repo",

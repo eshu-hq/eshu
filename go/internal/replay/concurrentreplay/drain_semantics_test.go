@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/concurrentreplay"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -111,7 +112,7 @@ func (q *memoryProjectorQueue) LoadFacts(_ context.Context, work projector.Scope
 }
 
 // Ack implements projector.ProjectorWorkSink: mark the work item drained.
-func (q *memoryProjectorQueue) Ack(_ context.Context, work projector.ScopeGenerationWork, _ projector.Result) error {
+func (q *memoryProjectorQueue) Ack(_ context.Context, work projector.ScopeGenerationWork, _ runtime.Result) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.ackOrder = append(q.ackOrder, projectorQueueKey(work.Scope.ScopeID, work.Generation.GenerationID))
@@ -157,11 +158,11 @@ func (r *recordingProjectionRunner) Project(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	r.mu.Lock()
 	r.calls = append(r.calls, projectorQueueKey(scopeValue.ScopeID, generation.GenerationID))
 	r.mu.Unlock()
-	return projector.Result{ScopeID: scopeValue.ScopeID, GenerationID: generation.GenerationID}, nil
+	return runtime.Result{ScopeID: scopeValue.ScopeID, GenerationID: generation.GenerationID}, nil
 }
 
 // snapshot returns a copy of the recorded call keys.

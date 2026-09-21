@@ -78,7 +78,7 @@ Not claimed today:
       normal commit/ingest cadence.
     - Plain `Variable` rows (`package.json`/`composer.json` dependencies) are
       explicitly excluded from graph materialization
-      (`go/internal/projector/canonical_builder.go`, "Plain Variable rows
+      (`go/internal/projector/canonical/builder.go`, "Plain Variable rows
       remain in the content store/search surface") and live only in Postgres
       `content_entities`. Before this fix that table had no cleanup for
       entity-id changes (it deleted a row only on whole-file deletion), so a

@@ -88,7 +88,7 @@ around the `Materialize` call.
   do become `Variable` nodes. Plain variables stay searchable through the
   content index. The set with no *source-local* writer is pinned by
   `canonicalEntityPhaseSkipOwners` in
-  `go/internal/projector/canonical_unwritten_entity_labels_test.go` (#6206), so
+  `go/internal/projector/canonical/unwritten_entity_labels_test.go` (#6206), so
   stranding another label, or re-enabling plain `Variable` projection, has to
   move that pin.
 - The reverse also holds, and is checked here rather than in the projector:

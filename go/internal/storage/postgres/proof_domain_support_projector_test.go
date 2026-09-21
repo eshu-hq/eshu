@@ -10,6 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 )
 
 func runProofProjectorCycle(t *testing.T, db *proofDomainDB, now time.Time) {
@@ -21,7 +23,7 @@ func runProofProjectorCycleWithInjector(
 	t *testing.T,
 	db *proofDomainDB,
 	now time.Time,
-	retryInjector projector.RetryInjector,
+	retryInjector failure.RetryInjector,
 ) {
 	t.Helper()
 	runProofProjectorCycleWithWriters(
@@ -38,7 +40,7 @@ func runProofProjectorCycleWithWriters(
 	t *testing.T,
 	db *proofDomainDB,
 	now time.Time,
-	retryInjector projector.RetryInjector,
+	retryInjector failure.RetryInjector,
 	canonicalWriter *recordingCanonicalWriter,
 	contentWriter *recordingContentWriter,
 ) {
@@ -62,7 +64,7 @@ func runProofProjectorCycleWithWriters(
 		PollInterval: time.Millisecond,
 		WorkSource:   projectorQueue,
 		FactStore:    NewFactStore(db),
-		Runner: projector.Runtime{
+		Runner: runtime.Runtime{
 			CanonicalWriter: canonicalWriter,
 			ContentWriter:   contentWriter,
 			IntentWriter:    ReducerQueue{database: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute, Now: func() time.Time { return now }},

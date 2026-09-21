@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -60,7 +60,7 @@ func openIngesterCanonicalWriter(
 	logger *slog.Logger,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-) (projector.CanonicalWriter, io.Closer, error) {
+) (runtime.CanonicalWriter, io.Closer, error) {
 	if writer, closer, ok := maybeLocalLightweightCanonicalWriter(getenv); ok {
 		return writer, closer, nil
 	}
@@ -79,7 +79,7 @@ func openIngesterCanonicalWriter(
 	if err != nil {
 		return nil, nil, err
 	}
-	failAfterDriverOpen := func(err error) (projector.CanonicalWriter, io.Closer, error) {
+	failAfterDriverOpen := func(err error) (runtime.CanonicalWriter, io.Closer, error) {
 		_ = closeIngesterNeo4jDriver(driver)
 		return nil, nil, err
 	}

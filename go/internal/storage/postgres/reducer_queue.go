@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -217,24 +216,24 @@ func NewReducerQueue(
 	}
 }
 
-// Enqueue implements projector.ReducerIntentWriter over fact_work_items.
+// Enqueue implements runtime.ReducerIntentWriter over fact_work_items.
 // Uses batched multi-row INSERT to reduce round trips from N to N/500.
 func (q ReducerQueue) Enqueue(
 	ctx context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
 	if err := q.validateEnqueue(); err != nil {
-		return projector.IntentResult{}, err
+		return runtime.IntentResult{}, err
 	}
 
 	if len(intents) == 0 {
-		return projector.IntentResult{Count: 0}, nil
+		return runtime.IntentResult{Count: 0}, nil
 	}
 
 	// Validate all intents before batching
 	for _, intent := range intents {
 		if err := intent.Domain.Validate(); err != nil {
-			return projector.IntentResult{}, fmt.Errorf("enqueue reducer intent: %w", err)
+			return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intent: %w", err)
 		}
 	}
 
@@ -252,12 +251,12 @@ func (q ReducerQueue) Enqueue(
 		}
 		batchInserted, err := q.enqueueReducerBatch(ctx, intents[i:end], now)
 		if err != nil {
-			return projector.IntentResult{}, err
+			return runtime.IntentResult{}, err
 		}
 		inserted += batchInserted
 	}
 
-	return projector.IntentResult{Count: int(inserted)}, nil
+	return runtime.IntentResult{Count: int(inserted)}, nil
 }
 
 // enqueueReducerBatch inserts one batch of reducer intents using a multi-row
@@ -267,7 +266,7 @@ func (q ReducerQueue) Enqueue(
 // attempt count (issue #5593).
 func (q ReducerQueue) enqueueReducerBatch(
 	ctx context.Context,
-	batch []projector.ReducerIntent,
+	batch []runtime.ReducerIntent,
 	now time.Time,
 ) (int64, error) {
 	if len(batch) == 0 {

@@ -19,8 +19,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -241,7 +241,7 @@ func drainProjectorWorkItem(
 			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 				return nil
 			}
-			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+			if errors.Is(heartbeatErr, failure.ErrWorkSuperseded) {
 				recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", 0, nil, span, instruments, logger)
 				return nil
 			}
@@ -259,7 +259,7 @@ func drainProjectorWorkItem(
 			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 				return nil
 			}
-			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+			if errors.Is(heartbeatErr, failure.ErrWorkSuperseded) {
 				recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
 				return nil
 			}
@@ -273,7 +273,7 @@ func drainProjectorWorkItem(
 		if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 			return nil
 		}
-		if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
+		if errors.Is(heartbeatErr, failure.ErrWorkSuperseded) {
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
 			return nil
 		}
@@ -291,7 +291,7 @@ func drainProjectorWorkItem(
 			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) {
 			return nil
 		}
-		if errors.Is(ackErr, projector.ErrWorkSuperseded) {
+		if errors.Is(ackErr, failure.ErrWorkSuperseded) {
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
 			return nil
 		}
@@ -340,7 +340,7 @@ func startBootstrapProjectorHeartbeat(
 					}
 					heartbeatErr = fmt.Errorf("heartbeat bootstrap projector work: %w", err)
 					// The drain logs an expected claim loss at WARN; it must not page.
-					if logger != nil && !errors.Is(err, projector.ErrWorkClaimLost) {
+					if logger != nil && !errors.Is(err, failure.ErrWorkClaimLost) {
 						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
 						logAttrs := make([]any, 0, len(scopeAttrs)+5)
 						for _, attr := range scopeAttrs {

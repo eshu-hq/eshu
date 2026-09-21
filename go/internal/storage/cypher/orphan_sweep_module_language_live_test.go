@@ -101,7 +101,7 @@ func TestLiveOrphanSweepModuleSameNameDifferentLanguages(t *testing.T) {
 // property at all.
 //
 // No Eshu writer produces one. Every released Module upsert set the property
-// from a projector.ModuleRow.Language, a Go string that reaches Cypher as ”
+// from a canonical.ModuleRow.Language, a Go string that reaches Cypher as ”
 // and never as null, so the pre-cutover
 // `SET m.lang = coalesce(m.lang, row.language)` never removed it. Such a node
 // comes from outside the writer -- hand-run repair Cypher, a partial restore --

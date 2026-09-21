@@ -8,23 +8,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // buildFullRefreshMat returns a non-delta, non-first-generation materialization
 // with files and directories so all four unbounded retract statements are built.
-func buildFullRefreshMat() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func buildFullRefreshMat() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		RepoID:       "repo-drain-test",
 		GenerationID: "gen-2",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/r/a.go"},
 			{Path: "/repos/r/b.go"},
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/r/pkg"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "fn", FilePath: "/repos/r/a.go"},
 		},
 	}
@@ -39,7 +39,7 @@ func TestBuildRetractStatementsMasksDrainOnUnboundedFullRefreshFiles(t *testing.
 	w := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
 
 	// No filePaths → unbounded canonicalNodeRetractFilesCypher path.
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
 		GenerationID: "gen-2",
 	}
@@ -139,7 +139,7 @@ func TestBuildRetractStatementsDeltaDoesNotMarkDrain(t *testing.T) {
 	t.Parallel()
 
 	w := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:                "repo-1",
 		GenerationID:          "gen-2",
 		RepoPath:              "/repos/r",
@@ -161,12 +161,12 @@ func TestBuildEntityRetractStatementsDeltaDoesNotMarkDrain(t *testing.T) {
 	t.Parallel()
 
 	w := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:          "repo-1",
 		GenerationID:    "gen-2",
 		DeltaProjection: true,
 		DeltaFilePaths:  []string{"/repos/r/a.go"},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "fn", FilePath: "/repos/r/a.go"},
 		},
 	}
@@ -184,7 +184,7 @@ func TestBuildRetractStatementsFirstGenerationReturnsNilWithNoDrain(t *testing.T
 	t.Parallel()
 
 	w := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:          "repo-1",
 		GenerationID:    "gen-1",
 		FirstGeneration: true,

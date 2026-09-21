@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 )
@@ -81,7 +81,7 @@ func LoadWorkItems(cassettePath string) ([]WorkItem, error) {
 // the CONTAINS edge from its parent). The parent of a depth-0 directory is the
 // repository node; deeper directories point at their parent directory node, so
 // child items depend on parent items being applied — the #4019 ordering class.
-func WorkItemsFromMaterialization(mat projector.CanonicalMaterialization) ([]WorkItem, error) {
+func WorkItemsFromMaterialization(mat canonical.CanonicalMaterialization) ([]WorkItem, error) {
 	if mat.Repository == nil {
 		return nil, fmt.Errorf("materialization for scope %q has no repository row", mat.ScopeID)
 	}

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -47,7 +47,7 @@ func TestReducerAdmissionDefersOnGraphWritePressure(t *testing.T) {
 			return nil
 		},
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	result, err := admission.Enqueue(context.Background(), intents)
 	if err != nil {
@@ -99,7 +99,7 @@ func TestReducerAdmissionGraphWritePressureHysteresis(t *testing.T) {
 		},
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
@@ -140,7 +140,7 @@ func TestReducerAdmissionGraphWritePressureRecordsReason(t *testing.T) {
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
@@ -176,7 +176,7 @@ func TestReducerAdmissionTotalDepthRecordsHighWaterReason(t *testing.T) {
 		sleep:            func(context.Context, time.Duration) error { return nil },
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
@@ -213,7 +213,7 @@ func TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState(t *testin
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+			if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 				{Domain: reducer.DomainWorkloadIdentity},
 			}); err != nil {
 				t.Errorf("Enqueue() error = %v, want nil", err)
@@ -238,12 +238,12 @@ type syncCountingReducerIntentWriter struct {
 
 func (w *syncCountingReducerIntentWriter) Enqueue(
 	_ context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
 	w.mu.Lock()
 	w.count += len(intents)
 	w.mu.Unlock()
-	return projector.IntentResult{Count: len(intents)}, nil
+	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
 func (w *syncCountingReducerIntentWriter) total() int {

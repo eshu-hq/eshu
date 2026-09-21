@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // mockExecutor records all Execute() calls in order for assertion.
@@ -179,12 +179,12 @@ func TestCanonicalNodeWriterWriteReportsSequentialPhaseOnFailure(t *testing.T) {
 	}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "my-repo",
 			Path:      "/repos/my-repo",
@@ -193,17 +193,17 @@ func TestCanonicalNodeWriterWriteReportsSequentialPhaseOnFailure(t *testing.T) {
 			RepoSlug:  "org/my-repo",
 			HasRemote: true,
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
 		// The module row and the import row's language are not load-bearing for
 		// the error this test forces, but a fixture that declares an import
 		// with no module and no language is the exact shape that broke the
 		// live-tier proofs, and fixtures get copied.
-		Modules: []projector.ModuleRow{
+		Modules: []canonical.ModuleRow{
 			{Name: "fmt", Language: "go"},
 		},
-		Imports: []projector.ImportRow{
+		Imports: []canonical.ImportRow{
 			{FilePath: "/repos/my-repo/src/main.go", ModuleName: "fmt", ModuleLanguage: "go", ImportedName: "fmt", LineNumber: 3},
 		},
 	}
@@ -223,17 +223,17 @@ func TestCanonicalNodeWriterEntityUpsertsRemainLabelScoped(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "f1", Label: "Function", EntityName: "foo", FilePath: "/f.go", RelativePath: "f.go", StartLine: 1, EndLine: 5, Language: "go", RepoID: "repo-1"},
 			{EntityID: "c1", Label: "Class", EntityName: "Bar", FilePath: "/b.py", RelativePath: "b.py", StartLine: 1, EndLine: 10, Language: "python", RepoID: "repo-1"},
 			{EntityID: "f2", Label: "Function", EntityName: "baz", FilePath: "/f.go", RelativePath: "f.go", StartLine: 7, EndLine: 12, Language: "go", RepoID: "repo-1"},
@@ -294,17 +294,17 @@ func TestCanonicalNodeWriterProjectsTypeScriptClassFamilyMetadata(t *testing.T) 
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-ts-1",
 		GenerationID: "gen-ts-1",
 		RepoID:       "repo-ts-1",
 		RepoPath:     "/repos/ts",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-ts-1",
 			Name:   "ts-repo",
 			Path:   "/repos/ts",
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "class-1",
 				Label:        "Class",

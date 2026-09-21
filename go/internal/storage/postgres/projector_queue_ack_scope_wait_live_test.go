@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -79,10 +81,10 @@ INSERT INTO fact_work_items (
 	// The service gives Ack a 5 s budget; Ack must return well inside it.
 	ackCtx, cancelAck := context.WithTimeout(ctx, 5*time.Second)
 	started := time.Now()
-	err = queue.Ack(ackCtx, work, projector.Result{})
+	err = queue.Ack(ackCtx, work, runtime.Result{})
 	elapsed := time.Since(started)
 	cancelAck()
-	if !errors.Is(err, projector.ErrWorkAckDeferred) {
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		t.Fatalf("Ack while ingestion holds the scope = %v after %s, want ErrWorkAckDeferred", err, elapsed)
 	}
 	if elapsed >= 4*time.Second {
@@ -93,7 +95,7 @@ INSERT INTO fact_work_items (
 	if err := ingestTx.Commit(); err != nil {
 		t.Fatalf("commit ingest tx: %v", err)
 	}
-	if err := queue.Ack(ctx, work, projector.Result{}); err != nil {
+	if err := queue.Ack(ctx, work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack after ingestion released the scope: %v", err)
 	}
 	assertAckScopeState(t, projectorDB, "succeeded", "superseded", "active", "gen-new")

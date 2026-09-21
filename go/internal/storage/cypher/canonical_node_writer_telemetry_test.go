@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -26,17 +26,17 @@ func TestCanonicalNodeWriterCreatesWriteAndRetractSpans(t *testing.T) {
 	writer := NewCanonicalNodeWriter(&mockPhaseGroupExecutor{}, 500, nil).
 		WithTracer(tracerProvider.Tracer("test"))
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "repo",
 			Path:   "/repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repo/main.go", RelativePath: "main.go", Name: "main.go", Language: "go", RepoID: "repo-1"},
 		},
 	})
@@ -64,17 +64,17 @@ func TestCanonicalNodeWriterMarksRetractSpanAndLogOnPhaseFailure(t *testing.T) {
 	writer := NewCanonicalNodeWriter(&mockPhaseGroupExecutor{phaseGroupErr: errors.New("graph timeout")}, 500, nil).
 		WithTracer(tracerProvider.Tracer("test"))
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "repo",
 			Path:   "/repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repo/main.go", RelativePath: "main.go", Name: "main.go", Language: "go", RepoID: "repo-1"},
 		},
 	})
@@ -107,21 +107,21 @@ func TestCanonicalNodeWriterMarksReconciliationRetractsForDriftMetrics(t *testin
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:                  "scope-1",
 		GenerationID:             "gen-2",
 		RepoID:                   "repo-1",
 		RepoPath:                 "/repo",
 		ReconciliationProjection: true,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "repo",
 			Path:   "/repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repo/main.go", RelativePath: "main.go", Name: "main.go", Language: "go", RepoID: "repo-1"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "repo-1:function:main", Label: "Function", EntityName: "main", FilePath: "/repo/main.go", RepoID: "repo-1"},
 		},
 	})

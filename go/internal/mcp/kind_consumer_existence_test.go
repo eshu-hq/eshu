@@ -167,7 +167,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 
 		// The NEW real-consumer signal correctly finds no decode seam, no
 		// query-layer SQL/identifier reference, and no reducer dispatch for
-		// this kind — go/internal/projector/tfstate_canonical.go:113-116
+		// this kind — go/internal/projector/canonical/terraform_state.go's terraformStateSnapshot
 		// documents it as intentionally unhandled.
 		hasRealConsumer := real.hasRealConsumer(entry.Kind)
 		if hasRealConsumer {

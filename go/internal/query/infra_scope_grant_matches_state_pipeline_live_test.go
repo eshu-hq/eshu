@@ -32,7 +32,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -142,19 +142,19 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 
 	writer := cypher.NewCanonicalNodeWriter(&liveScopeShapeBoltExecutor{driver: driver, database: liveScopeShapeDatabase()}, 500, nil)
 
-	baseRow := projector.TerraformStateResourceRow{
+	baseRow := canonical.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
-		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+		OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 	}
 
 	genOneRow := baseRow
 	genOneRow.OwningRepoID = formerOwnerRepo
-	genOne := projector.CanonicalMaterialization{
+	genOne := canonical.CanonicalMaterialization{
 		ScopeID:                 scopeID,
 		GenerationID:            "sst5623-pipeline-gen-1",
 		FirstGeneration:         true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{genOneRow},
+		TerraformStateResources: []canonical.TerraformStateResourceRow{genOneRow},
 	}
 	if err := writer.Write(ctx, genOne); err != nil {
 		t.Fatalf("Write (generation 1, full) error: %v", err)
@@ -167,12 +167,12 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 	// and TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive).
 	genTwoRow := baseRow
 	genTwoRow.OwningRepoID = currentOwnerRepo
-	genTwo := projector.CanonicalMaterialization{
+	genTwo := canonical.CanonicalMaterialization{
 		ScopeID:                 scopeID,
 		GenerationID:            "sst5623-pipeline-gen-2-delta",
 		FirstGeneration:         false,
 		DeltaProjection:         true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{genTwoRow},
+		TerraformStateResources: []canonical.TerraformStateResourceRow{genTwoRow},
 	}
 	if err := writer.Write(ctx, genTwo); err != nil {
 		t.Fatalf("Write (generation 2, delta reassignment) error: %v", err)
@@ -229,10 +229,10 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		outcome projector.TerraformStateOwnershipOutcome
+		outcome canonical.TerraformStateOwnershipOutcome
 	}{
-		{name: "no_owner", outcome: projector.TerraformStateOwnershipNoOwner},
-		{name: "ambiguous_owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+		{name: "no_owner", outcome: canonical.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous_owner", outcome: canonical.TerraformStateOwnershipAmbiguousOwner},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			driver, closeDriver := liveScopeShapeDriver(t)
@@ -264,17 +264,17 @@ func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwn
 
 			writer := cypher.NewCanonicalNodeWriter(&liveScopeShapeBoltExecutor{driver: driver, database: liveScopeShapeDatabase()}, 500, nil)
 
-			genOneRow := projector.TerraformStateResourceRow{
+			genOneRow := canonical.TerraformStateResourceRow{
 				UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 				Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
 				OwningRepoID:     formerOwnerRepo,
-				OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+				OwnershipOutcome: canonical.TerraformStateOwnershipResolved,
 			}
-			genOne := projector.CanonicalMaterialization{
+			genOne := canonical.CanonicalMaterialization{
 				ScopeID:                 scopeID,
 				GenerationID:            "sst5623-followup-gen-1-" + tc.name,
 				FirstGeneration:         true,
-				TerraformStateResources: []projector.TerraformStateResourceRow{genOneRow},
+				TerraformStateResources: []canonical.TerraformStateResourceRow{genOneRow},
 			}
 			if err := writer.Write(ctx, genOne); err != nil {
 				t.Fatalf("Write (generation 1, full) error: %v", err)
@@ -285,12 +285,12 @@ func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwn
 			genTwoRow := genOneRow
 			genTwoRow.OwningRepoID = ""
 			genTwoRow.OwnershipOutcome = tc.outcome
-			genTwo := projector.CanonicalMaterialization{
+			genTwo := canonical.CanonicalMaterialization{
 				ScopeID:                 scopeID,
 				GenerationID:            "sst5623-followup-gen-2-" + tc.name,
 				FirstGeneration:         false,
 				DeltaProjection:         true,
-				TerraformStateResources: []projector.TerraformStateResourceRow{genTwoRow},
+				TerraformStateResources: []canonical.TerraformStateResourceRow{genTwoRow},
 			}
 			if err := writer.Write(ctx, genTwo); err != nil {
 				t.Fatalf("Write (generation 2, delta, %s) error: %v", tc.name, err)

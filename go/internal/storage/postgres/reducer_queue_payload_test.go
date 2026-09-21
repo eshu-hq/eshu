@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -17,7 +17,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 	db := &reducerRecordingDB{}
 	queue := NewReducerQueue(db, "worker-1", time.Minute)
 	now := time.Date(2026, time.June, 18, 2, 30, 0, 0, time.UTC)
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		Domain:       reducer.DomainCodeFunctionSummary,
@@ -32,7 +32,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 		},
 	}
 
-	if _, err := queue.enqueueReducerBatch(context.Background(), []projector.ReducerIntent{intent}, now); err != nil {
+	if _, err := queue.enqueueReducerBatch(context.Background(), []runtime.ReducerIntent{intent}, now); err != nil {
 		t.Fatalf("enqueueReducerBatch error: %v", err)
 	}
 	payload, err := unmarshalPayload(db.execs[0].args[7].([]byte))

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -103,7 +104,7 @@ WHERE generation.generation_id = 'gen-old'`).Scan(&status, &activatedAt, &ingest
 		Generation:   scope.ScopeGeneration{GenerationID: "gen-old"},
 		AttemptCount: 1,
 	}
-	if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, projector.ErrWorkSuperseded) {
+	if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, failure.ErrWorkSuperseded) {
 		t.Fatalf("older work heartbeat = %v; want superseded", err)
 	}
 	assertPublished("after superseding heartbeat")

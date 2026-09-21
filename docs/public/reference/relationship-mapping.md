@@ -418,3 +418,12 @@ API and MCP agree on every label.
   [Relationship Runtime And Stories](relationship-mapping-runtime-stories.md)
 - Need to prove a relationship change:
   [Relationship Mapping Observability](relationship-mapping-observability.md)
+
+## Terraform-state ownership vocabulary
+
+The Terraform-state relationship writer consumes the ownership-outcome
+vocabulary (`TerraformStateOwnershipResolved`, `...NoOwner`,
+`...AmbiguousOwner`, `...TransientFailure`) that decides whether a
+`MATCHES_STATE` edge is written, deferred, or dropped. That vocabulary moved
+from the projector root to `go/internal/projector/canonical` in #6781; the
+values and the decision they drive are unchanged, only the import path moved.

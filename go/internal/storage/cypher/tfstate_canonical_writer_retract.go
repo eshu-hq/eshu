@@ -4,7 +4,7 @@
 package cypher
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // terraformStateResourceMigrationCypher relabels a pre-#5443
@@ -103,7 +103,7 @@ REMOVE r.environment, r.kind, r.data_type, r.resource_service, r.resource_catego
 // terraformStateResourceStaleContentPropRemoveStatements builds one
 // standalone REMOVE per w.batchSize UIDs over the whole batch (not only
 // allowlisted types: stale content props predate the tf_attr_* scheme).
-func (w *CanonicalNodeWriter) terraformStateResourceStaleContentPropRemoveStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateResourceStaleContentPropRemoveStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.TerraformStateResources) == 0 {
 		return nil
 	}
@@ -139,7 +139,7 @@ func (w *CanonicalNodeWriter) terraformStateResourceStaleContentPropRemoveStatem
 // batching. Skipped on the scope's first generation (mat.FirstGeneration):
 // nothing was ever written for this scope before, so no legacy node can
 // exist to migrate.
-func (w *CanonicalNodeWriter) terraformStateResourceMigrationStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateResourceMigrationStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration || len(mat.TerraformStateResources) == 0 {
 		return nil
 	}
@@ -210,7 +210,7 @@ func (w *CanonicalNodeWriter) terraformStateResourceMigrationStatements(mat proj
 // existing designed mechanism for catching what delta cycles intentionally
 // do not sweep -- exactly the same mechanism buildRepositoryCleanupStatements
 // already relies on for repository-node cleanup.
-func (w *CanonicalNodeWriter) terraformStateResourceRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateResourceRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
 		return nil
 	}

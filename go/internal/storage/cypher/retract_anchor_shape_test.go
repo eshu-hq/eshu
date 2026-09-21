@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // populatedGraphMaterialization returns a second-generation materialization
@@ -20,27 +20,27 @@ import (
 // does not come from this repository's own size — a 57-fact repository blew the
 // same two-minute budget as a 59,717-fact one — it comes from the graph the
 // statements scan.
-func populatedGraphMaterialization() projector.CanonicalMaterialization {
-	files := make([]projector.FileRow, 0, 15)
-	directories := []projector.DirectoryRow{
+func populatedGraphMaterialization() canonical.CanonicalMaterialization {
+	files := make([]canonical.FileRow, 0, 15)
+	directories := []canonical.DirectoryRow{
 		{Path: "/corpus/my-repo/src", ParentPath: "/corpus/my-repo", Depth: 1},
 		{Path: "/corpus/my-repo/src/api", ParentPath: "/corpus/my-repo/src", Depth: 2},
 	}
 	for i := 0; i < 15; i++ {
-		files = append(files, projector.FileRow{
+		files = append(files, canonical.FileRow{
 			Path:    "/corpus/my-repo/src/api/handler" + string(rune('a'+i)) + ".go",
 			DirPath: "/corpus/my-repo/src/api",
 			RepoID:  "repository:r_0a682efa",
 		})
 	}
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:          "repository:r_0a682efa",
 		RepoPath:        "/corpus/my-repo",
 		GenerationID:    "gen-2",
 		FirstGeneration: false,
 		Files:           files,
 		Directories:     directories,
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "fn-1", Label: "Function", EntityName: "Serve", FilePath: files[0].Path, StartLine: 10},
 		},
 	}
@@ -84,7 +84,7 @@ func TestCanonicalRetractStatementsAnchorTraversalsOnIndexedSide(t *testing.T) {
 
 // deltaRetractStatements exercises the delta branch of the same production
 // builder, which the second generation of an incremental repository takes.
-func deltaRetractStatements(writer *CanonicalNodeWriter, mat projector.CanonicalMaterialization) []Statement {
+func deltaRetractStatements(writer *CanonicalNodeWriter, mat canonical.CanonicalMaterialization) []Statement {
 	delta := mat
 	delta.DeltaProjection = true
 	delta.DeltaFilePaths = []string{mat.Files[0].Path}

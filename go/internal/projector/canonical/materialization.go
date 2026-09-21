@@ -1,0 +1,399 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+// Package projector canonical.go defines the canonical graph materialization
+// types used to project labeled Neo4j nodes from fact envelopes. These types
+// replace SourceLocalRecord as the projector's Neo4j write output.
+package canonical
+
+// CanonicalMaterialization holds all canonical node and edge writes for one
+// repository projection. Built from the same facts that produce content store
+// writes. Written to Neo4j in strict phase order by CanonicalNodeWriter.
+type CanonicalMaterialization struct {
+	ScopeID                     string
+	GenerationID                string
+	RepoID                      string
+	RepoPath                    string // repository path used as Directory chain root
+	FirstGeneration             bool   // true when the scope has no prior generation of ANY status (activated, failed, or superseded), not just no prior ACTIVE one; retract-skip guards rely on this to not miss edges a pre-activation prior generation wrote (#4710)
+	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
+	ReconciliationProjection    bool   // true when a forced full reconciliation snapshot is being projected
+	DeltaFilePaths              []string
+	DeltaDeletedFilePaths       []string
+	DeltaDeletedDirectoryPaths  []string
+	Repository                  *RepositoryRow
+	Directories                 []DirectoryRow
+	Files                       []FileRow
+	Entities                    []EntityRow
+	Modules                     []ModuleRow
+	Imports                     []ImportRow
+	Parameters                  []ParameterRow
+	ClassMembers                []ClassMemberRow
+	NestedFuncs                 []NestedFunctionRow
+	TerraformStateResources     []TerraformStateResourceRow
+	TerraformStateModules       []TerraformStateModuleRow
+	TerraformStateOutputs       []TerraformStateOutputRow
+	OCIRegistryRepository       *OCIRegistryRepositoryRow
+	OCIImageManifests           []OCIImageManifestRow
+	OCIImageIndexes             []OCIImageIndexRow
+	OCIImageDescriptors         []OCIImageDescriptorRow
+	OCIImageTagObservations     []OCIImageTagObservationRow
+	OCIImageReferrers           []OCIImageReferrerRow
+	PackageRegistryPackages     []PackageRegistryPackageRow
+	PackageRegistryVersions     []PackageRegistryVersionRow
+	PackageRegistryDependencies []PackageRegistryDependencyRow
+	PackageRegistryArtifacts    []PackageRegistryArtifactRow
+	PackageRegistryEvents       []PackageRegistryEventRow
+}
+
+// IsEmpty reports whether the materialization carries no projectable data.
+func (m CanonicalMaterialization) IsEmpty() bool {
+	return m.Repository == nil &&
+		len(m.Directories) == 0 &&
+		len(m.Files) == 0 &&
+		len(m.Entities) == 0 &&
+		len(m.TerraformStateResources) == 0 &&
+		len(m.TerraformStateModules) == 0 &&
+		len(m.TerraformStateOutputs) == 0 &&
+		m.OCIRegistryRepository == nil &&
+		len(m.OCIImageManifests) == 0 &&
+		len(m.OCIImageIndexes) == 0 &&
+		len(m.OCIImageDescriptors) == 0 &&
+		len(m.OCIImageTagObservations) == 0 &&
+		len(m.OCIImageReferrers) == 0 &&
+		len(m.PackageRegistryPackages) == 0 &&
+		len(m.PackageRegistryVersions) == 0 &&
+		len(m.PackageRegistryDependencies) == 0 &&
+		len(m.PackageRegistryArtifacts) == 0 &&
+		len(m.PackageRegistryEvents) == 0
+}
+
+// RepositoryRow carries the canonical properties for a Repository node.
+type RepositoryRow struct {
+	RepoID    string
+	Name      string
+	Path      string
+	LocalPath string
+	RemoteURL string
+	RepoSlug  string
+	HasRemote bool
+}
+
+// DirectoryRow carries the canonical properties for a Directory node.
+// Directories are ordered root-first by Depth so parent nodes exist before
+// children during ordered writes.
+type DirectoryRow struct {
+	Path       string
+	Name       string
+	ParentPath string // Repository.path (depth 0) or parent Directory.path
+	RepoID     string
+	Depth      int // 0 = first level under repo
+}
+
+// FileRow carries the canonical properties for a File node.
+type FileRow struct {
+	Path         string
+	RelativePath string
+	Name         string
+	Language     string
+	RepoID       string
+	DirPath      string // parent Directory path for CONTAINS edge
+}
+
+// EntityRow carries the canonical properties for a labeled entity node.
+// The Label field determines the Neo4j node label (Function, Class, etc.).
+type EntityRow struct {
+	EntityID             string
+	Label                string // Neo4j label: "Function", "Class", etc.
+	EntityName           string
+	FilePath             string
+	RelativePath         string
+	StartLine            int
+	EndLine              int
+	Language             string
+	RepoID               string
+	CyclomaticComplexity int
+	Metadata             map[string]any
+}
+
+// ModuleRow carries the canonical properties for a Module node.
+//
+// Name and Language together are the node's identity. A Go `time` and a Python
+// `time` are unrelated modules that happen to share a name, so they are two
+// nodes; two repositories importing the same Go `time` still share one node,
+// which is the cross-repository dependency link the graph exists to provide.
+// Language is deliberately part of the key rather than a first-writer-wins
+// property: keying on Name alone produced one global node per name whose
+// language was decided by projection batch order.
+//
+// An empty Language is a value, not a wildcard. A module discovered only from
+// files whose language could not be determined gets its own node, one whose
+// `lang` property is the empty string, and it never merges into a languaged
+// one. That bounds the unknown-language case to at most one extra node per
+// module name.
+type ModuleRow struct {
+	Name     string
+	Language string
+}
+
+// ImportRow captures one File -> Module IMPORTS edge.
+//
+// ModuleLanguage is the importing file's language, and it is what resolves the
+// edge's target to the right Module node now that Module identity is
+// (name, language). Without it the edge statement would match every same-named
+// module and attach the file to all of them.
+type ImportRow struct {
+	FilePath       string
+	ModuleName     string
+	ModuleLanguage string
+	ImportedName   string
+	Alias          string
+	LineNumber     int
+}
+
+// ParameterRow captures one Function -> Parameter HAS_PARAMETER edge.
+type ParameterRow struct {
+	ParamName    string
+	FilePath     string
+	FunctionName string
+	FunctionLine int
+}
+
+// ClassMemberRow captures one Class -> Function CONTAINS edge.
+type ClassMemberRow struct {
+	ClassName    string
+	FunctionName string
+	FilePath     string
+	FunctionLine int
+}
+
+// NestedFunctionRow captures one Function -> Function CONTAINS edge
+// for nested/inner function declarations.
+type NestedFunctionRow struct {
+	OuterName string
+	InnerName string
+	FilePath  string
+	InnerLine int
+}
+
+// entityTypeLabelMap maps content store entity_type strings to their canonical
+// Neo4j node labels. Every label listed here must have corresponding schema
+// support in graph/schema.go, either a constraint or an intentional index.
+//
+// A content-entity label with no entry here is silently skipped by
+// extractEntities (the fact is written, the graph node never appears; issue
+// #5531). When a bucket in content/shape's contentEntityBuckets is meant to
+// reach the graph, register its label here too;
+// go/internal/content/shape/bucket_sync_gate_test.go (CI gate
+// content-entity-bucket-sync) checks contentEntityBuckets and this map stay in
+// sync, except for a small, commented ledger (knownMissingProjectorLabels in
+// that test file) of labels that are deliberately content-store-only.
+//
+// TerraformBlock, the CloudFormation extended labels, and PagerDutyDeclaration
+// were on that ledger and now reach the graph (#5954), so they are registered
+// below and removed from it.
+//
+// Register the entity_type key, not the bucket name. They diverge:
+// cloudformation_cross_stack_imports/exports are the BUCKETS, while the
+// entity_type the parser emits is cloudformation_import/export
+// (go/internal/query/entity_content_types.go is the authority). A key derived
+// from the bucket name compiles, passes the sync gate, and still drops every
+// row — the same silent-skip this issue exists to close.
+var entityTypeLabelMap = map[string]string{
+	// Code entities
+	"function":  "Function",
+	"class":     "Class",
+	"interface": "Interface",
+	// Registered, and never written from a source-local generation: phase E in
+	// canonical_builder.go skips the Variable label deliberately. The entry
+	// still has to stay, but NOT to feed the reducer-owned semantic-entity path
+	// -- SemanticEntityWriter never consults this map, and deleting the row
+	// leaves internal/storage/cypher, internal/reducer and cmd/reducer green.
+	// It stays because Variable carries a uid constraint in
+	// graph/schema_tables.go, the variables bucket in content/shape
+	// materializes the label, and EntityTypeLabel is the resolver the #5531
+	// three-way bucket-sync gate reads: deleting the row reds
+	// TestEntityTypeLabelMapCoversAllSchemaLabels ("missing labels that have
+	// uid constraints in schema: Variable"), TestEntityTypeLabelHandlesBothCases
+	// and content/shape's TestContentEntityLabelsHaveProjectorLabels.
+	// Reading it as "phase E writes Variable nodes" is the mistake #6206 was
+	// filed for -- a live golden-corpus run measured (Variable) count=0 with no
+	// Variable key in graph.node_counts (REPORTED, carried from #5156; not
+	// re-run here). That zero is not evidence that nothing can write the label:
+	// the reducer's semantic-entity path writes Variable nodes for Elixir module
+	// attributes and TSX component-type assertions, and the golden corpus simply
+	// stages no Elixir or TSX fixture (scripts/lib/golden-corpus-fixtures.sh),
+	// so nothing in it matches those two predicates. Why phase E skips the label,
+	// with the corpus numbers, is on the contentEntityBuckets row in
+	// go/internal/content/shape/materialize_tables.go; the set with no
+	// source-local writer is pinned by canonicalEntityPhaseSkipOwners in
+	// canonical_unwritten_entity_labels_test.go.
+	"variable":                "Variable",
+	"trait":                   "Trait",
+	"struct":                  "Struct",
+	"enum":                    "Enum",
+	"macro":                   "Macro",
+	"union":                   "Union",
+	"record":                  "Record",
+	"property":                "Property",
+	"module":                  "Module",
+	"parameter":               "Parameter",
+	"annotation":              "Annotation",
+	"typedef":                 "Typedef",
+	"type_alias":              "TypeAlias",
+	"component":               "Component",
+	"impl_block":              "ImplBlock",
+	"protocol":                "Protocol",
+	"protocol_implementation": "ProtocolImplementation",
+	"shell_command":           "ShellCommand",
+
+	// Infrastructure entities
+	"k8s_resource":              "K8sResource",
+	"argocd_application":        "ArgoCDApplication",
+	"argocd_application_set":    "ArgoCDApplicationSet",
+	"crossplane_xrd":            "CrossplaneXRD",
+	"crossplane_composition":    "CrossplaneComposition",
+	"crossplane_claim":          "CrossplaneClaim",
+	"kustomize_overlay":         "KustomizeOverlay",
+	"flux_kustomization":        "FluxKustomization",
+	"flux_git_repository":       "FluxGitRepository",
+	"flux_oci_repository":       "FluxOCIRepository",
+	"flux_bucket":               "FluxBucket",
+	"flux_helm_release":         "FluxHelmRelease",
+	"flux_helm_repository":      "FluxHelmRepository",
+	"helm_chart":                "HelmChart",
+	"helm_values":               "HelmValues",
+	"helm_value_definition":     "HelmValueDefinition",
+	"helm_template_value_usage": "HelmTemplateValueUsage",
+
+	// Terraform entities
+	"terraform_resource":      "TerraformResource",
+	"terraform_module":        "TerraformModule",
+	"terraform_variable":      "TerraformVariable",
+	"terraform_output":        "TerraformOutput",
+	"terraform_block":         "TerraformBlock",
+	"terraform_datasource":    "TerraformDataSource",
+	"terraform_provider":      "TerraformProvider",
+	"terraform_local":         "TerraformLocal",
+	"terraform_backend":       "TerraformBackend",
+	"terraform_import":        "TerraformImport",
+	"terraform_moved":         "TerraformMovedBlock",
+	"terraform_moved_block":   "TerraformMovedBlock",
+	"terraform_removed":       "TerraformRemovedBlock",
+	"terraform_removed_block": "TerraformRemovedBlock",
+	"terraform_check":         "TerraformCheck",
+	"terraform_lock":          "TerraformLockProvider",
+	"terraform_lock_provider": "TerraformLockProvider",
+	"terragrunt_config":       "TerragruntConfig",
+
+	// Atlantis governance entities
+	"atlantis_project":  "AtlantisProject",
+	"atlantis_workflow": "AtlantisWorkflow",
+
+	// GitLab CI pipeline entities
+	"gitlab_pipeline": "GitlabPipeline",
+	"gitlab_job":      "GitlabJob",
+
+	// CloudFormation entities
+	"cloudformation_resource":  "CloudFormationResource",
+	"cloudformation_parameter": "CloudFormationParameter",
+	"cloudformation_output":    "CloudFormationOutput",
+	// Extended CloudFormation entities (#5954). The entity_type drops the
+	// "cross_stack" the bucket names carry: the buckets are
+	// cloudformation_cross_stack_imports/exports, the entity types are these.
+	"cloudformation_condition": "CloudFormationCondition",
+	"cloudformation_import":    "CloudFormationImport",
+	"cloudformation_export":    "CloudFormationExport",
+
+	// Incident-declaration entities (#5954)
+	"pagerduty_declaration": "PagerDutyDeclaration",
+
+	// SQL entities
+	"sql_table":     "SqlTable",
+	"sql_view":      "SqlView",
+	"sql_function":  "SqlFunction",
+	"sql_trigger":   "SqlTrigger",
+	"sql_index":     "SqlIndex",
+	"sql_column":    "SqlColumn",
+	"sql_migration": "SqlMigration",
+
+	// Data entities
+	"data_asset":         "DataAsset",
+	"data_column":        "DataColumn",
+	"analytics_model":    "AnalyticsModel",
+	"dashboard_asset":    "DashboardAsset",
+	"data_quality_check": "DataQualityCheck",
+	"query_execution":    "QueryExecution",
+	"data_contract":      "DataContract",
+	"data_owner":         "DataOwner",
+
+	// OCI / container registry entities
+	"container_image":                 "ContainerImage",
+	"container_image_descriptor":      "ContainerImageDescriptor",
+	"container_image_index":           "ContainerImageIndex",
+	"container_image_tag_observation": "ContainerImageTagObservation",
+	"oci_registry_repository":         "OciRegistryRepository",
+	"oci_image_manifest":              "OciImageManifest",
+	"oci_image_index":                 "OciImageIndex",
+	"oci_image_descriptor":            "OciImageDescriptor",
+	"oci_image_tag_observation":       "OciImageTagObservation",
+	"oci_image_referrer":              "OciImageReferrer",
+
+	// Package registry entities
+	"package":                             "Package",
+	"package_dependency":                  "PackageDependency",
+	"package_version":                     "PackageVersion",
+	"package_registry_package":            "PackageRegistryPackage",
+	"package_registry_package_dependency": "PackageRegistryPackageDependency",
+	"package_registry_package_version":    "PackageRegistryPackageVersion",
+
+	// Terragrunt extended types (emitted by parser as PascalCase, added as
+	// lowercase aliases for completeness).
+	"terragrunt_dependency": "TerragruntDependency",
+	"terragrunt_input":      "TerragruntInput",
+	"terragrunt_local":      "TerragruntLocal",
+
+	// Type annotation entities
+	"type_annotation": "TypeAnnotation",
+}
+
+// entityTypeLabelValues is the reverse set of entityTypeLabelMap — every
+// distinct Neo4j label that appears as a value. Initialised at package init
+// so that EntityTypeLabel can recognise PascalCase inputs from the parser.
+var entityTypeLabelValues map[string]struct{}
+
+func init() {
+	entityTypeLabelValues = make(map[string]struct{}, len(entityTypeLabelMap))
+	for _, label := range entityTypeLabelMap {
+		entityTypeLabelValues[label] = struct{}{}
+	}
+}
+
+// EntityTypeLabel returns the Neo4j label for a content store entity type.
+// Handles both lowercase keys ("function") used in the map definition and
+// PascalCase values ("Function") emitted by the Go parser. Returns the
+// label and true if found, empty string and false otherwise.
+func EntityTypeLabel(entityType string) (string, bool) {
+	// Try exact match first (lowercase keys).
+	if label, ok := entityTypeLabelMap[entityType]; ok {
+		return label, true
+	}
+
+	// The Go parser emits PascalCase entity types that match Neo4j labels
+	// directly (e.g. "Function", "K8sResource"). Check if the input is
+	// itself a valid label value.
+	if _, isLabel := entityTypeLabelValues[entityType]; isLabel {
+		return entityType, true
+	}
+
+	return "", false
+}
+
+// EntityTypeLabelMap returns a copy of the entity type to Neo4j label mapping.
+// Useful for testing completeness against schema constraints.
+func EntityTypeLabelMap() map[string]string {
+	cloned := make(map[string]string, len(entityTypeLabelMap))
+	for k, v := range entityTypeLabelMap {
+		cloned[k] = v
+	}
+	return cloned
+}

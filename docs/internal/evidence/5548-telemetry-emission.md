@@ -57,7 +57,7 @@ the operator-visible effect is the point.
 - Coverage rows that cited deleted metrics now cite the signals that fire at
   the same stage — `eshu_dp_canonical_writes_total` and
   `eshu_dp_canonical_projection_duration_seconds` from
-  `go/internal/projector/runtime_stages.go:87,90` for the canonical cluster,
+  `go/internal/projector/runtime/stages.go` for the canonical cluster,
   and `eshu_dp_queue_depth` for the semantic-extraction queue.
 
 ## Verification run

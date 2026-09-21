@@ -1,0 +1,445 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package canonical
+
+import (
+	"path"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/projector/decode"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
+
+// BuildMaterialization extracts canonical graph materialization data
+// from a set of fact envelopes. The returned CanonicalMaterialization carries
+// all node and edge writes needed to project one repository generation into
+// the canonical Neo4j graph.
+//
+// It also returns the facts a typed canonical extractor QUARANTINED during
+// decode (a fact missing a required identity field): those facts are skipped
+// and not projected, while every valid fact still materializes, so one
+// malformed fact never fails the whole repository generation's projection. The
+// caller records them as visible input_invalid dead-letters
+// (RecordQuarantinedFacts). The codegraph repository/file,
+// terraform_state, OCI registry, and package_registry extractors are typed
+// today; future typed families append to the same slice.
+func BuildMaterialization(
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	inputFacts []facts.Envelope,
+) (CanonicalMaterialization, []decode.QuarantinedFact) {
+	mat := CanonicalMaterialization{
+		ScopeID:         scopeValue.ScopeID,
+		GenerationID:    generation.GenerationID,
+		RepoID:          scopeValue.Metadata["repo_id"],
+		RepoPath:        scopeValue.Metadata["repo_path"],
+		FirstGeneration: !scopeValue.HasPriorGeneration(),
+	}
+
+	if len(inputFacts) == 0 {
+		return mat, nil
+	}
+
+	// Extract repository.
+	var quarantined []decode.QuarantinedFact
+	var codegraphQuarantined []decode.QuarantinedFact
+	mat.Repository, codegraphQuarantined = extractRepositoryWithQuarantine(inputFacts)
+	quarantined = append(quarantined, codegraphQuarantined...)
+	if mat.Repository != nil {
+		if mat.Repository.RepoID != "" {
+			mat.RepoID = mat.Repository.RepoID
+		}
+		if mat.Repository.Path != "" {
+			mat.RepoPath = mat.Repository.Path
+		}
+	}
+
+	repoID := mat.RepoID
+	repoPath := mat.RepoPath
+	mat.DeltaProjection, mat.DeltaFilePaths, mat.DeltaDeletedFilePaths = extractDeltaProjectionScope(inputFacts, repoPath)
+	mat.ReconciliationProjection = extractReconciliationProjection(inputFacts) && !mat.DeltaProjection
+
+	// Extract files.
+	var parsedFiles []parsedFileRef
+	mat.Files, parsedFiles, codegraphQuarantined = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
+	quarantined = append(quarantined, codegraphQuarantined...)
+
+	// Build directory chain from file paths.
+	mat.Directories = buildDirectoryChain(mat.Files, repoPath, repoID)
+
+	// Extract entities.
+	mat.Entities = extractEntities(inputFacts, repoID, repoPath)
+
+	// Extract modules from Module-type entity facts. The Go parser emits
+	// Module entities as content_entity facts (entity_type=Module) rather
+	// than separate import/module facts with module_name payload keys.
+	mat.Modules = extractModulesFromEntities(inputFacts)
+
+	// Extract modules, imports, parameters, class members, nested functions
+	// from all non-tombstoned facts. This handles Python-era payload keys
+	// (module_name, imported_module, param_name, etc.) and merges any
+	// additionally discovered modules into the set above.
+	extractRelationships(inputFacts, &mat)
+	appendEntityClassMembers(&mat)
+
+	// Extract File -> Module IMPORTS edges from the per-file "imports" bucket
+	// the language parsers write into parsed_file_data. This is the only
+	// producer of those edges on the Go runtime (issue #5691); the
+	// extractRelationships pass above matches the Python-era module_name /
+	// imported_module fact payloads, which no Go collector emits.
+	importRows, importModules, importQuarantined := extractImportsFromFiles(parsedFiles)
+	mat.Imports = append(mat.Imports, importRows...)
+	mat.Modules = mergeImportModules(mat.Modules, importModules)
+	quarantined = append(quarantined, importQuarantined...)
+
+	quarantined = append(quarantined, ExtractTerraformStateRows(&mat, inputFacts)...)
+	quarantined = append(quarantined, ExtractOCIRegistryRows(&mat, inputFacts)...)
+	quarantined = append(quarantined, ExtractPackageRegistryRows(&mat, inputFacts)...)
+
+	return mat, quarantined
+}
+
+// buildDirectoryChain walks file paths to produce a deduped, depth-sorted
+// list of DirectoryRow entries. Directories are computed relative to the
+// repository root path.
+func buildDirectoryChain(files []FileRow, repoPath string, repoID string) []DirectoryRow {
+	if len(files) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var dirs []DirectoryRow
+
+	for _, f := range files {
+		dirPath := f.DirPath
+		// Walk from the file's parent directory up to (but not including)
+		// the repository root.
+		for dirPath != "" && dirPath != repoPath && dirPath != "." && dirPath != "/" {
+			if _, ok := seen[dirPath]; ok {
+				break // already recorded this dir and all its ancestors
+			}
+			seen[dirPath] = struct{}{}
+
+			parentPath := path.Dir(dirPath)
+			dirName := path.Base(dirPath)
+
+			// Compute depth: number of path segments between repoPath and
+			// dirPath (0-indexed from the first level under repo).
+			rel := strings.TrimPrefix(dirPath, repoPath+"/")
+			depth := strings.Count(rel, "/")
+
+			dirs = append(dirs, DirectoryRow{
+				Path:       dirPath,
+				Name:       dirName,
+				ParentPath: parentPath,
+				RepoID:     repoID,
+				Depth:      depth,
+			})
+
+			dirPath = parentPath
+		}
+	}
+
+	sort.Slice(dirs, func(i, j int) bool {
+		if dirs[i].Depth != dirs[j].Depth {
+			return dirs[i].Depth < dirs[j].Depth
+		}
+		return dirs[i].Path < dirs[j].Path
+	})
+
+	return dirs
+}
+
+// ExtractEntityRows builds the canonical EntityRow set from content_entity
+// (ParsedEntityObserved) fact envelopes using the exact production entity
+// projection. It exists so the offline replay tier can drive real entity nodes
+// through the same mapping the reducer/projector uses in production, rather than
+// reimplementing the entity_type -> label and uid derivation. repoID and
+// repoPath default the per-entity repo scope and qualified file path.
+func ExtractEntityRows(envelopes []facts.Envelope, repoID, repoPath string) []EntityRow {
+	return extractEntities(envelopes, repoID, repoPath)
+}
+
+// extractEntities builds EntityRow entries from ParsedEntityObserved fact
+// envelopes. Entities with unmapped types or tombstoned facts are skipped.
+// FilePath is set to the repo-qualified full path (repoPath/relative_path) so
+// it matches File.path and avoids cross-repo constraint collisions.
+func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []EntityRow {
+	entityFacts := decode.FilterEntityFacts(envelopes)
+	var rows []EntityRow
+	seen := make(map[string]int, len(entityFacts))
+
+	for i := range entityFacts {
+		if entityFacts[i].IsTombstone {
+			continue
+		}
+
+		p := entityFacts[i].Payload
+
+		entityType, _ := decode.PayloadString(p, "entity_type")
+		if entityType == "" {
+			continue
+		}
+
+		label, ok := EntityTypeLabel(entityType)
+		if !ok {
+			continue
+		}
+
+		// Module and Parameter have dedicated write phases (F and G) that use
+		// different MERGE keys ((name, lang) for Module, a composite key for
+		// Parameter). Writing them through the generic entity phase (E) which
+		// MERGEs by uid would violate their uniqueness constraints.
+		if label == "Module" || label == "Parameter" {
+			continue
+		}
+		// Plain Variable rows remain in the content store/search surface. The
+		// reducer-owned semantic entity path writes the much smaller graph
+		// subset for module attributes and TSX component assertions.
+		if label == "Variable" {
+			continue
+		}
+
+		entityName, _ := decode.PayloadString(p, "entity_name")
+		relativePath, _ := decode.PayloadString(p, "relative_path")
+		startLine, _ := decode.PayloadInt(p, "start_line")
+		endLine, _ := decode.PayloadInt(p, "end_line")
+		language, _ := decode.PayloadString(p, "language")
+
+		entityRepoID, ok := decode.PayloadString(p, "repo_id")
+		if !ok {
+			entityRepoID = repoID
+		}
+
+		incomingEntityID, _ := decode.PayloadString(p, "entity_id")
+		entityID := canonicalGraphEntityID(
+			label,
+			entityRepoID,
+			relativePath,
+			entityType,
+			entityName,
+			startLine,
+			incomingEntityID,
+		)
+
+		fullPath := qualifyPath(repoPath, relativePath)
+		metadata := extractEntityMetadata(p)
+		cyclomaticComplexity, _ := decode.PayloadInt(metadata, "cyclomatic_complexity")
+
+		row := EntityRow{
+			EntityID:             entityID,
+			Label:                label,
+			EntityName:           entityName,
+			FilePath:             fullPath,
+			RelativePath:         relativePath,
+			StartLine:            startLine,
+			EndLine:              endLine,
+			Language:             language,
+			RepoID:               entityRepoID,
+			CyclomaticComplexity: cyclomaticComplexity,
+			Metadata:             metadata,
+		}
+		dedupKey := canonicalEntityDedupKey(row)
+		if rowIndex, exists := seen[dedupKey]; exists {
+			rows[rowIndex] = row
+			continue
+		}
+		seen[dedupKey] = len(rows)
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// extractEntityMetadata pulls the entity_metadata sub-map from a fact payload
+// and preserves its native JSON-compatible values.
+func extractEntityMetadata(payload map[string]any) map[string]any {
+	raw, ok := payload["entity_metadata"]
+	if !ok {
+		return nil
+	}
+
+	typed, ok := raw.(map[string]any)
+	if !ok || len(typed) == 0 {
+		return nil
+	}
+
+	return cloneAnyMap(typed)
+}
+
+// extractModulesFromEntities extracts ModuleRow entries from entity facts
+// whose entity_type maps to the "Module" Neo4j label. The Go parser emits
+// Module entities as content_entity facts rather than separate import/module
+// facts, so this function bridges the gap.
+func extractModulesFromEntities(envelopes []facts.Envelope) []ModuleRow {
+	entityFacts := decode.FilterEntityFacts(envelopes)
+	seen := make(map[moduleIdentity]struct{})
+	var rows []ModuleRow
+
+	for i := range entityFacts {
+		if entityFacts[i].IsTombstone {
+			continue
+		}
+
+		p := entityFacts[i].Payload
+		entityType, _ := decode.PayloadString(p, "entity_type")
+		label, ok := EntityTypeLabel(entityType)
+		if !ok || label != "Module" {
+			continue
+		}
+
+		entityName, _ := decode.PayloadString(p, "entity_name")
+		if entityName == "" {
+			continue
+		}
+
+		language, _ := decode.PayloadString(p, "language")
+		// Dedupe on the full Module MERGE key (name, lang), not on name: a
+		// Ruby `basic` and a Python `basic` are two nodes, and dropping the
+		// second by name would silently lose one of them.
+		identity := moduleIdentity{name: entityName, language: language}
+		if _, ok := seen[identity]; ok {
+			continue
+		}
+		seen[identity] = struct{}{}
+
+		rows = append(rows, ModuleRow{
+			Name:     entityName,
+			Language: language,
+		})
+	}
+
+	return rows
+}
+
+// extractRelationships scans all non-tombstoned facts for module, import,
+// parameter, class member, and nested function payload patterns. All file
+// paths are repo-qualified via mat.RepoPath to match canonical File/Entity paths.
+func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterialization) {
+	// Seed the seen set with modules already extracted from entity facts. The
+	// key is the full (name, lang) Module identity, so a second language's
+	// module of the same name is still emitted.
+	moduleSeen := make(map[moduleIdentity]struct{}, len(mat.Modules))
+	for _, m := range mat.Modules {
+		moduleSeen[moduleIdentity{name: m.Name, language: m.Language}] = struct{}{}
+	}
+	repoPath := mat.RepoPath
+
+	for i := range envelopes {
+		if envelopes[i].IsTombstone {
+			continue
+		}
+
+		p := envelopes[i].Payload
+
+		// Imports: facts with imported_module or module_name payload.
+		moduleName, hasModule := decode.PayloadString(p, "module_name")
+		importedModule, hasImported := decode.PayloadString(p, "imported_module")
+
+		if hasModule || hasImported {
+			modName := moduleName
+			if modName == "" {
+				modName = importedModule
+			}
+
+			language, _ := decode.PayloadString(p, "language")
+
+			// Track modules (deduped on the full (name, lang) identity).
+			if modName != "" {
+				identity := moduleIdentity{name: modName, language: language}
+				if _, ok := moduleSeen[identity]; !ok {
+					moduleSeen[identity] = struct{}{}
+					mat.Modules = append(mat.Modules, ModuleRow{
+						Name:     modName,
+						Language: language,
+					})
+				}
+			}
+
+			// Import row — qualify relative_path with repoPath.
+			relPath, _ := decode.PayloadString(p, "relative_path")
+			filePath := qualifyPath(repoPath, relPath)
+			if relPath == "" {
+				filePath = envelopes[i].SourceRef.SourceURI
+			}
+			importedName, _ := decode.PayloadString(p, "imported_name")
+			alias, _ := decode.PayloadString(p, "alias")
+			lineNumber, _ := decode.PayloadInt(p, "line_number")
+
+			importModule := importedModule
+			if importModule == "" {
+				importModule = moduleName
+			}
+
+			mat.Imports = append(mat.Imports, ImportRow{
+				FilePath:       filePath,
+				ModuleName:     importModule,
+				ModuleLanguage: language,
+				ImportedName:   importedName,
+				Alias:          alias,
+				LineNumber:     lineNumber,
+			})
+		}
+
+		// Parameters: facts with param_name payload key.
+		paramName, hasParam := decode.PayloadString(p, "param_name")
+		if hasParam {
+			funcName, _ := decode.PayloadString(p, "function_name")
+			relPath, _ := decode.PayloadString(p, "relative_path")
+			funcLine, _ := decode.PayloadInt(p, "function_line")
+
+			mat.Parameters = append(mat.Parameters, ParameterRow{
+				ParamName:    paramName,
+				FilePath:     qualifyPath(repoPath, relPath),
+				FunctionName: funcName,
+				FunctionLine: funcLine,
+			})
+		}
+
+		// Class members: facts with class_name AND function_name.
+		className, hasClass := decode.PayloadString(p, "class_name")
+		funcName, hasFunc := decode.PayloadString(p, "function_name")
+		if hasClass && hasFunc && !hasParam {
+			relPath, _ := decode.PayloadString(p, "relative_path")
+			funcLine, _ := decode.PayloadInt(p, "function_line")
+
+			mat.ClassMembers = append(mat.ClassMembers, ClassMemberRow{
+				ClassName:    className,
+				FunctionName: funcName,
+				FilePath:     qualifyPath(repoPath, relPath),
+				FunctionLine: funcLine,
+			})
+		}
+
+		// Nested functions: facts with outer_name AND inner_name.
+		outerName, hasOuter := decode.PayloadString(p, "outer_name")
+		innerName, hasInner := decode.PayloadString(p, "inner_name")
+		if hasOuter && hasInner {
+			relPath, _ := decode.PayloadString(p, "relative_path")
+			innerLine, _ := decode.PayloadInt(p, "inner_line")
+
+			mat.NestedFuncs = append(mat.NestedFuncs, NestedFunctionRow{
+				OuterName: outerName,
+				InnerName: innerName,
+				FilePath:  qualifyPath(repoPath, relPath),
+				InnerLine: innerLine,
+			})
+		}
+	}
+}
+
+// qualifyPath builds a globally unique canonical path by joining repoPath and
+// relativePath. If either component is empty the other is returned as-is.
+func qualifyPath(repoPath, relativePath string) string {
+	if repoPath == "" {
+		return relativePath
+	}
+	if relativePath == "" {
+		return repoPath
+	}
+	return repoPath + "/" + relativePath
+}

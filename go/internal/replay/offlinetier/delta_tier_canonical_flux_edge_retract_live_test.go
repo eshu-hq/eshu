@@ -35,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -54,25 +54,25 @@ const (
 // the same builder produces both gen1 ("a") and gen2 ("b") for the "in" scope
 // with the resolved source retargeted, and the single write for the "out"
 // scope.
-func fluxScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) projector.CanonicalMaterialization {
+func fluxScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) canonical.CanonicalMaterialization {
 	kustomizationFile := repoPath + "/apps.yaml"
 	sourcesFile := repoPath + "/sources.yaml"
 
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:          repoID,
 		RepoPath:        repoPath,
 		GenerationID:    generationID,
 		FirstGeneration: firstGeneration,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: repoID,
 			Name:   repoID,
 			Path:   repoPath,
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: kustomizationFile, RelativePath: "apps.yaml", Name: "apps.yaml", RepoID: repoID},
 			{Path: sourcesFile, RelativePath: "sources.yaml", Name: "sources.yaml", RepoID: repoID},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID: repoID + ":kustomization-apps", Label: "FluxKustomization",
 				EntityName: "apps", FilePath: kustomizationFile, RepoID: repoID,
@@ -247,25 +247,25 @@ const (
 // FluxHelmRelease anchor: spec.chart.spec.sourceRef (kind HelmRepository,
 // name "podinfo") retargets between namespace-a and namespace-b across
 // generations while both FluxHelmRepository candidates survive.
-func fluxHelmScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) projector.CanonicalMaterialization {
+func fluxHelmScopeMaterialization(repoID, repoPath, generationID string, firstGeneration bool, targetSuffix string) canonical.CanonicalMaterialization {
 	helmReleaseFile := repoPath + "/helmrelease.yaml"
 	sourcesFile := repoPath + "/helmrepositories.yaml"
 
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:          repoID,
 		RepoPath:        repoPath,
 		GenerationID:    generationID,
 		FirstGeneration: firstGeneration,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: repoID,
 			Name:   repoID,
 			Path:   repoPath,
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: helmReleaseFile, RelativePath: "helmrelease.yaml", Name: "helmrelease.yaml", RepoID: repoID},
 			{Path: sourcesFile, RelativePath: "helmrepositories.yaml", Name: "helmrepositories.yaml", RepoID: repoID},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID: repoID + ":helmrelease-podinfo", Label: "FluxHelmRelease",
 				EntityName: "podinfo", FilePath: helmReleaseFile, RepoID: repoID,

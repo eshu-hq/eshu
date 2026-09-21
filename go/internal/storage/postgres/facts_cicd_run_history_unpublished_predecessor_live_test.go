@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -32,7 +32,7 @@ func TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor(t *testin
 	queueNow := time.Date(2026, time.August, 4, 14, 3, 0, 0, time.UTC)
 	queue := NewReducerQueue(SQLDB{DB: db}, "unpublished-predecessor-proof", time.Minute)
 	queue.Now = func() time.Time { return queueNow }
-	for _, intent := range []projector.ReducerIntent{
+	for _, intent := range []runtime.ReducerIntent{
 		{
 			ScopeID:      "scope-ci-unpublished",
 			GenerationID: "gen-1",
@@ -48,7 +48,7 @@ func TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor(t *testin
 			SourceSystem: "ci_cd_run",
 		},
 	} {
-		if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+		if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 			t.Fatalf("enqueue %s correlation work: %v", intent.GenerationID, err)
 		}
 		queueNow = queueNow.Add(time.Second)

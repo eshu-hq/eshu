@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -32,10 +32,10 @@ func TestBuildIngesterServiceRejectsMissingBridgeRepoRoot(t *testing.T) {
 	}
 }
 
-// noopCanonicalWriter satisfies projector.CanonicalWriter for tests that
+// noopCanonicalWriter satisfies runtime.CanonicalWriter for tests that
 // don't exercise Neo4j.
 type noopCanonicalWriter struct{}
 
-func (*noopCanonicalWriter) Write(_ context.Context, _ projector.CanonicalMaterialization) error {
+func (*noopCanonicalWriter) Write(_ context.Context, _ canonical.CanonicalMaterialization) error {
 	return nil
 }
