@@ -90,9 +90,10 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   `rows = ceil(max*2.0)`).
 - **The renderer ratchets.** It refuses a per-route counter (`calls`, `blks`,
   or `rows`) above 1.5x the committed row unless you pass
-  `--accept-regression 'ROUTE=#ISSUE'` — one flag covers all three counters
-  for the named route — and it prints what it accepted rather than hiding it. This exists because a
-  GREEN-derived budget regenerated from an already-regressed run is not a guard:
+  `--accept-regression 'ROUTE=#ISSUE'`, one flag covering all three counters
+  for the named route, and it prints what it accepted rather than hiding it.
+  This exists because a GREEN-derived budget regenerated from an
+  already-regressed run is not a guard:
   #6843 raised `/infra/resources/{count,inventory}` from 74739 to 663066 blks in
   the same PR that caused the 8.9x increase, so the work gate kept passing while
   the route went from 145ms to 2.1s and only the latency ceiling fired, looking

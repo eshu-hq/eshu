@@ -230,6 +230,17 @@ wrong_flag_rc=$?
 set -e
 [[ "${wrong_flag_rc}" -eq 3 ]] || fail "--accept-regression must not silence a collapse"
 
+# ...and the mirror case. --accept-drop must not silence a growth regression
+# either. Each flag is one-directional on purpose: a caller who has justified a
+# collapse has said nothing about growth, so neither flag may wave the other
+# direction through.
+set +e
+run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-drop 'GET /a=#6912' "${work}/regressed.json" >/dev/null 2>&1
+wrong_drop_rc=$?
+set -e
+[[ "${wrong_drop_rc}" -eq 3 ]] || fail "--accept-drop must not silence a growth regression"
+
 # A typo'd --baseline must fail closed, not silently skip the ratchet.
 set +e
 bash "${script}" --named-from "${work}/named.txt" --baseline "${work}/no_such_file.txt" \
