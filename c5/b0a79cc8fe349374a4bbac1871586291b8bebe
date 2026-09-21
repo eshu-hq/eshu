@@ -1,0 +1,20 @@
+docs/internal/evidence/6782-slice3-differential-oracle.md
+  h_78a442cba0b3e6 66-70,79-80,174-200
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 108
+go/cmd/golden-corpus-gate/backenddiff.go
+  h_78a442cba0b3e6 55-57
+go/cmd/golden-corpus-gate/backenddiff_test.go
+  h_78a442cba0b3e6 20-26,36,152-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c5b0a79cc8fe349374a4bbac1871586291b8bebe",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
