@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 )
 
 func TestLoadRuntimeConfigMapsAWSTargetScopes(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 )
 
 func TestLoadRuntimeConfigRequiresCentralExternalID(t *testing.T) {

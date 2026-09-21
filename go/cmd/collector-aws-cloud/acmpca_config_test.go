@@ -6,7 +6,7 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 )
 
 func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForACMPCA(t *testing.T) {

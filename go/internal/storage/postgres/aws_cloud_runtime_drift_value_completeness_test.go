@@ -26,7 +26,7 @@ import (
 // package_type="Image" with no image_uri is unobservable evidence, not
 // absent evidence. It is reachable: when GetFunction returns a nil output the
 // AWS client falls back to the ListFunctions FunctionConfiguration
-// (go/internal/collector/awscloud/service/lambda/awssdk/client.go),
+// (go/internal/collector/cloud/aws/service/lambda/sdk/client.go),
 // which carries PackageType but no Code block, so mapFunction yields
 // PackageType "Image" with an empty ImageURI.
 //

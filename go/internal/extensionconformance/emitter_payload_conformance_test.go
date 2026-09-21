@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"

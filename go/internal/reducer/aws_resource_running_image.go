@@ -14,7 +14,7 @@ import (
 // (testdata/cassettes/awscloud/supply-chain-demo.json) and issue #5450 itself
 // name ("ecs.task" / "lambda.function"), and the live collector's own
 // awscloud.ResourceTypeECSTask / awscloud.ResourceTypeLambdaFunction constants
-// ("aws_ecs_task" / "aws_lambda_function", go/internal/collector/awscloud/
+// ("aws_ecs_task" / "aws_lambda_function", go/internal/collector/cloud/aws/
 // constants_ecs.go, constants_lambda.go). The reducer package does not import
 // the collector package (package-boundary rule), so the constants are
 // duplicated here as literals rather than imported; gating on both aliases

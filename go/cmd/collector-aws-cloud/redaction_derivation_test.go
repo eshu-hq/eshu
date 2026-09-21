@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/runtime"
 	// Blank import installs the full AWS scanner registry via init side
 	// effects so the derived redaction set reflects production registrations.
 	// main.go imports the same aggregator; this keeps the test honest even if
@@ -138,7 +138,7 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 	return services
 }
 
-// awsServicesDir resolves go/internal/collector/awscloud/service from this
+// awsServicesDir resolves go/internal/collector/cloud/aws/service from this
 // test file's location so the walk does not depend on the working directory.
 func awsServicesDir(t *testing.T) string {
 	t.Helper()
@@ -147,7 +147,7 @@ func awsServicesDir(t *testing.T) string {
 		t.Fatal("runtime.Caller() failed")
 	}
 	// This file lives in go/cmd/collector-aws-cloud/; service is under
-	// go/internal/collector/awscloud/service.
+	// go/internal/collector/cloud/aws/service.
 	return filepath.Join(
 		filepath.Dir(currentFile),
 		"..", "..",

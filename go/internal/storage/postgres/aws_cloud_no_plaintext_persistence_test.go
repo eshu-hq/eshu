@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/lambda"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/aws"
+	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/cloud/aws/service/lambda"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )

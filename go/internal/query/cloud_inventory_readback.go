@@ -89,7 +89,7 @@ type cloudInventoryReadModelStore interface {
 // a provider-flavored account selector (account_id, project_id, or
 // subscription_id) instead: unlike scope_id, every provider's scope id is a
 // derived, opaque per-shard identifier (for AWS, one shard per
-// account+region+service; see go/internal/collector/awscloud/awsruntime) that
+// account+region+service; see go/internal/collector/cloud/aws/runtime) that
 // is never literally equal to the raw provider account/project/subscription
 // number, and one account can fan out into many scope ids. An alias therefore
 // resolves against the canonical payload's normalized "account_id" field,

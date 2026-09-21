@@ -58,7 +58,7 @@ const cloudInventoryLambdaPackageTypeZip = "Zip"
 // It gates on provider=="aws" AND a closed Lambda resource_type set before
 // looking at package_type. package_type is NOT Lambda-exclusive -- the
 // OpenSearch collector also emits a package_type attribute
-// (go/internal/collector/awscloud/service/opensearch/scanner.go), and GCP/Azure
+// (go/internal/collector/cloud/aws/service/opensearch/scanner.go), and GCP/Azure
 // resources reach this read model through the same provider-agnostic view -- so
 // keying on the attribute alone would mislabel a non-Lambda (or non-AWS)
 // resource that coincidentally carried package_type/code_sha256-named keys. The

@@ -15,7 +15,7 @@ import (
 
 // This file is the #5451 regression suite: it proves that an aws_image_reference
 // fact shaped like the one the ECS scanner now emits per running task container
-// (go/internal/collector/awscloud/service/ecs/image_reference.go) resolves
+// (go/internal/collector/cloud/aws/service/ecs/image_reference.go) resolves
 // through the SAME digest-keyed evidence path the ECR scanner's
 // aws_image_reference already exercises (addAWSImageReference,
 // container_image_identity_typed_evidence.go). No reducer production code

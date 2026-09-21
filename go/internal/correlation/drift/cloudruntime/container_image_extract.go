@@ -108,7 +108,7 @@ func ExtractDeclaredContainerImages(containerDefinitions any) ContainerImageExtr
 // The AWS collector's ecs.task_definition containers shape carries
 // "environment" (redacted) and "secrets" (name/valueFrom references) fields
 // alongside "image" (see
-// go/internal/collector/awscloud/service/ecs/scanner.go containerMaps);
+// go/internal/collector/cloud/aws/service/ecs/scanner.go containerMaps);
 // this function reads only the "image" key off each element and never
 // touches any other key, so those fields never reach the drift evidence
 // surface. A non-[]any input, a non-map element, or a missing/blank "image"
