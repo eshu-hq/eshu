@@ -16,8 +16,16 @@ hold the two root-private helper sets that more than one of the above needed.
 
 What stayed is the `Service` type and its methods. Go pins a method to its
 type's package, so a `*_service.go` half cannot leave without first decomposing
-`Service` into composed sub-types, which this issue does not do. Root files in
-that position carry a `//nolint:dirgate` marker naming the reason.
+`Service` into composed sub-types, which this issue does not do.
+
+A root file in that position needs a `//nolint:dirgate` marker only when its
+name matches a sibling subpackage, which is the case `go-dir-gate` flags.
+`vulnerability_intelligence_service.go` carries one for that reason, as
+`sbom_attestation_service.go`, `security_alert_service.go` and the other
+pre-existing seams already do. `package_registry_service.go` sits in the same
+architectural position but its name does not match a sibling directory, so the
+gate does not flag it and it carries no marker. Adding one there would be an
+unused directive.
 
 ## Evidence
 
