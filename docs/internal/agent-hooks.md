@@ -32,6 +32,9 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 | `goal-continue.sh` | Claude | Stop | **blocking** | Refuses to end the turn while this session's goal file (`.claude/active-goal.<session_id>`, else the shared `.claude/active-goal`) names unfinished work, and hands the goal back. |
 | `goal-refresh.sh` | Claude | UserPromptSubmit | side effect | Sets a goal from `/goal <text>`, and re-injects the active goal into context on every prompt so it cannot go stale. |
 
+Muse Code runs the same files through envelope-translating wrappers in
+`.muse/hooks/` (wired by `.muse/hooks.json`): see [Muse Hooks](agent-hooks-muse.md).
+
 ## Why the nudge blocks instead of suggesting
 
 The tier is set by the exit code, and the difference is total. Exit 0 with
@@ -80,11 +83,11 @@ fallback hiding exactly the case worth knowing about.
 They are separate so that guidance prose cannot mint a skill id, and so
 `verify-agent-canon.sh` can match on the enforced list alone.
 
-Four of those are Claude-only today. Porting them to Codex needs someone to
-pin the `apply_patch` payload shape for the Codex version in use and confirm
-Codex's pre-tool and session-start equivalents. Do not write a Codex adapter
-against a guessed payload shape; a hook that silently never fires is worse than
-an absent one, because the gate reads as covered.
+Four of those serve Claude, and Muse Code via `.muse/hooks/`. Porting them to
+Codex still needs someone to pin the `apply_patch` payload shape for the Codex
+version in use and confirm Codex's pre-tool and session-start equivalents. Do
+not write a Codex adapter against a guessed payload shape; a hook that silently
+never fires is worse than an absent one, because the gate reads as covered.
 
 ## The nudge table rots, so a gate watches it
 
