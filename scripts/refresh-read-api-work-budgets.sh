@@ -136,7 +136,7 @@ while [[ $# -gt 0 ]]; do
 			[[ "${drop_reason}" =~ \#[0-9]+ ]] || die "--accept-drop needs a reason naming an issue (e.g. '#6912'), got: ${entry}"
 			accepted_drops="${accepted_drops}${drop_route}\t${drop_reason}\n"
 			shift 2 ;;
-		-h | --help) sed -n '2,75p' "${BASH_SOURCE[0]}"; exit 0 ;;
+		-h | --help) sed -n '2,78p' "${BASH_SOURCE[0]}"; exit 0 ;;
 		-*) die "unknown flag: $1" ;;
 		*) reports+=("$1"); shift ;;
 	esac
@@ -173,10 +173,10 @@ reason_for() {
 	'
 }
 
-# ratchet BASELINE RENDERED -- refuse any per-route blks above the threshold over
-# the committed value. Compares as integers (num*new > den*old) so no bc or
-# floating point is involved. A route absent from the baseline is new and has
-# nothing to ratchet against.
+# ratchet BASELINE RENDERED -- refuse any per-route counter above the growth
+# threshold or below the collapse threshold over the committed value. Compares
+# as integers so no bc or floating point is involved. A route absent from the
+# baseline is new and has nothing to ratchet against.
 ratchet() {
 	local baseline_file="$1" rendered="$2"
 	# A first-ever render has no baseline, which is legitimate, and --baseline
