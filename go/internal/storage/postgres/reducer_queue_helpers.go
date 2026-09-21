@@ -346,3 +346,116 @@ func reducerWorkItemID(intent runtime.ReducerIntent) string {
 	}
 	return "reducer_" + strings.Join(sanitized, "_")
 }
+
+// reducerAckBatchSplit groups one ack batch by the ack statement each domain
+// family needs, and records how many acks were dropped because a later claim
+// of the same work item is present in the same batch.
+type reducerAckBatchSplit struct {
+	target    []reducer.Intent
+	cicd      []reducer.Intent
+	unrelated []reducer.Intent
+
+	// supersededClaims counts acks dropped in favour of a newer claim of the
+	// same work item. A dropped ack carries a result that was never applied,
+	// so AckBatch reports the batch as claim-rejected rather than succeeded.
+	supersededClaims int
+
+	// keptResultIndexByID maps each retained work item to the position its
+	// surviving intent held in the input batch, so the caller can pair it with
+	// the result that intent's handler produced. A batch carrying two claims of
+	// one work item also carries two results, and the value-flow refresh emit
+	// gate (#6785) must read the surviving claim's.
+	keptResultIndexByID map[string]int
+}
+
+// splitReducerAckBatchIntents routes one ack batch to the statement each
+// domain family needs, collapsing repeats of a work item to a single ack.
+//
+// A batch can legitimately carry the same work item twice under two claim
+// identities: a lease that expires while its handler is still running is
+// re-claimed by this same process, both handlers finish, and both hand the
+// acker a result. Only the newest claim still owns the row — the ack statements
+// fence on last_attempt_at, the container-image epoch, and a live claim_until —
+// so the older ack would match zero rows. This keeps the newest claim, drops
+// the superseded one, and counts it, which makes AckBatch report the batch as
+// claim-rejected. Failing the whole batch instead would discard the surviving
+// ack too, and its error would not wrap reducer.ErrExecutionClaimRejected, so
+// the batch acker would treat an ordinary lease race as fatal and stop the
+// reducer (issue #6162).
+//
+// A repeat under two different domains is not a lease race. A work item id
+// encodes its domain, so that pairing is an invariant violation and stays an
+// error.
+func splitReducerAckBatchIntents(
+	intents []reducer.Intent,
+) (reducerAckBatchSplit, error) {
+	indexByID := make(map[string]int, len(intents))
+	keptResultIndexByID := make(map[string]int, len(intents))
+	kept := make([]reducer.Intent, 0, len(intents))
+	supersededClaims := 0
+	for position, intent := range intents {
+		index, ok := indexByID[intent.IntentID]
+		if !ok {
+			indexByID[intent.IntentID] = len(kept)
+			keptResultIndexByID[intent.IntentID] = position
+			kept = append(kept, intent)
+			continue
+		}
+		prior := kept[index]
+		if prior.Domain != intent.Domain {
+			return reducerAckBatchSplit{}, fmt.Errorf(
+				"batch ack reducer work item %q has conflicting domains %q and %q",
+				intent.IntentID,
+				prior.Domain,
+				intent.Domain,
+			)
+		}
+		if prior.ClaimEpoch == intent.ClaimEpoch &&
+			sameClaimedAt(prior.ClaimedAt, intent.ClaimedAt) {
+			continue
+		}
+		supersededClaims++
+		if newerReducerClaim(intent, prior) {
+			kept[index] = intent
+			keptResultIndexByID[intent.IntentID] = position
+		}
+	}
+
+	split := reducerAckBatchSplit{
+		target:              make([]reducer.Intent, 0, len(kept)),
+		cicd:                make([]reducer.Intent, 0, len(kept)),
+		unrelated:           make([]reducer.Intent, 0, len(kept)),
+		supersededClaims:    supersededClaims,
+		keptResultIndexByID: keptResultIndexByID,
+	}
+	for _, intent := range kept {
+		switch intent.Domain {
+		case reducer.DomainContainerImageIdentity:
+			split.target = append(split.target, intent)
+		case reducer.DomainCICDRunCorrelation:
+			split.cicd = append(split.cicd, intent)
+		default:
+			split.unrelated = append(split.unrelated, intent)
+		}
+	}
+	return split, nil
+}
+
+// newerReducerClaim reports whether candidate holds a later claim of the same
+// work item than current. Claim epoch leads because it is the monotonic fence
+// for the domains that opt into it; claim timestamp settles the domains whose
+// epoch stays zero, and matches what the ack statements compare against
+// last_attempt_at.
+func newerReducerClaim(candidate, current reducer.Intent) bool {
+	if candidate.ClaimEpoch != current.ClaimEpoch {
+		return candidate.ClaimEpoch > current.ClaimEpoch
+	}
+	return claimedAtValue(candidate).After(claimedAtValue(current))
+}
+
+func sameClaimedAt(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Equal(*right)
+}

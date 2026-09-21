@@ -1,0 +1,139 @@
+# Reducer Ack Duplicate-Claim Evidence
+
+Issue #6162. The Ifá fault-injection cell `cell_expirelease` forces
+`claim_until = now()` on every claimed reducer row without killing the handler,
+so the claimer legitimately re-claims a work item whose first handler is still
+in flight. Both handlers finish and the acker flushes one batch holding that
+work item twice, under two claim identities.
+
+The conflict domain is a single `fact_work_items` row, owned by at most one
+current claim — `(lease_owner, last_attempt_at, container_image_identity_claim_epoch)`
+with a live `claim_until` — but concurrently executable by two worker goroutines
+in one reducer process after a lease expiry and reclaim. The transaction scope is
+one ack statement per domain family; the retry scope is the claimer's poll loop.
+The idempotency key is the work item id plus its claim identity: an ack carrying
+a superseded claim identity matches zero rows.
+
+`splitReducerAckBatchIntents` used to reject that batch with a hard error. Two
+consequences, and the second is the stall: the whole batch was discarded,
+including the surviving claim's ack, and the error does not wrap
+`reducer.ErrExecutionClaimRejected`, so `Service.runBatchConcurrent`'s acker took
+its fatal `appendErr`/`cancel` branch rather than its claim-rejected branch. The
+reducer exited, the row stayed `claimed` with nothing alive to reclaim it once
+`claim_until` lapsed, its dependent `gcp_relationship_materialization` stayed
+`pending` behind the same partition key, and the drain gate ran out its bound
+with `dead_letter=0`.
+
+## Failure captured in CI
+
+Run 35617012182, `fault-injection (shard 2/4)`, artifact
+`ifa-fault-injection-shard-2-attempt-1-failure`. Last line of
+`logs/reducer-expirelease.log`:
+
+```
+2026/09/21 15:11:51 ERROR reducer failed error="batch ack reducer work: batch ack
+reducer work item \"reducer_gcp_project_supply-chain-demo-project_cassette-gcp-scd-gen1_gcp_resource_materialization_gcp_resource_materialization_gcp_project_supply-chain-demo-project\"
+has conflicting claim epochs or domains"
+```
+
+Preceded by two `gcp resource materialization completed` lines for the same
+scope and generation, `total_duration_seconds=2.313132353` and
+`total_duration_seconds=1.7014681839999999` — the two concurrent handlers. Those
+two lines carry no worker id; the pair of `reducer batch ack outcome unknown`
+WARNs that follow them name workers 3 and 0, and are the only place the two
+workers are identified. The ERROR is written through the plain `log` path rather
+than the structured one, so a scan for `"severity_text":"ERROR"` reports zero
+ERROR lines while it sits in the same file.
+
+## Lease safety
+
+Postgres already fenced correctly. `ackReducerWorkBatchQuery` locks on
+`last_attempt_at = requested.claimed_at AND stage = 'reducer' AND lease_owner = $2
+AND status IN ('claimed','running') AND claim_until > clock_timestamp()`, and the
+container-image statement pairs `container_image_identity_claim_epoch` with
+`last_attempt_at` per claim group. A superseded ack therefore matches zero rows by
+construction. No claim, lease, or ack SQL changed; the split now keeps the newest
+claim, drops the superseded one, and counts it, which surfaces as
+`ErrReducerClaimRejected`.
+
+`TestReducerQueueAckBatchFencesSupersededClaimLive` proves it against real
+Postgres 16.15, driving the cell's own `UPDATE fact_work_items SET claim_until =
+now() WHERE stage = 'reducer' AND status IN ('claimed','running')`:
+
+- the superseded claim alone acks nothing and leaves the row `claimed` with its
+  lease owner intact;
+- the batch carrying both claims acks the survivor, ends the row `succeeded`
+  with `lease_owner` cleared, and returns a claim rejection the batch acker
+  survives;
+- both pending orders resolve identically, which matters because the acker's
+  pending slice order follows whichever worker goroutine finishes first.
+
+The proof is enrolled in the reducer contention gate rather than left
+DSN-gated and silent: `.github/workflows/reducer-contention-gate.yml` passes
+`ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN` and names the test in its `-run` filter, and
+`TestReducerContentionPostgresProofsRunInTheReducerContentionGate` — the hermetic
+enrollment guard that reads the real workflow — now requires both. Adding the
+name to that guard before wiring the workflow fails it with "must pass the
+reducer ack reclaim proof DSN (#6162)"; wiring the workflow turns it green. The
+gate's extracted filter selects 46 tests including this one, and does not select
+the hermetic `TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected`.
+
+Mutation-proven rather than asserted. Restoring the pre-fix guard turns the live
+proof red in both orders and the two hermetic cases red, with `go vet` exit 0 on
+the mutant so the red is behavioural and not a build failure. The two negative
+controls — a same-id/different-domain pairing, and an identical duplicate that is
+deduped without supersession — stay green under both, so they are not satisfied
+by the change itself.
+
+## Result pairing
+
+A reclaim duplicates the result as well as the ack. `AckBatch` keyed `resultByID`
+off the first occurrence of a work item id, which paired the surviving claim with
+the superseded run's result once the split started keeping the newest. That is
+not cosmetic: `splitValueFlowRefreshAckIntents` reads that result through
+`shouldEmitValueFlowRefresh`, and `ShouldEmitRefresh` returns false on
+`CanonicalWrites <= 0`, so a superseded run that wrote nothing would suppress the
+completion event a winning run earned — the silent-miss outcome
+`value_flow_refresh_ack.go` explicitly calls the worse one. The split now records
+the batch position of each surviving claim and `resultByID` is built from those
+positions, after the split rather than before it.
+`TestReducerQueueAckBatchPairsTheSurvivingClaimsResult` fails with `emit ids = []`
+against the intermediate implementation and passes after. Fail-open on a missing
+result entry is unchanged, including the `results == nil` call sites.
+
+No serialization was used. Worker count, batch size, poll interval, lease
+duration, and the drain bound are untouched; two workers still execute the same
+intent concurrently under this fault, which is what the cell injects and what the
+idempotent graph writes already tolerate.
+
+Benchmark Evidence: `BenchmarkSplitReducerAckBatchIntents`, Go 1.27.1
+darwin/arm64, Apple M1 Max, `-benchtime=2000x -count=6`, median of six, baseline
+`origin/main` at `f6ce3e59a` in a separate worktree on the same machine, same
+input generator, no duplicates (the hot path):
+
+| batch | baseline ns/op | candidate ns/op | delta | baseline B/op | candidate B/op | baseline allocs/op | candidate allocs/op |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 16 | 3,952 (3,653–4,253) | 3,961 (3,668–4,171) | +0.2% | 20,138 | 21,376 | 22 | 11 |
+| 64 | 13,062 (12,890–14,571) | 11,306 (11,051–11,976) | −13.4% | 79,144 | 83,328 | 70 | 11 |
+| 256 | 46,810 (46,328–47,386) | 40,188 (39,103–41,025) | −14.1% | 308,520 | 322,179 | 262 | 11 |
+
+Read this as no regression rather than as a win. At batch 16 the ranges overlap
+completely and the medians differ by 0.2%, so there is no measurable change at
+the size the acker actually flushes most often (`batchSize` defaults well under
+64). The gain at 64 and 256 is incidental: the previous map stored whole
+`reducer.Intent` values, so every distinct work item copied the struct into the
+map, and keeping indices instead leaves allocations flat in batch size. Bytes per
+op rise 4–6% — the second index map, `keptResultIndexByID`, is the cost of
+pairing the surviving claim with its own result. That is a deliberate trade: the
+alternative silently drops a value-flow refresh completion event.
+
+Observability Evidence: a dropped superseded ack now reaches the existing
+`reducer batch ack rejected stale claim` WARN, with
+`failure_class=execution_claim_rejected`, `queue=reducer`,
+`pipeline_phase=reduction` and `batch_size`, emitted by
+`Service.logReducerAckClaimRejected`; each item in the batch is recorded through
+`recordBatchAckOutcome` as `ack_outcome_unknown`. Before this change the same
+condition produced one `reducer failed` line and process exit. No metric
+instrument, label, span, route, queue table, or runtime knob was added or
+renamed. At 3 AM the signal an operator reads is that WARN plus a reducer that is
+still polling, in place of a dead worker pool and a row stuck `claimed`.

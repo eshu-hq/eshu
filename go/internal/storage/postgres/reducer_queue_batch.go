@@ -83,25 +83,27 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 
 	now := q.now()
 
-	// results rides parallel to intents at the service call site; a missing
-	// entry fails open to emit (a bounded spurious refresh beats a silent
-	// missed one), while a paired zero Result still suppresses.
-	resultByID := make(map[string]reducer.Result, len(intents))
-	for i, intent := range intents {
-		if i >= len(results) {
-			break
-		}
-		if _, ok := resultByID[intent.IntentID]; !ok {
-			resultByID[intent.IntentID] = results[i]
-		}
-	}
-
-	targetIntents, cicdIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
+	split, err := splitReducerAckBatchIntents(intents)
 	if err != nil {
 		return err
 	}
+	targetIntents, cicdIntents, unrelatedIntents := split.target, split.cicd, split.unrelated
 
-	claimRejected := false
+	// results rides parallel to intents at the service call site; a missing
+	// entry fails open to emit (a bounded spurious refresh beats a silent
+	// missed one), while a paired zero Result still suppresses. The result is
+	// keyed off the position the SURVIVING claim held: a lease reclaim puts two
+	// claims of one work item in the batch, and pairing the winner with the
+	// superseded run's result would drop a refresh the winner earned (#6162).
+	resultByID := make(map[string]reducer.Result, len(split.keptResultIndexByID))
+	for intentID, position := range split.keptResultIndexByID {
+		if position >= len(results) {
+			continue
+		}
+		resultByID[intentID] = results[position]
+	}
+
+	claimRejected := split.supersededClaims > 0
 
 	unrelatedIntents, refreshGroups := splitValueFlowRefreshAckIntents(unrelatedIntents, resultByID)
 	for _, group := range refreshGroups {
@@ -206,46 +208,6 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 	}
 
 	return nil
-}
-
-func splitReducerAckBatchIntents(
-	intents []reducer.Intent,
-) ([]reducer.Intent, []reducer.Intent, []reducer.Intent, error) {
-	seen := make(map[string]reducer.Intent, len(intents))
-	target := make([]reducer.Intent, 0, len(intents))
-	cicd := make([]reducer.Intent, 0, len(intents))
-	unrelated := make([]reducer.Intent, 0, len(intents))
-	for _, intent := range intents {
-		if prior, ok := seen[intent.IntentID]; ok {
-			if prior.Domain != intent.Domain ||
-				prior.ClaimEpoch != intent.ClaimEpoch ||
-				!sameClaimedAt(prior.ClaimedAt, intent.ClaimedAt) {
-				return nil, nil, nil, fmt.Errorf(
-					"batch ack reducer work item %q has conflicting claim epochs or domains",
-					intent.IntentID,
-				)
-			}
-			continue
-		}
-		seen[intent.IntentID] = intent
-		if intent.Domain == reducer.DomainContainerImageIdentity {
-			target = append(target, intent)
-			continue
-		}
-		if intent.Domain == reducer.DomainCICDRunCorrelation {
-			cicd = append(cicd, intent)
-			continue
-		}
-		unrelated = append(unrelated, intent)
-	}
-	return target, cicd, unrelated, nil
-}
-
-func sameClaimedAt(left, right *time.Time) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return left.Equal(*right)
 }
 
 func ackContainerImageIdentityReducerWorkBatchQuery(
