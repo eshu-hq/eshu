@@ -243,7 +243,7 @@ func (h *CodeHandler) divergenceReportData(
 	// Convention-outlier always runs the whole cohort sweep, bounded by
 	// cohort caps, so its window is complete unless the graph is down or
 	// the bounded read budget cuts the sweep short.
-	outlierFindings, outlierCounts, outlierTruncated, outlierEmitted, err := h.reportOutlierKind(ctx, req.RepoID, req.IncludeTests, data.suppressions)
+	outlierFindings, outlierCounts, outlierTruncated, outlierEmitted, err := h.reportOutlierKind(ctx, req.RepoID, req.IncludeTests)
 	if err != nil {
 		return divergenceReportData{}, err
 	}
@@ -393,26 +393,24 @@ func (h *CodeHandler) reportWrapperKind(
 
 // reportOutlierKind runs the whole convention-outlier cohort sweep: the
 // track pages nowhere, so the report counts every qualified finding. A
-// degraded graph backend counts one outlier_graph_unavailable suppression
-// instead of failing the report; a sweep the bounded read budget cuts short
-// counts one outlier_graph_timeout suppression and marks the kind truncated
-// instead of failing the other four kinds with it. The findings page keeps
-// both loud.
+// degraded graph backend returns one outlier_graph_unavailable suppression;
+// a sweep the bounded read budget cuts short returns one
+// outlier_graph_timeout suppression with the kind truncated. Suppressions
+// travel the return value on every path — never the caller's map — so a
+// later edit cannot double-count across both. The findings page keeps both
+// loud.
 func (h *CodeHandler) reportOutlierKind(
 	ctx context.Context,
 	repoID string,
 	includeTests bool,
-	suppressions map[string]int,
 ) ([]codedivergence.Finding, map[string]int, bool, bool, error) {
 	track, counts, err := h.assembleOutlierTrack(ctx, repoID, includeTests)
 	if err != nil {
 		if errors.Is(err, querycontract.ErrGraphUnavailable) {
-			suppressions[codedivergence.RuleOutlierGraphUnavailable]++
-			return nil, map[string]int{}, false, false, nil
+			return nil, map[string]int{codedivergence.RuleOutlierGraphUnavailable: 1}, false, false, nil
 		}
 		if errors.Is(err, querycontract.ErrGraphReadDeadline) {
-			suppressions[codedivergence.RuleOutlierGraphTimeout]++
-			return nil, map[string]int{}, true, false, nil
+			return nil, map[string]int{codedivergence.RuleOutlierGraphTimeout: 1}, true, false, nil
 		}
 		return nil, nil, false, false, err
 	}

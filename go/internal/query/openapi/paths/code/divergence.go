@@ -108,7 +108,7 @@ const Divergence = `
                 "required": ["repo_id"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "top_per_kind": {"type": "integer", "default": 3, "minimum": 1, "maximum": 10, "description": "Top findings carried per kind; counts still cover the whole scanned window"},
+                  "top_per_kind": {"type": "integer", "default": 3, "minimum": 0, "maximum": 10, "description": "Top findings carried per kind; 0 selects the default; counts still cover the whole scanned window"},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact, renamed, and convention_outlier families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }
               }

@@ -76,9 +76,9 @@ func reportCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"top_per_kind": map[string]any{
 					"type":        "integer",
-					"description": "Top findings carried per kind; counts still cover the whole scanned window",
+					"description": "Top findings carried per kind; 0 selects the default; counts still cover the whole scanned window",
 					"default":     3,
-					"minimum":     1,
+					"minimum":     0,
 					"maximum":     10,
 				},
 				"include_tests": map[string]any{

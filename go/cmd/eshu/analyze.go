@@ -113,7 +113,7 @@ func init() {
 	divergenceCmd.Flags().Int("limit", 25, "Maximum divergence findings to return")
 	divergenceCmd.Flags().Int("offset", 0, "Zero-based findings offset for paging")
 	divergenceCmd.Flags().Bool("include-tests", false, "Opt test-file copies back into the member set")
-	divergenceCmd.Flags().Bool("report", false, "One-call rollup: counts by kind plus the top findings per kind instead of the findings page")
+	divergenceCmd.Flags().Bool("report", false, "One-call rollup: counts by kind plus the top findings per kind instead of the findings page (ignores --kind/--limit/--offset)")
 	divergenceCmd.Flags().Int("top", 3, "Top findings carried per kind (only with --report; ignored otherwise)")
 	analyzeCmd.AddCommand(divergenceCmd)
 
