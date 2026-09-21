@@ -56,7 +56,7 @@ case "${mode}" in
 		# `go/*.go` IS recursive here. A git pathspec is not a shell glob: `*`
 		# crosses `/`, so this lists every tracked .go file under go/ at any
 		# depth. Measured on this tree: 12335 matches, 0 of them at depth 1,
-		# reaching go/internal/collector/awscloud/acm_types.go. Three reviewers
+		# reaching go/internal/collector/awscloud/constants_acm.go. Three reviewers
 		# have read this as a depth-1 match and filed it as a bug, so: it is
 		# not one, and `go/**/*.go` would be equivalent, not a fix.
 		# The awk below then reduces each file path to its directory.
