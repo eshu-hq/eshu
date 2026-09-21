@@ -9,7 +9,7 @@
    `DNSRoutingPolicy`, `DNSGeoLocation`, `WarningObservation`).
 3. `constants_<service>.go` (one file per AWS service slice, plus
    `constants_common.go` for cross-service targets like `ResourceTypeAWSAccount`
-   and `guardduty_types.go` for the GuardDuty slice) - service, resource type,
+   and `constants_guardduty.go` for the GuardDuty slice) - service, resource type,
    and relationship constants. New service constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
    cap stays satisfied.
@@ -77,11 +77,12 @@ trust:
   warn about.
 
   **The 21 are not all non-constants, and the row's label is not a bucket
-  boundary.** `acm_types.go`, `cloudtrail_types.go` and `guardduty_types.go` hold
-  service and resource constants under the older `_types.go` naming, and land in
-  this row only because they do not match `constants_*.go`. Despite the name,
+  boundary.** `constants_acm.go`, `constants_cloudtrail.go` and
+  `constants_guardduty.go` hold service and resource constants; before this
+  leaf they used the older `_types.go` naming and landed in this row only
+  because they did not match `constants_*.go`. Despite the old names,
   all three declare **zero** Go types and zero funcs — they are constants files
-  whose name predates the convention.
+  whose names predate the convention.
 
   Re-derive that set by **content, not by filename**: across the 21, exactly
   three declare constants while declaring no types and no funcs. Seven other root
@@ -97,7 +98,7 @@ trust:
 - **Row 5 and the composition** move whenever a new **file** imports this
   package — not a new package. The 1,312 files sit in 413 directories, so most
   of them are second-or-later files in a package that already imports; one more
-  file under `services/ec2/` moves row 5 with nothing new importing anything.
+  file under `service/ec2/` moves row 5 with nothing new importing anything.
   **Nothing catches this**: `dirgate` watches this directory's file set, and a
   new importer lives somewhere else entirely.
 
