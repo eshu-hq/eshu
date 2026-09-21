@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -38,7 +39,7 @@ func TestPriorGenerationIDStrictlyOlderLive(t *testing.T) {
 	}
 	defer func() { _ = rawDB.Close() }()
 
-	prefix := "prior-live"
+	prefix := fmt.Sprintf("prior-live-%d", time.Now().UnixNano())
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	gen6, gen7, gen8 := prefix+"-gen6", prefix+"-gen7", prefix+"-gen8"
 	seen := map[string]time.Time{
