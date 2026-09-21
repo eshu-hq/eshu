@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/env"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/environment"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -63,21 +63,21 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		deploymentMode = deploymentModeDark
 	}
 
-	claimsEnabled, err := env.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED", defaultClaimsEnabled)
+	claimsEnabled, err := environment.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED", defaultClaimsEnabled)
 	if err != nil {
 		return Config{}, err
 	}
 	if !claimsEnabled {
-		claimsEnabled, err = env.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS", defaultClaimsEnabled)
+		claimsEnabled, err = environment.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS", defaultClaimsEnabled)
 	}
 	if err != nil {
 		return Config{}, err
 	}
-	reconcileInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL", schedule.DefaultReconcileInterval)
+	reconcileInterval, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL", schedule.DefaultReconcileInterval)
 	if err != nil {
 		return Config{}, err
 	}
-	runReconcileInterval, err := env.Duration(
+	runReconcileInterval, err := environment.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL",
 		defaultRunReconcileInterval,
@@ -85,27 +85,27 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	reapInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL", workflow.DefaultReapInterval())
+	reapInterval, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL", workflow.DefaultReapInterval())
 	if err != nil {
 		return Config{}, err
 	}
-	claimLeaseTTL, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL", workflow.DefaultClaimLeaseTTL())
+	claimLeaseTTL, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL", workflow.DefaultClaimLeaseTTL())
 	if err != nil {
 		return Config{}, err
 	}
-	heartbeatInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL", workflow.DefaultHeartbeatInterval())
+	heartbeatInterval, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL", workflow.DefaultHeartbeatInterval())
 	if err != nil {
 		return Config{}, err
 	}
-	expiredClaimLimit, err := env.Int(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT", workflow.DefaultExpiredClaimLimit())
+	expiredClaimLimit, err := environment.Int(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT", workflow.DefaultExpiredClaimLimit())
 	if err != nil {
 		return Config{}, err
 	}
-	expiredClaimRequeueDelay, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY", workflow.DefaultExpiredClaimRequeueDelay())
+	expiredClaimRequeueDelay, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY", workflow.DefaultExpiredClaimRequeueDelay())
 	if err != nil {
 		return Config{}, err
 	}
-	awsFreshnessClaimLeaseDuration, err := env.Duration(
+	awsFreshnessClaimLeaseDuration, err := environment.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION",
 		defaultAWSFreshnessClaimLeaseDuration,
@@ -113,7 +113,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	gcpFreshnessClaimLeaseDuration, err := env.Duration(
+	gcpFreshnessClaimLeaseDuration, err := environment.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION",
 		defaultGCPFreshnessClaimLeaseDuration,
@@ -121,7 +121,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	freshnessClaimReapLimit, err := env.Int(
+	freshnessClaimReapLimit, err := environment.Int(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
 		defaultFreshnessClaimReapLimit,

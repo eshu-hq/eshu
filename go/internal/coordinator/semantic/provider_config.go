@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/env"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/environment"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 )
 
@@ -52,19 +52,19 @@ func LoadProviderWorkerConfig(getenv func(string) string) (ProviderWorkerConfig,
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	enabled, err := env.Bool(getenv, EnvProviderWorkerEnabled, false)
+	enabled, err := environment.Bool(getenv, EnvProviderWorkerEnabled, false)
 	if err != nil {
 		return ProviderWorkerConfig{}, err
 	}
-	executionEnabled, err := env.Bool(getenv, EnvProviderExecutionEnabled, false)
+	executionEnabled, err := environment.Bool(getenv, EnvProviderExecutionEnabled, false)
 	if err != nil {
 		return ProviderWorkerConfig{}, err
 	}
-	leaseTTL, err := env.Duration(getenv, EnvProviderWorkerLeaseTTL, defaultProviderWorkerLeaseTTL)
+	leaseTTL, err := environment.Duration(getenv, EnvProviderWorkerLeaseTTL, defaultProviderWorkerLeaseTTL)
 	if err != nil {
 		return ProviderWorkerConfig{}, err
 	}
-	maxClaims, err := env.Int(getenv, EnvProviderWorkerMaxClaimsPerPass, defaultProviderWorkerMaxClaims)
+	maxClaims, err := environment.Int(getenv, EnvProviderWorkerMaxClaimsPerPass, defaultProviderWorkerMaxClaims)
 	if err != nil {
 		return ProviderWorkerConfig{}, err
 	}

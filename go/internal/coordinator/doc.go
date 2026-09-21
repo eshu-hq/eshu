@@ -125,7 +125,8 @@
 // plan-key grammar. The contract package validates only the string. Service
 // keeps ordering, admission, persistence, retry, and telemetry ownership.
 //
-// SemanticProviderWorker is the egress-gated semantic-provider execution worker.
+// semantic.ProviderWorker is the egress-gated semantic-provider execution worker,
+// reached through the optional Service.SemanticProviderWorker field.
 // It claims semantic extraction jobs, re-checks semantic egress fail-closed with
 // semanticpolicy.EvaluateEgress before any provider dispatch, audits every egress
 // decision, and dispatches only through an explicitly enabled provider client.

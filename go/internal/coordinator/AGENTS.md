@@ -10,8 +10,10 @@
    var names, and the `withDefaults` application order
 4. `go/internal/coordinator/metrics.go` — `otelMetrics`, `NewMetrics`, and the
    type-assertion pattern for `RecordReap`/`RecordRunReconciliation`
-5. `go/internal/coordinator/package_registry_scheduler.go` — bounded
-   `package_registry` work-item planning
+5. `go/internal/coordinator/registry/package/scheduler.go` — bounded
+   `package_registry` work-item planning. The directory is `package` but the
+   Go package name is `packages`, because `package` is a keyword; importers
+   need an explicit `packages "…/coordinator/registry/package"` alias
    - `go/internal/coordinator/planner/tempo/planner.go` and `tempo_service.go` —
      the extracted periodic external-API planner and its root scheduling seam:
      one enabled `configuration.targets[]` entry becomes one claimable work
@@ -121,6 +123,35 @@
 8. `go/internal/coordinator/planner/contract/README.md` and `doc.go` — shared
    plan-key grammar and the boundary it does not own
 
+## Where a family lives after #6781
+
+The root was 49 non-test files against the 40-file dirgate cap. Part A moved
+out every family that owns its own types. What remains in the root is the
+`Service` type and its methods, because Go pins a method to its type's
+package — the `*_service.go` halves cannot leave without redesigning `Service`
+into composed sub-types, which #6781 does not do.
+
+| Directory | Holds |
+| --- | --- |
+| `schedule/` | The shared scheduling substrate: target classes and ranking, derived-target skip evidence and budget, rotation offsets, plan keys, read limits, set and version helpers. Imported by `vulnerability` and `registry/package`; imports neither. |
+| `vulnerability/` | Vulnerability-intelligence derivation, OSV batching and chunk sizing, `IntelligenceWorkPlanner`. |
+| `registry/package/` | Package-registry derivation, ecosystem targets, `WorkPlanner`. Go package name `packages`. |
+| `egress/` | Collector and extension egress policy parsing and decisions. |
+| `semantic/` | The egress-gated semantic-provider execution worker. |
+| `environment/` | `Bool`, `Int`, `Duration` env parsing, shared by root `LoadConfig` and `semantic`. Named `environment` and not `env` because `.gitignore` carries `env/`, which silently excludes any such directory from git. |
+| `governance/audit/` | Redacted audit scope-hash, correlation id, service id, and append timeout. |
+
+Two rules the split had to obey, and both will apply to the next family move:
+
+- A subpackage may never import the root, because the root imports it. A
+  helper both need is hoisted into a neutral package below both, never
+  exported from one family to another.
+- Where only one symbol crosses, prefer a consumer-declared interface or a
+  passed-in value over a new package. `semantic` declares its own
+  `GovernanceAuditAppender`, and `semantic.NewProviderWorkerMetrics` takes the
+  instrument prefix as an argument rather than importing `coordinator`
+  for `MetricPrefix`.
+
 ## Invariants this package enforces
 
 - **Dark by default** — `deploymentModeDark` is the fallback in `withDefaults`.
@@ -143,13 +174,11 @@
   extension egress parsing call `contract.ValidateSafePlanKey` directly.
   Terraform-state keeps its separate, stricter validator, which moved with the
   planner into the `tfstate` child (`planner/tfstate/planner.go`). The
-  root `firstNonBlank` helper (`owned_package_target_helpers.go`) remains with
-  its package-registry and vulnerability-intelligence consumers; the extracted
-  `oci/registry` child keeps its own identical copy rather than importing root.
-  Terraform-state keeps its separate validator. The root `firstNonBlank`
-  helper (`owned_package_target_helpers.go`) remains with its package-registry
-  and vulnerability-intelligence consumers; the extracted `oci/registry` child
-  keeps its own identical copy rather than importing root. AWS target-scope
+  `FirstNonBlank` helper now lives in `schedule/derivation.go` alongside the
+  rest of the derived-target substrate its package-registry and
+  vulnerability-intelligence consumers share (#6781); the extracted
+  `oci/registry` child still keeps its own identical copy rather than
+  importing a sibling. AWS target-scope
   parsing goes the other way: `freshness.ParseTargetScopes` and
   `TargetAuthorized` are the single definition, and `service_aws_freshness.go`
   and `planner/aws/scheduled/planner.go` both call them rather than keeping a root
@@ -185,8 +214,9 @@
   `go test ./internal/coordinator/planner/<kind> ./internal/coordinator
   ./internal/scope -count=1`.
 
-- **Change the reconcile interval default** → edit `defaultReconcileInterval`
-  in `config.go`; document the change in `README.md` and the configuration
+- **Change the reconcile interval default** → edit
+  `schedule.DefaultReconcileInterval` in `schedule/derivation.go`, which both
+  `config.go` and the derived-target plan-key and rotation helpers read; document the change in `README.md` and the configuration
   table; verify that `Config.Validate` still passes with the new default.
 
 - **Plan keys for a periodic scheduled planner** → call
@@ -197,7 +227,8 @@
   kind-specific configuration decoder must not grow its own copy. Freshness
   planners keep their `freshness-` keys and stay on the global interval.
 
-- **Add a new config field from env** → add the `envXxx` call in `LoadConfig`;
+- **Add a new config field from env** → add the `environment.Bool`,
+  `environment.Int`, or `environment.Duration` call in `LoadConfig`;
   add the field to `Config`; apply a default in `withDefaults`; add validation
   in `Validate` if the field has constraints; update the README table.
 

@@ -109,6 +109,11 @@ one enabled bounded scope; invalid configurations fail validation.
   `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`.
+- `MetricPrefix` — the OTEL instrument namespace
+  (`eshu_dp_workflow_coordinator_`) every coordinator metric shares. It is
+  exported so subpackages can register instruments in the same namespace
+  without importing this package: `cmd/workflow-coordinator` passes it to
+  `semantic.NewProviderWorkerMetrics`.
 - `Metrics` — recording interface: `RecordReconcile`, `RecordReap`,
   `RecordRunReconciliation`.
 - `NewMetrics(meter)` — registers OTEL counters, histograms, and observable
@@ -124,13 +129,14 @@ one enabled bounded scope; invalid configurations fail validation.
   configured repository targets without opening registry connections. Each
   target becomes one claimable work item keyed by the normalized registry
   repository scope.
-- `PackageRegistryWorkPlanner` — plans package-registry collection runs from
+- `packages.WorkPlanner` (in `registry/package`, Go package name `packages`)
+  — plans package-registry collection runs from
   configured package/feed targets and optional active owned package evidence
   without opening registry connections. Each configured or derived target
   becomes one claimable work item keyed by its normalized `scope_id`. Derived
   package identities cover npm, PyPI, Go modules, Maven, NuGet, Composer,
   RubyGems, and Cargo while preserving per-instance target limits.
-- `VulnerabilityIntelligenceWorkPlanner` — plans vulnerability-intelligence
+- `vulnerability.IntelligenceWorkPlanner` — plans vulnerability-intelligence
   collection runs from configured source targets and optional active owned
   package evidence. Derived OSV targets are limited to exact owned dependency
   versions for npm, PyPI, Go modules, Maven, NuGet, Composer, RubyGems, Cargo,
@@ -343,7 +349,7 @@ already prove the allowed scheduling path.
   marked failed with `unauthorized_target`; the webhook payload is never used to
   create facts, root-cause claims, deployment links, or Jira/PagerDuty coupling.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, allowed broad opt-in scheduling, and governance audit event emission for missing or denied extension egress. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
+No-Regression Evidence: `go test ./internal/coordinator/egress ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, allowed broad opt-in scheduling, and governance audit event emission for missing or denied extension egress. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 
 Observability Evidence: extension egress skips reuse coordinator reconcile
 metrics, workflow rows, claim status, and `/api/v0/index-status`; denied
@@ -370,8 +376,10 @@ the GCP collector runtime and the explicit live Cloud Asset Inventory transport.
 
 ## Semantic-provider execution worker
 
-`SemanticProviderWorker` is the egress-gated semantic-provider execution worker
-(`semantic_provider_worker.go`). It claims semantic extraction jobs, re-checks
+`semantic.ProviderWorker` is the egress-gated semantic-provider execution
+worker (`semantic/provider_worker.go`), held by the optional
+`Service.SemanticProviderWorker` field. It claims semantic extraction jobs,
+re-checks
 semantic egress with `semanticpolicy.EvaluateEgress` before consulting a
 provider client, and runs from `runActiveMaintenance` only when active-mode
 claims and the worker are enabled.
@@ -379,7 +387,7 @@ claims and the worker are enabled.
 The worker ships no provider traffic by default. `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
 turns the claim loop on; `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` and a
 concrete enabled provider client are also required before dispatch. The default
-`DisabledSemanticProviderClient` performs no network I/O and terminates allowed
+`semantic.DisabledProviderClient` performs no network I/O and terminates allowed
 claims as `provider_execution_not_enabled`. Denied or missing egress policy
 skips the claim behind the lease fence and records a redacted governance audit
 event with low-cardinality reason data only.
@@ -396,7 +404,7 @@ single scope cannot starve the loop. No serialization workaround was introduced:
 the postgres `ClaimNext` query uses `FOR UPDATE SKIP LOCKED` so concurrent
 workers claim disjoint rows.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'TestSemanticWorker|TestLoadSemanticProviderWorkerConfig' -race -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/semantic -run 'TestSemanticWorker|TestLoadSemanticProviderWorkerConfig' -race -count=1`
 proves denied-egress fail-closed skip, missing-egress-policy fail-closed skip,
 allowed-egress + default-disabled-client no-network termination, the disabled
 client never dispatching even when the execution flag is on, allowed-egress +
