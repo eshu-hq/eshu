@@ -138,7 +138,7 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 	return services
 }
 
-// awsServicesDir resolves go/internal/collector/awscloud/services from this
+// awsServicesDir resolves go/internal/collector/awscloud/service from this
 // test file's location so the walk does not depend on the working directory.
 func awsServicesDir(t *testing.T) string {
 	t.Helper()
@@ -146,12 +146,12 @@ func awsServicesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// This file lives in go/cmd/collector-aws-cloud/; services is under
-	// go/internal/collector/awscloud/services.
+	// This file lives in go/cmd/collector-aws-cloud/; service is under
+	// go/internal/collector/awscloud/service.
 	return filepath.Join(
 		filepath.Dir(currentFile),
 		"..", "..",
-		"internal", "collector", "awscloud", "services",
+		"internal", "collector", "awscloud", "service",
 	)
 }
 

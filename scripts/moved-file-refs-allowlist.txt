@@ -267,7 +267,6 @@ docs/internal/evidence/6564-tag-history-grant-binding.md:go/internal/storage/cyp
 go/cmd/reducer/evidence-5048-executor-retry-seam.md:go/cmd/reducer/reducer_executor_adapters.go
 go/internal/storage/cypher/evidence-4367-cloud-edge-retract.md:go/cmd/reducer/reducer_executor_adapters.go
 go/internal/storage/cypher/evidence-4367-iam-variable-retract.md:go/cmd/reducer/reducer_executor_adapters.go
-
 # #6777 telemetry contract nest: dated evidence notes that record the
 # service-scope changed-since span attribute and grant-refusal vocabulary as
 # declared in the flat go/internal/telemetry/contract_zzzz_service_changed_since.go
@@ -288,3 +287,11 @@ scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_j
 # querycontract/entity/repo_identity.go; repointing would misstate what #6060
 # promoted.
 docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal/query/querycontract/entity_repo_identity.go
+# Dated records of the tree as it stood when #5717 shipped the EC2 AMI node
+# class (this leaf nests awscloud/services/ under awscloud/service/): a
+# changelog entry, the #5717 evidence note, and the B-12 golden snapshot's
+# recorded descriptions, which must stay byte-identical. Repointing any of
+# them would rewrite history.
+CHANGELOG.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
+docs/internal/evidence/5717-ami-node-class.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/collector/awscloud/services/ec2/ami_identity.go

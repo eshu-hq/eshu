@@ -173,7 +173,7 @@ func TestBindingsImportServices(t *testing.T) {
 	}
 }
 
-// liveServicesDir resolves go/internal/collector/awscloud/services from this
+// liveServicesDir resolves go/internal/collector/awscloud/service from this
 // test file's location so the walk does not depend on the working directory.
 func liveServicesDir(t *testing.T) string {
 	t.Helper()

@@ -36,6 +36,6 @@ func liveServicesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// .../internal/collector/awscloud/internal/partitionguard -> .../services
-	return filepath.Join(filepath.Dir(currentFile), "..", "..", "services")
+	// .../internal/collector/awscloud/internal/partitionguard -> .../service
+	return filepath.Join(filepath.Dir(currentFile), "..", "..", "service")
 }

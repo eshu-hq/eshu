@@ -358,7 +358,7 @@ func TestAssertObservationsFailsBadEdge(t *testing.T) {
 // target_type fails here mechanically, which is the whole point of #804.
 func TestLiveScannerTreeHasNoGraphJoinDefects(t *testing.T) {
 	awscloudDir := liveAWSCloudDir(t)
-	servicesDir := filepath.Join(awscloudDir, "services")
+	servicesDir := filepath.Join(awscloudDir, "service")
 	resolved, unresolved, err := relguard.ValidateEmitted(awscloudDir, servicesDir)
 	if err != nil {
 		t.Fatalf("live scanner tree has graph-join target_type defects:\n%v", err)

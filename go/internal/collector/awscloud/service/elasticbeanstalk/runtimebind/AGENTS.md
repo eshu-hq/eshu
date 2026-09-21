@@ -18,7 +18,7 @@
 - Do not validate or transform claims here. Validation belongs to awsruntime and
   the scanner. The builder body stays a constructor call plus the redaction-key
   guard.
-- Do not import anything else from `internal/collector/awscloud/services`.
+- Do not import anything else from `internal/collector/awscloud/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

@@ -16,7 +16,7 @@
 - Do not validate or transform claims here. Validation belongs to
   awsruntime and the scanner. The builder body stays a constructor call.
 - Do not import anything else from
-  `internal/collector/awscloud/services`. Cross-service knowledge belongs
+  `internal/collector/awscloud/service`. Cross-service knowledge belongs
   upstream.
 - The KMS builder does not need `RedactionKey`. The scanner emits no
   redacted fields; if a future change introduces one, the builder must

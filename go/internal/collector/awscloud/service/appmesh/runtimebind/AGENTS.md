@@ -18,7 +18,7 @@
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here beyond the redaction-key guard.
   Validation belongs to awsruntime and the scanner.
-- Do not import anything else from `internal/collector/awscloud/services`.
+- Do not import anything else from `internal/collector/awscloud/service`.
   Cross-service knowledge belongs upstream.
 
 ## Common Changes

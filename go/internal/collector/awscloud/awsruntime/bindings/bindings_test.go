@@ -62,7 +62,7 @@ func TestBindingsRegistersEveryImportedKind(t *testing.T) {
 	}
 }
 
-// servicesDir resolves go/internal/collector/awscloud/services from this test
+// servicesDir resolves go/internal/collector/awscloud/service from this test
 // file's location so the directory walk does not depend on the go test working
 // directory.
 func servicesDir(t *testing.T) string {
