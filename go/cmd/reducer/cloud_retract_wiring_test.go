@@ -56,6 +56,11 @@ func TestBuildReducerServiceWiresCloudRetractSeams(t *testing.T) {
 	}{
 		{domain: reducer.DomainAWSResourceMaterialization, wantErr: "retract dead cloud resource nodes"},
 		{domain: reducer.DomainEC2InstanceNodeMaterialization, wantErr: "retract dead ec2 instance nodes"},
+		// Azure and GCP ride the shared cloud-resource diff: the same
+		// wantErr proves their registry plumbing carries NodeRetracter
+		// and PriorGeneration on the production path too.
+		{domain: reducer.DomainAzureResourceMaterialization, wantErr: "retract dead cloud resource nodes"},
+		{domain: reducer.DomainGCPResourceMaterialization, wantErr: "retract dead cloud resource nodes"},
 	} {
 		t.Run(string(tc.domain), func(t *testing.T) {
 			intent := reducer.Intent{
@@ -103,6 +108,26 @@ func (f *retractWiringDB) QueryContext(ctx context.Context, query string, args .
 						"region":        "us-east-1",
 						"resource_type": "aws_ec2_vpc",
 						"resource_id":   "vpc-deleted",
+					})
+				case facts.AzureCloudResourceFactKind:
+					return retractWiringEnvelopeRows(facts.AzureCloudResourceFactKind, map[string]any{
+						"arm_resource_id":        "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/deleted",
+						"normalized_resource_id": "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/deleted",
+						"subscription_id":        "sub-1",
+						"resource_type":          "microsoft.compute/virtualmachines",
+						"resource_name":          "deleted",
+						"location":               "eastus",
+						"kind":                   "linux",
+					})
+				case facts.GCPCloudResourceFactKind:
+					return retractWiringEnvelopeRows(facts.GCPCloudResourceFactKind, map[string]any{
+						"full_resource_name": "//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/deleted",
+						"asset_type":         "compute.googleapis.com/Instance",
+						"project_id":         "demo-proj",
+						"location":           "us-central1-a",
+						"asset_type_family":  "compute",
+						"display_name":       "deleted",
+						"state":              "RUNNING",
 					})
 				case facts.EC2InstancePostureFactKind:
 					return retractWiringEnvelopeRows(facts.EC2InstancePostureFactKind, map[string]any{
