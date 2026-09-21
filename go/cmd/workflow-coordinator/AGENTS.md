@@ -33,7 +33,7 @@
   `LoadConfig`; add the field to `Config`; add validation in `Config.Validate`
   if needed; update the `README.md` configuration section in this package and
   in `internal/coordinator/README.md`. Run
-  `go test ./internal/coordinator -count=1`.
+  `go test ./internal/coordinator/... -count=1`.
 
 - **Switch to active mode for local testing** → set
   ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active,

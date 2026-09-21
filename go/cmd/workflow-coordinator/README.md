@@ -111,7 +111,7 @@ for the full list. Key env vars:
 - ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED — explicit, default-OFF flag that
   permits real outbound provider traffic; only effective with a concrete enabled
   provider client (a future security-reviewed PR). The shipped build wires the
-  no-network `DisabledSemanticProviderClient`, so egress-allowed claims still
+  no-network `semantic.DisabledProviderClient`, so egress-allowed claims still
   make no provider call and terminate as `provider_execution_not_enabled`
 - ESHU_SEMANTIC_PROVIDER_WORKER_SCOPE_IDS_JSON — JSON array of queue scope ids to
   drain; required when the worker is enabled

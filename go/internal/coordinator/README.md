@@ -400,13 +400,13 @@ coordinates, URLs, payload fields, or credential handles to metric labels.
 No-Regression Evidence: `go test ./internal/coordinator/... ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 No-Observability-Change: CI/CD run scheduling reuses the existing coordinator reconcile counters and duration histogram, `workflow_runs`, `workflow_work_items`, claim status rows, `requested_scope_set`, and `/api/v0/index-status`. The planner keeps credential environment names out of `requested_scope_set`; provider request, rate-limit, and fact-emission telemetry remains gated to the deployable CI/CD collector runtime slice.
 
-No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
+No-Regression Evidence: `go test ./internal/coordinator/... ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
 
 Observability Evidence: no new metrics were required. Existing collector instance configuration, workflow run IDs, `workflow_work_items`, `requested_scope_set`, coordinator reconcile metrics, and `/api/v0/index-status` show whether a proof used rotating or single-pass planning and whether the remote representative guard rejected queue growth beyond the derived-target budget.
 
-Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
+Performance Evidence: `go test ./internal/coordinator/... -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, rejects conflicting SBOM PURL/component versions, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
+No-Regression Evidence: `go test ./internal/coordinator/... -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, rejects conflicting SBOM PURL/component versions, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
 
 No-Observability-Change: installed-evidence advisory target planning uses the
 existing workflow and collector status surfaces. It adds `target_class` and
@@ -466,7 +466,7 @@ No-Regression Evidence: `go test ./internal/coordinator/planner/aws/scheduled ./
 covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
 the audit-only run recorded when all configured tuples are invalid.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfigParsesActiveRuntimeControls|TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval' -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/... -run 'TestLoadConfigParsesActiveRuntimeControls|TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval' -count=1`
 proves workflow-run status reconciliation can tick faster than scheduled-work
 planning, which keeps remote all-collector Compose from waiting up to the
 scheduled scan interval after all claims complete.
@@ -481,7 +481,7 @@ only. Existing coordinator reconcile counters, collector-instance drift gauges,
 and startup errors still expose invalid enabled configuration and durable
 reconciliation failures.
 
-No-Regression Evidence: `go test ./internal/coordinator ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/... ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`
 covers the open-target admission guard, AWS freshness handoff on the reap
 cadence, and workflow-run reconciliation during active maintenance.
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`
@@ -525,7 +525,7 @@ batch (default 100 triggers) and one collector instance's already-loaded
 scope list (typically single digits to low hundreds of scopes), not a new
 query or graph write.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'GCPFreshness' -race -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/... -run 'GCPFreshness' -race -count=1`
 covers claim-and-handoff, the fan-out-to-multiple-content-families case, the
 fan-out-across-multiple-instances case, the same-batch-same-instance
 coalescing case, idempotent-skip on an already-open target,
@@ -617,7 +617,7 @@ one claim-batch limit's worth outstanding at a time), not full table size.
 to the configured reap limit (default 100 rows), matching the existing
 `ClaimQueuedTriggers` claim-limit shape, so the reap adds no unbounded scan.
 
-No-Regression Evidence: `go test ./internal/coordinator ./internal/storage/postgres -race -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/... ./internal/storage/postgres -race -count=1`
 passes, covering (a) `TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure`/
 `TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure` proving a
 mid-batch assignment failure no longer strands its batch-mates (the other

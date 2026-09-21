@@ -79,10 +79,10 @@ claim status, and the existing admission logs.
 - ECR, Google Artifact Registry, and Azure Container Registry each accept a
   configured `registry_host` (or, for ECR, `registry`) ahead of any
   provider-computed default; a package-local `firstNonBlank` helper picks the
-  first non-blank value. This is a deliberate duplicate of the parent's own
-  `firstNonBlank` — the parent's copy still serves its package-registry and
-  vulnerability-intelligence planners, which are not extracted here, so do not
-  try to unify the two into one shared export.
+  first non-blank value. This is a deliberate duplicate of
+  `schedule.FirstNonBlank`, which #6781 extracted from the coordinator root
+  for the `registry/package` and `vulnerability` planners. Keeping the copy
+  avoids an import of `schedule` for a five-line pure function.
 - Requested-scope metadata (`RequestedScopeSet`) sorts targets by `scope_id`
   and carries only `scope_id`, `provider`, and `repository` — never
   credentials, base URLs, or tag limits.

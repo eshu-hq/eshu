@@ -99,7 +99,7 @@ extraction jobs, re-checks egress fail-closed via `semanticpolicy.EvaluateEgress
 before any provider dispatch, and dispatches only through an explicitly enabled
 provider client. It ships **no real provider traffic**: the worker is OFF by
 default (`ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`), and the default
-`DisabledSemanticProviderClient` performs no network I/O, so an egress-allowed
+`semantic.DisabledProviderClient` performs no network I/O, so an egress-allowed
 claim terminates as `provider_execution_not_enabled`. Real outbound traffic
 additionally requires the default-OFF `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED`
 flag plus a concrete client that a future PR supplies after security and schema

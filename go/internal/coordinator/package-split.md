@@ -32,7 +32,7 @@ unused directive.
 No-Regression Evidence (#6781): `cd go && go test ./internal/coordinator/...
 ./cmd/workflow-coordinator/... -count=1` passes. The split is a file and symbol
 relocation, so the proof it owes is that the contract did not move with the
-files: the discovered test-name set is byte-identical to `origin/main` at 279
+files: the discovered test-name multiset is identical to `origin/main` at 306
 names, compared with `go test -list '.*' ./internal/coordinator/...
 ./cmd/workflow-coordinator/...` on both trees and an empty `comm` diff in both
 directions. That check exists because a moved test file can compile clean and
@@ -54,7 +54,9 @@ one moved thing with a security-relevant ordering contract: it must re-check
 egress fail-closed before any provider dispatch, under a lease fence. `Run`,
 `handleClaim`, `skipDenied`, `terminateProviderDisabled`, `recordEgressAudit`,
 `recordClaim`, `client` and `now` are byte-identical to main under rename
-normalization; `dispatch` differs only in one parameter's type name. Lease TTL
+normalization; `dispatch` differs only in two renamed type references, the
+`cli` parameter (`SemanticProviderClient` to `ProviderClient`) and the
+composite literal in its body (`SemanticDispatchRequest` to `DispatchRequest`). Lease TTL
 stays `time.Minute`, `MaxClaimsPerPass` stays 32, and the lease owner stays
 `svc:semantic-provider-worker`. No test name would reveal a reordering here, so
 it was checked directly rather than inferred from a green suite.

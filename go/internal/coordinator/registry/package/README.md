@@ -5,7 +5,7 @@
 `packages` (directory `registry/package`) plans one workflow work item per
 configured or derived package-registry target. It decodes a collector
 instance's configured registry targets, derives additional targets from
-owned-package dependency evidence across seven registry ecosystems, and ranks
+owned-package dependency evidence across eight registry ecosystems, and ranks
 targets by target class before building deterministic run and work-item
 identities.
 
@@ -40,8 +40,10 @@ this way.
 - `PlanRequest` carries the collector instance, observed time, plan key, and
   owned-package target inputs.
 - `WorkPlanner.PlanPackageRegistryWork` is the planner entry point.
-- `DerivationFromConfig` decodes the owned-package derivation settings from a
-  collector instance's configuration.
+- `DerivationConfiguration` is the decoded owned-package derivation settings:
+  whether derivation is on, which ecosystems it covers, and its target limit.
+- `DerivationFromConfig` decodes that type from a collector instance's
+  configuration.
 - `DerivationEcosystems` normalizes a derivation's configured ecosystems,
   defaulting to npm.
 - `DerivedTargetLimit` bounds how many derived targets one plan can produce.
@@ -77,8 +79,10 @@ field, status field, queue, worker, lease, or runtime setting.
 - Configured and derived targets are deduplicated by `scope_id` before any
   workflow row is returned; a duplicate configured `scope_id` fails planning.
 - Owned-package derivation only supports npm, PyPI, Go modules, Maven, NuGet,
-  Composer, and RubyGems; an unrecognized ecosystem is silently skipped, not
-  an error.
+  Composer, RubyGems, and Cargo; an unrecognized ecosystem is silently
+  skipped, not an error. The list lives in `ecosystem_targets.go`, which is
+  the source of truth; this line is the only place in the repository that
+  states the count, so update it here when that switch changes.
 - A derived target's package identity is normalized through
   `packageregistry.NormalizePackageIdentity`; a normalization failure skips
   that target rather than failing the plan.

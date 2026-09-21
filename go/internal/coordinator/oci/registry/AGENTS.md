@@ -25,10 +25,10 @@
   registry IDs, or tag limits.
 - Reject two configured targets that normalize to the same repository
   identity before any work item is built.
-- Keep the package-local `firstNonBlank` helper local. The parent package
-  keeps its own copy for package-registry and vulnerability-intelligence
-  planners that are not extracted here; do not merge the two into a shared
-  export for a five-line pure function.
+- Keep the package-local `firstNonBlank` helper local. An equivalent
+  `schedule.FirstNonBlank` exists for the `registry/package` and
+  `vulnerability` planners, but this package deliberately does not import
+  `schedule` for a five-line pure function; keep the duplicate.
 
 ## Common changes
 

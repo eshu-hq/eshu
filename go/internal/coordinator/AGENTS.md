@@ -59,9 +59,9 @@
      seam; preserve per-provider identity resolution across Docker Hub, GHCR,
      ECR, Google Artifact Registry, Azure Container Registry, JFrog, and
      Harbor, and duplicate normalized-target rejection. The child keeps its
-     own copy of the tiny `firstNonBlank` helper rather than importing root's
-     copy, which still serves package-registry and vulnerability-intelligence
-     planning that remain unextracted at root. Unlike every other extraction
+     own copy of the tiny `firstNonBlank` helper rather than importing
+     `schedule.FirstNonBlank`, which #6781 lifted out of root and which now
+     serves the extracted `registry/package` and `vulnerability` planners. Unlike every other extraction
      in this list, the `OCIRegistryPlanner` interface itself stays in
      `service.go` rather than moving into `oci_registry_service.go` — issue
      #6057 scopes this move to the `_scheduler.go` half only and treats
@@ -191,7 +191,7 @@ Two rules the split had to obey, and both will apply to the next family move:
   from the appropriate ticker branch in `Service.Run`; add a new observation
   type and a recording method to `Metrics` in `metrics.go`; register counter,
   histogram, and gauge instruments in `NewMetrics`; run
-  `go test ./internal/coordinator -count=1`.
+  `go test ./internal/coordinator/... -count=1`.
 
 - **Add a new periodic external-API collector scheduler** (template:
   `planner/grafana/planner.go` + `grafana_service.go`) → add a `<Kind>Planner`

@@ -649,7 +649,7 @@ Use these gates for hosted governance-related changes:
 | Hosted auth audit and revocation proof | `scripts/test-verify-hosted-auth-audit-proof.sh`, `scripts/verify-hosted-auth-audit-proof.sh --input auth-audit-proof.json --output-json auth-audit-proof.summary.json --output-markdown auth-audit-proof.summary.md`, strict MkDocs build, and `git diff --check`. |
 | Hosted retention or deletion policy docs | Strict MkDocs build and `git diff --check`; runtime implementation must add focused deletion, tombstone, stale-read, and graph-rebuild tests. |
 | Hosted governance audit events or readbacks | `go test ./internal/governanceaudit ./internal/storage/postgres ./internal/query ./cmd/api ./cmd/mcp-server -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
-| Hosted extension egress claim gate | `go test ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
+| Hosted extension egress claim gate | `go test ./internal/coordinator/... -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1`, package-doc gates, performance-evidence gate, and strict MkDocs build. |
 | Hosted onboarding or setup CLI | `go test ./cmd/eshu -count=1`. |
 | API/MCP status surfaces | `go test ./internal/query ./internal/mcp ./cmd/api -count=1`. |
 | Semantic extraction status or queue readbacks | `go test ./internal/semanticqueue ./internal/storage/postgres ./internal/status ./internal/query ./internal/telemetry -count=1`. |
