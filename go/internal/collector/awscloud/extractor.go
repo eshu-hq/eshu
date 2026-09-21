@@ -24,10 +24,10 @@ import (
 //
 // # What feeds this, and what does not
 //
-// Nothing is registered yet, and the service scanners under services/ are NOT
+// Nothing is registered yet, and the service scanners under service/ are NOT
 // the producer this registry is waiting for. ExtractContext.Data is a
 // json.RawMessage: a raw per-resource provider payload. Scanners never hold one.
-// Their clients return typed Go structs (services/accessanalyzer/types.go, for
+// Their clients return typed Go structs (service/accessanalyzer/types.go, for
 // example, declares ListAnalyzers(context.Context) ([]Analyzer, error)), and
 // each scanner already fills Attributes and CorrelationAnchors per resource type
 // directly into a ResourceObservation, which reaches a fact envelope through

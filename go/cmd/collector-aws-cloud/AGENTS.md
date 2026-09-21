@@ -18,7 +18,7 @@
 7. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
    contract.
 8. Service `awssdk` README files under
-   `go/internal/collector/awscloud/services/` - SDK adapter contracts.
+   `go/internal/collector/awscloud/service/` - SDK adapter contracts.
 9. `docs/public/services/collector-aws-cloud.md` - security and
    runtime requirements.
 

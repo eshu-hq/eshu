@@ -102,7 +102,7 @@ API fixes in collector code. Those belong downstream.
 
 ## AWS Scanner Registration
 
-AWS service scanners under `go/internal/collector/awscloud/services/<svc>/`
+AWS service scanners under `go/internal/collector/awscloud/service/<svc>/`
 self-register with the runtime through a sibling `runtimebind/` sub-package.
 A new scanner adds:
 

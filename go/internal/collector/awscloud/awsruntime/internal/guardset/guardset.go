@@ -19,7 +19,7 @@ import (
 // importPathSuffix is the trailing module path under which every AWS service
 // scanner registers itself. A blank import that ends with
 // services/<service>/runtimebind contributes <service> to the bindings set.
-const importPathSuffix = "/internal/collector/awscloud/services/"
+const importPathSuffix = "/internal/collector/awscloud/service/"
 
 // runtimebindLeaf is the final path element every service registration import
 // must carry.

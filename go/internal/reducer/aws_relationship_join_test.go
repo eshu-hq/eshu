@@ -273,7 +273,7 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedSourceStaysUnresolved(t *testin
 // (resource_type aws_ec2_ami), so the ec2_instance_uses_ami relationship's
 // target NEVER resolved against the join index — it always fell through to
 // joinModeUnresolved and the edge was dropped (counted, never written; see
-// go/internal/collector/awscloud/services/ec2/identity.go and
+// go/internal/collector/awscloud/service/ec2/identity.go and
 // go/internal/reducer/aws_relationship_join.go). This test seeds an AMI
 // aws_resource fact (the #5717 fix's node-class materialization input)
 // alongside the instance resource fact and proves the target now resolves by

@@ -344,7 +344,7 @@ avoiding NornicDB OCC abort-retry churn on concurrent same-uid writes.
 The instance->AMI relationship now resolves (issue #5717): the EC2 collector
 emits one `aws_resource` fact for the AMI itself (`resource_type=aws_ec2_ami`,
 deduplicated per scan across every instance sharing that AMI id — see
-`go/internal/collector/awscloud/services/ec2/ami_identity.go`). This is
+`go/internal/collector/awscloud/service/ec2/ami_identity.go`). This is
 Pattern A, not a new node class: the AMI materializes under the EXISTING
 `CloudResource` label through the SAME generic `aws_resource_materialization`
 domain every other resource_type uses, so the generic

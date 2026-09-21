@@ -37,7 +37,7 @@ const (
 	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image), both as a
 	// relationship target (#5448) and, since #5717, as the resource_type of
 	// the AMI's own aws_resource identity fact (amiResourceObservation in
-	// go/internal/collector/awscloud/services/ec2/ami_identity.go). The AMI
+	// go/internal/collector/awscloud/service/ec2/ami_identity.go). The AMI
 	// materializes as an ordinary CloudResource node — no dedicated node/edge
 	// writer, no new graph label — through the SAME generic AWS resource
 	// materialization and relationship-edge-join path every other resource

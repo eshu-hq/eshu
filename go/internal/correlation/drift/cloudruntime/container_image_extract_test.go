@@ -217,7 +217,7 @@ func TestExtractObservedContainerImages(t *testing.T) {
 // TestExtractObservedContainerImagesNeverLeaksNonImageFields mirrors the
 // declared-side security proof for the observed (AWS-reported) container
 // shape, which the ECS collector already carries environment/secrets on
-// (see go/internal/collector/awscloud/services/ecs/scanner.go
+// (see go/internal/collector/awscloud/service/ecs/scanner.go
 // containerMaps).
 func TestExtractObservedContainerImagesNeverLeaksNonImageFields(t *testing.T) {
 	t.Parallel()

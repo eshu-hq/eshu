@@ -286,7 +286,7 @@ func comparableScalarAttrSet(
 //
 // package_type separates the two cases without any new collector plumbing: it
 // is a real aws_lambda_function Terraform attribute AND the AWS collector
-// already emits it (go/internal/collector/awscloud/services/lambda/scanner.go),
+// already emits it (go/internal/collector/awscloud/service/lambda/scanner.go),
 // so both decoders receive it. package_type == "Image" with no image_uri is
 // therefore not "this resource has no image" -- an image-packaged function has
 // one by definition -- it is "this side did not carry the image".

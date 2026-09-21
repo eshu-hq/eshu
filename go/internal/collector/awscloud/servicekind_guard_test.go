@@ -34,16 +34,16 @@ import (
 //
 // The original bug was an empty-bodied non-default case (`case awscloud.Service<X>:`
 // with nothing after it): the kind was validated but never canonicalized. This
-// guard walks every services/*/scanner.go that uses the trim-switch and asserts
+// guard walks every service/*/scanner.go that uses the trim-switch and asserts
 // the shape that makes the bug impossible: a default arm (mismatch rejection),
 // no empty-bodied non-default case, and at least one arm that writes
 // boundary.ServiceKind back. A new scanner that copies the old boilerplate fails
 // this test instead of silently shipping the leak.
 func TestScannerServiceKindSwitchesCanonicalize(t *testing.T) {
-	dir := servicesSourceDir(t)
+	dir := serviceSourceDir(t)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		t.Fatalf("read services dir %q: %v", dir, err)
+		t.Fatalf("read service dir %q: %v", dir, err)
 	}
 
 	checked, skipped := 0, 0
@@ -78,16 +78,16 @@ func TestScannerServiceKindSwitchesCanonicalize(t *testing.T) {
 	t.Logf("service_kind canonicalization guard: %d scanners checked, %d skipped (no trim-switch)", checked, skipped)
 }
 
-// servicesSourceDir resolves go/internal/collector/awscloud/services from this
+// serviceSourceDir resolves go/internal/collector/awscloud/service from this
 // test file's own location so the guard has no dependency on the caller's
 // working directory.
-func servicesSourceDir(t *testing.T) string {
+func serviceSourceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
-		t.Fatal("cannot resolve current file to locate services dir")
+		t.Fatal("cannot resolve current file to locate service dir")
 	}
-	return filepath.Join(filepath.Dir(currentFile), "services")
+	return filepath.Join(filepath.Dir(currentFile), "service")
 }
 
 // findServiceKindSwitch returns the first switch statement in file whose tag is

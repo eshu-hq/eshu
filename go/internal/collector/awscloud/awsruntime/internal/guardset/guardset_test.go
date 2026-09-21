@@ -25,19 +25,19 @@ func TestServiceFromImportPath(t *testing.T) {
 	}{
 		{
 			name: "canonical runtimebind import",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam/runtimebind",
 			want: "iam",
 			ok:   true,
 		},
 		{
 			name: "multi-word service token",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudwatchlogs/runtimebind",
 			want: "cloudwatchlogs",
 			ok:   true,
 		},
 		{
 			name: "non-runtimebind service import is ignored",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam",
 			want: "",
 			ok:   false,
 		},
@@ -49,7 +49,7 @@ func TestServiceFromImportPath(t *testing.T) {
 		},
 		{
 			name: "deeper nested package under runtimebind is ignored",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind/extra",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam/runtimebind/extra",
 			want: "",
 			ok:   false,
 		},

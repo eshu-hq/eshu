@@ -368,7 +368,7 @@ linters:
       - path: 'internal/ask/sandbox/normalize\.go'
         linters:
           - funlen
-      - path: 'internal/collector/awscloud/services/iam/scanner\.go'
+      - path: 'internal/collector/awscloud/service/iam/scanner\.go'
         linters:
           - funlen
       - path: 'internal/collector/repo/git/fact_builder\.go'
@@ -587,7 +587,7 @@ linters:
           - exhaustive
       # Collector boundary switches on a subset of upstream enum
       # values; the missing cases are passed through unchanged.
-      - path: 'internal/collector/awscloud/services/kms/awssdk/mappers\.go'
+      - path: 'internal/collector/awscloud/service/kms/awssdk/mappers\.go'
         linters:
           - exhaustive
       - path: 'internal/collector/repo/git/docs/archive_helpers\.go'
@@ -702,23 +702,23 @@ linters:
       # Per internal/collector/awscloud/AGENTS.md: "Do not cache
       # AWS credentials or SDK clients beyond the claim-scoped
       # runtime object that created this adapter."
-      - path: 'internal/collector/awscloud/services/.*/awssdk/'
+      - path: 'internal/collector/awscloud/service/.*/awssdk/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/.*/awssdk\.go'
+      - path: 'internal/collector/awscloud/service/.*/awssdk\.go'
         linters:
           - wrapcheck
       # Scanner packages in the AWS cloud collector return AWS SDK
       # errors through the envelope boundary; the envelope
       # redaction layer is the appropriate place to add context.
-      - path: 'internal/collector/awscloud/services/.*/scanner\.go'
+      - path: 'internal/collector/awscloud/service/.*/scanner\.go'
         linters:
           - wrapcheck
       # The awssdk mappers are also at the boundary.
-      - path: 'internal/collector/awscloud/services/.*/mappers\.go'
+      - path: 'internal/collector/awscloud/service/.*/mappers\.go'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/.*/mapping\.go'
+      - path: 'internal/collector/awscloud/service/.*/mapping\.go'
         linters:
           - wrapcheck
       # Scanner worker analyzers and image analyzers are at the
@@ -897,16 +897,16 @@ linters:
       - path: 'internal/collector/repo/discovery/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/ec2/'
+      - path: 'internal/collector/awscloud/service/ec2/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/networkfirewall/'
+      - path: 'internal/collector/awscloud/service/networkfirewall/'
         linters:
           - wrapcheck
       - path: 'internal/collector/awscloud/internal/partitionguard/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/.*/relationships\.go'
+      - path: 'internal/collector/awscloud/service/.*/relationships\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/sdk/'
@@ -1034,7 +1034,7 @@ linters:
       - path: 'internal/collector/confluence/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/awscloud/services/eks/'
+      - path: 'internal/collector/awscloud/service/eks/'
         linters:
           - wrapcheck
       # Parser boundaries: kotlin/repository_returns, etc.

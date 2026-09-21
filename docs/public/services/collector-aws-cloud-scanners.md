@@ -2,7 +2,7 @@
 
 Use this page for the AWS `service_kind` values backed by production scanner
 adapters. Each scanner self-registers from
-`go/internal/collector/awscloud/services/<svc>/runtimebind/init()`. The
+`go/internal/collector/awscloud/service/<svc>/runtimebind/init()`. The
 collector-aws-cloud command pulls every binding through
 `go/internal/collector/awscloud/awsruntime/bindings/bindings.go`, and the
 runtime entry point `awsruntime.DefaultScannerFactory.Scanner` dispatches

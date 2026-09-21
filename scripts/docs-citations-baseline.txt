@@ -60,7 +60,6 @@ LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/runtime/
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/runtime/pprof.go:71
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/storage/cypher/edge_writer_sql.go:128
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/storage/postgres/workflow_control_sql.go:52
-LINE docs/internal/design/1146-ec2-instance-node.md go/internal/collector/awscloud/services/ec2/scanner.go:13
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/graph/schema.go:131
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/storage/postgres/graph_projection_phase_state.go:43
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/content/shape/materialize.go:54
@@ -457,7 +456,6 @@ LINE go/internal/secretcrypto/README.md go/internal/runtime/api_key.go:66
 LINE go/internal/secretcrypto/env.go go/internal/runtime/api_key.go:66
 LINE go/internal/storage/postgres/AGENTS.md go/internal/parser/hcl/terraform_resource_attributes.go:132
 LINE go/internal/storage/postgres/README.md go/internal/collector/service.go:234
-LINE go/internal/storage/postgres/aws_cloud_runtime_drift_value_completeness_test.go go/internal/collector/awscloud/services/lambda/awssdk/client.go:89
 LINE go/internal/storage/postgres/tfstate_drift_evidence_config_row.go go/internal/correlation/drift/tfconfigstate/classify.go:154
 LINE go/internal/storage/postgres/tfstate_drift_evidence_cross_package_encoding_test.go go/internal/correlation/drift/tfconfigstate/classify.go:215
 LINE go/internal/storage/postgres/tfstate_drift_evidence_helpers.go go/internal/correlation/drift/tfconfigstate/classify.go:171

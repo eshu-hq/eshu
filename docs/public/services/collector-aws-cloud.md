@@ -21,8 +21,8 @@ infer service ownership.
 | Command package | `go/cmd/collector-aws-cloud/` |
 | Runtime package | `go/internal/collector/awscloud/awsruntime/` |
 | Scanner bindings aggregator | `go/internal/collector/awscloud/awsruntime/bindings/` |
-| Service package root | `go/internal/collector/awscloud/services/` |
-| Per-service binding | `go/internal/collector/awscloud/services/<svc>/runtimebind/` |
+| Service package root | `go/internal/collector/awscloud/service/` |
+| Per-service binding | `go/internal/collector/awscloud/service/<svc>/runtimebind/` |
 
 ## Operator Path
 
@@ -104,7 +104,7 @@ digests, policy JSON, secret names, parameter names, queue names, object keys,
 or raw AWS error payloads.
 
 Collector Performance Evidence: IAM source-fact expansion is covered by focused
-fixture tests in `go test ./internal/collector/awscloud/services/iam ./internal/collector/awscloud/services/iam/awssdk ./internal/collector/access/posture ./internal/facts -count=1`. The runtime API fan-out remains bounded by the existing managed-policy document cap and by one role/user/OIDC detail read per listed source identity.
+fixture tests in `go test ./internal/collector/awscloud/service/iam ./internal/collector/awscloud/service/iam/awssdk ./internal/collector/access/posture ./internal/facts -count=1`. The runtime API fan-out remains bounded by the existing managed-policy document cap and by one role/user/OIDC detail read per listed source identity.
 
 No-Regression Evidence: The same focused fixture gate covers the changed IAM
 scanner, SDK adapter, secrets/IAM envelope builders, and fact registry with

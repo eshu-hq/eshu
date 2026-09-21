@@ -18,7 +18,7 @@ node-then-gated-edge pattern PR-B will follow.
 
 ## Why
 
-The EC2 scanner (`go/internal/collector/awscloud/services/ec2/scanner.go:13-17`,
+The EC2 scanner (`go/internal/collector/awscloud/service/ec2/scanner.go`,
 `constants_ec2.go:20-23`) **deliberately does not emit an `aws_resource`
 inventory fact for instances** — it emits VPC / Subnet / SecurityGroup /
 SecurityGroupRule / NetworkInterface `aws_resource` nodes and one metadata-only
