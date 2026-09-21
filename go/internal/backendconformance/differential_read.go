@@ -58,14 +58,14 @@ func (q differentialQueryRecorder) recordedSingle(cypher string, params map[stri
 func captureRead(cypher string, params map[string]any, rows []map[string]any, runErr error, backend string) DifferentialRecord {
 	fp, fpErr := FingerprintStatement(cypher, params)
 	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, RowCount: len(rows), Failed: true}
+		return DifferentialRecord{Backend: backend, RowCount: len(rows), Failed: true, Error: fpErr.Error()}
 	}
 	if runErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true}
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true, Error: runErr.Error()}
 	}
 	digest, digestErr := DigestRows(rows, HasOrderBy(cypher))
 	if digestErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true}
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true, Error: digestErr.Error()}
 	}
 	return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Digest: digest}
 }

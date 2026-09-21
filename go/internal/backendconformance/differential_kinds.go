@@ -85,6 +85,30 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 		}
 		return total
 	}
+	// failureErrors names the distinct recorded error texts behind a
+	// failures-kind divergence, so the report carries the failure itself
+	// instead of only the failed-execution counts.
+	failureErrors := func(groups ...[]DifferentialRecord) string {
+		seen := make(map[string]struct{})
+		var errs []string
+		for _, recs := range groups {
+			for _, rec := range recs {
+				if !rec.Failed || rec.Error == "" {
+					continue
+				}
+				if _, ok := seen[rec.Error]; ok {
+					continue
+				}
+				seen[rec.Error] = struct{}{}
+				errs = append(errs, rec.Error)
+			}
+		}
+		if len(errs) == 0 {
+			return ""
+		}
+		slices.Sort(errs)
+		return "; errors: [" + strings.Join(errs, "; ") + "]"
+	}
 	backend := func(recs []DifferentialRecord) string {
 		if len(recs) == 0 {
 			return ""
@@ -114,7 +138,8 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 			diffs = append(diffs, DifferentialDifference{
 				Fingerprint: fp,
 				Kind:        DivergenceFailures,
-				Detail:      fmt.Sprintf("failed executions differ (%s=%d, %s=%d)", backend(lrecs), failures(lrecs), backend(rrecs), failures(rrecs)),
+				Detail: fmt.Sprintf("failed executions differ (%s=%d, %s=%d)%s",
+					backend(lrecs), failures(lrecs), backend(rrecs), failures(rrecs), failureErrors(lrecs, rrecs)),
 			})
 			continue
 		}

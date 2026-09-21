@@ -183,13 +183,16 @@ func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// DifferentialRecord is one captured statement execution.
+// DifferentialRecord is one captured statement execution. Error carries the
+// run, fingerprint, or digest error text when Failed is true, so a
+// failures-kind divergence names the failure instead of only counting it.
 type DifferentialRecord struct {
 	Fingerprint DifferentialFingerprint
 	Backend     string
 	RowCount    int
 	Digest      string
 	Failed      bool
+	Error       string
 }
 
 // DifferentialRecorder collects records in execution order. It is safe for
@@ -359,7 +362,10 @@ func (e differentialGroupRecorder) recordedAll(stmts []sourcecypher.Statement, r
 func captureWrite(stmt sourcecypher.Statement, execErr error, backend string) DifferentialRecord {
 	fp, fpErr := FingerprintStatement(stmt.Cypher, stmt.Parameters)
 	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, Failed: true}
+		return DifferentialRecord{Backend: backend, Failed: true, Error: fpErr.Error()}
 	}
-	return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: execErr != nil}
+	if execErr != nil {
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: true, Error: execErr.Error()}
+	}
+	return DifferentialRecord{Fingerprint: fp, Backend: backend}
 }
