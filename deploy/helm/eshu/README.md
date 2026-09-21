@@ -41,11 +41,11 @@ guidance belong in the public Kubernetes docs.
   whose effective environment selects `ESHU_GRAPH_BACKEND=nornicdb` fails closed unless
   `nornicdb.capabilities.relationshipMergePropertyIdentity=true`, including
   external platform-owned endpoints. The bundled default pins the validated
-  `timothyswt/nornicdb-cpu-bge:v1.3.3` image by digest. The acknowledgement
+  `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468` image by digest. The acknowledgement
   stays off because the chart cannot prove that an operator-selected external
   endpoint uses that artifact; verify the endpoint actually selected before
   turning it on.
-- Bundled v1.3.3 defaults to the live-proven amd64 platform and a retained,
+- Bundled defaults to the live-proven amd64 platform and a retained,
   versioned PVC. A live upgrade preserves any legacy chart-owned PVC and fails
   closed until `nornicdb.persistence.allowFreshVolumeMigration=true`
   acknowledges fresh storage and a graph rebuild. `existingClaim` accepts only

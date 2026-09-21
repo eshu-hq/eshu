@@ -38,8 +38,8 @@ or independently prove an immutable override, select
 `ESHU_GRAPH_BACKEND=nornicdb`, and enable the capability acknowledgement before
 routing workloads to it.
 
-Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f`,
+Key defaults: image repository `ghcr.io/eshu-hq/nornicdb-amd64-cpu`, image tag
+`fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555` (self-built from upstream main at the conjunct index-seek fix; self-reports 1.3.3),
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and

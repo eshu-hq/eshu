@@ -24,7 +24,7 @@
 //
 //	docker run -d --name eshu-6849-nornic -p 127.0.0.1:27962:7687 \
 //	  -e NORNICDB_NO_AUTH=true -e NORNICDB_EMBEDDING_ENABLED=false \
-//	  timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f
+//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27962 ESHU_LIVE_GRAPH_BACKEND=nornicdb \
 //	  go test ./internal/query/codequery -tags live_nornicdb_answer_truth \
 //	  -run TestLiveTransitiveCallersParity -count=1 -v

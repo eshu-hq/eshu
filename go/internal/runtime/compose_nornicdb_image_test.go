@@ -11,15 +11,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const nornicDBV133Image = "timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+const nornicDBPinnedImage = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
 
-func TestNornicDBComposeDefaultPinsV133PublishedImage(t *testing.T) {
+func TestNornicDBComposeDefaultPinsPublishedImage(t *testing.T) {
 	t.Parallel()
 
 	doc := readComposeDocument(t, "docker-compose.yaml")
 	service := requireComposeService(t, doc, "nornicdb")
-	if want := "${NORNICDB_IMAGE:-" + nornicDBV133Image + "}"; service.Image != want {
-		t.Fatalf("nornicdb image = %q, want immutable v1.3.3 default %q", service.Image, want)
+	if want := "${NORNICDB_IMAGE:-" + nornicDBPinnedImage + "}"; service.Image != want {
+		t.Fatalf("nornicdb image = %q, want immutable pinned default %q", service.Image, want)
 	}
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
 	if want := "pull_policy: ${NORNICDB_PULL_POLICY:-missing}"; !strings.Contains(content, want) {
@@ -45,7 +45,7 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 		"NORNICDB_IMAGE",
 		"NORNICDB_PULL_POLICY",
 		"pull policy `missing`",
-		"v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f",
+		"fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555",
 		"fresh graph volume",
 		"Never start an older NornicDB binary on a volume modified by v1.3.3",
 		"reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file",
@@ -56,11 +56,11 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 	}
 }
 
-func TestNornicDBRuntimeReadmeTracksV133PublishedDefault(t *testing.T) {
+func TestNornicDBRuntimeReadmeTracksPinnedDefault(t *testing.T) {
 	t.Parallel()
 
 	docs := readRepositoryFile(t, "../../..", "go/internal/runtime/README.md")
-	want := "Compose pulls the immutable NornicDB v1.3.3 image by default"
+	want := "Compose pulls the immutable eshu-hq self-built NornicDB image by default"
 	if !strings.Contains(strings.Join(strings.Fields(docs), " "), want) {
 		t.Fatalf("runtime README missing current NornicDB published-image contract %q", want)
 	}
@@ -209,7 +209,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Compose, Helm, and the R-5 replay gate pin the same NornicDB `v1.3.3` multi-architecture image by digest",
+		"Compose, Helm, and the R-5 replay gate pin the same eshu-hq self-built NornicDB image by digest",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {
@@ -239,7 +239,7 @@ var digestedImageRef = regexp.MustCompile(`^[^:@\s]+:[^@\s]+@sha256:[0-9a-f]{64}
 // Before #6296 the chart's image had no gate coverage at all: B-7 and the e2e
 // workflows then drove a Compose-only source build rather than the chart's
 // published image. Putting the chart and replay gate on one artifact bought
-// that coverage, and this test keeps the current v1.3.3 digest in lockstep.
+// that coverage, and this test keeps the current pinned digest in lockstep.
 // scripts/test-verify-replay-tier.sh pins
 // the gate's own NORNICDB_IMAGE and TestNornicDBGraphSearchSplitDesignTracks-
 // ImplementedStabilization pins the design doc's prose, but either file could
@@ -267,8 +267,8 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	if !digestedImageRef.MatchString(chartRef) {
 		t.Fatalf("chart nornicdb image %q is not pinned by a full sha256 digest; a tag alone can be retargeted upstream without a repository change", chartRef)
 	}
-	if chartRef != nornicDBV133Image {
-		t.Fatalf("chart NornicDB image = %q, want validated v1.3.3 artifact %q", chartRef, nornicDBV133Image)
+	if chartRef != nornicDBPinnedImage {
+		t.Fatalf("chart NornicDB image = %q, want validated pinned artifact %q", chartRef, nornicDBPinnedImage)
 	}
 
 	compose := readComposeDocument(t, "docker-compose.yaml")

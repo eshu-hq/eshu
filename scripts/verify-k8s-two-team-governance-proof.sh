@@ -27,9 +27,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 list_only=false
 artifacts_dir=""
-readonly expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
-readonly expected_index_digest="sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
-readonly expected_amd64_digest="sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
+readonly expected_backend_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+readonly expected_index_digest="sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+readonly expected_amd64_digest="sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"
 
 usage() {
 	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
@@ -207,7 +207,7 @@ require_eq "$(json_str "${provenance}" backend_source_revision)" "unavailable" "
 backend_platform="$(json_str "${provenance}" backend_platform)"
 require_eq "${backend_platform}" "linux/amd64" "live-proven NornicDB platform"
 backend_runtime_image_id="$(json_str "${provenance}" backend_runtime_image_id)"
-[[ "${backend_runtime_image_id}" == *"timothyswt/nornicdb-cpu-bge@"* ]] \
+[[ "${backend_runtime_image_id}" == *"ghcr.io/eshu-hq/nornicdb-amd64-cpu@"* ]] \
 	|| die "provenance backend_runtime_image_id '${backend_runtime_image_id}' is not the expected repository"
 case "${backend_runtime_image_id}" in
 	*@"${expected_amd64_digest}"|*@"${expected_index_digest}") ;;

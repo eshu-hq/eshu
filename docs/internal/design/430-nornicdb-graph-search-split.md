@@ -6,7 +6,7 @@ operator docs. The curated search projection remains design- and
 benchmark-gated before any public API, MCP, schema, or graph-write change.
 
 Phase-1 stabilization status: Compose, Helm, and the R-5 replay gate pin the same
-NornicDB `v1.3.3` multi-architecture image by digest, and both runtime paths set
+eshu-hq self-built NornicDB image by digest, and both runtime paths set
 the canonical graph lane to graph-only startup controls. Runtime contract
 tests enforce the graph-only NornicDB controls in Compose, Helm, and the public
 environment reference.
@@ -52,15 +52,16 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Eshu pins the same NornicDB `v1.3.3` multi-architecture image by digest for
+Eshu pins the same eshu-hq self-built NornicDB image by digest for
 Compose, Helm, and R-5 graph startup. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; `v1.3.3` is the pinned published multi-arch Docker
-Hub manifest for the `nornicdb-cpu-bge` image line (`linux/amd64` and
-`linux/arm64`). The validated Linux amd64 v1.3.3 artifact reports
-`NornicDB v1.3.3`; the v1.3.2 artifact reported `NornicDB v1.3.1` because upstream
-retained a stale embedded `VERSION` file;
+preserved in later releases; `fix-490-a427a468` is the pinned eshu-hq self-built
+ghcr.io image, built from upstream main at the merged conjunct index-seek fix
+([orneryd/NornicDB#491](https://github.com/orneryd/NornicDB/pull/491)) with
+`linux/amd64` and `linux/arm64` descriptors. The validated Linux amd64 artifact
+reports `NornicDB v1.3.3`; the v1.3.2 artifact reported `NornicDB v1.3.1` because
+upstream retained a stale embedded `VERSION` file;
 the arm64 descriptor is present in the same immutable index but has not been
 runtime-proven by this change. Artifact identity therefore comes from the
 immutable index and platform manifest, not the version banner alone.
