@@ -20,7 +20,7 @@ package main
 // is generated from -- edit those TSVs, then re-run
 // scripts/generate-dirgate-grandfather-go.sh, never this file directly.
 var grandfatheredDirectories = map[string]grandfatherEntry{
-	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
+	"internal/collector/awscloud": {FileCount: 154, Digest: "7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
 	"internal/collector/repo/git": {FileCount: 65, Digest: "c52b52eda6e521c5b56988994f637f36708e6810e1b6c04386d6081d845e78bb"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
