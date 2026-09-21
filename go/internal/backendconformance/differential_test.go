@@ -202,19 +202,8 @@ func (s *stubDifferentialExecutor) Execute(_ context.Context, stmt sourcecypher.
 	return s.err
 }
 
-// stubDifferentialProbeExecutor adds probe support to the stub.
-type stubDifferentialProbeExecutor struct {
-	stubDifferentialExecutor
-	found bool
-}
-
-func (s *stubDifferentialProbeExecutor) ExecuteProbe(_ context.Context, stmt sourcecypher.Statement) (bool, error) {
-	s.executed = append(s.executed, stmt)
-	return s.found, s.err
-}
-
-// stubDifferentialGroupExecutor adds group and phase support to the stub,
-// recording how many inner calls each fan-out costs.
+// stubDifferentialGroupExecutor is the full-surface stub: grouped and phased
+// writes plus probes, recording how many inner calls each fan-out costs.
 type stubDifferentialGroupExecutor struct {
 	stubDifferentialExecutor
 	groupCalls int
@@ -229,6 +218,24 @@ func (s *stubDifferentialGroupExecutor) ExecuteGroup(_ context.Context, stmts []
 
 func (s *stubDifferentialGroupExecutor) ExecutePhaseGroup(_ context.Context, stmts []sourcecypher.Statement) error {
 	s.phaseCalls++
+	s.executed = append(s.executed, stmts...)
+	return s.err
+}
+
+func (s *stubDifferentialGroupExecutor) ExecuteProbe(_ context.Context, stmt sourcecypher.Statement) (bool, error) {
+	s.executed = append(s.executed, stmt)
+	return true, s.err
+}
+
+// stubDifferentialGroupOnlyExecutor supports grouped writes but neither
+// phased writes nor probes.
+type stubDifferentialGroupOnlyExecutor struct {
+	stubDifferentialExecutor
+	groupCalls int
+}
+
+func (s *stubDifferentialGroupOnlyExecutor) ExecuteGroup(_ context.Context, stmts []sourcecypher.Statement) error {
+	s.groupCalls++
 	s.executed = append(s.executed, stmts...)
 	return s.err
 }
@@ -254,22 +261,59 @@ func TestRecordingExecutorCapturesWrites(t *testing.T) {
 	}
 }
 
-func TestRecordingExecutorGroupRequiresInnerSupport(t *testing.T) {
+func TestRecordingExecutorStripsWithoutGroupSupport(t *testing.T) {
 	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
 	recorder := NewDifferentialRecorder()
 	exec := WrapExecutor(&stubDifferentialExecutor{}, recorder, "nornicdb")
-	grouped, ok := exec.(interface {
+	checks := map[string]bool{
+		"group": false,
+		"phase": false,
+		"probe": false,
+	}
+	if _, ok := exec.(interface {
 		ExecuteGroup(context.Context, []sourcecypher.Statement) error
+	}); ok {
+		checks["group"] = true
+	}
+	if _, ok := exec.(interface {
+		ExecutePhaseGroup(context.Context, []sourcecypher.Statement) error
+	}); ok {
+		checks["phase"] = true
+	}
+	if _, ok := exec.(interface {
+		ExecuteProbe(context.Context, sourcecypher.Statement) (bool, error)
+	}); ok {
+		checks["probe"] = true
+	}
+	for name, exposed := range checks {
+		if exposed {
+			t.Fatalf("wrapped non-grouping inner exposes %s: callers lose the sequential fallback", name)
+		}
+	}
+	if err := exec.Execute(context.Background(), sourcecypher.Statement{Cypher: "MERGE (n)"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.Records()) != 1 {
+		t.Fatalf("records = %d, want the single execution recorded", len(recorder.Records()))
+	}
+}
+
+func TestRecordingExecutorPhaseGroupRequiresInnerSupport(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	exec := WrapExecutor(&stubDifferentialGroupOnlyExecutor{}, recorder, "nornicdb")
+	phased, ok := exec.(interface {
+		ExecutePhaseGroup(context.Context, []sourcecypher.Statement) error
 	})
 	if !ok {
-		t.Fatal("wrapped executor must preserve the group surface for capability probing")
+		t.Fatal("group-capable inner must keep the phase surface for capability probing")
 	}
-	err := grouped.ExecuteGroup(context.Background(), []sourcecypher.Statement{{Cypher: "MERGE (n)"}})
+	err := phased.ExecutePhaseGroup(context.Background(), []sourcecypher.Statement{{Cypher: "MERGE (n)"}})
 	if err == nil {
-		t.Fatal("grouped write on a non-grouping inner must fail loudly, not degrade silently")
+		t.Fatal("phased write on a non-phasing inner must fail loudly, not degrade silently")
 	}
 	if len(recorder.Records()) != 0 {
-		t.Fatalf("failed group recorded %d records", len(recorder.Records()))
+		t.Fatalf("failed phase recorded %d records", len(recorder.Records()))
 	}
 }
 
@@ -314,13 +358,13 @@ func TestCompareRecordingsAcceptsIdenticalPairGREEN(t *testing.T) {
 func TestRecordingExecutorForwardsProbes(t *testing.T) {
 	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
 	recorder := NewDifferentialRecorder()
-	inner := &stubDifferentialProbeExecutor{found: true}
+	inner := &stubDifferentialGroupExecutor{}
 	exec := WrapExecutor(inner, recorder, "neo4j")
 	prober, ok := exec.(interface {
 		ExecuteProbe(context.Context, sourcecypher.Statement) (bool, error)
 	})
 	if !ok {
-		t.Fatal("wrapped executor must preserve the probe surface for capability probing")
+		t.Fatal("group-capable inner must keep the probe surface for capability probing")
 	}
 	found, err := prober.ExecuteProbe(context.Background(), sourcecypher.Statement{Cypher: "MATCH (n) RETURN n LIMIT 1"})
 	if err != nil || !found {
@@ -335,12 +379,12 @@ func TestRecordingExecutorForwardsProbes(t *testing.T) {
 func TestRecordingExecutorProbeRequiresInnerSupport(t *testing.T) {
 	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
 	recorder := NewDifferentialRecorder()
-	exec := WrapExecutor(&stubDifferentialExecutor{}, recorder, "neo4j")
+	exec := WrapExecutor(&stubDifferentialGroupOnlyExecutor{}, recorder, "neo4j")
 	prober, ok := exec.(interface {
 		ExecuteProbe(context.Context, sourcecypher.Statement) (bool, error)
 	})
 	if !ok {
-		t.Fatal("wrapped executor must preserve the probe surface for capability probing")
+		t.Fatal("group-capable inner must keep the probe surface for capability probing")
 	}
 	if _, err := prober.ExecuteProbe(context.Background(), sourcecypher.Statement{Cypher: "MATCH (n) RETURN n LIMIT 1"}); err == nil {
 		t.Fatal("probe on a non-probing inner must fail loudly, not report unknown as false")
@@ -462,6 +506,28 @@ func TestCompareRecordingsFlagsRepeatedDivergence(t *testing.T) {
 	diffs := CompareRecordings(stable, flaky)
 	if len(diffs) != 1 {
 		t.Fatalf("differences = %v, want the repeated-execution divergence", diffs)
+	}
+}
+
+// TestCompareRecordingsFlagsOneSidedFailure is the regression for the #6889
+// post-merge P1: a write that succeeds on one backend and fails on the other
+// must compare unequal, even though both records carry an empty digest and a
+// zero row count.
+func TestCompareRecordingsFlagsOneSidedFailure(t *testing.T) {
+	t.Parallel()
+	fp := DifferentialFingerprint{Statement: "MERGE (n:File {path: $path})", Parameters: `{"path":"a"}`}
+	a := []DifferentialRecord{
+		{Backend: "nornicdb", Fingerprint: fp, Failed: false},
+	}
+	b := []DifferentialRecord{
+		{Backend: "neo4j", Fingerprint: fp, Failed: true},
+	}
+	diffs := CompareRecordings(a, b)
+	if len(diffs) != 1 {
+		t.Fatalf("differences = %v, want the one-sided failure", diffs)
+	}
+	if diffs[0].Fingerprint != fp {
+		t.Fatalf("difference names %+v, want the failed statement", diffs[0].Fingerprint)
 	}
 }
 

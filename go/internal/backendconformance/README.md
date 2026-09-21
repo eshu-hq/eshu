@@ -70,3 +70,15 @@ pinned by `TestWrappersPassThroughWhenCaptureDisabled`.
 No-Observability-Change: no new metrics, spans, or log keys; the recorder is
 process memory only with no operator surface, and existing telemetry signals
 are untouched.
+
+Follow-up (failure comparison plus capability stripping): `CompareRecordings`
+also compares failed-execution counts per fingerprint, and `WrapExecutor`
+returns an execute-only recorder when inner lacks `GroupExecutor`. Still no
+hot-path change — production still runs unwrapped, and capture mode now
+preserves the sequential fallback exactly.
+
+No-Regression Evidence: `go test ./internal/backendconformance/ -count=1`
+passes, 49 tests in 0.015s, backend-free; the strip is pinned by a test
+asserting all three optional surfaces are absent on a non-grouping inner.
+
+No-Observability-Change: unchanged from above — no new signals.

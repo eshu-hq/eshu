@@ -28,6 +28,10 @@ import (
 // (one fingerprint plus one digest per statement) and stays out of the hot
 // path: [WrapGraphQuery] and [WrapExecutor] return the inner seam unchanged
 // unless [CaptureEnabled] opts in, and a nil recorder is a passthrough.
+// [WrapExecutor] strips the grouped/phased/probe surface when inner lacks
+// GroupExecutor — the WrapExecutorWithGate composition — so capture mode
+// preserves production dispatch; the group recorder's remaining guards
+// mirror the InstrumentedExecutor loud-fail precedent.
 
 // captureEnvVar is the opt-in for differential recording. It is gate
 // tooling, not operator config, so it stays out of the env registry like
@@ -209,10 +213,11 @@ type DifferentialDifference struct {
 
 // CompareRecordings diffs two recordings statement by statement, keyed by
 // fingerprint. Executions group per fingerprint as a multiset of digests:
-// a fingerprint present on only one side, a digest-multiset mismatch, or a
-// row-count mismatch each yields one difference naming the statement.
-// Grouping (rather than last-write-wins) keeps a statement that answers
-// differently across repeated executions from masking itself.
+// a fingerprint present on only one side, a digest-multiset mismatch, a
+// failed-execution count mismatch, or a row-count mismatch each yields one
+// difference naming the statement. Grouping (rather than last-write-wins)
+// keeps a statement that answers differently across repeated executions
+// from masking itself.
 func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 	byFingerprint := func(records []DifferentialRecord) map[DifferentialFingerprint][]DifferentialRecord {
 		out := make(map[DifferentialFingerprint][]DifferentialRecord)
@@ -237,6 +242,15 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 		}
 		return total
 	}
+	failures := func(recs []DifferentialRecord) int {
+		total := 0
+		for _, rec := range recs {
+			if rec.Failed {
+				total++
+			}
+		}
+		return total
+	}
 	backend := func(recs []DifferentialRecord) string {
 		if len(recs) == 0 {
 			return ""
@@ -254,6 +268,17 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 			diffs = append(diffs, DifferentialDifference{
 				Fingerprint: fp,
 				Detail:      fmt.Sprintf("row digest differs (%s=%d rows, %s=%d rows)", backend(lrecs), counts(lrecs), backend(rrecs), counts(rrecs)),
+			})
+			continue
+		}
+		// Writes carry no rows, so a one-sided write failure shares the
+		// empty digest on both sides: the failed-execution count is part
+		// of the comparison, or the slice-3 gate would miss exactly the
+		// divergence it exists to catch.
+		if failures(lrecs) != failures(rrecs) {
+			diffs = append(diffs, DifferentialDifference{
+				Fingerprint: fp,
+				Detail:      fmt.Sprintf("failed executions differ (%s=%d, %s=%d)", backend(lrecs), failures(lrecs), backend(rrecs), failures(rrecs)),
 			})
 			continue
 		}
@@ -343,37 +368,53 @@ func captureRead(cypher string, params map[string]any, rows []map[string]any, ru
 	return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Digest: digest}
 }
 
-// differentialExecutorRecorder decorates a sourcecypher.Executor with differential
-// capture. Writes carry no result rows, so each record holds the statement
-// fingerprint and its success.
+// differentialExecutorRecorder decorates a sourcecypher.Executor with
+// differential capture of single-statement writes. Writes carry no result
+// rows, so each record holds the statement fingerprint and its success.
 type differentialExecutorRecorder struct {
 	inner    sourcecypher.Executor
 	recorder *DifferentialRecorder
 	backend  string
 }
 
+// differentialGroupRecorder extends the execute-only recorder with the
+// grouped, phased, and probe surfaces. It exists as a separate type so
+// capture mode preserves production dispatch: callers probing a wrapped
+// non-grouping inner must keep falling back to sequential Execute instead
+// of hitting a loud unsupported error.
+type differentialGroupRecorder struct {
+	differentialExecutorRecorder
+}
+
 // WrapExecutor returns inner unchanged when capture is disabled or the
-// recorder is nil; otherwise it records every executed statement.
+// recorder is nil. Otherwise it records every executed statement, stripping
+// the grouped/phased/probe surface when inner lacks GroupExecutor — the
+// same capability-stripping composition WrapExecutorWithGate uses, so a
+// wrapped non-grouping inner keeps its sequential fallback.
 func WrapExecutor(inner sourcecypher.Executor, recorder *DifferentialRecorder, backend string) sourcecypher.Executor {
 	if inner == nil || recorder == nil || !CaptureEnabled() {
 		return inner
 	}
-	return differentialExecutorRecorder{inner: inner, recorder: recorder, backend: backend}
+	base := differentialExecutorRecorder{inner: inner, recorder: recorder, backend: backend}
+	if _, ok := inner.(sourcecypher.GroupExecutor); ok {
+		return differentialGroupRecorder{base}
+	}
+	return base
 }
 
-// errDifferentialNoExecuteGroup is returned by ExecuteGroup when the wrapped
-// executor does not implement sourcecypher.GroupExecutor, mirroring the
-// backpressure wrapper's explicit guard so a grouped write fails loudly
-// rather than silently degrading to per-statement execution.
+// errDifferentialNoExecuteGroup guards the group entry on a group recorder
+// whose inner lacks GroupExecutor, which WrapExecutor prevents but the
+// method keeps total, mirroring the InstrumentedExecutor guard.
 var errDifferentialNoExecuteGroup = errors.New("differential inner executor does not support ExecuteGroup")
 
-// errDifferentialNoExecutePhaseGroup is the ExecutePhaseGroup counterpart.
+// errDifferentialNoExecutePhaseGroup is returned by ExecutePhaseGroup when a
+// group-capable wrapped executor does not implement
+// sourcecypher.PhaseGroupExecutor, so a phased write fails loudly rather
+// than silently degrading.
 var errDifferentialNoExecutePhaseGroup = errors.New("differential inner executor does not support ExecutePhaseGroup")
 
-// errDifferentialNoExecuteProbe is the ExecuteProbe counterpart. The probe
-// contract requires every GroupExecutor-forwarding wrapper to forward
-// probing the same way, so callers that already type-asserted keep a loud
-// unsupported error to fail safe on instead of a silent skip.
+// errDifferentialNoExecuteProbe is the ExecuteProbe counterpart for the same
+// group-capable case.
 var errDifferentialNoExecuteProbe = errors.New("differential inner executor does not support ExecuteProbe")
 
 func (e differentialExecutorRecorder) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -382,7 +423,7 @@ func (e differentialExecutorRecorder) Execute(ctx context.Context, stmt sourcecy
 	})
 }
 
-func (e differentialExecutorRecorder) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
+func (e differentialGroupRecorder) ExecuteGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
 	grouped, ok := e.inner.(sourcecypher.GroupExecutor)
 	if !ok {
 		return errDifferentialNoExecuteGroup
@@ -392,7 +433,7 @@ func (e differentialExecutorRecorder) ExecuteGroup(ctx context.Context, stmts []
 	})
 }
 
-func (e differentialExecutorRecorder) ExecutePhaseGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
+func (e differentialGroupRecorder) ExecutePhaseGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
 	phased, ok := e.inner.(sourcecypher.PhaseGroupExecutor)
 	if !ok {
 		return errDifferentialNoExecutePhaseGroup
@@ -402,7 +443,7 @@ func (e differentialExecutorRecorder) ExecutePhaseGroup(ctx context.Context, stm
 	})
 }
 
-func (e differentialExecutorRecorder) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
+func (e differentialGroupRecorder) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
 	prober, ok := e.inner.(sourcecypher.ProbeExecutor)
 	if !ok {
 		return false, errDifferentialNoExecuteProbe
@@ -414,7 +455,7 @@ func (e differentialExecutorRecorder) ExecuteProbe(ctx context.Context, stmt sou
 
 // recordedProbe captures a probe as a one-row read: the found boolean is
 // the row, so a backend that probes differently digests differently.
-func (e differentialExecutorRecorder) recordedProbe(stmt sourcecypher.Statement, run func() (bool, error)) (bool, error) {
+func (e differentialGroupRecorder) recordedProbe(stmt sourcecypher.Statement, run func() (bool, error)) (bool, error) {
 	found, err := run()
 	var rows []map[string]any
 	if err == nil {
@@ -433,7 +474,7 @@ func (e differentialExecutorRecorder) recorded(stmt sourcecypher.Statement, run 
 	return err
 }
 
-func (e differentialExecutorRecorder) recordedAll(stmts []sourcecypher.Statement, run func() error) error {
+func (e differentialGroupRecorder) recordedAll(stmts []sourcecypher.Statement, run func() error) error {
 	err := run()
 	for _, stmt := range stmts {
 		e.recorder.Add(captureWrite(stmt, err, e.backend))
