@@ -151,7 +151,12 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 		if err != nil {
 			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
 		}
-		claimRejected = rowsAffected != int64(len(targetIntents))
+		// Accumulate, never assign: claimRejected carries signals from the
+		// supersession count and the other domain blocks, and a clean target
+		// ack must not erase them (#6162 follow-up).
+		if rowsAffected != int64(len(targetIntents)) {
+			claimRejected = true
+		}
 	}
 	if len(cicdIntents) > 0 {
 		query, args := ackCICDRunCorrelationReducerWorkBatchQuery(

@@ -137,3 +137,43 @@ condition produced one `reducer failed` line and process exit. No metric
 instrument, label, span, route, queue table, or runtime knob was added or
 renamed. At 3 AM the signal an operator reads is that WARN plus a reducer that is
 still polling, in place of a dead worker pool and a row stuck `claimed`.
+
+## Follow-up: the target ack erased the signal (post-merge)
+
+Two independent reviewers found this after #6926 merged, and both rated it
+blocking. `AckBatch` accumulated `claimRejected` in the refresh, CI/CD and
+unrelated blocks (`if mismatch { claimRejected = true }`) but *assigned* it in
+the container-image block. #6926 seeded the variable from
+`split.supersededClaims`, which put its own signal in that overwrite's path: a
+batch holding a superseded lease-reclaim duplicate AND a container-image
+sub-batch that acked cleanly reset the flag to false, so `AckBatch` returned
+nil, `logReducerAckClaimRejected` never fired, and the lease race went
+unrecorded — in exactly the shape #6926 exists to surface.
+
+Not data loss. The ack statements still fence on `last_attempt_at`, the claim
+epoch, `lease_owner` and a live `claim_until`, so the superseded claim matches
+zero rows either way and nothing is processed twice. The loss is the signal.
+
+The overwrite predates #6926 and could already erase the refresh-group block's
+`claimRejected`; seeding from `supersededClaims` is what made it reach the new
+contract.
+
+`TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck` fails with
+`AckBatch() error = <nil>` against `5ea36740b` and passes after. No prior test
+combined a superseded claim with a populated `targetIntents` slice, which is
+why #6926's own review missed it — a coverage gap, not a false green, since no
+assertion claimed that combination.
+
+No-Regression Evidence: the change replaces one assignment with a guarded
+assignment in the same block — no new allocation, no new statement, no query
+change, and `BenchmarkSplitReducerAckBatchIntents` is untouched because the
+split itself is unchanged. `go test ./internal/storage/postgres/
+./internal/reducer/ -count=1` exit 0 on Go 1.27.1 darwin/arm64 against
+`origin/main` at `5ea36740b`; terminal row counts are unchanged by construction
+(the SQL and its fencing predicates are byte-identical).
+
+Observability Evidence: this restores the `reducer batch ack rejected stale
+claim` WARN (`failure_class=execution_claim_rejected`, `queue=reducer`,
+`pipeline_phase=reduction`, `batch_size`) for mixed-domain batches, where it was
+previously suppressed. No metric instrument, label, span, route, queue table or
+runtime knob was added or renamed.
