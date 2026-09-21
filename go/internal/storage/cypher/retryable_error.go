@@ -456,3 +456,17 @@ func isNornicDBUniqueConflictBody(msg string) bool {
 	}
 	return true
 }
+
+// isNornicDBShortFormPlatformIDUniqueConflict matches the truncated
+// commit-failure surface captured on the #6922 differential leg:
+// "commit failed: constraint violation: UNIQUE on Platform.[id]" with no
+// "already exists" tail. The commit-failed prefix proves the failure
+// occurred at commit (not parse), and the constraint address names the exact
+// Platform id uniqueness key the workload finalizer MERGEs, so a
+// MERGE-guarded replay converges on the winning node. Scoped to
+// Platform.[id] only: short forms naming any other label or property stay
+// terminal, as do UNIQUE mentions without the commit-failure prefix.
+func isNornicDBShortFormPlatformIDUniqueConflict(msg string) bool {
+	return strings.Contains(msg, "commit failed: constraint violation") &&
+		strings.Contains(msg, "UNIQUE on Platform.[id]")
+}

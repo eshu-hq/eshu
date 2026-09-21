@@ -429,12 +429,8 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 			// occurred at commit. Keep this exception narrower than the code:
 			// require both the commit-failure prefix observed on the wire and
 			// the exact UNIQUE-conflict body before the caller's MERGE guard may
-			// replay the statement. The #6922 differential leg captured a
-			// short form of the same race with no "already exists" tail
-			// ("commit failed: constraint violation: UNIQUE on
-			// Platform.[id]"); it names the same commit-time constraint on
-			// the same Platform id key, so the MERGE-guarded replay
-			// converges the same way. Other short forms stay terminal.
+			// replay the statement. The #6922 short-form Platform exception
+			// lives beside isNornicDBUniqueConflictBody in retryable_error.go.
 			return strings.Contains(neo4jErr.Msg, "commit failed: constraint violation") &&
 				(isNornicDBUniqueConflictBody(neo4jErr.Msg) ||
 					isNornicDBShortFormPlatformIDUniqueConflict(neo4jErr.Msg))
@@ -444,20 +440,6 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 	}
 
 	return isNornicDBCommitTimeUniqueConflict(err.Error())
-}
-
-// isNornicDBShortFormPlatformIDUniqueConflict matches the truncated
-// commit-failure surface captured on the #6922 differential leg:
-// "commit failed: constraint violation: UNIQUE on Platform.[id]" with no
-// "already exists" tail. The commit-failed prefix proves the failure
-// occurred at commit (not parse), and the constraint address names the exact
-// Platform id uniqueness key the workload finalizer MERGEs, so a
-// MERGE-guarded replay converges on the winning node. Scoped to
-// Platform.[id] only: short forms naming any other label or property stay
-// terminal, as do UNIQUE mentions without the commit-failure prefix.
-func isNornicDBShortFormPlatformIDUniqueConflict(msg string) bool {
-	return strings.Contains(msg, "commit failed: constraint violation") &&
-		strings.Contains(msg, "UNIQUE on Platform.[id]")
 }
 
 var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
