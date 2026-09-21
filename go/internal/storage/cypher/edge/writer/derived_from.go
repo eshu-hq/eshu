@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // canonicalPhaseProvenanceDerivedFromEdges names the write phase for the
@@ -79,7 +81,7 @@ func (w *ProvenanceEdgeWriter) WriteDerivedFromEdges(
 	}
 
 	stmts := tagProvenanceStatements(
-		BuildBatchedStatements(canonicalProvenanceDerivedFromCypher, cloned, w.batchSize),
+		sourcecypher.BuildBatchedStatements(canonicalProvenanceDerivedFromCypher, cloned, w.batchSize),
 		canonicalPhaseProvenanceDerivedFromEdges, provenanceDerivedFromEdgeLabel, "target=ContainerImage",
 	)
 	// Sequential auto-commit, never ExecuteGroup: this same-label two-MATCH-MERGE

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 const (
@@ -42,7 +44,7 @@ func TestProvenanceEdgeWriterLiveLegacyRowSetMigration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	writer := NewProvenanceEdgeWriter(&RetryingExecutor{
+	writer := NewProvenanceEdgeWriter(&sourcecypher.RetryingExecutor{
 		Inner:      &boltTestExecutor{runner: runner},
 		MaxRetries: 3,
 		BaseDelay:  5 * time.Millisecond,
@@ -100,7 +102,7 @@ func TestProvenanceEdgeWriterLiveSamePairAssertionIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	writer := NewProvenanceEdgeWriter(&RetryingExecutor{
+	writer := NewProvenanceEdgeWriter(&sourcecypher.RetryingExecutor{
 		Inner:      &boltTestExecutor{runner: runner},
 		MaxRetries: 3,
 		BaseDelay:  5 * time.Millisecond,

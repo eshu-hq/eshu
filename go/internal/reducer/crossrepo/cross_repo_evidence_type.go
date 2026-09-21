@@ -153,7 +153,7 @@ var sourceToolPrefixFallback = []struct {
 	{"GCP_", "gcp"},
 	// CONTAINER_IMAGE_IDENTITY_ is not a relationships-package EvidenceKind
 	// family at all -- it is the golden-corpus-gate evidence_kinds token
-	// go/internal/storage/cypher/provenance_edge_writer.go stamps on BUILT_FROM
+	// go/internal/storage/cypher/edge/writer/provenance.go stamps on BUILT_FROM
 	// edges (issue #5457). sourceToolForEvidenceKind is reused generically by
 	// the snapshot source_tool-consistency check
 	// (cross_repo_source_tool_snapshot_test.go) for ANY narrowed required

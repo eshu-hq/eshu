@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -63,7 +64,7 @@ type canonicalGraphWriters struct {
 	// edges (issue #5457). One writer instance satisfies both the
 	// reducer.PackageProvenanceEdgeWriter and
 	// reducer.ContainerImageProvenanceEdgeWriter interfaces.
-	provenanceEdge *sourcecypher.ProvenanceEdgeWriter
+	provenanceEdge *edgewriter.ProvenanceEdgeWriter
 	// ec2InstanceIdentityNode is wrapped in the SAME #5062 lock-only gate as
 	// the four writers above (#5448): it SETs the disjoint ami_id property on
 	// the same CloudResource nodes ec2InstanceNode's owner-ledger gate writes
@@ -142,7 +143,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		s3InternetExposureNode: graphowner.NewS3InternetExposureLockedWriter(
 			lockGate, rawS3InternetExposureNode.WriteS3InternetExposureNodes, rawS3InternetExposureNode.RetractS3InternetExposureNodes,
 		),
-		provenanceEdge: sourcecypher.NewProvenanceEdgeWriter(exec, batchSize),
+		provenanceEdge: edgewriter.NewProvenanceEdgeWriter(exec, batchSize),
 		ec2InstanceIdentityNode: graphowner.NewEC2InstanceIdentityLockedWriter(
 			lockGate, rawEC2InstanceIdentityNode.WriteEC2InstanceIdentityNodes, rawEC2InstanceIdentityNode.RetractEC2InstanceIdentityNodes,
 		),

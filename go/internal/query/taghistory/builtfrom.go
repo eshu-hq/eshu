@@ -35,7 +35,7 @@ const BuiltFromMaxKeys = 2 * MaxLimit
 // when that word was added (#6564 re-review finding 2). Without it the
 // statement returned one row per EDGE, and BUILT_FROM edge identity is
 // {scope_id, evidence_source} (canonicalProvenanceBuiltFromCypher,
-// go/internal/storage/cypher/provenance_edge_writer.go), so parallel edges for
+// go/internal/storage/cypher/edge/writer/provenance.go), so parallel edges for
 // one image<->repository pair are the designed model: a deployment with two
 // evidence sources across two scopes carries four edges per pair, so a MEASURED
 // limit=200 page of 200 digests, each built from two repositories, returned
