@@ -7,17 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/env"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const (
-	defaultReconcileInterval    = 30 * time.Second
 	defaultRunReconcileInterval = 30 * time.Second
 	defaultClaimsEnabled        = false
 	deploymentModeDark          = "dark"
@@ -45,8 +46,8 @@ type Config struct {
 	// FreshnessClaimReapLimit bounds how many stuck AWS/GCP freshness claims
 	// one reap pass reclaims (#4576). Zero uses defaultFreshnessClaimReapLimit.
 	FreshnessClaimReapLimit int
-	CollectorEgressPolicy   CollectorEgressPolicy
-	ExtensionEgressPolicy   ExtensionEgressPolicy
+	CollectorEgressPolicy   egress.CollectorPolicy
+	ExtensionEgressPolicy   egress.ExtensionPolicy
 	TenantBoundary          WorkflowTenantBoundary
 	CollectorInstances      []workflow.DesiredCollectorInstance
 }
@@ -62,21 +63,21 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		deploymentMode = deploymentModeDark
 	}
 
-	claimsEnabled, err := envBool(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED", defaultClaimsEnabled)
+	claimsEnabled, err := env.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED", defaultClaimsEnabled)
 	if err != nil {
 		return Config{}, err
 	}
 	if !claimsEnabled {
-		claimsEnabled, err = envBool(getenv, "ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS", defaultClaimsEnabled)
+		claimsEnabled, err = env.Bool(getenv, "ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS", defaultClaimsEnabled)
 	}
 	if err != nil {
 		return Config{}, err
 	}
-	reconcileInterval, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL", defaultReconcileInterval)
+	reconcileInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL", schedule.DefaultReconcileInterval)
 	if err != nil {
 		return Config{}, err
 	}
-	runReconcileInterval, err := envDuration(
+	runReconcileInterval, err := env.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL",
 		defaultRunReconcileInterval,
@@ -84,27 +85,27 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	reapInterval, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL", workflow.DefaultReapInterval())
+	reapInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL", workflow.DefaultReapInterval())
 	if err != nil {
 		return Config{}, err
 	}
-	claimLeaseTTL, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL", workflow.DefaultClaimLeaseTTL())
+	claimLeaseTTL, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL", workflow.DefaultClaimLeaseTTL())
 	if err != nil {
 		return Config{}, err
 	}
-	heartbeatInterval, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL", workflow.DefaultHeartbeatInterval())
+	heartbeatInterval, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL", workflow.DefaultHeartbeatInterval())
 	if err != nil {
 		return Config{}, err
 	}
-	expiredClaimLimit, err := envInt(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT", workflow.DefaultExpiredClaimLimit())
+	expiredClaimLimit, err := env.Int(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT", workflow.DefaultExpiredClaimLimit())
 	if err != nil {
 		return Config{}, err
 	}
-	expiredClaimRequeueDelay, err := envDuration(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY", workflow.DefaultExpiredClaimRequeueDelay())
+	expiredClaimRequeueDelay, err := env.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY", workflow.DefaultExpiredClaimRequeueDelay())
 	if err != nil {
 		return Config{}, err
 	}
-	awsFreshnessClaimLeaseDuration, err := envDuration(
+	awsFreshnessClaimLeaseDuration, err := env.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_AWS_FRESHNESS_CLAIM_LEASE_DURATION",
 		defaultAWSFreshnessClaimLeaseDuration,
@@ -112,7 +113,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	gcpFreshnessClaimLeaseDuration, err := envDuration(
+	gcpFreshnessClaimLeaseDuration, err := env.Duration(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION",
 		defaultGCPFreshnessClaimLeaseDuration,
@@ -120,7 +121,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	freshnessClaimReapLimit, err := envInt(
+	freshnessClaimReapLimit, err := env.Int(
 		getenv,
 		"ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT",
 		defaultFreshnessClaimReapLimit,
@@ -128,11 +129,11 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	collectorEgressPolicy, err := ParseCollectorEgressPolicyJSON(getenv("ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON"))
+	collectorEgressPolicy, err := egress.ParseCollectorPolicyJSON(getenv("ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON: %w", err)
 	}
-	extensionEgressPolicy, err := ParseExtensionEgressPolicyJSON(getenv("ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON"))
+	extensionEgressPolicy, err := egress.ParseExtensionPolicyJSON(getenv("ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: %w", err)
 	}
@@ -288,7 +289,7 @@ func (c Config) withDefaults() Config {
 		c.DeploymentMode = deploymentModeDark
 	}
 	if c.ReconcileInterval <= 0 {
-		c.ReconcileInterval = defaultReconcileInterval
+		c.ReconcileInterval = schedule.DefaultReconcileInterval
 	}
 	if c.RunReconcileInterval <= 0 {
 		c.RunReconcileInterval = defaultRunReconcileInterval
@@ -318,40 +319,4 @@ func (c Config) withDefaults() Config {
 		c.FreshnessClaimReapLimit = defaultFreshnessClaimReapLimit
 	}
 	return c
-}
-
-func envInt(getenv func(string) string, key string, fallback int) (int, error) {
-	value := strings.TrimSpace(getenv(key))
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", key, err)
-	}
-	return parsed, nil
-}
-
-func envBool(getenv func(string) string, key string, fallback bool) (bool, error) {
-	value := strings.TrimSpace(getenv(key))
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("%s: %w", key, err)
-	}
-	return parsed, nil
-}
-
-func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {
-	value := strings.TrimSpace(getenv(key))
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", key, err)
-	}
-	return parsed, nil
 }

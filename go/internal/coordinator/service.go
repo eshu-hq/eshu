@@ -12,6 +12,9 @@ import (
 	ociregistry "github.com/eshu-hq/eshu/go/internal/coordinator/oci/registry"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
+	packages "github.com/eshu-hq/eshu/go/internal/coordinator/registry/package"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/semantic"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -65,13 +68,13 @@ type OCIRegistryPlanner interface {
 // PackageRegistryPlanner plans package-registry workflow rows from collector
 // instance configuration.
 type PackageRegistryPlanner interface {
-	PlanPackageRegistryWork(context.Context, PackageRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanPackageRegistryWork(context.Context, packages.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // VulnerabilityIntelligencePlanner plans vulnerability-intelligence workflow
 // rows from collector instance configuration.
 type VulnerabilityIntelligencePlanner interface {
-	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanVulnerabilityIntelligenceWork(context.Context, vulnerability.IntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // OwnedPackageTargetReader loads active dependency evidence that can bound
@@ -130,7 +133,7 @@ type Service struct {
 	// execution worker. It is nil unless explicitly configured, and even when
 	// configured it makes no real provider traffic unless its default-OFF
 	// execution flag and an enabled provider client are both supplied.
-	SemanticProviderWorker *SemanticProviderWorker
+	SemanticProviderWorker *semantic.ProviderWorker
 	Clock                  func() time.Time
 }
 

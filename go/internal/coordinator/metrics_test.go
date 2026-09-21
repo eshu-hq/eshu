@@ -46,39 +46,39 @@ func TestNewMetricsPublishesReconcileMetricsAndGauges(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 
-	if got := coordinatorCounterValue(t, rm, coordinatorMetricPrefix+"reconcile_total", map[string]string{
+	if got := coordinatorCounterValue(t, rm, MetricPrefix+"reconcile_total", map[string]string{
 		"outcome": reconcileOutcomeSuccess,
 	}); got != 1 {
 		t.Fatalf("reconcile total = %d, want 1", got)
 	}
-	if got := coordinatorHistogramCount(t, rm, coordinatorMetricPrefix+"reconcile_duration_seconds", map[string]string{
+	if got := coordinatorHistogramCount(t, rm, MetricPrefix+"reconcile_duration_seconds", map[string]string{
 		"outcome": reconcileOutcomeSuccess,
 	}); got != 1 {
 		t.Fatalf("reconcile duration histogram count = %d, want 1", got)
 	}
-	if got := coordinatorGaugeValue(t, rm, coordinatorMetricPrefix+"desired_collector_instances"); got != 3 {
+	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"desired_collector_instances"); got != 3 {
 		t.Fatalf("desired collector instances = %d, want 3", got)
 	}
-	if got := coordinatorGaugeValue(t, rm, coordinatorMetricPrefix+"durable_collector_instances"); got != 1 {
+	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"durable_collector_instances"); got != 1 {
 		t.Fatalf("durable collector instances = %d, want 1", got)
 	}
-	if got := coordinatorGaugeValue(t, rm, coordinatorMetricPrefix+"collector_instance_drift"); got != 2 {
+	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"collector_instance_drift"); got != 2 {
 		t.Fatalf("collector instance drift = %d, want 2", got)
 	}
-	if got := coordinatorCounterValue(t, rm, coordinatorMetricPrefix+"reap_total", map[string]string{
+	if got := coordinatorCounterValue(t, rm, MetricPrefix+"reap_total", map[string]string{
 		"outcome": reaperOutcomeSuccess,
 	}); got != 1 {
 		t.Fatalf("reap total = %d, want 1", got)
 	}
-	if got := coordinatorCounterValue(t, rm, coordinatorMetricPrefix+"run_reconcile_total", map[string]string{
+	if got := coordinatorCounterValue(t, rm, MetricPrefix+"run_reconcile_total", map[string]string{
 		"outcome": runReconcileOutcomeSuccess,
 	}); got != 1 {
 		t.Fatalf("run reconcile total = %d, want 1", got)
 	}
-	if got := coordinatorGaugeValue(t, rm, coordinatorMetricPrefix+"last_reaped_claims"); got != 2 {
+	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"last_reaped_claims"); got != 2 {
 		t.Fatalf("last reaped claims = %d, want 2", got)
 	}
-	if got := coordinatorGaugeValue(t, rm, coordinatorMetricPrefix+"last_reconciled_runs"); got != 4 {
+	if got := coordinatorGaugeValue(t, rm, MetricPrefix+"last_reconciled_runs"); got != 4 {
 		t.Fatalf("last reconciled runs = %d, want 4", got)
 	}
 }

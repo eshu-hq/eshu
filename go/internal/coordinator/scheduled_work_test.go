@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -181,8 +182,8 @@ func TestServiceScanIntervalSelectsInstanceOverrideElseGlobal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scanInterval(zero config) error = %v, want nil", err)
 	}
-	if defaulted != defaultReconcileInterval {
-		t.Fatalf("scanInterval(zero config) = %s, want %s", defaulted, defaultReconcileInterval)
+	if defaulted != schedule.DefaultReconcileInterval {
+		t.Fatalf("scanInterval(zero config) = %s, want %s", defaulted, schedule.DefaultReconcileInterval)
 	}
 
 	bootstrap := testServiceAWSScheduledInstance(observedAt)
@@ -224,7 +225,7 @@ func TestScheduledPlanKeyBucketsByInterval(t *testing.T) {
 	if got, want := scheduledPlanKey(workflow.CollectorInstance{Bootstrap: true}, observedAt, time.Hour), "bootstrap"; got != want {
 		t.Fatalf("bootstrap plan key = %q, want %q", got, want)
 	}
-	if got, want := scheduledPlanKey(instance, observedAt, 0), scheduledPlanKey(instance, observedAt, defaultReconcileInterval); got != want {
+	if got, want := scheduledPlanKey(instance, observedAt, 0), scheduledPlanKey(instance, observedAt, schedule.DefaultReconcileInterval); got != want {
 		t.Fatalf("zero-interval plan key = %q, want default-interval key %q", got, want)
 	}
 }

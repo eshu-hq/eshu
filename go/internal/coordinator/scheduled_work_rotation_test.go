@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -85,7 +86,7 @@ func TestServiceRunReconcileRotatesVulnerabilityTargetsOnInstanceScanInterval(t 
 		t.Fatalf("reader/planner requests = owned %d, os %d, sbom %d, planner %d; want 2 each",
 			len(ownedReader.requests), len(osReader.requests), len(sbomReader.requests), len(planner.requests))
 	}
-	wantOffset := derivedTargetRotationOffset(first, time.Hour, 10)
+	wantOffset := schedule.DerivedTargetRotationOffset(first, time.Hour, 10)
 	for tick := 0; tick < 2; tick++ {
 		if got := ownedReader.requests[tick].RotationOffset; got != wantOffset {
 			t.Fatalf("tick %d owned rotation offset = %d, want %d (1h bucket)", tick, got, wantOffset)
@@ -135,14 +136,14 @@ func TestDerivedTargetRotationOffsetFlipsWithThePlanKeyBucket(t *testing.T) {
 	if scheduledPlanKey(instance, before, interval) == scheduledPlanKey(instance, inside, interval) {
 		t.Fatalf("plan key did not change across the truncate boundary at %s", bucketStart)
 	}
-	if derivedTargetRotationOffset(before, interval, 10) == derivedTargetRotationOffset(inside, interval, 10) {
+	if schedule.DerivedTargetRotationOffset(before, interval, 10) == schedule.DerivedTargetRotationOffset(inside, interval, 10) {
 		t.Fatalf("rotation offset did not change across the truncate boundary at %s", bucketStart)
 	}
 	// Crossing only the epoch boundary inside one bucket: neither changes.
 	if a, b := scheduledPlanKey(instance, inside, interval), scheduledPlanKey(instance, afterEpochBoundary, interval); a != b {
 		t.Fatalf("plan key changed inside one bucket: %q -> %q", a, b)
 	}
-	if a, b := derivedTargetRotationOffset(inside, interval, 10), derivedTargetRotationOffset(afterEpochBoundary, interval, 10); a != b {
+	if a, b := schedule.DerivedTargetRotationOffset(inside, interval, 10), schedule.DerivedTargetRotationOffset(afterEpochBoundary, interval, 10); a != b {
 		t.Fatalf("rotation offset changed inside one plan-key bucket at the epoch boundary %s: %d -> %d", epochBoundary, a, b)
 	}
 }
@@ -211,7 +212,7 @@ func TestServiceRunReconcileBootstrapRotationIgnoresScanInterval(t *testing.T) {
 		if got, want := planner.requests[tick].PlanKey, "bootstrap"; got != want {
 			t.Fatalf("tick %d plan key = %q, want %q", tick, got, want)
 		}
-		want := derivedTargetRotationOffset(first.Add(time.Duration(tick)*5*time.Minute), 5*time.Minute, 10)
+		want := schedule.DerivedTargetRotationOffset(first.Add(time.Duration(tick)*5*time.Minute), 5*time.Minute, 10)
 		if got := targetReader.requests[tick].RotationOffset; got != want {
 			t.Fatalf("tick %d rotation offset = %d, want %d (global 5m cadence, not the 1h override)", tick, got, want)
 		}

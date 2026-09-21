@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -32,12 +33,12 @@ func (s Service) scheduleComponentExtensionWork(
 		}
 		config, configOK, configErr := activation.ParseConfig(instance.Configuration)
 		if configErr == nil && configOK {
-			decision := s.Config.ExtensionEgressPolicy.Decide(ExtensionEgressRequest{
+			decision := s.Config.ExtensionEgressPolicy.Decide(egress.ExtensionRequest{
 				ComponentID:   config.ComponentID,
 				InstanceID:    instance.InstanceID,
 				CollectorKind: instance.CollectorKind,
 			})
-			if decision.Action == ExtensionEgressActionDeny {
+			if decision.Action == egress.ExtensionActionDeny {
 				if err := s.recordExtensionEgressAudit(ctx, observedAt, instance, config, decision); err != nil {
 					return fmt.Errorf("record component extension egress audit for %q: %w", instance.InstanceID, err)
 				}

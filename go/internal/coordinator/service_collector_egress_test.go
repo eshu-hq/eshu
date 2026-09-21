@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -115,7 +116,7 @@ func TestServiceRunActiveModeSkipsDeniedCollectorEgress(t *testing.T) {
 	if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
 		t.Fatalf("event.Decision = %q, want %q", got, want)
 	}
-	if got, want := event.ReasonCode, CollectorEgressReasonDenied; got != want {
+	if got, want := event.ReasonCode, egress.CollectorReasonDenied; got != want {
 		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
 	}
 	if event.ScopeIDHash == "" {
@@ -188,7 +189,7 @@ func TestServiceRunActiveModeAuditsMissingCollectorEgressRule(t *testing.T) {
 	if got, want := event.Decision, governanceaudit.DecisionUnavailable; got != want {
 		t.Fatalf("event.Decision = %q, want %q", got, want)
 	}
-	if got, want := event.ReasonCode, CollectorEgressReasonMissing; got != want {
+	if got, want := event.ReasonCode, egress.CollectorReasonMissing; got != want {
 		t.Fatalf("event.ReasonCode = %q, want %q", got, want)
 	}
 	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
@@ -235,12 +236,12 @@ func TestServiceIncidentFreshnessSkipsDeniedCollectorEgress(t *testing.T) {
 	}
 }
 
-func mustParseCollectorEgressPolicy(t *testing.T, raw string) CollectorEgressPolicy {
+func mustParseCollectorEgressPolicy(t *testing.T, raw string) egress.CollectorPolicy {
 	t.Helper()
 
-	policy, err := ParseCollectorEgressPolicyJSON(raw)
+	policy, err := egress.ParseCollectorPolicyJSON(raw)
 	if err != nil {
-		t.Fatalf("ParseCollectorEgressPolicyJSON() error = %v, want nil", err)
+		t.Fatalf("egress.ParseCollectorPolicyJSON() error = %v, want nil", err)
 	}
 	return policy
 }

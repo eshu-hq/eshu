@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -28,11 +30,11 @@ func (s Service) vulnerabilityInstalledEvidenceTargets(
 	if s.OSPackageAdvisoryTargetReader == nil && s.SBOMComponentAdvisoryTargetReader == nil {
 		return nil, nil, fmt.Errorf("installed evidence target reader is required for derived vulnerability targets")
 	}
-	targetLimit := vulnerabilityDerivedTargetLimit(derivation.TargetLimit)
+	targetLimit := vulnerability.DerivedTargetLimit(derivation.TargetLimit)
 	filter := workflow.OSPackageAdvisoryTargetFilter{
-		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
-		Limit:          derivedTargetReadLimit(targetLimit),
-		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
+		Ecosystems:     schedule.SortedStringSetValues(schedule.DerivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Limit:          schedule.DerivedTargetReadLimit(targetLimit),
+		RotationOffset: schedule.DerivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
 	}
 	var osTargets []workflow.OSPackageAdvisoryTarget
 	if s.OSPackageAdvisoryTargetReader != nil {
@@ -53,13 +55,13 @@ func (s Service) vulnerabilityInstalledEvidenceTargets(
 	return osTargets, sbomTargets, nil
 }
 
-func vulnerabilityInstalledEvidenceDerivationFromConfig(raw string) (vulnerabilityDerivationConfiguration, error) {
+func vulnerabilityInstalledEvidenceDerivationFromConfig(raw string) (vulnerability.DerivationConfiguration, error) {
 	if err := workflow.ValidateVulnerabilityIntelligenceCollectorConfiguration(raw); err != nil {
-		return vulnerabilityDerivationConfiguration{}, err
+		return vulnerability.DerivationConfiguration{}, err
 	}
-	var decoded vulnerabilityRuntimeConfiguration
+	var decoded vulnerability.RuntimeConfiguration
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		return vulnerabilityDerivationConfiguration{}, fmt.Errorf("decode vulnerability installed evidence derivation config: %w", err)
+		return vulnerability.DerivationConfiguration{}, fmt.Errorf("decode vulnerability installed evidence derivation config: %w", err)
 	}
 	return decoded.DeriveFromInstalledEvidence, nil
 }

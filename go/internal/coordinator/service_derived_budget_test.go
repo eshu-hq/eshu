@@ -6,9 +6,13 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	packages "github.com/eshu-hq/eshu/go/internal/coordinator/registry/package"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -24,7 +28,7 @@ func TestServiceRunActiveModeSurfacesPackageRegistryDerivedBudgetExhaustion(t *t
 	service := Service{
 		Config:                   activeDerivedTargetConfig(scope.CollectorPackageRegistry, "collector-package-registry", instance.Configuration),
 		Store:                    store,
-		PackageRegistryPlanner:   PackageRegistryWorkPlanner{},
+		PackageRegistryPlanner:   packages.WorkPlanner{},
 		OwnedPackageTargetReader: targetReader,
 		Clock:                    func() time.Time { return now },
 	}
@@ -41,7 +45,7 @@ func TestServiceRunActiveModeSurfacesPackageRegistryDerivedBudgetExhaustion(t *t
 	if got, want := targetReader.requests[0].Limit, 3; got != want {
 		t.Fatalf("target reader limit = %d, want budget plus exhaustion lookahead %d", got, want)
 	}
-	if got, want := targetReader.requests[0].RotationOffset, derivedTargetRotationOffset(now, time.Hour, 2); got != want {
+	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 2); got != want {
 		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
 	}
 	if got, want := len(store.createdRuns), 1; got != want {
@@ -49,7 +53,7 @@ func TestServiceRunActiveModeSurfacesPackageRegistryDerivedBudgetExhaustion(t *t
 	}
 
 	var requested struct {
-		SkippedTargets []derivedTargetSkipEvidence `json:"skipped_targets"`
+		SkippedTargets []schedule.DerivedTargetSkipEvidence `json:"skipped_targets"`
 	}
 	if err := json.Unmarshal([]byte(store.createdRuns[0].RequestedScopeSet), &requested); err != nil {
 		t.Fatalf("RequestedScopeSet JSON = %q: %v", store.createdRuns[0].RequestedScopeSet, err)
@@ -68,7 +72,7 @@ func TestServiceRunActiveModeSurfacesVulnerabilityDerivedBudgetExhaustion(t *tes
 	service := Service{
 		Config:                           activeDerivedTargetConfig(scope.CollectorVulnerabilityIntelligence, "collector-vulnerability-intelligence", instance.Configuration),
 		Store:                            store,
-		VulnerabilityIntelligencePlanner: VulnerabilityIntelligenceWorkPlanner{},
+		VulnerabilityIntelligencePlanner: vulnerability.IntelligenceWorkPlanner{},
 		OwnedPackageTargetReader:         targetReader,
 		Clock:                            func() time.Time { return now },
 	}
@@ -85,7 +89,7 @@ func TestServiceRunActiveModeSurfacesVulnerabilityDerivedBudgetExhaustion(t *tes
 	if got, want := targetReader.requests[0].Limit, 3; got != want {
 		t.Fatalf("target reader limit = %d, want budget plus exhaustion lookahead %d", got, want)
 	}
-	if got, want := targetReader.requests[0].RotationOffset, derivedTargetRotationOffset(now, time.Hour, 2); got != want {
+	if got, want := targetReader.requests[0].RotationOffset, schedule.DerivedTargetRotationOffset(now, time.Hour, 2); got != want {
 		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
 	}
 	if got, want := len(store.createdRuns), 1; got != want {
@@ -93,7 +97,7 @@ func TestServiceRunActiveModeSurfacesVulnerabilityDerivedBudgetExhaustion(t *tes
 	}
 
 	var requested struct {
-		SkippedTargets []derivedTargetSkipEvidence `json:"skipped_targets"`
+		SkippedTargets []schedule.DerivedTargetSkipEvidence `json:"skipped_targets"`
 	}
 	if err := json.Unmarshal([]byte(store.createdRuns[0].RequestedScopeSet), &requested); err != nil {
 		t.Fatalf("RequestedScopeSet JSON = %q: %v", store.createdRuns[0].RequestedScopeSet, err)
@@ -112,7 +116,7 @@ func TestServiceRunActiveModeSinglePassPackageRegistryDerivedBudgetDoesNotAdmitN
 	service := Service{
 		Config:                   activeDerivedTargetConfig(scope.CollectorPackageRegistry, "collector-package-registry", instance.Configuration),
 		Store:                    store,
-		PackageRegistryPlanner:   PackageRegistryWorkPlanner{},
+		PackageRegistryPlanner:   packages.WorkPlanner{},
 		OwnedPackageTargetReader: targetReader,
 	}
 
@@ -150,7 +154,7 @@ func TestServiceRunActiveModeSinglePassVulnerabilityDerivedBudgetDoesNotAdmitNex
 	service := Service{
 		Config:                           activeDerivedTargetConfig(scope.CollectorVulnerabilityIntelligence, "collector-vulnerability-intelligence", instance.Configuration),
 		Store:                            store,
-		VulnerabilityIntelligencePlanner: VulnerabilityIntelligenceWorkPlanner{},
+		VulnerabilityIntelligencePlanner: vulnerability.IntelligenceWorkPlanner{},
 		OwnedPackageTargetReader:         targetReader,
 	}
 
@@ -254,4 +258,49 @@ func (s *terminalizingWorkflowStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	}
 	s.terminalRuns[run.RunID] = struct{}{}
 	return workflow.RunAdmission{EligibleTargets: len(items), InsertedWorkItems: len(items)}, nil
+}
+
+func makeOwnedNPMTargets(count int) []workflow.OwnedPackageDependencyTarget {
+	targets := make([]workflow.OwnedPackageDependencyTarget, 0, count)
+	for i := 0; i < count; i++ {
+		targets = append(targets, workflow.OwnedPackageDependencyTarget{
+			Ecosystem:    "npm",
+			PackageName:  fmt.Sprintf("pkg-%03d", i),
+			Version:      fmt.Sprintf("1.0.%d", i),
+			Lockfile:     true,
+			RepositoryID: "repo-representative",
+		})
+	}
+	return targets
+}
+
+func assertDerivedBudgetSkipEvidence(
+	t *testing.T,
+	skipped []schedule.DerivedTargetSkipEvidence,
+	collectorKind string,
+	targetLimit int,
+	selectedCount int,
+	skippedCount int,
+) {
+	t.Helper()
+
+	if got, want := len(skipped), 1; got != want {
+		t.Fatalf("len(skipped_targets) = %d, want %d: %#v", got, want, skipped)
+	}
+	row := skipped[0]
+	if row.CollectorKind != collectorKind {
+		t.Fatalf("CollectorKind = %q, want %q", row.CollectorKind, collectorKind)
+	}
+	if row.Reason != schedule.DerivedTargetSkipReasonBudgetExhausted {
+		t.Fatalf("Reason = %q, want %q", row.Reason, schedule.DerivedTargetSkipReasonBudgetExhausted)
+	}
+	if row.TargetLimit != targetLimit {
+		t.Fatalf("TargetLimit = %d, want %d", row.TargetLimit, targetLimit)
+	}
+	if row.SelectedCount != selectedCount {
+		t.Fatalf("SelectedCount = %d, want %d", row.SelectedCount, selectedCount)
+	}
+	if row.SkippedCount != skippedCount {
+		t.Fatalf("SkippedCount = %d, want %d", row.SkippedCount, skippedCount)
+	}
 }

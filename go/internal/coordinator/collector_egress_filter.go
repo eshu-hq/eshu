@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/egress"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -22,7 +23,7 @@ func (s Service) filterCollectorInstancesByEgress(
 	filtered := make([]workflow.CollectorInstance, 0, len(instances))
 	for _, instance := range instances {
 		decision := s.Config.CollectorEgressPolicy.Decide(instance.CollectorKind)
-		if decision.Action == CollectorEgressActionDeny && instance.Enabled && instance.ClaimsEnabled {
+		if decision.Action == egress.CollectorActionDeny && instance.Enabled && instance.ClaimsEnabled {
 			if err := s.recordCollectorEgressAudit(ctx, observedAt, instance, decision); err != nil {
 				return nil, fmt.Errorf("record collector egress audit for %q: %w", instance.CollectorKind, err)
 			}

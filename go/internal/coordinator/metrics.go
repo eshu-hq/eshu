@@ -9,9 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -24,7 +25,9 @@ const (
 	runReconcileOutcomeError       = "error"
 	freshnessReapOutcomeSuccess    = "success"
 	freshnessReapOutcomeError      = "error"
-	coordinatorMetricPrefix        = "eshu_dp_workflow_coordinator_"
+	// MetricPrefix is the OTEL instrument namespace every workflow-coordinator
+	// metric shares, including those registered by its subpackages.
+	MetricPrefix = "eshu_dp_workflow_coordinator_"
 )
 
 // Metrics records coordinator reconcile-loop telemetry.
@@ -114,14 +117,14 @@ type freshnessReapMetricInstruments struct {
 // coordinator metrics.
 func newFreshnessReapInstruments(meter metric.Meter) (freshnessReapMetricInstruments, error) {
 	awsFreshnessReapTotal, err := meter.Int64Counter(
-		coordinatorMetricPrefix+"aws_freshness_reap_total",
+		MetricPrefix+"aws_freshness_reap_total",
 		metric.WithDescription("Total AWS freshness stuck-claim reap passes (#4576)"),
 	)
 	if err != nil {
 		return freshnessReapMetricInstruments{}, fmt.Errorf("register AWS freshness reap total counter: %w", err)
 	}
 	awsFreshnessReapDuration, err := meter.Float64Histogram(
-		coordinatorMetricPrefix+"aws_freshness_reap_duration_seconds",
+		MetricPrefix+"aws_freshness_reap_duration_seconds",
 		metric.WithDescription("AWS freshness stuck-claim reap pass duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
@@ -130,14 +133,14 @@ func newFreshnessReapInstruments(meter metric.Meter) (freshnessReapMetricInstrum
 		return freshnessReapMetricInstruments{}, fmt.Errorf("register AWS freshness reap duration histogram: %w", err)
 	}
 	gcpFreshnessReapTotal, err := meter.Int64Counter(
-		coordinatorMetricPrefix+"gcp_freshness_reap_total",
+		MetricPrefix+"gcp_freshness_reap_total",
 		metric.WithDescription("Total GCP freshness stuck-claim reap passes (#4576)"),
 	)
 	if err != nil {
 		return freshnessReapMetricInstruments{}, fmt.Errorf("register GCP freshness reap total counter: %w", err)
 	}
 	gcpFreshnessReapDuration, err := meter.Float64Histogram(
-		coordinatorMetricPrefix+"gcp_freshness_reap_duration_seconds",
+		MetricPrefix+"gcp_freshness_reap_duration_seconds",
 		metric.WithDescription("GCP freshness stuck-claim reap pass duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
@@ -160,14 +163,14 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	}
 
 	reconcileTotal, err := meter.Int64Counter(
-		coordinatorMetricPrefix+"reconcile_total",
+		MetricPrefix+"reconcile_total",
 		metric.WithDescription("Total workflow coordinator reconcile loop executions"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register reconcile total counter: %w", err)
 	}
 	reconcileDuration, err := meter.Float64Histogram(
-		coordinatorMetricPrefix+"reconcile_duration_seconds",
+		MetricPrefix+"reconcile_duration_seconds",
 		metric.WithDescription("Workflow coordinator reconcile loop duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
@@ -176,14 +179,14 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, fmt.Errorf("register reconcile duration histogram: %w", err)
 	}
 	reapTotal, err := meter.Int64Counter(
-		coordinatorMetricPrefix+"reap_total",
+		MetricPrefix+"reap_total",
 		metric.WithDescription("Total workflow coordinator expired-claim reap passes"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register reap total counter: %w", err)
 	}
 	reapDuration, err := meter.Float64Histogram(
-		coordinatorMetricPrefix+"reap_duration_seconds",
+		MetricPrefix+"reap_duration_seconds",
 		metric.WithDescription("Workflow coordinator expired-claim reap duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
@@ -192,14 +195,14 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, fmt.Errorf("register reap duration histogram: %w", err)
 	}
 	runReconcileTotal, err := meter.Int64Counter(
-		coordinatorMetricPrefix+"run_reconcile_total",
+		MetricPrefix+"run_reconcile_total",
 		metric.WithDescription("Total workflow coordinator workflow-run reconciliation passes"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register run reconcile total counter: %w", err)
 	}
 	runReconcileDur, err := meter.Float64Histogram(
-		coordinatorMetricPrefix+"run_reconcile_duration_seconds",
+		MetricPrefix+"run_reconcile_duration_seconds",
 		metric.WithDescription("Workflow coordinator workflow-run reconciliation duration"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
@@ -226,49 +229,49 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 	}
 
 	desiredGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"desired_collector_instances",
+		MetricPrefix+"desired_collector_instances",
 		metric.WithDescription("Desired workflow coordinator collector instance count"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register desired collector instance gauge: %w", err)
 	}
 	durableGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"durable_collector_instances",
+		MetricPrefix+"durable_collector_instances",
 		metric.WithDescription("Durable workflow coordinator collector instance count"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register durable collector instance gauge: %w", err)
 	}
 	driftGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"collector_instance_drift",
+		MetricPrefix+"collector_instance_drift",
 		metric.WithDescription("Absolute drift between desired and durable collector instance counts"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register collector instance drift gauge: %w", err)
 	}
 	reapedGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"last_reaped_claims",
+		MetricPrefix+"last_reaped_claims",
 		metric.WithDescription("Claims reaped by the most recent workflow coordinator reap pass"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register last reaped claims gauge: %w", err)
 	}
 	reconciledGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"last_reconciled_runs",
+		MetricPrefix+"last_reconciled_runs",
 		metric.WithDescription("Runs reconciled by the most recent workflow coordinator run reconciliation pass"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register last reconciled runs gauge: %w", err)
 	}
 	awsFreshnessStuckGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"aws_freshness_stuck_claimed",
+		MetricPrefix+"aws_freshness_stuck_claimed",
 		metric.WithDescription("AWS freshness triggers reclaimed from 'claimed' by the most recent reap pass (#4576)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWS freshness stuck-claimed gauge: %w", err)
 	}
 	gcpFreshnessStuckGauge, err := meter.Int64ObservableGauge(
-		coordinatorMetricPrefix+"gcp_freshness_stuck_claimed",
+		MetricPrefix+"gcp_freshness_stuck_claimed",
 		metric.WithDescription("GCP freshness triggers reclaimed from 'claimed' by the most recent reap pass (#4576)"),
 	)
 	if err != nil {

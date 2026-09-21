@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	packages "github.com/eshu-hq/eshu/go/internal/coordinator/registry/package"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -36,7 +38,7 @@ func (s Service) schedulePackageRegistryWork(
 		if err != nil {
 			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
 		}
-		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, PackageRegistryPlanRequest{
+		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, packages.PlanRequest{
 			Instance:            instance,
 			ObservedAt:          observedAt,
 			PlanKey:             s.packageRegistryPlanKey(instance, observedAt, interval),
@@ -61,7 +63,7 @@ func (s Service) packageRegistryOwnedTargets(
 	observedAt time.Time,
 	interval time.Duration,
 ) ([]workflow.OwnedPackageDependencyTarget, error) {
-	derivation, err := packageRegistryDerivationFromConfig(instance.Configuration)
+	derivation, err := packages.DerivationFromConfig(instance.Configuration)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +73,11 @@ func (s Service) packageRegistryOwnedTargets(
 	if s.OwnedPackageTargetReader == nil {
 		return nil, fmt.Errorf("owned package target reader is required for derived package registry targets")
 	}
-	targetLimit := packageRegistryDerivedTargetLimit(derivation.TargetLimit)
+	targetLimit := packages.DerivedTargetLimit(derivation.TargetLimit)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
-		Ecosystems:     sortedStringSetValues(packageRegistryDerivationEcosystems(derivation.Ecosystems)),
-		Limit:          derivedTargetReadLimit(targetLimit),
-		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
+		Ecosystems:     schedule.SortedStringSetValues(packages.DerivationEcosystems(derivation.Ecosystems)),
+		Limit:          schedule.DerivedTargetReadLimit(targetLimit),
+		RotationOffset: schedule.DerivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
 	})
 }
 
@@ -90,6 +92,6 @@ func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, obs
 		return "bootstrap"
 	}
 	prefix := strings.TrimSpace(string(instance.Mode))
-	derivation, _ := packageRegistryDerivationFromConfig(instance.Configuration)
-	return derivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)
+	derivation, _ := packages.DerivationFromConfig(instance.Configuration)
+	return schedule.DerivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)
 }
