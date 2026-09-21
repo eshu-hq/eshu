@@ -250,8 +250,10 @@ jobs:
   differential:
     name: differential nornicdb vs neo4j
     runs-on: ubuntu-latest
-    # Two sequential B-7 legs (30m each, mirroring corpus-gate) plus compare.
-    timeout-minutes: 75
+    # Two sequential B-7 legs (30m each, mirroring corpus-gate) plus setup,
+    # build, compare, and upload. 90m keeps slow runners from timing out
+    # loudly on a green oracle.
+    timeout-minutes: 90
     steps:
       - name: Check out code
         uses: actions/checkout@v5

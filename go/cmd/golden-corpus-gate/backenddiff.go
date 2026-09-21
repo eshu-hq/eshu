@@ -23,7 +23,7 @@ func runBackendDiff(o options, stdout io.Writer, r *Report) error {
 	if left == "" || right == "" {
 		return fmt.Errorf("requires -diff-left and -diff-right: directories of differential capture recordings")
 	}
-	raw, err := os.ReadFile(o.diffAllowlist)
+	raw, err := os.ReadFile(strings.TrimSpace(o.diffAllowlist))
 	if err != nil {
 		return fmt.Errorf("read divergence allowlist: %w", err)
 	}

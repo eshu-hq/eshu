@@ -55,6 +55,28 @@ func TestFingerprintStatementParamsDistinguishValues(t *testing.T) {
 	}
 }
 
+// Diagnostic `_eshu_*` metadata keys never reach either backend's driver
+// (SanitizeStatementParameters strips them on every executor path), so they
+// carry no execution truth and must not split the fingerprint. A NornicDB
+// run records sanitized params while a Neo4j run records the same statement
+// pre-sanitize; without this the same logical write never pairs (#6782).
+func TestFingerprintStatementStripsDiagnosticMetadata(t *testing.T) {
+	t.Parallel()
+	plain, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.name = $name",
+		map[string]any{"repo_id": "repository:r_1", "name": "acme/web"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagged, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.name = $name",
+		map[string]any{"repo_id": "repository:r_1", "name": "acme/web", "_eshu_phase": "repository"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain != tagged {
+		t.Fatal("diagnostic metadata splits the fingerprint")
+	}
+}
+
 func TestDigestRowsIgnoresOrderWithoutOrderBy(t *testing.T) {
 	t.Parallel()
 	rows := []map[string]any{{"n": int64(1), "tags": []any{"a"}}, {"n": int64(2)}}

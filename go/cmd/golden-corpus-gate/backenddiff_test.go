@@ -75,6 +75,14 @@ func TestBackendDiffPhaseSetOptIn(t *testing.T) {
 	if !phaseSet("graph,backend-diff")["graph"] {
 		t.Errorf("phaseSet(graph,backend-diff) lost the graph phase")
 	}
+	// An explicit request alongside "all" is honored: "all" expands without
+	// swallowing the tokens after it.
+	got := phaseSet("all,backend-diff")
+	for _, p := range []string{"drains", "graph", "query", "timing", "demo-answers", "backend-diff"} {
+		if !got[p] {
+			t.Errorf("phaseSet(all,backend-diff) lost phase %q", p)
+		}
+	}
 }
 
 func TestRunBackendDiffClean(t *testing.T) {
@@ -110,6 +118,23 @@ func TestRunBackendDiffAllowlisted(t *testing.T) {
 
 // A missing backend side fails closed: comparing one backend against
 // itself is not a differential proof.
+// Flag values tolerate surrounding whitespace like every other path flag.
+func TestRunBackendDiffPaddedFlags(t *testing.T) {
+	left := writeBackendDiffDir(t, "nornicdb", "abc123")
+	right := writeBackendDiffDir(t, "neo4j", "abc123")
+	allowlist := writeEmptyBackendDiffAllowlist(t)
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{
+		"-phase=backend-diff",
+		"-diff-left= " + left + " ",
+		"-diff-right= " + right + " ",
+		"-diff-allowlist= " + allowlist + " ",
+	}, os.Getenv, &stdout, &stderr)
+	if err != nil {
+		t.Errorf("padded flags failed the gate: %v", err)
+	}
+}
+
 func TestRunBackendDiffMissingBackend(t *testing.T) {
 	left := writeBackendDiffDir(t, "nornicdb", "abc123")
 	right := writeBackendDiffDir(t, "nornicdb", "abc123")

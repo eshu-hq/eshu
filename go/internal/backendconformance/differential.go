@@ -54,8 +54,33 @@ type DifferentialFingerprint struct {
 // collapse to one blank) and encodes its parameters. The same production
 // statement produces the same fingerprint on either backend; formatting
 // drift does not.
+//
+// Diagnostic metadata keys (any key prefixed with "_", such as the
+// `_eshu_*` phase tags) are excluded, mirroring SanitizeStatementParameters:
+// they never reach either backend's driver, so they carry no execution
+// truth. Without this, a backend whose capture layer sits below its
+// sanitize layer records different params than one whose capture sits
+// above it, and the same logical statement never pairs (#6782).
 func FingerprintStatement(cypher string, params map[string]any) (DifferentialFingerprint, error) {
-	encoded, err := json.Marshal(params)
+	// Copy on first diagnostic key so the common no-metadata path pays no
+	// allocation and the caller's map is never mutated.
+	var fingerprinted map[string]any
+	for key := range params {
+		if !strings.HasPrefix(key, "_") {
+			continue
+		}
+		if fingerprinted == nil {
+			fingerprinted = make(map[string]any, len(params))
+			for k, v := range params {
+				fingerprinted[k] = v
+			}
+		}
+		delete(fingerprinted, key)
+	}
+	if fingerprinted == nil {
+		fingerprinted = params
+	}
+	encoded, err := json.Marshal(fingerprinted)
 	if err != nil {
 		return DifferentialFingerprint{}, fmt.Errorf("encode differential parameters: %w", err)
 	}

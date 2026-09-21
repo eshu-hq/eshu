@@ -298,7 +298,12 @@ func phaseSet(raw string) map[string]bool {
 	for _, p := range strings.Split(raw, ",") {
 		p = strings.TrimSpace(p)
 		if p == "all" {
-			return all
+			// Expand in place and keep consuming tokens: an explicit
+			// "all,backend-diff" must not silently drop backend-diff.
+			for k := range all {
+				out[k] = true
+			}
+			continue
 		}
 		if all[p] || p == "backend-diff" {
 			out[p] = true
