@@ -241,6 +241,19 @@ set -e
 run_ratcheted --baseline /dev/null "${work}/r1.json" >/dev/null \
 	|| fail "--baseline /dev/null must remain a legitimate no-baseline render"
 
+# Default-baseline resolution: with no --baseline, an existing --out file IS
+# the baseline (the path CI takes). A regressed render must exit 3 and leave
+# the file byte-identical -- the write happens only after the ratchet passes.
+cp "${work}/baseline.txt" "${work}/live-out.txt"
+set +e
+bash "${script}" --named-from "${work}/named.txt" --out "${work}/live-out.txt" \
+	"${work}/regressed.json" >/dev/null 2>&1
+live_rc=$?
+set -e
+[[ "${live_rc}" -eq 3 ]] || fail "default-baseline regressed render exit ${live_rc}, want 3"
+cmp -s "${work}/live-out.txt" "${work}/baseline.txt" \
+	|| fail "a refused render must not touch the default-baseline --out file"
+
 # The default row is ratcheted too: it is the fallback budget for every unnamed
 # route, so inflating it disarms all of them at once.
 printf 'default\t9\t100\t2\n\nGET /a\t20\t3000\t10\tGREEN-derived work guard\n' >"${work}/tight_default.txt"

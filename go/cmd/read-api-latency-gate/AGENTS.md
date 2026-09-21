@@ -88,9 +88,10 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   run); never edit a number by hand. `scripts/test-refresh-read-api-work-budgets.sh`
   pins the formulas (`calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`,
   `rows = ceil(max*2.0)`).
-- **The renderer ratchets.** It refuses a per-route `blks` above 1.5x the
-  committed row unless you pass `--accept-regression 'ROUTE=#ISSUE'`, and it
-  prints what it accepted rather than hiding it. This exists because a
+- **The renderer ratchets.** It refuses a per-route counter (`calls`, `blks`,
+  or `rows`) above 1.5x the committed row unless you pass
+  `--accept-regression 'ROUTE=#ISSUE'` — one flag covers all three counters
+  for the named route — and it prints what it accepted rather than hiding it. This exists because a
   GREEN-derived budget regenerated from an already-regressed run is not a guard:
   #6843 raised `/infra/resources/{count,inventory}` from 74739 to 663066 blks in
   the same PR that caused the 8.9x increase, so the work gate kept passing while

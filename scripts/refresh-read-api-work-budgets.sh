@@ -69,13 +69,15 @@
 #                        exists, else testdata/benchmarks/read-api-route-work-budgets.txt).
 #                        Pass /dev/null to render the first version of a new table.
 #     --accept-regression 'ROUTE=#ISSUE'
-#                        allow ROUTE's blks to exceed the 1.5x growth ratchet,
+#                        allow ROUTE's counters to exceed the 1.5x growth ratchet,
 #                        recording why. Repeatable. The reason must name an issue.
 #     --accept-drop 'ROUTE=#ISSUE'
-#                        allow ROUTE's blks to fall past the 20x collapse ratchet.
+#                        allow ROUTE's counters to fall past the 20x collapse ratchet.
 #                        Repeatable. The reason must name an issue. A collapse is
 #                        usually corpus loss, so check the seed before reaching
 #                        for this.
+#     One flag covers all three counters for the named route: accepting a
+#     blks regression also accepts calls/rows movement on that route.
 #
 # Output is byte-identical for identical inputs (LC_ALL=C, sorted by route, no
 # timestamps).
@@ -136,7 +138,7 @@ while [[ $# -gt 0 ]]; do
 			[[ "${drop_reason}" =~ \#[0-9]+ ]] || die "--accept-drop needs a reason naming an issue (e.g. '#6912'), got: ${entry}"
 			accepted_drops="${accepted_drops}${drop_route}\t${drop_reason}\n"
 			shift 2 ;;
-		-h | --help) sed -n '2,78p' "${BASH_SOURCE[0]}"; exit 0 ;;
+		-h | --help) sed -n '2,80p' "${BASH_SOURCE[0]}"; exit 0 ;;
 		-*) die "unknown flag: $1" ;;
 		*) reports+=("$1"); shift ;;
 	esac
