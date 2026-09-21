@@ -138,7 +138,10 @@ while [[ $# -gt 0 ]]; do
 			[[ "${drop_reason}" =~ \#[0-9]+ ]] || die "--accept-drop needs a reason naming an issue (e.g. '#6912'), got: ${entry}"
 			accepted_drops="${accepted_drops}${drop_route}\t${drop_reason}\n"
 			shift 2 ;;
-		-h | --help) sed -n '2,80p' "${BASH_SOURCE[0]}"; exit 0 ;;
+		# Print the whole comment header, terminated by the first line of code.
+		# A hardcoded line range drifted twice while this block was being written,
+		# so the range is derived instead of pinned.
+		-h | --help) awk 'NR > 1 && /^#/ { print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
 		-*) die "unknown flag: $1" ;;
 		*) reports+=("$1"); shift ;;
 	esac
