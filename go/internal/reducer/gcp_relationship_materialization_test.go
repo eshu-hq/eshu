@@ -339,7 +339,7 @@ func TestGCPRelationshipMaterializationPropagatesWriteError(t *testing.T) {
 func TestExtractGCPRelationshipEdgeRowsEmptyIsNil(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(nil, nil)
+	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(nil, nil, "scope-gcp-test")
 	if err != nil {
 		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
 	}
@@ -370,7 +370,7 @@ func TestExtractGCPRelationshipEdgeRowsDeduplicatesAndSkipsSelfLoop(t *testing.T
 		}),
 	}
 
-	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels, "scope-gcp-test")
 	if err != nil {
 		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
 	}
@@ -466,7 +466,7 @@ func TestExtractGCPRelationshipEdgeRowsSkipsInvalidRelationshipType(t *testing.T
 		}),
 	}
 
-	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+	rows, tally, _, err := ExtractGCPRelationshipEdgeRows(resources, rels, "scope-gcp-test")
 	if err != nil {
 		t.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
 	}

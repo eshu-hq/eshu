@@ -56,6 +56,13 @@ const (
 	// emission, so this is a fail-closed guard at the reducer trust boundary: an
 	// unknown state is skipped and counted, never materialized as an edge.
 	gcpJoinModeUnknownState = "unknown_state"
+
+	// gcpJoinModeCrossScopeEndpoint counts a supported relationship refused
+	// because one endpoint was scanned in a different ingestion scope than the
+	// intent being executed. The writer stamps rel.scope_id/rel.generation_id
+	// from the intent, never from the row, so admitting such a row attributes
+	// another scope's resource to this one (#6162).
+	gcpJoinModeCrossScopeEndpoint = "cross_scope_endpoint"
 )
 
 const (
@@ -73,9 +80,19 @@ type gcpRelTypeMode struct {
 // built once per scope generation from the gcp_cloud_resource facts so target
 // resolution is O(1) per edge with no per-edge graph round trip. It never
 // fabricates a uid from a relationship fact alone: an endpoint resolves only if
-// that resource was scanned in the same scope (the trust-boundary rule).
+// that resource was scanned in the same scope (the trust-boundary rule), which
+// resolveInScope enforces rather than assuming the scoped fact loader upheld it.
 type gcpCloudResourceJoinIndex struct {
-	byFullResourceName map[string]string
+	byFullResourceName map[string]gcpResolvedResource
+}
+
+// gcpResolvedResource is one indexed endpoint: the uid the node materialization
+// committed, plus the ingestion scope it was scanned in. Scope rides in the same
+// map value rather than a parallel map so enforcing the trust-boundary rule
+// costs one hash lookup, not two.
+type gcpResolvedResource struct {
+	uid     string
+	scopeID string
 }
 
 // buildGCPCloudResourceJoinIndex builds the bounded in-memory join index from
@@ -90,7 +107,7 @@ type gcpCloudResourceJoinIndex struct {
 // (aws_relationship_join.go).
 func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourceJoinIndex, []quarantinedFact, error) {
 	index := gcpCloudResourceJoinIndex{
-		byFullResourceName: make(map[string]string, len(envelopes)),
+		byFullResourceName: make(map[string]gcpResolvedResource, len(envelopes)),
 	}
 	var quarantined []quarantinedFact
 	for _, env := range envelopes {
@@ -125,18 +142,39 @@ func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourc
 		// First writer wins; identity is the globally-unique full resource name,
 		// so a later duplicate resolves to the same uid anyway.
 		if _, exists := index.byFullResourceName[fullResourceName]; !exists {
-			index.byFullResourceName[fullResourceName] = uid
+			index.byFullResourceName[fullResourceName] = gcpResolvedResource{
+				uid:     uid,
+				scopeID: env.ScopeID,
+			}
 		}
 	}
 	return index, quarantined, nil
 }
 
-func (i gcpCloudResourceJoinIndex) resolve(fullResourceName string) (string, bool) {
+// resolveInScope resolves an endpoint only when it was scanned in intentScopeID,
+// enforcing the trust-boundary rule this index documents. The second result is
+// false for an unknown endpoint; the third reports that the endpoint exists but
+// belongs to another scope, which callers count separately from "unresolved"
+// because it is an invariant violation rather than graceful degradation.
+//
+// An empty intentScopeID disables the check and preserves the pre-#6162 join,
+// so a caller that cannot supply a scope is not silently handed a guard that
+// never fires.
+func (i gcpCloudResourceJoinIndex) resolveInScope(
+	fullResourceName string,
+	intentScopeID string,
+) (uid string, ok bool, crossScope bool) {
 	if fullResourceName == "" {
-		return "", false
+		return "", false, false
 	}
-	uid, ok := i.byFullResourceName[fullResourceName]
-	return uid, ok
+	resolved, ok := i.byFullResourceName[fullResourceName]
+	if !ok || intentScopeID == "" {
+		return resolved.uid, ok, false
+	}
+	if resolved.scopeID != "" && resolved.scopeID != intentScopeID {
+		return "", false, true
+	}
+	return resolved.uid, true, false
 }
 
 // gcpRelationshipEdgeTally is the bounded accounting surface for the GCP edge
@@ -160,14 +198,22 @@ type gcpRelationshipEdgeTally struct {
 	// unresolvedSource counts supported relationships whose source did not
 	// resolve, keyed by target_type (the relationship's own classification).
 	unresolvedSource map[string]int
+	// crossScopeEndpoint counts supported relationships refused because an
+	// endpoint belongs to another ingestion scope, keyed by target_type. This is
+	// an invariant violation, not graceful degradation: the fact loader is
+	// scoped, so a non-zero count means cross-scope facts reached this join
+	// (#6162). Kept separate from unresolved so an operator can tell the two
+	// apart in the completion log.
+	crossScopeEndpoint map[string]int
 }
 
 func newGCPRelationshipEdgeTally() gcpRelationshipEdgeTally {
 	return gcpRelationshipEdgeTally{
-		byRelTypeMode:    make(map[gcpRelTypeMode]int),
-		byMode:           make(map[string]int),
-		unresolved:       make(map[string]int),
-		unresolvedSource: make(map[string]int),
+		byRelTypeMode:      make(map[gcpRelTypeMode]int),
+		byMode:             make(map[string]int),
+		unresolved:         make(map[string]int),
+		unresolvedSource:   make(map[string]int),
+		crossScopeEndpoint: make(map[string]int),
 	}
 }
 
@@ -177,6 +223,13 @@ func (t gcpRelationshipEdgeTally) record(relationshipType, mode string) {
 }
 
 func (t gcpRelationshipEdgeTally) resolvedCount() int { return t.byMode[gcpJoinModeFullResourceName] }
+
+// crossScopeCount reports how many supported relationships were refused because
+// an endpoint belonged to another ingestion scope. Non-zero means cross-scope
+// facts reached this join, which the scoped fact loader should make impossible.
+func (t gcpRelationshipEdgeTally) crossScopeCount() int {
+	return t.byMode[gcpJoinModeCrossScopeEndpoint]
+}
 
 func (t gcpRelationshipEdgeTally) skippedCount() int {
 	total := 0
@@ -228,9 +281,18 @@ func gcpRelationshipTypeValid(value string) bool {
 // Returned rows are deduplicated by (source_uid, relationship_type, target_uid)
 // and sorted deterministically so the batched write is stable across retries and
 // reprojections.
+//
+// intentScopeID is the scope of the intent being executed. An endpoint scanned
+// in a different scope is refused and counted under
+// gcpJoinModeCrossScopeEndpoint rather than producing a row, because
+// GCPCloudResourceEdgeWriter stamps rel.scope_id and rel.generation_id from the
+// intent and never from the row: admitting such a row attributes another
+// scope's resource to this one (#6162). An empty intentScopeID disables the
+// check and preserves the pre-#6162 join.
 func ExtractGCPRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
+	intentScopeID string,
 ) ([]map[string]any, gcpRelationshipEdgeTally, []quarantinedFact, error) {
 	tally := newGCPRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
@@ -297,13 +359,25 @@ func ExtractGCPRelationshipEdgeRows(
 			continue
 		}
 
-		sourceUID, sourceOK := index.resolve(relationship.SourceFullResourceName)
+		sourceUID, sourceOK, sourceCrossScope := index.resolveInScope(
+			relationship.SourceFullResourceName, intentScopeID)
+		if sourceCrossScope {
+			tally.crossScopeEndpoint[targetType]++
+			tally.record(relationshipType, gcpJoinModeCrossScopeEndpoint)
+			continue
+		}
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
 			tally.record(relationshipType, gcpJoinModeUnresolved)
 			continue
 		}
-		targetUID, targetOK := index.resolve(relationship.TargetFullResourceName)
+		targetUID, targetOK, targetCrossScope := index.resolveInScope(
+			relationship.TargetFullResourceName, intentScopeID)
+		if targetCrossScope {
+			tally.crossScopeEndpoint[targetType]++
+			tally.record(relationshipType, gcpJoinModeCrossScopeEndpoint)
+			continue
+		}
 		if !targetOK {
 			tally.unresolved[targetType]++
 			tally.record(relationshipType, gcpJoinModeUnresolved)
