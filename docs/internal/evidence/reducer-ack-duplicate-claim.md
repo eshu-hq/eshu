@@ -68,6 +68,16 @@ now() WHERE stage = 'reducer' AND status IN ('claimed','running')`:
 - both pending orders resolve identically, which matters because the acker's
   pending slice order follows whichever worker goroutine finishes first.
 
+The proof is enrolled in the reducer contention gate rather than left
+DSN-gated and silent: `.github/workflows/reducer-contention-gate.yml` passes
+`ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN` and names the test in its `-run` filter, and
+`TestReducerContentionPostgresProofsRunInTheReducerContentionGate` — the hermetic
+enrollment guard that reads the real workflow — now requires both. Adding the
+name to that guard before wiring the workflow fails it with "must pass the
+reducer ack reclaim proof DSN (#6162)"; wiring the workflow turns it green. The
+gate's extracted filter selects 46 tests including this one, and does not select
+the hermetic `TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected`.
+
 Mutation-proven rather than asserted. Restoring the pre-fix guard turns the live
 proof red in both orders and the two hermetic cases red, with `go vet` exit 0 on
 the mutant so the red is behavioural and not a build failure. The two negative

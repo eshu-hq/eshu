@@ -38,6 +38,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		!bytes.Contains(workflow, []byte("ESHU_GENERATION_LIVENESS_PROOF_DSN:")) {
 		t.Fatalf("%s must pass both projector and generation-liveness proof DSNs", workflowPath)
 	}
+	if !bytes.Contains(workflow, []byte("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN:")) {
+		t.Fatalf("%s must pass the reducer ack reclaim proof DSN (#6162)", workflowPath)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -87,6 +90,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// lease scan more than once, whatever the statistics say.
 		"TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin",
 		"TestActiveWorkSummaryBlockageHashesLeasesOnce",
+		// #6162: a lease that expires mid-handler puts two claims of one work
+		// item in the same ack batch. The batch must ack the surviving claim
+		// and fence the superseded one instead of failing and stopping the
+		// reducer. Only real Postgres expires a lease on the wall clock and
+		// applies the ack statement's last_attempt_at fence.
+		"TestReducerQueueAckBatchFencesSupersededClaimLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)
