@@ -1,0 +1,30 @@
+go/internal/graph/capture/allowlist.go
+  h_78a442cba0b3e6 1-113
+go/internal/graph/capture/allowlist_test.go
+  h_78a442cba0b3e6 1-122
+go/internal/graph/capture/decorate.go
+  h_78a442cba0b3e6 1-84
+go/internal/graph/capture/decorate_test.go
+  h_78a442cba0b3e6 1-104
+go/internal/graph/capture/diff.go
+  h_78a442cba0b3e6 1-89
+go/internal/graph/capture/diff_test.go
+  h_78a442cba0b3e6 1-169
+go/internal/graph/capture/doc.go
+  h_78a442cba0b3e6 1-23
+go/internal/graph/capture/sink.go
+  h_78a442cba0b3e6 1-151
+go/internal/graph/capture/sink_test.go
+  h_78a442cba0b3e6 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8206f17664416ba08831547cb755265eedda5d8a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
