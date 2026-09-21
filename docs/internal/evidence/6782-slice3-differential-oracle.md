@@ -67,11 +67,47 @@ Neo4j `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0ea
   reads → #6906, 6 phased writes + 10 correlation/sweep + 9 executions →
   #6782), each with exact statement text, tier, reason, upstream, owner.
 
-## Pending at write time
+## Fresh-leg re-proof (capture7, commits through dd6736ec8)
 
-- Fresh B-7 legs with the capture-side normalization, then the final
-  compare: deployment-772 groups should pair (middle-norm), digest
-  canonicalization should collapse the results-kind residual.
-- Known triage targets post-legs: `r.id IN $repo_ids` repo_name reads (6
-  bindings, scalar rows), `w.id IN $ids` workload counts (9 bindings),
-  one INVOKES_CLOUD_ACTION rowcount group (6 vs 8 rows, equal digests).
+- Legs (fixed capture code: error text, nil-strip, `_edgeId` shape):
+  nornicdb PASS 239s (`/tmp/diffproof7-nornicdb.log`), neo4j PASS 241s
+  (`/tmp/diffproof7-neo4j.log`); captures `/tmp/diff-capture7/{nornicdb,
+  neo4j}` (12 files each).
+- Compare: **26 unexcused of 653 groups** (`/tmp/diffproof7-compare.log`).
+  After 20 new allowlist entries (exact normalized statement text):
+  **backend-diff clean, exit 0** (`/tmp/diffproof7-compare2.log`):
+  2708 nornicdb records, 2637 neo4j records, 653 allowlisted.
+- Keeper fixes proven on live legs: the failures-kind detail now names
+  the error (`Neo.TransientError.Transaction.Outdated` commit conflict on
+  a NornicDB MERGE Workload write, retried green — transient, not a
+  defect); nil-strip collapsed the 4 `properties(runsOn)` null-prop
+  groups; `_edgeId` recognition narrowed the path-rel groups.
+
+## Cell-level triage (live kept-stack graphs, identical populations)
+
+- Populations proven equal on three leg pairs (IMPORTS 68=68, Functions
+  278=278, Repositories 31=31, orphans 58=58, instances 1/2/2/1,
+  CAN_PERFORM edges 1=1). Residual diffs are evaluation/serialization,
+  not materialization.
+- ORDER BY defect family (upstream #6915): Function top-11 membership
+  differs (multi-key mis-sort; single-key sorts fine; callers truncate
+  without Go re-sort, user-visible); repo_ids 6-row batch proven
+  order-only by calibrated digest replication (NornicDB digest reproduced
+  by permuting Neo4j rows); DEPLOYS_FROM flips distinct keys. Benign
+  ties (file_count, cloud prod/stage) are backend-undefined order with
+  identical multisets.
+- UNION shape (upstream #6916): NornicDB appends an extra text-named
+  column duplicating repo_name; values agree, name-readers unaffected.
+- Lineage: path/shortestPath full graph objects embed run-scoped
+  bare-hex generation ids (safely unblindable: hex collides with content
+  SHAs); all other cells agree.
+- Timing (drain-stage, not backend): capture6 pairs 14v12 = one extra
+  empty evaluation on neo4j (same digests otherwise); capture6
+  CAN_PERFORM retract asymmetry = recommit timing (capture7: retract ran
+  1x on both legs); capture6 instance 4v2 and orphan 58v59 did not
+  reproduce. Async false-vs-null closed as a top-11 membership artifact
+  (boolean counts identical 220/50/8 on both backends).
+- Incidents: one #6502 dead-letter flake killed a kept-stack leg
+  (evidence collected, stack torn down, leg re-run green); pre-commit
+  go-lint panics under parallel hooks but passes standalone (0 issues) —
+  commits used SKIP=go-lint after full `pre-commit run` validation.
