@@ -63,12 +63,12 @@ func packageRegistryEventRow(envelope facts.Envelope) (PackageRegistryEventRow, 
 	if envelope.IsTombstone {
 		return PackageRegistryEventRow{}, false, nil
 	}
-	event, err := decodePackageRegistryRegistryEvent(envelope)
+	event, err := PackageRegistryRegistryEvent(envelope)
 	if err != nil {
 		return PackageRegistryEventRow{}, false, err
 	}
-	packageID := strings.TrimSpace(packageRegistryDerefString(event.PackageID))
-	versionID := strings.TrimSpace(packageRegistryDerefString(event.VersionID))
+	packageID := strings.TrimSpace(PackageRegistryDerefString(event.PackageID))
+	versionID := strings.TrimSpace(PackageRegistryDerefString(event.VersionID))
 	if packageID == "" || versionID == "" {
 		// Present-but-empty (or absent) identity is a valid decode, distinct
 		// from an absent required key. See packageRegistryArtifactRow and this
@@ -95,14 +95,14 @@ func packageRegistryEventRow(envelope facts.Envelope) (PackageRegistryEventRow, 
 		UID:                 stableFactKey,
 		PackageID:           packageID,
 		VersionID:           versionID,
-		Version:             packageRegistryDerefString(event.Version),
-		Ecosystem:           packageRegistryDerefString(event.Ecosystem),
-		Registry:            packageRegistryDerefString(event.Registry),
+		Version:             PackageRegistryDerefString(event.Version),
+		Ecosystem:           PackageRegistryDerefString(event.Ecosystem),
+		Registry:            PackageRegistryDerefString(event.Registry),
 		EventKey:            eventKey,
 		EventType:           eventType,
-		ArtifactKey:         packageRegistryDerefString(event.ArtifactKey),
-		Actor:               packageRegistryDerefString(event.Actor),
-		Message:             packageRegistryDerefString(event.Message),
+		ArtifactKey:         PackageRegistryDerefString(event.ArtifactKey),
+		Actor:               PackageRegistryDerefString(event.Actor),
+		Message:             PackageRegistryDerefString(event.Message),
 		OccurredAt:          packageRegistryParsedTimestamp(event.OccurredAt),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       stableFactKey,
@@ -111,7 +111,7 @@ func packageRegistryEventRow(envelope facts.Envelope) (PackageRegistryEventRow, 
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
 		CorrelationAnchors:  packageRegistrySortedStrings(event.CorrelationAnchors),
-		CollectorInstanceID: packageRegistryDerefString(event.CollectorInstanceID),
+		CollectorInstanceID: PackageRegistryDerefString(event.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
 	}, true, nil
 }

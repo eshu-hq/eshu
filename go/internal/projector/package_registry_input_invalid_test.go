@@ -20,7 +20,7 @@ import (
 // whole-repo canonical build never fails.
 //
 // Before the migration this behavior was impossible: packageRegistryPackageRow
-// read package_id with payloadString, which returns "" for the absent key, and
+// read package_id with PayloadString, which returns "" for the absent key, and
 // the row was dropped with no operator signal (a silent skip). A collector
 // regression dropping package_id produced zero packages and no dead-letter.
 func TestExtractPackageRegistryRowsQuarantinesMissingPackageID(t *testing.T) {
@@ -75,7 +75,7 @@ func TestExtractPackageRegistryRowsQuarantinesMissingPackageID(t *testing.T) {
 // proves the absent-vs-present-empty distinction: a package fact whose
 // package_id key is PRESENT but empty is a valid decode (not a quarantine)
 // that is still dropped as an incomplete, non-materializable row —
-// byte-identical to the pre-typing behavior, where payloadString("") produced
+// byte-identical to the pre-typing behavior, where PayloadString("") produced
 // no row. Only an ABSENT (or null) required key dead-letters.
 func TestExtractPackageRegistryRowsPresentButEmptyPackageIDIsDroppedNotQuarantined(t *testing.T) {
 	t.Parallel()
@@ -105,7 +105,7 @@ func TestExtractPackageRegistryRowsPresentButEmptyPackageIDIsDroppedNotQuarantin
 
 // TestExtractPackageRegistryRowsWhitespacePackageIDIsDroppedNotMaterialized
 // proves the trim-before-gate accuracy contract (the terraform_state/oci
-// family review lesson): the pre-typing payloadString path did NOT trim
+// family review lesson): the pre-typing PayloadString path did NOT trim
 // whitespace, so this test also demonstrates the typed decode's stricter (and
 // intentional) behavior — a whitespace-only package_id ("   ") is treated as
 // empty and the row is DROPPED, not materialized under a whitespace-only

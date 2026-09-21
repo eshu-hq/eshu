@@ -25,7 +25,7 @@ func TestBuildCanonicalMaterializationPreservesNamedTerraformAttributesMap(t *te
 		}
 	}
 
-	result, _ := buildCanonicalMaterialization(
+	result, _ := BuildMaterialization(
 		terraformStateScope(),
 		terraformStateGeneration(),
 		input,

@@ -208,7 +208,7 @@ func TestExtractModulesFromEntitiesKeysOnNameAndLanguage(t *testing.T) {
 func TestBuildCanonicalMaterializationImportsResolveToDeclaredModules(t *testing.T) {
 	t.Parallel()
 
-	result, quarantined := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	result, quarantined := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		// Same module name from two unrelated ecosystems: two Module nodes.
 		fileFactWithImports("f-go", "main.go", "go", []map[string]any{

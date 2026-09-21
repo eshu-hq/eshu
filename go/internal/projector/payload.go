@@ -9,7 +9,13 @@ import (
 	"strings"
 )
 
-func payloadAttributes(payload map[string]any, excluded ...string) map[string]string {
+// PayloadAttributes flattens a fact payload into string attributes, skipping
+// the named keys a caller has already promoted onto a typed field. Values that
+// do not render as a string are dropped rather than stringified, so an
+// attribute map never carries a Go type rendering into the graph. It returns
+// nil for an empty payload so callers can store the absence of attributes
+// rather than an empty map.
+func PayloadAttributes(payload map[string]any, excluded ...string) map[string]string {
 	if len(payload) == 0 {
 		return nil
 	}
@@ -36,7 +42,11 @@ func payloadAttributes(payload map[string]any, excluded ...string) map[string]st
 	return attributes
 }
 
-func payloadString(payload map[string]any, key string) (string, bool) {
+// PayloadString reads key from a fact payload as a string. The second result
+// is false when the payload is empty, the key is absent, or the value is not a
+// string-shaped scalar, which lets a caller distinguish "absent" from the empty
+// string.
+func PayloadString(payload map[string]any, key string) (string, bool) {
 	if len(payload) == 0 {
 		return "", false
 	}
@@ -59,7 +69,10 @@ func payloadString(payload map[string]any, key string) (string, bool) {
 	return text, true
 }
 
-func payloadHasKey(payload map[string]any, key string) bool {
+// PayloadHasKey reports whether a fact payload carries key at all, including
+// when its value is nil. Callers use it to tell a field that was explicitly
+// emitted as empty from one the producer never set.
+func PayloadHasKey(payload map[string]any, key string) bool {
 	if len(payload) == 0 {
 		return false
 	}
@@ -68,7 +81,10 @@ func payloadHasKey(payload map[string]any, key string) bool {
 	return ok
 }
 
-func payloadInt(payload map[string]any, key string) (int, bool) {
+// PayloadInt reads key from a fact payload as an int, accepting the numeric
+// shapes JSON decoding produces. The second result is false when the payload is
+// empty, the key is absent, or the value does not convert without loss.
+func PayloadInt(payload map[string]any, key string) (int, bool) {
 	if len(payload) == 0 {
 		return 0, false
 	}
@@ -120,8 +136,11 @@ func payloadInt(payload map[string]any, key string) (int, bool) {
 	}
 }
 
-func payloadIntPtr(payload map[string]any, key string) *int {
-	value, ok := payloadInt(payload, key)
+// PayloadIntPtr reads key as an optional int, returning nil when
+// [PayloadInt] finds no usable value. The returned pointer addresses a copy, so
+// a caller cannot mutate the payload through it.
+func PayloadIntPtr(payload map[string]any, key string) *int {
+	value, ok := PayloadInt(payload, key)
 	if !ok {
 		return nil
 	}
@@ -130,7 +149,10 @@ func payloadIntPtr(payload map[string]any, key string) *int {
 	return &cloned
 }
 
-func payloadBoolPtr(payload map[string]any, key string) *bool {
+// PayloadBoolPtr reads key as an optional bool, returning nil when the payload
+// is empty, the key is absent, or the value is not a bool. The returned pointer
+// addresses a copy, so a caller cannot mutate the payload through it.
+func PayloadBoolPtr(payload map[string]any, key string) *bool {
 	if len(payload) == 0 {
 		return nil
 	}

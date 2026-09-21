@@ -19,13 +19,13 @@ import (
 // projects, and the whole-repo canonical build never fails.
 //
 // Before the migration this behavior was impossible: ociImageManifestRow read
-// digest with payloadString, which returns "" for the absent key, and the row
+// digest with PayloadString, which returns "" for the absent key, and the row
 // was dropped with no operator signal (a silent skip). A collector regression
 // dropping digest produced zero manifests and no dead-letter.
 //
 // After the migration extractOCIRegistryRows decodes each oci fact through
 // factschema.DecodeOCIImageManifest; the malformed fact yields a classified
-// *factschema.DecodeError that partitionProjectorDecodeFailures routes to a per-fact
+// *factschema.DecodeError that PartitionFailures routes to a per-fact
 // quarantine recorded on the materialization. The valid manifest still
 // projects.
 func TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest(t *testing.T) {
@@ -79,7 +79,7 @@ func TestExtractOCIRegistryRowsQuarantinesMissingManifestDigest(t *testing.T) {
 // the absent-vs-present-empty distinction: a manifest fact whose digest key is
 // PRESENT but empty is a valid decode (not a quarantine) that is still dropped
 // as an incomplete, non-materializable row — byte-identical to the pre-typing
-// behavior, where payloadString("") produced no row. Only an ABSENT (or null)
+// behavior, where PayloadString("") produced no row. Only an ABSENT (or null)
 // required key dead-letters.
 func TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined(t *testing.T) {
 	t.Parallel()
@@ -110,7 +110,7 @@ func TestExtractOCIRegistryRowsPresentButEmptyDigestIsDroppedNotQuarantined(t *t
 
 // TestExtractOCIRegistryRowsWhitespaceDigestIsDroppedNotMaterialized is the
 // regression for codex's P2 (PR #4699, oci_registry_canonical.go:253): the
-// pre-typing payloadString path TRIMMED whitespace before deciding whether an
+// pre-typing PayloadString path TRIMMED whitespace before deciding whether an
 // identity was usable, so a whitespace-only digest ("   ") was treated as empty
 // and the row was DROPPED. The typed row gate must preserve that: it trims the
 // identity fields before the `== ""` check, so a present-but-whitespace-only

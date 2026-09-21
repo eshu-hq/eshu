@@ -102,20 +102,20 @@ type PackageRegistryDependencyRow struct {
 	ObservedAt           time.Time
 }
 
-// packageRegistryCanonicalStage is the bounded telemetry stage label the
+// PackageRegistryCanonicalStage is the bounded telemetry stage label the
 // projector's package_registry canonical extractor reports on
 // eshu_dp_projector_input_invalid_facts_total.
-const packageRegistryCanonicalStage = "package_registry_canonical"
+const PackageRegistryCanonicalStage = "package_registry_canonical"
 
 // extractPackageRegistryRows projects committed package_registry fact
 // envelopes into canonical package/version/dependency rows on mat, decoding
 // each fact through the typed factschema seam. A fact missing a required
-// identity field is QUARANTINED per-fact (returned in the []quarantinedFact
+// identity field is QUARANTINED per-fact (returned in the []QuarantinedFact
 // slice) rather than producing a graph identity from an empty-string segment:
 // that one fact is skipped while every valid fact — package_registry and
 // non-package_registry — still projects. The caller
-// (buildCanonicalMaterialization) records the quarantined facts as visible
-// input_invalid dead-letters via recordProjectorQuarantinedFacts. A
+// (BuildMaterialization) records the quarantined facts as visible
+// input_invalid dead-letters via RecordQuarantinedFacts. A
 // present-but-empty identity field is a valid decode that the row builders'
 // own identity gate still drops, byte-identical to the pre-typing behavior.
 //
@@ -131,11 +131,11 @@ const packageRegistryCanonicalStage = "package_registry_canonical"
 // package_registry_canonical_event.go respectively, split out from this file
 // to stay under the package's 500-line-per-file convention (mirrors
 // tfstate_canonical_types.go's split from tfstate_canonical.go).
-func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
+func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []QuarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
 		return nil
 	}
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	for _, envelope := range envelopes {
 		var err error
 		switch envelope.FactKind {
@@ -180,10 +180,10 @@ func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 		if err == nil {
 			continue
 		}
-		q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err)
+		q, isQuarantine, fatal := PartitionFailures(envelope, err)
 		if fatal != nil {
 			// The only fatal decode error is an unsupported schema major, which
-			// the projector's schema-version admission (validateFactSchemaVersion
+			// the projector's schema-version admission (ValidateFactSchemaVersion
 			// in runtime.go) already rejects for the whole work item BEFORE this
 			// extractor runs, so a fatal here is unreachable on the production
 			// path. Dropping it matches the pre-typing extractor's behavior for a
@@ -201,14 +201,14 @@ func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 // packageRegistryPackageRow decodes one package_registry.package envelope
 // through the typed factschema seam and builds its canonical row. A missing
 // required package_id dead-letters via the returned error (routed through
-// partitionProjectorDecodeFailures by the caller); a present-but-empty
+// PartitionFailures by the caller); a present-but-empty
 // package_id is a valid decode the row builder's own identity gate still
-// drops, matching the pre-typing payloadString("") behavior.
+// drops, matching the pre-typing PayloadString("") behavior.
 func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageRow, bool, error) {
 	if envelope.IsTombstone {
 		return PackageRegistryPackageRow{}, false, nil
 	}
-	pkg, err := decodePackageRegistryPackage(envelope)
+	pkg, err := PackageRegistryPackage(envelope)
 	if err != nil {
 		return PackageRegistryPackageRow{}, false, err
 	}
@@ -217,24 +217,24 @@ func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageR
 		// Present-but-empty (or whitespace-only) package_id is a valid decode,
 		// distinct from an absent required key (which the decode seam already
 		// dead-lettered). Trim before the gate so a whitespace-only identity is
-		// dropped as non-materializable exactly as the pre-typing payloadString
+		// dropped as non-materializable exactly as the pre-typing PayloadString
 		// path did, never keying a row on an empty-after-trim graph identity.
 		return PackageRegistryPackageRow{}, false, nil
 	}
 	return PackageRegistryPackageRow{
 		UID:                 packageID,
-		Ecosystem:           packageRegistryDerefString(pkg.Ecosystem),
-		Registry:            packageRegistryDerefString(pkg.Registry),
-		RawName:             packageRegistryDerefString(pkg.RawName),
-		NormalizedName:      packageRegistryDerefString(pkg.NormalizedName),
-		Namespace:           packageRegistryDerefString(pkg.Namespace),
-		Classifier:          packageRegistryDerefString(pkg.Classifier),
-		PURL:                packageRegistryDerefString(pkg.PURL),
-		BOMRef:              packageRegistryDerefString(pkg.BOMRef),
-		PackageManager:      packageRegistryDerefString(pkg.PackageManager),
-		SourcePath:          packageRegistryDerefString(pkg.SourcePath),
-		SourceSpecificID:    packageRegistryDerefString(pkg.SourceSpecificID),
-		Visibility:          packageRegistryDerefString(pkg.Visibility),
+		Ecosystem:           PackageRegistryDerefString(pkg.Ecosystem),
+		Registry:            PackageRegistryDerefString(pkg.Registry),
+		RawName:             PackageRegistryDerefString(pkg.RawName),
+		NormalizedName:      PackageRegistryDerefString(pkg.NormalizedName),
+		Namespace:           PackageRegistryDerefString(pkg.Namespace),
+		Classifier:          PackageRegistryDerefString(pkg.Classifier),
+		PURL:                PackageRegistryDerefString(pkg.PURL),
+		BOMRef:              PackageRegistryDerefString(pkg.BOMRef),
+		PackageManager:      PackageRegistryDerefString(pkg.PackageManager),
+		SourcePath:          PackageRegistryDerefString(pkg.SourcePath),
+		SourceSpecificID:    PackageRegistryDerefString(pkg.SourceSpecificID),
+		Visibility:          PackageRegistryDerefString(pkg.Visibility),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       envelope.StableFactKey,
 		SourceSystem:        packageRegistrySourceSystem(envelope),
@@ -242,7 +242,7 @@ func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageR
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
 		CorrelationAnchors:  packageRegistrySortedStrings(pkg.CorrelationAnchors),
-		CollectorInstanceID: packageRegistryDerefString(pkg.CollectorInstanceID),
+		CollectorInstanceID: PackageRegistryDerefString(pkg.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
 	}, true, nil
 }
@@ -256,7 +256,7 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 	if envelope.IsTombstone {
 		return PackageRegistryVersionRow{}, false, nil
 	}
-	version, err := decodePackageRegistryPackageVersion(envelope)
+	version, err := PackageRegistryPackageVersion(envelope)
 	if err != nil {
 		return PackageRegistryVersionRow{}, false, err
 	}
@@ -277,17 +277,17 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 	return PackageRegistryVersionRow{
 		UID:                 versionID,
 		PackageID:           packageID,
-		Ecosystem:           packageRegistryDerefString(version.Ecosystem),
-		Registry:            packageRegistryDerefString(version.Registry),
+		Ecosystem:           PackageRegistryDerefString(version.Ecosystem),
+		Registry:            PackageRegistryDerefString(version.Registry),
 		Version:             rawVersion,
-		PURL:                packageRegistryDerefString(version.PURL),
-		BOMRef:              packageRegistryDerefString(version.BOMRef),
-		PackageManager:      packageRegistryDerefString(version.PackageManager),
+		PURL:                PackageRegistryDerefString(version.PURL),
+		BOMRef:              PackageRegistryDerefString(version.BOMRef),
+		PackageManager:      PackageRegistryDerefString(version.PackageManager),
 		PublishedAt:         packageRegistryParsedTimestamp(version.PublishedAt),
-		IsYanked:            packageRegistryDerefBool(version.IsYanked),
-		IsUnlisted:          packageRegistryDerefBool(version.IsUnlisted),
-		IsDeprecated:        packageRegistryDerefBool(version.IsDeprecated),
-		IsRetracted:         packageRegistryDerefBool(version.IsRetracted),
+		IsYanked:            PackageRegistryDerefBool(version.IsYanked),
+		IsUnlisted:          PackageRegistryDerefBool(version.IsUnlisted),
+		IsDeprecated:        PackageRegistryDerefBool(version.IsDeprecated),
+		IsRetracted:         PackageRegistryDerefBool(version.IsRetracted),
 		ArtifactURLs:        packageRegistrySortedStrings(version.ArtifactURLs),
 		Checksums:           checksums,
 		SourceFactID:        envelope.FactID,
@@ -297,7 +297,7 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
 		CorrelationAnchors:  packageRegistrySortedStrings(version.CorrelationAnchors),
-		CollectorInstanceID: packageRegistryDerefString(version.CollectorInstanceID),
+		CollectorInstanceID: PackageRegistryDerefString(version.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
 	}, true, nil
 }
@@ -313,7 +313,7 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 	if envelope.IsTombstone {
 		return PackageRegistryDependencyRow{}, false, nil
 	}
-	dependency, err := decodePackageRegistryPackageDependency(envelope)
+	dependency, err := PackageRegistryPackageDependency(envelope)
 	if err != nil {
 		return PackageRegistryDependencyRow{}, false, err
 	}
@@ -333,21 +333,21 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 		UID:                  stableFactKey,
 		PackageID:            packageID,
 		VersionID:            versionID,
-		Version:              packageRegistryDerefString(dependency.Version),
+		Version:              PackageRegistryDerefString(dependency.Version),
 		DependencyPackageID:  dependencyPackageID,
-		DependencyEcosystem:  packageRegistryDerefString(dependency.DependencyEcosystem),
-		DependencyRegistry:   packageRegistryDerefString(dependency.DependencyRegistry),
-		DependencyNamespace:  packageRegistryDerefString(dependency.DependencyNamespace),
-		DependencyNormalized: packageRegistryDerefString(dependency.DependencyNormalized),
-		DependencyPURL:       packageRegistryDerefString(dependency.DependencyPURL),
-		DependencyBOMRef:     packageRegistryDerefString(dependency.DependencyBOMRef),
-		DependencyManager:    packageRegistryDerefString(dependency.DependencyManager),
-		DependencyRange:      packageRegistryDerefString(dependency.DependencyRange),
-		DependencyType:       packageRegistryDerefString(dependency.DependencyType),
-		TargetFramework:      packageRegistryDerefString(dependency.TargetFramework),
-		Marker:               packageRegistryDerefString(dependency.Marker),
-		Optional:             packageRegistryDerefBool(dependency.Optional),
-		Excluded:             packageRegistryDerefBool(dependency.Excluded),
+		DependencyEcosystem:  PackageRegistryDerefString(dependency.DependencyEcosystem),
+		DependencyRegistry:   PackageRegistryDerefString(dependency.DependencyRegistry),
+		DependencyNamespace:  PackageRegistryDerefString(dependency.DependencyNamespace),
+		DependencyNormalized: PackageRegistryDerefString(dependency.DependencyNormalized),
+		DependencyPURL:       PackageRegistryDerefString(dependency.DependencyPURL),
+		DependencyBOMRef:     PackageRegistryDerefString(dependency.DependencyBOMRef),
+		DependencyManager:    PackageRegistryDerefString(dependency.DependencyManager),
+		DependencyRange:      PackageRegistryDerefString(dependency.DependencyRange),
+		DependencyType:       PackageRegistryDerefString(dependency.DependencyType),
+		TargetFramework:      PackageRegistryDerefString(dependency.TargetFramework),
+		Marker:               PackageRegistryDerefString(dependency.Marker),
+		Optional:             PackageRegistryDerefBool(dependency.Optional),
+		Excluded:             PackageRegistryDerefBool(dependency.Excluded),
 		SourceFactID:         envelope.FactID,
 		StableFactKey:        stableFactKey,
 		SourceSystem:         packageRegistrySourceSystem(envelope),
@@ -355,7 +355,7 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 		SourceConfidence:     envelope.SourceConfidence,
 		CollectorKind:        envelope.CollectorKind,
 		CorrelationAnchors:   packageRegistrySortedStrings(dependency.CorrelationAnchors),
-		CollectorInstanceID:  packageRegistryDerefString(dependency.CollectorInstanceID),
+		CollectorInstanceID:  PackageRegistryDerefString(dependency.CollectorInstanceID),
 		ObservedAt:           envelope.ObservedAt,
 	}, true, nil
 }
@@ -432,7 +432,7 @@ func packageRegistryTrimmedStringMap(factKind, field string, values map[string]s
 		}
 		trimmedValue := strings.TrimSpace(values[key])
 		if existing, collided := out[trimmedKey]; collided && existing != trimmedValue {
-			return nil, newProjectorDecodeError(factKind, &factschema.DecodeError{
+			return nil, NewError(factKind, &factschema.DecodeError{
 				FactKind:       factKind,
 				Classification: factschema.ClassificationInputInvalid,
 				Field:          field,

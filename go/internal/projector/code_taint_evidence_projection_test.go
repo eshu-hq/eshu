@@ -48,7 +48,7 @@ func TestBuildProjectionQueuesBothEvidenceDomainsFromMarker(t *testing.T) {
 // DomainCodeTaintEvidence intent from a code_taint_evidence fact. This is the
 // same FactKind-based intent path the incident-routing domain uses; the fact
 // carries graph_kind only (no reducer_domain), so the scope-generation builder —
-// not the payload-domain buildReducerIntent — is what enqueues it.
+// not the payload-domain BuildReducerIntent — is what enqueues it.
 func TestBuildProjectionQueuesCodeTaintEvidence(t *testing.T) {
 	t.Parallel()
 

@@ -25,7 +25,7 @@ import (
 func TestBuildCanonicalMaterializationExtractsPackageRegistryArtifacts(t *testing.T) {
 	t.Parallel()
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), packageRegistryArtifactFact()),
@@ -69,7 +69,7 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactMissingI
 
 	artifactFact := packageRegistryArtifactFact()
 	delete(artifactFact.Payload, "artifact_key")
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), artifactFact),
@@ -107,7 +107,7 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryArtifactColonBearin
 	artifactFact.Payload["hashes"] = map[string]any{
 		"sha256:extra": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 	}
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), artifactFact),
@@ -140,7 +140,7 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactConflict
 		"sha256":   "aaa",
 		" sha256 ": "bbb",
 	}
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), artifactFact),
@@ -172,7 +172,7 @@ func TestBuildCanonicalMaterializationMergesPackageRegistryArtifactIdenticalWhit
 		"sha256":   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		" sha256 ": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 	}
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), artifactFact),
@@ -197,7 +197,7 @@ func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryArtifact(t *te
 	artifactFact := packageRegistryArtifactFact()
 	artifactFact.StableFactKey = ""
 	artifactFact.FactID = "ephemeral-package-registry-artifact-1"
-	result, _ := buildCanonicalMaterialization(
+	result, _ := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), artifactFact),

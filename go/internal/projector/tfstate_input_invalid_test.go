@@ -20,7 +20,7 @@ import (
 // and the whole-repo canonical build never fails.
 //
 // Before the migration this behavior was impossible: terraformStateResourceRow
-// read address with payloadString, which returns "" for the absent key, and
+// read address with PayloadString, which returns "" for the absent key, and
 // the row was dropped with no operator signal (a silent skip). A collector
 // regression dropping address produced zero resources and no dead-letter.
 func TestExtractTerraformStateRowsQuarantinesMissingResourceAddress(t *testing.T) {
@@ -71,7 +71,7 @@ func TestExtractTerraformStateRowsQuarantinesMissingResourceAddress(t *testing.T
 // proves the absent-vs-present-empty distinction: a resource fact whose
 // address key is PRESENT but empty is a valid decode (not a quarantine) that
 // is still dropped as an incomplete, non-materializable row — byte-identical
-// to the pre-typing behavior, where payloadString("") produced no row. Only an
+// to the pre-typing behavior, where PayloadString("") produced no row. Only an
 // ABSENT (or null) required key dead-letters.
 func TestExtractTerraformStateRowsPresentButEmptyAddressIsDroppedNotQuarantined(t *testing.T) {
 	t.Parallel()
@@ -101,7 +101,7 @@ func TestExtractTerraformStateRowsPresentButEmptyAddressIsDroppedNotQuarantined(
 
 // TestExtractTerraformStateRowsWhitespaceAddressIsDroppedNotMaterialized
 // proves the trim-before-gate accuracy contract (the k8s/oci-family review
-// lesson): the pre-typing payloadString path TRIMMED whitespace before
+// lesson): the pre-typing PayloadString path TRIMMED whitespace before
 // deciding whether an identity was usable, so a whitespace-only address
 // ("   ") was treated as empty and the row was DROPPED. The typed row gate
 // must preserve that: it trims the identity field before the `== ""` check,

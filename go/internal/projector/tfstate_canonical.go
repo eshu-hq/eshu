@@ -10,20 +10,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// terraformStateCanonicalStage is the bounded telemetry stage label the
+// TerraformStateCanonicalStage is the bounded telemetry stage label the
 // projector's terraform_state canonical extractor reports on
 // eshu_dp_projector_input_invalid_facts_total.
-const terraformStateCanonicalStage = "terraform_state_canonical"
+const TerraformStateCanonicalStage = "terraform_state_canonical"
 
 // extractTerraformStateRows projects committed terraform_state fact envelopes
 // into canonical resource/module/output rows on mat, decoding each fact
 // through the typed factschema seam. A fact missing a required identity field
-// is QUARANTINED per-fact (returned in the []quarantinedFact slice) rather
+// is QUARANTINED per-fact (returned in the []QuarantinedFact slice) rather
 // than producing a graph identity from an empty-string segment: that one
 // fact is skipped while every valid fact — terraform_state and non-terraform_state
-// — still projects. The caller (buildCanonicalMaterialization) records the
+// — still projects. The caller (BuildMaterialization) records the
 // quarantined facts as visible input_invalid dead-letters via
-// recordProjectorQuarantinedFacts. A present-but-empty identity field is a
+// RecordQuarantinedFacts. A present-but-empty identity field is a
 // valid decode that the row builders' own identity gate still drops,
 // byte-identical to the pre-typing behavior.
 //
@@ -36,18 +36,18 @@ const terraformStateCanonicalStage = "terraform_state_canonical"
 // the switch runs, so terraformStateResourceRow can join a resource's
 // Provider/ProviderSourceAddress/ProviderAlias fields the same way it
 // already joins TagKeyHashes.
-func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
+func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []QuarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
 		return nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	snapshot, snapshotEnvelope, snapshotErr := terraformStateSnapshot(envelopes)
 	if snapshotErr != nil {
-		if q, isQuarantine, fatal := partitionProjectorDecodeFailures(snapshotEnvelope, snapshotErr); fatal == nil && isQuarantine {
+		if q, isQuarantine, fatal := PartitionFailures(snapshotEnvelope, snapshotErr); fatal == nil && isQuarantine {
 			// See the extractor's fatal-branch comment below: an unsupported
 			// schema major is unreachable here on the production path because
-			// runtime.go's validateFactSchemaVersion rejects it upstream.
+			// runtime.go's ValidateFactSchemaVersion rejects it upstream.
 			quarantined = append(quarantined, q)
 		}
 	}
@@ -89,10 +89,10 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 		if err == nil {
 			continue
 		}
-		q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err)
+		q, isQuarantine, fatal := PartitionFailures(envelope, err)
 		if fatal != nil {
 			// The only fatal decode error is an unsupported schema major, which
-			// the projector's schema-version admission (validateFactSchemaVersion
+			// the projector's schema-version admission (ValidateFactSchemaVersion
 			// in runtime.go) already rejects for the whole work item BEFORE this
 			// extractor runs, so a fatal here is unreachable on the production
 			// path. Dropping it matches the pre-typing extractor's behavior for a
@@ -114,10 +114,10 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 // input_invalid; it is either a payload-shape/type-mismatch input_invalid
 // (quarantined per-fact, like every other kind) or an unsupported schema major
 // (fatal, unreachable past the projector's schema-version admission). The
-// caller routes it through partitionProjectorDecodeFailures with the real fact
+// caller routes it through PartitionFailures with the real fact
 // identity, matching every other terraform_state decode site. It
 // returns the matched envelope alongside the error so the caller can route the
-// error through partitionProjectorDecodeFailures with the real fact identity.
+// error through PartitionFailures with the real fact identity.
 // The zero-value snapshot context (and a zero-value envelope, nil error) is
 // returned when no snapshot fact is present, exactly matching the pre-typing
 // fallback.
@@ -126,16 +126,16 @@ func terraformStateSnapshot(envelopes []facts.Envelope) (terraformStateSnapshotC
 		if envelope.FactKind != facts.TerraformStateSnapshotFactKind {
 			continue
 		}
-		snapshot, err := decodeTerraformStateSnapshot(envelope)
+		snapshot, err := TerraformStateSnapshot(envelope)
 		if err != nil {
 			return terraformStateSnapshotContext{}, envelope, err
 		}
-		lineage := tfstateDerefString(snapshot.Lineage)
-		backendKind := tfstateDerefString(snapshot.BackendKind)
-		locatorHash := tfstateDerefString(snapshot.LocatorHash)
+		lineage := TerraformStateDerefString(snapshot.Lineage)
+		backendKind := TerraformStateDerefString(snapshot.BackendKind)
+		locatorHash := TerraformStateDerefString(snapshot.LocatorHash)
 		return terraformStateSnapshotContext{
 			Lineage:     lineage,
-			Serial:      tfstateDerefInt64(snapshot.Serial),
+			Serial:      TerraformStateDerefInt64(snapshot.Serial),
 			BackendKind: backendKind,
 			LocatorHash: locatorHash,
 			StatePath:   terraformStatePath(backendKind, locatorHash, envelope.ScopeID),
@@ -151,7 +151,7 @@ func terraformStateResourceRow(
 	providerBindingsByResource map[string]terraformStateProviderBindingInfo,
 	envelope facts.Envelope,
 ) (TerraformStateResourceRow, bool, error) {
-	resource, err := decodeTerraformStateResource(envelope)
+	resource, err := TerraformStateResource(envelope)
 	if err != nil {
 		return TerraformStateResourceRow{}, false, err
 	}
@@ -160,7 +160,7 @@ func terraformStateResourceRow(
 		// Present-but-empty (or whitespace-only) address is a valid decode,
 		// distinct from an absent required key (which the decode seam already
 		// dead-lettered). Trim before the gate so a whitespace-only identity is
-		// dropped as non-materializable exactly as the pre-typing payloadString
+		// dropped as non-materializable exactly as the pre-typing PayloadString
 		// path did, never keying a row on an empty-after-trim graph identity.
 		return TerraformStateResourceRow{}, false, nil
 	}
@@ -169,11 +169,11 @@ func terraformStateResourceRow(
 	return TerraformStateResourceRow{
 		UID:                   terraformStateUID("resource", scopeID, snapshot.Lineage, address),
 		Address:               address,
-		Mode:                  tfstateDerefString(resource.Mode),
-		ResourceType:          tfstateDerefString(resource.ResourceType),
-		Name:                  tfstateDerefString(resource.Name),
-		ModuleAddress:         tfstateDerefString(resource.Module),
-		ProviderAddress:       tfstateDerefString(resource.Provider),
+		Mode:                  TerraformStateDerefString(resource.Mode),
+		ResourceType:          TerraformStateDerefString(resource.ResourceType),
+		Name:                  TerraformStateDerefString(resource.Name),
+		ModuleAddress:         TerraformStateDerefString(resource.Module),
+		ProviderAddress:       TerraformStateDerefString(resource.Provider),
 		Lineage:               snapshot.Lineage,
 		Serial:                snapshot.Serial,
 		BackendKind:           snapshot.BackendKind,
@@ -200,21 +200,21 @@ func terraformStateModuleRow(
 	snapshot terraformStateSnapshotContext,
 	envelope facts.Envelope,
 ) (TerraformStateModuleRow, bool, error) {
-	module, err := decodeTerraformStateModule(envelope)
+	module, err := TerraformStateModule(envelope)
 	if err != nil {
 		return TerraformStateModuleRow{}, false, err
 	}
 	moduleAddress := strings.TrimSpace(module.ModuleAddress)
 	if moduleAddress == "" {
 		// Whitespace-only identity drops the row as non-materializable, matching
-		// the pre-typing payloadString trim (see terraformStateResourceRow).
+		// the pre-typing PayloadString trim (see terraformStateResourceRow).
 		return TerraformStateModuleRow{}, false, nil
 	}
 	sourceSystem := terraformStateSourceSystem(envelope)
 	return TerraformStateModuleRow{
 		UID:              terraformStateUID("module", scopeID, snapshot.Lineage, moduleAddress),
 		ModuleAddress:    moduleAddress,
-		ResourceCount:    tfstateDerefInt64(module.ResourceCount),
+		ResourceCount:    TerraformStateDerefInt64(module.ResourceCount),
 		Lineage:          snapshot.Lineage,
 		Serial:           snapshot.Serial,
 		BackendKind:      snapshot.BackendKind,
@@ -267,7 +267,7 @@ func terraformStateOutputRow(
 	snapshot terraformStateSnapshotContext,
 	envelope facts.Envelope,
 ) (TerraformStateOutputRow, bool, error) {
-	output, err := decodeTerraformStateOutput(envelope)
+	output, err := TerraformStateOutput(envelope)
 	if err != nil {
 		return TerraformStateOutputRow{}, false, err
 	}
@@ -278,14 +278,14 @@ func terraformStateOutputRow(
 		// dead-lettered). See terraformStateResourceRow.
 		return TerraformStateOutputRow{}, false, nil
 	}
-	sensitive := tfstateDerefBool(output.Sensitive)
-	valueShape := tfstateDerefString(output.ValueShape)
+	sensitive := TerraformStateDerefBool(output.Sensitive)
+	valueShape := TerraformStateDerefString(output.ValueShape)
 	// The raw "value" payload key is intentionally not modeled on the typed
 	// Output struct (see tfstatev1.Output's doc comment): it is read directly
 	// off the envelope's raw payload here only to check PRESENCE for the
 	// fallback value-shape derivation, matching the pre-typing
-	// payloadHasKey(payload, "value") behavior byte-for-byte.
-	if valueShape == "" && payloadHasKey(envelope.Payload, "value") {
+	// PayloadHasKey(payload, "value") behavior byte-for-byte.
+	if valueShape == "" && PayloadHasKey(envelope.Payload, "value") {
 		valueShape = "scalar"
 		if sensitive {
 			valueShape = "redacted_scalar"
@@ -348,8 +348,8 @@ func terraformStateCorrelationAnchors(rawAnchors []map[string]any) []string {
 	}
 	anchors := make([]string, 0, len(rawAnchors))
 	for _, entry := range rawAnchors {
-		kind, _ := payloadString(entry, "anchor_kind")
-		hash, _ := payloadString(entry, "value_hash")
+		kind, _ := PayloadString(entry, "anchor_kind")
+		hash, _ := PayloadString(entry, "value_hash")
 		if kind == "" || hash == "" {
 			continue
 		}
@@ -365,21 +365,21 @@ func terraformStateCorrelationAnchors(rawAnchors []map[string]any) []string {
 // terraformStateTagHashesByResource decodes every terraform_state_tag_observation
 // envelope through the typed factschema seam and joins each valid observation
 // to its resource by (ResourceAddress, TagKeyHash). A fact missing either
-// required join key is QUARANTINED per-fact (returned in the []quarantinedFact
+// required join key is QUARANTINED per-fact (returned in the []QuarantinedFact
 // slice) rather than silently dropped, mirroring every other terraform_state
 // decode site's per-fact isolation contract; every other valid tag
 // observation still joins.
-func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][]string, []quarantinedFact) {
+func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][]string, []QuarantinedFact) {
 	tagHashes := map[string][]string{}
 	seen := map[string]struct{}{}
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.TerraformStateTagObservationFactKind {
 			continue
 		}
-		observation, err := decodeTerraformStateTagObservation(envelope)
+		observation, err := TerraformStateTagObservation(envelope)
 		if err != nil {
-			if q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err); fatal == nil && isQuarantine {
+			if q, isQuarantine, fatal := PartitionFailures(envelope, err); fatal == nil && isQuarantine {
 				quarantined = append(quarantined, q)
 			}
 			continue
@@ -388,7 +388,7 @@ func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][
 		hash := strings.TrimSpace(observation.TagKeyHash)
 		if address == "" || hash == "" {
 			// Whitespace-only join key is a valid decode dropped as
-			// non-materializable, matching the pre-typing payloadString trim
+			// non-materializable, matching the pre-typing PayloadString trim
 			// (see terraformStateResourceRow).
 			continue
 		}
@@ -421,16 +421,16 @@ func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][
 // deterministic given envelopes' stable input order, matching
 // terraformStateSnapshot's own "first match wins" precedent for another
 // single-valued terraform_state fact.
-func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[string]terraformStateProviderBindingInfo, []quarantinedFact) {
+func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[string]terraformStateProviderBindingInfo, []QuarantinedFact) {
 	bindings := map[string]terraformStateProviderBindingInfo{}
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.TerraformStateProviderBindingFactKind {
 			continue
 		}
-		binding, err := decodeTerraformStateProviderBinding(envelope)
+		binding, err := TerraformStateProviderBinding(envelope)
 		if err != nil {
-			if q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err); fatal == nil && isQuarantine {
+			if q, isQuarantine, fatal := PartitionFailures(envelope, err); fatal == nil && isQuarantine {
 				quarantined = append(quarantined, q)
 			}
 			continue
@@ -438,7 +438,7 @@ func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[s
 		address := strings.TrimSpace(binding.ResourceAddress)
 		if address == "" {
 			// Whitespace-only join key is a valid decode dropped as
-			// non-materializable, matching the pre-typing payloadString trim
+			// non-materializable, matching the pre-typing PayloadString trim
 			// (see terraformStateResourceRow).
 			continue
 		}
@@ -446,9 +446,9 @@ func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[s
 			continue
 		}
 		bindings[address] = terraformStateProviderBindingInfo{
-			Provider:              tfstateDerefString(binding.ProviderType),
-			ProviderSourceAddress: tfstateDerefString(binding.ProviderSourceAddress),
-			ProviderAlias:         tfstateDerefString(binding.ProviderAlias),
+			Provider:              TerraformStateDerefString(binding.ProviderType),
+			ProviderSourceAddress: TerraformStateDerefString(binding.ProviderSourceAddress),
+			ProviderAlias:         TerraformStateDerefString(binding.ProviderAlias),
 		}
 	}
 	return bindings, quarantined

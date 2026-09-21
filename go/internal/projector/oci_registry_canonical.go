@@ -131,28 +131,28 @@ type OCIImageReferrerRow struct {
 	ObservedAt        time.Time
 }
 
-// ociRegistryCanonicalStage is the bounded telemetry stage label the projector's
+// OCIRegistryCanonicalStage is the bounded telemetry stage label the projector's
 // OCI canonical extractor reports on eshu_dp_projector_input_invalid_facts_total.
-const ociRegistryCanonicalStage = "oci_registry_canonical"
+const OCIRegistryCanonicalStage = "oci_registry_canonical"
 
 // extractOCIRegistryRows projects committed OCI registry fact envelopes into
 // digest-keyed canonical image rows on mat, decoding each fact through the typed
 // factschema seam. A fact missing a required identity field is QUARANTINED
-// per-fact (returned in the []quarantinedFact slice) rather than producing a
+// per-fact (returned in the []QuarantinedFact slice) rather than producing a
 // graph identity from an empty-string segment: that one fact is skipped while
 // every valid fact — OCI and non-OCI — still projects. The caller
-// (buildCanonicalMaterialization) records the quarantined facts as visible
-// input_invalid dead-letters via recordProjectorQuarantinedFacts. A
+// (BuildMaterialization) records the quarantined facts as visible
+// input_invalid dead-letters via RecordQuarantinedFacts. A
 // present-but-empty identity field is a valid decode that the row builders' own
 // identity gate still drops, byte-identical to the pre-typing behavior.
 //
 // oci_registry.warning is intentionally not consumed here (design §3.4,
 // typed-but-deferred), so no case handles it.
-func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
+func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []QuarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
 		return nil
 	}
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	for _, envelope := range envelopes {
 		var err error
 		switch envelope.FactKind {
@@ -198,10 +198,10 @@ func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Env
 		if err == nil {
 			continue
 		}
-		q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err)
+		q, isQuarantine, fatal := PartitionFailures(envelope, err)
 		if fatal != nil {
 			// The only fatal decode error is an unsupported schema major, which
-			// the projector's schema-version admission (validateFactSchemaVersion
+			// the projector's schema-version admission (ValidateFactSchemaVersion
 			// in runtime.go) already rejects for the whole work item BEFORE this
 			// extractor runs, so a fatal here is unreachable on the production
 			// path. Dropping it matches the pre-typing extractor's behavior for a
@@ -217,7 +217,7 @@ func extractOCIRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Env
 }
 
 func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow, bool, error) {
-	repository, err := decodeOCIRegistryRepository(envelope)
+	repository, err := OCIRegistryRepository(envelope)
 	if err != nil {
 		return OCIRegistryRepositoryRow{}, false, err
 	}
@@ -226,17 +226,17 @@ func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow
 		// Present-but-empty (or whitespace-only) repository_id is a valid decode,
 		// distinct from an absent required key (which the decode seam already
 		// dead-lettered). Trim before the gate so a whitespace-only identity is
-		// dropped as non-materializable exactly as the pre-typing payloadString
+		// dropped as non-materializable exactly as the pre-typing PayloadString
 		// path did, never keying a row on an empty-after-trim graph identity.
 		return OCIRegistryRepositoryRow{}, false, nil
 	}
 	return OCIRegistryRepositoryRow{
 		UID:              repositoryID,
-		Provider:         ociDerefString(repository.Provider),
-		Registry:         ociDerefString(repository.Registry),
-		Repository:       ociDerefString(repository.Repository),
-		Visibility:       ociDerefString(repository.Visibility),
-		AuthMode:         ociDerefString(repository.AuthMode),
+		Provider:         OCIDerefString(repository.Provider),
+		Registry:         OCIDerefString(repository.Registry),
+		Repository:       OCIDerefString(repository.Repository),
+		Visibility:       OCIDerefString(repository.Visibility),
+		AuthMode:         OCIDerefString(repository.AuthMode),
 		SourceFactID:     envelope.FactID,
 		StableFactKey:    envelope.StableFactKey,
 		SourceSystem:     ociRegistrySourceSystem(envelope),
@@ -248,19 +248,19 @@ func ociRegistryRepositoryRow(envelope facts.Envelope) (OCIRegistryRepositoryRow
 }
 
 func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool, error) {
-	manifest, err := decodeOCIImageManifest(envelope)
+	manifest, err := OCIImageManifest(envelope)
 	if err != nil {
 		return OCIImageManifestRow{}, false, err
 	}
 	repositoryID := strings.TrimSpace(manifest.RepositoryID)
 	digest := strings.TrimSpace(manifest.Digest)
-	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(manifest.DescriptorID))
+	uid := ociResolvedDescriptorUID(repositoryID, digest, OCIDerefString(manifest.DescriptorID))
 	if uid == "" || digest == "" || repositoryID == "" {
 		// Present-but-empty (or whitespace-only) identity is a valid decode,
 		// distinct from an absent required key (already dead-lettered by the
 		// decode seam). Trim the identity keys before the gate so a
 		// whitespace-only digest/repository_id drops the row as non-materializable
-		// exactly as the pre-typing payloadString path did, never keying a
+		// exactly as the pre-typing PayloadString path did, never keying a
 		// descriptor row on an empty-after-trim graph identity.
 		return OCIImageManifestRow{}, false, nil
 	}
@@ -268,77 +268,77 @@ func ociImageManifestRow(envelope facts.Envelope) (OCIImageManifestRow, bool, er
 		UID:                  uid,
 		RepositoryID:         repositoryID,
 		Digest:               digest,
-		MediaType:            ociDerefString(manifest.MediaType),
-		SizeBytes:            ociDerefInt64(manifest.SizeBytes),
-		ArtifactType:         ociDerefString(manifest.ArtifactType),
-		SourceTag:            ociDerefString(manifest.SourceTag),
-		ConfigDigest:         ociDescriptorDigest(manifest.Config),
-		LayerDigests:         ociDescriptorSliceDigests(manifest.Layers),
+		MediaType:            OCIDerefString(manifest.MediaType),
+		SizeBytes:            OCIDerefInt64(manifest.SizeBytes),
+		ArtifactType:         OCIDerefString(manifest.ArtifactType),
+		SourceTag:            OCIDerefString(manifest.SourceTag),
+		ConfigDigest:         OCIDescriptorDigest(manifest.Config),
+		LayerDigests:         OCIDescriptorSliceDigests(manifest.Layers),
 		SourceFactID:         envelope.FactID,
 		StableFactKey:        envelope.StableFactKey,
 		SourceSystem:         ociRegistrySourceSystem(envelope),
 		SourceRecordID:       envelope.SourceRef.SourceRecordID,
 		SourceConfidence:     envelope.SourceConfidence,
 		CollectorKind:        envelope.CollectorKind,
-		CorrelationAnchors:   ociSortedTrimmedAnchors(manifest.CorrelationAnchors),
-		CollectorInstanceID:  ociDerefString(manifest.CollectorInstanceID),
+		CorrelationAnchors:   OCISortedTrimmedAnchors(manifest.CorrelationAnchors),
+		CollectorInstanceID:  OCIDerefString(manifest.CollectorInstanceID),
 		ResolvedDescriptorID: uid,
 		ObservedAt:           envelope.ObservedAt,
 	}, true, nil
 }
 
 func ociImageIndexRow(envelope facts.Envelope) (OCIImageIndexRow, bool, error) {
-	index, err := decodeOCIImageIndex(envelope)
+	index, err := OCIImageIndex(envelope)
 	if err != nil {
 		return OCIImageIndexRow{}, false, err
 	}
 	repositoryID := strings.TrimSpace(index.RepositoryID)
 	digest := strings.TrimSpace(index.Digest)
-	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(index.DescriptorID))
+	uid := ociResolvedDescriptorUID(repositoryID, digest, OCIDerefString(index.DescriptorID))
 	if uid == "" || digest == "" || repositoryID == "" {
 		// Whitespace-only identity drops the row as non-materializable, matching
-		// the pre-typing payloadString trim (see ociImageManifestRow).
+		// the pre-typing PayloadString trim (see ociImageManifestRow).
 		return OCIImageIndexRow{}, false, nil
 	}
 	return OCIImageIndexRow{
 		UID:                uid,
 		RepositoryID:       repositoryID,
 		Digest:             digest,
-		MediaType:          ociDerefString(index.MediaType),
-		SizeBytes:          ociDerefInt64(index.SizeBytes),
-		ArtifactType:       ociDerefString(index.ArtifactType),
-		ManifestDigests:    ociDescriptorSliceDigests(index.Manifests),
+		MediaType:          OCIDerefString(index.MediaType),
+		SizeBytes:          OCIDerefInt64(index.SizeBytes),
+		ArtifactType:       OCIDerefString(index.ArtifactType),
+		ManifestDigests:    OCIDescriptorSliceDigests(index.Manifests),
 		SourceFactID:       envelope.FactID,
 		StableFactKey:      envelope.StableFactKey,
 		SourceSystem:       ociRegistrySourceSystem(envelope),
 		SourceRecordID:     envelope.SourceRef.SourceRecordID,
 		SourceConfidence:   envelope.SourceConfidence,
 		CollectorKind:      envelope.CollectorKind,
-		CorrelationAnchors: ociSortedTrimmedAnchors(index.CorrelationAnchors),
+		CorrelationAnchors: OCISortedTrimmedAnchors(index.CorrelationAnchors),
 		ObservedAt:         envelope.ObservedAt,
 	}, true, nil
 }
 
 func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool, error) {
-	descriptor, err := decodeOCIImageDescriptor(envelope)
+	descriptor, err := OCIImageDescriptor(envelope)
 	if err != nil {
 		return OCIImageDescriptorRow{}, false, err
 	}
 	repositoryID := strings.TrimSpace(descriptor.RepositoryID)
 	digest := strings.TrimSpace(descriptor.Digest)
-	uid := ociResolvedDescriptorUID(repositoryID, digest, ociDerefString(descriptor.DescriptorID))
+	uid := ociResolvedDescriptorUID(repositoryID, digest, OCIDerefString(descriptor.DescriptorID))
 	if uid == "" || digest == "" || repositoryID == "" {
 		// Whitespace-only identity drops the row as non-materializable, matching
-		// the pre-typing payloadString trim (see ociImageManifestRow).
+		// the pre-typing PayloadString trim (see ociImageManifestRow).
 		return OCIImageDescriptorRow{}, false, nil
 	}
 	return OCIImageDescriptorRow{
 		UID:              uid,
 		RepositoryID:     repositoryID,
 		Digest:           digest,
-		MediaType:        ociDerefString(descriptor.MediaType),
-		SizeBytes:        ociDerefInt64(descriptor.SizeBytes),
-		ArtifactType:     ociDerefString(descriptor.ArtifactType),
+		MediaType:        OCIDerefString(descriptor.MediaType),
+		SizeBytes:        OCIDerefInt64(descriptor.SizeBytes),
+		ArtifactType:     OCIDerefString(descriptor.ArtifactType),
 		SourceFactID:     envelope.FactID,
 		StableFactKey:    envelope.StableFactKey,
 		SourceSystem:     ociRegistrySourceSystem(envelope),
@@ -350,7 +350,7 @@ func ociImageDescriptorRow(envelope facts.Envelope) (OCIImageDescriptorRow, bool
 }
 
 func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationRow, bool, error) {
-	observation, err := decodeOCIImageTagObservation(envelope)
+	observation, err := OCIImageTagObservation(envelope)
 	if err != nil {
 		return OCIImageTagObservationRow{}, false, err
 	}
@@ -359,10 +359,10 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 	resolvedDigest := strings.TrimSpace(observation.ResolvedDigest)
 	if repositoryID == "" || tag == "" || resolvedDigest == "" {
 		// Whitespace-only identity drops the row as non-materializable, matching
-		// the pre-typing payloadString trim (see ociImageManifestRow).
+		// the pre-typing PayloadString trim (see ociImageManifestRow).
 		return OCIImageTagObservationRow{}, false, nil
 	}
-	identityStrength := ociDerefString(observation.IdentityStrength)
+	identityStrength := OCIDerefString(observation.IdentityStrength)
 	if identityStrength == "" {
 		identityStrength = "weak_tag"
 	}
@@ -373,9 +373,9 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 		Tag:                   tag,
 		ResolvedDigest:        resolvedDigest,
 		ResolvedDescriptorUID: ociDescriptorUID(repositoryID, resolvedDigest),
-		MediaType:             ociDerefString(observation.MediaType),
-		PreviousDigest:        ociDerefString(observation.PreviousDigest),
-		Mutated:               ociDerefBool(observation.Mutated),
+		MediaType:             OCIDerefString(observation.MediaType),
+		PreviousDigest:        OCIDerefString(observation.PreviousDigest),
+		Mutated:               OCIDerefBool(observation.Mutated),
 		IdentityStrength:      identityStrength,
 		SourceFactID:          envelope.FactID,
 		StableFactKey:         envelope.StableFactKey,
@@ -388,7 +388,7 @@ func ociImageTagObservationRow(envelope facts.Envelope) (OCIImageTagObservationR
 }
 
 func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool, error) {
-	referrer, err := decodeOCIImageReferrer(envelope)
+	referrer, err := OCIImageReferrer(envelope)
 	if err != nil {
 		return OCIImageReferrerRow{}, false, err
 	}
@@ -397,19 +397,19 @@ func ociImageReferrerRow(envelope facts.Envelope) (OCIImageReferrerRow, bool, er
 	referrerDigest := strings.TrimSpace(referrer.ReferrerDigest)
 	if repositoryID == "" || subjectDigest == "" || referrerDigest == "" {
 		// Whitespace-only identity drops the row as non-materializable, matching
-		// the pre-typing payloadString trim (see ociImageManifestRow).
+		// the pre-typing PayloadString trim (see ociImageManifestRow).
 		return OCIImageReferrerRow{}, false, nil
 	}
 	return OCIImageReferrerRow{
 		UID:               ociRegistryUID("referrer", repositoryID, subjectDigest, referrerDigest),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     subjectDigest,
-		SubjectMediaType:  ociDerefString(referrer.SubjectMediaType),
+		SubjectMediaType:  OCIDerefString(referrer.SubjectMediaType),
 		ReferrerDigest:    referrerDigest,
-		ReferrerMediaType: ociDerefString(referrer.ReferrerMediaType),
-		ArtifactType:      ociDerefString(referrer.ArtifactType),
-		SizeBytes:         ociDerefInt64(referrer.SizeBytes),
-		SourceAPIPath:     ociDerefString(referrer.SourceAPIPath),
+		ReferrerMediaType: OCIDerefString(referrer.ReferrerMediaType),
+		ArtifactType:      OCIDerefString(referrer.ArtifactType),
+		SizeBytes:         OCIDerefInt64(referrer.SizeBytes),
+		SourceAPIPath:     OCIDerefString(referrer.SourceAPIPath),
 		SourceFactID:      envelope.FactID,
 		StableFactKey:     envelope.StableFactKey,
 		SourceSystem:      ociRegistrySourceSystem(envelope),

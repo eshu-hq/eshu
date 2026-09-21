@@ -62,7 +62,7 @@ func BenchmarkBuildCanonicalMaterializationWithImports(b *testing.B) {
 		b.Run(fmt.Sprintf("files=%d", files), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				mat, _ := buildCanonicalMaterialization(testScope(), testGeneration(), envelopes)
+				mat, _ := BuildMaterialization(testScope(), testGeneration(), envelopes)
 				if len(mat.Imports) == 0 {
 					b.Fatal("no imports materialized")
 				}

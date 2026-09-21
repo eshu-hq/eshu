@@ -133,12 +133,12 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 	//
 	// projection.quarantinedFacts is the MERGED slice across every typed
 	// canonical extractor (terraform_state, oci_registry, ...), so each fact is
-	// grouped by its OWN originating stage (quarantinedFactStage) before
+	// grouped by its OWN originating stage (QuarantinedFactStage) before
 	// recording — a single hardcoded stage label here would misattribute, for
 	// example, a terraform_state quarantine to the oci_registry_canonical stage
 	// in both the metric and the structured log an operator reads at 3am.
-	for stage, group := range groupQuarantinedFactsByStage(projection.quarantinedFacts) {
-		recordProjectorQuarantinedFacts(
+	for stage, group := range GroupQuarantinedFactsByStage(projection.quarantinedFacts) {
+		RecordQuarantinedFacts(
 			ctx, r.Instruments, stage,
 			scopeValue.ScopeID, generation.GenerationID, group,
 		)
@@ -235,7 +235,7 @@ type projection struct {
 	// quarantinedFacts are the facts a typed canonical extractor skipped during
 	// decode because a required identity field was missing or null. Project
 	// records them as visible input_invalid dead-letters; they are not projected.
-	quarantinedFacts []quarantinedFact
+	quarantinedFacts []QuarantinedFact
 }
 
 func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (projection, error) {
@@ -260,10 +260,10 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	intents := make([]ReducerIntent, 0, len(inputFacts))
 	for i := range inputFacts {
 		// fact borrows inputFacts[i] instead of deep-cloning it: every consumer
-		// below (validateFactBoundary, validateFactSchemaVersion,
-		// buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
+		// below (validateFactBoundary, ValidateFactSchemaVersion,
+		// BuildContentRecord, BuildContentEntityRecord, buildRepositoryRefs,
 		// projectorentity.BuildSemanticEntityReducerIntent,
-		// buildReducerIntent) only reads
+		// BuildReducerIntent) only reads
 		// fact.Payload/fact.SourceRef, so it is safe to share the caller's
 		// Payload map read-only across this loop. Consumers in this loop MUST
 		// NOT mutate fact.Payload (or retain a long-lived alias into it) — doing
@@ -274,15 +274,15 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
 			return projection{}, err
 		}
-		if err := validateFactSchemaVersion(fact); err != nil {
+		if err := ValidateFactSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
 
 		if materializeContent {
-			if record, ok := buildContentRecord(fact); ok {
+			if record, ok := BuildContentRecord(fact); ok {
 				contentMaterialization.Records = append(contentMaterialization.Records, record)
 			}
-			if entity, ok := buildContentEntityRecord(repoID, fact); ok {
+			if entity, ok := BuildContentEntityRecord(repoID, fact); ok {
 				contentMaterialization.Entities = append(contentMaterialization.Entities, entity)
 			}
 			if refs := buildRepositoryRefs(fact); len(refs) > 0 {
@@ -292,7 +292,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
-		if intent, ok := buildReducerIntent(fact); ok {
+		if intent, ok := BuildReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
 	}
@@ -311,7 +311,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	})
 
 	// Build canonical materialization for Neo4j graph writes.
-	canonical, quarantined := buildCanonicalMaterialization(scopeValue, generation, inputFacts)
+	canonical, quarantined := BuildMaterialization(scopeValue, generation, inputFacts)
 
 	return projection{
 		canonical:              canonical,
@@ -340,45 +340,55 @@ func validateFactBoundary(scopeValue scope.IngestionScope, generation scope.Scop
 	return nil
 }
 
-func buildContentRecord(fact facts.Envelope) (content.Record, bool) {
-	path, ok := payloadString(fact.Payload, "content_path")
+// BuildContentRecord converts a file-observed fact into the content record the
+// content store persists. The second result is false when the fact carries no
+// content_path, or carries neither a content_body nor a content_digest, so a
+// fact that only describes a path is not mistaken for content. A tombstone fact
+// produces a record marked Deleted rather than being skipped.
+func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
+	path, ok := PayloadString(fact.Payload, "content_path")
 	if !ok {
 		return content.Record{}, false
 	}
-	if !payloadHasKey(fact.Payload, "content_body") && !payloadHasKey(fact.Payload, "content_digest") {
+	if !PayloadHasKey(fact.Payload, "content_body") && !PayloadHasKey(fact.Payload, "content_digest") {
 		return content.Record{}, false
 	}
 
-	body, _ := payloadString(fact.Payload, "content_body")
-	digest, _ := payloadString(fact.Payload, "content_digest")
+	body, _ := PayloadString(fact.Payload, "content_body")
+	digest, _ := PayloadString(fact.Payload, "content_digest")
 
 	return content.Record{
 		Path:     path,
 		Body:     body,
 		Digest:   digest,
 		Deleted:  fact.IsTombstone,
-		Metadata: payloadAttributes(fact.Payload, "content_path", "content_body", "content_digest"),
+		Metadata: PayloadAttributes(fact.Payload, "content_path", "content_body", "content_digest"),
 	}, true
 }
 
-func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.EntityRecord, bool) {
-	relativePath, ok := payloadString(fact.Payload, "content_path")
+// BuildContentEntityRecord converts a parsed-entity fact into the entity record
+// the content store persists, resolving the entity's path from content_path,
+// relative_path, or path in that order. The second result is false when the fact
+// carries none of them, because an entity record with no path cannot be
+// addressed on read.
+func BuildContentEntityRecord(repoID string, fact facts.Envelope) (content.EntityRecord, bool) {
+	relativePath, ok := PayloadString(fact.Payload, "content_path")
 	if !ok {
-		relativePath, ok = payloadString(fact.Payload, "relative_path")
+		relativePath, ok = PayloadString(fact.Payload, "relative_path")
 	}
 	if !ok {
-		relativePath, ok = payloadString(fact.Payload, "path")
+		relativePath, ok = PayloadString(fact.Payload, "path")
 	}
 	if !ok {
 		return content.EntityRecord{}, false
 	}
 
-	entityType, ok := payloadString(fact.Payload, "entity_kind")
+	entityType, ok := PayloadString(fact.Payload, "entity_kind")
 	if !ok {
-		entityType, ok = payloadString(fact.Payload, "entity_type")
+		entityType, ok = PayloadString(fact.Payload, "entity_type")
 	}
 	if !ok {
-		entityType, ok = payloadString(fact.Payload, "sql_entity_type")
+		entityType, ok = PayloadString(fact.Payload, "sql_entity_type")
 	}
 	if !ok {
 		entityType = fact.FactKind
@@ -387,36 +397,36 @@ func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 		return content.EntityRecord{}, false
 	}
 
-	entityName, ok := payloadString(fact.Payload, "entity_name")
+	entityName, ok := PayloadString(fact.Payload, "entity_name")
 	if !ok {
-		entityName, ok = payloadString(fact.Payload, "name")
+		entityName, ok = PayloadString(fact.Payload, "name")
 	}
 	if !ok {
 		return content.EntityRecord{}, false
 	}
 
-	startLine, ok := payloadInt(fact.Payload, "start_line")
+	startLine, ok := PayloadInt(fact.Payload, "start_line")
 	if !ok {
-		startLine, ok = payloadInt(fact.Payload, "line_number")
+		startLine, ok = PayloadInt(fact.Payload, "line_number")
 	}
 	if !ok || startLine <= 0 {
 		startLine = 1
 	}
 
-	endLine, ok := payloadInt(fact.Payload, "end_line")
+	endLine, ok := PayloadInt(fact.Payload, "end_line")
 	if !ok || endLine < startLine {
 		endLine = startLine
 	}
 
-	startByte := payloadIntPtr(fact.Payload, "start_byte")
-	endByte := payloadIntPtr(fact.Payload, "end_byte")
-	language, _ := payloadString(fact.Payload, "language")
+	startByte := PayloadIntPtr(fact.Payload, "start_byte")
+	endByte := PayloadIntPtr(fact.Payload, "end_byte")
+	language, _ := PayloadString(fact.Payload, "language")
 	if language == "" {
-		language, _ = payloadString(fact.Payload, "lang")
+		language, _ = PayloadString(fact.Payload, "lang")
 	}
-	artifactType, _ := payloadString(fact.Payload, "artifact_type")
-	templateDialect, _ := payloadString(fact.Payload, "template_dialect")
-	iacRelevant := payloadBoolPtr(fact.Payload, "iac_relevant")
+	artifactType, _ := PayloadString(fact.Payload, "artifact_type")
+	templateDialect, _ := PayloadString(fact.Payload, "template_dialect")
+	iacRelevant := PayloadBoolPtr(fact.Payload, "iac_relevant")
 	// metadata is computed once and shared by the entity_id mint fallback
 	// below and the record's Metadata field, so both agree on exactly the
 	// same view of the payload's dependency-identity keys (section,
@@ -426,12 +436,12 @@ func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 	// replayed old cassettes, non-git producers) — precisely the path where
 	// divergent minting between here and the shape.Materialize mint site
 	// would silently corrupt identity, so the two MUST stay in lockstep.
-	metadata := entityMetadataFromPayload(fact.Payload)
-	entityID, ok := payloadString(fact.Payload, "entity_id")
+	metadata := EntityMetadataFromPayload(fact.Payload)
+	entityID, ok := PayloadString(fact.Payload, "entity_id")
 	if !ok {
 		entityID = content.CanonicalEntityIDWithMetadata(repoID, relativePath, entityType, entityName, startLine, metadata)
 	}
-	sourceCache, _ := payloadString(fact.Payload, "source_cache")
+	sourceCache, _ := PayloadString(fact.Payload, "source_cache")
 
 	return content.EntityRecord{
 		EntityID:        entityID,

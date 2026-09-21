@@ -11,12 +11,12 @@ import (
 
 // TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage is the
 // regression for the misattribution bug a typed-decode migration would
-// otherwise introduce: buildCanonicalMaterialization merges quarantined facts
+// otherwise introduce: BuildMaterialization merges quarantined facts
 // from EVERY typed canonical extractor into one slice (terraform_state,
 // oci_registry, and package_registry today), so a caller recording the visible
 // input_invalid dead-letter must attribute each fact to the STAGE THAT ACTUALLY
 // QUARANTINED IT, not a single hardcoded label. Before the terraform_state fix,
-// runtime.go recorded the entire merged slice under ociRegistryCanonicalStage
+// runtime.go recorded the entire merged slice under OCIRegistryCanonicalStage
 // unconditionally — a terraform_state quarantine would have been mislabeled as
 // an oci_registry_canonical failure in both the
 // eshu_dp_projector_input_invalid_facts_total metric and the structured error
@@ -26,7 +26,7 @@ import (
 func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T) {
 	t.Parallel()
 
-	merged := []quarantinedFact{
+	merged := []QuarantinedFact{
 		{factID: "tf-1", factKind: facts.TerraformStateResourceFactKind, field: "address"},
 		{factID: "oci-1", factKind: facts.OCIImageManifestFactKind, field: "digest"},
 		{factID: "tf-2", factKind: facts.TerraformStateTagObservationFactKind, field: "resource_address"},
@@ -34,15 +34,15 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 		{factID: "code-1", factKind: FactKindFileObserved, field: "relative_path"},
 	}
 
-	grouped := groupQuarantinedFactsByStage(merged)
+	grouped := GroupQuarantinedFactsByStage(merged)
 
 	if len(grouped) != 4 {
 		t.Fatalf("len(grouped) = %d, want 4 (terraform_state_canonical + oci_registry_canonical + package_registry_canonical + codegraph_canonical); got %+v", len(grouped), grouped)
 	}
 
-	tfGroup := grouped[terraformStateCanonicalStage]
+	tfGroup := grouped[TerraformStateCanonicalStage]
 	if len(tfGroup) != 2 {
-		t.Fatalf("len(grouped[%q]) = %d, want 2", terraformStateCanonicalStage, len(tfGroup))
+		t.Fatalf("len(grouped[%q]) = %d, want 2", TerraformStateCanonicalStage, len(tfGroup))
 	}
 	for _, q := range tfGroup {
 		if q.factID != "tf-1" && q.factID != "tf-2" {
@@ -50,25 +50,25 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 		}
 	}
 
-	ociGroup := grouped[ociRegistryCanonicalStage]
+	ociGroup := grouped[OCIRegistryCanonicalStage]
 	if len(ociGroup) != 1 {
-		t.Fatalf("len(grouped[%q]) = %d, want 1", ociRegistryCanonicalStage, len(ociGroup))
+		t.Fatalf("len(grouped[%q]) = %d, want 1", OCIRegistryCanonicalStage, len(ociGroup))
 	}
 	if ociGroup[0].factID != "oci-1" {
 		t.Fatalf("oci_registry_canonical group carries fact %q, want oci-1; a sibling family's fact must not be misattributed to this stage", ociGroup[0].factID)
 	}
 
-	pkgGroup := grouped[packageRegistryCanonicalStage]
+	pkgGroup := grouped[PackageRegistryCanonicalStage]
 	if len(pkgGroup) != 1 {
-		t.Fatalf("len(grouped[%q]) = %d, want 1", packageRegistryCanonicalStage, len(pkgGroup))
+		t.Fatalf("len(grouped[%q]) = %d, want 1", PackageRegistryCanonicalStage, len(pkgGroup))
 	}
 	if pkgGroup[0].factID != "pkg-1" {
 		t.Fatalf("package_registry_canonical group carries fact %q, want pkg-1; a sibling family's fact must not be misattributed to this stage", pkgGroup[0].factID)
 	}
 
-	codegraphGroup := grouped[codegraphCanonicalStage]
+	codegraphGroup := grouped[CodegraphCanonicalStage]
 	if len(codegraphGroup) != 1 {
-		t.Fatalf("len(grouped[%q]) = %d, want 1", codegraphCanonicalStage, len(codegraphGroup))
+		t.Fatalf("len(grouped[%q]) = %d, want 1", CodegraphCanonicalStage, len(codegraphGroup))
 	}
 	if codegraphGroup[0].factID != "code-1" {
 		t.Fatalf("codegraph_canonical group carries fact %q, want code-1; a sibling family's fact must not be misattributed to this stage", codegraphGroup[0].factID)
@@ -76,16 +76,16 @@ func TestGroupQuarantinedFactsByStageRoutesEachFamilyToItsOwnStage(t *testing.T)
 }
 
 // TestGroupQuarantinedFactsByStageEmptyIsNil proves the empty-input no-op:
-// recordProjectorQuarantinedFacts is safe to call zero times when nothing was
+// RecordQuarantinedFacts is safe to call zero times when nothing was
 // quarantined (the common case), matching the pre-existing nil-safe contract.
 func TestGroupQuarantinedFactsByStageEmptyIsNil(t *testing.T) {
 	t.Parallel()
 
-	if got := groupQuarantinedFactsByStage(nil); got != nil {
-		t.Fatalf("groupQuarantinedFactsByStage(nil) = %+v, want nil", got)
+	if got := GroupQuarantinedFactsByStage(nil); got != nil {
+		t.Fatalf("GroupQuarantinedFactsByStage(nil) = %+v, want nil", got)
 	}
-	if got := groupQuarantinedFactsByStage([]quarantinedFact{}); got != nil {
-		t.Fatalf("groupQuarantinedFactsByStage(empty) = %+v, want nil", got)
+	if got := GroupQuarantinedFactsByStage([]QuarantinedFact{}); got != nil {
+		t.Fatalf("GroupQuarantinedFactsByStage(empty) = %+v, want nil", got)
 	}
 }
 
@@ -102,15 +102,15 @@ func TestQuarantinedFactStageRoutesAndFallsBack(t *testing.T) {
 		factKind  string
 		wantStage string
 	}{
-		{facts.PackageRegistryPackageFactKind, packageRegistryCanonicalStage},
-		{facts.PackageRegistryPackageDependencyFactKind, packageRegistryCanonicalStage},
-		{facts.TerraformStateResourceFactKind, terraformStateCanonicalStage},
-		{facts.OCIImageManifestFactKind, ociRegistryCanonicalStage},
-		{facts.OCIRegistryRepositoryFactKind, ociRegistryCanonicalStage},
-		{FactKindFileObserved, codegraphCanonicalStage},
-		{"fileFact", codegraphCanonicalStage},
-		{FactKindRepositoryObserved, codegraphCanonicalStage},
-		{"repositoryFact", codegraphCanonicalStage},
+		{facts.PackageRegistryPackageFactKind, PackageRegistryCanonicalStage},
+		{facts.PackageRegistryPackageDependencyFactKind, PackageRegistryCanonicalStage},
+		{facts.TerraformStateResourceFactKind, TerraformStateCanonicalStage},
+		{facts.OCIImageManifestFactKind, OCIRegistryCanonicalStage},
+		{facts.OCIRegistryRepositoryFactKind, OCIRegistryCanonicalStage},
+		{FactKindFileObserved, CodegraphCanonicalStage},
+		{"fileFact", CodegraphCanonicalStage},
+		{FactKindRepositoryObserved, CodegraphCanonicalStage},
+		{"repositoryFact", CodegraphCanonicalStage},
 		// A fact kind no prefix matches must fall back to the distinct unknown
 		// stage, never to any family's own label.
 		{"some_unwired_future_family.thing", unknownCanonicalStage},
@@ -121,8 +121,8 @@ func TestQuarantinedFactStageRoutesAndFallsBack(t *testing.T) {
 	// this ordered slice fixes): every iteration must return the same stage.
 	for i := 0; i < 64; i++ {
 		for _, tc := range cases {
-			if got := quarantinedFactStage(tc.factKind); got != tc.wantStage {
-				t.Fatalf("quarantinedFactStage(%q) = %q, want %q (iteration %d)", tc.factKind, got, tc.wantStage, i)
+			if got := QuarantinedFactStage(tc.factKind); got != tc.wantStage {
+				t.Fatalf("QuarantinedFactStage(%q) = %q, want %q (iteration %d)", tc.factKind, got, tc.wantStage, i)
 			}
 		}
 	}

@@ -24,11 +24,11 @@ import (
 // §3.2). It introduces the typed-decode seam into the projector's canonical
 // extractors for the first time. It is deliberately NOT oci-specific: the
 // terraform_state canonical extractor (and any future typed projector family)
-// reuses partitionProjectorDecodeFailures / recordQuarantinedFacts / factschemaEnvelope
+// reuses PartitionFailures / recordQuarantinedFacts / factschemaEnvelope
 // verbatim, so the per-fact fault-isolation contract is defined once.
 //
 // Why per-fact quarantine, not a whole-work-item fail: the projector's
-// buildCanonicalMaterialization builds one repository generation's entire graph
+// BuildMaterialization builds one repository generation's entire graph
 // (files, entities, terraform, packages, oci) and returns no error per fact. A
 // malformed oci fact must NOT fail that whole build — that would drop every
 // valid file/entity/package for the repo, an accuracy regression far worse than
@@ -37,7 +37,7 @@ import (
 // every valid fact, OCI and non-OCI. This mirrors the reducer's proven
 // per-fact model.
 
-// projectorDecodeError wraps a classified *factschema.DecodeError so the
+// Error wraps a classified *factschema.DecodeError so the
 // projector's quarantine path can read the missing field and classification.
 // Unlike the reducer's factDecodeError it is not wired into a durable
 // queue-failure interface: a quarantined projector fact is recorded as a
@@ -47,7 +47,7 @@ import (
 // FailureClassInputInvalid ("input_invalid") by the by-value contract Contract
 // System v1 mandates (the contracts module cannot import go/internal, so the
 // projector maps the classification by value).
-type projectorDecodeError struct {
+type Error struct {
 	// factKind is the fact kind that failed to decode, for the error message.
 	factKind string
 	// err is the underlying classified *factschema.DecodeError.
@@ -56,27 +56,27 @@ type projectorDecodeError struct {
 
 // Error implements the error interface, naming the fact kind and the underlying
 // classified decode failure.
-func (e *projectorDecodeError) Error() string {
+func (e *Error) Error() string {
 	return fmt.Sprintf("decode %s payload: %s", e.factKind, e.err.Error())
 }
 
 // Unwrap exposes the underlying *factschema.DecodeError so errors.As/errors.Is
 // can reach it (and its ErrUnsupportedSchemaMajor sentinel).
-func (e *projectorDecodeError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.err
 }
 
-// newProjectorDecodeError wraps a decode error returned by a factschema Decode*
+// NewError wraps a decode error returned by a factschema Decode*
 // function into the projector's classified decode failure. It expects a
 // *factschema.DecodeError (the only error the Decode* seam returns); a
 // different error is still wrapped with the input_invalid classification so the
 // fact is quarantined rather than mistaken for a valid decode.
-func newProjectorDecodeError(factKind string, err error) *projectorDecodeError {
+func NewError(factKind string, err error) *Error {
 	var decodeErr *factschema.DecodeError
 	if errors.As(err, &decodeErr) {
-		return &projectorDecodeError{factKind: factKind, err: decodeErr}
+		return &Error{factKind: factKind, err: decodeErr}
 	}
-	return &projectorDecodeError{
+	return &Error{
 		factKind: factKind,
 		err: &factschema.DecodeError{
 			FactKind:       factKind,
@@ -86,14 +86,14 @@ func newProjectorDecodeError(factKind string, err error) *projectorDecodeError {
 	}
 }
 
-// quarantinedFact records one fact a projector canonical extractor could not
+// QuarantinedFact records one fact a projector canonical extractor could not
 // decode because its payload was missing a required field (an input_invalid
 // decode failure). The extractor skips it (still projecting every valid fact in
 // the batch) and returns it so the caller can emit a visible, per-fact
 // dead-letter — a metric increment plus a structured error log naming the fact
 // and field — rather than silently dropping the fact as the pre-typing
 // extractor did.
-type quarantinedFact struct {
+type QuarantinedFact struct {
 	// factID is the durable fact identifier of the malformed fact, so an
 	// operator can locate the exact fact in fact_records.
 	factID string
@@ -103,16 +103,16 @@ type quarantinedFact struct {
 	field string
 	// classification is the decode classification (always input_invalid for a
 	// quarantined fact; a non-input_invalid error is returned fatally by
-	// partitionProjectorDecodeFailures).
+	// PartitionFailures).
 	classification string
 }
 
-// partitionProjectorDecodeFailures is the single classifier every projector canonical
+// PartitionFailures is the single classifier every projector canonical
 // extractor routes a decode error through. It enforces the projector fault-
 // isolation contract, mirroring the reducer's partitionDecodeFailures:
 //
-//   - A *projectorDecodeError with ClassificationInputInvalid (a missing/null
-//     required field) is QUARANTINABLE: it returns a quarantinedFact and true,
+//   - A *Error with ClassificationInputInvalid (a missing/null
+//     required field) is QUARANTINABLE: it returns a QuarantinedFact and true,
 //     so the extractor skips that one fact and keeps projecting the rest. The
 //     fact is non-retryable — replaying it unchanged can never succeed — so
 //     dropping it and recording it as a visible dead-letter is correct, not a
@@ -126,22 +126,22 @@ type quarantinedFact struct {
 // Routing every decode error through this ONE helper stops a future family
 // migration from inline `if err != nil { skip }` swallowing a real error — the
 // "swallow failures" sin the Life Motto forbids.
-func partitionProjectorDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
-	var decodeErr *projectorDecodeError
+func PartitionFailures(env facts.Envelope, err error) (QuarantinedFact, bool, error) {
+	var decodeErr *Error
 	if errors.As(err, &decodeErr) &&
 		decodeErr.err.Classification == factschema.ClassificationInputInvalid &&
 		!errors.Is(err, factschema.ErrUnsupportedSchemaMajor) {
-		return quarantinedFact{
+		return QuarantinedFact{
 			factID:         env.FactID,
 			factKind:       env.FactKind,
 			field:          decodeErr.err.Field,
 			classification: decodeErr.err.Classification,
 		}, true, nil
 	}
-	return quarantinedFact{}, false, err
+	return QuarantinedFact{}, false, err
 }
 
-// recordProjectorQuarantinedFacts emits the visible, operator-diagnosable
+// RecordQuarantinedFacts emits the visible, operator-diagnosable
 // dead-letter for each fact a projector canonical extractor quarantined during
 // decode: it increments the eshu_dp_projector_input_invalid_facts_total counter
 // (labeled by stage and fact_kind) and logs one structured error per fact
@@ -152,12 +152,12 @@ func partitionProjectorDecodeFailures(env facts.Envelope, err error) (quarantine
 // It is safe to call with a nil instruments pointer (the counter is skipped,
 // the logs still emit) and with an empty slice (a no-op returning 0). stage is
 // the bounded projector extractor label (for example "oci_registry_canonical").
-func recordProjectorQuarantinedFacts(
+func RecordQuarantinedFacts(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
 	stage string,
 	scopeID, generationID string,
-	quarantined []quarantinedFact,
+	quarantined []QuarantinedFact,
 ) int {
 	for _, q := range quarantined {
 		if instruments != nil && instruments.ProjectorInputInvalidFacts != nil {
@@ -189,32 +189,32 @@ func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
 	return factenvelope.FactSchemaFromInternal(env)
 }
 
-// groupQuarantinedFactsByStage partitions a MERGED quarantinedFact slice — as
-// buildCanonicalMaterialization returns, appending across every typed
+// GroupQuarantinedFactsByStage partitions a MERGED QuarantinedFact slice — as
+// BuildMaterialization returns, appending across every typed
 // canonical extractor — by each fact's own originating stage label
-// (quarantinedFactStage), so a caller recording the visible input_invalid
+// (QuarantinedFactStage), so a caller recording the visible input_invalid
 // dead-letter attributes each fact to the extractor that actually quarantined
 // it rather than a single hardcoded stage borrowed from whichever family
-// happened to be migrated first. Grouping (rather than tagging quarantinedFact
+// happened to be migrated first. Grouping (rather than tagging QuarantinedFact
 // with a stage field) keeps the fact-kind-to-stage mapping in one place instead
 // of every extractor call site.
-func groupQuarantinedFactsByStage(quarantined []quarantinedFact) map[string][]quarantinedFact {
+func GroupQuarantinedFactsByStage(quarantined []QuarantinedFact) map[string][]QuarantinedFact {
 	if len(quarantined) == 0 {
 		return nil
 	}
-	grouped := make(map[string][]quarantinedFact, 3)
+	grouped := make(map[string][]QuarantinedFact, 3)
 	for _, q := range quarantined {
-		stage := quarantinedFactStage(q.factKind)
+		stage := QuarantinedFactStage(q.factKind)
 		grouped[stage] = append(grouped[stage], q)
 	}
 	return grouped
 }
 
 // unknownCanonicalStage is the bounded fallback telemetry stage label
-// quarantinedFactStage returns when a fact kind matches no known prefix. It is
+// QuarantinedFactStage returns when a fact kind matches no known prefix. It is
 // a deliberate, distinct label rather than borrowing any one family's stage:
 // an unrecognized kind reaching the quarantine path means a NEW typed family
-// was wired into buildCanonicalMaterialization without a matching
+// was wired into BuildMaterialization without a matching
 // quarantinedFactStagePrefixes entry, and attributing its dead-letters to an
 // unrelated family (oci_registry, say) would mislead an operator. The label is
 // bounded (one constant), so it does not inflate metric cardinality.
@@ -228,7 +228,7 @@ type stagePrefix struct {
 }
 
 // quarantinedFactStagePrefixes is the ORDERED (longest-prefix-first)
-// prefix→stage table quarantinedFactStage matches against. Order is explicit
+// prefix→stage table QuarantinedFactStage matches against. Order is explicit
 // rather than relying on Go map iteration (which is randomized): the three
 // prefixes are mutually exclusive today, but a randomized map made the routing
 // non-deterministic against a future overlapping prefix, so the ordered slice
@@ -236,19 +236,19 @@ type stagePrefix struct {
 // specific prefix always wins over a shorter one that is its proper prefix. A
 // new typed family adds one entry here instead of another if/else branch.
 var quarantinedFactStagePrefixes = []stagePrefix{
-	{prefix: "package_registry.", stage: packageRegistryCanonicalStage},
-	{prefix: "terraform_state", stage: terraformStateCanonicalStage},
-	{prefix: "oci_registry.", stage: ociRegistryCanonicalStage},
-	{prefix: "repository", stage: codegraphCanonicalStage},
-	{prefix: "file", stage: codegraphCanonicalStage},
+	{prefix: "package_registry.", stage: PackageRegistryCanonicalStage},
+	{prefix: "terraform_state", stage: TerraformStateCanonicalStage},
+	{prefix: "oci_registry.", stage: OCIRegistryCanonicalStage},
+	{prefix: "repository", stage: CodegraphCanonicalStage},
+	{prefix: "file", stage: CodegraphCanonicalStage},
 }
 
-// quarantinedFactStage returns the bounded telemetry stage label for the
+// QuarantinedFactStage returns the bounded telemetry stage label for the
 // canonical extractor that owns factKind, matching quarantinedFactStagePrefixes
 // in order. An unrecognized kind returns unknownCanonicalStage — a distinct,
 // operator-honest label — rather than silently borrowing another family's
 // stage.
-func quarantinedFactStage(factKind string) string {
+func QuarantinedFactStage(factKind string) string {
 	for _, entry := range quarantinedFactStagePrefixes {
 		if strings.HasPrefix(factKind, entry.prefix) {
 			return entry.stage

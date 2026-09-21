@@ -22,17 +22,17 @@ func extractRepository(envelopes []facts.Envelope) *RepositoryRow {
 // decodable RepositoryObserved fact envelope. A fact missing a required typed
 // identity field is quarantined and skipped, so a valid sibling repository fact
 // can still set the materialization's repo identity and path.
-func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow, []quarantinedFact) {
+func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow, []QuarantinedFact) {
 	repoFacts := FilterRepositoryFacts(envelopes)
 	if len(repoFacts) == 0 {
 		return nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 	for i := range repoFacts {
-		repository, err := decodeCodegraphRepository(repoFacts[i])
+		repository, err := CodegraphRepository(repoFacts[i])
 		if err != nil {
-			q, isQuarantine, fatal := partitionProjectorDecodeFailures(repoFacts[i], err)
+			q, isQuarantine, fatal := PartitionFailures(repoFacts[i], err)
 			if fatal != nil {
 				continue
 			}
@@ -44,11 +44,11 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 
 		p := repoFacts[i].Payload
 		repoID := repository.RepoID
-		name := codegraphDerefString(repository.Name)
-		repoPath, _ := payloadString(p, "path")
-		localPath := codegraphDerefString(repository.LocalPath)
-		remoteURL := codegraphDerefString(repository.RemoteURL)
-		repoSlug := codegraphDerefString(repository.RepoSlug)
+		name := CodegraphDerefString(repository.Name)
+		repoPath, _ := PayloadString(p, "path")
+		localPath := CodegraphDerefString(repository.LocalPath)
+		remoteURL := CodegraphDerefString(repository.RemoteURL)
+		repoSlug := CodegraphDerefString(repository.RepoSlug)
 
 		// The collector does not emit "path" — fall back to local_path which is
 		// unique per repository and satisfies the Repository.path constraint.
@@ -61,7 +61,7 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 		// The collector does not emit "has_remote" — derive from remote_url
 		// presence which the collector sets when the repository has an origin.
 		hasRemote := false
-		if ptr := payloadBoolPtr(p, "has_remote"); ptr != nil {
+		if ptr := PayloadBoolPtr(p, "has_remote"); ptr != nil {
 			hasRemote = *ptr
 		} else {
 			hasRemote = remoteURL != ""
@@ -84,7 +84,7 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 // extractors that read the parser's per-file buckets out of parsed_file_data.
 //
 // It exists so those extractors do not decode the same file fact a second time.
-// decodeCodegraphFile runs a reflect-based typed decode per envelope; on a
+// CodegraphFile runs a reflect-based typed decode per envelope; on a
 // 2,000-file generation a second pass costs about 1ms and 7,900 allocations for
 // data extractFilesWithQuarantine already holds. Path and Language are carried
 // alongside so a consumer does not recompute the repo-qualified path either.
@@ -110,20 +110,20 @@ type parsedFileRef struct {
 // It also returns one parsedFileRef per materialized file, in the same order,
 // so the parsed_file_data extractors (currently the import extractor, issue
 // #5691) can read the parser buckets off an already-decoded file.
-func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []parsedFileRef, []quarantinedFact) {
+func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []parsedFileRef, []QuarantinedFact) {
 	fileFacts := FilterFileFacts(envelopes)
 	var rows []FileRow
 	var parsed []parsedFileRef
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 
 	for i := range fileFacts {
 		if fileFacts[i].IsTombstone {
 			continue
 		}
 
-		file, err := decodeCodegraphFile(fileFacts[i])
+		file, err := CodegraphFile(fileFacts[i])
 		if err != nil {
-			q, isQuarantine, fatal := partitionProjectorDecodeFailures(fileFacts[i], err)
+			q, isQuarantine, fatal := PartitionFailures(fileFacts[i], err)
 			if fatal != nil {
 				continue
 			}
@@ -140,12 +140,12 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 		if !isRepositoryLocalRelativePath(relativePath) {
 			// A fact that would have produced graph rows is being discarded,
 			// so it takes the package's visible dead-letter path rather than a
-			// bare skip: recordProjectorQuarantinedFacts turns this into the
+			// bare skip: RecordQuarantinedFacts turns this into the
 			// eshu_dp_projector_input_invalid_facts_total increment plus a
 			// structured error log naming the fact and relative_path. Without
 			// it, a file absent from the graph is indistinguishable from one
 			// the collector never emitted.
-			quarantined = append(quarantined, quarantinedFact{
+			quarantined = append(quarantined, QuarantinedFact{
 				factID:         fileFacts[i].FactID,
 				factKind:       fileFacts[i].FactKind,
 				field:          "relative_path",
@@ -156,7 +156,7 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		name := path.Base(relativePath)
-		language := codegraphDerefString(file.Language)
+		language := CodegraphDerefString(file.Language)
 		dirPath := path.Dir(fullPath)
 
 		rows = append(rows, FileRow{
@@ -204,7 +204,7 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 // malformed or hostile fact, so a rejected row is QUARANTINED rather than
 // skipped: it would otherwise have produced Directory and File rows, and an
 // operator needs to tell a fact this guard dropped from one that was never
-// emitted. The caller routes it through recordProjectorQuarantinedFacts on the
+// emitted. The caller routes it through RecordQuarantinedFacts on the
 // input_invalid counter and log, the same visible dead-letter a decode failure
 // takes. The empty-relative_path skip beside it stays silent: it materializes
 // nothing either way, so there is no missing row to explain.

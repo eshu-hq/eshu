@@ -14,7 +14,7 @@ func extractDeltaProjectionScope(envelopes []facts.Envelope, repoPath string) (b
 	if len(repoFacts) == 0 {
 		return false, nil, nil
 	}
-	delta := payloadBoolPtr(repoFacts[0].Payload, "delta_generation")
+	delta := PayloadBoolPtr(repoFacts[0].Payload, "delta_generation")
 	if delta == nil || !*delta {
 		return false, nil, nil
 	}
@@ -32,7 +32,7 @@ func extractReconciliationProjection(envelopes []facts.Envelope) bool {
 	if len(repoFacts) == 0 {
 		return false
 	}
-	reconcile := payloadBoolPtr(repoFacts[0].Payload, "reconciliation_generation")
+	reconcile := PayloadBoolPtr(repoFacts[0].Payload, "reconciliation_generation")
 	return reconcile != nil && *reconcile
 }
 

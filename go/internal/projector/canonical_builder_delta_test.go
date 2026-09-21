@@ -45,7 +45,7 @@ func TestBuildCanonicalMaterializationExtractsDeltaProjectionScope(t *testing.T)
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.DeltaProjection {
 		t.Fatal("DeltaProjection = false, want true")
@@ -79,7 +79,7 @@ func TestBuildCanonicalMaterializationExtractsReconciliationProjection(t *testin
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.ReconciliationProjection {
 		t.Fatal("ReconciliationProjection = false, want true")
@@ -112,7 +112,7 @@ func TestBuildCanonicalMaterializationPreservesDeltaPathWhitespace(t *testing.T)
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if !result.DeltaProjection {
 		t.Fatal("DeltaProjection = false, want true")

@@ -19,11 +19,11 @@ import (
 // mixedProjectorFixture builds one inputFacts slice that exercises every
 // per-fact consumer buildProjection's loop calls: a repository fact (content
 // materialization gate + buildRepositoryRefs via git_refs), a content-record
-// fact (buildContentRecord), a content-entity fact that is also a semantic
-// entity (buildContentEntityRecord plus
+// fact (BuildContentRecord), a content-entity fact that is also a semantic
+// entity (BuildContentEntityRecord plus
 // projectorentity.BuildSemanticEntityReducerIntent), a
-// generic reducer-signal fact (buildReducerIntent), and a malformed
-// codegraph_repository fact that buildCanonicalMaterialization quarantines
+// generic reducer-signal fact (BuildReducerIntent), and a malformed
+// codegraph_repository fact that BuildMaterialization quarantines
 // (missing its required repo_id). It backs both the #4854 mutation-safety
 // regression test and the clone-vs-borrow equivalence test so both prove the
 // same representative shape.
@@ -101,7 +101,7 @@ func mixedProjectorFixture(scopeValue scope.IngestionScope, generation scope.Sco
 			SchemaVersion: "1.0.0",
 			ObservedAt:    now,
 			Payload: map[string]any{
-				// "repo_id" intentionally absent so buildCanonicalMaterialization
+				// "repo_id" intentionally absent so BuildMaterialization
 				// quarantines this fact as input_invalid.
 				"name": "unattributed",
 			},
@@ -143,10 +143,10 @@ func deepCopyPayload(payload map[string]any) map[string]any {
 // TestBuildProjectionDoesNotMutateInputFactPayloads is the #4854
 // mutation-safety regression test: buildProjection's per-fact loop now
 // borrows inputFacts[i] instead of deep-cloning it (runtime.go), so every
-// consumer in that loop (validateFactBoundary, validateFactSchemaVersion,
-// buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
+// consumer in that loop (validateFactBoundary, ValidateFactSchemaVersion,
+// BuildContentRecord, BuildContentEntityRecord, buildRepositoryRefs,
 // projectorentity.BuildSemanticEntityReducerIntent,
-// buildReducerIntent) now shares the same
+// BuildReducerIntent) now shares the same
 // Payload map as the caller's inputFacts slice. This snapshots every input
 // fact's Payload before the call and asserts it is byte-identical after,
 // proving none of those consumers writes through the shared map.
@@ -196,15 +196,15 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
 			return projection{}, err
 		}
-		if err := validateFactSchemaVersion(fact); err != nil {
+		if err := ValidateFactSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
 
 		if materializeContent {
-			if record, ok := buildContentRecord(fact); ok {
+			if record, ok := BuildContentRecord(fact); ok {
 				contentMaterialization.Records = append(contentMaterialization.Records, record)
 			}
-			if entity, ok := buildContentEntityRecord(repoID, fact); ok {
+			if entity, ok := BuildContentEntityRecord(repoID, fact); ok {
 				contentMaterialization.Entities = append(contentMaterialization.Entities, entity)
 			}
 			if refs := buildRepositoryRefs(fact); len(refs) > 0 {
@@ -214,7 +214,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
-		if intent, ok := buildReducerIntent(fact); ok {
+		if intent, ok := BuildReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
 	}
@@ -232,7 +232,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		return left.FactID < right.FactID
 	})
 
-	canonical, quarantined := buildCanonicalMaterialization(scopeValue, generation, inputFacts)
+	canonical, quarantined := BuildMaterialization(scopeValue, generation, inputFacts)
 
 	return projection{
 		canonical:              canonical,
@@ -353,7 +353,7 @@ func buildLargeMixedProjectorFixture(n int) (scope.IngestionScope, scope.ScopeGe
 		SchemaVersion: "1.0.0",
 		ObservedAt:    now,
 		Payload: map[string]any{
-			// "repo_id" intentionally absent so buildCanonicalMaterialization
+			// "repo_id" intentionally absent so BuildMaterialization
 			// quarantines this fact as input_invalid.
 			"name": "unattributed-bench",
 		},

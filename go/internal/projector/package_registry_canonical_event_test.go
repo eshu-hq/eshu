@@ -23,7 +23,7 @@ import (
 func TestBuildCanonicalMaterializationExtractsPackageRegistryEvents(t *testing.T) {
 	t.Parallel()
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), packageRegistryEventFact()),
@@ -67,7 +67,7 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryEventMissingIden
 
 	eventFact := packageRegistryEventFact()
 	delete(eventFact.Payload, "event_key")
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), eventFact),
@@ -101,7 +101,7 @@ func TestBuildCanonicalMaterializationSkipsPackageRegistryEventMissingVersionID(
 
 	eventFact := packageRegistryEventFact()
 	delete(eventFact.Payload, "version_id")
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), eventFact),
@@ -121,7 +121,7 @@ func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryEvent(t *testi
 	eventFact := packageRegistryEventFact()
 	eventFact.StableFactKey = ""
 	eventFact.FactID = "ephemeral-package-registry-event-1"
-	result, _ := buildCanonicalMaterialization(
+	result, _ := BuildMaterialization(
 		packageRegistryScope(),
 		packageRegistryGeneration(),
 		append(packageRegistryFacts(), eventFact),
@@ -206,7 +206,7 @@ func TestBuildCanonicalMaterializationDropsBlankRegistryEventIdentity(t *testing
 			payload[tc.field] = tc.value
 			fact.Payload = payload
 
-			result, quarantined := buildCanonicalMaterialization(
+			result, quarantined := BuildMaterialization(
 				packageRegistryScope(),
 				packageRegistryGeneration(),
 				append(packageRegistryFacts(), fact),

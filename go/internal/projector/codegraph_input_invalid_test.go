@@ -39,7 +39,7 @@ func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphRepositoryID(t 
 		},
 	}
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{malformed, validRepository},
@@ -95,7 +95,7 @@ func TestBuildCanonicalMaterializationQuarantinesMissingCodegraphFilePath(t *tes
 		},
 	}
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{validFile, malformed},
@@ -139,7 +139,7 @@ func TestBuildCanonicalMaterializationPresentButEmptyCodegraphFilePathIsDroppedN
 		},
 	}
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{emptyPathFile},
@@ -170,7 +170,7 @@ func TestBuildCanonicalMaterializationWhitespaceOnlyCodegraphFilePathIsDroppedNo
 		},
 	}
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{whitespacePathFile},
@@ -219,7 +219,7 @@ func TestBuildProjectionRejectsUnsupportedCodegraphSchemaMajor(t *testing.T) {
 // gate (validateCodegraphFactSchemaVersion, which runs in buildProjection BEFORE
 // the typed decode adapter) must accept that sentinel; #4899 rejected it, so
 // buildProjection failed before canonical materialization and no generation ever
-// activated. This exercises buildProjection, not only buildCanonicalMaterialization.
+// activated. This exercises buildProjection, not only BuildMaterialization.
 func TestBuildProjectionAcceptsPersistedVersionlessCodegraphRepository(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +279,7 @@ func BenchmarkBuildCanonicalMaterializationCodegraphFiles(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, quarantined := buildCanonicalMaterialization(sc, gen, envelopes)
+		result, quarantined := BuildMaterialization(sc, gen, envelopes)
 		if len(quarantined) != 0 {
 			b.Fatalf("len(quarantined) = %d, want 0", len(quarantined))
 		}
@@ -349,7 +349,7 @@ func TestBuildCanonicalMaterializationProjectsPersistedVersionlessCodegraphFile(
 		},
 	}
 
-	result, quarantined := buildCanonicalMaterialization(
+	result, quarantined := BuildMaterialization(
 		testScope(),
 		testGeneration(),
 		[]facts.Envelope{versionlessFile},

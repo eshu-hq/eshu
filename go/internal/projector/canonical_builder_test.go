@@ -60,7 +60,7 @@ func TestBuildCanonicalMaterializationExtractsRepository(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if result.ScopeID != "scope-1" {
 		t.Errorf("ScopeID = %q, want %q", result.ScopeID, "scope-1")
@@ -107,14 +107,14 @@ func TestBuildCanonicalMaterializationMarksFirstGenerationFromScope(t *testing.T
 	sc := testScope()
 	gen := testGeneration()
 
-	result, _ := buildCanonicalMaterialization(sc, gen, nil)
+	result, _ := BuildMaterialization(sc, gen, nil)
 	if !result.FirstGeneration {
 		t.Fatal("FirstGeneration = false, want true when scope has no previous generation")
 	}
 
 	sc.ActiveGenerationID = "gen-previous"
 	sc.PreviousGenerationExists = true
-	result, _ = buildCanonicalMaterialization(sc, gen, nil)
+	result, _ = BuildMaterialization(sc, gen, nil)
 	if result.FirstGeneration {
 		t.Fatal("FirstGeneration = true, want false when scope has a prior generation")
 	}
@@ -127,7 +127,7 @@ func TestBuildCanonicalMaterializationDoesNotInferPriorGenerationFromActiveGener
 	sc.ActiveGenerationID = "gen-active-from-fixture"
 	gen := testGeneration()
 
-	result, _ := buildCanonicalMaterialization(sc, gen, nil)
+	result, _ := BuildMaterialization(sc, gen, nil)
 	if !result.FirstGeneration {
 		t.Fatal("FirstGeneration = false, want true unless PreviousGenerationExists is explicit")
 	}
@@ -140,7 +140,7 @@ func TestBuildCanonicalMaterializationDoesNotTreatFailedPriorGenerationAsFirst(t
 	sc.PreviousGenerationExists = true
 	gen := testGeneration()
 
-	result, _ := buildCanonicalMaterialization(sc, gen, nil)
+	result, _ := BuildMaterialization(sc, gen, nil)
 	if result.FirstGeneration {
 		t.Fatal("FirstGeneration = true, want false when a failed prior generation exists without an active generation")
 	}
@@ -190,7 +190,7 @@ func TestBuildCanonicalMaterializationExtractsFiles(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Files) != 2 {
 		t.Fatalf("len(Files) = %d, want 2", len(result.Files))
@@ -256,7 +256,7 @@ func TestBuildCanonicalMaterializationBuildsDirectoryChain(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	// Expect 3 directories: src, src/api, src/api/handlers
 	if len(result.Directories) != 3 {
@@ -362,7 +362,7 @@ func TestBuildCanonicalMaterializationExtractsEntities(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Entities) != 2 {
 		t.Fatalf("len(Entities) = %d, want 2", len(result.Entities))
@@ -485,7 +485,7 @@ func TestBuildCanonicalMaterializationPreservesTypeScriptClassFamilyMetadata(t *
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 	if len(result.Entities) != 3 {
 		t.Fatalf("len(Entities) = %d, want 3", len(result.Entities))
 	}
@@ -554,7 +554,7 @@ func TestBuildCanonicalMaterializationExtractsModules(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Modules) != 1 {
 		t.Fatalf("len(Modules) = %d, want 1", len(result.Modules))
@@ -594,7 +594,7 @@ func TestBuildCanonicalMaterializationExtractsImports(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Imports) != 1 {
 		t.Fatalf("len(Imports) = %d, want 1", len(result.Imports))
@@ -645,7 +645,7 @@ func TestBuildCanonicalMaterializationExtractsParameters(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Parameters) != 1 {
 		t.Fatalf("len(Parameters) = %d, want 1", len(result.Parameters))
@@ -693,7 +693,7 @@ func TestBuildCanonicalMaterializationExtractsClassMembers(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.ClassMembers) != 1 {
 		t.Fatalf("len(ClassMembers) = %d, want 1", len(result.ClassMembers))
@@ -741,7 +741,7 @@ func TestBuildCanonicalMaterializationExtractsNestedFunctions(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.NestedFuncs) != 1 {
 		t.Fatalf("len(NestedFuncs) = %d, want 1", len(result.NestedFuncs))
@@ -768,13 +768,13 @@ func TestBuildCanonicalMaterializationHandlesEmptyFacts(t *testing.T) {
 	gen := testGeneration()
 
 	// nil input
-	result, _ := buildCanonicalMaterialization(sc, gen, nil)
+	result, _ := BuildMaterialization(sc, gen, nil)
 	if !result.IsEmpty() {
 		t.Error("expected empty materialization for nil input")
 	}
 
 	// empty slice input
-	result, _ = buildCanonicalMaterialization(sc, gen, []facts.Envelope{})
+	result, _ = BuildMaterialization(sc, gen, []facts.Envelope{})
 	if !result.IsEmpty() {
 		t.Error("expected empty materialization for empty input")
 	}
@@ -836,7 +836,7 @@ func TestBuildCanonicalMaterializationDeduplicatesDirectories(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	// "src" appears from all three files but should be deduped.
 	// "src/api" appears from one file.
@@ -900,7 +900,7 @@ func TestBuildCanonicalMaterializationSkipsTombstones(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Files) != 0 {
 		t.Errorf("len(Files) = %d, want 0 (tombstoned)", len(result.Files))
@@ -939,7 +939,7 @@ func TestBuildCanonicalMaterializationSkipsUnmappedEntityTypes(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Entities) != 0 {
 		t.Errorf("len(Entities) = %d, want 0 (unmapped type)", len(result.Entities))
@@ -1011,7 +1011,7 @@ func TestBuildCanonicalMaterializationExcludesModuleAndParameterFromEntities(t *
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	// Module and Parameter entities are excluded from the entity phase
 	// because they have dedicated write phases with different MERGE keys.
@@ -1135,7 +1135,7 @@ func TestBuildCanonicalMaterializationUsesLegacyFactSuffix(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if result.Repository == nil {
 		t.Fatal("Repository is nil for legacy suffix fact kind")
@@ -1323,7 +1323,7 @@ func TestExtractRepositoryFallsBackToLocalPath(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if result.Repository == nil {
 		t.Fatal("Repository is nil")
@@ -1463,7 +1463,7 @@ func TestExtractEntitiesHandlesPascalCaseEntityTypes(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if len(result.Entities) != 3 {
 		var labels []string
@@ -1527,7 +1527,7 @@ func TestCanonicalMaterializationOwnsSemanticEntityLabelsExceptModule(t *testing
 		})
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 	gotLabels := make(map[string]bool, len(result.Entities))
 	for _, entity := range result.Entities {
 		gotLabels[entity.Label] = true
@@ -1599,7 +1599,7 @@ func TestBuildCanonicalMaterializationFallsBackToScopeMetadata(t *testing.T) {
 		},
 	}
 
-	result, _ := buildCanonicalMaterialization(sc, gen, envelopes)
+	result, _ := BuildMaterialization(sc, gen, envelopes)
 
 	if result.RepoID != "repo-abc" {
 		t.Errorf("RepoID = %q, want %q (from scope metadata)", result.RepoID, "repo-abc")

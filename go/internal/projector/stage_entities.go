@@ -22,7 +22,7 @@ func ProjectEntityStage(repoID string, envelopes []facts.Envelope) EntityStageRe
 	}
 
 	for i := range entityFacts {
-		if record, ok := buildContentEntityRecord(repoID, entityFacts[i]); ok {
+		if record, ok := BuildContentEntityRecord(repoID, entityFacts[i]); ok {
 			result.Entities = append(result.Entities, record)
 		}
 	}

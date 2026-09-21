@@ -8,10 +8,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func buildReducerIntent(fact facts.Envelope) (ReducerIntent, bool) {
-	domainValue, ok := payloadString(fact.Payload, "reducer_domain")
+// BuildReducerIntent converts a fact carrying a reducer routing payload into the
+// intent the reducer queue consumes, accepting either reducer_domain or the
+// shared_domain spelling. The second result is false when the fact names no
+// domain or names one the reducer does not recognize, so an unroutable fact is
+// skipped rather than enqueued against a wrong domain.
+func BuildReducerIntent(fact facts.Envelope) (ReducerIntent, bool) {
+	domainValue, ok := PayloadString(fact.Payload, "reducer_domain")
 	if !ok {
-		domainValue, ok = payloadString(fact.Payload, "shared_domain")
+		domainValue, ok = PayloadString(fact.Payload, "shared_domain")
 		if !ok {
 			return ReducerIntent{}, false
 		}
@@ -21,8 +26,8 @@ func buildReducerIntent(fact facts.Envelope) (ReducerIntent, bool) {
 		return ReducerIntent{}, false
 	}
 
-	entityKey, _ := payloadString(fact.Payload, "entity_key")
-	reason, _ := payloadString(fact.Payload, "reason")
+	entityKey, _ := PayloadString(fact.Payload, "entity_key")
+	reason, _ := PayloadString(fact.Payload, "reason")
 
 	return ReducerIntent{
 		ScopeID:      fact.ScopeID,

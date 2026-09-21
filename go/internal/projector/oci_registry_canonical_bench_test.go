@@ -13,7 +13,7 @@ import (
 
 // BenchmarkExtractOCIRegistryRows measures the typed-decode canonical extractor
 // on a representative multi-repository OCI corpus so the migration from raw
-// payloadString reads to the factschema seam carries a before/after
+// PayloadString reads to the factschema seam carries a before/after
 // no-regression number on the touched projection path. Each iteration extracts
 // one repository plus manifest/index/descriptor/tag/referrer rows for
 // benchOCIRepoCount repositories.

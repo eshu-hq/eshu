@@ -77,7 +77,13 @@ var entityPayloadReservedKeys = map[string]struct{}{
 	"template_dialect": {},
 }
 
-func entityMetadataFromPayload(payload map[string]any) map[string]any {
+// EntityMetadataFromPayload derives the entity metadata map for a parsed-entity
+// fact. An explicit entity_metadata object in the payload wins; otherwise every
+// payload key that is not a reserved structural field is carried through. Both
+// paths deep-copy, so the returned map never aliases the fact payload. It
+// returns nil when no metadata survives, so an entity with no metadata is stored
+// as absent rather than as an empty map.
+func EntityMetadataFromPayload(payload map[string]any) map[string]any {
 	if len(payload) == 0 {
 		return nil
 	}

@@ -13,7 +13,7 @@ import (
 
 // BenchmarkExtractPackageRegistryRows measures the typed-decode canonical
 // extractor on a representative multi-package corpus so the migration from raw
-// payloadString/payloadBoolPtr/payloadStringSlice reads to the factschema seam
+// PayloadString/PayloadBoolPtr/payloadStringSlice reads to the factschema seam
 // carries a before/after no-regression number on the touched projection path.
 // Each iteration extracts one package, one version, and one dependency row for
 // benchPackageRegistryCount packages.

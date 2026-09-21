@@ -87,12 +87,12 @@ func appendCanonicalRepositoryGraphPhase(
 	generationID string,
 	fact facts.Envelope,
 ) []reducer.GraphProjectionPhaseState {
-	repository, err := decodeCodegraphRepository(fact)
+	repository, err := CodegraphRepository(fact)
 	if err != nil {
 		return rows
 	}
 	repoID := repository.RepoID
-	sourceRunID := codegraphDerefString(repository.SourceRunID)
+	sourceRunID := CodegraphDerefString(repository.SourceRunID)
 	if strings.TrimSpace(fact.ScopeID) == "" || repoID == "" || sourceRunID == "" || strings.TrimSpace(generationID) == "" {
 		return rows
 	}

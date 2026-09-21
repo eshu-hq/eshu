@@ -14,7 +14,7 @@ import (
 // root schema-version gate for the service-catalog family: an unsupported
 // service_catalog.entity schema_version fails projection before the
 // service/catalog builder ever sees the generation. It lives at root because
-// validateFactSchemaVersion is root behavior, not the child builder's.
+// ValidateFactSchemaVersion is root behavior, not the child builder's.
 func TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion(t *testing.T) {
 	t.Parallel()
 
@@ -47,7 +47,7 @@ func TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion(t *testing
 // central admission gate validates schema versions for a fact family that had no
 // per-family projector validator before #3211. azure_cloud_resource is admitted
 // at its supported version and rejected for an older major, a future major, and
-// a blank version. It lives at root because validateFactSchemaVersion is root
+// a blank version. It lives at root because ValidateFactSchemaVersion is root
 // behavior, not the cloud/inventory child builder's.
 func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testing.T) {
 	t.Parallel()
@@ -102,7 +102,7 @@ func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testin
 // root schema-version gate for the observability family: an unsupported
 // observability source-fact schema_version fails projection before the
 // observability/coverage builder ever sees the generation. It lives at root
-// because validateFactSchemaVersion is root behavior, not the child
+// because ValidateFactSchemaVersion is root behavior, not the child
 // builder's. Relocated from the pre-extraction
 // observability_coverage_correlation_intents_test.go.
 func TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion(t *testing.T) {
@@ -141,7 +141,7 @@ func TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion(t *testing.
 // schema-version gate for the secrets/IAM posture family: an unsupported
 // k8s_service_account schema_version fails projection before the posture
 // builder ever sees the generation. It lives at root because
-// validateFactSchemaVersion is root behavior, not the child builder's.
+// ValidateFactSchemaVersion is root behavior, not the child builder's.
 func TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion(t *testing.T) {
 	t.Parallel()
 

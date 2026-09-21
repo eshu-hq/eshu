@@ -24,7 +24,7 @@ func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
 
 	seenRepos := make(map[string]struct{}, len(repoFacts))
 	for i := range repoFacts {
-		repository, err := decodeCodegraphRepository(repoFacts[i])
+		repository, err := CodegraphRepository(repoFacts[i])
 		if err != nil {
 			continue
 		}
@@ -38,7 +38,7 @@ func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
 		seenRepos[repoID] = struct{}{}
 		result.RepositoryIDs = append(result.RepositoryIDs, repoID)
 
-		sourceRunID := codegraphDerefString(repository.SourceRunID)
+		sourceRunID := CodegraphDerefString(repository.SourceRunID)
 		if sourceRunID != "" {
 			result.SourceRunPairs[repoID] = sourceRunID
 		}
@@ -53,7 +53,7 @@ func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
 		}
 		seen[envelopes[i].FactID] = struct{}{}
 
-		if intent, ok := buildReducerIntent(envelopes[i]); ok {
+		if intent, ok := BuildReducerIntent(envelopes[i]); ok {
 			result.Intents = append(result.Intents, intent)
 		}
 	}

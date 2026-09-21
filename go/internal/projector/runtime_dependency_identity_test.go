@@ -13,7 +13,7 @@ import (
 
 // TestBuildContentEntityRecordDependencyFallbackMatchesShapeMint is test (e)
 // from the #5357 locked spec: the two mint sites — shape.Materialize's
-// per-file mint and buildContentEntityRecord's no-entity_id fallback — MUST
+// per-file mint and BuildContentEntityRecord's no-entity_id fallback — MUST
 // agree on the same section-keyed identity for the same logical dependency
 // row. The fallback only fires when a fact arrives without a collector-minted
 // entity_id (version skew, replayed old cassettes, non-git producers); a
@@ -64,7 +64,7 @@ func TestBuildContentEntityRecordDependencyFallbackMatchesShapeMint(t *testing.T
 	// The projector fallback side: a content_entity fact WITHOUT entity_id
 	// (the version-skew / replayed-cassette / non-git-producer case) but
 	// carrying entity_metadata with the same section/config_kind/
-	// package_manager keys entityMetadataFromPayload passes through.
+	// package_manager keys EntityMetadataFromPayload passes through.
 	fact := facts.Envelope{
 		FactID:   "fact-dep-no-entity-id",
 		FactKind: "content_entity",
@@ -77,13 +77,13 @@ func TestBuildContentEntityRecordDependencyFallbackMatchesShapeMint(t *testing.T
 		},
 	}
 
-	record, ok := buildContentEntityRecord(repoID, fact)
+	record, ok := BuildContentEntityRecord(repoID, fact)
 	if !ok {
-		t.Fatalf("buildContentEntityRecord() ok = false, want true")
+		t.Fatalf("BuildContentEntityRecord() ok = false, want true")
 	}
 
 	if record.EntityID != mintedID {
-		t.Fatalf("buildContentEntityRecord() fallback entity_id = %q, want shape.Materialize's minted id %q (two-site divergence)", record.EntityID, mintedID)
+		t.Fatalf("BuildContentEntityRecord() fallback entity_id = %q, want shape.Materialize's minted id %q (two-site divergence)", record.EntityID, mintedID)
 	}
 
 	// Sanity: the agreed id must actually be the section-keyed dependency
@@ -94,7 +94,7 @@ func TestBuildContentEntityRecordDependencyFallbackMatchesShapeMint(t *testing.T
 	}
 
 	// The record's Metadata field must carry the same metadata the fallback
-	// gated on — the spec requires computing entityMetadataFromPayload once
+	// gated on — the spec requires computing EntityMetadataFromPayload once
 	// and using it for BOTH the mint fallback and the Metadata field.
 	if got, want := record.Metadata["section"], section; got != want {
 		t.Fatalf("record.Metadata[section] = %#v, want %#v", got, want)
@@ -127,9 +127,9 @@ func TestBuildContentEntityRecordUsesEntityIDVerbatimWhenPresent(t *testing.T) {
 		},
 	}
 
-	record, ok := buildContentEntityRecord("repository:r_12345678", fact)
+	record, ok := BuildContentEntityRecord("repository:r_12345678", fact)
 	if !ok {
-		t.Fatalf("buildContentEntityRecord() ok = false, want true")
+		t.Fatalf("BuildContentEntityRecord() ok = false, want true")
 	}
 
 	if record.EntityID != collectorMintedID {
@@ -197,13 +197,13 @@ func TestBuildContentEntityRecordDependencyFallbackMatchesShapeMintForDiscrimina
 		},
 	}
 
-	record, ok := buildContentEntityRecord(repoID, fact)
+	record, ok := BuildContentEntityRecord(repoID, fact)
 	if !ok {
-		t.Fatalf("buildContentEntityRecord() ok = false, want true")
+		t.Fatalf("BuildContentEntityRecord() ok = false, want true")
 	}
 
 	if record.EntityID != mintedID {
-		t.Fatalf("buildContentEntityRecord() fallback entity_id = %q, want shape.Materialize's minted id %q (two-site divergence on a discriminated format)", record.EntityID, mintedID)
+		t.Fatalf("BuildContentEntityRecord() fallback entity_id = %q, want shape.Materialize's minted id %q (two-site divergence on a discriminated format)", record.EntityID, mintedID)
 	}
 
 	if legacy := content.CanonicalEntityID(repoID, path, "Variable", name, line); record.EntityID == legacy {

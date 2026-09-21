@@ -14,12 +14,12 @@ func buildRepositoryRefs(fact facts.Envelope) []content.RepositoryRef {
 	if NormalizeFactKind(fact.FactKind) != "repository" || fact.IsTombstone {
 		return nil
 	}
-	repository, err := decodeCodegraphRepository(fact)
+	repository, err := CodegraphRepository(fact)
 	if err != nil || len(repository.GitRefs) == 0 {
 		return nil
 	}
 
-	defaultBranch := codegraphDerefString(repository.DefaultBranch)
+	defaultBranch := CodegraphDerefString(repository.DefaultBranch)
 	refsByKey := make(map[string]content.RepositoryRef, len(repository.GitRefs))
 	for _, entry := range repository.GitRefs {
 		if entry.Name == "" || entry.HeadSHA == "" {

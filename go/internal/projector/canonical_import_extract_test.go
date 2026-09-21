@@ -88,7 +88,7 @@ func TestBuildCanonicalMaterializationExtractsImportsFromParsedFileData(t *testi
 		}),
 	}
 
-	result, quarantined := buildCanonicalMaterialization(testScope(), testGeneration(), envelopes)
+	result, quarantined := BuildMaterialization(testScope(), testGeneration(), envelopes)
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %d, want 0", len(quarantined))
 	}
@@ -152,7 +152,7 @@ func TestBuildCanonicalMaterializationExtractsImportsFromParsedFileData(t *testi
 func TestBuildCanonicalMaterializationFoldsMultiSymbolImportsHonestly(t *testing.T) {
 	t.Parallel()
 
-	result, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	result, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		fileFactWithImports("f-ts", "src/app.ts", "typescript", []map[string]any{
 			{"name": "Router", "source": "express", "line_number": 9, "alias": "R"},
@@ -181,7 +181,7 @@ func TestBuildCanonicalMaterializationFoldsMultiSymbolImportsHonestly(t *testing
 func TestBuildCanonicalMaterializationSkipsUnusableImportEntries(t *testing.T) {
 	t.Parallel()
 
-	result, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	result, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
 			{"line_number": 4},
@@ -213,7 +213,7 @@ func TestBuildCanonicalMaterializationIgnoresTombstonedFileImports(t *testing.T)
 	})
 	tombstoned.IsTombstone = true
 
-	result, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	result, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		tombstoned,
 	})
@@ -242,9 +242,9 @@ func TestBuildCanonicalMaterializationImportRowsAreOrderStable(t *testing.T) {
 		}),
 	}
 
-	first, _ := buildCanonicalMaterialization(testScope(), testGeneration(), envelopes)
+	first, _ := BuildMaterialization(testScope(), testGeneration(), envelopes)
 	for i := 0; i < 5; i++ {
-		again, _ := buildCanonicalMaterialization(testScope(), testGeneration(), envelopes)
+		again, _ := BuildMaterialization(testScope(), testGeneration(), envelopes)
 		if len(again.Imports) != len(first.Imports) {
 			t.Fatalf("run %d: len(Imports) = %d, want %d", i, len(again.Imports), len(first.Imports))
 		}
@@ -269,7 +269,7 @@ func TestBuildCanonicalMaterializationImportRowsAreOrderStable(t *testing.T) {
 func TestBuildCanonicalMaterializationDropsRemovedImports(t *testing.T) {
 	t.Parallel()
 
-	gen1, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	gen1, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
 			{"name": "fmt", "line_number": 3},
@@ -281,7 +281,7 @@ func TestBuildCanonicalMaterializationDropsRemovedImports(t *testing.T) {
 	}
 
 	// gen2: the same file, with the "os" import removed.
-	gen2, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+	gen2, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 		importRepositoryFact(),
 		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
 			{"name": "fmt", "line_number": 3},

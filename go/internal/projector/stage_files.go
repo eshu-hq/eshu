@@ -21,10 +21,10 @@ func ProjectFileStage(repoID string, envelopes []facts.Envelope) FileStageResult
 	result := FileStageResult{}
 
 	for i := range fileFacts {
-		if record, ok := buildContentRecord(fileFacts[i]); ok {
+		if record, ok := BuildContentRecord(fileFacts[i]); ok {
 			result.ContentRecords = append(result.ContentRecords, record)
 		}
-		if entity, ok := buildContentEntityRecord(repoID, fileFacts[i]); ok {
+		if entity, ok := BuildContentEntityRecord(repoID, fileFacts[i]); ok {
 			result.Entities = append(result.Entities, entity)
 		}
 	}

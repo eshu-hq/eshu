@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// buildCanonicalMaterialization extracts canonical graph materialization data
+// BuildMaterialization extracts canonical graph materialization data
 // from a set of fact envelopes. The returned CanonicalMaterialization carries
 // all node and edge writes needed to project one repository generation into
 // the canonical Neo4j graph.
@@ -22,14 +22,14 @@ import (
 // and not projected, while every valid fact still materializes, so one
 // malformed fact never fails the whole repository generation's projection. The
 // caller records them as visible input_invalid dead-letters
-// (recordProjectorQuarantinedFacts). The codegraph repository/file,
+// (RecordQuarantinedFacts). The codegraph repository/file,
 // terraform_state, OCI registry, and package_registry extractors are typed
 // today; future typed families append to the same slice.
-func buildCanonicalMaterialization(
+func BuildMaterialization(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 	inputFacts []facts.Envelope,
-) (CanonicalMaterialization, []quarantinedFact) {
+) (CanonicalMaterialization, []QuarantinedFact) {
 	mat := CanonicalMaterialization{
 		ScopeID:         scopeValue.ScopeID,
 		GenerationID:    generation.GenerationID,
@@ -43,8 +43,8 @@ func buildCanonicalMaterialization(
 	}
 
 	// Extract repository.
-	var quarantined []quarantinedFact
-	var codegraphQuarantined []quarantinedFact
+	var quarantined []QuarantinedFact
+	var codegraphQuarantined []QuarantinedFact
 	mat.Repository, codegraphQuarantined = extractRepositoryWithQuarantine(inputFacts)
 	quarantined = append(quarantined, codegraphQuarantined...)
 	if mat.Repository != nil {
@@ -178,7 +178,7 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 
 		p := entityFacts[i].Payload
 
-		entityType, _ := payloadString(p, "entity_type")
+		entityType, _ := PayloadString(p, "entity_type")
 		if entityType == "" {
 			continue
 		}
@@ -202,18 +202,18 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 			continue
 		}
 
-		entityName, _ := payloadString(p, "entity_name")
-		relativePath, _ := payloadString(p, "relative_path")
-		startLine, _ := payloadInt(p, "start_line")
-		endLine, _ := payloadInt(p, "end_line")
-		language, _ := payloadString(p, "language")
+		entityName, _ := PayloadString(p, "entity_name")
+		relativePath, _ := PayloadString(p, "relative_path")
+		startLine, _ := PayloadInt(p, "start_line")
+		endLine, _ := PayloadInt(p, "end_line")
+		language, _ := PayloadString(p, "language")
 
-		entityRepoID, ok := payloadString(p, "repo_id")
+		entityRepoID, ok := PayloadString(p, "repo_id")
 		if !ok {
 			entityRepoID = repoID
 		}
 
-		incomingEntityID, _ := payloadString(p, "entity_id")
+		incomingEntityID, _ := PayloadString(p, "entity_id")
 		entityID := canonicalGraphEntityID(
 			label,
 			entityRepoID,
@@ -226,7 +226,7 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		metadata := extractEntityMetadata(p)
-		cyclomaticComplexity, _ := payloadInt(metadata, "cyclomatic_complexity")
+		cyclomaticComplexity, _ := PayloadInt(metadata, "cyclomatic_complexity")
 
 		row := EntityRow{
 			EntityID:             entityID,
@@ -284,18 +284,18 @@ func extractModulesFromEntities(envelopes []facts.Envelope) []ModuleRow {
 		}
 
 		p := entityFacts[i].Payload
-		entityType, _ := payloadString(p, "entity_type")
+		entityType, _ := PayloadString(p, "entity_type")
 		label, ok := EntityTypeLabel(entityType)
 		if !ok || label != "Module" {
 			continue
 		}
 
-		entityName, _ := payloadString(p, "entity_name")
+		entityName, _ := PayloadString(p, "entity_name")
 		if entityName == "" {
 			continue
 		}
 
-		language, _ := payloadString(p, "language")
+		language, _ := PayloadString(p, "language")
 		// Dedupe on the full Module MERGE key (name, lang), not on name: a
 		// Ruby `basic` and a Python `basic` are two nodes, and dropping the
 		// second by name would silently lose one of them.
@@ -335,8 +335,8 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 		p := envelopes[i].Payload
 
 		// Imports: facts with imported_module or module_name payload.
-		moduleName, hasModule := payloadString(p, "module_name")
-		importedModule, hasImported := payloadString(p, "imported_module")
+		moduleName, hasModule := PayloadString(p, "module_name")
+		importedModule, hasImported := PayloadString(p, "imported_module")
 
 		if hasModule || hasImported {
 			modName := moduleName
@@ -344,7 +344,7 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 				modName = importedModule
 			}
 
-			language, _ := payloadString(p, "language")
+			language, _ := PayloadString(p, "language")
 
 			// Track modules (deduped on the full (name, lang) identity).
 			if modName != "" {
@@ -359,14 +359,14 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 			}
 
 			// Import row — qualify relative_path with repoPath.
-			relPath, _ := payloadString(p, "relative_path")
+			relPath, _ := PayloadString(p, "relative_path")
 			filePath := qualifyPath(repoPath, relPath)
 			if relPath == "" {
 				filePath = envelopes[i].SourceRef.SourceURI
 			}
-			importedName, _ := payloadString(p, "imported_name")
-			alias, _ := payloadString(p, "alias")
-			lineNumber, _ := payloadInt(p, "line_number")
+			importedName, _ := PayloadString(p, "imported_name")
+			alias, _ := PayloadString(p, "alias")
+			lineNumber, _ := PayloadInt(p, "line_number")
 
 			importModule := importedModule
 			if importModule == "" {
@@ -384,11 +384,11 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 		}
 
 		// Parameters: facts with param_name payload key.
-		paramName, hasParam := payloadString(p, "param_name")
+		paramName, hasParam := PayloadString(p, "param_name")
 		if hasParam {
-			funcName, _ := payloadString(p, "function_name")
-			relPath, _ := payloadString(p, "relative_path")
-			funcLine, _ := payloadInt(p, "function_line")
+			funcName, _ := PayloadString(p, "function_name")
+			relPath, _ := PayloadString(p, "relative_path")
+			funcLine, _ := PayloadInt(p, "function_line")
 
 			mat.Parameters = append(mat.Parameters, ParameterRow{
 				ParamName:    paramName,
@@ -399,11 +399,11 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 		}
 
 		// Class members: facts with class_name AND function_name.
-		className, hasClass := payloadString(p, "class_name")
-		funcName, hasFunc := payloadString(p, "function_name")
+		className, hasClass := PayloadString(p, "class_name")
+		funcName, hasFunc := PayloadString(p, "function_name")
 		if hasClass && hasFunc && !hasParam {
-			relPath, _ := payloadString(p, "relative_path")
-			funcLine, _ := payloadInt(p, "function_line")
+			relPath, _ := PayloadString(p, "relative_path")
+			funcLine, _ := PayloadInt(p, "function_line")
 
 			mat.ClassMembers = append(mat.ClassMembers, ClassMemberRow{
 				ClassName:    className,
@@ -414,11 +414,11 @@ func extractRelationships(envelopes []facts.Envelope, mat *CanonicalMaterializat
 		}
 
 		// Nested functions: facts with outer_name AND inner_name.
-		outerName, hasOuter := payloadString(p, "outer_name")
-		innerName, hasInner := payloadString(p, "inner_name")
+		outerName, hasOuter := PayloadString(p, "outer_name")
+		innerName, hasInner := PayloadString(p, "inner_name")
 		if hasOuter && hasInner {
-			relPath, _ := payloadString(p, "relative_path")
-			innerLine, _ := payloadInt(p, "inner_line")
+			relPath, _ := PayloadString(p, "relative_path")
+			innerLine, _ := PayloadInt(p, "inner_line")
 
 			mat.NestedFuncs = append(mat.NestedFuncs, NestedFunctionRow{
 				OuterName: outerName,

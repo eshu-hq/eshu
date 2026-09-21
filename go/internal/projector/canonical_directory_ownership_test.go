@@ -94,7 +94,7 @@ func TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot(t *testing.T) {
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, _ := buildCanonicalMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	const root = "/repos/alpha"
 	for _, d := range mat.Directories {
@@ -134,8 +134,8 @@ func TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot(t *testing.T) {
 // indistinguishable at 3 AM from one the collector never emitted: "this file is
 // missing from the graph" has no evidence behind it either way. The package
 // already owns the visible dead-letter for a fact an extractor refuses --
-// quarantinedFact carried out of buildCanonicalMaterialization and recorded by
-// recordProjectorQuarantinedFacts as the eshu_dp_projector_input_invalid_facts_total
+// QuarantinedFact carried out of BuildMaterialization and recorded by
+// RecordQuarantinedFacts as the eshu_dp_projector_input_invalid_facts_total
 // increment plus a structured error log -- so this asserts the escaping fact
 // takes that established path rather than a bare continue.
 func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing.T) {
@@ -147,13 +147,13 @@ func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, quarantined := buildCanonicalMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, quarantined := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	if len(mat.Files) != 1 {
 		t.Fatalf("len(mat.Files) = %d, want 1: the escaping fact must still be dropped", len(mat.Files))
 	}
 
-	var escaped *quarantinedFact
+	var escaped *QuarantinedFact
 	for i := range quarantined {
 		if quarantined[i].factID == "f-ok" {
 			t.Errorf("valid fact f-ok was quarantined: %+v", quarantined[i])
@@ -164,8 +164,8 @@ func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing
 	}
 	if escaped == nil {
 		t.Fatalf(
-			"file fact f-escape was dropped with no quarantinedFact (quarantined = %+v); "+
-				"recordProjectorQuarantinedFacts emits no counter and no log for it, so an "+
+			"file fact f-escape was dropped with no QuarantinedFact (quarantined = %+v); "+
+				"RecordQuarantinedFacts emits no counter and no log for it, so an "+
 				"operator cannot tell a dropped file from one never emitted",
 			quarantined,
 		)
@@ -175,14 +175,14 @@ func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing
 	}
 	if escaped.classification != factschema.ClassificationInputInvalid {
 		t.Errorf(
-			"quarantined classification = %q, want %q: recordProjectorQuarantinedFacts labels the counter by it",
+			"quarantined classification = %q, want %q: RecordQuarantinedFacts labels the counter by it",
 			escaped.classification, factschema.ClassificationInputInvalid,
 		)
 	}
-	if stage := quarantinedFactStage(escaped.factKind); stage != codegraphCanonicalStage {
+	if stage := QuarantinedFactStage(escaped.factKind); stage != CodegraphCanonicalStage {
 		t.Errorf(
-			"quarantinedFactStage(%q) = %q, want %q: the dead-letter must be attributed to the extractor that dropped it",
-			escaped.factKind, stage, codegraphCanonicalStage,
+			"QuarantinedFactStage(%q) = %q, want %q: the dead-letter must be attributed to the extractor that dropped it",
+			escaped.factKind, stage, CodegraphCanonicalStage,
 		)
 	}
 }
@@ -209,7 +209,7 @@ func TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID(t *testing.T) {
 		ownershipFileFact("f-escape", "../beta/src/leak.go"),
 	}
 
-	mat, _ := buildCanonicalMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+	mat, _ := BuildMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
 
 	repoIDByDirectoryPath := make(map[string]string, len(mat.Directories))
 	for _, d := range mat.Directories {

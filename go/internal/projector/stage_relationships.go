@@ -26,7 +26,7 @@ func ProjectRelationshipStage(envelopes []facts.Envelope) RelationshipStageResul
 		}
 		seen[envelopes[i].FactID] = struct{}{}
 
-		if intent, ok := buildReducerIntent(envelopes[i]); ok {
+		if intent, ok := BuildReducerIntent(envelopes[i]); ok {
 			result.Intents = append(result.Intents, intent)
 		}
 	}

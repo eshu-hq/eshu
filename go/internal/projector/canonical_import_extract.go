@@ -121,14 +121,14 @@ type importAccumulator struct {
 // IMPORTS edges before this extractor runs, so a bucket that fails to decode
 // would leave the file with no import edges, its File node intact, and nothing
 // in the metrics or logs to say why.
-func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, []quarantinedFact) {
+func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, []QuarantinedFact) {
 	if len(files) == 0 {
 		return nil, nil, nil
 	}
 
 	folded := make(map[importIdentity]*importAccumulator, len(files))
 	modules := make(map[moduleIdentity]struct{})
-	var quarantined []quarantinedFact
+	var quarantined []QuarantinedFact
 
 	for _, file := range files {
 		// The extractor reads only the named fields, so the per-entry
@@ -139,7 +139,7 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, [
 			factschema.WithoutAttributesRemainder(),
 		)
 		if err != nil {
-			quarantined = append(quarantined, quarantinedFact{
+			quarantined = append(quarantined, QuarantinedFact{
 				factID:         file.FactID,
 				factKind:       file.FactKind,
 				field:          "parsed_file_data.imports",

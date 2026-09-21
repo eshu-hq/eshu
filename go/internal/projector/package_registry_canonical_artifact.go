@@ -61,7 +61,7 @@ func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifac
 	if envelope.IsTombstone {
 		return PackageRegistryArtifactRow{}, false, nil
 	}
-	artifact, err := decodePackageRegistryPackageArtifact(envelope)
+	artifact, err := PackageRegistryPackageArtifact(envelope)
 	if err != nil {
 		return PackageRegistryArtifactRow{}, false, err
 	}
@@ -88,15 +88,15 @@ func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifac
 		PackageID:           packageID,
 		VersionID:           versionID,
 		ArtifactKey:         artifactKey,
-		Version:             packageRegistryDerefString(artifact.Version),
-		Ecosystem:           packageRegistryDerefString(artifact.Ecosystem),
-		Registry:            packageRegistryDerefString(artifact.Registry),
-		ArtifactType:        packageRegistryDerefString(artifact.ArtifactType),
-		ArtifactURL:         packageRegistryDerefString(artifact.ArtifactURL),
-		ArtifactPath:        packageRegistryDerefString(artifact.ArtifactPath),
-		SizeBytes:           packageRegistryDerefInt64(artifact.SizeBytes),
+		Version:             PackageRegistryDerefString(artifact.Version),
+		Ecosystem:           PackageRegistryDerefString(artifact.Ecosystem),
+		Registry:            PackageRegistryDerefString(artifact.Registry),
+		ArtifactType:        PackageRegistryDerefString(artifact.ArtifactType),
+		ArtifactURL:         PackageRegistryDerefString(artifact.ArtifactURL),
+		ArtifactPath:        PackageRegistryDerefString(artifact.ArtifactPath),
+		SizeBytes:           PackageRegistryDerefInt64(artifact.SizeBytes),
 		Hashes:              hashes,
-		Classifier:          packageRegistryDerefString(artifact.Classifier),
+		Classifier:          PackageRegistryDerefString(artifact.Classifier),
 		PlatformTags:        packageRegistrySortedStrings(artifact.PlatformTags),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       stableFactKey,
@@ -105,7 +105,7 @@ func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifac
 		SourceConfidence:    envelope.SourceConfidence,
 		CollectorKind:       envelope.CollectorKind,
 		CorrelationAnchors:  packageRegistrySortedStrings(artifact.CorrelationAnchors),
-		CollectorInstanceID: packageRegistryDerefString(artifact.CollectorInstanceID),
+		CollectorInstanceID: PackageRegistryDerefString(artifact.CollectorInstanceID),
 		ObservedAt:          envelope.ObservedAt,
 	}, true, nil
 }

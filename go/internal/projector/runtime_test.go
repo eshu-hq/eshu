@@ -255,7 +255,7 @@ func TestRuntimeProjectRejectsCrossGenerationFacts(t *testing.T) {
 func TestBuildReducerIntentRejectsUnknownDomain(t *testing.T) {
 	t.Parallel()
 
-	_, ok := buildReducerIntent(facts.Envelope{
+	_, ok := BuildReducerIntent(facts.Envelope{
 		FactID:       "fact-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -264,7 +264,7 @@ func TestBuildReducerIntentRejectsUnknownDomain(t *testing.T) {
 		},
 	})
 	if ok {
-		t.Fatal("buildReducerIntent() ok = true, want false")
+		t.Fatal("BuildReducerIntent() ok = true, want false")
 	}
 }
 
@@ -822,7 +822,7 @@ func TestRuntimeProjectEnqueuesSemanticEntityMaterializationForAnnotationTypedef
 func TestBuildReducerIntentSkipsNonSemanticContentEntities(t *testing.T) {
 	t.Parallel()
 
-	_, ok := buildReducerIntent(facts.Envelope{
+	_, ok := BuildReducerIntent(facts.Envelope{
 		FactID:       "fact-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -833,7 +833,7 @@ func TestBuildReducerIntentSkipsNonSemanticContentEntities(t *testing.T) {
 		},
 	})
 	if ok {
-		t.Fatal("buildReducerIntent() ok = true for Function, want false")
+		t.Fatal("BuildReducerIntent() ok = true for Function, want false")
 	}
 }
 
