@@ -172,6 +172,17 @@ Burn-down: 53 entries + 20 triaged − 1 retired (entry 57) = **72 total**
 drain-timing wobble, open). #6915 stays open for the remaining ORDER BY
 entries.
 
+Burn-down 2: the workload-cloud `ORDER BY name, id` entry (tied-keys
+delivery order, #6782 disposition) went stale in quorum CI run
+35646119701 pairing 1 — both backends agree (2 rows, digest `9e3508…`
+both sides). Pairing 2 shows the documented flap (pair2-neo4j digest
+`aea897…` vs `9e3508…` on the other three sides; ORDER BY digests are
+order-sensitive by design, same rowcount). Retired: a results-tier entry
+that matches only sometimes reds every agreeing run, and under quorum a
+systematic recurrence still fails required (same fingerprint + kind in
+both pairings) while a single-pairing flip reports advisory. 72 − 1 =
+**71 total**.
+
 ## Multi-leg quorum end to end (owner direction 2026-09-21)
 
 CI run 35635362608 went red on 2 Module/orphan divergences the capture8
