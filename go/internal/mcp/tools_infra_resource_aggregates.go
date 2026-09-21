@@ -37,7 +37,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_infra_resource_inventory",
-			Description: "Return a paginated grouped count of graph-backed infrastructure resources along one dimension (provider, environment, resource_category, resource_service, label). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. Narrow with `category` to restrict the label set. Unscoped reads after the infra read model backfill report truth basis hybrid; scoped reads stay on the graph.",
+			Description: "Return a paginated grouped count of graph-backed infrastructure resources along one dimension (provider, environment, resource_category, resource_service, label). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. Narrow with `category` to restrict the label set. Unscoped reads after the infra read model backfill report truth basis hybrid, content_index when no graph read is needed, or authoritative_graph when only graph-served labels resolve (category=cloud); scoped reads stay on the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
