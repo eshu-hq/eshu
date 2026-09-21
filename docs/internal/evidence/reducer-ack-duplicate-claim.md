@@ -37,10 +37,13 @@ has conflicting claim epochs or domains"
 ```
 
 Preceded by two `gcp resource materialization completed` lines for the same
-scope, 2.309s and 1.694s, on workers 3 and 0 — the two concurrent handlers. That
-ERROR is written through the plain `log` path rather than the structured one, so
-a scan for `"severity_text":"ERROR"` reports zero ERROR lines while it sits in
-the same file.
+scope and generation, `total_duration_seconds=2.313132353` and
+`total_duration_seconds=1.7014681839999999` — the two concurrent handlers. Those
+two lines carry no worker id; the pair of `reducer batch ack outcome unknown`
+WARNs that follow them name workers 3 and 0, and are the only place the two
+workers are identified. The ERROR is written through the plain `log` path rather
+than the structured one, so a scan for `"severity_text":"ERROR"` reports zero
+ERROR lines while it sits in the same file.
 
 ## Lease safety
 
