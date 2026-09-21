@@ -83,7 +83,10 @@ Outliers reaching the callee through a wrapper carry the
 `outlier_wrapper_mediated` ambiguity signal (coordinate: the wrapper_bypass
 surface owns the canonical-wrapper verdict). Cohorts above the member cap
 truncate in entity-id order and report the cutoff; nothing samples
-silently. Score stays members × tokens with reasons summing exactly.
+silently. On the findings page the track emits after the stat-ranked
+stream is exhausted, in limit-bounded slices through the same offset
+accounting, so every finding emits exactly once and pages stay bounded.
+Score stays members × tokens with reasons summing exactly.
 
 ## Observability Evidence:
 

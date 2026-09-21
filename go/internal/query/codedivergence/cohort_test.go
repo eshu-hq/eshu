@@ -46,6 +46,34 @@ func TestGroupOutlierCohortsSources(t *testing.T) {
 	}
 }
 
+// TestGroupOutlierCohortsRouterLabels pins the mount label format: a
+// first-segment mount renders "/<mount> routes", and the root path renders
+// "/ routes" instead of the doubled "// routes".
+func TestGroupOutlierCohortsRouterLabels(t *testing.T) {
+	t.Parallel()
+
+	seeds := []OutlierCohortSeed{
+		{Source: CohortRouter, EndpointPath: "/widgets", MemberID: "h-1"},
+		{Source: CohortRouter, EndpointPath: "/widgets/123", MemberID: "h-2"},
+		{Source: CohortRouter, EndpointPath: "/widgets/123/items", MemberID: "h-3"},
+		{Source: CohortRouter, EndpointPath: "/", MemberID: "r-1"},
+		{Source: CohortRouter, EndpointPath: "/", MemberID: "r-2"},
+		{Source: CohortRouter, EndpointPath: "/", MemberID: "r-3"},
+	}
+	cohorts, _ := GroupOutlierCohorts(seeds, DefaultOutlierParams())
+	if len(cohorts) != 2 {
+		t.Fatalf("cohorts = %d, want 2", len(cohorts))
+	}
+	// Key collation: "/" sorts before "widgets".
+	if cohorts[0].Key != "/" || cohorts[0].Label != "/ routes" {
+		t.Errorf("root cohort = %q/%q, want key / with label \"/ routes\"", cohorts[0].Key, cohorts[0].Label)
+	}
+	if cohorts[1].Key != "widgets" || cohorts[1].Label != "/widgets routes" {
+		t.Errorf("mount cohort = %q/%q, want key widgets with label \"/widgets routes\"",
+			cohorts[1].Key, cohorts[1].Label)
+	}
+}
+
 // TestGroupOutlierCohortsBelowMinimum proves small cohorts drop with one
 // counted below_min_cohort each, never silently.
 func TestGroupOutlierCohortsBelowMinimum(t *testing.T) {

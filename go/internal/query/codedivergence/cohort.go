@@ -93,6 +93,9 @@ func GroupOutlierCohorts(seeds []OutlierCohortSeed, params OutlierParams) ([]Out
 			}
 			mount := routerMount(seed.EndpointPath)
 			key, label = mount, "/"+mount+" routes"
+			if mount == "/" {
+				label = "/ routes"
+			}
 		default:
 			if seed.FilePath == "" {
 				continue

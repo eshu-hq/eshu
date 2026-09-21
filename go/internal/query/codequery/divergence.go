@@ -202,10 +202,13 @@ type divergenceFindingsData struct {
 	findings     []map[string]any
 	suppressions map[string]int
 	truncated    bool
-	// consumed is the pre-suppression stat window length behind this
-	// page: next_offset advances past consumed stats, not past emitted
-	// findings, so a fully-suppressed window still moves the cursor and
-	// a partially-suppressed one never re-emits.
+	// consumed is the cursor advance behind this page: the pre-suppression
+	// stat window length, plus the outlier slice length on tail pages where
+	// the stat stream is exhausted. Next_offset advances past consumed
+	// entries, not past all emitted findings, so a fully-suppressed window
+	// still moves the cursor and a partially-suppressed one never re-emits;
+	// the outlier track pages after the stat stream, so its slice is the
+	// only emission the window length does not already cover.
 	consumed int
 	// wrapperEmitted reports a wrapper_bypass finding on the page, so the
 	// response names the graph backend beside the content store.
@@ -377,11 +380,15 @@ func (h *CodeHandler) divergenceFindingsData(
 			assembled = append(assembled, track...)
 		}
 	}
-	var outlierEmitted bool
-	assembled, outlierEmitted, err = h.appendOutlierTrack(ctx, req, kinds, assembled, suppressions)
+	// The outlier track pages on the stat window state: display limit,
+	// total stats, window length, and whether the stat stream truncates.
+	assembled, outlierEmitted, outlierConsumed, outlierTruncated, err := h.appendOutlierTrack(
+		ctx, req, kinds, assembled, suppressions, displayLimit, len(stats), len(window), truncated,
+	)
 	if err != nil {
 		return divergenceFindingsData{}, err
 	}
+	truncated = truncated || outlierTruncated
 	// Drifted rows assemble from their fact payloads (similarity, threshold,
 	// band evidence ride the row, not a fingerprint group). A windowed row
 	// missing from hydration drops out silently: the stat ranked it, but
@@ -406,39 +413,60 @@ func (h *CodeHandler) divergenceFindingsData(
 	for _, finding := range assembled {
 		findings = append(findings, codedivergence.ResultMap(finding))
 	}
-	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated, consumed: len(window), wrapperEmitted: wrapperEmitted, outlierEmitted: outlierEmitted}, nil
+	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated, consumed: len(window) + outlierConsumed, wrapperEmitted: wrapperEmitted, outlierEmitted: outlierEmitted}, nil
 }
 
 // appendOutlierTrack runs the convention-outlier cohort sweep when the
-// requested kinds select it and appends the qualified findings. Like the
-// wrapper track it expands graph-side: the sweep qualifies majority callees
-// per cohort, so the page may carry more findings than the requested limit.
-// Limit bounds nominating groups; the sweep is deterministic (trust-ranked
-// cohorts, id-ordered members), so pages are stable. A degraded graph
-// backend counts one outlier_unavailable suppression instead of failing the
-// page; any other error propagates.
+// requested kinds select it and appends one limit-bounded slice of the
+// qualified findings. The sweep is repo-wide with no stat-window
+// nominations, so emitting it whole would make pages unbounded and re-emit
+// the same set on every page. Instead the track pages after the stat stream
+// is exhausted: while statTruncated holds the sweep does not run at all,
+// and on tail pages the deterministically ordered track slices by the
+// outlier cursor (offset + window - totalStats) in displayLimit units. Each
+// finding emits exactly once, the slice counts toward the cursor so it keeps
+// advancing, and truncation holds while the track has remainder. A degraded
+// graph backend counts one outlier_unavailable suppression instead of
+// failing the page; any other error propagates.
 func (h *CodeHandler) appendOutlierTrack(
 	ctx context.Context,
 	req DivergenceFindingsRequest,
 	kinds []codedivergence.Kind,
 	assembled []codedivergence.Finding,
 	suppressions map[string]int,
-) ([]codedivergence.Finding, bool, error) {
+	displayLimit, totalStats, windowLen int,
+	statTruncated bool,
+) ([]codedivergence.Finding, bool, int, bool, error) {
 	if !kindsContainDivergenceKind(kinds, codedivergence.KindConventionOutlier) {
-		return assembled, false, nil
+		return assembled, false, 0, false, nil
+	}
+	if statTruncated {
+		return assembled, false, 0, false, nil
 	}
 	track, counts, err := h.assembleOutlierTrack(ctx, req.RepoID, req.IncludeTests)
 	if err != nil {
 		if errors.Is(err, querycontract.ErrGraphUnavailable) {
 			suppressions[codedivergence.RuleOutlierGraphUnavailable]++
-			return assembled, false, nil
+			return assembled, false, 0, false, nil
 		}
-		return assembled, false, err
+		return assembled, false, 0, false, err
 	}
 	for rule, count := range counts {
 		suppressions[rule] += count
 	}
-	return append(assembled, track...), len(track) > 0, nil
+	start := req.Offset + windowLen - totalStats
+	if start < 0 {
+		start = 0
+	}
+	if start >= len(track) {
+		return assembled, false, 0, false, nil
+	}
+	end := start + displayLimit
+	if end > len(track) {
+		end = len(track)
+	}
+	slice := track[start:end]
+	return append(assembled, slice...), len(slice) > 0, len(slice), end < len(track), nil
 }
 
 func nextDivergenceOffset(offset, consumed int, truncated bool) any {

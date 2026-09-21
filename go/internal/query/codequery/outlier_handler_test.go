@@ -152,6 +152,8 @@ type outlierFindingEnvelope struct {
 		} `json:"findings"`
 		Suppressions  map[string]int `json:"suppressions"`
 		SourceBackend string         `json:"source_backend"`
+		Truncated     bool           `json:"truncated"`
+		NextOffset    *int           `json:"next_offset"`
 	} `json:"data"`
 	Truth struct {
 		Level string `json:"level"`
