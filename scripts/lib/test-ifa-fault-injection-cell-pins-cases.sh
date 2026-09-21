@@ -81,6 +81,8 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# Cell 3 (expire-lease-mid-handler): direct SQL forced expiry, no kill.
 	require_cells "forced lease expiry SQL" "UPDATE fact_work_items SET claim_until = now()"
 	require_cells "expire-lease targets claimed/running" "status IN ('claimed', 'running');\""
+	require_cells "expire-lease proves the expiry caused a re-claim" "ifa_fault_assert_reclaimed_above"
+	require_cells "expire-lease captures the pre-expiry re-claim baseline" 'reclaimed_before="$(ifa_fault_count_reclaimed'
 
 	# Cell 4 (fail-graph-write-once-then-succeed): queue-retry lane, CloudResource
 	# MERGE anchor, ESHU_IFA_FAULT_SCRIPT wiring, and a durable non-vacuity retry

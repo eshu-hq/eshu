@@ -106,6 +106,10 @@ cd "${repo_root}"
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_common.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
+# Cell 3's forced-expiry re-claim assertion. Separate file because
+# ifa_fault_injection_common.sh sits at 498 of the 500-line cap.
+# shellcheck source=scripts/lib/ifa_fault_reclaim_assert.sh
+source "${repo_root}/scripts/lib/ifa_fault_reclaim_assert.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
 
