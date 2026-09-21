@@ -99,7 +99,7 @@ deletions, a net reduction of 102 lines while preserving provider-owned API
 status handling and Loki YAML decoding.
 
 No-Regression Evidence (#2361): `go test ./internal/collector/sdk
-./internal/collector/prometheusmimir ./internal/collector/loki -count=1` covers
+./internal/collector/observability/prometheus ./internal/collector/loki -count=1` covers
 the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
 on hard provider failures, Prometheus/Mimir API-status failures, Loki YAML rule
 decoding, partial warnings, and terminal versus retryable workflow failure
