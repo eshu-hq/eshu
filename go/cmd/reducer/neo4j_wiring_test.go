@@ -537,6 +537,45 @@ func TestReducerCypherExecutorCapturesStatements(t *testing.T) {
 	}
 }
 
+// TestReducerCypherExecutorRecordsEachRetryAttempt pins the below-seam
+// capture disclosed on newReducerCypherExecutor: the recorder wraps the
+// retry loop's inner runner, so one logical ExecuteCypher that fails
+// transiently once records every attempt — failed and success — under
+// identical fingerprints. A future move of the capture above the retry
+// seam must update this pin, not silently change the count.
+func TestReducerCypherExecutorRecordsEachRetryAttempt(t *testing.T) {
+	// No t.Parallel: openTestCaptureSession uses t.Setenv.
+	session, dir := openTestCaptureSession(t, "nornicdb")
+	runner := &fakeNeo4jSession{
+		errs: []error{
+			errors.New("Neo4jError: Neo.TransientError.Transaction.DeadlockDetected (deadlock cycle)"),
+			nil,
+		},
+	}
+	executor := newReducerCypherExecutor(runner, nil, session)
+
+	if err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload {id: $id})", map[string]any{"id": "workload:retry"}); err != nil {
+		t.Fatalf("ExecuteCypher() error = %v, want nil after retry", err)
+	}
+	byBackend, err := capture.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("capture.LoadDir() error = %v", err)
+	}
+	records := byBackend["nornicdb"]
+	if len(records) != 2 {
+		t.Fatalf("captured nornicdb records = %d, want 2 (one per attempt)", len(records))
+	}
+	if records[0].Fingerprint != records[1].Fingerprint {
+		t.Fatalf("attempt fingerprints differ: %+v vs %+v", records[0].Fingerprint, records[1].Fingerprint)
+	}
+	if !records[0].Failed || records[0].Error == "" {
+		t.Fatalf("first attempt record = failed=%v error=%q, want the transient failure recorded", records[0].Failed, records[0].Error)
+	}
+	if records[1].Failed {
+		t.Fatalf("second attempt record failed=true, want the retried success recorded clean")
+	}
+}
+
 // fakeCaptureReader is a backend-free GraphQuery for the capture-composition
 // test: it answers one canned row so the read facet records without a driver.
 type fakeCaptureReader struct{}
