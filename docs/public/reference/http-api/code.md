@@ -25,10 +25,11 @@ Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or i
 | `POST /api/v0/code/relationships` | Direct or bounded transitive relationships for a canonical entity or resolved name. |
 | `POST /api/v0/code/relationships/story` | Narrative relationship packet with ambiguity handling and recommended follow-up calls. |
 | `POST /api/v0/code/call-chain` | Bounded path between start and end symbols or entity IDs. |
+| `POST /api/v0/code/call-chain/compare` | Up to K distinct simple paths (default 5, max 20), depth at most N (default 4, max 6), between two entities in one repository, shortest first with weakest-edge confidence; repo_id required, cross_repo refused. |
 | `POST /api/v0/code/dead-code` | Lower-level graph-backed dead-code candidate scan. |
 | `POST /api/v0/code/dead-code/cross-repo` | Producer-repository dead-code candidates classified against deterministic consumer evidence. |
 | `POST /api/v0/code/dead-code/investigate` | Dead-code investigation packet with cleanup-ready and ambiguous buckets. |
-| `POST /api/v0/code/divergence/findings` | Parallel-implementation findings (exact/renamed fingerprint groups plus reducer-verified drifted pairs) for one repository, ranked members x tokens with per-rule suppression counts; `kind` selects the family (blank reads all three); `POST /api/v0/code/divergence/investigate` drills into one finding by repo, kind, and fingerprint with bounded follow-up calls. |
+| `POST /api/v0/code/divergence/findings` | Parallel-implementation findings (exact/renamed fingerprint groups, reducer-verified drifted pairs, plus graph-qualified wrapper-bypass targets) for one repository, ranked members x tokens with per-rule suppression counts; `kind` selects the family (blank reads all four); wrapper_bypass fingerprints carry the target entity id and findings carry weakest-edge `confidence`; `POST /api/v0/code/divergence/investigate` drills into one finding by repo, kind, and fingerprint with bounded follow-up calls. |
 | `POST /api/v0/code/complexity` | Single-function relationship metrics or a bounded list of complex functions. |
 | `POST /api/v0/code/quality/inspect` | Complexity, function length, argument count, or refactoring-candidate inspections. |
 | `POST /api/v0/code/language-query` | Language/entity-type queries that do not fit the focused routes above. |

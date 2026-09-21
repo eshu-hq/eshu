@@ -162,3 +162,173 @@ func BuildWrapperCalleesCypher(
 	cypher.WriteString("\n\t\tRETURN coalesce(callee.id, callee.uid) as id\n")
 	return cypher.String(), params
 }
+
+// BuildWrapperFamilyCallersCypher renders the batched one-hop callers read
+// for wrapper-bypass enumeration: UNWIND over target entity ids, one row
+// per (target, caller) with the single-target columns plus the target id
+// and name for demux. Every target stays anchored on its indexed entity id
+// with repo/grant in the anchoring WHERE on both dialects, like the
+// single-target read.
+func BuildWrapperFamilyCallersCypher(
+	targetIDs []string,
+	repoID string,
+	backend querycontract.GraphBackend,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{"target_ids": dedupeEntityIDs(targetIDs)}
+	predicates := make([]string, 0, 4)
+	if strings.TrimSpace(repoID) != "" {
+		params["repo_id"] = strings.TrimSpace(repoID)
+		predicates = append(predicates, "coalesce(caller.repo_id, '') = $repo_id")
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates, access.GraphConditionOnProperty("caller", "repo_id"))
+	}
+	returns := "\n\t\tOPTIONAL MATCH (caller)<-[:CONTAINS]-(callerFile:File)\n" +
+		"\t\tRETURN tid as target_id,\n" +
+		"\t\t       target.name as target_name,\n" +
+		"\t\t       coalesce(caller.id, caller.uid) as id,\n" +
+		"\t\t       caller.name as name,\n" +
+		"\t\t       callerFile.relative_path as file_path,\n" +
+		"\t\t       rel.resolution_method as edge_method,\n" +
+		"\t\t       coalesce(rel.confidence, 0) as edge_confidence,\n" +
+		"\t\t       coalesce(caller.cyclomatic_complexity, 0) as complexity\n"
+	if backend == querycontract.GraphBackendNornicDB {
+		var cypher strings.Builder
+		cypher.WriteString("\n\t\tUNWIND $target_ids AS tid\n")
+		cypher.WriteString("\t\tMATCH " + relationships.NornicDBNodePattern("target", "Function", "tid") + "\n")
+		cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)")
+		if len(predicates) > 0 {
+			cypher.WriteString("\n\t\tWHERE " + strings.Join(predicates, " AND "))
+		}
+		cypher.WriteString(returns)
+		return cypher.String(), params
+	}
+	var cypher strings.Builder
+	cypher.WriteString("\n\t\tUNWIND $target_ids AS tid\n")
+	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
+	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)\n")
+	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "tid"))
+	if strings.TrimSpace(repoID) != "" {
+		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+	}
+	for _, predicate := range predicates {
+		cypher.WriteString("\n\t\tAND " + predicate)
+	}
+	cypher.WriteString(returns)
+	return cypher.String(), params
+}
+
+// BuildWrapperFamilyFanInCypher renders the batched caller-count read: one
+// (id, fan_in) row per candidate entity id, so ranking a target's direct
+// callers costs one round trip no matter how large D grows.
+func BuildWrapperFamilyFanInCypher(
+	entityIDs []string,
+	repoID string,
+	backend querycontract.GraphBackend,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{"entity_ids": dedupeEntityIDs(entityIDs)}
+	predicates := make([]string, 0, 4)
+	if strings.TrimSpace(repoID) != "" {
+		params["repo_id"] = strings.TrimSpace(repoID)
+		predicates = append(predicates, "coalesce(caller.repo_id, '') = $repo_id")
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates, access.GraphConditionOnProperty("caller", "repo_id"))
+	}
+	returns := "\n\t\tRETURN eid as id, count(caller) as fan_in\n"
+	if backend == querycontract.GraphBackendNornicDB {
+		var cypher strings.Builder
+		cypher.WriteString("\n\t\tUNWIND $entity_ids AS eid\n")
+		cypher.WriteString("\t\tMATCH " + relationships.NornicDBNodePattern("target", "Function", "eid") + "\n")
+		cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)")
+		if len(predicates) > 0 {
+			cypher.WriteString("\n\t\tWHERE " + strings.Join(predicates, " AND "))
+		}
+		cypher.WriteString(returns)
+		return cypher.String(), params
+	}
+	var cypher strings.Builder
+	cypher.WriteString("\n\t\tUNWIND $entity_ids AS eid\n")
+	cypher.WriteString("\t\tMATCH (target:" + wrapperBypassAnchorLabels + ")\n")
+	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)\n")
+	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "eid"))
+	if strings.TrimSpace(repoID) != "" {
+		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+	}
+	for _, predicate := range predicates {
+		cypher.WriteString("\n\t\tAND " + predicate)
+	}
+	cypher.WriteString(returns)
+	return cypher.String(), params
+}
+
+// dedupeEntityIDs trims, drops empties, and dedupes an id list so UNWIND
+// bindings stay minimal and deterministic.
+func dedupeEntityIDs(ids []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// BuildWrapperFamilyCalleesCypher renders the batched outgoing-callee read
+// for wrapper-bypass enumeration: UNWIND over source entity ids, one
+// (source_id, id) row per outgoing CALLS edge. The track demuxes the pairs
+// into per-wrapper delegation targets and per-winner thinness inputs, so
+// one round trip serves the whole nominated family.
+func BuildWrapperFamilyCalleesCypher(
+	sourceIDs []string,
+	repoID string,
+	backend querycontract.GraphBackend,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{"source_ids": dedupeEntityIDs(sourceIDs)}
+	predicates := make([]string, 0, 4)
+	if strings.TrimSpace(repoID) != "" {
+		params["repo_id"] = strings.TrimSpace(repoID)
+		predicates = append(predicates, "coalesce(callee.repo_id, '') = $repo_id")
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates, access.GraphConditionOnProperty("callee", "repo_id"))
+	}
+	returns := "\n\t\tRETURN sid as source_id, coalesce(callee.id, callee.uid) as id\n"
+	if backend == querycontract.GraphBackendNornicDB {
+		var cypher strings.Builder
+		cypher.WriteString("\n\t\tUNWIND $source_ids AS sid\n")
+		cypher.WriteString("\t\tMATCH " + relationships.NornicDBNodePattern("source", "Function", "sid") + "\n")
+		cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)")
+		if len(predicates) > 0 {
+			cypher.WriteString("\n\t\tWHERE " + strings.Join(predicates, " AND "))
+		}
+		cypher.WriteString(returns)
+		return cypher.String(), params
+	}
+	var cypher strings.Builder
+	cypher.WriteString("\n\t\tUNWIND $source_ids AS sid\n")
+	cypher.WriteString("\t\tMATCH (source:" + wrapperBypassAnchorLabels + ")\n")
+	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)\n")
+	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "sid"))
+	if strings.TrimSpace(repoID) != "" {
+		cypher.WriteString("\n\t\tAND coalesce(source.repo_id, '') = $repo_id")
+	}
+	for _, predicate := range predicates {
+		cypher.WriteString("\n\t\tAND " + predicate)
+	}
+	cypher.WriteString(returns)
+	return cypher.String(), params
+}

@@ -12,13 +12,15 @@ import (
 
 // WrapperCallerRow is one direct caller of a wrapper-bypass target, as the
 // one-hop callers builders return it: caller identity, the caller file's
-// package (its directory), and the resolving CALLS edge's provenance.
+// package (its directory), the resolving CALLS edge's provenance, and the
+// caller's cyclomatic complexity (the thinness input, zero when unmapped).
 type WrapperCallerRow struct {
 	EntityID       string
 	Name           string
 	Package        string
 	EdgeMethod     string
 	EdgeConfidence float64
+	Complexity     int
 }
 
 // WrapperCandidateStats carries the thinness inputs for one direct caller:
@@ -89,6 +91,20 @@ func InferredResolutionMethods() map[string]bool {
 	}
 }
 
+// rankWrapperCandidates orders direct callers by fan-in desc, entity id asc:
+// the winner order SelectCanonicalWrapper and the read-surface pre-ranking
+// share, so the stats fetch targets the same winner the verdict ranks.
+func rankWrapperCandidates(direct []WrapperCallerRow, fanIn map[string]int) []WrapperCallerRow {
+	ranked := append([]WrapperCallerRow(nil), direct...)
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if fanIn[ranked[i].EntityID] != fanIn[ranked[j].EntityID] {
+			return fanIn[ranked[i].EntityID] > fanIn[ranked[j].EntityID]
+		}
+		return ranked[i].EntityID < ranked[j].EntityID
+	})
+	return ranked
+}
+
 // SelectCanonicalWrapper qualifies the canonical wrapper for a target from
 // its direct callers: the fan-in winner above the floor, unique against its
 // runner-up, and thin. Bypassers are the remaining direct callers outside
@@ -101,13 +117,7 @@ func SelectCanonicalWrapper(in WrapperBypassInput) (WrapperCallerRow, []WrapperC
 	if len(in.Direct) == 0 {
 		return suppress("no_direct_callers")
 	}
-	ranked := append([]WrapperCallerRow(nil), in.Direct...)
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if in.FanIn[ranked[i].EntityID] != in.FanIn[ranked[j].EntityID] {
-			return in.FanIn[ranked[i].EntityID] > in.FanIn[ranked[j].EntityID]
-		}
-		return ranked[i].EntityID < ranked[j].EntityID
-	})
+	ranked := rankWrapperCandidates(in.Direct, in.FanIn)
 	winner := ranked[0]
 	if in.FanIn[winner.EntityID] < in.Params.MinFanIn {
 		return suppress(fmt.Sprintf("no_caller_clears_fan_in_floor_%d", in.Params.MinFanIn))

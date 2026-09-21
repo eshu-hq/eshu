@@ -24,6 +24,7 @@ func Tools() []toolcontract.ToolDefinition {
 		codeTopicInvestigationTool(),
 		executeLanguageQueryTool(),
 		findFunctionCallChainTool(),
+		compareCodePathsTool(),
 	}
 }
 
@@ -401,6 +402,49 @@ func findFunctionCallChainTool() toolcontract.ToolDefinition {
 				},
 			},
 			"required": []string{},
+		},
+	}
+}
+
+func compareCodePathsTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "compare_code_paths",
+		Description: "Compare up to K distinct simple call paths between two functions in one repository, shortest first with weakest-edge confidence per path. Bounded breadth-first traversal over one-hop graph reads (depth at most 6, default 4; paths at most 20, default 5). Single-repo v1: repo_id is required and cross_repo is refused. Scoped tokens receive only paths whose every hop is in a granted repository; an ungranted repository selector is rejected.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"start": map[string]any{
+					"type":        "string",
+					"description": "Optional starting function name; use start_entity_id for an exact code graph entity selector",
+				},
+				"end": map[string]any{
+					"type":        "string",
+					"description": "Optional ending function name; use end_entity_id for an exact code graph entity selector",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Required canonical repository identifier scoping both entities",
+				},
+				"start_entity_id": map[string]any{
+					"type":        "string",
+					"description": "Optional exact starting code entity ID; avoids ambiguous name resolution when provided",
+				},
+				"end_entity_id": map[string]any{
+					"type":        "string",
+					"description": "Optional exact ending code entity ID; avoids ambiguous name resolution when provided",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Maximum path depth (1-6, default 4)",
+					"default":     4,
+				},
+				"max_paths": map[string]any{
+					"type":        "integer",
+					"description": "Maximum distinct simple paths (1-20, default 5)",
+					"default":     5,
+				},
+			},
+			"required": []string{"repo_id"},
 		},
 	}
 }

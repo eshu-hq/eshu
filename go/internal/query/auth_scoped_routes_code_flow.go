@@ -181,7 +181,8 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/language-query",
 		"/api/v0/code/imports/investigate",
 		"/api/v0/code/relationships/story",
-		"/api/v0/code/call-chain":
+		"/api/v0/code/call-chain",
+		"/api/v0/code/call-chain/compare":
 		return true
 	default:
 		return false

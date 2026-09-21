@@ -25,7 +25,7 @@ const Divergence = `
                 "required": ["repo_id"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted"], "default": "", "description": "Family; blank reads all three"},
+                  "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted", "wrapper_bypass"], "default": "", "description": "Family; blank reads all four. wrapper_bypass nominates from wrapper-family exact groups and qualifies one target at a time over one-hop graph rows; its fingerprint carries the target entity id"},
                   "limit": {"type": "integer", "default": 25, "maximum": 100},
                   "offset": {"type": "integer", "default": 0, "maximum": 10000},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
@@ -66,8 +66,8 @@ const Divergence = `
                 "required": ["repo_id", "kind", "fingerprint"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted"]},
-                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry"},
+                  "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "wrapper_bypass", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass"]},
+                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry (for wrapper_bypass, the target entity id)"},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }
               }

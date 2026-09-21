@@ -39,6 +39,7 @@ var canonicalCapabilityOrder = []string{
 	"call_graph.transitive_callers",
 	"call_graph.transitive_callees",
 	"call_graph.call_chain_path",
+	"call_graph.compare_code_paths",
 	"call_graph.route_to_caller",
 	"code_to_cloud.trace_exposure_path",
 	"code_quality.dead_code",

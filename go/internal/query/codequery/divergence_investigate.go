@@ -4,6 +4,7 @@
 package codequery
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,8 +17,9 @@ import (
 
 // DivergenceInvestigateRequest is the POST
 // /api/v0/code/divergence/investigate body: one finding addressed by
-// (repo_id, kind, fingerprint). Kind is required here (no both-kinds
-// default): a fingerprint is only unique within its equality family.
+// (repo_id, kind, fingerprint). Kind is required here (no all-families
+// default): a fingerprint is only unique within its equality family. For
+// wrapper_bypass the fingerprint carries the target entity id.
 type DivergenceInvestigateRequest struct {
 	RepoID       string `json:"repo_id"`
 	Kind         string `json:"kind"`
@@ -30,10 +32,11 @@ func (r DivergenceInvestigateRequest) validate() error {
 		return fmt.Errorf("repo_id is required")
 	}
 	switch r.Kind {
-	case "exact", "renamed", "drifted",
-		string(codedivergence.KindExact), string(codedivergence.KindRenamed), string(codedivergence.KindDrifted):
+	case "exact", "renamed", "drifted", "wrapper_bypass",
+		string(codedivergence.KindExact), string(codedivergence.KindRenamed),
+		string(codedivergence.KindDrifted), string(codedivergence.KindWrapperBypass):
 	default:
-		return fmt.Errorf("kind must be one of: \"exact\", \"renamed\", \"drifted\" (qualified \"parallel_implementation.*\" spellings accepted)")
+		return fmt.Errorf("kind must be one of: \"exact\", \"renamed\", \"drifted\", \"wrapper_bypass\" (qualified \"parallel_implementation.*\" spellings accepted)")
 	}
 	if strings.TrimSpace(r.Fingerprint) == "" {
 		return fmt.Errorf("fingerprint is required")
@@ -50,6 +53,8 @@ func (r DivergenceInvestigateRequest) kind() codedivergence.Kind {
 		return codedivergence.KindRenamed
 	case "drifted", string(codedivergence.KindDrifted):
 		return codedivergence.KindDrifted
+	case "wrapper_bypass", string(codedivergence.KindWrapperBypass):
+		return codedivergence.KindWrapperBypass
 	default:
 		return codedivergence.KindExact
 	}
@@ -103,7 +108,23 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 		return
 	}
 	var finding codedivergence.Finding
-	if req.kind() == codedivergence.KindDrifted {
+	sourceBackend := "postgres_content_store"
+	if req.kind() == codedivergence.KindWrapperBypass {
+		assembled, err := h.investigateWrapperTarget(r.Context(), req.RepoID, req.Fingerprint, req.IncludeTests)
+		if err != nil {
+			if errors.Is(err, errWrapperFindingNotFound) {
+				WriteError(w, http.StatusNotFound, "divergence finding not found")
+				return
+			}
+			if WriteGraphReadError(w, r, err, divergenceFindingsCapability) {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		finding = assembled
+		sourceBackend = "postgres_content_store+graph"
+	} else if req.kind() == codedivergence.KindDrifted {
 		rows, err := reader.DriftedFindingRows(r.Context(), req.RepoID, []string{req.Fingerprint})
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, err.Error())
@@ -142,6 +163,9 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 	if req.kind() == codedivergence.KindDrifted {
 		investigateBasis = "resolved from one active drifted-pair fact with bounded follow-ups"
 	}
+	if req.kind() == codedivergence.KindWrapperBypass {
+		investigateBasis = "resolved from one qualified wrapper target with bounded follow-ups"
+	}
 	steps, truncated := codedivergence.InvestigateSteps(req.RepoID, finding)
 	stepResults := make([]map[string]any, 0, len(steps))
 	for _, step := range steps {
@@ -161,7 +185,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 			"next_steps":     stepResults,
 			"truncated":      truncated,
 			"suppressions":   finding.Suppressions,
-			"source_backend": "postgres_content_store",
+			"source_backend": sourceBackend,
 		},
 		BuildTruthEnvelope(h.profile(), divergenceFindingsCapability, TruthBasisContentIndex, investigateBasis),
 	)

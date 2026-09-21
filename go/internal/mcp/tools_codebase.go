@@ -8,15 +8,15 @@ import (
 )
 
 func codebaseTools() []ToolDefinition {
-	// intel holds the eight code-intelligence definitions owned by the
+	// intel holds the nine code-intelligence definitions owned by the
 	// code/intel package, spliced into this block at their long-standing
 	// positions around the import-dependency and security helpers. The
 	// interleaved neighbors rule out a whole-slice append, so this guard
 	// makes an arity change fail fast here instead of silently dropping a
-	// ninth definition or panicking on an index below.
+	// tenth definition or panicking on an index below.
 	intel := codeinteltools.Tools()
-	if len(intel) != 8 {
-		panic("codeinteltools.Tools must return exactly the eight spliced definitions")
+	if len(intel) != 9 {
+		panic("codeinteltools.Tools must return exactly the nine spliced definitions")
 	}
 	tools := []ToolDefinition{
 		intel[0],
@@ -229,6 +229,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		intel[6],
 		intel[7],
+		intel[8],
 	}...)
 	return tools
 }

@@ -4321,6 +4321,47 @@
           "limit": 10
         }
       },
+      "compare_code_paths": {
+        "description": "MCP tool coverage shape for compare_code_paths; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Self-compare on the chain entry's recursionFib entity: resolution is the shared call-chain path, and the zero-length path needs no edges, so the shape is deterministic. The multi-hop enumeration leg is covered by handler tests on both backends and the live NornicDB diamond.",
+        "required_response_fields": [
+          "start",
+          "end",
+          "start_entity_id",
+          "end_entity_id",
+          "repo_id",
+          "paths",
+          "truncated",
+          "max_depth",
+          "max_paths",
+          "visited",
+          "source_backend"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "paths",
+        "result_item_required_fields": [
+          "nodes",
+          "depth",
+          "confidence"
+        ],
+        "arguments": {
+          "start": "recursionFib",
+          "end": "recursionFib",
+          "repo_id": "repository:r_ed3a9bab",
+          "max_depth": 2
+        },
+        "required_json_values": {
+          "start": "recursionFib",
+          "end": "recursionFib",
+          "repo_id": "repository:r_ed3a9bab",
+          "truncated": false,
+          "max_depth": 2,
+          "max_paths": 5,
+          "source_backend": "graph",
+          "paths[].depth": 0,
+          "paths[].nodes[].name": "recursionFib"
+        }
+      },
       "compare_environments": {
         "description": "Positive deployed comparison of the deployable-source workload across two materialized environments. The existing production Argo CD application and the public-safe staging application both pass through parser evidence, deployment-source admission, workload materialization, and canonical WorkloadInstance graph writes before this MCP assertion reads them. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [

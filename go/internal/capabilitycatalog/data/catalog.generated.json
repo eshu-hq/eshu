@@ -1264,6 +1264,86 @@
       }
     },
     {
+      "capability": "call_graph.compare_code_paths",
+      "display_name": "Call Graph Compare Code Paths",
+      "maturity": "preview",
+      "derived_maturity": "preview",
+      "surfaces": [
+        {
+          "tool": "compare_code_paths",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 2000,
+          "max_scope_size": "active_repo"
+        },
+        "local_full_stack": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "full_stack",
+          "max_scope_size": "indexed_workspace"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "active_repo"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services",
+          "max_scope_size": "multi_repo_platform"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "compose_e2e",
+          "ref": "compare-paths-pending"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp/code/intel"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query/codequery"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-compare-paths"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-compare-paths-pending"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "repository_content",
+        "action": "repository.content.read",
+        "data_classes": [
+          "repository_metadata",
+          "source_content"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository"
+        ],
+        "default_roles": [
+          "developer",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
       "capability": "call_graph.direct_callees",
       "display_name": "Call Graph Direct Callees",
       "maturity": "general_availability",

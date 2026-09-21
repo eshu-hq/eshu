@@ -29,9 +29,11 @@ const WrapperFamilyMinMembers = 5
 const LargeBodyTokens = 200
 
 // Kind is a finding kind: exact token-stream equality, alpha-renamed
-// equality, or reducer-verified Jaccard drift. Drifted findings assemble in
-// drifted.go from reducer_code_drifted_finding facts, never from fingerprint
-// groups.
+// equality, reducer-verified Jaccard drift, or graph-qualified wrapper
+// bypass. Drifted findings assemble in drifted.go from
+// reducer_code_drifted_finding facts, never from fingerprint groups;
+// wrapper-bypass findings assemble in wrapper_bypass.go from one qualified
+// target per nominated wrapper family.
 type Kind string
 
 const (
@@ -86,6 +88,9 @@ type Reason struct {
 }
 
 // Finding is one parallel-implementation group that survived suppression.
+// Confidence carries the weakest contributing CALLS-edge confidence for
+// graph-derived kinds (wrapper_bypass); it is zero and omitted for the
+// content-index kinds, which have no edge evidence.
 type Finding struct {
 	ID           string         `json:"finding_id"`
 	RepoID       string         `json:"repo_id"`
@@ -94,6 +99,7 @@ type Finding struct {
 	Members      []Member       `json:"members"`
 	Reasons      []Reason       `json:"reasons"`
 	Score        int            `json:"score"`
+	Confidence   float64        `json:"confidence,omitempty"`
 	Suppressions map[string]int `json:"suppressions"`
 }
 

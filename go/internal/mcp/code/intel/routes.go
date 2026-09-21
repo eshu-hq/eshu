@@ -99,6 +99,16 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			"end_entity_id":   args.String("end_entity_id"),
 			"max_depth":       args.IntOr("max_depth", 5),
 		}}, true
+	case "compare_code_paths":
+		return routecontract.Request{Method: "POST", Path: "/api/v0/code/call-chain/compare", Body: map[string]any{
+			"start":           args.String("start"),
+			"end":             args.String("end"),
+			"repo_id":         args.String("repo_id"),
+			"start_entity_id": args.String("start_entity_id"),
+			"end_entity_id":   args.String("end_entity_id"),
+			"max_depth":       args.IntOr("max_depth", 4),
+			"max_paths":       args.IntOr("max_paths", 5),
+		}}, true
 	default:
 		return routecontract.Request{}, false
 	}
