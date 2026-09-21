@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func goInsideFunction(node *tree_sitter.Node, lookup *goParentLookup) bool {
+// InsideFunction reports whether node has an enclosing function_declaration,
+// method_declaration, or func_literal ancestor.
+func InsideFunction(node *tree_sitter.Node, lookup *ParentLookup) bool {
 	for current := lookup.Parent(node); current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
@@ -19,20 +22,25 @@ func goInsideFunction(node *tree_sitter.Node, lookup *goParentLookup) bool {
 	return false
 }
 
-func goVariableNames(node *tree_sitter.Node, source []byte) []map[string]any {
+// VariableNames returns the single-element variable payload for a var_spec or
+// const_spec node's name field, in the parser's function-call/variable
+// payload shape.
+func VariableNames(node *tree_sitter.Node, source []byte) []map[string]any {
 	nameNode := node.ChildByFieldName("name")
 	if nameNode == nil {
 		return nil
 	}
 	return []map[string]any{{
-		"name":        nodeText(nameNode, source),
-		"line_number": nodeLine(nameNode),
-		"end_line":    nodeEndLine(node),
+		"name":        shared.NodeText(nameNode, source),
+		"line_number": shared.NodeLine(nameNode),
+		"end_line":    shared.NodeEndLine(node),
 		"lang":        "go",
 	}}
 }
 
-func goShortVariableNames(node *tree_sitter.Node, source []byte) []map[string]any {
+// ShortVariableNames returns one variable payload per identifier on the left
+// side of a short_var_declaration node, skipping non-identifier targets.
+func ShortVariableNames(node *tree_sitter.Node, source []byte) []map[string]any {
 	left := node.ChildByFieldName("left")
 	if left == nil {
 		return nil
@@ -47,22 +55,24 @@ func goShortVariableNames(node *tree_sitter.Node, source []byte) []map[string]an
 			continue
 		}
 		items = append(items, map[string]any{
-			"name":        nodeText(&child, source),
-			"line_number": nodeLine(&child),
-			"end_line":    nodeEndLine(node),
+			"name":        shared.NodeText(&child, source),
+			"line_number": shared.NodeLine(&child),
+			"end_line":    shared.NodeEndLine(node),
 			"lang":        "go",
 		})
 	}
 	return items
 }
 
-func goDocstring(node *tree_sitter.Node, source []byte) string {
+// Docstring returns the contiguous line- or block-comment text immediately
+// preceding node, joined and trimmed, or "" when node has no such comment.
+func Docstring(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
 
 	lines := strings.Split(string(source), "\n")
-	startLine := nodeLine(node) - 2
+	startLine := shared.NodeLine(node) - 2
 	if startLine < 0 || startLine >= len(lines) {
 		return ""
 	}
@@ -90,7 +100,9 @@ func goDocstring(node *tree_sitter.Node, source []byte) string {
 	return strings.TrimSpace(strings.Join(comments, "\n"))
 }
 
-func goReceiverContext(node *tree_sitter.Node, source []byte) string {
+// ReceiverContext returns the normalized receiver type name for a
+// method_declaration node, or "" when node has no receiver.
+func ReceiverContext(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
@@ -100,7 +112,7 @@ func goReceiverContext(node *tree_sitter.Node, source []byte) string {
 		return ""
 	}
 
-	typeNode := firstNamedDescendant(
+	typeNode := FirstNamedDescendant(
 		receiver,
 		"type_identifier",
 		"qualified_type",
@@ -113,5 +125,5 @@ func goReceiverContext(node *tree_sitter.Node, source []byte) string {
 		return ""
 	}
 
-	return goNormalizeTypeName(nodeText(typeNode, source))
+	return NormalizeTypeName(shared.NodeText(typeNode, source))
 }

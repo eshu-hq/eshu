@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -78,14 +80,14 @@ func goTaintFacts(funcNode *tree_sitter.Node, source []byte, fn cfg.Function) ta
 		Sinks:      map[int]taint.SinkMark{},
 	}
 
-	funcLine := nodeLine(funcNode)
+	funcLine := shared.NodeLine(funcNode)
 	for name, kind := range goSourceParams(funcNode, source) {
 		if stmtID, ok := index.defStmt(funcLine, name); ok {
 			facts.Sources[taint.StmtBinding{Stmt: stmtID, Binding: name}] = taint.SourceMark{Kind: kind, Label: name}
 		}
 	}
 
-	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
+	symbols.WalkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "short_var_declaration", "assignment_statement":
 			goClassifyAssignment(node, source, index, &facts)
@@ -104,7 +106,7 @@ func goClassifyAssignment(node *tree_sitter.Node, source []byte, index *goLineIn
 	if left == nil || right == nil {
 		return
 	}
-	call := firstNamedDescendant(right, "call_expression")
+	call := symbols.FirstNamedDescendant(right, "call_expression")
 	if call == nil {
 		return
 	}
@@ -118,7 +120,7 @@ func goClassifyAssignment(node *tree_sitter.Node, source []byte, index *goLineIn
 	}
 	target := targets[0]
 	name := goTaintCallName(call, source)
-	line := nodeLine(node)
+	line := shared.NodeLine(node)
 	stmtID, resolvedTarget, ok := index.defStmtOrOnlyDef(line, target)
 	if !ok {
 		return
@@ -166,7 +168,7 @@ func goClassifySinkCall(node *tree_sitter.Node, source []byte, index *goLineInde
 	if !ok {
 		return
 	}
-	stmtID, ok := index.useStmt(nodeLine(node))
+	stmtID, ok := index.useStmt(shared.NodeLine(node))
 	if !ok {
 		return
 	}
@@ -190,7 +192,7 @@ func goTaintCallQualified(call *tree_sitter.Node, source []byte) string {
 	if operand == nil || field == nil || operand.Kind() != "identifier" {
 		return ""
 	}
-	return nodeText(operand, source) + "." + nodeText(field, source)
+	return shared.NodeText(operand, source) + "." + shared.NodeText(field, source)
 }
 
 // goTaintCallName returns the final name of a call's function: the selector field
@@ -202,12 +204,12 @@ func goTaintCallName(call *tree_sitter.Node, source []byte) string {
 	}
 	switch fnNode.Kind() {
 	case "identifier":
-		return nodeText(fnNode, source)
+		return shared.NodeText(fnNode, source)
 	case "selector_expression":
-		return nodeText(fnNode.ChildByFieldName("field"), source)
+		return shared.NodeText(fnNode.ChildByFieldName("field"), source)
 	default:
-		if field := firstNamedDescendant(fnNode, "field_identifier"); field != nil {
-			return nodeText(field, source)
+		if field := symbols.FirstNamedDescendant(fnNode, "field_identifier"); field != nil {
+			return shared.NodeText(field, source)
 		}
 		return ""
 	}
@@ -231,7 +233,7 @@ func goSourceParams(funcNode *tree_sitter.Node, source []byte) map[string]string
 		if typeNode == nil {
 			continue
 		}
-		typeText := nodeText(typeNode, source)
+		typeText := shared.NodeText(typeNode, source)
 		kind := ""
 		for _, entry := range goSourceParamTypeMarkers {
 			if strings.Contains(typeText, entry.marker) {
@@ -245,7 +247,7 @@ func goSourceParams(funcNode *tree_sitter.Node, source []byte) map[string]string
 		declCursor := decl.Walk()
 		for _, field := range decl.NamedChildren(declCursor) {
 			if field.Kind() == "identifier" {
-				if name := nodeText(&field, source); name != "" && name != blankIdentifier {
+				if name := shared.NodeText(&field, source); name != "" && name != blankIdentifier {
 					out[name] = kind
 				}
 			}

@@ -4,10 +4,10 @@
 package golang
 
 import (
-	"path"
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -24,9 +24,9 @@ func goDeadCodeEvidence(
 	importedParamMethods GoImportedInterfaceParamMethods,
 	directMethodCallRoots GoDirectMethodCallRoots,
 	packageImportPath string,
-	localNameBindings []goLocalNameBinding,
+	localNameBindings []symbols.LocalNameBinding,
 	constructorReturns map[string]string,
-	lookup *goParentLookup,
+	lookup *symbols.ParentLookup,
 ) goDeadCodeEvidenceSet {
 	evidence := goDeadCodeEvidenceSet{
 		functionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
@@ -64,7 +64,7 @@ func goMergePackageDirectMethodRoots(
 		if node.Kind() != "method_declaration" {
 			return
 		}
-		receiver := strings.ToLower(goReceiverContext(node, source))
+		receiver := strings.ToLower(symbols.ReceiverContext(node, source))
 		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
 		if receiver == "" || name == "" {
 			return
@@ -72,58 +72,9 @@ func goMergePackageDirectMethodRoots(
 		qualifiedKey := importPath + "." + receiver + "." + name
 		for _, kind := range directMethodCallRoots[qualifiedKey] {
 			localKey := receiver + "." + name
-			functionRootKinds[localKey] = appendUniqueImportAlias(functionRootKinds[localKey], kind)
+			functionRootKinds[localKey] = symbols.AppendUniqueImportAlias(functionRootKinds[localKey], kind)
 		}
 	})
-}
-
-func goImportAliasIndex(root *tree_sitter.Node, source []byte) map[string][]string {
-	index := make(map[string][]string)
-	if root == nil {
-		return index
-	}
-
-	walkNamed(root, func(node *tree_sitter.Node) {
-		if node.Kind() != "import_spec" {
-			return
-		}
-		goCollectImportAlias(node, source, index)
-	})
-	return index
-}
-
-// goCollectImportAlias records the import alias for one import_spec node into
-// index, if any. It is the single-node visitor shared by goImportAliasIndex
-// (a standalone full-tree walk used by package-prescan callers) and
-// goCollectFileLevelIndexes (the per-file merged walk in Parse), so both
-// paths apply identical import-alias extraction logic.
-func goCollectImportAlias(node *tree_sitter.Node, source []byte, index map[string][]string) {
-	pathNode := node.ChildByFieldName("path")
-	if pathNode == nil {
-		return
-	}
-	importPath := strings.TrimSpace(strings.Trim(nodeText(pathNode, source), `"`))
-	if importPath == "" {
-		return
-	}
-
-	alias := goImportAlias(node, source, importPath)
-	if alias == "" || alias == "." || alias == "_" {
-		return
-	}
-	index[importPath] = appendUniqueImportAlias(index[importPath], alias)
-}
-
-func goImportAlias(node *tree_sitter.Node, source []byte, importPath string) string {
-	if node == nil {
-		return ""
-	}
-	if aliasNode := node.ChildByFieldName("name"); aliasNode != nil {
-		if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" {
-			return alias
-		}
-	}
-	return path.Base(importPath)
 }
 
 func goDeadCodeRootKinds(
@@ -139,23 +90,23 @@ func goDeadCodeRootKinds(
 	rootKinds := make([]string, 0, 5)
 	if node.Kind() == "function_declaration" {
 		for _, kind := range registeredRootKinds[strings.ToLower(name)] {
-			rootKinds = appendUniqueImportAlias(rootKinds, kind)
+			rootKinds = symbols.AppendUniqueImportAlias(rootKinds, kind)
 		}
 	}
 	if node.Kind() == "method_declaration" {
-		methodKey := strings.ToLower(goReceiverContext(node, source) + "." + name)
+		methodKey := strings.ToLower(symbols.ReceiverContext(node, source) + "." + name)
 		for _, kind := range registeredRootKinds[methodKey] {
-			rootKinds = appendUniqueImportAlias(rootKinds, kind)
+			rootKinds = symbols.AppendUniqueImportAlias(rootKinds, kind)
 		}
 	}
 	if goSignatureMatchesHTTPHandler(params, importAliases) {
-		rootKinds = appendUniqueImportAlias(rootKinds, "go.net_http_handler_signature")
+		rootKinds = symbols.AppendUniqueImportAlias(rootKinds, "go.net_http_handler_signature")
 	}
 	if goSignatureMatchesCobraRun(params, importAliases) {
-		rootKinds = appendUniqueImportAlias(rootKinds, "go.cobra_run_signature")
+		rootKinds = symbols.AppendUniqueImportAlias(rootKinds, "go.cobra_run_signature")
 	}
 	if name == "Reconcile" && goSignatureMatchesControllerRuntimeReconcile(params, results, importAliases) {
-		rootKinds = appendUniqueImportAlias(rootKinds, "go.controller_runtime_reconcile_signature")
+		rootKinds = symbols.AppendUniqueImportAlias(rootKinds, "go.controller_runtime_reconcile_signature")
 	}
 	return rootKinds
 }
@@ -171,7 +122,7 @@ func goSignatureMatchesHTTPHandler(params string, importAliases map[string][]str
 	if params == "" {
 		return false
 	}
-	httpAliases := goAliasesForImportPath(importAliases, "net/http")
+	httpAliases := symbols.AliasesForImportPath(importAliases, "net/http")
 	if len(httpAliases) == 0 {
 		return false
 	}
@@ -183,7 +134,7 @@ func goSignatureMatchesCobraRun(params string, importAliases map[string][]string
 	if params == "" || !strings.Contains(params, "[]string") {
 		return false
 	}
-	cobraAliases := goAliasesForImportPath(importAliases, "github.com/spf13/cobra")
+	cobraAliases := symbols.AliasesForImportPath(importAliases, "github.com/spf13/cobra")
 	if len(cobraAliases) == 0 {
 		return false
 	}
@@ -199,7 +150,7 @@ func goSignatureMatchesControllerRuntimeReconcile(
 		return false
 	}
 
-	contextAliases := goAliasesForImportPath(importAliases, "context")
+	contextAliases := symbols.AliasesForImportPath(importAliases, "context")
 	if len(contextAliases) == 0 || !goSignatureContainsAnyQualifiedType(params, contextAliases, "context") {
 		return false
 	}
@@ -217,17 +168,11 @@ func goSignatureMatchesControllerRuntimeReconcile(
 		goSignatureContainsAnyQualifiedType(results, controllerAliases, "result")
 }
 
-func goAliasesForImportPath(index map[string][]string, importPath string) []string {
-	aliases := append([]string(nil), index[importPath]...)
-	slices.Sort(aliases)
-	return aliases
-}
-
 func goMergedAliasesForImportPaths(index map[string][]string, importPaths ...string) []string {
 	merged := make([]string, 0)
 	for _, importPath := range importPaths {
 		for _, alias := range index[importPath] {
-			merged = appendUniqueImportAlias(merged, alias)
+			merged = symbols.AppendUniqueImportAlias(merged, alias)
 		}
 	}
 	slices.Sort(merged)
@@ -260,13 +205,4 @@ func goSignatureContainsAnyRequestPointer(signature string, aliases []string) bo
 		}
 	}
 	return false
-}
-
-func appendUniqueImportAlias(values []string, value string) []string {
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
 }

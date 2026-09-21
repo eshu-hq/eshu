@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -15,7 +16,7 @@ import (
 // rebound, the later binding must win. A regression that applied every scope
 // binding regardless of position, or in the wrong order, would resolve `x` to
 // the wrong struct type at the earlier call site. This exercises the real
-// goVariableTypeIndex, not a re-implementation, so it fails if the cached-delta
+// VariableTypeIndex, not a re-implementation, so it fails if the cached-delta
 // merge in ForNode stops honoring startByte order.
 func TestGoVariableTypeIndexForNodeRespectsBindingOrder(t *testing.T) {
 	t.Parallel()
@@ -36,13 +37,13 @@ func run() {
 	defer tree.Close()
 	root := tree.RootNode()
 
-	lookup := goBuildParentLookup(root)
+	lookup := BuildParentLookup(root)
 	structTypes := map[string]struct{}{"foo": {}, "bar": {}}
-	idx := goBuildVariableTypeIndex(root, source, structTypes, map[string]string{}, lookup)
+	idx := BuildVariableTypeIndex(root, source, structTypes, map[string]string{}, lookup)
 
 	// Collect the two marker call expressions by callee name.
 	calls := map[string]*tree_sitter.Node{}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}

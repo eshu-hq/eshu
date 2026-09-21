@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
-import tree_sitter "github.com/tree-sitter/go-tree-sitter"
+import (
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
 
 // blankIdentifier is Go's write-only sink; it is never a meaningful definition
 // or use for value-flow purposes.
@@ -39,7 +43,7 @@ func goParameterListNames(list *tree_sitter.Node, source []byte) []string {
 		declCursor := decl.Walk()
 		for _, field := range decl.NamedChildren(declCursor) {
 			if field.Kind() == "identifier" {
-				if name := nodeText(&field, source); name != "" && name != blankIdentifier {
+				if name := shared.NodeText(&field, source); name != "" && name != blankIdentifier {
 					names = append(names, name)
 				}
 			}
@@ -117,12 +121,12 @@ func goAssignmentDefsUsesWithOptions(node *tree_sitter.Node, source []byte, alia
 // goSpecDefsUsesWithOptions collects definitions and uses from a var or const
 // declaration's specs.
 func goSpecDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases goBindingAliases, options goAccessPathOptions) (defs, uses []string) {
-	walkNamed(node, func(child *tree_sitter.Node) {
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "var_spec" && child.Kind() != "const_spec" {
 			return
 		}
 		if name := child.ChildByFieldName("name"); name != nil {
-			if text := nodeText(name, source); text != "" && text != blankIdentifier {
+			if text := shared.NodeText(name, source); text != "" && text != blankIdentifier {
 				defs = append(defs, text)
 			}
 		}
@@ -130,7 +134,7 @@ func goSpecDefsUsesWithOptions(node *tree_sitter.Node, source []byte, aliases go
 		cursor := child.Walk()
 		for _, field := range child.NamedChildren(cursor) {
 			if field.Kind() == "identifier" {
-				if text := nodeText(&field, source); text != "" && text != blankIdentifier {
+				if text := shared.NodeText(&field, source); text != "" && text != blankIdentifier {
 					defs = appendUnique(defs, text)
 				}
 			}
@@ -226,7 +230,7 @@ func goFuncLiteralCaptureUses(node *tree_sitter.Node, source []byte, aliases goB
 	if body == nil {
 		return nil
 	}
-	walkScopeBindings(body, func(child *tree_sitter.Node) {
+	symbols.WalkScopeBindings(body, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "short_var_declaration", "var_declaration", "const_declaration":
 			defs, _ := goStmtDefsUsesWithOptions(child, source, nil, options)
@@ -250,7 +254,7 @@ func goFuncLiteralCaptureUses(node *tree_sitter.Node, source []byte, aliases goB
 // as += so the target is also read.
 func goIsCompoundAssign(node *tree_sitter.Node, source []byte) bool {
 	if op := node.ChildByFieldName("operator"); op != nil {
-		text := nodeText(op, source)
+		text := shared.NodeText(op, source)
 		return text != "" && text != "="
 	}
 	// Fallback: the operator is the unnamed token sitting between the left and
@@ -265,7 +269,7 @@ func goIsCompoundAssign(node *tree_sitter.Node, source []byte) bool {
 		if child.IsNamed() || sameSpan(&child, left) || sameSpan(&child, right) {
 			continue
 		}
-		op := nodeText(&child, source)
+		op := shared.NodeText(&child, source)
 		if op != "" && op != "=" {
 			return true
 		}

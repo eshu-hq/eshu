@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -24,11 +26,11 @@ func goFunctionID(repositoryID, importPath, receiver, name string) summary.Funct
 // receiver-qualified resolution is a later step.
 func goLocalFunctionIDs(root *tree_sitter.Node, source []byte, repositoryID, importPath string) map[string]summary.FunctionID {
 	out := map[string]summary.FunctionID{}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "function_declaration" {
 			return
 		}
-		name := nodeText(node.ChildByFieldName("name"), source)
+		name := shared.NodeText(node.ChildByFieldName("name"), source)
 		if name != "" {
 			out[name] = goFunctionID(repositoryID, importPath, "", name)
 		}
@@ -46,7 +48,7 @@ func goEffectsSpec(funcNode *tree_sitter.Node, source []byte, fn cfg.Function, l
 		Sanitizers: map[int][]string{},
 	}
 
-	funcLine := nodeLine(funcNode)
+	funcLine := shared.NodeLine(funcNode)
 	for i, name := range goFunctionParamNames(funcNode, source) {
 		if stmtID, ok := index.defStmt(funcLine, name); ok {
 			spec.Params = append(spec.Params, valueflow.ParamSlot{Index: i, Stmt: stmtID, Binding: name})
@@ -98,11 +100,11 @@ func goEarliestDefLines(fn cfg.Function) map[string]int {
 func goReturnStmts(funcNode *tree_sitter.Node, index *goLineIndex) []int {
 	var stmts []int
 	seen := map[int]bool{}
-	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
+	symbols.WalkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		if node.Kind() != "return_statement" {
 			return
 		}
-		if stmtID, ok := index.useStmt(nodeLine(node)); ok && !seen[stmtID] {
+		if stmtID, ok := index.useStmt(shared.NodeLine(node)); ok && !seen[stmtID] {
 			seen[stmtID] = true
 			stmts = append(stmts, stmtID)
 		}
@@ -125,7 +127,7 @@ func goReturnStmts(funcNode *tree_sitter.Node, index *goLineIndex) []int {
 // edge; a local declared after the call does not shadow it.
 func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineIndex, localFuncs map[string]summary.FunctionID, defLines map[string]int) []valueflow.CallArgSlot {
 	var slots []valueflow.CallArgSlot
-	walkScopeBindings(funcNode, func(node *tree_sitter.Node) {
+	symbols.WalkScopeBindings(funcNode, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
@@ -133,15 +135,15 @@ func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineInde
 		if fnNode == nil || fnNode.Kind() != "identifier" {
 			return
 		}
-		name := nodeText(fnNode, source)
-		if defLine, ok := defLines[name]; ok && defLine <= nodeLine(node) {
+		name := shared.NodeText(fnNode, source)
+		if defLine, ok := defLines[name]; ok && defLine <= shared.NodeLine(node) {
 			return // shadowed by a binding defined at or before this call
 		}
 		callee, ok := localFuncs[name]
 		if !ok {
 			return
 		}
-		stmtID, ok := index.useStmt(nodeLine(node))
+		stmtID, ok := index.useStmt(shared.NodeLine(node))
 		if !ok {
 			return
 		}
@@ -155,7 +157,7 @@ func goCallArgSlots(funcNode *tree_sitter.Node, source []byte, index *goLineInde
 			if arg.Kind() != "identifier" {
 				continue
 			}
-			binding := nodeText(&arg, source)
+			binding := shared.NodeText(&arg, source)
 			if binding == "" || binding == blankIdentifier {
 				continue
 			}

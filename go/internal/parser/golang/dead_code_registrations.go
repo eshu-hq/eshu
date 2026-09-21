@@ -6,6 +6,7 @@ package golang
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -21,7 +22,7 @@ func goRegisteredDeadCodeRootKinds(
 
 	serveMuxVars := goHTTPServeMuxVars(root, source, importAliases)
 	cobraVars := goKnownVariableNames(root, source, func(expr string) bool {
-		cobraAliases := goAliasesForImportPath(importAliases, "github.com/spf13/cobra")
+		cobraAliases := symbols.AliasesForImportPath(importAliases, "github.com/spf13/cobra")
 		for _, alias := range cobraAliases {
 			lowerAlias := strings.ToLower(alias)
 			if strings.HasPrefix(expr, "&"+lowerAlias+".command{") ||
@@ -52,7 +53,7 @@ func goHTTPServeMuxVars(
 	importAliases map[string][]string,
 ) map[string]struct{} {
 	return goKnownVariableNames(root, source, func(expr string) bool {
-		httpAliases := goAliasesForImportPath(importAliases, "net/http")
+		httpAliases := symbols.AliasesForImportPath(importAliases, "net/http")
 		for _, alias := range httpAliases {
 			lowerAlias := strings.ToLower(alias)
 			if expr == lowerAlias+".newservemux()" ||
@@ -93,7 +94,7 @@ func goKnownVariableNames(
 		if !matches(goCompactSource(rightNode, source)) {
 			return
 		}
-		for _, name := range goIdentifierNames(leftNode, source) {
+		for _, name := range symbols.IdentifierNames(leftNode, source) {
 			known[name] = struct{}{}
 		}
 	})
@@ -109,7 +110,7 @@ func goCollectHTTPRegistrationRoots(
 	registered map[string][]string,
 ) {
 	functionNode := node.ChildByFieldName("function")
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return
 	}
@@ -120,7 +121,7 @@ func goCollectHTTPRegistrationRoots(
 		return
 	}
 
-	httpAliases := goAliasesForImportPath(importAliases, "net/http")
+	httpAliases := symbols.AliasesForImportPath(importAliases, "net/http")
 	knownHTTPBase := false
 	for _, alias := range httpAliases {
 		if strings.ToLower(alias) == base {
@@ -155,7 +156,7 @@ func goCollectHTTPRegistrationRoots(
 	}
 
 	key := strings.ToLower(handlerName)
-	registered[key] = appendUniqueImportAlias(registered[key], "go.net_http_handler_registration")
+	registered[key] = symbols.AppendUniqueImportAlias(registered[key], "go.net_http_handler_registration")
 }
 
 func goHTTPHandlerWrapperTarget(
@@ -167,12 +168,12 @@ func goHTTPHandlerWrapperTarget(
 		return ""
 	}
 	functionNode := node.ChildByFieldName("function")
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok || strings.ToLower(field) != "handlerfunc" {
 		return ""
 	}
 
-	httpAliases := goAliasesForImportPath(importAliases, "net/http")
+	httpAliases := symbols.AliasesForImportPath(importAliases, "net/http")
 	matchedBase := false
 	for _, alias := range httpAliases {
 		if strings.EqualFold(alias, base) {
@@ -202,7 +203,7 @@ func goCollectCobraLiteralRoots(
 	registered map[string][]string,
 ) {
 	typeNode := node.ChildByFieldName("type")
-	if typeNode == nil || !goNodeMatchesAnyQualifiedType(typeNode, source, goAliasesForImportPath(importAliases, "github.com/spf13/cobra"), "command") {
+	if typeNode == nil || !goNodeMatchesAnyQualifiedType(typeNode, source, symbols.AliasesForImportPath(importAliases, "github.com/spf13/cobra"), "command") {
 		return
 	}
 
@@ -214,7 +215,7 @@ func goCollectCobraLiteralRoots(
 		}
 		if value := goLeadingIdentifier(compact[start+len(prefix):]); value != "" {
 			key := strings.ToLower(value)
-			registered[key] = appendUniqueImportAlias(registered[key], "go.cobra_run_registration")
+			registered[key] = symbols.AppendUniqueImportAlias(registered[key], "go.cobra_run_registration")
 		}
 	}
 }
@@ -225,13 +226,13 @@ func goCollectCobraAssignmentRoots(
 	cobraVars map[string]struct{},
 	registered map[string][]string,
 ) {
-	leftNode := goUnwrapSingleExpression(node.ChildByFieldName("left"))
-	rightNode := goUnwrapSingleExpression(node.ChildByFieldName("right"))
+	leftNode := symbols.UnwrapSingleExpression(node.ChildByFieldName("left"))
+	rightNode := symbols.UnwrapSingleExpression(node.ChildByFieldName("right"))
 	if leftNode == nil || rightNode == nil || rightNode.Kind() != "identifier" {
 		return
 	}
 
-	base, field, ok := goSelectorBaseAndField(leftNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(leftNode, source)
 	if !ok {
 		return
 	}
@@ -243,52 +244,9 @@ func goCollectCobraAssignmentRoots(
 		name := strings.TrimSpace(nodeText(rightNode, source))
 		if name != "" {
 			key := strings.ToLower(name)
-			registered[key] = appendUniqueImportAlias(registered[key], "go.cobra_run_registration")
+			registered[key] = symbols.AppendUniqueImportAlias(registered[key], "go.cobra_run_registration")
 		}
 	}
-}
-
-func goIdentifierNames(node *tree_sitter.Node, source []byte) []string {
-	if node == nil {
-		return nil
-	}
-	switch node.Kind() {
-	case "field_identifier", "identifier", "type_identifier":
-		name := strings.TrimSpace(nodeText(node, source))
-		if name == "" {
-			return nil
-		}
-		return []string{strings.ToLower(name)}
-	default:
-		cursor := node.Walk()
-		defer cursor.Close()
-		values := make([]string, 0)
-		for _, child := range node.NamedChildren(cursor) {
-			values = append(values, goIdentifierNames(&child, source)...)
-		}
-		return values
-	}
-}
-
-func goSelectorBaseAndField(node *tree_sitter.Node, source []byte) (string, string, bool) {
-	if node == nil || node.Kind() != "selector_expression" {
-		return "", "", false
-	}
-	fieldNode := node.ChildByFieldName("field")
-	if fieldNode == nil {
-		return "", "", false
-	}
-	baseNode := node.ChildByFieldName("operand")
-	if baseNode == nil {
-		cursor := node.Walk()
-		defer cursor.Close()
-		children := node.NamedChildren(cursor)
-		if len(children) == 0 {
-			return "", "", false
-		}
-		baseNode = &children[0]
-	}
-	return strings.TrimSpace(nodeText(baseNode, source)), strings.TrimSpace(nodeText(fieldNode, source)), true
 }
 
 func goNodeMatchesAnyQualifiedType(node *tree_sitter.Node, source []byte, aliases []string, typeName string) bool {
@@ -327,20 +285,4 @@ func goLeadingIdentifier(value string) string {
 		break
 	}
 	return value[:end]
-}
-
-func goUnwrapSingleExpression(node *tree_sitter.Node) *tree_sitter.Node {
-	if node == nil {
-		return nil
-	}
-	if node.Kind() != "expression_list" {
-		return node
-	}
-	cursor := node.Walk()
-	defer cursor.Close()
-	children := node.NamedChildren(cursor)
-	if len(children) != 1 {
-		return node
-	}
-	return &children[0]
 }

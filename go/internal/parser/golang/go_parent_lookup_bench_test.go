@@ -16,7 +16,7 @@ import (
 // BenchmarkParsePathGoIdentifierHeavy parses a synthetic Go file with many
 // identifiers in value positions (function arguments, struct literals) and
 // deeply nested call expressions. The Go dead-code helpers walk node.Parent()
-// per identifier; before the per-parse goParentLookup landed, that pattern
+// per identifier; before the per-parse symbols.ParentLookup landed, that pattern
 // scaled as O(n_identifiers * depth^2) per file and saturated CPU on
 // repo-scale corpora without committing facts (see #161). This benchmark is
 // the focused regression gate that proves the parse path stays bounded.

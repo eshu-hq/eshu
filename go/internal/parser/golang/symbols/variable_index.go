@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"maps"
@@ -9,7 +9,7 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// goVariableTypeIndex amortizes scoped variable-type lookups across one parse.
+// VariableTypeIndex amortizes scoped variable-type lookups across one parse.
 //
 // Before the index, goKnownLocalVariableTypesForNode rebuilt the file's
 // package-level variable types from scratch and walked the enclosing function
@@ -24,13 +24,13 @@ import (
 // builds a sorted slice of scoped declarations per function scope. Per-call
 // lookups are O(package_vars + scope_bindings_before_call) in pure Go map and
 // slice work — no further cgo.
-type goVariableTypeIndex struct {
+type VariableTypeIndex struct {
 	packageVars        map[string]string
 	scopeBindings      map[uintptr][]goScopedBinding
 	source             []byte
 	structTypes        map[string]struct{}
 	constructorReturns map[string]string
-	lookup             *goParentLookup
+	lookup             *ParentLookup
 }
 
 // goScopedBindingKind tags one of the variable-binding shapes the index
@@ -70,18 +70,18 @@ type goScopedBinding struct {
 	delta     map[string]string
 }
 
-// goBuildVariableTypeIndex computes the package-level variable types eagerly
+// BuildVariableTypeIndex computes the package-level variable types eagerly
 // and prepares lazy storage for per-scope bindings. structTypes and
 // constructorReturns are retained because per-scope bindings need them at
 // expand time, but they must not be mutated after this call.
-func goBuildVariableTypeIndex(
+func BuildVariableTypeIndex(
 	root *tree_sitter.Node,
 	source []byte,
 	structTypes map[string]struct{},
 	constructorReturns map[string]string,
-	lookup *goParentLookup,
-) *goVariableTypeIndex {
-	idx := &goVariableTypeIndex{
+	lookup *ParentLookup,
+) *VariableTypeIndex {
+	idx := &VariableTypeIndex{
 		scopeBindings:      make(map[uintptr][]goScopedBinding),
 		source:             source,
 		structTypes:        structTypes,
@@ -95,7 +95,7 @@ func goBuildVariableTypeIndex(
 // ForNode returns the variable-type map visible to node, equivalent to what
 // goKnownLocalVariableTypesForNode returned before the index existed. Callers
 // receive a fresh map and may mutate it.
-func (idx *goVariableTypeIndex) ForNode(root *tree_sitter.Node, node *tree_sitter.Node) map[string]string {
+func (idx *VariableTypeIndex) ForNode(root *tree_sitter.Node, node *tree_sitter.Node) map[string]string {
 	if idx == nil {
 		return map[string]string{}
 	}
@@ -124,12 +124,12 @@ func (idx *goVariableTypeIndex) ForNode(root *tree_sitter.Node, node *tree_sitte
 // caches it. The walker stops at nested function_declaration / method_declaration
 // / func_literal subtrees so a `var x = ...` inside an inner closure does not
 // leak into the outer function's binding table (Go lexical scoping).
-func (idx *goVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goScopedBinding {
+func (idx *VariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goScopedBinding {
 	if cached, ok := idx.scopeBindings[scope.Id()]; ok {
 		return cached
 	}
 	bindings := make([]goScopedBinding, 0, 8)
-	walkScopeBindings(scope, func(child *tree_sitter.Node) {
+	WalkScopeBindings(scope, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
 			if child.StartByte() != scope.StartByte() {
@@ -160,7 +160,7 @@ func (idx *goVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goSc
 // into a fresh map. The helpers are write-only, so the returned map is exactly
 // the set of keys that declaration would have written; ForNode merges these
 // cached deltas instead of re-walking the declaration for every call site.
-func (idx *goVariableTypeIndex) bindingDelta(kind goScopedBindingKind, decl *tree_sitter.Node) map[string]string {
+func (idx *VariableTypeIndex) bindingDelta(kind goScopedBindingKind, decl *tree_sitter.Node) map[string]string {
 	delta := make(map[string]string, 1)
 	switch kind {
 	case goScopedBindingFuncParams:

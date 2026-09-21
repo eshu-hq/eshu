@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"maps"
@@ -9,7 +9,7 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// goImportedVariableTypeIndex amortizes scoped imported-variable-type lookups
+// ImportedVariableTypeIndex amortizes scoped imported-variable-type lookups
 // across one parse of the package-interface prescan path.
 //
 // Before the index, goKnownImportedVariableTypesForCall called
@@ -27,12 +27,12 @@ import (
 // package-scope map and replaying the scope's bindings up to the call's start
 // byte. That keeps top-level imports cheap while preserving local shadowing for
 // selector calls that still need scoped receiver evidence.
-type goImportedVariableTypeIndex struct {
+type ImportedVariableTypeIndex struct {
 	packageVars   map[string]string
 	scopeBindings map[uintptr][]goImportedScopedBinding
 	source        []byte
 	importAliases map[string][]string
-	lookup        *goParentLookup
+	lookup        *ParentLookup
 }
 
 // goImportedScopedBindingKind tags one of the imported-variable binding shapes
@@ -66,17 +66,17 @@ type goImportedScopedBinding struct {
 	decl      tree_sitter.Node
 }
 
-// goBuildImportedVariableTypeIndex returns an index built around the file's
+// BuildImportedVariableTypeIndex returns an index built around the file's
 // package-scope imported-variable types. Per-scope binding lists are computed
 // lazily on first ForCall access for the scope; scopes never queried pay
 // nothing beyond the one-time package-scope walk performed here.
-func goBuildImportedVariableTypeIndex(
+func BuildImportedVariableTypeIndex(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	lookup *goParentLookup,
-) *goImportedVariableTypeIndex {
-	idx := &goImportedVariableTypeIndex{
+	lookup *ParentLookup,
+) *ImportedVariableTypeIndex {
+	idx := &ImportedVariableTypeIndex{
 		scopeBindings: make(map[uintptr][]goImportedScopedBinding),
 		source:        source,
 		importAliases: importAliases,
@@ -90,7 +90,7 @@ func goBuildImportedVariableTypeIndex(
 // — equivalent to goKnownImportedVariableTypesForCall before the index. The
 // returned map is freshly allocated and may be mutated by the caller without
 // poisoning the cache.
-func (idx *goImportedVariableTypeIndex) ForCall(call *tree_sitter.Node) map[string]string {
+func (idx *ImportedVariableTypeIndex) ForCall(call *tree_sitter.Node) map[string]string {
 	if idx == nil {
 		return map[string]string{}
 	}
@@ -127,12 +127,12 @@ func (idx *goImportedVariableTypeIndex) ForCall(call *tree_sitter.Node) map[stri
 // caches it. The walker stops at nested function_declaration / method_declaration
 // / func_literal subtrees so an imported-variable binding declared inside an
 // inner closure does not leak into the outer function's binding table.
-func (idx *goImportedVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goImportedScopedBinding {
+func (idx *ImportedVariableTypeIndex) bindingsForScope(scope *tree_sitter.Node) []goImportedScopedBinding {
 	if cached, ok := idx.scopeBindings[scope.Id()]; ok {
 		return cached
 	}
 	bindings := make([]goImportedScopedBinding, 0, 8)
-	walkScopeBindings(scope, func(child *tree_sitter.Node) {
+	WalkScopeBindings(scope, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "parameter_declaration":
 			bindings = append(bindings, goImportedScopedBinding{

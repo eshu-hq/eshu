@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -14,10 +15,10 @@ func goKnownLocalPackageVariableTypes(
 	source []byte,
 	structTypes map[string]struct{},
 	constructorReturns map[string]string,
-	lookup *goParentLookup,
+	lookup *ParentLookup,
 ) map[string]string {
 	variableTypes := make(map[string]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if goEnclosingFunctionScope(node, lookup) != nil {
 			return
 		}
@@ -49,8 +50,8 @@ func goRecordLocalVarSpecTypes(
 	constructorReturns map[string]string,
 	variableTypes map[string]string,
 ) {
-	names := goIdentifierNames(node.ChildByFieldName("name"), source)
-	concreteType := goConcreteTypeFromExpression(node.ChildByFieldName("value"), source, structTypes)
+	names := IdentifierNames(node.ChildByFieldName("name"), source)
+	concreteType := ConcreteTypeFromExpression(node.ChildByFieldName("value"), source, structTypes)
 	if concreteType == "" {
 		concreteType = goConcreteTypeFromConstructorCall(
 			node.ChildByFieldName("value"),
@@ -60,7 +61,7 @@ func goRecordLocalVarSpecTypes(
 		)
 	}
 	if concreteType == "" {
-		concreteType = goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
+		concreteType = ConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
 	}
 	if concreteType == "" {
 		return
@@ -77,11 +78,11 @@ func goRecordLocalAssignmentTypes(
 	constructorReturns map[string]string,
 	variableTypes map[string]string,
 ) {
-	leftNames := goIdentifierNames(node.ChildByFieldName("left"), source)
-	concreteType := goConcreteTypeFromExpression(goUnwrapSingleExpression(node.ChildByFieldName("right")), source, structTypes)
+	leftNames := IdentifierNames(node.ChildByFieldName("left"), source)
+	concreteType := ConcreteTypeFromExpression(UnwrapSingleExpression(node.ChildByFieldName("right")), source, structTypes)
 	if concreteType == "" {
 		concreteType = goConcreteTypeFromConstructorCall(
-			goUnwrapSingleExpression(node.ChildByFieldName("right")),
+			UnwrapSingleExpression(node.ChildByFieldName("right")),
 			source,
 			structTypes,
 			constructorReturns,

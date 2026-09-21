@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -16,15 +17,15 @@ func goLocalParameterTypes(
 ) map[string]string {
 	types := make(map[string]string)
 	params := node.ChildByFieldName("parameters")
-	walkDirectNamed(params, func(param *tree_sitter.Node) {
+	WalkDirectNamed(params, func(param *tree_sitter.Node) {
 		if param.Kind() != "parameter_declaration" {
 			return
 		}
-		concreteType := goConcreteTypeFromTypeNode(param.ChildByFieldName("type"), source, structTypes)
+		concreteType := ConcreteTypeFromTypeNode(param.ChildByFieldName("type"), source, structTypes)
 		if concreteType == "" {
 			return
 		}
-		for _, name := range goIdentifierNames(param.ChildByFieldName("name"), source) {
+		for _, name := range IdentifierNames(param.ChildByFieldName("name"), source) {
 			types[name] = concreteType
 		}
 	})
@@ -44,12 +45,12 @@ func goConcreteTypeFromConstructorCall(
 	if functionNode == nil || functionNode.Kind() != "identifier" {
 		return ""
 	}
-	constructorName := strings.TrimSpace(nodeText(functionNode, source))
+	constructorName := strings.TrimSpace(shared.NodeText(functionNode, source))
 	typeName := strings.TrimSpace(constructorReturns[constructorName])
 	if typeName == "" {
 		typeName = strings.TrimSpace(constructorReturns[strings.ToLower(constructorName)])
 	}
-	typeName = strings.ToLower(goNormalizeTypeName(typeName))
+	typeName = strings.ToLower(NormalizeTypeName(typeName))
 	if _, ok := structTypes[typeName]; ok {
 		return typeName
 	}
@@ -60,7 +61,7 @@ func goKnownImportedVariableTypes(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	_ *goParentLookup,
+	_ *ParentLookup,
 ) map[string]string {
 	variableTypes := make(map[string]string)
 	walkPackageScopeImportedVariableDeclarations(root, func(node *tree_sitter.Node) {
@@ -111,7 +112,7 @@ func goRecordImportedParameterTypes(
 	if typeName == "" {
 		return
 	}
-	for _, name := range goIdentifierNames(node.ChildByFieldName("name"), source) {
+	for _, name := range IdentifierNames(node.ChildByFieldName("name"), source) {
 		variableTypes[name] = typeName
 	}
 }
@@ -129,7 +130,7 @@ func goRecordImportedVarSpecTypes(
 	if typeName == "" {
 		return
 	}
-	for _, name := range goIdentifierNames(node.ChildByFieldName("name"), source) {
+	for _, name := range IdentifierNames(node.ChildByFieldName("name"), source) {
 		variableTypes[name] = typeName
 	}
 }
@@ -149,12 +150,15 @@ func goRecordImportedAssignmentTypes(
 	if typeName == "" {
 		return
 	}
-	for _, name := range goIdentifierNames(node.ChildByFieldName("left"), source) {
+	for _, name := range IdentifierNames(node.ChildByFieldName("left"), source) {
 		variableTypes[name] = typeName
 	}
 }
 
-func goImportedDirectMethodCallKey(
+// ImportedDirectMethodCallKey returns the "<receiver type>.<method>" key for
+// a call whose receiver type resolves through variableTypes or
+// interfaceMethodReturns, or "" when the receiver type cannot be resolved.
+func ImportedDirectMethodCallKey(
 	node *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
@@ -165,9 +169,9 @@ func goImportedDirectMethodCallKey(
 	if functionNode == nil || functionNode.Kind() != "selector_expression" {
 		return ""
 	}
-	methodName := strings.ToLower(strings.TrimSpace(nodeText(functionNode.ChildByFieldName("field"), source)))
+	methodName := strings.ToLower(strings.TrimSpace(shared.NodeText(functionNode.ChildByFieldName("field"), source)))
 	if methodName == "" {
-		_, field, ok := goSelectorBaseAndField(functionNode, source)
+		_, field, ok := SelectorBaseAndField(functionNode, source)
 		if !ok {
 			return ""
 		}
@@ -185,7 +189,7 @@ func goImportedDirectMethodCallKey(
 	}
 	receiverType := ""
 	if receiverNode.Kind() == "identifier" {
-		receiverType = variableTypes[strings.ToLower(strings.TrimSpace(nodeText(receiverNode, source)))]
+		receiverType = variableTypes[strings.ToLower(strings.TrimSpace(shared.NodeText(receiverNode, source)))]
 	} else {
 		receiverType = goImportedTypeFromExpression(receiverNode, source, importAliases, variableTypes, interfaceMethodReturns)
 	}
@@ -195,28 +199,31 @@ func goImportedDirectMethodCallKey(
 	return receiverType + "." + methodName
 }
 
-func goImportedFmtStringerCallKeys(
+// ImportedFmtStringerCallKeys returns "<type>.string" keys for the value
+// arguments of a recognized fmt-formatting call whose resolved type contains
+// a package qualifier, for matching against known Stringer implementations.
+func ImportedFmtStringerCallKeys(
 	node *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
 	variableTypes map[string]string,
 	interfaceMethodReturns map[string]string,
 ) []string {
-	if !goCallIsFmtFormatting(node, source, importAliases) {
+	if !CallIsFmtFormatting(node, source, importAliases) {
 		return nil
 	}
 	keys := make([]string, 0)
-	firstValueArg := goFmtStringerFirstValueArgIndex(node, source, importAliases)
-	for index, arg := range goCallArgumentNodes(node) {
+	firstValueArg := FmtStringerFirstValueArgIndex(node, source, importAliases)
+	for index, arg := range CallArgumentNodes(node) {
 		if index < firstValueArg {
 			continue
 		}
 		typeName := goImportedTypeFromExpression(arg, source, importAliases, variableTypes, interfaceMethodReturns)
 		if typeName == "" && arg.Kind() == "identifier" {
-			typeName = variableTypes[strings.ToLower(strings.TrimSpace(nodeText(arg, source)))]
+			typeName = variableTypes[strings.ToLower(strings.TrimSpace(shared.NodeText(arg, source)))]
 		}
 		if typeName != "" && strings.Contains(typeName, ".") {
-			keys = appendUniqueImportAlias(keys, typeName+".string")
+			keys = AppendUniqueImportAlias(keys, typeName+".string")
 		}
 	}
 	return keys
@@ -235,7 +242,7 @@ func goImportedTypeFromExpression(
 	switch node.Kind() {
 	case "identifier":
 		if variableTypes != nil {
-			return variableTypes[strings.ToLower(strings.TrimSpace(nodeText(node, source)))]
+			return variableTypes[strings.ToLower(strings.TrimSpace(shared.NodeText(node, source)))]
 		}
 	case "composite_literal":
 		return goImportedTypeFromTypeNode(node.ChildByFieldName("type"), source, importAliases)
@@ -269,7 +276,7 @@ func goImportedTypeFromReceiverMethodCall(
 	if variableTypes == nil || interfaceMethodReturns == nil {
 		return ""
 	}
-	receiver, methodName, ok := goSelectorBaseAndField(functionNode, source)
+	receiver, methodName, ok := SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return ""
 	}
@@ -313,12 +320,12 @@ func goImportedTypeFromSelectorOperand(
 	var base, field string
 	if node.Kind() == "selector_expression" {
 		var ok bool
-		base, field, ok = goSelectorBaseAndField(node, source)
+		base, field, ok = SelectorBaseAndField(node, source)
 		if !ok {
 			return ""
 		}
 	} else if node.Kind() == "qualified_type" {
-		parts := strings.Split(strings.TrimSpace(nodeText(node, source)), ".")
+		parts := strings.Split(strings.TrimSpace(shared.NodeText(node, source)), ".")
 		if len(parts) < 2 {
 			return ""
 		}
@@ -327,11 +334,11 @@ func goImportedTypeFromSelectorOperand(
 	} else {
 		return ""
 	}
-	importPath := goImportPathForAlias(base, importAliases)
+	importPath := ImportPathForAlias(base, importAliases)
 	if importPath == "" {
 		return ""
 	}
-	return strings.ToLower(importPath + "." + goNormalizeTypeName(field))
+	return strings.ToLower(importPath + "." + NormalizeTypeName(field))
 }
 
 func goReceiverTypeFromAnyTypeNode(
@@ -342,29 +349,33 @@ func goReceiverTypeFromAnyTypeNode(
 	if typeName := goImportedTypeFromTypeNode(node, source, importAliases); typeName != "" {
 		return typeName
 	}
-	return strings.ToLower(goNormalizeTypeName(nodeText(node, source)))
+	return strings.ToLower(NormalizeTypeName(shared.NodeText(node, source)))
 }
 
-func goLocalInterfaceImportedMethodReturns(
+// LocalInterfaceImportedMethodReturns maps "<local interface name>.<method>"
+// to the imported receiver type each package-local interface method's
+// declared result type resolves to, for interfaces whose method results name
+// an imported type.
+func LocalInterfaceImportedMethodReturns(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
 ) map[string]string {
 	returns := make(map[string]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_spec" {
 			return
 		}
-		interfaceName := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		interfaceName := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		typeNode := node.ChildByFieldName("type")
 		if interfaceName == "" || typeNode == nil || typeNode.Kind() != "interface_type" {
 			return
 		}
-		walkNamed(typeNode, func(child *tree_sitter.Node) {
+		shared.WalkNamed(typeNode, func(child *tree_sitter.Node) {
 			if child.Kind() != "method_elem" {
 				return
 			}
-			methodName := strings.ToLower(strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source)))
+			methodName := strings.ToLower(strings.TrimSpace(shared.NodeText(child.ChildByFieldName("name"), source)))
 			returnType := goImportedTypeFromTypeNode(child.ChildByFieldName("result"), source, importAliases)
 			if methodName != "" && returnType != "" {
 				returns[interfaceName+"."+methodName] = returnType
@@ -374,7 +385,9 @@ func goLocalInterfaceImportedMethodReturns(
 	return returns
 }
 
-func goImportPathForAlias(alias string, importAliases map[string][]string) string {
+// ImportPathForAlias returns the import path that binds alias in
+// importAliases, or "" when no import path does.
+func ImportPathForAlias(alias string, importAliases map[string][]string) string {
 	trimmed := strings.TrimSpace(alias)
 	for importPath, aliases := range importAliases {
 		for _, candidate := range aliases {

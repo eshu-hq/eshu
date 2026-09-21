@@ -6,6 +6,7 @@ package golang
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -71,15 +72,15 @@ func awsSDKServiceFromImportPath(importPath string) string {
 // goAWSSDKReceiverBindings records, for in-file dataflow, each local variable
 // assigned from an AWS SDK service-client constructor call. Bindings reuse the
 // receiver-binding scope model so a variable is only consulted within the
-// lexical scope where it was constructed, mirroring goLocalReceiverBindings.
+// lexical scope where it was constructed, mirroring symbols.LocalReceiverBindings.
 // The service name is stored in the binding's typeName field.
 func goAWSSDKReceiverBindings(
 	root *tree_sitter.Node,
 	source []byte,
 	serviceAliases map[string]string,
-	lookup *goParentLookup,
-) []goLocalReceiverBinding {
-	bindings := make([]goLocalReceiverBinding, 0)
+	lookup *symbols.ParentLookup,
+) []symbols.LocalReceiverBinding {
+	bindings := make([]symbols.LocalReceiverBinding, 0)
 	if len(serviceAliases) == 0 {
 		return bindings
 	}
@@ -96,10 +97,10 @@ func goAWSSDKReceiverBindingsFromAssignment(
 	node *tree_sitter.Node,
 	source []byte,
 	serviceAliases map[string]string,
-	lookup *goParentLookup,
-) []goLocalReceiverBinding {
-	names := goAssignableIdentifierNodes(node.ChildByFieldName("left"), source)
-	values := goExpressionNodes(node.ChildByFieldName("right"))
+	lookup *symbols.ParentLookup,
+) []symbols.LocalReceiverBinding {
+	names := symbols.AssignableIdentifierNodes(node.ChildByFieldName("left"), source)
+	values := symbols.ExpressionNodes(node.ChildByFieldName("right"))
 	if len(names) == 0 || len(values) == 0 {
 		return nil
 	}
@@ -107,14 +108,14 @@ func goAWSSDKReceiverBindingsFromAssignment(
 	if len(values) < count {
 		count = len(values)
 	}
-	bindings := make([]goLocalReceiverBinding, 0, count)
+	bindings := make([]symbols.LocalReceiverBinding, 0, count)
 	for i := 0; i < count; i++ {
 		service := goAWSSDKServiceFromConstructorCall(values[i], source, serviceAliases)
 		if service == "" {
 			continue
 		}
-		binding := goNewLocalReceiverBinding(node, names[i], service, true, source, lookup)
-		if binding.variable != "" {
+		binding := symbols.NewLocalReceiverBinding(node, names[i], service, true, source, lookup)
+		if binding.Variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -129,7 +130,7 @@ func goAWSSDKServiceFromConstructorCall(
 	source []byte,
 	serviceAliases map[string]string,
 ) string {
-	node = goUnwrapSingleExpression(node)
+	node = symbols.UnwrapSingleExpression(node)
 	if node == nil || node.Kind() != "call_expression" {
 		return ""
 	}
@@ -150,7 +151,7 @@ func goAWSSDKServiceFromConstructorCall(
 }
 
 // goInferredReceiverSDKService returns the AWS SDK service bound to a receiver
-// variable at a call site. It reuses goConcreteInferredReceiverType so the
+// variable at a call site. It reuses symbols.ConcreteInferredReceiverType so the
 // result is correlation-truthful: a receiver resolves only when a single
 // service is provably bound within the narrowest in-scope assignment, and an
 // ambiguous reassignment to more than one service yields "" rather than a
@@ -158,7 +159,7 @@ func goAWSSDKServiceFromConstructorCall(
 func goInferredReceiverSDKService(
 	receiver string,
 	callLine int,
-	bindings []goLocalReceiverBinding,
+	bindings []symbols.LocalReceiverBinding,
 ) string {
-	return goConcreteInferredReceiverType(receiver, callLine, bindings)
+	return symbols.ConcreteInferredReceiverType(receiver, callLine, bindings)
 }

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -23,20 +24,20 @@ func goCollectInterfaceReturnConcreteTypes(
 	structRootKinds map[string][]string,
 ) {
 	resultNode := node.ChildByFieldName("result")
-	for _, interfaceName := range goReferencedLocalInterfaces(resultNode, source, interfaceMethods) {
-		interfaceRootKinds[interfaceName] = appendUniqueImportAlias(interfaceRootKinds[interfaceName], "go.interface_type_reference")
+	for _, interfaceName := range symbols.ReferencedLocalInterfaces(resultNode, source, interfaceMethods) {
+		interfaceRootKinds[interfaceName] = symbols.AppendUniqueImportAlias(interfaceRootKinds[interfaceName], "go.interface_type_reference")
 		walkNamed(node, func(child *tree_sitter.Node) {
 			if child.Kind() != "return_statement" {
 				return
 			}
 			for _, concreteType := range goConcreteTypesInExpression(child, source, structTypes) {
-				interfaceConcreteTypes[interfaceName] = appendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
+				interfaceConcreteTypes[interfaceName] = symbols.AppendUniqueImportAlias(interfaceConcreteTypes[interfaceName], concreteType)
 			}
 		})
 	}
 
-	importedTarget := goInterfaceTargetFromTypeNode(resultNode, source, interfaceMethods)
-	if !importedTarget.imported {
+	importedTarget := symbols.InterfaceTargetFromTypeNode(resultNode, source, interfaceMethods)
+	if !importedTarget.Imported {
 		return
 	}
 	walkNamed(node, func(child *tree_sitter.Node) {
@@ -61,7 +62,7 @@ func goMarkCompositeLiteralInterfaceFields(
 	node *tree_sitter.Node,
 	source []byte,
 	structTypes map[string]struct{},
-	structFieldTargets map[string]map[string]goInterfaceTarget,
+	structFieldTargets map[string]map[string]symbols.InterfaceTarget,
 	interfaceMethods map[string][]string,
 	interfaceConcreteTypes map[string][]string,
 	methodNamesByReceiver map[string][]string,
@@ -69,7 +70,7 @@ func goMarkCompositeLiteralInterfaceFields(
 	functionRootKinds map[string][]string,
 	structRootKinds map[string][]string,
 ) {
-	structType := goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
+	structType := symbols.ConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
 	if structType == "" || len(structFieldTargets[structType]) == 0 {
 		return
 	}
@@ -85,7 +86,7 @@ func goMarkCompositeLiteralInterfaceFields(
 		if !ok {
 			return
 		}
-		concreteType := goConcreteTypeFromExpression(valueNode, source, structTypes)
+		concreteType := symbols.ConcreteTypeFromExpression(valueNode, source, structTypes)
 		goMarkConcreteTypeForInterfaceTarget(
 			concreteType,
 			target,
@@ -103,7 +104,7 @@ func goMarkCallArgumentInterfaceMethods(
 	source []byte,
 	structTypes map[string]struct{},
 	variableTypes map[string]string,
-	functionParamTargets map[string]map[int]goInterfaceTarget,
+	functionParamTargets map[string]map[int]symbols.InterfaceTarget,
 	importAliases map[string][]string,
 	interfaceMethods map[string][]string,
 	interfaceConcreteTypes map[string][]string,
@@ -113,11 +114,11 @@ func goMarkCallArgumentInterfaceMethods(
 	structRootKinds map[string][]string,
 ) {
 	functionName := goCallFunctionName(node, source)
-	qualifiedFunctionName := goQualifiedCallFunctionName(node, source, importAliases)
+	qualifiedFunctionName := symbols.QualifiedCallFunctionName(node, source, importAliases)
 	if functionName == "" && qualifiedFunctionName == "" {
 		return
 	}
-	for index, arg := range goCallArgumentNodes(node) {
+	for index, arg := range symbols.CallArgumentNodes(node) {
 		target, ok := functionParamTargets[qualifiedFunctionName][index]
 		if !ok {
 			target, ok = functionParamTargets[functionName][index]
@@ -125,7 +126,7 @@ func goMarkCallArgumentInterfaceMethods(
 		if !ok {
 			continue
 		}
-		concreteType := goConcreteTypeFromExpression(arg, source, structTypes)
+		concreteType := symbols.ConcreteTypeFromExpression(arg, source, structTypes)
 		if concreteType == "" && arg.Kind() == "identifier" {
 			concreteType = variableTypes[strings.ToLower(strings.TrimSpace(nodeText(arg, source)))]
 		}
@@ -143,43 +144,43 @@ func goMarkCallArgumentInterfaceMethods(
 
 func goMarkConcreteTypeForInterfaceTarget(
 	concreteType string,
-	target goInterfaceTarget,
+	target symbols.InterfaceTarget,
 	interfaceConcreteTypes map[string][]string,
 	methodNamesByReceiver map[string][]string,
 	exportedMethodNamesByReceiver map[string][]string,
 	functionRootKinds map[string][]string,
 	structRootKinds map[string][]string,
 ) {
-	if concreteType == "" || !target.modeled() {
+	if concreteType == "" || !target.Modeled() {
 		return
 	}
-	if target.localInterface != "" {
-		interfaceConcreteTypes[target.localInterface] = appendUniqueImportAlias(interfaceConcreteTypes[target.localInterface], concreteType)
-		structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
+	if target.LocalInterface != "" {
+		interfaceConcreteTypes[target.LocalInterface] = symbols.AppendUniqueImportAlias(interfaceConcreteTypes[target.LocalInterface], concreteType)
+		structRootKinds[concreteType] = symbols.AppendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
 		return
 	}
-	if !target.imported {
+	if !target.Imported {
 		return
 	}
-	if len(target.importedMethods) == 0 && target.allowExportedMethods {
+	if len(target.ImportedMethods) == 0 && target.AllowExportedMethods {
 		for _, methodName := range exportedMethodNamesByReceiver[concreteType] {
 			key := concreteType + "." + methodName
-			functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.interface_method_implementation")
+			functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.interface_method_implementation")
 		}
-		structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
+		structRootKinds[concreteType] = symbols.AppendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
 		return
 	}
-	if len(target.importedMethods) == 0 {
+	if len(target.ImportedMethods) == 0 {
 		return
 	}
 	for _, methodName := range methodNamesByReceiver[concreteType] {
-		if !slices.Contains(target.importedMethods, methodName) {
+		if !slices.Contains(target.ImportedMethods, methodName) {
 			continue
 		}
 		key := concreteType + "." + methodName
-		functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.interface_method_implementation")
+		functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.interface_method_implementation")
 	}
-	structRootKinds[concreteType] = appendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
+	structRootKinds[concreteType] = symbols.AppendUniqueImportAlias(structRootKinds[concreteType], "go.interface_implementation_type")
 }
 
 func goCollectDirectMethodCallRoot(
@@ -189,13 +190,13 @@ func goCollectDirectMethodCallRoot(
 	variableTypes map[string]string,
 	structFieldTypes map[string]map[string]string,
 	functionRootKinds map[string][]string,
-	lookup *goParentLookup,
+	lookup *symbols.ParentLookup,
 ) {
 	functionNode := node.ChildByFieldName("function")
 	if functionNode == nil || functionNode.Kind() != "selector_expression" {
 		return
 	}
-	receiver, methodName, ok := goSelectorBaseAndField(functionNode, source)
+	receiver, methodName, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return
 	}
@@ -203,24 +204,24 @@ func goCollectDirectMethodCallRoot(
 	if methodName == "" {
 		return
 	}
-	enclosingReceiver, enclosingType := goEnclosingMethodReceiver(node, source, lookup)
+	enclosingReceiver, enclosingType := symbols.EnclosingMethodReceiver(node, source, lookup)
 	if strings.TrimSpace(receiver) == enclosingReceiver && enclosingType != "" {
 		key := strings.ToLower(enclosingType) + "." + methodName
 		if _, ok := methodKeys[key]; ok {
-			functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
+			functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
 			return
 		}
 	}
 	if receiverType := variableTypes[strings.ToLower(strings.TrimSpace(receiver))]; receiverType != "" {
 		key := receiverType + "." + methodName
 		if _, ok := methodKeys[key]; ok {
-			functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
+			functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
 		}
 	}
 	if receiverType := goFieldSelectorReceiverType(receiver, enclosingReceiver, enclosingType, variableTypes, structFieldTypes); receiverType != "" {
 		key := receiverType + "." + methodName
 		if _, ok := methodKeys[key]; ok {
-			functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
+			functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.direct_method_call")
 		}
 	}
 }
@@ -258,11 +259,11 @@ func goCollectFmtStringerRoot(
 	structTypes map[string]struct{},
 	functionRootKinds map[string][]string,
 ) {
-	if !goCallIsFmtFormatting(node, source, importAliases) {
+	if !symbols.CallIsFmtFormatting(node, source, importAliases) {
 		return
 	}
-	firstValueArg := goFmtStringerFirstValueArgIndex(node, source, importAliases)
-	for index, arg := range goCallArgumentNodes(node) {
+	firstValueArg := symbols.FmtStringerFirstValueArgIndex(node, source, importAliases)
+	for index, arg := range symbols.CallArgumentNodes(node) {
 		if index < firstValueArg {
 			continue
 		}
@@ -272,32 +273,8 @@ func goCollectFmtStringerRoot(
 		}
 		key := receiverType + ".string"
 		if _, ok := methodKeys[key]; ok {
-			functionRootKinds[key] = appendUniqueImportAlias(functionRootKinds[key], "go.fmt_stringer_method")
+			functionRootKinds[key] = symbols.AppendUniqueImportAlias(functionRootKinds[key], "go.fmt_stringer_method")
 		}
-	}
-}
-
-func goCallIsFmtFormatting(node *tree_sitter.Node, source []byte, importAliases map[string][]string) bool {
-	functionName := goQualifiedCallFunctionName(node, source, importAliases)
-	switch functionName {
-	case "fmt.sprint", "fmt.sprintln", "fmt.sprintf", "fmt.fprint", "fmt.fprintln", "fmt.fprintf":
-		return true
-	default:
-		return false
-	}
-}
-
-func goFmtStringerFirstValueArgIndex(node *tree_sitter.Node, source []byte, importAliases map[string][]string) int {
-	functionName := goQualifiedCallFunctionName(node, source, importAliases)
-	switch functionName {
-	case "fmt.sprint", "fmt.sprintln":
-		return 0
-	case "fmt.sprintf", "fmt.fprint", "fmt.fprintln":
-		return 1
-	case "fmt.fprintf":
-		return 2
-	default:
-		return 0
 	}
 }
 
@@ -314,7 +291,7 @@ func goKnownReceiverTypeFromExpression(
 	case "identifier":
 		return variableTypes[strings.ToLower(strings.TrimSpace(nodeText(node, source)))]
 	case "composite_literal":
-		return goConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
+		return symbols.ConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
 	case "call_expression":
 		return goSelectorConversionReceiverTypeFromCall(node, source)
 	case "parenthesized_expression", "unary_expression":
@@ -330,7 +307,7 @@ func goKnownReceiverTypeFromWrappedExpression(
 	structTypes map[string]struct{},
 ) string {
 	var receiverType string
-	walkDirectNamed(node, func(child *tree_sitter.Node) {
+	symbols.WalkDirectNamed(node, func(child *tree_sitter.Node) {
 		if receiverType != "" {
 			return
 		}
@@ -346,7 +323,7 @@ func goSelectorConversionReceiverTypeFromCall(node *tree_sitter.Node, source []b
 	}
 	switch functionNode.Kind() {
 	case "identifier", "type_identifier":
-		return strings.ToLower(goNormalizeTypeName(nodeText(functionNode, source)))
+		return strings.ToLower(symbols.NormalizeTypeName(nodeText(functionNode, source)))
 	default:
 		return ""
 	}
@@ -361,49 +338,12 @@ func goCallFunctionName(node *tree_sitter.Node, source []byte) string {
 	case "identifier":
 		return strings.ToLower(strings.TrimSpace(nodeText(functionNode, source)))
 	case "selector_expression":
-		_, field, ok := goSelectorBaseAndField(functionNode, source)
+		_, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 		if ok {
 			return strings.ToLower(strings.TrimSpace(field))
 		}
 	}
 	return ""
-}
-
-func goQualifiedCallFunctionName(node *tree_sitter.Node, source []byte, importAliases map[string][]string) string {
-	functionNode := node.ChildByFieldName("function")
-	if functionNode == nil || functionNode.Kind() != "selector_expression" {
-		return ""
-	}
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
-	if !ok {
-		return ""
-	}
-	base = strings.TrimSpace(base)
-	field = strings.TrimSpace(field)
-	if base == "" || field == "" {
-		return ""
-	}
-	for importPath, aliases := range importAliases {
-		for _, alias := range aliases {
-			if alias == base {
-				return strings.ToLower(importPath + "." + field)
-			}
-		}
-	}
-	return ""
-}
-
-func goCallArgumentNodes(node *tree_sitter.Node) []*tree_sitter.Node {
-	args := make([]*tree_sitter.Node, 0)
-	walkDirectNamed(node, func(child *tree_sitter.Node) {
-		if child.Kind() != "argument_list" {
-			return
-		}
-		walkDirectNamed(child, func(arg *tree_sitter.Node) {
-			args = append(args, arg)
-		})
-	})
-	return args
 }
 
 func goKeyedElementFieldAndValue(node *tree_sitter.Node, source []byte) (string, *tree_sitter.Node) {
@@ -413,7 +353,7 @@ func goKeyedElementFieldAndValue(node *tree_sitter.Node, source []byte) (string,
 		return strings.ToLower(strings.TrimSpace(nodeText(keyNode, source))), valueNode
 	}
 	children := make([]*tree_sitter.Node, 0, 2)
-	walkDirectNamed(node, func(child *tree_sitter.Node) {
+	symbols.WalkDirectNamed(node, func(child *tree_sitter.Node) {
 		children = append(children, child)
 	})
 	if len(children) < 2 {

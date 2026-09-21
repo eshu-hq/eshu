@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"reflect"
@@ -67,7 +67,7 @@ func run() {
 		tree.RootNode(),
 		source,
 		map[string][]string{"example.com/pkg": {"pkg"}},
-		goBuildParentLookup(tree.RootNode()),
+		BuildParentLookup(tree.RootNode()),
 	)
 
 	want := map[string]string{"packageclient": "example.com/pkg.client"}

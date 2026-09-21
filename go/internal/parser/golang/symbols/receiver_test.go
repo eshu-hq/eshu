@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import "testing"
 
@@ -24,8 +24,8 @@ func TestGoNormalizeTypeNamePreservesArrayAndSliceElementNames(t *testing.T) {
 		t.Run(input, func(t *testing.T) {
 			t.Parallel()
 
-			if got := goNormalizeTypeName(input); got != want {
-				t.Fatalf("goNormalizeTypeName(%q) = %q, want %q", input, got, want)
+			if got := NormalizeTypeName(input); got != want {
+				t.Fatalf("NormalizeTypeName(%q) = %q, want %q", input, got, want)
 			}
 		})
 	}

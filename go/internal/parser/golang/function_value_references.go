@@ -6,6 +6,7 @@ package golang
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -13,8 +14,8 @@ import (
 func goFunctionValueReferenceCalls(
 	root *tree_sitter.Node,
 	source []byte,
-	localNameBindings []goLocalNameBinding,
-	lookup *goParentLookup,
+	localNameBindings []symbols.LocalNameBinding,
+	lookup *symbols.ParentLookup,
 ) []map[string]any {
 	if root == nil {
 		return nil
@@ -29,7 +30,7 @@ func goFunctionValueReferenceCalls(
 		if name == "" || name == "_" {
 			return
 		}
-		if goNameIsLocallyBound(name, nodeLine(node), localNameBindings) {
+		if symbols.NameIsLocallyBound(name, nodeLine(node), localNameBindings) {
 			return
 		}
 		calls = append(calls, map[string]any{
@@ -46,7 +47,7 @@ func goFunctionValueReferenceCalls(
 // goFunctionValueReferenceContext walks ancestors via the per-parse parent
 // lookup so the classification of each identifier costs O(depth) per call
 // instead of O(depth^2); see #161.
-func goFunctionValueReferenceContext(node *tree_sitter.Node, lookup *goParentLookup) bool {
+func goFunctionValueReferenceContext(node *tree_sitter.Node, lookup *symbols.ParentLookup) bool {
 	parent := lookup.Parent(node)
 	if parent == nil {
 		return false
@@ -69,7 +70,7 @@ func goFunctionValueReferenceContext(node *tree_sitter.Node, lookup *goParentLoo
 	}
 }
 
-func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, fieldName string, lookup *goParentLookup) bool {
+func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, fieldName string, lookup *symbols.ParentLookup) bool {
 	if parent == nil || child == nil {
 		return false
 	}
@@ -87,25 +88,6 @@ func goNodeMatchesField(parent *tree_sitter.Node, child *tree_sitter.Node, field
 		if goSameNodeRange(current, parent) {
 			break
 		}
-	}
-	return false
-}
-
-// goNameIsLocallyBound reports whether name is shadowed at line by a local
-// binding in the same lexical scope.
-func goNameIsLocallyBound(name string, line int, bindings []goLocalNameBinding) bool {
-	name = strings.TrimSpace(name)
-	if name == "" || line <= 0 {
-		return false
-	}
-	for _, binding := range bindings {
-		if binding.variable != name ||
-			binding.line > line ||
-			line < binding.scopeStart ||
-			line > binding.scopeEnd {
-			continue
-		}
-		return true
 	}
 	return false
 }

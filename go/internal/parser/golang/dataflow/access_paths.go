@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
 import (
 	"strings"
 	"unicode"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -57,7 +58,7 @@ func goAccessPathParts(node *tree_sitter.Node, source []byte, aliases goBindingA
 	}
 	switch node.Kind() {
 	case "identifier":
-		resolved := aliases.resolve(nodeText(node, source))
+		resolved := aliases.resolve(shared.NodeText(node, source))
 		if resolved == "" {
 			return nil, true
 		}
@@ -67,7 +68,7 @@ func goAccessPathParts(node *tree_sitter.Node, source []byte, aliases goBindingA
 		if !ok || len(base) == 0 {
 			return nil, false
 		}
-		field := nodeText(node.ChildByFieldName("field"), source)
+		field := shared.NodeText(node.ChildByFieldName("field"), source)
 		if field == "" {
 			return nil, false
 		}
@@ -91,7 +92,7 @@ func goAssignTargetPathWithOptions(node *tree_sitter.Node, source []byte, aliase
 		return "", false
 	}
 	if node.Kind() == "identifier" {
-		return nodeText(node, source), true
+		return shared.NodeText(node, source), true
 	}
 	return goAccessPathWithOptions(node, source, aliases, options)
 }
@@ -156,7 +157,7 @@ func goMergeAliases(a, b goBindingAliases) goBindingAliases {
 }
 
 func goAliasTarget(node *tree_sitter.Node, source []byte, aliases goBindingAliases) (string, bool) {
-	text := strings.TrimSpace(nodeText(node, source))
+	text := strings.TrimSpace(shared.NodeText(node, source))
 	if !strings.HasPrefix(text, "&") {
 		if target, ok := aliases[text]; ok && target != "" {
 			return aliases.resolve(target), true

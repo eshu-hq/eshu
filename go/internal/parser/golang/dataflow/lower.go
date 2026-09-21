@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -28,7 +29,7 @@ func goLowerFunction(node *tree_sitter.Node, source []byte, limits cfg.Limits) c
 	entry := builder.AddBlock()
 	builder.SetEntry(entry)
 	if params := goFunctionParamNames(node, source); len(params) > 0 {
-		builder.AddStmt(entry, nodeLine(node), params, nil)
+		builder.AddStmt(entry, shared.NodeLine(node), params, nil)
 	}
 	if body := node.ChildByFieldName("body"); body != nil {
 		lowerer.lowerStmtList(body, entry)
@@ -78,7 +79,7 @@ func goLabelName(node *tree_sitter.Node, source []byte) string {
 	for _, child := range node.NamedChildren(cursor) {
 		if child.Kind() == "statement_identifier" || child.Kind() == "label_name" {
 			child := child
-			return nodeText(&child, source)
+			return shared.NodeText(&child, source)
 		}
 	}
 	return ""
@@ -143,7 +144,7 @@ func (l *goCFGLowerer) lowerStmt(node *tree_sitter.Node, cur cfg.BlockID) (cfg.B
 	case "short_var_declaration", "assignment_statement", "var_declaration",
 		"const_declaration", "inc_statement", "dec_statement":
 		defs, uses := goStmtDefsUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
-		l.addStmt(cur, nodeLine(node), defs, uses)
+		l.addStmt(cur, shared.NodeLine(node), defs, uses)
 		l.updateAliases(node)
 		return cur, true
 	default:
@@ -275,7 +276,7 @@ func (l *goCFGLowerer) lowerForRange(node *tree_sitter.Node, clause *tree_sitter
 	if right := clause.ChildByFieldName("right"); right != nil {
 		uses = goExprUsesWithOptions(right, l.source, l.aliases, l.accessPathOptions())
 	}
-	l.addStmt(header, nodeLine(clause), defs, uses)
+	l.addStmt(header, shared.NodeLine(clause), defs, uses)
 
 	bodyBlk := l.builder.AddBlock()
 	l.builder.AddEdge(header, bodyBlk)
@@ -323,7 +324,7 @@ func (l *goCFGLowerer) addStmt(block cfg.BlockID, line int, defs, uses []string)
 // addUses records the identifier uses of an expression-bearing node.
 func (l *goCFGLowerer) addUses(block cfg.BlockID, node *tree_sitter.Node) {
 	uses := goExprUsesWithOptions(node, l.source, l.aliases, l.accessPathOptions())
-	l.addStmt(block, nodeLine(node), nil, uses)
+	l.addStmt(block, shared.NodeLine(node), nil, uses)
 }
 
 // addGuardUses records a branch predicate as both identifier uses and
@@ -333,7 +334,7 @@ func (l *goCFGLowerer) addGuardUses(block cfg.BlockID, node *tree_sitter.Node) {
 	if len(uses) == 0 {
 		return
 	}
-	l.builder.AddGuardStmt(block, nodeLine(node), uses, goGuardText(node, l.source))
+	l.builder.AddGuardStmt(block, shared.NodeLine(node), uses, goGuardText(node, l.source))
 }
 
 func (l *goCFGLowerer) accessPathOptions() goAccessPathOptions {

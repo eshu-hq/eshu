@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package symbols
 
 import (
 	"strings"
@@ -10,8 +10,15 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-type goLocalReceiverBinding struct {
-	variable   string
+// LocalReceiverBinding records one lexically-scoped observation of a local
+// variable's concrete or interface-typed receiver type, used to resolve the
+// receiver type of a method call by the nearest enclosing binding in scope
+// at the call site. Variable is exported because callers outside this
+// package (the AWS SDK receiver-binding path) test it directly to detect the
+// zero value returned when a binding could not be constructed.
+type LocalReceiverBinding struct {
+	// Variable is the bound local name, or "" for the zero value.
+	Variable   string
 	typeName   string
 	concrete   bool
 	line       int
@@ -19,33 +26,36 @@ type goLocalReceiverBinding struct {
 	scopeEnd   int
 }
 
-type goLocalNameBinding struct {
+// LocalNameBinding records one lexically-scoped local name declaration
+// (a parameter or a local variable), used to test whether a package-level
+// name is shadowed at a given call site.
+type LocalNameBinding struct {
 	variable   string
 	line       int
 	scopeStart int
 	scopeEnd   int
 }
 
-// goCollectConstructorReturnType records the constructor return type for one
+// CollectConstructorReturnType records the constructor return type for one
 // function_declaration node into returns, if any. It is the single-node
 // visitor used by goCollectFileLevelIndexes (the per-file merged walk in
 // Parse; see #4839) that replaced the standalone goConstructorReturnTypes
 // full-tree walk.
-func goCollectConstructorReturnType(node *tree_sitter.Node, source []byte, returns map[string]string) {
-	name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+func CollectConstructorReturnType(node *tree_sitter.Node, source []byte, returns map[string]string) {
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 	if name == "" {
 		return
 	}
-	typeName := goTypeNameFromNode(node.ChildByFieldName("result"), source)
+	typeName := TypeNameFromNode(node.ChildByFieldName("result"), source)
 	if typeName == "" {
 		return
 	}
 	returns[name] = typeName
 }
 
-// goLocalNameBindingsFromParameters scopes parameter names to the function
+// LocalNameBindingsFromParameters scopes parameter names to the function
 // body, matching Go's lexical visibility for parameters.
-func goLocalNameBindingsFromParameters(node *tree_sitter.Node, source []byte) []goLocalNameBinding {
+func LocalNameBindingsFromParameters(node *tree_sitter.Node, source []byte) []LocalNameBinding {
 	body := node.ChildByFieldName("body")
 	if body == nil {
 		return nil
@@ -54,64 +64,64 @@ func goLocalNameBindingsFromParameters(node *tree_sitter.Node, source []byte) []
 	if parameters == nil {
 		return nil
 	}
-	bindings := make([]goLocalNameBinding, 0)
-	walkDirectNamed(parameters, func(child *tree_sitter.Node) {
+	bindings := make([]LocalNameBinding, 0)
+	WalkDirectNamed(parameters, func(child *tree_sitter.Node) {
 		if child.Kind() != "parameter_declaration" {
 			return
 		}
-		for _, nameNode := range goIdentifierNodes(child.ChildByFieldName("name"), source) {
-			variable := strings.TrimSpace(nodeText(nameNode, source))
+		for _, nameNode := range IdentifierNodes(child.ChildByFieldName("name"), source) {
+			variable := strings.TrimSpace(shared.NodeText(nameNode, source))
 			if variable == "" {
 				continue
 			}
-			bindings = append(bindings, goLocalNameBinding{
+			bindings = append(bindings, LocalNameBinding{
 				variable:   variable,
-				line:       nodeLine(node),
-				scopeStart: nodeLine(body),
-				scopeEnd:   nodeEndLine(body),
+				line:       shared.NodeLine(node),
+				scopeStart: shared.NodeLine(body),
+				scopeEnd:   shared.NodeEndLine(body),
 			})
 		}
 	})
 	return bindings
 }
 
-// goLocalNameBindingsFromNames scopes local declarations to their nearest
+// LocalNameBindingsFromNames scopes local declarations to their nearest
 // lexical block or statement.
-func goLocalNameBindingsFromNames(
+func LocalNameBindingsFromNames(
 	node *tree_sitter.Node,
 	nameNodes []*tree_sitter.Node,
 	source []byte,
-	lookup *goParentLookup,
-) []goLocalNameBinding {
-	scope := goNearestLexicalScope(node, lookup)
+	lookup *ParentLookup,
+) []LocalNameBinding {
+	scope := NearestLexicalScope(node, lookup)
 	if scope == nil {
 		return nil
 	}
-	bindings := make([]goLocalNameBinding, 0, len(nameNodes))
+	bindings := make([]LocalNameBinding, 0, len(nameNodes))
 	for _, nameNode := range nameNodes {
-		variable := strings.TrimSpace(nodeText(nameNode, source))
+		variable := strings.TrimSpace(shared.NodeText(nameNode, source))
 		if variable == "" {
 			continue
 		}
-		bindings = append(bindings, goLocalNameBinding{
+		bindings = append(bindings, LocalNameBinding{
 			variable:   variable,
-			line:       nodeLine(node),
-			scopeStart: nodeLine(scope),
-			scopeEnd:   nodeEndLine(scope),
+			line:       shared.NodeLine(node),
+			scopeStart: shared.NodeLine(scope),
+			scopeEnd:   shared.NodeEndLine(scope),
 		})
 	}
 	return bindings
 }
 
-// goLocalReceiverBindings records local receiver type evidence from parameters
+// LocalReceiverBindings records local receiver type evidence from parameters
 // and constructor-return assignments.
-func goLocalReceiverBindings(
+func LocalReceiverBindings(
 	root *tree_sitter.Node,
 	source []byte,
 	constructorReturns map[string]string,
-	lookup *goParentLookup,
-) []goLocalReceiverBinding {
-	bindings := make([]goLocalReceiverBinding, 0)
+	lookup *ParentLookup,
+) []LocalReceiverBinding {
+	bindings := make([]LocalReceiverBinding, 0)
 	mapValueTypes, localInterfaces := goCollectLocalMapValueTypesAndInterfaceNames(root, source, lookup)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -132,7 +142,7 @@ func goLocalReceiverBindingsFromParameters(
 	node *tree_sitter.Node,
 	source []byte,
 	localInterfaces map[string]struct{},
-) []goLocalReceiverBinding {
+) []LocalReceiverBinding {
 	body := node.ChildByFieldName("body")
 	if body == nil {
 		return nil
@@ -141,27 +151,27 @@ func goLocalReceiverBindingsFromParameters(
 	if parameters == nil {
 		return nil
 	}
-	bindings := make([]goLocalReceiverBinding, 0)
-	walkDirectNamed(parameters, func(child *tree_sitter.Node) {
+	bindings := make([]LocalReceiverBinding, 0)
+	WalkDirectNamed(parameters, func(child *tree_sitter.Node) {
 		if child.Kind() != "parameter_declaration" {
 			return
 		}
-		typeName := goTypeNameFromNode(child.ChildByFieldName("type"), source)
+		typeName := TypeNameFromNode(child.ChildByFieldName("type"), source)
 		if typeName == "" {
 			return
 		}
-		for _, nameNode := range goIdentifierNodes(child.ChildByFieldName("name"), source) {
-			variable := strings.TrimSpace(nodeText(nameNode, source))
+		for _, nameNode := range IdentifierNodes(child.ChildByFieldName("name"), source) {
+			variable := strings.TrimSpace(shared.NodeText(nameNode, source))
 			if variable == "" {
 				continue
 			}
-			bindings = append(bindings, goLocalReceiverBinding{
-				variable:   variable,
+			bindings = append(bindings, LocalReceiverBinding{
+				Variable:   variable,
 				typeName:   typeName,
 				concrete:   !goTypeNameIsLocalInterface(typeName, localInterfaces),
-				line:       nodeLine(node),
-				scopeStart: nodeLine(body),
-				scopeEnd:   nodeEndLine(body),
+				line:       shared.NodeLine(node),
+				scopeStart: shared.NodeLine(body),
+				scopeEnd:   shared.NodeEndLine(body),
 			})
 		}
 	})
@@ -173,12 +183,12 @@ func goLocalReceiverBindingsFromAssignment(
 	source []byte,
 	constructorReturns map[string]string,
 	localInterfaces map[string]struct{},
-	lookup *goParentLookup,
-) []goLocalReceiverBinding {
+	lookup *ParentLookup,
+) []LocalReceiverBinding {
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
-	names := goAssignableIdentifierNodes(left, source)
-	values := goExpressionNodes(right)
+	names := AssignableIdentifierNodes(left, source)
+	values := ExpressionNodes(right)
 	if len(names) == 0 || len(values) == 0 {
 		return nil
 	}
@@ -186,11 +196,11 @@ func goLocalReceiverBindingsFromAssignment(
 	if len(values) < count {
 		count = len(values)
 	}
-	bindings := make([]goLocalReceiverBinding, 0, count)
+	bindings := make([]LocalReceiverBinding, 0, count)
 	for i := 0; i < count; i++ {
 		typeName := goConcreteReceiverTypeFromExpression(values[i], source, constructorReturns)
 		concrete := typeName != "" && !goTypeNameIsLocalInterface(typeName, localInterfaces)
-		if binding := goNewLocalReceiverBinding(node, names[i], typeName, concrete, source, lookup); binding.variable != "" {
+		if binding := NewLocalReceiverBinding(node, names[i], typeName, concrete, source, lookup); binding.Variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
@@ -202,10 +212,10 @@ func goLocalReceiverBindingsFromVarSpec(
 	source []byte,
 	constructorReturns map[string]string,
 	localInterfaces map[string]struct{},
-	lookup *goParentLookup,
-) []goLocalReceiverBinding {
-	nameNodes := goIdentifierNodes(node.ChildByFieldName("name"), source)
-	valueNodes := goExpressionNodes(node.ChildByFieldName("value"))
+	lookup *ParentLookup,
+) []LocalReceiverBinding {
+	nameNodes := IdentifierNodes(node.ChildByFieldName("name"), source)
+	valueNodes := ExpressionNodes(node.ChildByFieldName("value"))
 	if len(nameNodes) == 0 || len(valueNodes) == 0 {
 		return nil
 	}
@@ -213,51 +223,58 @@ func goLocalReceiverBindingsFromVarSpec(
 	if len(valueNodes) < count {
 		count = len(valueNodes)
 	}
-	bindings := make([]goLocalReceiverBinding, 0, count)
+	bindings := make([]LocalReceiverBinding, 0, count)
 	for i := 0; i < count; i++ {
 		typeName := goConcreteReceiverTypeFromExpression(valueNodes[i], source, constructorReturns)
 		concrete := typeName != "" && !goTypeNameIsLocalInterface(typeName, localInterfaces)
-		if binding := goNewLocalReceiverBinding(node, nameNodes[i], typeName, concrete, source, lookup); binding.variable != "" {
+		if binding := NewLocalReceiverBinding(node, nameNodes[i], typeName, concrete, source, lookup); binding.Variable != "" {
 			bindings = append(bindings, binding)
 		}
 	}
 	return bindings
 }
 
-func goNewLocalReceiverBinding(
+// NewLocalReceiverBinding builds a LocalReceiverBinding scoped to the
+// nearest enclosing lexical scope of node, or the zero value (with an empty
+// variable name) when node has no enclosing scope.
+func NewLocalReceiverBinding(
 	node *tree_sitter.Node,
 	nameNode *tree_sitter.Node,
 	typeName string,
 	concrete bool,
 	source []byte,
-	lookup *goParentLookup,
-) goLocalReceiverBinding {
-	scope := goNearestLexicalScope(node, lookup)
+	lookup *ParentLookup,
+) LocalReceiverBinding {
+	scope := NearestLexicalScope(node, lookup)
 	if scope == nil {
-		return goLocalReceiverBinding{}
+		return LocalReceiverBinding{}
 	}
-	return goLocalReceiverBinding{
-		variable:   strings.TrimSpace(nodeText(nameNode, source)),
+	return LocalReceiverBinding{
+		Variable:   strings.TrimSpace(shared.NodeText(nameNode, source)),
 		typeName:   typeName,
 		concrete:   concrete,
-		line:       nodeLine(node),
-		scopeStart: nodeLine(scope),
-		scopeEnd:   nodeEndLine(scope),
+		line:       shared.NodeLine(node),
+		scopeStart: shared.NodeLine(scope),
+		scopeEnd:   shared.NodeEndLine(scope),
 	}
 }
 
-func goInferredReceiverType(
+// InferredReceiverType returns the type most recently bound to receiver at
+// or before callLine among bindings whose scope contains callLine, breaking
+// ties toward the narrowest enclosing scope. It returns "" when no binding
+// applies.
+func InferredReceiverType(
 	receiver string,
 	callLine int,
-	bindings []goLocalReceiverBinding,
+	bindings []LocalReceiverBinding,
 ) string {
 	receiver = strings.TrimSpace(receiver)
 	if receiver == "" || callLine <= 0 {
 		return ""
 	}
-	var best goLocalReceiverBinding
+	var best LocalReceiverBinding
 	for _, binding := range bindings {
-		if binding.variable != receiver ||
+		if binding.Variable != receiver ||
 			binding.typeName == "" ||
 			binding.line > callLine ||
 			callLine < binding.scopeStart ||
@@ -271,19 +288,24 @@ func goInferredReceiverType(
 	return best.typeName
 }
 
-func goConcreteInferredReceiverType(
+// ConcreteInferredReceiverType returns the concrete type bound to receiver
+// among the narrowest-scoped bindings applicable at callLine, but only when
+// exactly one concrete type is observed among them and no wider (interface
+// or unresolved) rebinding of receiver occurs after the last concrete one.
+// It returns "" when that single-concrete-type invariant does not hold.
+func ConcreteInferredReceiverType(
 	receiver string,
 	callLine int,
-	bindings []goLocalReceiverBinding,
+	bindings []LocalReceiverBinding,
 ) string {
 	receiver = strings.TrimSpace(receiver)
 	if receiver == "" || callLine <= 0 {
 		return ""
 	}
-	applicable := make([]goLocalReceiverBinding, 0)
+	applicable := make([]LocalReceiverBinding, 0)
 	minSpan := 0
 	for _, binding := range bindings {
-		if binding.variable != receiver ||
+		if binding.Variable != receiver ||
 			binding.line > callLine ||
 			callLine < binding.scopeStart ||
 			callLine > binding.scopeEnd {
@@ -321,7 +343,7 @@ func goConcreteInferredReceiverType(
 	return inferred
 }
 
-func spanWidthForGoBinding(binding goLocalReceiverBinding) int {
+func spanWidthForGoBinding(binding LocalReceiverBinding) int {
 	return binding.scopeEnd - binding.scopeStart
 }
 
@@ -337,17 +359,19 @@ func goConstructorTypeFromExpression(
 	if functionNode == nil || functionNode.Kind() != "identifier" {
 		return ""
 	}
-	return constructorReturns[strings.TrimSpace(nodeText(functionNode, source))]
+	return constructorReturns[strings.TrimSpace(shared.NodeText(functionNode, source))]
 }
 
-func goTypeNameFromNode(node *tree_sitter.Node, source []byte) string {
+// TypeNameFromNode returns the normalized type name for a type-annotated
+// node, unwrapping pointer, array, and slice wrappers.
+func TypeNameFromNode(node *tree_sitter.Node, source []byte) string {
 	if node != nil {
 		switch node.Kind() {
 		case "type_identifier", "qualified_type", "generic_type":
-			return goNormalizeTypeName(nodeText(node, source))
+			return NormalizeTypeName(shared.NodeText(node, source))
 		}
 	}
-	typeNode := firstNamedDescendant(
+	typeNode := FirstNamedDescendant(
 		node,
 		"type_identifier",
 		"qualified_type",
@@ -356,10 +380,13 @@ func goTypeNameFromNode(node *tree_sitter.Node, source []byte) string {
 		"array_type",
 		"slice_type",
 	)
-	return goNormalizeTypeName(nodeText(typeNode, source))
+	return NormalizeTypeName(shared.NodeText(typeNode, source))
 }
 
-func goNormalizeTypeName(value string) string {
+// NormalizeTypeName strips pointer, array, slice, generic-instantiation, and
+// package-qualifier decoration from a type name's source text, returning the
+// bare element type name.
+func NormalizeTypeName(value string) string {
 	value = strings.TrimSpace(value)
 	for {
 		trimmed := strings.TrimSpace(strings.TrimPrefix(value, "*"))
@@ -389,11 +416,14 @@ done:
 	return strings.TrimSpace(value)
 }
 
-func goIdentifierNodes(node *tree_sitter.Node, source []byte) []*tree_sitter.Node {
+// IdentifierNodes returns node itself when it is a non-blank identifier, or
+// each non-blank identifier among node's direct named children otherwise
+// (for an expression_list or parameter_list of names).
+func IdentifierNodes(node *tree_sitter.Node, source []byte) []*tree_sitter.Node {
 	if node == nil {
 		return nil
 	}
-	if node.Kind() == "identifier" && strings.TrimSpace(nodeText(node, source)) != "_" {
+	if node.Kind() == "identifier" && strings.TrimSpace(shared.NodeText(node, source)) != "_" {
 		return []*tree_sitter.Node{node}
 	}
 	nodes := make([]*tree_sitter.Node, 0)
@@ -401,7 +431,7 @@ func goIdentifierNodes(node *tree_sitter.Node, source []byte) []*tree_sitter.Nod
 	defer cursor.Close()
 	for _, child := range node.NamedChildren(cursor) {
 		child := child
-		if child.Kind() != "identifier" || strings.TrimSpace(nodeText(&child, source)) == "_" {
+		if child.Kind() != "identifier" || strings.TrimSpace(shared.NodeText(&child, source)) == "_" {
 			continue
 		}
 		nodes = append(nodes, &child)
@@ -409,7 +439,9 @@ func goIdentifierNodes(node *tree_sitter.Node, source []byte) []*tree_sitter.Nod
 	return nodes
 }
 
-func goExpressionNodes(node *tree_sitter.Node) []*tree_sitter.Node {
+// ExpressionNodes returns node itself when it is not an expression_list or
+// parameter_list, or each of its direct named children otherwise.
+func ExpressionNodes(node *tree_sitter.Node) []*tree_sitter.Node {
 	if node == nil {
 		return nil
 	}
@@ -426,7 +458,7 @@ func goExpressionNodes(node *tree_sitter.Node) []*tree_sitter.Node {
 	return nodes
 }
 
-func goEnclosingFunctionScope(node *tree_sitter.Node, lookup *goParentLookup) *tree_sitter.Node {
+func goEnclosingFunctionScope(node *tree_sitter.Node, lookup *ParentLookup) *tree_sitter.Node {
 	for current := node; current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "method_declaration", "func_literal":
@@ -436,10 +468,10 @@ func goEnclosingFunctionScope(node *tree_sitter.Node, lookup *goParentLookup) *t
 	return nil
 }
 
-// goNearestLexicalScope returns the smallest syntax scope that can bound a
+// NearestLexicalScope returns the smallest syntax scope that can bound a
 // local declaration without making inner-block bindings visible outside. The
 // lookup amortizes ancestor traversal to O(1) per step (see #161).
-func goNearestLexicalScope(node *tree_sitter.Node, lookup *goParentLookup) *tree_sitter.Node {
+func NearestLexicalScope(node *tree_sitter.Node, lookup *ParentLookup) *tree_sitter.Node {
 	for current := node; current != nil; current = lookup.Parent(current) {
 		switch current.Kind() {
 		case "block", "if_statement", "for_statement", "communication_case", "expression_case", "default_case":

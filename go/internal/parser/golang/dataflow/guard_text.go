@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package dataflow
 
 import (
 	"go/ast"
@@ -10,11 +10,12 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 func goGuardText(node *tree_sitter.Node, source []byte) string {
-	text := redactGoGuardLiterals(strings.TrimSpace(nodeText(node, source)))
+	text := redactGoGuardLiterals(strings.TrimSpace(shared.NodeText(node, source)))
 	return strings.Join(strings.Fields(text), " ")
 }
 

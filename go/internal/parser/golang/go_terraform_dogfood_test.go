@@ -19,7 +19,7 @@ import (
 // representative small/medium/large Go file from a real Terraform checkout.
 // The test is the proof gate for #161: it isolates per-file cost so we can
 // confirm the rebuilt parser path (after the goCollectSemanticDeadCodeRoots
-// removal in PreScan and the per-file goParentLookup + variableTypeIndex
+// removal in PreScan and the per-file symbols.ParentLookup + variableTypeIndex
 // fixes) stays bounded on dense, call_expression-heavy Go before launching a
 // full repo-scale indexing run.
 //

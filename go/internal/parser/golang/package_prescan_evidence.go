@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -58,14 +59,14 @@ func PreScanFileEvidence(
 	defer tree.Close()
 
 	root := tree.RootNode()
-	lookup := goBuildParentLookup(root)
-	importAliases := goImportAliasIndex(root, source)
+	lookup := symbols.BuildParentLookup(root)
+	importAliases := symbols.ImportAliasIndex(root, source)
 	interfaceMethods := extractLocalInterfaceMethods(root, source)
-	variableTypeIndex := goBuildImportedVariableTypeIndex(root, source, importAliases, lookup)
-	localInterfaceReturns := goLocalInterfaceImportedMethodReturns(root, source, importAliases)
+	variableTypeIndex := symbols.BuildImportedVariableTypeIndex(root, source, importAliases, lookup)
+	localInterfaceReturns := symbols.LocalInterfaceImportedMethodReturns(root, source, importAliases)
 
 	return &PrescanFileEvidence{
-		ImportedInterfaceParamMethods:       goFunctionParamImportedInterfaceMethods(root, source),
+		ImportedInterfaceParamMethods:       symbols.FunctionParamImportedInterfaceMethods(root, source),
 		ExportedInterfaceParamMethods:       extractExportedInterfaceParamMethods(root, source, interfaceMethods),
 		ImportedDirectMethodCallRoots:       extractImportedDirectMethodCallRoots(root, source, importAliases, variableTypeIndex, localInterfaceReturns),
 		LocalInterfaceImportedMethodReturns: localInterfaceReturns,
@@ -87,7 +88,7 @@ func extractLocalInterfaceMethods(root *tree_sitter.Node, source []byte) map[str
 		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
 		typeNode := node.ChildByFieldName("type")
 		if name != "" && typeNode != nil && typeNode.Kind() == "interface_type" {
-			methods[name] = goInterfaceMethodNames(typeNode, source)
+			methods[name] = symbols.InterfaceMethodNames(typeNode, source)
 		}
 	})
 	return methods
@@ -108,18 +109,18 @@ func extractExportedInterfaceParamMethods(
 			return
 		}
 		rawName := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		if goIdentifierIsExported(rawName) {
+		if symbols.IdentifierIsExported(rawName) {
 			exportedFunctions[strings.ToLower(rawName)] = struct{}{}
 		}
 	})
-	targets := goFunctionParamInterfaceTargets(root, source, interfaceMethods)
+	targets := symbols.FunctionParamInterfaceTargets(root, source, interfaceMethods)
 	importedMethods := make(shared.GoImportedInterfaceParamMethods)
 	for functionName, byIndex := range targets {
 		if _, ok := exportedFunctions[functionName]; !ok {
 			continue
 		}
 		for index, target := range byIndex {
-			if target.localInterface == "" {
+			if target.LocalInterface == "" {
 				continue
 			}
 			if _, ok := importedMethods[functionName]; !ok {
@@ -139,7 +140,7 @@ func extractImportedDirectMethodCallRoots(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	variableTypeIndex *goImportedVariableTypeIndex,
+	variableTypeIndex *symbols.ImportedVariableTypeIndex,
 	interfaceMethodReturns map[string]string,
 ) shared.GoDirectMethodCallRoots {
 	roots := make(shared.GoDirectMethodCallRoots)
@@ -152,12 +153,12 @@ func extractImportedDirectMethodCallRoots(
 			return
 		}
 		variableTypes := variableTypeIndex.ForCall(node)
-		key := goImportedDirectMethodCallKey(node, source, importAliases, variableTypes, interfaceMethodReturns)
+		key := symbols.ImportedDirectMethodCallKey(node, source, importAliases, variableTypes, interfaceMethodReturns)
 		if key != "" {
-			roots[key] = appendUniqueImportAlias(roots[key], "go.imported_direct_method_call")
+			roots[key] = symbols.AppendUniqueImportAlias(roots[key], "go.imported_direct_method_call")
 		}
-		for _, stringerKey := range goImportedFmtStringerCallKeys(node, source, importAliases, variableTypes, interfaceMethodReturns) {
-			roots[stringerKey] = appendUniqueImportAlias(roots[stringerKey], "go.imported_fmt_stringer_method")
+		for _, stringerKey := range symbols.ImportedFmtStringerCallKeys(node, source, importAliases, variableTypes, interfaceMethodReturns) {
+			roots[stringerKey] = symbols.AppendUniqueImportAlias(roots[stringerKey], "go.imported_fmt_stringer_method")
 		}
 	})
 	return roots
@@ -171,8 +172,8 @@ func extractGenericConstraintInterfaceNames(root *tree_sitter.Node, source []byt
 		if node.Kind() != "type_parameter_declaration" {
 			return
 		}
-		for _, name := range goTypeParameterConstraintCandidates(nodeText(node, source)) {
-			names = appendUniqueImportAlias(names, name)
+		for _, name := range symbols.TypeParameterConstraintCandidates(nodeText(node, source)) {
+			names = symbols.AppendUniqueImportAlias(names, name)
 		}
 	})
 	return names
@@ -186,10 +187,10 @@ func extractMethodDeclarationKeys(root *tree_sitter.Node, source []byte) []strin
 		if node.Kind() != "method_declaration" {
 			return
 		}
-		receiver := strings.ToLower(goReceiverContext(node, source))
+		receiver := strings.ToLower(symbols.ReceiverContext(node, source))
 		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
 		if receiver != "" && name != "" {
-			keys = appendUniqueImportAlias(keys, receiver+"."+name)
+			keys = symbols.AppendUniqueImportAlias(keys, receiver+"."+name)
 		}
 	})
 	return keys

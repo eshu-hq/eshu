@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/dataflow"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -39,9 +41,9 @@ func Parse(
 	// Build the parent-lookup once per file so every helper that walks
 	// ancestors does so in amortized O(1) per step instead of paying
 	// tree-sitter's O(depth) Node.Parent() cost on each call (#161).
-	lookup := goBuildParentLookup(root)
+	lookup := symbols.BuildParentLookup(root)
 	importAliases, constructorReturns, localNameBindings := goCollectFileLevelIndexes(root, source, lookup)
-	localReceiverBindings := goLocalReceiverBindings(root, source, constructorReturns, lookup)
+	localReceiverBindings := symbols.LocalReceiverBindings(root, source, constructorReturns, lookup)
 	awsSDKServiceBindings := goAWSSDKReceiverBindings(root, source, goAWSSDKServiceAliases(importAliases), lookup)
 	deadCodeEvidence := goDeadCodeEvidence(
 		root,
@@ -90,10 +92,10 @@ func Parse(
 				"parameter_count":       goParameterCount(node.ChildByFieldName("parameters"), source),
 				"cyclomatic_complexity": cyclomaticComplexity(node, source),
 			}
-			if docstring := goDocstring(node, source); docstring != "" {
+			if docstring := symbols.Docstring(node, source); docstring != "" {
 				item["docstring"] = docstring
 			}
-			classContext := goReceiverContext(node, source)
+			classContext := symbols.ReceiverContext(node, source)
 			if classContext != "" {
 				item["class_context"] = classContext
 			}
@@ -103,7 +105,7 @@ func Parse(
 					item["scip_symbol"] = scipSymbol
 				}
 			}
-			if returnType := goTypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
+			if returnType := symbols.TypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType
 			}
 			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, deadCodeEvidence.functionRootKinds); len(rootKinds) > 0 {
@@ -127,7 +129,7 @@ func Parse(
 				"end_line":    nodeEndLine(node),
 				"lang":        "go",
 			}
-			if docstring := goDocstring(node, source); docstring != "" {
+			if docstring := symbols.Docstring(node, source); docstring != "" {
 				item["docstring"] = docstring
 			}
 			switch typeNode.Kind() {
@@ -187,7 +189,7 @@ func Parse(
 			)
 			shared.AppendBucket(payload, "function_calls", item)
 		case "composite_literal":
-			name := goCompositeLiteralTypeName(node.ChildByFieldName("type"), source)
+			name := symbols.CompositeLiteralTypeName(node.ChildByFieldName("type"), source)
 			if strings.TrimSpace(name) == "" {
 				return
 			}
@@ -199,17 +201,17 @@ func Parse(
 				"lang":        "go",
 			})
 		case "var_spec", "const_spec":
-			if scope == "module" && goInsideFunction(node, lookup) {
+			if scope == "module" && symbols.InsideFunction(node, lookup) {
 				return
 			}
-			for _, item := range goVariableNames(node, source) {
+			for _, item := range symbols.VariableNames(node, source) {
 				shared.AppendBucket(payload, "variables", item)
 			}
 		case "short_var_declaration":
 			if scope == "module" {
 				return
 			}
-			for _, item := range goShortVariableNames(node, source) {
+			for _, item := range symbols.ShortVariableNames(node, source) {
 				shared.AppendBucket(payload, "variables", item)
 			}
 		}
@@ -229,14 +231,14 @@ func Parse(
 	// Dataflow and taint facts are opt-in: when off the payload is byte-identical
 	// to before this feature because no key is added.
 	if options.EmitDataflow {
-		dataflow, findings := goEmitDataflowBuckets(root, source)
-		if len(dataflow) > 0 {
-			payload["dataflow_functions"] = dataflow
+		dataflowRows, findings := dataflow.EmitBuckets(root, source)
+		if len(dataflowRows) > 0 {
+			payload["dataflow_functions"] = dataflowRows
 		}
 		if len(findings) > 0 {
 			payload["taint_findings"] = findings
 		}
-		interprocRows, summaryRows, sourceRows := goInterprocPayloads(root, source, options.RepositoryID, options.GoPackageImportPath)
+		interprocRows, summaryRows, sourceRows := dataflow.InterprocPayloads(root, source, options.RepositoryID, options.GoPackageImportPath)
 		if len(interprocRows) > 0 {
 			payload["interproc_findings"] = interprocRows
 		}
@@ -303,41 +305,30 @@ func goCallName(node *tree_sitter.Node, source []byte) string {
 	}
 }
 
-func goCompositeLiteralTypeName(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	if node.Kind() == "type_identifier" {
-		return nodeText(node, source)
-	}
-	nameNode := firstNamedDescendant(node, "type_identifier")
-	return nodeText(nameNode, source)
-}
-
 func goAnnotateCallMetadata(
 	item map[string]any,
 	callNode *tree_sitter.Node,
 	functionNode *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	localNameBindings []goLocalNameBinding,
-	localReceiverBindings []goLocalReceiverBinding,
-	awsSDKServiceBindings []goLocalReceiverBinding,
-	lookup *goParentLookup,
+	localNameBindings []symbols.LocalNameBinding,
+	localReceiverBindings []symbols.LocalReceiverBinding,
+	awsSDKServiceBindings []symbols.LocalReceiverBinding,
+	lookup *symbols.ParentLookup,
 ) {
 	receiverIdentifier, receiverIsImportAlias := goCallReceiverIdentifier(functionNode, source, importAliases)
 	if receiverIdentifier == "" {
 		goAnnotateCallChainMetadata(item, callNode, functionNode, source, localReceiverBindings)
 		return
 	}
-	if receiverIsImportAlias && goNameIsLocallyBound(receiverIdentifier, nodeLine(callNode), localNameBindings) {
+	if receiverIsImportAlias && symbols.NameIsLocallyBound(receiverIdentifier, nodeLine(callNode), localNameBindings) {
 		receiverIsImportAlias = false
 	}
 
 	item["receiver_identifier"] = receiverIdentifier
 	item["receiver_is_import_alias"] = receiverIsImportAlias
 	if receiverIsImportAlias {
-		if importPath := goImportPathForAlias(receiverIdentifier, importAliases); importPath != "" {
+		if importPath := symbols.ImportPathForAlias(receiverIdentifier, importAliases); importPath != "" {
 			name, _ := item["name"].(string)
 			if stableSymbol := goSCIPSymbol(importPath, "", name); stableSymbol != "" {
 				item["stable_symbol_key"] = stableSymbol
@@ -345,7 +336,7 @@ func goAnnotateCallMetadata(
 		}
 	}
 	if !receiverIsImportAlias {
-		if receiverType := goInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
+		if receiverType := symbols.InferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings); receiverType != "" {
 			item["inferred_obj_type"] = receiverType
 		}
 		if service := goInferredReceiverSDKService(receiverIdentifier, nodeLine(callNode), awsSDKServiceBindings); service != "" {
@@ -353,7 +344,7 @@ func goAnnotateCallMetadata(
 		}
 	}
 
-	enclosingReceiverName, enclosingClassContext := goEnclosingMethodReceiver(callNode, source, lookup)
+	enclosingReceiverName, enclosingClassContext := symbols.EnclosingMethodReceiver(callNode, source, lookup)
 	if receiverIsImportAlias || enclosingReceiverName == "" || enclosingClassContext == "" {
 		return
 	}
@@ -405,47 +396,4 @@ func goIdentifierMatchesImportAlias(identifier string, importAliases map[string]
 		}
 	}
 	return false
-}
-
-func goEnclosingMethodReceiver(callNode *tree_sitter.Node, source []byte, lookup *goParentLookup) (string, string) {
-	for current := callNode; current != nil; current = lookup.Parent(current) {
-		if current.Kind() != "method_declaration" {
-			continue
-		}
-		return goMethodReceiverBinding(current, source)
-	}
-	return "", ""
-}
-
-func goMethodReceiverBinding(node *tree_sitter.Node, source []byte) (string, string) {
-	if node == nil {
-		return "", ""
-	}
-
-	receiver := node.ChildByFieldName("receiver")
-	if receiver == nil {
-		return "", ""
-	}
-
-	cursor := receiver.Walk()
-	defer cursor.Close()
-	for _, child := range receiver.NamedChildren(cursor) {
-		child := child
-		if child.Kind() != "parameter_declaration" {
-			continue
-		}
-		nameNode := child.ChildByFieldName("name")
-		receiverName := strings.TrimSpace(nodeText(nameNode, source))
-		receiverType := goReceiverContext(node, source)
-		if receiverName != "" || receiverType != "" {
-			return receiverName, receiverType
-		}
-	}
-
-	receiverType := goReceiverContext(node, source)
-	if receiverType == "" {
-		return "", ""
-	}
-	nameNode := firstNamedDescendant(receiver, "identifier")
-	return strings.TrimSpace(nodeText(nameNode, source)), receiverType
 }
