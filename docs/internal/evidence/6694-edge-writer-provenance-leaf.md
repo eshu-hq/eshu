@@ -2,10 +2,11 @@
 
 ## Moved (behavior-preserving, `git mv` + package/qualifier edits only)
 
-- `go/internal/storage/cypher/provenance_edge_writer.go` →
-  `go/internal/storage/cypher/edge/writer/provenance.go`
-- `go/internal/storage/cypher/derived_from_edge_writer.go` →
-  `go/internal/storage/cypher/edge/writer/derived_from.go`
+The provenance family now lives in the existing `edge/writer` leaf as
+`go/internal/storage/cypher/edge/writer/provenance.go` (writers,
+helpers, and Cypher templates) and
+`go/internal/storage/cypher/edge/writer/derived_from.go` (the
+DERIVED_FROM projection on the same writer type).
 - Tests moved with the family into `package writer` (leaf already carries
   `recordingExecutor`, `recordingGroupExecutor`, and the bolt harness, so no
   new fakes were needed):

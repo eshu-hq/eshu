@@ -44,8 +44,8 @@ func TestEshuExactProvenanceQueriesUseIndexedMergeHotPath(t *testing.T) {
 		require.NoError(t, err, stmt)
 	}
 
-	provenanceFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/provenance_edge_writer.go")
-	derivedFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/derived_from_edge_writer.go")
+	provenanceFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/edge/writer/provenance.go")
+	derivedFile := filepath.Join(eshuRoot, "go/internal/storage/cypher/edge/writer/derived_from.go")
 	cases := []struct {
 		name      string
 		file      string

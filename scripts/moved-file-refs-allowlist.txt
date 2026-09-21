@@ -217,7 +217,6 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/projector/t
 # doc's citation verbatim, so it necessarily carries the same historical path;
 # rewriting it here without rewriting the doc would desynchronise the two.
 scripts/docs-citations-baseline.txt:go/internal/projector/tfstate_canonical.go
-
 # #6781 Part B split the projector root into five packages. The entries below
 # are dated records, not current-truth references: repointing them would
 # falsify what they state was true at the time they were written.
@@ -230,3 +229,11 @@ docs/internal/evidence/6627-projector-workload-cloud-intent-package-move.md:go/i
 # AGENTS-evidence-history.md states in its own header that every entry is
 # "preserved verbatim" from the prior single-file AGENTS.md.
 go/internal/storage/cypher/AGENTS-evidence-history.md:go/internal/projector/tfstate_ownership_outcome.go
+# #6694 provenance leaf move: dated evidence notes that record the writer
+# source paths as they stood when that evidence was written. Repointing
+# would falsify the record of which file stamped the edges under test.
+# The live pointers are go/internal/storage/cypher/edge/writer/provenance.go
+# (writers and templates) and
+# go/internal/storage/cypher/edge/writer/derived_from.go.
+docs/internal/evidence/5457-provenance-edges.md:go/internal/storage/cypher/provenance_edge_writer.go
+docs/internal/evidence/6564-tag-history-grant-binding.md:go/internal/storage/cypher/provenance_edge_writer.go

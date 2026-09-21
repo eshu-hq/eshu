@@ -16,7 +16,7 @@ import (
 // builtFromEdge is one BUILT_FROM relationship as the reducer actually writes
 // it. Edge identity is {scope_id, evidence_source}
 // (canonicalProvenanceBuiltFromCypher,
-// go/internal/storage/cypher/provenance_edge_writer.go), so one
+// go/internal/storage/cypher/edge/writer/provenance.go), so one
 // image<->repository pair carries one edge per scope and evidence source, and
 // the retraction statement beside it exists precisely to remove one scope's
 // support without disturbing another's. Parallel edges are the designed model,
