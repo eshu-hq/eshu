@@ -15,6 +15,7 @@ directly. For the full command inventory, see [CLI Reference](cli-reference.md).
 | `eshu analyze tree <class>` | Inheritance relationships for one class. | `POST /api/v0/code/relationships` with bidirectional `INHERITS` |
 | `eshu analyze complexity` | Relationship-based complexity metrics. | `POST /api/v0/code/complexity` |
 | `eshu analyze dead-code` | Graph-backed dead-code candidates. Use `--repo`, `--limit`, `--exclude`, and `--fail-on-found` to scope or gate the result. | `POST /api/v0/code/dead-code` |
+| `eshu analyze divergence` | Parallel-implementation findings across all five families. Use `--kind` to select one family, `--limit`/`--offset` to page, `--include-tests` to opt test files back in, or `--report [--top N]` for the one-call rollup with counts by kind plus the top findings per kind. | `POST /api/v0/code/divergence/findings` or `/api/v0/code/divergence/report` |
 | `eshu analyze overrides <name>` | Parent-method override implementations. | `POST /api/v0/code/relationships` with incoming `OVERRIDES` |
 | `eshu analyze variable <name>` | Variable definitions and usage. | `POST /api/v0/code/search` |
 

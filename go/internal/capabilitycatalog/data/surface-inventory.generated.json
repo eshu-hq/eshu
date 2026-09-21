@@ -1013,6 +1013,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/code/divergence/report",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/code/flow/cfg-summary",
       "readiness": "implemented"
     },
@@ -3491,6 +3496,11 @@
     {
       "category": "mcp_tool",
       "name": "propose_terraform_import_plan",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "report_code_divergence",
       "readiness": "implemented"
     },
     {

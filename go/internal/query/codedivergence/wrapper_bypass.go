@@ -30,6 +30,12 @@ const (
 	RuleNotWrapperFamily        = "not_wrapper_family"
 	RuleWrapperUnqualified      = "wrapper_not_qualified"
 	RuleWrapperGraphUnavailable = "wrapper_graph_unavailable"
+	// RuleWrapperGraphTimeout counts a wrapper-family track the bounded
+	// graph-read budget cut short. Only the divergence report uses it: the
+	// rollup degrades one slow family to a counted timeout instead of
+	// failing the other four kinds with it. The findings page keeps the
+	// loud deadline so a slow track stays visible as a defect.
+	RuleWrapperGraphTimeout = "wrapper_graph_timeout"
 )
 
 // BypassSelection is the graph verdict for one target: the canonical

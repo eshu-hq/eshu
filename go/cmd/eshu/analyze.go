@@ -109,10 +109,12 @@ func init() {
 	addRemoteFlags(divergenceCmd)
 	divergenceCmd.Flags().String("repo", "", "Optional repository selector (ID, name, slug, or path)")
 	divergenceCmd.Flags().String("repo-id", "", "Optional repository ID filter")
-	divergenceCmd.Flags().String("kind", "", "Equality family: exact, renamed, or blank for both")
+	divergenceCmd.Flags().String("kind", "", "Family: exact, renamed, drifted, wrapper_bypass, convention_outlier, or blank for all five")
 	divergenceCmd.Flags().Int("limit", 25, "Maximum divergence findings to return")
 	divergenceCmd.Flags().Int("offset", 0, "Zero-based findings offset for paging")
 	divergenceCmd.Flags().Bool("include-tests", false, "Opt test-file copies back into the member set")
+	divergenceCmd.Flags().Bool("report", false, "One-call rollup: counts by kind plus the top findings per kind instead of the findings page (ignores --kind/--limit/--offset)")
+	divergenceCmd.Flags().Int("top", 3, "Top findings carried per kind (only with --report; ignored otherwise)")
 	analyzeCmd.AddCommand(divergenceCmd)
 
 	// analyze overrides
@@ -301,8 +303,22 @@ func runAnalyzeDivergence(cmd *cobra.Command, args []string) error {
 	limit, _ := cmd.Flags().GetInt("limit")
 	offset, _ := cmd.Flags().GetInt("offset")
 	includeTests, _ := cmd.Flags().GetBool("include-tests")
+	report, _ := cmd.Flags().GetBool("report")
+	top, _ := cmd.Flags().GetInt("top")
 
 	var result map[string]any
+	if report {
+		err = client.Post("/api/v0/code/divergence/report", map[string]any{
+			"repo_id":       repoID,
+			"top_per_kind":  top,
+			"include_tests": includeTests,
+		}, &result)
+		if err != nil {
+			return err
+		}
+		printJSON(result)
+		return nil
+	}
 	err = client.Post("/api/v0/code/divergence/findings", map[string]any{
 		"repo_id":       repoID,
 		"kind":          kind,

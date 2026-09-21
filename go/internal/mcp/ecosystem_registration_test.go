@@ -17,10 +17,10 @@ func TestReadOnlyToolsKeepsEcosystemRegistrationPosition(t *testing.T) {
 
 	wantEcosystem := ecosystemtools.Tools()
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 165; got != want {
+	if got, want := len(tools), 166; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
-	const ecosystemStart = 43
+	const ecosystemStart = 44
 	ecosystemEnd := ecosystemStart + len(wantEcosystem)
 	if got, want := tools[ecosystemStart-1].Name, "get_repository_language_inventory"; got != want {
 		t.Fatalf("ecosystem predecessor = %q, want %q", got, want)
@@ -32,7 +32,7 @@ func TestReadOnlyToolsKeepsEcosystemRegistrationPosition(t *testing.T) {
 		t.Fatal("ReadOnlyTools ecosystem definitions drifted from ecosystem.Tools")
 	}
 
-	const wantOrderHash = "7c611d8bb15abdae3f27f0eb3e790d78a219f96bf7a1b1cfd6e29c0e9cab2434"
+	const wantOrderHash = "9c3db90d43244691be41aed4e55a8682ec367c756df1ceb3d664269ef9b1cdf2"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

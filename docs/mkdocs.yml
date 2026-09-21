@@ -67,6 +67,7 @@ nav:
     - Supply-Chain Demo Runbook: guides/supply-chain-demo.md
     - Starter Prompts: guides/starter-prompts.md
     - Explore Relationship Graphs: guides/relationship-graphs.md
+    - Find Parallel Implementations: guides/code-divergence.md
     - Visualize Query Results: guides/visualization.md
     - Work With Bundles: guides/bundles.md
     - Shared Infra Trace: guides/shared-infra-trace.md
@@ -304,6 +305,7 @@ nav:
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md
       - Shared-Write Operations: reference/telemetry/shared-write-operations.md
       - Streaming And Memory: reference/telemetry/streaming-memory.md
+      - Code Divergence Signals: reference/telemetry/code-divergence.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - Telemetry Coverage Notes: observability/telemetry-coverage-notes.md

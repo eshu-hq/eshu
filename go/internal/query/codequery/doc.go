@@ -36,4 +36,4 @@
 // and callGraphMetricsEdgeScanLimit. Never re-freeze a cypher_sha256;
 // never invent a source_sha256 (take it from the gate's own mismatch
 // report after proving the body differs only in the sanctioned way).
-package codequery
+package codequery //nolint:dirgate // The divergence rollup must stay beside the CodeHandler's unexported wrapper/outlier tracks and the divergenceStore iface it shares with the findings read; a subpackage split would re-export those seams for one file.

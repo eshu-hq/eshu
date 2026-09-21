@@ -40,13 +40,13 @@ func TestReadOnlyToolsSplicePreservesCodeownersPosition(t *testing.T) {
 
 	tools := ReadOnlyTools()
 	want := map[int]string{
-		75: "list_ci_cd_run_correlations",
-		76: "count_ci_cd_run_correlations",
-		77: "get_ci_cd_run_correlation_inventory",
-		78: "list_service_catalog_correlations",
-		79: "list_codeowners_ownership",
-		80: "list_kubernetes_correlations",
-		81: "list_secrets_iam_identity_trust_chains",
+		76: "list_ci_cd_run_correlations",
+		77: "count_ci_cd_run_correlations",
+		78: "get_ci_cd_run_correlation_inventory",
+		79: "list_service_catalog_correlations",
+		80: "list_codeowners_ownership",
+		81: "list_kubernetes_correlations",
+		82: "list_secrets_iam_identity_trust_chains",
 	}
 	for index, name := range want {
 		if index >= len(tools) {

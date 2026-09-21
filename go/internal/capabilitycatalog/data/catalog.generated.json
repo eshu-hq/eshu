@@ -2266,6 +2266,10 @@
         {
           "tool": "investigate_code_divergence",
           "kind": "mcp"
+        },
+        {
+          "tool": "report_code_divergence",
+          "kind": "mcp"
         }
       ],
       "profiles": {

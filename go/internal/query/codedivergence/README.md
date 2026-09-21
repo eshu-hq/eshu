@@ -66,8 +66,11 @@ cohorts-package 235us, 9-id callee-edges fan-out 232us. Shapes are three
 repo-wide one-hop enumeration reads plus the 50-key-chunked UNWIND
 callee-edges read through the pinned `runWrapperGraphRows` runner.
 Identical canonical findings on NornicDB and Neo4j community 2026.05.0.
-Full-corpus PROFILE stays remote-gated under #6840
-(docs/internal/evidence/6834-code-divergence-theory.md §11/§13).
+Full-corpus PROFILE was remote-gated under #6840
+(docs/internal/evidence/6834-code-divergence-theory.md §11/§13); the
+remote-validation run is still pending, so the production tier stays
+unclaimed until `docs/internal/remote-validation/code-divergence.md`
+exists.
 
 ## Convention outliers (#6839)
 
@@ -90,12 +93,30 @@ Score stays members × tokens with reasons summing exactly.
 
 ## Observability Evidence:
 
-Both handlers start span `query.code_divergence_findings`
-(go/internal/telemetry/contract.go); the store reads carry
-db.system/db.operation/db.sql.table attributes and record errors on
-the span; every response carries a derived truth envelope naming its
-basis. The outlier track adds no new span (sibling graph-track parity);
+All three handlers (findings, report, investigate) start span
+`query.code_divergence_findings` (go/internal/telemetry/contract.go); the
+store reads carry db.system/db.operation/db.sql.table attributes and record
+errors on the span; every response carries a derived truth envelope naming
+its basis. The outlier track adds no new span (sibling graph-track parity);
 cohort enumeration, callee fan-out, and mediation reuse the anchored
 one-hop read shape pinned in
 go/internal/queryplan/testdata/query-source-coverage.yaml. No new metrics
 or dashboards — the existing query RED signals cover both routes.
+
+No-Observability-Change: this surface adds no instruments, spans, log keys,
+or dashboards; all three handlers share the existing
+`query.code_divergence_findings` span above.
+
+No-Regression Evidence: baseline origin/main `b2b2445d0`, after #6840 on the
+fix-490 NornicDB image (`fix-490-a427a468`) with `postgres:18-alpine` under
+`local_authoritative`, input the own repo (83,591 Function entities, 60,117
+fingerprinted). Per-kind findings pages answer 200 in 0.1–0.3s
+(exact/drifted/wrapper_bypass); the rollup reuses the same assembly behind
+window caps (500 groups, 200 wrapper families) with per-kind truncation, and
+the B-7 golden-corpus gate passes with per-phase timings inside the advisory
+bands on both runs (187s, 172s vs the 1800s ceiling). Reducer drain terminal
+at 23 succeeded / 0 dead_letter. Safe because the diff touches no Cypher
+text, queue, lease, or projection path: the report composes the existing
+assemblers, and the `auth_scoped_routes_code_flow.go` change is a
+comment-plus-list entry for the new route under the established
+required-repo pattern.

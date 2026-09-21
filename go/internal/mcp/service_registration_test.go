@@ -33,15 +33,15 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 	}
 
 	tools := ReadOnlyTools()
-	if got, want := len(tools), 165; got != want {
+	if got, want := len(tools), 166; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
-	assertServiceRegistrationRange(t, tools, 77, []string{
+	assertServiceRegistrationRange(t, tools, 78, []string{
 		"get_ci_cd_run_correlation_inventory",
 		"list_service_catalog_correlations",
 		"list_codeowners_ownership",
 	})
-	assertServiceRegistrationRange(t, tools, 113, []string{
+	assertServiceRegistrationRange(t, tools, 114, []string{
 		"get_workload_story",
 		"get_service_context",
 		"get_service_story",
@@ -49,17 +49,17 @@ func TestReadOnlyToolsKeepsServiceRegistrationPositions(t *testing.T) {
 		"get_service_intelligence_report",
 		"get_file_content",
 	})
-	if got := tools[78:79]; !reflect.DeepEqual(got, wantCatalog) {
+	if got := tools[79:80]; !reflect.DeepEqual(got, wantCatalog) {
 		t.Fatal("ReadOnlyTools catalog definition drifted from service.CatalogTools")
 	}
-	if got := tools[114:117]; !reflect.DeepEqual(got, wantContext) {
+	if got := tools[115:118]; !reflect.DeepEqual(got, wantContext) {
 		t.Fatal("ReadOnlyTools context definitions drifted from service.ContextTools")
 	}
-	if got := tools[117:118]; !reflect.DeepEqual(got, wantIntelligence) {
+	if got := tools[118:119]; !reflect.DeepEqual(got, wantIntelligence) {
 		t.Fatal("ReadOnlyTools intelligence definition drifted from service.IntelligenceTools")
 	}
 
-	const wantHash = "7c611d8bb15abdae3f27f0eb3e790d78a219f96bf7a1b1cfd6e29c0e9cab2434"
+	const wantHash = "9c3db90d43244691be41aed4e55a8682ec367c756df1ceb3d664269ef9b1cdf2"
 	hash := sha256.New()
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)

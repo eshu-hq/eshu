@@ -16,6 +16,7 @@ import (
 // the child's own table.
 var codeDivergenceRouteTools = map[string]string{
 	"find_code_divergence":        "/api/v0/code/divergence/findings",
+	"report_code_divergence":      "/api/v0/code/divergence/report",
 	"investigate_code_divergence": "/api/v0/code/divergence/investigate",
 }
 
@@ -24,6 +25,7 @@ var codeDivergenceRouteTools = map[string]string{
 // even if the child and the parity test drift together.
 var codeDivergenceBodyKeys = map[string][]string{
 	"find_code_divergence":        {"repo_id", "kind", "limit", "offset", "include_tests"},
+	"report_code_divergence":      {"repo_id", "top_per_kind", "include_tests"},
 	"investigate_code_divergence": {"repo_id", "kind", "fingerprint", "include_tests"},
 }
 
@@ -92,6 +94,7 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 		"fingerprint":   "fp-1",
 		"limit":         float64(7),
 		"offset":        float64(3),
+		"top_per_kind":  float64(2),
 		"include_tests": true,
 	}
 	want := map[string]any{
@@ -100,6 +103,7 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 		"fingerprint":   "fp-1",
 		"limit":         7,
 		"offset":        3,
+		"top_per_kind":  2,
 		"include_tests": true,
 	}
 
@@ -152,6 +156,22 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 	} {
 		if emptyBody[key] != wantValue {
 			t.Errorf("default body[%s] = %#v, want %#v", key, emptyBody[key], wantValue)
+		}
+	}
+
+	// The rollup default reaches the handler unchanged when the caller
+	// sends nothing: top_per_kind 3 matches the handler's own substitute
+	// for a nonpositive top.
+	emptyReport, err := resolveRoute("report_code_divergence", map[string]any{"repo_id": "repo-1"})
+	if err != nil {
+		t.Fatalf("resolveRoute report defaults error = %v, want nil", err)
+	}
+	emptyReportBody := emptyReport.Body.(map[string]any)
+	for key, wantValue := range map[string]any{
+		"repo_id": "repo-1", "top_per_kind": 3, "include_tests": false,
+	} {
+		if emptyReportBody[key] != wantValue {
+			t.Errorf("report default body[%s] = %#v, want %#v", key, emptyReportBody[key], wantValue)
 		}
 	}
 }

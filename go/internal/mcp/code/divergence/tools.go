@@ -7,15 +7,18 @@ import (
 	toolcontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 )
 
-// Tools returns the two MCP code-divergence tool definitions: the
-// repo-scoped parallel-implementation findings report and the single-finding
-// investigation with bounded follow-up calls. Both accept the drifted family
-// alongside exact and renamed, plus the graph-qualified wrapper_bypass and
-// convention_outlier families.
+// Tools returns the three MCP code-divergence tool definitions: the
+// repo-scoped parallel-implementation findings report, the single-finding
+// investigation with bounded follow-up calls, and the one-call rollup with
+// counts by kind plus the top findings per kind. The rollup registers last
+// so the long-pinned find/investigate adjacency keeps its positions. All
+// three accept the drifted family alongside exact and renamed, plus the
+// graph-qualified wrapper_bypass and convention_outlier families.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		findCodeDivergenceTool(),
 		investigateCodeDivergenceTool(),
+		reportCodeDivergenceTool(),
 	}
 }
 
@@ -48,6 +51,35 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 					"default":     0,
 					"minimum":     0,
 					"maximum":     10000,
+				},
+				"include_tests": map[string]any{
+					"type":        "boolean",
+					"description": "Opt test-file copies back into the member set for the exact, renamed, and convention_outlier families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
+					"default":     false,
+				},
+			},
+			"required": []string{"repo_id"},
+		},
+	}
+}
+
+func reportCodeDivergenceTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "report_code_divergence",
+		Description: "One-call divergence rollup for one repository: counts of assembled post-suppression findings by kind, the total, and the top top_per_kind findings per kind in final score order, with per-rule suppression counts and per-kind truncation flags. A capped window marks its kind truncated so a quiet count is distinguishable from a complete one. A graph track the bounded read budget cuts short degrades to a counted graph-timeout suppression with its kind truncated instead of failing the call. Truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Canonical repository identifier; required and resolved against the caller's grant",
+				},
+				"top_per_kind": map[string]any{
+					"type":        "integer",
+					"description": "Top findings carried per kind; 0 selects the default; counts still cover the whole scanned window",
+					"default":     3,
+					"minimum":     0,
+					"maximum":     10,
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",

@@ -45,9 +45,9 @@ func TestCodebaseToolsSplicePreservesIntelLanguagePositions(t *testing.T) {
 
 	codebase := codebaseTools()
 	want := map[int]string{
-		32: "get_repository_stats",
-		33: "execute_language_query",
-		34: "find_function_call_chain",
+		33: "get_repository_stats",
+		34: "execute_language_query",
+		35: "find_function_call_chain",
 	}
 	for index, name := range want {
 		if index >= len(codebase) {
