@@ -7,7 +7,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TerraformStateOwnershipResolver resolves the config repository that owns a
@@ -23,7 +23,7 @@ type TerraformStateOwnershipResolver interface {
 	// ResolveOwningRepoID returns the single config repo ID that owns the
 	// given (backend_kind, locator_hash) pair this cycle, and the outcome
 	// classifying why (#5623 P1 review, second finding). repoID is
-	// non-empty ONLY when outcome is projector.TerraformStateOwnershipResolved
+	// non-empty ONLY when outcome is canonical.TerraformStateOwnershipResolved
 	// -- never guesses, never a best-effort repo ID for any other outcome.
 	// The outcome distinction is load-bearing, not cosmetic:
 	// terraformStateMatchesConfigEdgeRetractStatements treats
@@ -35,7 +35,7 @@ type TerraformStateOwnershipResolver interface {
 	// leak #5623 closed (through the wipe-everything door) or the accuracy
 	// regression the P1 follow-up closed (through the preserve-too-much
 	// door) -- see that function's own doc comment for the full history.
-	ResolveOwningRepoID(ctx context.Context, backendKind, locatorHash string) (repoID string, outcome projector.TerraformStateOwnershipOutcome)
+	ResolveOwningRepoID(ctx context.Context, backendKind, locatorHash string) (repoID string, outcome canonical.TerraformStateOwnershipOutcome)
 }
 
 // TerraformStateConfigMatchQuery identifies one #5443 MATCHES_STATE
@@ -108,14 +108,14 @@ SET e.evidence_source = 'projector/tfstate',
 // (incident_repository_correlation_build.go). A nil resolver (the default;
 // see WithTerraformStateOwnershipResolver) or a row with a blank backend
 // identity leaves OwningRepoID empty and OwnershipOutcome at its zero value
-// (projector.TerraformStateOwnershipTransientFailure), which downstream
+// (canonical.TerraformStateOwnershipTransientFailure), which downstream
 // (config_repo_id node property, terraformStateMatchesConfigEdgeStatements,
 // terraformStateMatchesConfigEdgeRetractStatements) is the honest "ownership
 // not resolved this cycle, for any reason" state, never a guess.
 func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 	ctx context.Context,
-	rows []projector.TerraformStateResourceRow,
-) []projector.TerraformStateResourceRow {
+	rows []canonical.TerraformStateResourceRow,
+) []canonical.TerraformStateResourceRow {
 	if w.tfStateOwnershipResolver == nil || len(rows) == 0 {
 		return rows
 	}
@@ -123,10 +123,10 @@ func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 	type ownerKey struct{ backendKind, locatorHash string }
 	type ownerResult struct {
 		repoID  string
-		outcome projector.TerraformStateOwnershipOutcome
+		outcome canonical.TerraformStateOwnershipOutcome
 	}
 	memo := make(map[ownerKey]ownerResult, len(rows))
-	out := make([]projector.TerraformStateResourceRow, len(rows))
+	out := make([]canonical.TerraformStateResourceRow, len(rows))
 	for i, row := range rows {
 		out[i] = row
 		if row.BackendKind == "" || row.LocatorHash == "" {
@@ -160,8 +160,8 @@ func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 // unambiguous.
 func (w *CanonicalNodeWriter) resolveTerraformStateConfigMatchAmbiguity(
 	ctx context.Context,
-	rows []projector.TerraformStateResourceRow,
-) []projector.TerraformStateResourceRow {
+	rows []canonical.TerraformStateResourceRow,
+) []canonical.TerraformStateResourceRow {
 	if w.tfStateConfigMatchResolver == nil || len(rows) == 0 {
 		return rows
 	}
@@ -181,7 +181,7 @@ func (w *CanonicalNodeWriter) resolveTerraformStateConfigMatchAmbiguity(
 		return rows
 	}
 
-	out := make([]projector.TerraformStateResourceRow, len(rows))
+	out := make([]canonical.TerraformStateResourceRow, len(rows))
 	copy(out, rows)
 
 	counts, err := w.tfStateConfigMatchResolver.CountConfigMatchCandidates(ctx, queries)
@@ -226,7 +226,7 @@ func (w *CanonicalNodeWriter) resolveTerraformStateConfigMatchAmbiguity(
 // repository's precedent (see TerraformStateConfigMatchResolver) is to
 // record ambiguity honestly and write no edge, never to silently pick one
 // candidate.
-func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
 		if row.OwningRepoID == "" || row.Address == "" || row.ConfigMatchAmbiguous {

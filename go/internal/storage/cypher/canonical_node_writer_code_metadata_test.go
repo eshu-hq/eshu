@@ -6,13 +6,13 @@ package cypher
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalEntityPropertiesPinsCyclomaticComplexity(t *testing.T) {
 	t.Parallel()
 
-	properties := canonicalEntityProperties(projector.EntityRow{
+	properties := canonicalEntityProperties(canonical.EntityRow{
 		EntityID:             "content-entity:handler",
 		Label:                "Function",
 		EntityName:           "GoldenDataflowHandler",

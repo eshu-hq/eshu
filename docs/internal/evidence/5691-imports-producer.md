@@ -58,7 +58,7 @@ The extractor runs once per repository generation inside
 `buildCanonicalMaterialization`. Measured with
 `BenchmarkExtractImportsFromFiles` and
 `BenchmarkBuildCanonicalMaterializationWithImports`
-(`go/internal/projector/canonical_import_extract_bench_test.go`), same input
+(`go/internal/projector/canonical/import_extract_bench_test.go`), same input
 shape both sides: synthesized file facts, 12 imports per file, Apple silicon,
 `-benchtime=5x -count=3`, median reported.
 
@@ -103,7 +103,7 @@ canonical writer has always consumed, so its edges are counted by
 `eshu_dp_canonical_writes_total` and timed by
 `eshu_dp_canonical_write_duration_seconds`, and the per-generation
 `import_count` already appears in the projector's runtime-stage log
-(`go/internal/projector/runtime_stages.go`). An operator diagnosing "no import
+(`go/internal/projector/runtime/stages.go`). An operator diagnosing "no import
 edges" at 3 AM reads `import_count` on the projector stage log, exactly as for
 every other canonical row family. No new metric is warranted for a producer that
 feeds an already-instrumented write path; the corresponding

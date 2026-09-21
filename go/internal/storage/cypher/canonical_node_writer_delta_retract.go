@@ -9,10 +9,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
-func (w *CanonicalNodeWriter) buildDeltaRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildDeltaRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	changedFilePaths := dedupeStringValues(canonicalFilePaths(mat.Files))
 	deletedFilePaths := dedupeStringValues(mat.DeltaDeletedFilePaths)
 	deletedDirectoryPaths := dedupeStringValues(mat.DeltaDeletedDirectoryPaths)
@@ -91,7 +91,7 @@ func buildDeltaDeletedFileRetractStatements(repoID string, filePaths []string) [
 	return stmts
 }
 
-func currentDirectoryParentEdgeRefreshRows(directories []projector.DirectoryRow) []map[string]any {
+func currentDirectoryParentEdgeRefreshRows(directories []canonical.DirectoryRow) []map[string]any {
 	rows := make([]map[string]any, 0, len(directories))
 	seen := make(map[string]struct{}, len(directories))
 	for _, directory := range directories {
@@ -250,7 +250,7 @@ func pathWithinRepo(repoPath string, candidatePath string) bool {
 	return candidatePath == repoPath || strings.HasPrefix(candidatePath, repoPath+"/")
 }
 
-func buildDeltaEntityRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func buildDeltaEntityRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	filePaths := dedupeStringValues(mat.DeltaFilePaths)
 	filePaths = appendMissingStrings(filePaths, canonicalFilePaths(mat.Files))
 	filePaths = appendMissingStrings(filePaths, mat.DeltaDeletedFilePaths)
@@ -273,7 +273,7 @@ func buildDeltaEntityRetractStatements(mat projector.CanonicalMaterialization) [
 	return stmts
 }
 
-func canonicalFilePaths(files []projector.FileRow) []string {
+func canonicalFilePaths(files []canonical.FileRow) []string {
 	paths := make([]string, 0, len(files))
 	for _, file := range files {
 		paths = append(paths, file.Path)

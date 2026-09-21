@@ -10,7 +10,7 @@ package v1
 // a dependency on another package). The projector materializes a canonical
 // PackageRegistryDependency edge row keyed by the fact's own StableFactKey,
 // joined by PackageID, VersionID, and DependencyPackageID
-// (go/internal/projector/package_registry_canonical.go
+// (go/internal/projector/canonical/package_registry.go
 // packageRegistryDependencyRow), which DROPS a dependency observation missing
 // any of those three join keys — or carrying a blank StableFactKey — rather
 // than fabricating an edge under a broken join. The three payload fields are

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -22,7 +23,7 @@ type countingProjectorSink struct {
 	failed atomic.Int64
 }
 
-func (s *countingProjectorSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (s *countingProjectorSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	s.acked.Add(1)
 	return nil
 }
@@ -40,7 +41,7 @@ type ackErrorSink struct {
 	failCalled atomic.Bool
 }
 
-func (s *ackErrorSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (s *ackErrorSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	return s.ackErr
 }
 

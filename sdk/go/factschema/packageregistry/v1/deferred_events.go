@@ -20,7 +20,7 @@ package v1
 // NewRegistryEventEnvelope). The emitter fails closed on a blank event_key and
 // event_type, so EventKey and EventType are REQUIRED. Consumed by the
 // projector's #5458 canonical extractor (packageRegistryEventRow in
-// go/internal/projector/package_registry_canonical_event.go), which projects
+// go/internal/projector/canonical/package_registry_event.go), which projects
 // it onto a RegistryEvent node -- the per-version publish/yank/unyank/
 // deprecate/delete/unlist lifecycle timeline the epic names.
 type RegistryEvent struct {

@@ -32,7 +32,7 @@ import (
 // the contract it exists to guard. isHashesMapDigestField therefore only
 // treats a hashes-map key as checked when its TrimSpace-normalized name (the
 // same, and only, normalization packageRegistryTrimmedStringMap in
-// go/internal/projector/package_registry_canonical.go applies before merging
+// go/internal/projector/canonical/package_registry.go applies before merging
 // duplicate keys) is listed here; everything else is skipped by
 // isDigestField, not routed into digestFieldValueIsWellFormed at all. The
 // accepted cost: a future hashes.sha1 (or any other algorithm outside this

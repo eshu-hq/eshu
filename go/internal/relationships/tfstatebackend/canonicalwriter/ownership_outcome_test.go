@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -50,7 +50,7 @@ func TestResolveOwningRepoIDOutcomeResolved(t *testing.T) {
 	if got, want := repoID, "repo-a"; got != want {
 		t.Fatalf("repoID = %q, want %q", got, want)
 	}
-	if got, want := outcome, projector.TerraformStateOwnershipResolved; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipResolved; got != want {
 		t.Fatalf("outcome = %v, want %v", got, want)
 	}
 }
@@ -67,7 +67,7 @@ func TestResolveOwningRepoIDOutcomeNoOwner(t *testing.T) {
 	if got, want := repoID, ""; got != want {
 		t.Fatalf("repoID = %q, want empty", got)
 	}
-	if got, want := outcome, projector.TerraformStateOwnershipNoOwner; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipNoOwner; got != want {
 		t.Fatalf("outcome = %v, want %v (NoOwner is authoritative, never TransientFailure)", got, want)
 	}
 }
@@ -87,7 +87,7 @@ func TestResolveOwningRepoIDOutcomeAmbiguousOwner(t *testing.T) {
 	if got, want := repoID, ""; got != want {
 		t.Fatalf("repoID = %q, want empty", got)
 	}
-	if got, want := outcome, projector.TerraformStateOwnershipAmbiguousOwner; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipAmbiguousOwner; got != want {
 		t.Fatalf("outcome = %v, want %v (AmbiguousOwner is authoritative, never TransientFailure)", got, want)
 	}
 }
@@ -107,7 +107,7 @@ func TestResolveOwningRepoIDOutcomeTransientFailure(t *testing.T) {
 	if got, want := repoID, ""; got != want {
 		t.Fatalf("repoID = %q, want empty", got)
 	}
-	if got, want := outcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipTransientFailure; got != want {
 		t.Fatalf("outcome = %v, want %v", got, want)
 	}
 }

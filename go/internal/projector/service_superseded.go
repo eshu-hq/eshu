@@ -10,6 +10,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -25,7 +28,7 @@ func (s Service) recordSupersededWork(
 	heartbeatErr error,
 	workerID int,
 ) bool {
-	if !errors.Is(heartbeatErr, ErrWorkSuperseded) {
+	if !errors.Is(heartbeatErr, failure.ErrWorkSuperseded) {
 		return false
 	}
 	if s.Logger == nil {
@@ -66,7 +69,7 @@ func (s Service) recordClaimLostWork(
 	operation string,
 	workerID int,
 ) bool {
-	if !errors.Is(err, ErrWorkClaimLost) {
+	if !errors.Is(err, failure.ErrWorkClaimLost) {
 		return false
 	}
 	ctx = context.WithoutCancel(ctx)
@@ -112,7 +115,7 @@ func AckWhenScopeFree(
 	heartbeater ProjectorWorkHeartbeater,
 	instruments *telemetry.Instruments,
 	work ScopeGenerationWork,
-	result Result,
+	result runtime.Result,
 	maxRetries int,
 	onDeferred func(retry int),
 ) (err error) {
@@ -138,7 +141,7 @@ func AckWhenScopeFree(
 		ackCtx, cancel := projectorAckContext(ctx)
 		err = sink.Ack(ackCtx, work, result)
 		cancel()
-		if !errors.Is(err, ErrWorkAckDeferred) {
+		if !errors.Is(err, failure.ErrWorkAckDeferred) {
 			return err
 		}
 		deferrals++
@@ -160,8 +163,8 @@ func AckWhenScopeFree(
 			if heartbeatErr := heartbeater.Heartbeat(ctx, work); heartbeatErr != nil {
 				// Shutdown during the renewal is still a deferral, not a failed
 				// Ack; supersession and a lost claim keep their own meaning.
-				if ctx.Err() != nil && !errors.Is(heartbeatErr, ErrWorkSuperseded) &&
-					!errors.Is(heartbeatErr, ErrWorkClaimLost) {
+				if ctx.Err() != nil && !errors.Is(heartbeatErr, failure.ErrWorkSuperseded) &&
+					!errors.Is(heartbeatErr, failure.ErrWorkClaimLost) {
 					return err
 				}
 				return heartbeatErr
@@ -188,14 +191,14 @@ func ackWaitOutcome(ctx context.Context, err error) string {
 	switch {
 	case err == nil:
 		return ackOutcomeSucceeded
-	case errors.Is(err, ErrWorkAckDeferred):
+	case errors.Is(err, failure.ErrWorkAckDeferred):
 		if ctx.Err() != nil {
 			return ackOutcomeShutdown
 		}
 		return ackOutcomeAbandoned
-	case errors.Is(err, ErrWorkSuperseded):
+	case errors.Is(err, failure.ErrWorkSuperseded):
 		return ackOutcomeSuperseded
-	case errors.Is(err, ErrWorkClaimLost):
+	case errors.Is(err, failure.ErrWorkClaimLost):
 		return ackOutcomeClaimLost
 	default:
 		return ackOutcomeFailed
@@ -290,7 +293,7 @@ func (s Service) recordAckAbandoned(
 	err error,
 	workerID int,
 ) bool {
-	if !errors.Is(err, ErrWorkAckDeferred) {
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		return false
 	}
 	ctx := context.WithoutCancel(workCtx)

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -31,15 +33,15 @@ func (f *fakeActiveStateSnapshotScopeLister) ListActiveStateSnapshotScopes(_ con
 }
 
 type fakeCatchUpIntentWriter struct {
-	got    []ReducerIntent
-	result IntentResult
+	got    []runtime.ReducerIntent
+	result runtime.IntentResult
 	err    error
 }
 
-func (f *fakeCatchUpIntentWriter) Enqueue(_ context.Context, intents []ReducerIntent) (IntentResult, error) {
+func (f *fakeCatchUpIntentWriter) Enqueue(_ context.Context, intents []runtime.ReducerIntent) (runtime.IntentResult, error) {
 	f.got = intents
 	if f.err != nil {
-		return IntentResult{}, f.err
+		return runtime.IntentResult{}, f.err
 	}
 	return f.result, nil
 }
@@ -56,7 +58,7 @@ func TestConfigStateDriftCatchUpSweeperRunOnceEnqueuesOneIntentPerActiveScope(t 
 		{ScopeID: "state_snapshot:s3:hash-1", GenerationID: "gen-state-1"},
 		{ScopeID: "state_snapshot:s3:hash-2", GenerationID: "gen-state-2"},
 	}}
-	writer := &fakeCatchUpIntentWriter{result: IntentResult{Count: 2}}
+	writer := &fakeCatchUpIntentWriter{result: runtime.IntentResult{Count: 2}}
 	sweeper := ConfigStateDriftCatchUpSweeper{Active: lister, Intents: writer}
 
 	got, err := sweeper.RunOnce(context.Background())
@@ -200,7 +202,7 @@ func TestConfigStateDriftCatchUpSweeperRunOnceRecordsEnqueueCounterByActualCount
 	}}
 	// Only 1 of the 2 attempted rows was actually inserted -- the other was
 	// already enqueued by one of the other two producers.
-	writer := &fakeCatchUpIntentWriter{result: IntentResult{Count: 1}}
+	writer := &fakeCatchUpIntentWriter{result: runtime.IntentResult{Count: 1}}
 	sweeper := ConfigStateDriftCatchUpSweeper{Active: lister, Intents: writer, Instruments: inst}
 
 	if _, err := sweeper.RunOnce(context.Background()); err != nil {

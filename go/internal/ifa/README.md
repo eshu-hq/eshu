@@ -258,7 +258,7 @@ assertion.
   metric + log, no durable `fact_work_items` row. `MutationSchemaMajor`, for a
   fact kind core registers a schema version for, trips the projector's OWN
   admission-time schema-version gate
-  (`go/internal/projector/schema_version_admission.go`) BEFORE the reducer's
+  (`go/internal/projector/decode/schema_version_admission.go`) BEFORE the reducer's
   typed-decode seam is ever reached — a whole-work-item failure, not a
   per-fact one — and the durable row's `failure_class` came back
   `"projection_bug"` in that run, not the reducer's `"input_invalid"`. Do not

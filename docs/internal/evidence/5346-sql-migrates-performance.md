@@ -15,7 +15,7 @@ covers the hot files flagged by `scripts/verify-performance-evidence.sh`:
 `go/internal/reducer/sqlrelationship/sql_relationship_materialization.go` (+ the two files
 split out of it, `sql_relationship_metadata.go` and `sql_relationship_names.go`),
 `go/internal/collector/git_snapshot_native.go`, and
-`go/internal/projector/canonical.go`.
+`go/internal/projector/canonical/materialization.go`.
 
 ## No-Regression Evidence
 

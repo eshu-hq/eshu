@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package stage
+
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector/decode"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+)
+
+// WorkloadStageResult captures the output of the workload projection stage.
+type WorkloadStageResult struct {
+	Intents        []runtime.ReducerIntent
+	RepositoryIDs  []string
+	SourceRunPairs map[string]string // repo_id -> source_run_id
+}
+
+// ProjectWorkloadStage extracts workload-relevant metadata from repository
+// facts and builds reducer intents for downstream workload materialization.
+func ProjectWorkloadStage(envelopes []facts.Envelope) WorkloadStageResult {
+	repoFacts := decode.FilterRepositoryFacts(envelopes)
+	result := WorkloadStageResult{
+		SourceRunPairs: make(map[string]string, len(repoFacts)),
+	}
+
+	seenRepos := make(map[string]struct{}, len(repoFacts))
+	for i := range repoFacts {
+		repository, err := decode.CodegraphRepository(repoFacts[i])
+		if err != nil {
+			continue
+		}
+		repoID := repository.RepoID
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seenRepos[repoID]; ok {
+			continue
+		}
+		seenRepos[repoID] = struct{}{}
+		result.RepositoryIDs = append(result.RepositoryIDs, repoID)
+
+		sourceRunID := decode.CodegraphDerefString(repository.SourceRunID)
+		if sourceRunID != "" {
+			result.SourceRunPairs[repoID] = sourceRunID
+		}
+	}
+
+	// Collect reducer intents from all facts (workload/platform intents
+	// may come from any fact kind that carries a reducer_domain key).
+	seen := make(map[string]struct{}, len(envelopes))
+	for i := range envelopes {
+		if _, ok := seen[envelopes[i].FactID]; ok {
+			continue
+		}
+		seen[envelopes[i].FactID] = struct{}{}
+
+		if intent, ok := runtime.BuildReducerIntent(envelopes[i]); ok {
+			result.Intents = append(result.Intents, intent)
+		}
+	}
+
+	return result
+}

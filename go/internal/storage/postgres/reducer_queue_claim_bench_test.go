@@ -14,10 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -49,7 +48,7 @@ func TestReducerClaimBenchmarkWorkShapeMatchesReducerConflictDerivation(t *testi
 
 	for _, rowNumber := range []int{1, 2, 1_024, 1_025} {
 		shape := reducerClaimBenchmarkWorkShape(rowNumber)
-		wantDomain, wantKey := reducerConflictDomainKey(projector.ReducerIntent{
+		wantDomain, wantKey := reducerConflictDomainKey(runtime.ReducerIntent{
 			ScopeID: shape.scopeID,
 			Domain:  reducer.DomainWorkloadIdentity,
 		})

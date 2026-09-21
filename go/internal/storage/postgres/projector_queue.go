@@ -10,13 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/otel/metric"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
@@ -77,9 +78,9 @@ const (
 
 // ErrProjectorClaimRejected means the projector work item's owner, attempt,
 // or claimable status changed, so heartbeat, Ack, or Fail must stop. It wraps
-// projector.ErrWorkClaimLost so the projector service drops the stale attempt
+// failure.ErrWorkClaimLost so the projector service drops the stale attempt
 // instead of stopping its other workers.
-var ErrProjectorClaimRejected = fmt.Errorf("projector work claim rejected: %w", projector.ErrWorkClaimLost)
+var ErrProjectorClaimRejected = fmt.Errorf("projector work claim rejected: %w", failure.ErrWorkClaimLost)
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
 func NewProjectorQueue(
@@ -176,7 +177,7 @@ func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWor
 func (q ProjectorQueue) Ack(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
-	_ projector.Result,
+	_ runtime.Result,
 ) (err error) {
 	if err := q.validate(); err != nil {
 		return err
@@ -185,7 +186,7 @@ func (q ProjectorQueue) Ack(
 	// attempt still owns the work; the caller renews the lease and retries.
 	defer func() {
 		if isPostgresLockNotAvailable(err) {
-			err = fmt.Errorf("%w: %w", projector.ErrWorkAckDeferred, err)
+			err = fmt.Errorf("%w: %w", failure.ErrWorkAckDeferred, err)
 		}
 	}()
 
@@ -284,7 +285,7 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		return err
 	}
 	if superseded {
-		return projector.ErrWorkSuperseded
+		return failure.ErrWorkSuperseded
 	}
 
 	result, err := q.database.ExecContext(
@@ -350,7 +351,7 @@ func (q ProjectorQueue) Fail(
 		return errors.New("projector failure cause is required")
 	}
 
-	retryable := projector.IsRetryable(cause)
+	retryable := failure.IsRetryable(cause)
 	willRetry := retryable && work.AttemptCount < q.maxAttempts()
 
 	if willRetry {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -41,8 +41,8 @@ func TestPlatformGraphConflictKeyPartitionsByDomain(t *testing.T) {
 
 	const testScope = "scope:repo:acme:backend"
 
-	intentFor := func(domain reducer.Domain) projector.ReducerIntent {
-		return projector.ReducerIntent{
+	intentFor := func(domain reducer.Domain) runtime.ReducerIntent {
+		return runtime.ReducerIntent{
 			ScopeID: testScope,
 			Domain:  domain,
 		}
@@ -128,11 +128,11 @@ func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
 		" scope:with:whitespace ",
 	}
 	for _, scope := range scopes {
-		domWM, keyWM := reducerConflictDomainKey(projector.ReducerIntent{
+		domWM, keyWM := reducerConflictDomainKey(runtime.ReducerIntent{
 			ScopeID: scope,
 			Domain:  reducer.DomainWorkloadMaterialization,
 		})
-		domPIM, keyPIM := reducerConflictDomainKey(projector.ReducerIntent{
+		domPIM, keyPIM := reducerConflictDomainKey(runtime.ReducerIntent{
 			ScopeID: scope,
 			Domain:  reducer.DomainPlatformInfraMaterialization,
 		})
@@ -152,11 +152,11 @@ func TestPlatformNodeWritersShareConflictKeyForSameScope(t *testing.T) {
 
 	// And the shared key must differ across distinct scopes so unrelated scopes
 	// still drain concurrently.
-	_, keyA := reducerConflictDomainKey(projector.ReducerIntent{
+	_, keyA := reducerConflictDomainKey(runtime.ReducerIntent{
 		ScopeID: "scope:repo:acme:backend",
 		Domain:  reducer.DomainWorkloadMaterialization,
 	})
-	_, keyB := reducerConflictDomainKey(projector.ReducerIntent{
+	_, keyB := reducerConflictDomainKey(runtime.ReducerIntent{
 		ScopeID: "scope:repo:acme:frontend",
 		Domain:  reducer.DomainPlatformInfraMaterialization,
 	})
@@ -183,7 +183,7 @@ func TestPlatformGraphConflictKeySameDomainSameScopeSerializes(t *testing.T) {
 	}
 
 	for _, domain := range domains {
-		intent := projector.ReducerIntent{ScopeID: testScope, Domain: domain}
+		intent := runtime.ReducerIntent{ScopeID: testScope, Domain: domain}
 		_, key1 := reducerConflictDomainKey(intent)
 		_, key2 := reducerConflictDomainKey(intent)
 		if key1 != key2 {
@@ -213,8 +213,8 @@ func TestPlatformGraphConflictKeyDistinctScopesAlwaysDistinct(t *testing.T) {
 	scopes := []string{"scope:repo:acme:backend", "scope:repo:acme:frontend"}
 
 	for _, domain := range domains {
-		_, keyA := reducerConflictDomainKey(projector.ReducerIntent{ScopeID: scopes[0], Domain: domain})
-		_, keyB := reducerConflictDomainKey(projector.ReducerIntent{ScopeID: scopes[1], Domain: domain})
+		_, keyA := reducerConflictDomainKey(runtime.ReducerIntent{ScopeID: scopes[0], Domain: domain})
+		_, keyB := reducerConflictDomainKey(runtime.ReducerIntent{ScopeID: scopes[1], Domain: domain})
 		if keyA == keyB {
 			t.Errorf(
 				"domain %q: distinct scopes %q and %q produced the same conflict key %q; "+
@@ -237,7 +237,7 @@ func TestPlatformGraphConflictKeyDoesNotLeakRawScopeID(t *testing.T) {
 		reducer.DomainDeploymentMapping,
 	}
 	for _, domain := range domains {
-		_, key := reducerConflictDomainKey(projector.ReducerIntent{
+		_, key := reducerConflictDomainKey(runtime.ReducerIntent{
 			ScopeID: sensitiveScope,
 			Domain:  domain,
 		})

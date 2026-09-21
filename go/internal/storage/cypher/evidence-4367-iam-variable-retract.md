@@ -131,7 +131,7 @@ here.
 
 ### Why the cassette-extension route (used for every other label) doesn't work
 
-`go/internal/projector/canonical_builder.go` (~line 188) explicitly skips
+`go/internal/projector/canonical/builder.go` (~line 188) explicitly skips
 writing `"Variable"` through the generic canonical entity phase that every
 other content-entity label (including `Class`, `Function`, `Annotation`, etc.)
 uses:

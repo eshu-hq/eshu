@@ -18,7 +18,7 @@ import (
 // bucket, so a label could be added to entityTypeLabelMap that no bucket, no
 // collector twin entry, and no parser ever produces, and every gate in the tree
 // stayed green — including the #6206 ledger in
-// go/internal/projector/canonical_unwritten_entity_labels_test.go, which sweeps
+// go/internal/projector/canonical/unwritten_entity_labels_test.go, which sweeps
 // the registry through phase E and correctly reports such a label as "written",
 // because phase E would indeed write it if a fact ever carried the type. The
 // registry entry is inert, and inert-but-registered is the exact confusion
@@ -79,7 +79,7 @@ func TestEveryProjectorLabelHasASource(t *testing.T) {
 	buckets := parseBucketLabelSlice(t,
 		filepath.Join(root, "go/internal/content/shape/materialize_tables.go"), "contentEntityBuckets")
 	projector := parseStringMapValues(t,
-		filepath.Join(root, "go/internal/projector/canonical.go"), "entityTypeLabelMap")
+		filepath.Join(root, "go/internal/projector/canonical/materialization.go"), "entityTypeLabelMap")
 
 	if len(buckets) == 0 || len(projector) == 0 {
 		t.Fatalf("extracted %d bucket rows and %d projector labels; an empty side means the parse lost a "+

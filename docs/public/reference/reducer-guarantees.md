@@ -72,7 +72,7 @@ written. Storing evidence without projecting it is expected, not a defect.
 When reducer or projector processing fails a work item terminally, the
 failure is written as a durable, operator-facing `TriageClass` rather than a
 stack trace buried in a table. The triage classes
-(`go/internal/projector/dead_letter_triage.go`) include `input_invalid` for a
+(`go/internal/projector/failure/dead_letter_triage.go`) include `input_invalid` for a
 non-retryable input-validation failure (the class a malformed or
 contract-violating payload lands in), `dependency_unavailable`,
 `resource_exhausted`, `timeout`, `retry_exhausted` for a transient cause that

@@ -8,17 +8,17 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "oci-scope-1",
 		GenerationID: "oci-generation-1",
-		OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+		OCIRegistryRepository: &canonical.OCIRegistryRepositoryRow{
 			UID:              "oci-registry://registry.example.com/team/api",
 			Provider:         "ghcr",
 			Registry:         "registry.example.com",
@@ -32,7 +32,7 @@ func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "oci_registry",
 		},
-		OCIImageManifests: []projector.OCIImageManifestRow{{
+		OCIImageManifests: []canonical.OCIImageManifestRow{{
 			UID:                  "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			RepositoryID:         "oci-registry://registry.example.com/team/api",
 			Digest:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -52,7 +52,7 @@ func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 			CollectorInstanceID:  "oci-collector-1",
 			ResolvedDescriptorID: "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		}},
-		OCIImageTagObservations: []projector.OCIImageTagObservationRow{{
+		OCIImageTagObservations: []canonical.OCIImageTagObservationRow{{
 			UID:                   "oci-tag-observation-1",
 			RepositoryID:          "oci-registry://registry.example.com/team/api",
 			ImageRef:              "registry.example.com/team/api:prod",
@@ -113,10 +113,10 @@ func TestCanonicalNodeWriterOCIRegistrySkipsRelationshipWrites(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "oci-scope-1",
 		GenerationID: "oci-generation-2",
-		OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+		OCIRegistryRepository: &canonical.OCIRegistryRepositoryRow{
 			UID:              "oci-registry://registry.example.com/team/api",
 			Provider:         "ghcr",
 			Registry:         "registry.example.com",
@@ -128,7 +128,7 @@ func TestCanonicalNodeWriterOCIRegistrySkipsRelationshipWrites(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "oci_registry",
 		},
-		OCIImageManifests: []projector.OCIImageManifestRow{{
+		OCIImageManifests: []canonical.OCIImageManifestRow{{
 			UID:                  "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			RepositoryID:         "oci-registry://registry.example.com/team/api",
 			Digest:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -160,10 +160,10 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "oci-scope-1",
 		GenerationID: "oci-generation-2",
-		OCIRegistryRepository: &projector.OCIRegistryRepositoryRow{
+		OCIRegistryRepository: &canonical.OCIRegistryRepositoryRow{
 			UID:              "oci-registry://registry.example.com/team/api",
 			Provider:         "ghcr",
 			Registry:         "registry.example.com",
@@ -175,7 +175,7 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "oci_registry",
 		},
-		OCIImageManifests: []projector.OCIImageManifestRow{{
+		OCIImageManifests: []canonical.OCIImageManifestRow{{
 			UID:                  "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			RepositoryID:         "oci-registry://registry.example.com/team/api",
 			Digest:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -190,7 +190,7 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 			CollectorInstanceID:  "oci-collector-1",
 			ResolvedDescriptorID: "oci-descriptor://registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		}},
-		OCIImageIndexes: []projector.OCIImageIndexRow{{
+		OCIImageIndexes: []canonical.OCIImageIndexRow{{
 			UID:           "oci-index://registry.example.com/team/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 			RepositoryID:  "oci-registry://registry.example.com/team/api",
 			Digest:        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -200,7 +200,7 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 			SourceSystem:  "oci_registry",
 			CollectorKind: "oci_registry",
 		}},
-		OCIImageDescriptors: []projector.OCIImageDescriptorRow{{
+		OCIImageDescriptors: []canonical.OCIImageDescriptorRow{{
 			UID:           "oci-descriptor://registry.example.com/team/api@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 			RepositoryID:  "oci-registry://registry.example.com/team/api",
 			Digest:        "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -210,7 +210,7 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 			SourceSystem:  "oci_registry",
 			CollectorKind: "oci_registry",
 		}},
-		OCIImageTagObservations: []projector.OCIImageTagObservationRow{{
+		OCIImageTagObservations: []canonical.OCIImageTagObservationRow{{
 			UID:                   "oci-tag-observation-1",
 			RepositoryID:          "oci-registry://registry.example.com/team/api",
 			ImageRef:              "registry.example.com/team/api:prod",
@@ -225,7 +225,7 @@ func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 			SourceConfidence:      facts.SourceConfidenceReported,
 			CollectorKind:         "oci_registry",
 		}},
-		OCIImageReferrers: []projector.OCIImageReferrerRow{{
+		OCIImageReferrers: []canonical.OCIImageReferrerRow{{
 			UID:               "oci-referrer-1",
 			RepositoryID:      "oci-registry://registry.example.com/team/api",
 			SubjectDigest:     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -72,11 +74,11 @@ func TestProjectorAckMapsOnlyLockTimeoutToDeferral(t *testing.T) {
 			fake := &scopeLockErrDB{scopeErr: &pgconn.PgError{Code: tt.code}}
 			queue := NewProjectorQueue(fake, "projector-1", time.Minute)
 
-			err := queue.Ack(context.Background(), ackWorkForLockTimeoutTest(), projector.Result{})
+			err := queue.Ack(context.Background(), ackWorkForLockTimeoutTest(), runtime.Result{})
 			if err == nil {
 				t.Fatal("Ack() error = nil, want the scope update error")
 			}
-			if got := errors.Is(err, projector.ErrWorkAckDeferred); got != tt.wantDeferred {
+			if got := errors.Is(err, failure.ErrWorkAckDeferred); got != tt.wantDeferred {
 				t.Fatalf("errors.Is(err, ErrWorkAckDeferred) = %v, want %v (err = %v)", got, tt.wantDeferred, err)
 			}
 			var pgErr *pgconn.PgError
@@ -110,7 +112,7 @@ func TestProjectorAckLockTimeoutIsPostgresUnitsBelowAckBudget(t *testing.T) {
 			queue := NewProjectorQueue(fake, "projector-1", time.Minute)
 			queue.AckScopeLockTimeout = tt.config
 
-			_ = queue.Ack(context.Background(), ackWorkForLockTimeoutTest(), projector.Result{})
+			_ = queue.Ack(context.Background(), ackWorkForLockTimeoutTest(), runtime.Result{})
 			if len(fake.execs) == 0 || !strings.Contains(fake.execs[0].query, "set_config('lock_timeout'") {
 				t.Fatalf("first Ack statement = %v, want lock_timeout set_config", fake.execs)
 			}

@@ -6,7 +6,7 @@ package postgres
 import (
 	"errors"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
 type classifiedFailure interface {
@@ -48,14 +48,14 @@ func queueFailureMetadata(cause error, fallbackClass string) (string, string, st
 //     detailedFailure, e.g. GraphWriteTimeoutError) keeps its own class and
 //     details — these are author-curated and the most precise.
 //  2. Otherwise the failure_class is the operator-facing triage class from
-//     projector.TriageFailure (retry_exhausted / input_invalid / projection_bug
+//     failure.TriageFailure (retry_exhausted / input_invalid / projection_bug
 //     / …), and the details are the structured triage string.
 //
 // retryable is the canonical IsRetryable() authority for the cause; the dead
 // letter path always passes attemptsExhausted=true because by construction the
 // item is no longer being retried.
 func deadLetterTriageMetadata(cause error, stage string, retryable bool) (string, string, string) {
-	triage := projector.TriageFailure(cause, stage, retryable, true)
+	triage := failure.TriageFailure(cause, stage, retryable, true)
 	failureClass, message, details := queueFailureMetadata(cause, triage.FailureClass)
 
 	// queueFailureMetadata returns the sanitized message as details only when the

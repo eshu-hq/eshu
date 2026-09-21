@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // configStateDriftTriggerHookFake implements ExecQueryer + Beginner +
@@ -83,7 +83,7 @@ func TestProjectorQueueAckInvokesConfigStateDriftTriggerAfterCommitForStateSnaps
 		Generation: scope.ScopeGeneration{GenerationID: "terraform_state:state_snapshot:s3:hash-1:lineage-1:serial:2"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("expected Ack to swallow the trigger's error, got: %v", err)
 	}
 
@@ -142,7 +142,7 @@ func TestProjectorQueueAckRecordsConfigStateDriftRuntimeTriggerFailureCounter(t 
 		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("expected Ack to swallow the trigger's error, got: %v", err)
 	}
 
@@ -180,7 +180,7 @@ func TestProjectorQueueAckDoesNotRecordFailureCounterOnSuccessfulTrigger(t *test
 		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack: %v", err)
 	}
 
@@ -214,7 +214,7 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerForNonStateSnapshotScope(t
 		Generation: scope.ScopeGeneration{GenerationID: "gen-001"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack: %v", err)
 	}
 	if len(triggerArgs) != 0 {
@@ -258,7 +258,7 @@ func TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstra
 		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack: %v", err)
 	}
 
@@ -299,7 +299,7 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerWhenNilTrigger(t *testing.
 		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack: %v", err)
 	}
 	if len(triggerArgs) != 0 {

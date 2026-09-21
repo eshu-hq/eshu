@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -325,7 +325,7 @@ func enqueueCloudReopenOrderingIntent(
 	fixture cloudReopenOrderingTestFixture,
 ) reducer.Intent {
 	t.Helper()
-	result, err := queue.Enqueue(ctx, []projector.ReducerIntent{{
+	result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{
 		ScopeID:      fixture.cloudScopeID,
 		GenerationID: fixture.cloudGenerationID,
 		Domain:       reducer.DomainContainerImageIdentity,

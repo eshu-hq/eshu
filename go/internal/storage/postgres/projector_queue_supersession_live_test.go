@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -109,7 +111,7 @@ WHERE scope.scope_id = 'scope-proof'
 				}
 				return
 			}
-			if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, projector.ErrWorkSuperseded) {
+			if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, failure.ErrWorkSuperseded) {
 				t.Fatalf("old Heartbeat error = %v; want ErrWorkSuperseded", err)
 			}
 
@@ -145,7 +147,7 @@ WHERE scope.scope_id = 'scope-proof'
 			if tc.oldStatus != "active" {
 				return
 			}
-			if err := queue.Ack(ctx, oldWork, projector.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+			if err := queue.Ack(ctx, oldWork, runtime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
 				t.Fatalf("Ack superseded old work error = %v; want claim rejection", err)
 			}
 			// A late error from the revoked worker must not fail the generation
@@ -199,7 +201,7 @@ WHERE scope.scope_id = 'scope-proof'
 				}
 				return
 			}
-			if err := queue.Ack(ctx, newWork, projector.Result{}); err != nil {
+			if err := queue.Ack(ctx, newWork, runtime.Result{}); err != nil {
 				t.Fatalf("Ack successor: %v", err)
 			}
 			if err := database.QueryRowContext(ctx, `
@@ -216,7 +218,7 @@ WHERE scope.scope_id = 'scope-proof'
 				t.Fatalf("old=%q successor=%q pointer=%v; want atomic promotion",
 					oldGenerationStatus, newGenerationStatus, activePointer)
 			}
-			if err := queue.Ack(ctx, oldWork, projector.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+			if err := queue.Ack(ctx, oldWork, runtime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
 				t.Fatalf("late Ack superseded old work error = %v; want claim rejection", err)
 			}
 			if err := database.QueryRowContext(ctx, `

@@ -52,7 +52,7 @@ kept here in summary for the record of what the review found.
 `sdk/go/collector/types.go`) is stable and complete. Admission classifies
 versions (`facts.ClassifySchemaVersion`) and the projector rejects
 unsupported majors before projection
-(`go/internal/projector/schema_version_admission.go:19-24`). The fact-kind
+(`go/internal/projector/decode/schema_version_admission.go, `ValidateFactSchemaVersion``). The fact-kind
 registry ties every kind to its consumers.
 
 **The hole:** `Payload` is `map[string]any`, persisted as unvalidated JSONB,

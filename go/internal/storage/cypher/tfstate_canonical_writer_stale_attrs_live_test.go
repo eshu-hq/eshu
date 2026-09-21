@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh is the
@@ -45,11 +45,11 @@ func TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh(t *testing.T) 
 
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil)
 
-	mat := func(attributes map[string]any) projector.CanonicalMaterialization {
-		return projector.CanonicalMaterialization{
+	mat := func(attributes map[string]any) canonical.CanonicalMaterialization {
+		return canonical.CanonicalMaterialization{
 			ScopeID:      "tf-scope-5441-r9-live",
 			GenerationID: "tf-generation-5441-r9-live",
-			TerraformStateResources: []projector.TerraformStateResourceRow{{
+			TerraformStateResources: []canonical.TerraformStateResourceRow{{
 				UID:              uid,
 				Address:          "aws_instance.web",
 				Mode:             "managed",

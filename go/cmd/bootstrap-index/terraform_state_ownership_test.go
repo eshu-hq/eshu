@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
@@ -47,7 +47,7 @@ func TestBootstrapTerraformStateOwnershipResolverSingleOwner(t *testing.T) {
 	adapter := bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(query)}
 
 	repoID, outcome := adapter.ResolveOwningRepoID(context.Background(), "s3", "locator-a")
-	if got, want := outcome, projector.TerraformStateOwnershipResolved; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipResolved; got != want {
 		t.Fatalf("ResolveOwningRepoID() outcome = %v, want %v", got, want)
 	}
 	if got, want := repoID, "repo-a"; got != want {
@@ -65,7 +65,7 @@ func TestBootstrapTerraformStateOwnershipResolverNoOwner(t *testing.T) {
 	adapter := bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(fakeTerraformBackendQuery{})}
 
 	repoID, outcome := adapter.ResolveOwningRepoID(context.Background(), "s3", "locator-a")
-	if got, want := outcome, projector.TerraformStateOwnershipNoOwner; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipNoOwner; got != want {
 		t.Fatalf("ResolveOwningRepoID() outcome = %v, want %v for an unowned backend", got, want)
 	}
 	if repoID != "" {
@@ -85,7 +85,7 @@ func TestBootstrapTerraformStateOwnershipResolverAmbiguousOwner(t *testing.T) {
 	adapter := bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(query)}
 
 	repoID, outcome := adapter.ResolveOwningRepoID(context.Background(), "s3", "locator-a")
-	if got, want := outcome, projector.TerraformStateOwnershipAmbiguousOwner; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipAmbiguousOwner; got != want {
 		t.Fatalf("ResolveOwningRepoID() outcome = %v, want %v for an ambiguously-owned backend", got, want)
 	}
 	if repoID != "" {
@@ -105,7 +105,7 @@ func TestBootstrapTerraformStateOwnershipResolverQueryFailure(t *testing.T) {
 	}
 
 	repoID, outcome := adapter.ResolveOwningRepoID(context.Background(), "s3", "locator-a")
-	if got, want := outcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+	if got, want := outcome, canonical.TerraformStateOwnershipTransientFailure; got != want {
 		t.Fatalf("ResolveOwningRepoID() outcome = %v, want %v when the query fails", got, want)
 	}
 	if repoID != "" {

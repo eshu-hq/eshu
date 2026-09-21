@@ -39,7 +39,7 @@ etc.) — `repository_hosting` does not advance that backbone; it describes
 hosting infrastructure, not provenance.
 
 - No reducer decode seam, no projector read site
-  (`go/internal/projector/package_registry_canonical.go:120-123` explicitly
+  (`go/internal/projector/canonical/package_registry.go` explicitly
   lists it as intentionally unhandled), no query read model.
 - Round-2-verified zero real-consumer signal (2026-07-21):
   `rg -n "PackageRegistryRepositoryHostingFactKind" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'`
@@ -75,7 +75,7 @@ advisory-hint consumer is therefore **explicitly deferred to #5462**, not
 built as part of #5458.
 
 - No reducer decode seam
-  (`go/internal/projector/package_registry_canonical.go:120-123` lists it as
+  (`go/internal/projector/canonical/package_registry.go` lists it as
   intentionally unhandled), no query read model beyond the join-key filter
   above.
 - **What would change this decision**: #5462 explicitly taking on

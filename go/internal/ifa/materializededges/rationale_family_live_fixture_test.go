@@ -14,7 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/stage"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -134,7 +135,7 @@ func TestRationaleCassetteEnqueuesMaterializationHandler(t *testing.T) {
 	t.Parallel()
 	factsForGeneration := loadRationaleCassetteFacts(t)
 
-	stage := projector.ProjectWorkloadStage(factsForGeneration)
+	stage := stage.ProjectWorkloadStage(factsForGeneration)
 	if got, want := stage.SourceRunPairs[ifa.RationaleFamilyRepoID], ifa.RationaleFamilySourceRunID; got != want {
 		t.Fatalf("rationale repository source run = %q, want %q", got, want)
 	}
@@ -158,8 +159,8 @@ func TestRationaleCassetteCanonicalizesExpectedTargets(t *testing.T) {
 		t.Fatalf("loadRationaleExpectedEdges: %v", err)
 	}
 
-	entities := projector.ExtractEntityRows(factsForGeneration, ifa.RationaleFamilyRepoID, ifa.RationaleFamilyLocalPath)
-	entitiesByID := make(map[string]projector.EntityRow, len(entities))
+	entities := canonical.ExtractEntityRows(factsForGeneration, ifa.RationaleFamilyRepoID, ifa.RationaleFamilyLocalPath)
+	entitiesByID := make(map[string]canonical.EntityRow, len(entities))
 	for _, entity := range entities {
 		entitiesByID[entity.EntityID] = entity
 	}

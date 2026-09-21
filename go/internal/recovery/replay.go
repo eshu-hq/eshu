@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
 // DrainableClass is a durable failure_class that the dead-letter backlog drain
@@ -22,10 +22,10 @@ type DrainableClass string
 const (
 	// DrainableClassRetryExhausted is the safe transient dead-letter bucket: a
 	// retryable cause that exhausted its retry budget (see
-	// projector.TriageClassRetryExhausted). These items are safe to replay once
+	// failure.TriageClassRetryExhausted). These items are safe to replay once
 	// the underlying dependency recovers, which is exactly what issue #3560's
 	// backlog drain targets. It is the drain default when no class is given.
-	DrainableClassRetryExhausted DrainableClass = DrainableClass(projector.TriageClassRetryExhausted)
+	DrainableClassRetryExhausted DrainableClass = DrainableClass(failure.TriageClassRetryExhausted)
 )
 
 // manualReviewDrainExclusions returns the durable failure_class values the drain
@@ -35,7 +35,7 @@ const (
 // resource_exhausted): replaying one unchanged re-fails immediately or
 // re-exhausts a constrained resource.
 func manualReviewDrainExclusions() []string {
-	return projector.ManualReviewTriageClasses()
+	return failure.ManualReviewTriageClasses()
 }
 
 // isManualReviewClass reports whether failureClass is one the drain must refuse

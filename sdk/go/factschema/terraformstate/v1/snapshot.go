@@ -9,7 +9,7 @@ package v1
 // A snapshot carries the per-state-file provenance the projector folds onto
 // every resource/module/output node it materializes from the same generation
 // (lineage, serial, backend kind, locator hash). The projector reads these
-// best-effort (go/internal/projector/tfstate_canonical.go
+// best-effort (go/internal/projector/canonical/terraform_state.go
 // terraformStateSnapshot) and tolerates any of them being empty — it derives a
 // fallback state path from the scope id when backend_kind or locator_hash is
 // blank — so NO snapshot field's absence produces a broken graph identity.
@@ -65,7 +65,7 @@ type Snapshot struct {
 //
 // One fact is emitted per resource instance observed in Terraform state. The
 // projector materializes a canonical TerraformStateResource node keyed by a uid
-// folded from the resource Address (go/internal/projector/tfstate_canonical.go
+// folded from the resource Address (go/internal/projector/canonical/terraform_state.go
 // terraformStateResourceRow), which DROPS a resource whose address is empty
 // rather than fabricating a node. Address is therefore the sole REQUIRED
 // identity field: an absent address must dead-letter as input_invalid, not

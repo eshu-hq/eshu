@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -31,7 +32,7 @@ func TestProjectorCompletionDoesNotDeadlockSameGenerationCommit(t *testing.T) {
 		run  func(ProjectorQueue, context.Context, projector.ScopeGenerationWork) error
 	}{
 		{name: "ack", run: func(queue ProjectorQueue, ctx context.Context, work projector.ScopeGenerationWork) error {
-			return queue.Ack(ctx, work, projector.Result{})
+			return queue.Ack(ctx, work, runtime.Result{})
 		}},
 		{name: "terminal_fail", run: func(queue ProjectorQueue, ctx context.Context, work projector.ScopeGenerationWork) error {
 			return queue.Fail(ctx, work, errors.New("terminal proof failure"))

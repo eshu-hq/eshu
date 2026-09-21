@@ -227,7 +227,7 @@ touch it. Retries happen in two places: collector claims (provider-aware
 retry-after, attempt budget) and reducer work items (exponential backoff with
 jitter, #4450). Dead letters land as rows with `status='dead_letter'` plus a
 durable `failure_class` taxonomy
-(`go/internal/projector/dead_letter_triage.go:24-61`).
+(`go/internal/projector/failure/dead_letter_triage.go, `TriageFailure``).
 
 ### A.3 Reducer internals
 

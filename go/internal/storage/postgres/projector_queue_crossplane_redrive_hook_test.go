@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // crossplaneRedriveHookOrderFake implements ExecQueryer + Beginner +
@@ -76,7 +76,7 @@ func TestProjectorQueueAckInvokesCrossplaneRedriveHookAfterCommit(t *testing.T) 
 		Generation: scope.ScopeGeneration{GenerationID: "gen-hook-order-001"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("expected Ack to swallow the hook's Sweep error, got: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestProjectorQueueAckSkipsHookWhenNilCrossplaneRedrive(t *testing.T) {
 		Generation: scope.ScopeGeneration{GenerationID: "gen-hook-nil-001"},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack: %v", err)
 	}
 	for _, event := range log {

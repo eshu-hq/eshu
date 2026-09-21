@@ -304,7 +304,7 @@ type factKindRegistryConsumerEvidence struct {
 // ReducerDomain/ProjectionHook/AdmissionHook all being non-empty (equally
 // registry metadata: terraform_state_candidate carries a full
 // ReducerDomain/ProjectionHook/AdmissionHook triple despite having no decode
-// call site — go/internal/projector/tfstate_canonical.go:113-116 documents
+// call site — go/internal/projector/canonical/terraform_state.go's terraformStateSnapshot documents
 // it as intentionally unhandled). Both were the #5474 P0 false-green: they
 // are populated identically for consumed and unconsumed kinds alike, so
 // neither is evidence of consumption.

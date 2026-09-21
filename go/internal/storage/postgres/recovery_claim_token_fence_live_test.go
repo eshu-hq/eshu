@@ -12,11 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt proves lease_owner is
@@ -268,7 +267,7 @@ func seedClaimTokenDeploymentWork(
 	t.Helper()
 	queue := NewReducerQueue(SQLDB{DB: database}, "claim-token-seed", time.Minute)
 	queue.Now = func() time.Time { return now }
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainDeploymentMapping,
@@ -277,7 +276,7 @@ func seedClaimTokenDeploymentWork(
 		FactID:       "fact-" + entityKey,
 		SourceSystem: "git",
 	}
-	if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 		t.Fatalf("seed deployment work: %v", err)
 	}
 	return reducerWorkItemID(intent)

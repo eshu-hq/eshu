@@ -39,7 +39,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -110,17 +110,17 @@ func (r kustomizeExtendsBaseLiveResolver) ListKustomizeOverlays(
 // "./base" (parseKustomization's own local-base classification --
 // go/internal/parser/yaml/kustomize_semantics.go), and the base's
 // kustomization.yaml has no bases of its own.
-func kustomizeExtendsBaseGen1Materialization() projector.CanonicalMaterialization {
+func kustomizeExtendsBaseGen1Materialization() canonical.CanonicalMaterialization {
 	overlayFile := kustomizeExtendsBaseRepoPath + "/kustomization.yaml"
 	baseDir := kustomizeExtendsBaseRepoPath + "/base"
 	baseFile := baseDir + "/kustomization.yaml"
 
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:          kustomizeExtendsBaseRepoID,
 		RepoPath:        kustomizeExtendsBaseRepoPath,
 		GenerationID:    "gen-1",
 		FirstGeneration: true,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: kustomizeExtendsBaseRepoID,
 			Name:   kustomizeExtendsBaseRepoID,
 			Path:   kustomizeExtendsBaseRepoPath,
@@ -132,14 +132,14 @@ func kustomizeExtendsBaseGen1Materialization() projector.CanonicalMaterializatio
 		// drops the whole base File row (and therefore its KustomizeOverlay
 		// entity's containment MATCH) with no error, reproduced directly
 		// while building this test.
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: baseDir, Name: "base", ParentPath: kustomizeExtendsBaseRepoPath, RepoID: kustomizeExtendsBaseRepoID, Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: overlayFile, RelativePath: "kustomization.yaml", Name: "kustomization.yaml", RepoID: kustomizeExtendsBaseRepoID},
 			{Path: baseFile, RelativePath: "base/kustomization.yaml", Name: "kustomization.yaml", RepoID: kustomizeExtendsBaseRepoID, DirPath: baseDir},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID: kustomizeExtendsBaseRepoID + ":overlay", Label: "KustomizeOverlay",
 				EntityName: "kustomization", FilePath: overlayFile, RepoID: kustomizeExtendsBaseRepoID,
@@ -158,17 +158,17 @@ func kustomizeExtendsBaseGen1Materialization() projector.CanonicalMaterializatio
 // overlay entity is deliberately absent -- its own file did not change this
 // cycle -- proving the resolver's full-repo read, not mat.Entities, is what
 // lets the overlay's stale edge be found and retracted.
-func kustomizeExtendsBaseGen2Materialization() projector.CanonicalMaterialization {
+func kustomizeExtendsBaseGen2Materialization() canonical.CanonicalMaterialization {
 	baseFile := kustomizeExtendsBaseRepoPath + "/base/kustomization.yaml"
 
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		RepoID:                kustomizeExtendsBaseRepoID,
 		RepoPath:              kustomizeExtendsBaseRepoPath,
 		GenerationID:          "gen-2",
 		FirstGeneration:       false,
 		DeltaProjection:       true,
 		DeltaDeletedFilePaths: []string{baseFile},
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: kustomizeExtendsBaseRepoID,
 			Name:   kustomizeExtendsBaseRepoID,
 			Path:   kustomizeExtendsBaseRepoPath,

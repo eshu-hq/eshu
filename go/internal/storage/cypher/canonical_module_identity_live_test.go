@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // modIdentModuleName stands in for a module name that genuinely exists in more
@@ -29,15 +29,15 @@ const (
 // and one Python file that each import a module named `time`. Both the module
 // rows and the import rows carry the importing file's language, which is what
 // the (name, language) Module identity keys on.
-func modIdentMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func modIdentMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		GenerationID: "gen-modident",
 		ScopeID:      "scope-modident",
-		Modules: []projector.ModuleRow{
+		Modules: []canonical.ModuleRow{
 			{Name: modIdentModuleName, Language: "go"},
 			{Name: modIdentModuleName, Language: "python"},
 		},
-		Imports: []projector.ImportRow{
+		Imports: []canonical.ImportRow{
 			{
 				FilePath:       modIdentGoFilePath,
 				ModuleName:     modIdentModuleName,

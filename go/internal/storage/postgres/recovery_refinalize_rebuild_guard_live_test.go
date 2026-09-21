@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -30,7 +30,7 @@ func TestOrdinaryReducerEnqueueStillRefusesToResetSucceededWork(t *testing.T) {
 	workItemID := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "guard-entity", "succeeded")
 
 	queue := NewReducerQueue(SQLDB{DB: db}, "refinalize-reset-test", time.Minute)
-	result, err := queue.Enqueue(ctx, []projector.ReducerIntent{{
+	result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{
 		ScopeID:      scopeID,
 		GenerationID: activeGeneration,
 		Domain:       reducer.DomainCodeCallMaterialization,

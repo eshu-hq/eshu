@@ -12,7 +12,7 @@ Background analysis: [Architecture Review 2026-07](../architecture-review-2026-0
 Eshu's collector ↔ reducer boundary is versioned down to the fact envelope and
 no further. The envelope (`go/internal/facts/models.go`) carries a semver
 `SchemaVersion`, admission classifies it
-(`go/internal/projector/schema_version_admission.go`), and
+(`go/internal/projector/decode/schema_version_admission.go`), and
 `specs/fact-kind-registry.v1.yaml` maps every fact kind to its reducer domain
 and read surface. But the **payload** — the part that actually carries the
 data — is `map[string]any`, persisted as unvalidated JSONB
@@ -144,7 +144,7 @@ func DecodeAWSResource(env Envelope) (awsv1.Resource, error) {
 
 Decode failures are classified failures: a missing required field becomes an
 `input_invalid` dead letter (the existing triage class in
-`go/internal/projector/dead_letter_triage.go`), never an empty-string graph
+`go/internal/projector/failure/dead_letter_triage.go`), never an empty-string graph
 identity.
 
 ```mermaid

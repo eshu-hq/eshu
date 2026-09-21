@@ -12,6 +12,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -38,7 +40,7 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 		},
 	}
 
-	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
 
@@ -326,7 +328,7 @@ func TestProjectorQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted
 // non-retryable failure is dead-lettered, the durable failure_class carries an
 // operator-facing triage class (input_invalid / projection_bug / …) instead of
 // the coarse "projection_failed" fallback. This is the dead-letter-triage
-// surface for issue #3502 and the live wiring of projector.ClassifyFailure that
+// surface for issue #3502 and the live wiring of failure.ClassifyFailure that
 // issue #3514 flagged as dead.
 func TestProjectorQueueFailDeadLettersWithTriageClass(t *testing.T) {
 	t.Parallel()
@@ -343,7 +345,7 @@ func TestProjectorQueueFailDeadLettersWithTriageClass(t *testing.T) {
 	}
 
 	// A non-retryable input-validation failure must be triaged as input_invalid.
-	cause := projector.NewInputValidationError("bad scope_id in fact payload")
+	cause := failure.NewInputValidationError("bad scope_id in fact payload")
 	if err := queue.Fail(context.Background(), work, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
@@ -355,8 +357,8 @@ func TestProjectorQueueFailDeadLettersWithTriageClass(t *testing.T) {
 		t.Fatalf("Fail() should dead-letter, query:\n%s", db.execs[0].query)
 	}
 	gotClass, _ := db.execs[0].args[1].(string)
-	if gotClass != string(projector.TriageClassInputInvalid) {
-		t.Fatalf("dead-letter failure_class = %q, want %q", gotClass, projector.TriageClassInputInvalid)
+	if gotClass != string(failure.TriageClassInputInvalid) {
+		t.Fatalf("dead-letter failure_class = %q, want %q", gotClass, failure.TriageClassInputInvalid)
 	}
 	gotDetails, _ := db.execs[0].args[3].(string)
 	if !strings.Contains(gotDetails, "disposition=non_retryable") {
@@ -392,7 +394,7 @@ func TestProjectorQueueFailDeadLettersRetryExhaustedWithTriageClass(t *testing.T
 		t.Fatalf("exhausted retryable should dead-letter, query:\n%s", db.execs[0].query)
 	}
 	gotClass, _ := db.execs[0].args[1].(string)
-	if gotClass != string(projector.TriageClassRetryExhausted) {
-		t.Fatalf("dead-letter failure_class = %q, want %q", gotClass, projector.TriageClassRetryExhausted)
+	if gotClass != string(failure.TriageClassRetryExhausted) {
+		t.Fatalf("dead-letter failure_class = %q, want %q", gotClass, failure.TriageClassRetryExhausted)
 	}
 }

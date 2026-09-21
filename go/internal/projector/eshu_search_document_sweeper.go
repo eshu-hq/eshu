@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -44,7 +46,7 @@ type PendingSearchDocumentLister interface {
 // lease; concurrent sweepers converge on the same idempotent inserts.
 type SearchDocumentProjectionSweeper struct {
 	Pending  PendingSearchDocumentLister
-	Intents  ReducerIntentWriter
+	Intents  runtime.ReducerIntentWriter
 	Limit    int
 	Interval time.Duration
 	Wait     func(context.Context, time.Duration) error
@@ -98,9 +100,9 @@ func (s SearchDocumentProjectionSweeper) RunOnce(ctx context.Context) (int, erro
 	if len(scopes) == 0 {
 		return 0, nil
 	}
-	intents := make([]ReducerIntent, 0, len(scopes))
+	intents := make([]runtime.ReducerIntent, 0, len(scopes))
 	for _, pending := range scopes {
-		intents = append(intents, ReducerIntent{
+		intents = append(intents, runtime.ReducerIntent{
 			ScopeID:      pending.ScopeID,
 			GenerationID: pending.GenerationID,
 			Domain:       eshusearch.DomainEshuSearchDocument,

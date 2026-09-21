@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
-func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
 		return nil
 	}
@@ -111,7 +111,7 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 	return stmts
 }
 
-func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
 		return nil
 	}
@@ -140,7 +140,7 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 	return stmts
 }
 
-func hasRepositoryScopedRetract(mat projector.CanonicalMaterialization) bool {
+func hasRepositoryScopedRetract(mat canonical.CanonicalMaterialization) bool {
 	return strings.TrimSpace(mat.RepoID) != ""
 }
 
@@ -212,9 +212,9 @@ func buildStringSliceRetractStatements(cypher string, paramName string, values [
 }
 
 func buildEntityContainmentRefreshStatements(
-	entities []projector.EntityRow,
-	classMembers []projector.ClassMemberRow,
-	nestedFuncs []projector.NestedFunctionRow,
+	entities []canonical.EntityRow,
+	classMembers []canonical.ClassMemberRow,
+	nestedFuncs []canonical.NestedFunctionRow,
 ) []Statement {
 	parentChildIDs := make(map[string]map[string]struct{})
 	parentLabels := make(map[string]string)

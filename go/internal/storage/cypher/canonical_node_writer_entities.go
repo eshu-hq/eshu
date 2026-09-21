@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
-func canonicalEntityRowsByLabel(mat projector.CanonicalMaterialization) map[string][]map[string]any {
+func canonicalEntityRowsByLabel(mat canonical.CanonicalMaterialization) map[string][]map[string]any {
 	if len(mat.Entities) == 0 {
 		return nil
 	}
@@ -32,7 +32,7 @@ func canonicalEntityRowsByLabel(mat projector.CanonicalMaterialization) map[stri
 	return byLabel
 }
 
-func canonicalEntityRowsByLabelWithFile(mat projector.CanonicalMaterialization) map[string][]map[string]any {
+func canonicalEntityRowsByLabelWithFile(mat canonical.CanonicalMaterialization) map[string][]map[string]any {
 	if len(mat.Entities) == 0 {
 		return nil
 	}
@@ -55,7 +55,7 @@ func canonicalEntityRowsByLabelWithFile(mat projector.CanonicalMaterialization) 
 	return byLabel
 }
 
-func canonicalEntityRowsByLabelAndFile(mat projector.CanonicalMaterialization) map[string]map[string][]map[string]any {
+func canonicalEntityRowsByLabelAndFile(mat canonical.CanonicalMaterialization) map[string]map[string][]map[string]any {
 	if len(mat.Entities) == 0 {
 		return nil
 	}
@@ -81,7 +81,7 @@ func canonicalEntityRowsByLabelAndFile(mat projector.CanonicalMaterialization) m
 	return byLabel
 }
 
-func canonicalEntityContainmentRowsByLabelAndFile(mat projector.CanonicalMaterialization) map[string]map[string][]map[string]any {
+func canonicalEntityContainmentRowsByLabelAndFile(mat canonical.CanonicalMaterialization) map[string]map[string][]map[string]any {
 	if len(mat.Entities) == 0 {
 		return nil
 	}
@@ -130,7 +130,7 @@ func sortedCanonicalEntityContainmentFiles(byFile map[string][]map[string]any) [
 
 // buildEntityStatements writes entity nodes first so backend-specific edge
 // creation can happen in a later, separately timed phase.
-func (w *CanonicalNodeWriter) buildEntityStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildEntityStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if w.entityContainmentInEntityUpsert {
 		if w.entityContainmentBatchAcrossFiles {
 			return w.buildEntityStatementsWithBatchedContainment(mat)
@@ -221,7 +221,7 @@ func (w *CanonicalNodeWriter) buildEntityStatements(mat projector.CanonicalMater
 	return stmts
 }
 
-func (w *CanonicalNodeWriter) buildEntityStatementsWithContainment(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildEntityStatementsWithContainment(mat canonical.CanonicalMaterialization) []Statement {
 	byLabel := canonicalEntityRowsByLabelAndFile(mat)
 	if len(byLabel) == 0 {
 		return nil
@@ -304,7 +304,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithContainment(mat projector
 	return stmts
 }
 
-func (w *CanonicalNodeWriter) buildEntityStatementsWithBatchedContainment(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildEntityStatementsWithBatchedContainment(mat canonical.CanonicalMaterialization) []Statement {
 	byLabel := canonicalEntityRowsByLabelWithFile(mat)
 	if len(byLabel) == 0 {
 		return nil
@@ -384,7 +384,7 @@ func (w *CanonicalNodeWriter) buildEntityStatementsWithBatchedContainment(mat pr
 }
 
 func canonicalEntityProperties(
-	entity projector.EntityRow,
+	entity canonical.EntityRow,
 	scopeID string,
 	generationID string,
 ) map[string]any {
@@ -425,7 +425,7 @@ func canonicalEntityProperties(
 	return properties
 }
 
-func (w *CanonicalNodeWriter) buildEntityContainmentStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildEntityContainmentStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if w.entityContainmentInEntityUpsert {
 		return nil
 	}

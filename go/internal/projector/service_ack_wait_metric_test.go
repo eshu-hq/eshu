@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -87,7 +90,7 @@ func assertOutcomeCounts[V int64 | uint64](t *testing.T, name string, got, want 
 func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 	t.Parallel()
 
-	deferred := fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)
+	deferred := fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)
 	ackFailure := errors.New("connection reset")
 	renewFailure := errors.New("heartbeat: connection reset")
 	renewOK := heartbeaterFunc(func(context.Context, ScopeGenerationWork) error { return nil })
@@ -119,7 +122,7 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 			ackErrs:       []error{deferred, deferred, deferred},
 			heartbeater:   renewOK,
 			maxRetries:    3,
-			wantErr:       ErrWorkAckDeferred,
+			wantErr:       failure.ErrWorkAckDeferred,
 			wantDeferrals: map[string]int64{"retried": 2, "abandoned": 1},
 			wantWaits:     map[string]uint64{"abandoned": 1},
 		},
@@ -127,9 +130,9 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 			name:    "renewal reports superseded",
 			ackErrs: []error{deferred},
 			heartbeater: heartbeaterFunc(func(context.Context, ScopeGenerationWork) error {
-				return fmt.Errorf("renew: %w", ErrWorkSuperseded)
+				return fmt.Errorf("renew: %w", failure.ErrWorkSuperseded)
 			}),
-			wantErr:       ErrWorkSuperseded,
+			wantErr:       failure.ErrWorkSuperseded,
 			wantDeferrals: map[string]int64{"retried": 1},
 			wantWaits:     map[string]uint64{"superseded": 1},
 		},
@@ -137,9 +140,9 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 			name:    "renewal reports claim lost",
 			ackErrs: []error{deferred},
 			heartbeater: heartbeaterFunc(func(context.Context, ScopeGenerationWork) error {
-				return fmt.Errorf("renew: %w", ErrWorkClaimLost)
+				return fmt.Errorf("renew: %w", failure.ErrWorkClaimLost)
 			}),
-			wantErr:       ErrWorkClaimLost,
+			wantErr:       failure.ErrWorkClaimLost,
 			wantDeferrals: map[string]int64{"retried": 1},
 			wantWaits:     map[string]uint64{"claim_lost": 1},
 		},
@@ -170,7 +173,7 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 			sink := &sequencedAckSink{ackErrs: tt.ackErrs}
 			err := AckWhenScopeFree(
 				context.Background(), sink, tt.heartbeater, instruments,
-				ScopeGenerationWork{}, Result{}, tt.maxRetries, nil,
+				ScopeGenerationWork{}, runtime.Result{}, tt.maxRetries, nil,
 			)
 			if tt.wantErr == nil && err != nil {
 				t.Fatalf("AckWhenScopeFree() error = %v, want nil", err)
@@ -194,10 +197,10 @@ func TestAckWhenScopeFreeRecordsShutdownOutcome(t *testing.T) {
 	reader, instruments := newAckWaitReader(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}}
 
-	err := AckWhenScopeFree(ctx, sink, nil, instruments, ScopeGenerationWork{}, Result{}, 0, nil)
-	if !errors.Is(err, ErrWorkAckDeferred) {
+	err := AckWhenScopeFree(ctx, sink, nil, instruments, ScopeGenerationWork{}, runtime.Result{}, 0, nil)
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
 	}
 	got := collectAckWaitMetrics(t, reader)
@@ -215,14 +218,14 @@ func TestAckWhenScopeFreeCountsRetryBeforeShutdownRenewal(t *testing.T) {
 	reader, instruments := newAckWaitReader(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)}}
 	renewal := heartbeaterFunc(func(ctx context.Context, _ ScopeGenerationWork) error {
 		cancel()
 		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
 	})
 
-	err := AckWhenScopeFree(ctx, sink, renewal, instruments, ScopeGenerationWork{}, Result{}, 0, nil)
-	if !errors.Is(err, ErrWorkAckDeferred) {
+	err := AckWhenScopeFree(ctx, sink, renewal, instruments, ScopeGenerationWork{}, runtime.Result{}, 0, nil)
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
 	}
 	got := collectAckWaitMetrics(t, reader)
@@ -235,8 +238,8 @@ func TestAckWhenScopeFreeCountsRetryBeforeShutdownRenewal(t *testing.T) {
 func TestAckWhenScopeFreeAllowsNilInstruments(t *testing.T) {
 	t.Parallel()
 
-	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred), nil}}
-	if err := AckWhenScopeFree(context.Background(), sink, nil, nil, ScopeGenerationWork{}, Result{}, 0, nil); err != nil {
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred), nil}}
+	if err := AckWhenScopeFree(context.Background(), sink, nil, nil, ScopeGenerationWork{}, runtime.Result{}, 0, nil); err != nil {
 		t.Fatalf("AckWhenScopeFree() error = %v, want nil", err)
 	}
 }

@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -100,7 +101,7 @@ func TestProjectorStrandedRetryRecovery(t *testing.T) {
 
 	// Ack (successful re-projection) activates the generation and points the
 	// scope at it — the state whose absence wedged cross-scope readiness.
-	if err := queue.Ack(ctx, work, projector.Result{}); err != nil {
+	if err := queue.Ack(ctx, work, runtime.Result{}); err != nil {
 		t.Fatalf("projector Ack: %v", err)
 	}
 	var genStatus string

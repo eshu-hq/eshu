@@ -164,7 +164,7 @@ jobs:
               - 'specs/ci-gates.v1.yaml'
               - 'go/internal/content/shape/**'
               - 'go/internal/collector/repo/git/snapshot_entity_buckets.go'
-              - 'go/internal/projector/canonical.go'
+              - 'go/internal/projector/canonical/materialization.go'
             ifa:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

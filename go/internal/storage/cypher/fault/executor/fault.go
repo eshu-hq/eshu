@@ -380,7 +380,7 @@ func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []cypher.Statement) b
 // intent succeeds on the next claim, exactly as a real fail-once transient
 // recovers. A plain error without this contract would instead be non-retryable:
 // reducer.IsRetryable would be false, the intent would dead-letter at attempt 1,
-// and the dead-letter triage default (projector.ClassifyFailure) would mislabel
+// and the dead-letter triage default (failure.ClassifyFailure) would mislabel
 // a reducer graph write as projection_bug. The fault must model the real
 // transient, not an opaque error no real transient resembles.
 type ifaFaultQueueRetryError struct{ ordinal int }

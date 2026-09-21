@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestFluxHelmReconcilesFromRetractsHelmReleaseAnchoredEdgesBeforeMerge
@@ -17,9 +17,9 @@ import (
 func TestFluxHelmReconcilesFromRetractsHelmReleaseAnchoredEdgesBeforeMerge(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 		},
@@ -60,9 +60,9 @@ func TestFluxHelmReconcilesFromRetractsHelmReleaseAnchoredEdgesBeforeMerge(t *te
 func TestFluxHelmReconcilesFromRetractCoversAllHelmReleaseUIDsRegardlessOfResolvability(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr-resolves", "/repo/a.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 			fluxHelmReleaseRowEntity("uid-hr-no-longer-resolves", "/repo/b.yaml", "flux-system", "", "", "", "HelmChart", "podinfo", "flux-system"),
@@ -93,10 +93,10 @@ func TestFluxHelmReconcilesFromRetractCoversAllHelmReleaseUIDsRegardlessOfResolv
 func TestFluxHelmReconcilesFromFirstGenerationSkipsStaleEdgeRetract(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		FirstGeneration: true,
 		GenerationID:    "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),
 			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
 		},
@@ -117,9 +117,9 @@ func TestFluxHelmReconcilesFromFirstGenerationSkipsStaleEdgeRetract(t *testing.T
 func TestFluxHelmReconcilesFromNilWithoutFluxHelmRelease(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{Label: "Function", EntityID: "fn-1"},
 		},
 	}
@@ -135,9 +135,9 @@ func TestFluxHelmReconcilesFromNilWithoutFluxHelmRelease(t *testing.T) {
 func TestFluxHelmReconcilesFromKustomizationAndHelmReleaseCoexistIndependently(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 			fluxHelmReleaseRowEntity("uid-hr", "/repo/helmrelease.yaml", "flux-system", "HelmRepository", "podinfo", "flux-system", "", "", ""),

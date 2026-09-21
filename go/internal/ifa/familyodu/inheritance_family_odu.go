@@ -81,7 +81,7 @@ const (
 // zeroes the whole batch's graph-node writes), and every entity_id is
 // precomputed via content.CanonicalEntityID -- Class, Interface, Trait, and
 // Function are all in projector.canonicalNamePathLineEntityLabels
-// (go/internal/projector/canonical_entity_identity.go), so the projector
+// (go/internal/projector/canonical/entity_identity.go), so the projector
 // ignores whatever entity_id a content_entity fact supplies for these labels
 // and re-derives the same canonical hash from (repo_id, relative_path,
 // entity_type, entity_name, start_line) -- Gotcha 2. Using any other value here
@@ -164,7 +164,7 @@ func InheritanceFamilyOdu() CatalogOdu {
 // inheritanceFamilyEntityID precomputes the canonical graph uid for one
 // content entity the same way the projector derives it for every
 // canonicalNamePathLineEntityLabels-member label
-// (go/internal/projector/canonical_entity_identity.go): from
+// (go/internal/projector/canonical/entity_identity.go): from
 // (repo_id, relative_path, entity_type, entity_name, start_line), never from a
 // producer-supplied id.
 func inheritanceFamilyEntityID(relativePath, entityType, entityName string, startLine int) string {
@@ -284,7 +284,7 @@ var inheritanceFamilyNilParserKeys = []string{
 // enqueues the inheritance_materialization reducer work item. WITHOUT IT THE
 // LIVE GATES CANNOT DRIVE THIS HANDLER AT ALL: reducer.MaterializedEdgeFamilies
 // has no dedicated projector fan-out probe for inheritance_edges the way
-// go/internal/projector/scope_generation_intents.go's ~36 build*ReducerIntent
+// go/internal/projector/runtime/scope_generation_intents.go's ~36 build*ReducerIntent
 // functions cover most domains (grep confirms none named for inheritance);
 // production enqueues it exclusively via
 // inheritanceMaterializationFactEnvelope

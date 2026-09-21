@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // mergeStatementContaining returns the single OperationCanonicalUpsert statement
@@ -28,20 +28,20 @@ func mergeStatementContaining(t *testing.T, stmts []Statement, marker string) St
 	return found[0]
 }
 
-func gitlabPipelineEntityRow(uid, filePath string) projector.EntityRow {
-	return projector.EntityRow{
+func gitlabPipelineEntityRow(uid, filePath string) canonical.EntityRow {
+	return canonical.EntityRow{
 		Label:    "GitlabPipeline",
 		EntityID: uid,
 		FilePath: filePath,
 	}
 }
 
-func gitlabJobEntityRow(uid, name, filePath, needs string) projector.EntityRow {
+func gitlabJobEntityRow(uid, name, filePath, needs string) canonical.EntityRow {
 	meta := map[string]any{}
 	if needs != "" {
 		meta["needs"] = needs
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:      "GitlabJob",
 		EntityID:   uid,
 		EntityName: name,
@@ -59,10 +59,10 @@ func TestGitlabEdgeStatementsResolvesDefinesJobAndNeeds(t *testing.T) {
 	t.Parallel()
 
 	const file = "/repo/.gitlab-ci.yml"
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			gitlabPipelineEntityRow("uid-pipeline", file),
 			gitlabJobEntityRow("uid-build", "build", file, ""),
 			gitlabJobEntityRow("uid-test", "test", file, "build"),
@@ -126,10 +126,10 @@ func TestGitlabEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
 	t.Parallel()
 
 	const file = "/repo/.gitlab-ci.yml"
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-2",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			gitlabPipelineEntityRow("uid-pipeline", file),
 			gitlabJobEntityRow("uid-build", "build", file, ""),
 			gitlabJobEntityRow("uid-test", "test", file, "build"),
@@ -217,10 +217,10 @@ func TestGitlabEdgeStatementsRetractsStaleEdgesBeforeMerge(t *testing.T) {
 func TestGitlabEdgeStatementsScopesNeedsPerFile(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			gitlabPipelineEntityRow("uid-pa", "/repo/a/.gitlab-ci.yml"),
 			gitlabJobEntityRow("uid-a-build", "build", "/repo/a/.gitlab-ci.yml", ""),
 			gitlabJobEntityRow("uid-a-test", "test", "/repo/a/.gitlab-ci.yml", "build"),
@@ -247,10 +247,10 @@ func TestGitlabEdgeStatementsScopesNeedsPerFile(t *testing.T) {
 func TestGitlabEdgeStatementsNilWithoutGitlabEntities(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		RepoPath:     "/repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{Label: "Function", EntityID: "fn-1"},
 		},
 	}

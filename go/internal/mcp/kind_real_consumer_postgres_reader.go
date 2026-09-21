@@ -35,7 +35,7 @@ import (
 // The payload-read requirement is deliberate and narrow, mirroring
 // factsDispatchedKinds' reducer-vs-projector split: a bare kind comparison
 // with no payload read is exactly the graph-projection-readiness bookkeeping
-// pattern (go/internal/projector/runtime_phase.go's
+// pattern (go/internal/projector/runtime/phase.go's
 // `case facts.TerraformStateSnapshotFactKind, facts.TerraformStateWarningFactKind:`)
 // that must NOT count as consumption. Requiring an actual field extraction
 // in the same function keeps this signal from re-admitting that false-green

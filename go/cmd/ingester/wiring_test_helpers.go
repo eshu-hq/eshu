@@ -7,7 +7,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -98,18 +98,18 @@ func statementsContaining(stmts []sourcecypher.Statement, needle string) []sourc
 	return matches
 }
 
-func canonicalWriterContainmentMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func canonicalWriterContainmentMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{
 				Path:       "/repos/my-repo/src",
 				Name:       "src",
@@ -118,7 +118,7 @@ func canonicalWriterContainmentMaterialization() projector.CanonicalMaterializat
 				Depth:      0,
 			},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/my-repo/src/main.go",
 				RelativePath: "src/main.go",
@@ -128,7 +128,7 @@ func canonicalWriterContainmentMaterialization() projector.CanonicalMaterializat
 				DirPath:      "/repos/my-repo/src",
 			},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "entity-1",
 				Label:        "Function",
@@ -144,25 +144,25 @@ func canonicalWriterContainmentMaterialization() projector.CanonicalMaterializat
 	}
 }
 
-func minimalCanonicalMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func minimalCanonicalMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "my-repo",
 			Path:      "/repos/my-repo",
 			LocalPath: "/repos/my-repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 1, EndLine: 5, Language: "go", RepoID: "repo-1"},
 		},
 	}

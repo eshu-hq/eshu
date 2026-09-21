@@ -6,7 +6,7 @@ package cypher
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestTerraformStateResourceRetractStatementsSkipsUnderDeltaProjection
@@ -30,7 +30,7 @@ func TestTerraformStateResourceRetractStatementsSkipsUnderDeltaProjection(t *tes
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:                 "tf-scope-delta",
 		GenerationID:            "tf-generation-delta",
 		FirstGeneration:         false,
@@ -56,7 +56,7 @@ func TestTerraformStateResourceRetractStatementsRunsOnNonDeltaGeneration(t *test
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-full",
 		GenerationID:    "tf-generation-full",
 		FirstGeneration: false,

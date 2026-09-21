@@ -8,7 +8,7 @@ kind. It is the evidence anchor for
 the hot-path-by-location files this change touches
 (`go/internal/reducer/crossrepo/cross_repo_evidence_type.go`,
 `go/internal/storage/cypher/canonical_helm_template_value_edges.go`,
-`go/internal/projector/canonical.go`, `go/internal/collector/git_snapshot_native.go`,
+`go/internal/projector/canonical/materialization.go`, `go/internal/collector/git_snapshot_native.go`,
 `go/internal/graph/schema_tables.go`).
 
 ## Model

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestTerraformStateStaleContentPropsRemoved pins #6843's writer-side parity
@@ -26,7 +26,7 @@ func TestTerraformStateStaleContentPropsRemoved(t *testing.T) {
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 1, nil)
 	mat := baseTerraformStateResourceMat(nil)
 	mat.TerraformStateResources = append(mat.TerraformStateResources,
-		projector.TerraformStateResourceRow{UID: "tf-resource-stale-2"})
+		canonical.TerraformStateResourceRow{UID: "tf-resource-stale-2"})
 
 	statements := writer.terraformStateResourceStaleContentPropRemoveStatements(mat)
 	if len(statements) != 2 {
@@ -55,7 +55,7 @@ func TestTerraformStateStaleContentPropsRemoved(t *testing.T) {
 		}
 	}
 
-	empty := writer.terraformStateResourceStaleContentPropRemoveStatements(projector.CanonicalMaterialization{})
+	empty := writer.terraformStateResourceStaleContentPropRemoveStatements(canonical.CanonicalMaterialization{})
 	if len(empty) != 0 {
 		t.Fatalf("empty materialization statements = %d, want none", len(empty))
 	}
@@ -147,11 +147,11 @@ func (g *fakeTerraformResourceGraph) Execute(_ context.Context, stmt Statement) 
 	return nil
 }
 
-func baseTerraformStateResourceMat(attributes map[string]any) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func baseTerraformStateResourceMat(attributes map[string]any) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "tf-scope-stale",
 		GenerationID: "tf-generation-stale",
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              "tf-resource-stale-1",
 			Address:          "aws_instance.web",
 			Mode:             "managed",

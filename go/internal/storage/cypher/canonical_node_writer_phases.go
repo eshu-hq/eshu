@@ -11,11 +11,11 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (w *CanonicalNodeWriter) buildRepositoryStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildRepositoryStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.Repository == nil {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (w *CanonicalNodeWriter) buildRepositoryStatements(mat projector.CanonicalM
 	}}
 }
 
-func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.Repository == nil {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat projector.Can
 
 // directoryRowParams builds the UNWIND row params for a directory, shared by the
 // node and edge statement builders so both phases agree on the key fields.
-func directoryRowParams(d projector.DirectoryRow, mat projector.CanonicalMaterialization) map[string]any {
+func directoryRowParams(d canonical.DirectoryRow, mat canonical.CanonicalMaterialization) map[string]any {
 	return map[string]any{
 		"path":          d.Path,
 		"name":          d.Name,
@@ -90,7 +90,7 @@ func directoryRowParams(d projector.DirectoryRow, mat projector.CanonicalMateria
 // so the batch carries no cross-row parent-visibility dependency. The parent
 // CONTAINS edges are written separately by buildDirectoryEdgeStatements in a
 // later phase, after these nodes commit (see canonical_node_cypher.go).
-func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.Directories) == 0 {
 		return nil
 	}
@@ -108,13 +108,13 @@ func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat projector.Canonic
 // directory node phase commits. Depth ordering is preserved for stable batching
 // but is no longer required for correctness, since every endpoint already exists
 // by the time this phase runs.
-func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.Directories) == 0 {
 		return nil
 	}
 
 	// Group by depth, sorted ascending, for deterministic batch ordering.
-	byDepth := map[int][]projector.DirectoryRow{}
+	byDepth := map[int][]canonical.DirectoryRow{}
 	for _, d := range mat.Directories {
 		byDepth[d.Depth] = append(byDepth[d.Depth], d)
 	}
@@ -145,7 +145,7 @@ func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat projector.Canonic
 
 // --- Phase D: Files ---
 
-func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildFileStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.Files) == 0 {
 		return nil
 	}
@@ -193,7 +193,7 @@ func (w *CanonicalNodeWriter) buildFileStatements(mat projector.CanonicalMateria
 	return stmts
 }
 
-func canonicalNodeFileRowIsRepositoryRoot(file projector.FileRow) bool {
+func canonicalNodeFileRowIsRepositoryRoot(file canonical.FileRow) bool {
 	return strings.TrimSpace(file.RelativePath) != "" && !strings.Contains(file.RelativePath, "/")
 }
 
@@ -228,7 +228,7 @@ func (w *CanonicalNodeWriter) buildFileStatementsForRows(rows []map[string]any, 
 
 // --- Phase F: Modules ---
 
-func (w *CanonicalNodeWriter) buildModuleStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildModuleStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if len(mat.Modules) == 0 {
 		return nil
 	}
@@ -246,7 +246,7 @@ func (w *CanonicalNodeWriter) buildModuleStatements(mat projector.CanonicalMater
 
 // --- Phase G: Structural edges ---
 
-func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	var stmts []Statement
 
 	// Atlantis MANAGES (project -> Terraform Directory) and DEPENDS_ON
@@ -384,7 +384,7 @@ func buildBatchedRetractStatements(cypher string, rows []map[string]any, batchSi
 
 // --- Telemetry helpers ---
 
-func (w *CanonicalNodeWriter) recordAtomicWrite(ctx context.Context, mode string, seconds float64, _ projector.CanonicalMaterialization) {
+func (w *CanonicalNodeWriter) recordAtomicWrite(ctx context.Context, mode string, seconds float64, _ canonical.CanonicalMaterialization) {
 	if w.instruments == nil {
 		return
 	}

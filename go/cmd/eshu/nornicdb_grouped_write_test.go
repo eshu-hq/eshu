@@ -15,7 +15,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -279,16 +279,16 @@ func (e nornicDBConformanceExecutor) transactionConfigurers() []func(*neo4jdrive
 	return []func(*neo4jdriver.TransactionConfig){neo4jdriver.WithTxTimeout(e.txTimeout)}
 }
 
-func groupedWriteMaterialization(repoID string) projector.CanonicalMaterialization {
+func groupedWriteMaterialization(repoID string) canonical.CanonicalMaterialization {
 	repoPath := "/tmp/" + repoID
 	srcPath := repoPath + "/src"
 	filePath := srcPath + "/main.go"
-	return projector.CanonicalMaterialization{
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope:" + repoID,
 		GenerationID: "generation:" + repoID,
 		RepoID:       repoID,
 		RepoPath:     repoPath,
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    repoID,
 			Name:      repoID,
 			Path:      repoPath,
@@ -297,7 +297,7 @@ func groupedWriteMaterialization(repoID string) projector.CanonicalMaterializati
 			RepoSlug:  "",
 			HasRemote: false,
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{
 				Path:       srcPath,
 				Name:       "src",
@@ -306,7 +306,7 @@ func groupedWriteMaterialization(repoID string) projector.CanonicalMaterializati
 				Depth:      0,
 			},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         filePath,
 				RelativePath: "src/main.go",
@@ -316,7 +316,7 @@ func groupedWriteMaterialization(repoID string) projector.CanonicalMaterializati
 				DirPath:      srcPath,
 			},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "entity:" + repoID + ":main",
 				Label:        "Function",
@@ -332,10 +332,10 @@ func groupedWriteMaterialization(repoID string) projector.CanonicalMaterializati
 	}
 }
 
-func groupedWriteMaterializationWithTwoFunctions(repoID string) projector.CanonicalMaterialization {
+func groupedWriteMaterializationWithTwoFunctions(repoID string) canonical.CanonicalMaterialization {
 	mat := groupedWriteMaterialization(repoID)
 	filePath := "/tmp/" + repoID + "/src/main.go"
-	mat.Entities = []projector.EntityRow{
+	mat.Entities = []canonical.EntityRow{
 		{
 			EntityID:     "entity:" + repoID + ":main",
 			Label:        "Function",

@@ -11,17 +11,17 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 			UID:                 "package://npm/registry.npmjs.org/@scope/pkg",
 			Ecosystem:           "npm",
 			Registry:            "https://registry.npmjs.org",
@@ -44,7 +44,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			CorrelationAnchors:  []string{"package://npm/registry.npmjs.org/@scope/pkg"},
 			CollectorInstanceID: "package-registry-collector-1",
 		}},
-		PackageRegistryVersions: []projector.PackageRegistryVersionRow{{
+		PackageRegistryVersions: []canonical.PackageRegistryVersionRow{{
 			UID:                 "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
 			PackageID:           "package://npm/registry.npmjs.org/@scope/pkg",
 			Ecosystem:           "npm",
@@ -65,7 +65,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			CorrelationAnchors:  []string{"package://npm/registry.npmjs.org/@scope/pkg"},
 			CollectorInstanceID: "package-registry-collector-1",
 		}},
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{{
 			UID:                  "package-registry-dependency-1",
 			PackageID:            "package://npm/registry.npmjs.org/@scope/pkg",
 			VersionID:            "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
@@ -94,7 +94,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			},
 			CollectorInstanceID: "package-registry-collector-1",
 		}},
-		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+		PackageRegistryArtifacts: []canonical.PackageRegistryArtifactRow{{
 			UID:                 "package-registry-artifact-1",
 			PackageID:           "package://npm/registry.npmjs.org/@scope/pkg",
 			VersionID:           "package://npm/registry.npmjs.org/@scope/pkg@1.2.3",
@@ -324,10 +324,10 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 
 	exec := &mockPhaseGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 			UID:              "npm://registry.npmjs.org/lodash",
 			Ecosystem:        "npm",
 			Registry:         "registry.npmjs.org",
@@ -338,7 +338,7 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "package_registry",
 		}},
-		PackageRegistryVersions: []projector.PackageRegistryVersionRow{{
+		PackageRegistryVersions: []canonical.PackageRegistryVersionRow{{
 			UID:              "npm://registry.npmjs.org/lodash@1.0.0",
 			PackageID:        "npm://registry.npmjs.org/lodash",
 			Ecosystem:        "npm",
@@ -350,7 +350,7 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "package_registry",
 		}},
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{{
 			UID:                  "package-registry-dependency-1",
 			PackageID:            "npm://registry.npmjs.org/lodash",
 			VersionID:            "npm://registry.npmjs.org/lodash@1.0.0",
@@ -365,7 +365,7 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 			SourceConfidence:     facts.SourceConfidenceReported,
 			CollectorKind:        "package_registry",
 		}},
-		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+		PackageRegistryArtifacts: []canonical.PackageRegistryArtifactRow{{
 			UID:              "package-registry-artifact-1",
 			PackageID:        "npm://registry.npmjs.org/lodash",
 			VersionID:        "npm://registry.npmjs.org/lodash@1.0.0",

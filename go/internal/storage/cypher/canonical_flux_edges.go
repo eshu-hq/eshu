@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // canonicalNodeFluxReconcilesFromGitRepositoryEdgeCypher links a
@@ -167,7 +167,7 @@ type fluxReconciliationRow struct {
 // separately, since they anchor on different source labels. Edges are
 // resolved in Go (resolveFluxReconciliationRows) and matched by canonical
 // uid, mirroring atlantisEdgeStatements.
-func fluxReconcilesFromEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
+func fluxReconcilesFromEdgeStatements(mat canonical.CanonicalMaterialization) []Statement {
 	kustomizations, allKustomizationUIDs := collectFluxKustomizationEntities(mat.Entities)
 	helmReleases, allHelmReleaseUIDs := collectFluxHelmReleaseEntities(mat.Entities)
 	if len(allKustomizationUIDs) == 0 && len(allHelmReleaseUIDs) == 0 {
@@ -261,7 +261,7 @@ var fluxReconcilesFromCypherByLabel = map[string]string{
 // collectFluxKustomizationEntities extracts every FluxKustomization entity's
 // uid (for the retract scope, regardless of resolvability) and the subset
 // with a resolvable sourceRef (non-empty name, known kind) for resolution.
-func collectFluxKustomizationEntities(entities []projector.EntityRow) ([]fluxReconcilerEntity, []string) {
+func collectFluxKustomizationEntities(entities []canonical.EntityRow) ([]fluxReconcilerEntity, []string) {
 	var kustomizations []fluxReconcilerEntity
 	var uids []string
 	for _, entity := range entities {
@@ -300,7 +300,7 @@ func collectFluxKustomizationEntities(entities []projector.EntityRow) ([]fluxRec
 // FluxBucket entities by "<label>\x00<name>". A source CR with an empty name
 // (metadata.generateName instead of metadata.name) is never inserted -- it
 // must never false-join a Kustomization whose sourceRef.name is also empty.
-func collectFluxSourceEntities(entities []projector.EntityRow) map[string][]fluxSourceEntity {
+func collectFluxSourceEntities(entities []canonical.EntityRow) map[string][]fluxSourceEntity {
 	out := map[string][]fluxSourceEntity{}
 	for _, entity := range entities {
 		if _, ok := fluxSourceLabels[entity.Label]; !ok {

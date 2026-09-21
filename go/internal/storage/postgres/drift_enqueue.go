@@ -10,16 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
-	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // listActiveStateSnapshotScopesQuery lists every state_snapshot:* scope that
@@ -125,14 +124,14 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 // into a config_state_drift reducer intent. Returns an empty slice when no
 // state-snapshot scope has reached active status yet (common during
 // first-collection runs on repos without committed state).
-func listActiveStateSnapshotScopes(ctx context.Context, database db.ExecQueryer) ([]projector.ReducerIntent, error) {
+func listActiveStateSnapshotScopes(ctx context.Context, database db.ExecQueryer) ([]runtime.ReducerIntent, error) {
 	rows, err := database.QueryContext(ctx, listActiveStateSnapshotScopesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list active state_snapshot scopes: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var intents []projector.ReducerIntent
+	var intents []runtime.ReducerIntent
 	for rows.Next() {
 		var scopeID string
 		var generationID string
@@ -144,7 +143,7 @@ func listActiveStateSnapshotScopes(ctx context.Context, database db.ExecQueryer)
 		if scopeID == "" || generationID == "" {
 			continue
 		}
-		intents = append(intents, projector.ReducerIntent{
+		intents = append(intents, runtime.ReducerIntent{
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			Domain:       reducer.DomainConfigStateDrift,

@@ -4,7 +4,7 @@
 package cypher
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // Package registry edges are written in a deferred second write group, separate
@@ -44,7 +44,7 @@ SET depends.generation_id = row.generation_id,
 // a later same-transaction UNWIND-driven MATCH. The edge rows reuse the version
 // node row parameters; only package_id, uid, and generation_id are referenced.
 func (w *CanonicalNodeWriter) buildPackageRegistryVersionEdgeStatements(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryVersionEdgeCypher,
@@ -62,7 +62,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryVersionEdgeStatements(
 // Package node phases commit, for the same NornicDB read-your-writes reason as
 // the version edge phase. The edge rows reuse the dependency node row parameters.
 func (w *CanonicalNodeWriter) buildPackageRegistryDependencyEdgeStatements(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryDependencyEdgeCypher,

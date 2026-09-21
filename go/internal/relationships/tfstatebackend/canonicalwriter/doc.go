@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package canonicalwriter adapts tfstatebackend.Resolver's backend-ownership
-// resolution to the (repoID string, outcome projector.TerraformStateOwnershipOutcome)
+// resolution to the (repoID string, outcome canonical.TerraformStateOwnershipOutcome)
 // contract cmd/{bootstrap-index,ingester,projector}'s canonical-writer wiring
 // needs to implement sourcecypher.TerraformStateOwnershipResolver (#5623 P1
 // review, second finding).

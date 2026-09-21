@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -65,14 +66,14 @@ func (r *drainOrderSignalingRunner) Project(
 	_ scope.IngestionScope,
 	_ scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	select {
 	case <-ctx.Done():
-		return projector.Result{}, ctx.Err()
+		return runtime.Result{}, ctx.Err()
 	case <-time.After(r.delay):
 	}
 	r.once.Do(func() { close(r.done) })
-	return projector.Result{}, nil
+	return runtime.Result{}, nil
 }
 
 func TestPipelinedBootstrapRunsCoveringBackfillAfterProjectorDrain(t *testing.T) {

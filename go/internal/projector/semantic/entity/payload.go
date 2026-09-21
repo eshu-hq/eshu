@@ -9,7 +9,7 @@ import (
 )
 
 // payloadString and asString are a byte-for-byte copy of root's
-// go/internal/projector/payload.go helpers of the same name, trimmed to the
+// go/internal/projector/decode/payload.go helpers of the same name, trimmed to the
 // two functions this family calls. This package cannot import root -- root
 // imports this package to dispatch, so the reverse direction cycles -- so the
 // shared logic is duplicated here rather than referenced. Keep both in sync

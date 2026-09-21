@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -53,7 +55,7 @@ func TestServiceRunClaimsLoadsProjectsAndAcknowledges(t *testing.T) {
 		}},
 	}
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -112,7 +114,7 @@ func TestServiceRunTreatsRetriedFirstGenerationAsCleanupRequired(t *testing.T) {
 		AttemptCount: 2,
 	}
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-retry",
 			GenerationID: "generation-retry",
 		},
@@ -168,7 +170,7 @@ func TestServiceRunLogsFactLoadAndProjectionStages(t *testing.T) {
 			GenerationID: "generation-456",
 			FactKind:     "source_node",
 		}}},
-		Runner: &stubProjectionRunner{result: Result{
+		Runner: &stubProjectionRunner{result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		}},
@@ -264,7 +266,7 @@ func TestServiceRunHeartbeatsLongRunningProjection(t *testing.T) {
 	}
 
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -378,7 +380,7 @@ func TestServiceRunAcksWithLiveContextAfterHeartbeatStops(t *testing.T) {
 	}
 
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -496,7 +498,7 @@ func (s *stubFactStore) LoadFacts(ctx context.Context, _ ScopeGenerationWork) ([
 type stubProjectionRunner struct {
 	mu                         sync.Mutex
 	runCalls                   int
-	result                     Result
+	result                     runtime.Result
 	runErr                     error
 	beforeReturn               func(context.Context)
 	failAfter                  int
@@ -505,7 +507,7 @@ type stubProjectionRunner struct {
 	lastScope                  scope.IngestionScope
 }
 
-func (s *stubProjectionRunner) Project(ctx context.Context, scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (Result, error) {
+func (s *stubProjectionRunner) Project(ctx context.Context, scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (runtime.Result, error) {
 	s.mu.Lock()
 	s.runCalls++
 	s.lastScope = scopeValue
@@ -519,23 +521,23 @@ func (s *stubProjectionRunner) Project(ctx context.Context, scopeValue scope.Ing
 	s.mu.Unlock()
 
 	if failAfter > 0 && runCalls > failAfter {
-		return Result{}, errors.New("executor failed after threshold")
+		return runtime.Result{}, errors.New("executor failed after threshold")
 	}
 	if waitForContextCancellation {
 		<-ctx.Done()
-		return Result{}, ctx.Err()
+		return runtime.Result{}, ctx.Err()
 	}
 	if blockFor > 0 {
 		timer := time.NewTimer(blockFor)
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			return Result{}, ctx.Err()
+			return runtime.Result{}, ctx.Err()
 		case <-timer.C:
 		}
 	}
 	if failAfter > 0 && runCalls > failAfter {
-		return Result{}, errors.New("executor failed after threshold")
+		return runtime.Result{}, errors.New("executor failed after threshold")
 	}
 	if beforeReturn != nil {
 		beforeReturn(ctx)
@@ -555,7 +557,7 @@ type stubProjectorWorkSink struct {
 	failErr    error
 }
 
-func (s *stubProjectorWorkSink) Ack(ctx context.Context, _ ScopeGenerationWork, _ Result) error {
+func (s *stubProjectorWorkSink) Ack(ctx context.Context, _ ScopeGenerationWork, _ runtime.Result) error {
 	if s.beforeAck != nil {
 		s.beforeAck(ctx)
 	}
@@ -644,7 +646,7 @@ func TestServiceRunWithTelemetry(t *testing.T) {
 		}},
 	}
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -785,7 +787,7 @@ func TestServiceRunConcurrentMultipleItems(t *testing.T) {
 		}},
 	}
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -924,7 +926,7 @@ func TestServiceRunConcurrentErrorCancelsWorkers(t *testing.T) {
 		}},
 	}
 	runner := &stubProjectionRunner{
-		result: Result{
+		result: runtime.Result{
 			ScopeID:      "scope-123",
 			GenerationID: "generation-456",
 		},
@@ -991,11 +993,11 @@ type slowProjectionRunner struct {
 	maxInFlight int
 	inFlight    int
 	runCalls    int
-	result      Result
+	result      runtime.Result
 	delay       time.Duration
 }
 
-func (s *slowProjectionRunner) Project(_ context.Context, _ scope.IngestionScope, _ scope.ScopeGeneration, _ []facts.Envelope) (Result, error) {
+func (s *slowProjectionRunner) Project(_ context.Context, _ scope.IngestionScope, _ scope.ScopeGeneration, _ []facts.Envelope) (runtime.Result, error) {
 	s.mu.Lock()
 	s.runCalls++
 	s.inFlight++
@@ -1048,7 +1050,7 @@ func TestLargeGenSemaphoreLimitsConcurrency(t *testing.T) {
 	}
 
 	runner := &slowProjectionRunner{
-		result: Result{ScopeID: "scope-0", GenerationID: "gen-0"},
+		result: runtime.Result{ScopeID: "scope-0", GenerationID: "gen-0"},
 		delay:  50 * time.Millisecond,
 	}
 
@@ -1118,7 +1120,7 @@ func TestSmallGenBypassesSemaphore(t *testing.T) {
 	}
 
 	runner := &slowProjectionRunner{
-		result: Result{ScopeID: "scope-0", GenerationID: "gen-0"},
+		result: runtime.Result{ScopeID: "scope-0", GenerationID: "gen-0"},
 		delay:  50 * time.Millisecond,
 	}
 
@@ -1181,7 +1183,7 @@ func TestLargeGenSemaphoreSkipsOnCountError(t *testing.T) {
 		PollInterval:          10 * time.Millisecond,
 		WorkSource:            &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
 		FactStore:             &stubFactStore{facts: []facts.Envelope{{FactID: "f1", ScopeID: "scope-123", GenerationID: "generation-456", FactKind: "source_node"}}},
-		Runner:                &stubProjectionRunner{result: Result{ScopeID: "scope-123", GenerationID: "generation-456"}},
+		Runner:                &stubProjectionRunner{result: runtime.Result{ScopeID: "scope-123", GenerationID: "generation-456"}},
 		WorkSink:              &stubProjectorWorkSink{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		FactCounter:           counter,

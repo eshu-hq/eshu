@@ -12,16 +12,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // --- fakes ---
@@ -270,13 +271,13 @@ func (f *fakeProjectionRunner) Project(
 	scope.IngestionScope,
 	scope.ScopeGeneration,
 	[]facts.Envelope,
-) (projector.Result, error) {
-	return projector.Result{}, nil
+) (runtime.Result, error) {
+	return runtime.Result{}, nil
 }
 
 type fakeWorkSink struct{}
 
-func (f *fakeWorkSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (f *fakeWorkSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	return nil
 }
 
@@ -317,7 +318,7 @@ type concurrentWorkSink struct {
 	acked atomic.Int64
 }
 
-func (f *concurrentWorkSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+func (f *concurrentWorkSink) Ack(context.Context, projector.ScopeGenerationWork, runtime.Result) error {
 	f.acked.Add(1)
 	return nil
 }
@@ -382,13 +383,13 @@ func (p *projectionTracker) Project(
 	_ scope.IngestionScope,
 	_ scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.first.IsZero() {
 		p.first = time.Now()
 	}
-	return projector.Result{}, nil
+	return runtime.Result{}, nil
 }
 
 func (p *projectionTracker) firstProjectionTime() time.Time {
@@ -409,14 +410,14 @@ func (f *failingProjectionRunner) Project(
 	_ scope.IngestionScope,
 	_ scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.count++
 	if f.count > f.failAfter {
-		return projector.Result{}, f.err
+		return runtime.Result{}, f.err
 	}
-	return projector.Result{}, nil
+	return runtime.Result{}, nil
 }
 
 type delayedProjectionRunner struct {
@@ -428,13 +429,13 @@ func (d *delayedProjectionRunner) Project(
 	_ scope.IngestionScope,
 	_ scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	select {
 	case <-ctx.Done():
-		return projector.Result{}, ctx.Err()
+		return runtime.Result{}, ctx.Err()
 	case <-time.After(d.delay):
 	}
-	return projector.Result{}, nil
+	return runtime.Result{}, nil
 }
 
 type blockingProjectionRunner struct {
@@ -448,13 +449,13 @@ func (r *blockingProjectionRunner) Project(
 	_ scope.IngestionScope,
 	_ scope.ScopeGeneration,
 	_ []facts.Envelope,
-) (projector.Result, error) {
+) (runtime.Result, error) {
 	r.once.Do(func() { close(r.started) })
 	select {
 	case <-ctx.Done():
-		return projector.Result{}, ctx.Err()
+		return runtime.Result{}, ctx.Err()
 	case <-r.release:
-		return projector.Result{}, nil
+		return runtime.Result{}, nil
 	}
 }
 
@@ -495,6 +496,6 @@ func (c *contextCanceledProjectorHeartbeater) Heartbeat(ctx context.Context, _ p
 
 type noopCanonicalWriter struct{}
 
-func (*noopCanonicalWriter) Write(_ context.Context, _ projector.CanonicalMaterialization) error {
+func (*noopCanonicalWriter) Write(_ context.Context, _ canonical.CanonicalMaterialization) error {
 	return nil
 }

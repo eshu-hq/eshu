@@ -4,7 +4,7 @@
 package cypher
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // fluxHelmSourceRefKindToLabel maps a Flux HelmRelease's
@@ -130,7 +130,7 @@ var fluxHelmReconcilesFromCypherByLabel = map[string]string{
 // still an honest non-link). Neither present -- an incomplete CR, or a
 // HelmRelease with no reference field the parser captured -- also produces no
 // entity: there is nothing to resolve against.
-func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxReconcilerEntity, []string) {
+func collectFluxHelmReleaseEntities(entities []canonical.EntityRow) ([]fluxReconcilerEntity, []string) {
 	var helmReleases []fluxReconcilerEntity
 	var uids []string
 	for _, entity := range entities {

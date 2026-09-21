@@ -13,10 +13,10 @@ package v1
 // gcp_image_reference / gcp_tag_observation ahead of their shared consumer.
 //
 // ProviderBinding gained its first projector consumer in #5446
-// (go/internal/projector/tfstate_canonical.go's
+// (go/internal/projector/canonical/terraform_state.go's
 // terraformStateProviderBindingsByResource, wrapped by
 // decodeTerraformStateProviderBinding in
-// go/internal/projector/factschema_decode_terraformstate.go) — it is no
+// go/internal/projector/decode/terraform_state.go) — it is no
 // longer typed-but-unconsumed; its input_invalid regression coverage and
 // No-Regression benchmark now exist alongside that consumer.
 //

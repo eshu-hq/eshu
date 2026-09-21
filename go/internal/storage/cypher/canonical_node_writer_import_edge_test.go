@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // This file holds the canonical node writer's import-edge identity check and
@@ -18,13 +18,13 @@ import (
 // phaseOrderMaterialization is the hand-built materialization the phase-order
 // test writes, factored out so the emitted-statement guard below can drive the
 // same fixture rather than a second copy that could drift from it.
-func phaseOrderMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func phaseOrderMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID:    "repo-1",
 			Name:      "my-repo",
 			Path:      "/repos/my-repo",
@@ -33,19 +33,19 @@ func phaseOrderMaterialization() projector.CanonicalMaterialization {
 			RepoSlug:  "org/my-repo",
 			HasRemote: true,
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/my-repo/src", Name: "src", ParentPath: "/repos/my-repo", RepoID: "repo-1", Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: "repo-1", DirPath: "/repos/my-repo/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "e1", Label: "Function", EntityName: "main", FilePath: "/repos/my-repo/src/main.go", RelativePath: "src/main.go", StartLine: 5, EndLine: 10, Language: "go", RepoID: "repo-1"},
 		},
-		Modules: []projector.ModuleRow{
+		Modules: []canonical.ModuleRow{
 			{Name: "fmt", Language: "go"},
 		},
-		Imports: []projector.ImportRow{
+		Imports: []canonical.ImportRow{
 			{FilePath: "/repos/my-repo/src/main.go", ModuleName: "fmt", ModuleLanguage: "go", ImportedName: "fmt", LineNumber: 3},
 		},
 	}

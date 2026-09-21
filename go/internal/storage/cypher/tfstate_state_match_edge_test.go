@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 var errTerraformStateConfigMatchResolverFixtureFailure = errors.New("fixture: config-match resolver query failed")
@@ -18,7 +18,7 @@ var errTerraformStateConfigMatchResolverFixtureFailure = errors.New("fixture: co
 // locator_hash) pair so tests can assert the resolver is memoized within one
 // batch, not called once per row. answers maps a key to the outcome to
 // return; a key absent from answers returns
-// projector.TerraformStateOwnershipTransientFailure (the safe "not resolved"
+// canonical.TerraformStateOwnershipTransientFailure (the safe "not resolved"
 // default, matching a genuine resolver hiccup) with an empty repoID.
 type fakeTerraformStateOwnershipResolver struct {
 	calls   map[[2]string]int
@@ -29,7 +29,7 @@ type fakeTerraformStateOwnershipResolver struct {
 // should return for one (backend_kind, locator_hash) key.
 type fakeOwnershipAnswer struct {
 	repoID  string
-	outcome projector.TerraformStateOwnershipOutcome
+	outcome canonical.TerraformStateOwnershipOutcome
 }
 
 func newFakeTerraformStateOwnershipResolver() *fakeTerraformStateOwnershipResolver {
@@ -43,15 +43,15 @@ func newFakeTerraformStateOwnershipResolver() *fakeTerraformStateOwnershipResolv
 // most fixtures only need the happy path; use answers directly for
 // NoOwner/AmbiguousOwner/TransientFailure cases.
 func (f *fakeTerraformStateOwnershipResolver) resolveTo(backendKind, locatorHash, repoID string) {
-	f.answers[[2]string{backendKind, locatorHash}] = fakeOwnershipAnswer{repoID: repoID, outcome: projector.TerraformStateOwnershipResolved}
+	f.answers[[2]string{backendKind, locatorHash}] = fakeOwnershipAnswer{repoID: repoID, outcome: canonical.TerraformStateOwnershipResolved}
 }
 
-func (f *fakeTerraformStateOwnershipResolver) ResolveOwningRepoID(_ context.Context, backendKind, locatorHash string) (string, projector.TerraformStateOwnershipOutcome) {
+func (f *fakeTerraformStateOwnershipResolver) ResolveOwningRepoID(_ context.Context, backendKind, locatorHash string) (string, canonical.TerraformStateOwnershipOutcome) {
 	key := [2]string{backendKind, locatorHash}
 	f.calls[key]++
 	answer, ok := f.answers[key]
 	if !ok {
-		return "", projector.TerraformStateOwnershipTransientFailure
+		return "", canonical.TerraformStateOwnershipTransientFailure
 	}
 	return answer.repoID, answer.outcome
 }
@@ -63,7 +63,7 @@ func TestResolveTerraformStateOwnershipMemoizesPerBackendLocatorPair(t *testing.
 	resolver.resolveTo("s3", "locator-a", "repo-a")
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).WithTerraformStateOwnershipResolver(resolver)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-1", Address: "aws_instance.web", BackendKind: "s3", LocatorHash: "locator-a"},
 		{UID: "uid-2", Address: "aws_instance.api", BackendKind: "s3", LocatorHash: "locator-a"},
 		{UID: "uid-3", Address: "aws_instance.db", BackendKind: "gcs", LocatorHash: "locator-b"},
@@ -80,7 +80,7 @@ func TestResolveTerraformStateOwnershipMemoizesPerBackendLocatorPair(t *testing.
 	if got, want := out[0].OwningRepoID, "repo-a"; got != want {
 		t.Fatalf("out[0].OwningRepoID = %q, want %q", got, want)
 	}
-	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipResolved; got != want {
+	if got, want := out[0].OwnershipOutcome, canonical.TerraformStateOwnershipResolved; got != want {
 		t.Fatalf("out[0].OwnershipOutcome = %v, want %v", got, want)
 	}
 	if got, want := out[1].OwningRepoID, "repo-a"; got != want {
@@ -89,7 +89,7 @@ func TestResolveTerraformStateOwnershipMemoizesPerBackendLocatorPair(t *testing.
 	if got, want := out[2].OwningRepoID, ""; got != want {
 		t.Fatalf("out[2].OwningRepoID = %q, want %q (unresolved backend stays empty)", got, want)
 	}
-	if got, want := out[2].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+	if got, want := out[2].OwnershipOutcome, canonical.TerraformStateOwnershipTransientFailure; got != want {
 		t.Fatalf("out[2].OwnershipOutcome = %v, want %v (no answer registered for gcs/locator-b)", got, want)
 	}
 }
@@ -98,7 +98,7 @@ func TestResolveTerraformStateOwnershipNilResolverLeavesRowsUnchanged(t *testing
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-1", Address: "aws_instance.web", BackendKind: "s3", LocatorHash: "locator-a"},
 	}
 
@@ -106,7 +106,7 @@ func TestResolveTerraformStateOwnershipNilResolverLeavesRowsUnchanged(t *testing
 	if got, want := out[0].OwningRepoID, ""; got != want {
 		t.Fatalf("OwningRepoID = %q, want %q (no resolver wired)", got, want)
 	}
-	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+	if got, want := out[0].OwnershipOutcome, canonical.TerraformStateOwnershipTransientFailure; got != want {
 		t.Fatalf("OwnershipOutcome = %v, want %v (zero value: no resolver wired is not an authoritative answer)", got, want)
 	}
 }
@@ -116,7 +116,7 @@ func TestResolveTerraformStateOwnershipSkipsBlankBackendIdentity(t *testing.T) {
 
 	resolver := newFakeTerraformStateOwnershipResolver()
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).WithTerraformStateOwnershipResolver(resolver)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-1", Address: "aws_instance.web", BackendKind: "", LocatorHash: ""},
 	}
 
@@ -124,7 +124,7 @@ func TestResolveTerraformStateOwnershipSkipsBlankBackendIdentity(t *testing.T) {
 	if got, want := out[0].OwningRepoID, ""; got != want {
 		t.Fatalf("OwningRepoID = %q, want %q (blank backend identity never calls the resolver)", got, want)
 	}
-	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+	if got, want := out[0].OwnershipOutcome, canonical.TerraformStateOwnershipTransientFailure; got != want {
 		t.Fatalf("OwnershipOutcome = %v, want %v (zero value: never attempted is not an authoritative answer)", got, want)
 	}
 	if len(resolver.calls) != 0 {
@@ -136,10 +136,10 @@ func TestTerraformStateMatchesConfigEdgeStatementsOnlyIncludesResolvedRows(t *te
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "tf-scope-edge",
 		GenerationID: "tf-generation-edge",
-		TerraformStateResources: []projector.TerraformStateResourceRow{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{
 			{UID: "uid-matched", Address: "aws_instance.web", OwningRepoID: "repo-a"},
 			{UID: "uid-unresolved", Address: "aws_instance.orphan", OwningRepoID: ""},
 			{UID: "uid-no-address", Address: "", OwningRepoID: "repo-a"},
@@ -178,8 +178,8 @@ func TestTerraformStateMatchesConfigEdgeStatementsEmptyWhenNoneResolved(t *testi
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
-		TerraformStateResources: []projector.TerraformStateResourceRow{
+	mat := canonical.CanonicalMaterialization{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{
 			{UID: "uid-1", Address: "aws_instance.web", OwningRepoID: ""},
 		},
 	}
@@ -211,10 +211,10 @@ func TestTerraformStateMatchesConfigEdgeStatementsSkipsAmbiguousRows(t *testing.
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "tf-scope-ambiguous",
 		GenerationID: "tf-generation-ambiguous",
-		TerraformStateResources: []projector.TerraformStateResourceRow{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{
 			{UID: "uid-unambiguous", Address: "aws_instance.web", OwningRepoID: "repo-a", ConfigMatchAmbiguous: false},
 			{UID: "uid-ambiguous", Address: "aws_instance.shared", OwningRepoID: "repo-a", ConfigMatchAmbiguous: true},
 		},
@@ -242,8 +242,8 @@ func TestTerraformStateMatchesConfigEdgeStatementsAllAmbiguousYieldsNoStatement(
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
-		TerraformStateResources: []projector.TerraformStateResourceRow{
+	mat := canonical.CanonicalMaterialization{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{
 			{UID: "uid-1", Address: "aws_instance.shared", OwningRepoID: "repo-a", ConfigMatchAmbiguous: true},
 		},
 	}
@@ -294,7 +294,7 @@ func TestResolveTerraformStateConfigMatchAmbiguityFlagsMultiCandidateRows(t *tes
 		},
 	}
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).WithTerraformStateConfigMatchResolver(resolver)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-unique", Address: "aws_instance.web", OwningRepoID: "repo-a"},
 		{UID: "uid-ambiguous", Address: "aws_instance.shared", OwningRepoID: "repo-a"},
 		{UID: "uid-absent", Address: "aws_instance.gone", OwningRepoID: "repo-a"},
@@ -330,7 +330,7 @@ func TestResolveTerraformStateConfigMatchAmbiguityNilResolverLeavesRowsUnchanged
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-1", Address: "aws_instance.web", OwningRepoID: "repo-a"},
 	}
 
@@ -349,7 +349,7 @@ func TestResolveTerraformStateConfigMatchAmbiguityResolverErrorFailsClosed(t *te
 
 	resolver := &fakeTerraformStateConfigMatchResolver{err: errTerraformStateConfigMatchResolverFixtureFailure}
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).WithTerraformStateConfigMatchResolver(resolver)
-	rows := []projector.TerraformStateResourceRow{
+	rows := []canonical.TerraformStateResourceRow{
 		{UID: "uid-1", Address: "aws_instance.web", OwningRepoID: "repo-a"},
 	}
 

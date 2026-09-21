@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // terraformStateConfigMatchCandidateCountCypherLiveTest mirrors
@@ -118,11 +118,11 @@ func TestCanonicalNodeWriterSkipsAmbiguousMatchesStateEdgeLive(t *testing.T) {
 
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil).
 		WithTerraformStateConfigMatchResolver(boltConfigMatchResolver{runner: runner})
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "tf-scope-5443-p1-live",
 		GenerationID:    "tf-generation-5443-p1-live",
 		FirstGeneration: true,
-		TerraformStateResources: []projector.TerraformStateResourceRow{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{
 			{
 				UID: ambiguousStateID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 				Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",

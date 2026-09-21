@@ -28,7 +28,7 @@ import (
 // Schema file PATH; it is populated for every kind that has a typed struct
 // defined, whether or not any code actually decodes it. terraform_state_candidate
 // is the concrete false-green: it has a PayloadSchema path but no decode
-// call site (go/internal/projector/tfstate_canonical.go:113-116 documents
+// call site (go/internal/projector/canonical/terraform_state.go's terraformStateSnapshot documents
 // the kind as intentionally unhandled).
 //
 // go/internal/ifa is deliberately EXCLUDED from this list. roundtrip.go
@@ -41,17 +41,22 @@ import (
 // coverage harness. It never serves a read surface. Adding go/internal/ifa
 // here would silently flip those three kinds' disclosure to green for the
 // wrong reason, the same false-green class the projector
-// (go/internal/projector/runtime_phase.go's readiness dispatch) and
+// (go/internal/projector/runtime/phase.go's readiness dispatch) and
 // go/internal/storage/postgres (tfstate_backend_queries.go's SQL-string-only
 // touch) exclusions above guard against.
 var realConsumerDecodeSeamDirs = []string{
 	"go/internal/reducer",
 	"go/internal/projector",
+	"go/internal/projector/decode",
 	"go/internal/query",
 	"go/internal/storage/postgres",
 	"go/internal/relationships",
 	"go/internal/replay/offlinetier",
 }
+
+// projectorDecodeSeamDir is the projector package whose every file is a
+// typed decode seam; see decodeSeamGlobFor.
+const projectorDecodeSeamDir = "go/internal/projector/decode"
 
 // realConsumerRawSQLDir is the one directory scanned for raw fact_kind SQL
 // literal reads that count as a real consumer without a typed decode seam.
@@ -190,6 +195,19 @@ func (e realConsumerEvidence) hasRealConsumer(kind string) bool {
 // the kind (payloadusage.ParseDecodeSeamsGlob, the same derivation Contract
 // System v1 §6 gate 2 uses), or does the query (read-surface) layer read
 // the kind's payload via a literal SQL predicate.
+// decodeSeamGlobFor names the files in dir that carry typed decode seams.
+// Everywhere else the seams sit beside unrelated code and are identified by a
+// factschema_decode* filename. go/internal/projector/decode is different: the
+// whole package is the projector's decode seam (#6781), and naming its files
+// factschema_decode_* would repeat the directory name, which the filename
+// stutter gate rejects. So that one directory is scanned whole.
+func decodeSeamGlobFor(dir string) string {
+	if dir == projectorDecodeSeamDir {
+		return "*.go"
+	}
+	return "factschema_decode*.go"
+}
+
 func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 	constValues, err := factKindConstantValues(filepath.Join(repoRoot, factKindConstFileGlob))
 	if err != nil {
@@ -203,7 +221,7 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 
 	seamKinds := map[string]bool{}
 	for _, dir := range scanDirs {
-		glob := filepath.Join(dir, "factschema_decode*.go")
+		glob := filepath.Join(dir, decodeSeamGlobFor(dir))
 		seams, err := payloadusage.ParseDecodeSeamsGlob(glob)
 		if err != nil {
 			return realConsumerEvidence{}, fmt.Errorf("kind_real_consumer: parse decode seams %s: %w", glob, err)

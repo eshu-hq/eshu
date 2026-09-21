@@ -4,7 +4,7 @@
 package cypher
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // canonicalPhasePackageRegistryEvents is the node-write phase for
@@ -80,7 +80,7 @@ SET rel.generation_id = row.generation_id,
 // buildPackageRegistryEventStatements emits the RegistryEvent node-upsert
 // statements for the main write group.
 func (w *CanonicalNodeWriter) buildPackageRegistryEventStatements(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryEventUpsertCypher,
@@ -100,7 +100,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryEventStatements(
 // phases in package_registry_edge_writer.go and
 // package_registry_artifact_writer.go.
 func (w *CanonicalNodeWriter) buildPackageRegistryEventEdgeStatements(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryEventEdgeCypher,
@@ -117,7 +117,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryEventEdgeStatements(
 // shape serves both statements (the edge Cypher only reads uid, version_id,
 // and generation_id, mirroring packageRegistryArtifactRows' dual-purpose
 // reuse for the HAS_ARTIFACT edge).
-func packageRegistryEventRows(mat projector.CanonicalMaterialization) []map[string]any {
+func packageRegistryEventRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.PackageRegistryEvents))
 	for _, row := range mat.PackageRegistryEvents {
 		rows = append(rows, map[string]any{

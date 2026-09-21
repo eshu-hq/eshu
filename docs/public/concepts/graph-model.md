@@ -6,7 +6,7 @@ Eshu uses an **entity-first graph** that represents code, workloads, infrastruct
 
 The graph projects dozens of node labels grouped by domain. The lists here are
 representative, not exhaustive; the authoritative label set lives in
-`go/internal/graph/schema.go` and `go/internal/projector/canonical.go`.
+`go/internal/graph/schema.go` and `go/internal/projector/canonical/materialization.go`.
 
 **Code and documentation:**
 

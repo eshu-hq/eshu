@@ -140,7 +140,7 @@ in addition to this skill — that skill owns the golden-corpus gate contract.
 ## Missing required fields dead-letter, they never silently zero out
 
 A missing required field on decode is a classified `input_invalid` dead letter
-(`go/internal/projector/dead_letter_triage.go`, `TriageClassInputInvalid`),
+(`go/internal/projector/failure/dead_letter_triage.go`, `TriageClassInputInvalid`),
 never a silent empty string or zero value. This is the accuracy guarantee the
 design exists to protect (design doc section 1): a collector that renames or
 drops a payload key must produce a visible, classified failure instead of a

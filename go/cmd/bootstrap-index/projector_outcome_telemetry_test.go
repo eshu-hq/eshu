@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -29,8 +30,8 @@ import (
 func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 	t.Parallel()
 
-	claimLost := fmt.Errorf("stale attempt: %w", projector.ErrWorkClaimLost)
-	deferred := fmt.Errorf("lock timeout: %w", projector.ErrWorkAckDeferred)
+	claimLost := fmt.Errorf("stale attempt: %w", failure.ErrWorkClaimLost)
+	deferred := fmt.Errorf("lock timeout: %w", failure.ErrWorkAckDeferred)
 	tests := []struct {
 		name        string
 		ctx         func() context.Context
@@ -92,7 +93,7 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 			name: "superseded while ack waits",
 			sink: &claimLostSink{ackErr: deferred},
 			heartbeater: projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
-				return projector.ErrWorkSuperseded
+				return failure.ErrWorkSuperseded
 			}),
 			wantLogs:   []string{"projector ack waiting for busy scope"},
 			wantStatus: "superseded",

@@ -15,7 +15,7 @@
 #
 # Ran against a real stack, -mutation schema-major dead-lettered the whole
 # PROJECTOR work item (stage=projector, domain=source_local) with
-# failure_class="projection_bug" — go/internal/projector/schema_version_admission.go's
+# failure_class="projection_bug" — go/internal/projector/decode/schema_version_admission.go's
 # own admission-time gate rejects a core-registered fact kind's unsupported
 # major before the reducer's typed-decode seam is ever reached, so the
 # reducer's "input_invalid" label never appears for this specific corruption.

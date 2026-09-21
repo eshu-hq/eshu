@@ -13,7 +13,8 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
@@ -245,8 +246,8 @@ func TestProjectorNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 	if !errors.As(err, &timeoutErr) {
 		t.Fatalf("RunWrite() error = %T, want GraphWriteTimeoutError", err)
 	}
-	if !projector.IsRetryable(err) {
-		t.Fatalf("projector.IsRetryable(%v) = false, want true", err)
+	if !failure.IsRetryable(err) {
+		t.Fatalf("failure.IsRetryable(%v) = false, want true", err)
 	}
 	if elapsed := time.Since(started); elapsed >= 80*time.Millisecond {
 		t.Fatalf("RunWrite() elapsed = %s, want client timeout before outer deadline", elapsed)
@@ -271,11 +272,11 @@ func TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable(t *testing.T)
 		nil,
 	)
 	writer := sourcecypher.NewCanonicalNodeWriter(executor, sourcecypher.DefaultBatchSize, nil)
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-drain-timeout",
 		GenerationID: "generation-2",
 		RepoID:       "repo-drain-timeout",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-drain-timeout",
 			Name:   "drain-timeout",
 			Path:   "/repos/drain-timeout",
@@ -288,8 +289,8 @@ func TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable(t *testing.T)
 	if !errors.As(err, &timeoutErr) {
 		t.Fatalf("Write() error = %T, want GraphWriteTimeoutError", err)
 	}
-	if !projector.IsRetryable(err) {
-		t.Fatalf("projector.IsRetryable(%v) = false, want queue retry", err)
+	if !failure.IsRetryable(err) {
+		t.Fatalf("failure.IsRetryable(%v) = false, want queue retry", err)
 	}
 }
 
@@ -329,25 +330,25 @@ func (e *recordingProjectorPhaseExecutor) ExecutePhaseGroup(
 	return nil
 }
 
-func projectorContainmentMaterialization() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func projectorContainmentMaterialization() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
 		RepoID:       "repository-1",
 		RepoPath:     "/repos/example",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repository-1",
 			Name:   "example",
 			Path:   "/repos/example",
 		},
-		Directories: []projector.DirectoryRow{{
+		Directories: []canonical.DirectoryRow{{
 			Path:       "/repos/example/src",
 			Name:       "src",
 			ParentPath: "/repos/example",
 			RepoID:     "repository-1",
 			Depth:      0,
 		}},
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path:         "/repos/example/src/main.go",
 			RelativePath: "src/main.go",
 			Name:         "main.go",
@@ -355,7 +356,7 @@ func projectorContainmentMaterialization() projector.CanonicalMaterialization {
 			RepoID:       "repository-1",
 			DirPath:      "/repos/example/src",
 		}},
-		Entities: []projector.EntityRow{{
+		Entities: []canonical.EntityRow{{
 			EntityID:     "function-1",
 			Label:        "Function",
 			EntityName:   "main",

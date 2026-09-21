@@ -6,13 +6,13 @@ package main
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 const ingesterRetryOnceScopeGenerationEnv = "ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION"
 
-func loadIngesterRetryInjector(getenv func(string) string) (projector.RetryInjector, error) {
+func loadIngesterRetryInjector(getenv func(string) string) (failure.RetryInjector, error) {
 	if getenv == nil {
 		return nil, nil
 	}
@@ -22,7 +22,7 @@ func loadIngesterRetryInjector(getenv func(string) string) (projector.RetryInjec
 		return nil, nil
 	}
 
-	return projector.NewRetryOnceInjector(raw)
+	return failure.NewRetryOnceInjector(raw)
 }
 
 func loadIngesterRetryPolicy(getenv func(string) string) (runtimecfg.RetryPolicyConfig, error) {

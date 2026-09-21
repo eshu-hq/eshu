@@ -11,7 +11,7 @@ typed, schema-generated, decode-validated contracts.
 
 The package-registry collector emits nine fact kinds; the projector's
 source-local canonical extractor
-(`go/internal/projector/package_registry_canonical.go`) reads five of them to
+(`go/internal/projector/canonical/package_registry.go`) reads five of them to
 materialize canonical `PackageRegistryPackage`, `PackageRegistryVersion`,
 `PackageRegistryDependency`, `PackageRegistryArtifact`, and
 `PackageRegistryEvent` graph rows. Before typing, it read each payload key

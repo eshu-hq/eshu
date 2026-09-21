@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -81,11 +81,11 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 // Every write-path error is routed through WrapRetryableNeo4jError before it
 // returns, so transient NornicDB failures (driver retry-budget exhaustion,
 // connectivity loss, and the codes in retryableNeo4jCodes) reach the projector
-// queue as projector.RetryableError and requeue with backpressure instead of
+// queue as failure.RetryableError and requeue with backpressure instead of
 // dead-lettering. This mirrors every other canonical graph writer; the
 // classification is not loosened here: genuinely terminal errors such as schema
 // constraint violations are returned unchanged and stay terminal.
-func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.CanonicalMaterialization) error {
+func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.CanonicalMaterialization) error {
 	if mat.IsEmpty() {
 		return nil
 	}
@@ -248,7 +248,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 
 func (w *CanonicalNodeWriter) startWriteSpan(
 	ctx context.Context,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 	statementCount int,
 ) (context.Context, trace.Span) {
 	if w.tracer == nil {
@@ -267,7 +267,7 @@ func (w *CanonicalNodeWriter) startWriteSpan(
 func (w *CanonicalNodeWriter) startPhaseSpan(
 	ctx context.Context,
 	phase canonicalWritePhase,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) (context.Context, trace.Span) {
 	if w.tracer == nil || phase.name != "retract" {
 		return ctx, trace.SpanFromContext(context.Background())
@@ -282,7 +282,7 @@ func (w *CanonicalNodeWriter) startPhaseSpan(
 
 func (w *CanonicalNodeWriter) logCanonicalPhaseFailure(
 	ctx context.Context,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 	phase canonicalWritePhase,
 	duration time.Duration,
 	err error,
@@ -301,7 +301,7 @@ func (w *CanonicalNodeWriter) logCanonicalPhaseFailure(
 	)
 }
 
-func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization) []canonicalWritePhase {
+func (w *CanonicalNodeWriter) buildPhases(mat canonical.CanonicalMaterialization) []canonicalWritePhase {
 	return []canonicalWritePhase{
 		{name: "retract", statements: w.buildRetractStatements(mat)},
 		{name: "repository_cleanup", statements: w.buildRepositoryCleanupStatements(mat)},

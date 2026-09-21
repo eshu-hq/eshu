@@ -3,7 +3,9 @@
 
 package cypher
 
-import "github.com/eshu-hq/eshu/go/internal/projector"
+import (
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+)
 
 // This file builds the per-batch row-map payloads consumed by the
 // terraform_state canonical upsert statements in tfstate_canonical_writer.go
@@ -11,7 +13,7 @@ import "github.com/eshu-hq/eshu/go/internal/projector"
 // canonicalTerraformStateModuleUpsertCypher, and
 // canonicalTerraformStateOutputUpsertCypher), one builder per node label.
 
-func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[string]any {
+func terraformStateResourceRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
 		// #5441: reduce the raw classified Attributes object to a bounded,
@@ -61,7 +63,7 @@ func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[st
 	return rows
 }
 
-func terraformStateModuleRows(mat projector.CanonicalMaterialization) []map[string]any {
+func terraformStateModuleRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateModules))
 	for _, row := range mat.TerraformStateModules {
 		rows = append(rows, map[string]any{
@@ -86,7 +88,7 @@ func terraformStateModuleRows(mat projector.CanonicalMaterialization) []map[stri
 	return rows
 }
 
-func terraformStateOutputRows(mat projector.CanonicalMaterialization) []map[string]any {
+func terraformStateOutputRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateOutputs))
 	for _, row := range mat.TerraformStateOutputs {
 		rows = append(rows, map[string]any{

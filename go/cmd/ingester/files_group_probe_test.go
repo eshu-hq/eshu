@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -121,10 +121,10 @@ func testFileProbeStatementFor(t *testing.T, repoID, dirPath, filePath string) s
 	t.Helper()
 	exec := &fileProbeCaptureExecutor{}
 	writer := sourcecypher.NewCanonicalNodeWriter(exec, 100, nil)
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID: "scope", GenerationID: "generation", RepoID: repoID,
 		FirstGeneration: true,
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path: filePath, RelativePath: "src/source.go",
 			Name: "source.go", RepoID: repoID, DirPath: dirPath,
 		}},
@@ -203,10 +203,10 @@ func benchmarkFileProbeStatement(b *testing.B) sourcecypher.Statement {
 	b.Helper()
 	exec := &fileProbeCaptureExecutor{}
 	writer := sourcecypher.NewCanonicalNodeWriter(exec, 100, nil)
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID: "scope", GenerationID: "generation", RepoID: "repo",
 		FirstGeneration: true,
-		Files: []projector.FileRow{{
+		Files: []canonical.FileRow{{
 			Path: "/benchmark/source.go", RelativePath: "src/source.go",
 			Name: "source.go", RepoID: "repo", DirPath: "/benchmark",
 		}},

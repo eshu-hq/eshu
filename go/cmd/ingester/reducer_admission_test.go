@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -38,7 +38,7 @@ func TestReducerAdmissionDefersAtHighWaterAndResumesBelow(t *testing.T) {
 			return nil
 		},
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	result, err := admission.Enqueue(context.Background(), intents)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestReducerAdmissionDefaultConfigDefersAtDefaultHighWaterAndResumesBelow(t 
 		},
 	}
 
-	result, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	result, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	})
 	if err != nil {
@@ -123,7 +123,7 @@ func TestReducerAdmissionContextCancellationStopsBeforeEnqueue(t *testing.T) {
 		},
 	}
 
-	_, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	_, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	})
 	if !errors.Is(err, expectedErr) {
@@ -151,7 +151,7 @@ func TestReducerAdmissionDisabledSkipsDepthRead(t *testing.T) {
 		},
 	}
 
-	if _, err := admission.Enqueue(context.Background(), []projector.ReducerIntent{
+	if _, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
 		{Domain: reducer.DomainWorkloadIdentity},
 	}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
@@ -322,7 +322,7 @@ func BenchmarkReducerAdmissionDisabled(b *testing.B) {
 		inner:  writer,
 		config: reducerAdmissionConfig{},
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -345,7 +345,7 @@ func BenchmarkReducerAdmissionBelowHighWater(b *testing.B) {
 			PollInterval:  time.Second,
 		},
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -369,7 +369,7 @@ func BenchmarkReducerAdmissionDefaultBelowHighWater(b *testing.B) {
 		},
 		config: config,
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -396,7 +396,7 @@ func BenchmarkReducerAdmissionOneDeferral(b *testing.B) {
 			return nil
 		},
 	}
-	intents := []projector.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
+	intents := []runtime.ReducerIntent{{Domain: reducer.DomainWorkloadIdentity}}
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -437,16 +437,16 @@ func (f *fakeReducerAdmissionDepthReader) ReducerGraphWriteTimeoutDepth(context.
 
 type recordingReducerIntentWriter struct {
 	calls   int
-	intents []projector.ReducerIntent
+	intents []runtime.ReducerIntent
 }
 
 func (w *recordingReducerIntentWriter) Enqueue(
 	_ context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
 	w.calls++
 	w.intents = append(w.intents, intents...)
-	return projector.IntentResult{Count: len(intents)}, nil
+	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
 type countingReducerIntentWriter struct {
@@ -455,10 +455,10 @@ type countingReducerIntentWriter struct {
 
 func (w *countingReducerIntentWriter) Enqueue(
 	_ context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
 	w.count += len(intents)
-	return projector.IntentResult{Count: len(intents)}, nil
+	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
 type fixedReducerAdmissionDepthReader struct {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition proves a
@@ -17,13 +17,13 @@ import (
 func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
 		// Not a first projection: the two retracts precede the MERGE. The
 		// first-generation skip is covered by
 		// TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration.
 		FirstGeneration: false,
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "def-image-repo",
 				Label:      "HelmValueDefinition",
@@ -135,10 +135,10 @@ func TestHelmTemplateValueEdgeStatementsResolvesUsageToDefinition(t *testing.T) 
 func TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID:    "gen-1",
 		FirstGeneration: true,
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "def-image-repo",
 				Label:      "HelmValueDefinition",
@@ -178,9 +178,9 @@ func TestHelmTemplateValueEdgeStatementsSkipsRetractOnFirstGeneration(t *testing
 func TestHelmTemplateValueEdgeStatementsScopedToChart(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "def-b",
 				Label:      "HelmValueDefinition",
@@ -207,9 +207,9 @@ func TestHelmTemplateValueEdgeStatementsScopedToChart(t *testing.T) {
 func TestHelmTemplateValueEdgeStatementsNoHelmEntities(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{EntityID: "fn-1", Label: "Function", EntityName: "main", FilePath: "/repo/main.go"},
 		},
 	}

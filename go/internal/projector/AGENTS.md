@@ -6,45 +6,71 @@
    surface, and operational notes
 2. `go/internal/projector/service.go` — `Service.Run`, the poll-and-dispatch
    loop; understand `processWork` before touching concurrency
-3. `go/internal/projector/runtime.go` — `Runtime.Project`; the four write
+3. `go/internal/projector/runtime/projection.go` — `Runtime.Project`; the four write
    stages and their ordering
-4. `go/internal/projector/runtime_phase.go` — canonical phase publication and
+4. `go/internal/projector/runtime/phase.go` — canonical phase publication and
    repair enqueue behavior
-5. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
+5. `go/internal/projector/canonical/materialization.go` and `canonical/builder.go` — the
    `CanonicalMaterialization` shape and how it is built from facts. Read
-   `tfstate_canonical.go` when touching Terraform-state projection and
-   `oci_registry_canonical.go` when touching OCI registry projection.
-6. `go/internal/projector/runtime_logging.go` — stage log attributes and
+   `canonical/terraform_state.go` when touching Terraform-state projection and
+   `canonical/oci_registry.go` when touching OCI registry projection.
+6. `go/internal/projector/runtime/logging.go` — stage log attributes and
    operator-facing runtime stage messages
 7. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
 
+## Package layout and where an edit belongs
+
+The root is the service — claim/lease loop, work-item lifecycle, the two
+sweepers. Projection itself lives in five subpackages (#6781), a DAG with the
+root on top:
+
+```
+decode, failure   leaves; nothing in projector may import back into them
+canonical         -> decode
+runtime           -> canonical, decode, failure
+stage             -> canonical, decode, runtime
+root              -> canonical, runtime, failure
+```
+
+Each subpackage has its own `AGENTS.md`; read that one, not this file, before
+editing inside it. Three rules that are easy to get wrong from here:
+
+- A test that drives a full projection belongs in `runtime/`, even when it
+  asserts a canonical or decode behavior. `runtime` imports both, so the test
+  would otherwise close an import cycle in the test binary.
+- `decode/` must import no other projector package. Everything depends on it.
+- Moving a file out of this root means sweeping its path citations: exact-file
+  `paths:` lists exist in both `.github/workflows/` and `specs/ci-gates.v1.yaml`,
+  and `go/internal/content/shape` parses `canonical/materialization.go` by path
+  at run time.
+
 ## Invariants this package enforces
 
 - **Idempotency** — every write path must converge on the same graph truth on
-  retries. `doc.go` states this as a package invariant; `runtime_retry_test.go`
+  retries. `doc.go` states this as a package invariant; `runtime/retry_test.go`
   tests it.
 - **Phase publish before ack** — `publishCanonicalGraphPhases` in
-  `runtime_phase.go` must succeed before the work item acks. If publish fails
+  `runtime/phase.go` must succeed before the work item acks. If publish fails
   and `RepairQueue` is non-nil, a repair row is enqueued.
 - **Module/Parameter exclusion from generic entity phase** — `Module` and
   `Parameter` labels are skipped in `extractEntities` because they use different
-  graph MERGE keys. Enforced at `canonical_builder.go:227-229`.
+  graph MERGE keys. Enforced at `canonical/builder.go:227-229`.
 - **Repo-qualified paths** — `FileRow.Path` and `EntityRow.FilePath` are set to
   `repoPath/relative_path` to avoid cross-repo MERGE collisions. Enforced in
   `extractFiles` and `extractEntities` via `qualifyPath`.
-- **Terraform-state facts stay source-local** — `tfstate_canonical.go` projects
+- **Terraform-state facts stay source-local** — `canonical/terraform_state.go` projects
   committed Terraform-state facts into canonical resource/module/output rows
   without cloud joins. Cross-source AWS matching belongs in reducer domains
   after the Terraform-state readiness checkpoints publish.
-- **OCI digest identity stays source-local** — `oci_registry_canonical.go`
+- **OCI digest identity stays source-local** — `canonical/oci_registry.go`
   projects committed OCI registry facts into digest-keyed image rows. Tags are
   mutable weak evidence and must not become the canonical image key.
 - **Typed-payload decode with per-fact quarantine** — the OCI canonical
-  extractor (`oci_registry_canonical.go`) decodes each fact through the
+  extractor (`canonical/oci_registry.go`) decodes each fact through the
   `sdk/go/factschema` seam (`oci_registry_factschema.go`), NOT raw
   `payloadString`. A fact missing a required identity field is QUARANTINED
-  per-fact via `partitionProjectorDecodeFailures` (`factschema_quarantine.go`) and
+  per-fact via `partitionProjectorDecodeFailures` (`decode/quarantine.go`) and
   recorded as a visible `input_invalid` dead-letter
   (`eshu_dp_projector_input_invalid_facts_total` + a structured error log) by
   `recordProjectorQuarantinedFacts`, while every valid fact — OCI and non-OCI —
@@ -56,7 +82,7 @@
   zero-value row. A present-but-empty required field is a VALID decode the row
   builder's own identity gate still drops (byte-identical to pre-typing);
   only an ABSENT/null required key dead-letters.
-- **Package identity stays source-local** — `package_registry_canonical.go`
+- **Package identity stays source-local** — `canonical/package_registry.go`
   projects committed package, package-version, and package-dependency facts into
   package identity rows and package-native dependency rows. Source hints are
   provenance only; do not create repository ownership, publication, or
@@ -66,7 +92,7 @@
   provenance. The five consumed kinds (`package`, `.package_version`,
   `.package_dependency`, — since #5458 — `.package_artifact`, and — also
   since #5458 — `.registry_event`) decode through the `sdk/go/factschema`
-  seam (`factschema_decode_packageregistry.go`), NOT raw `payloadString`/
+  seam (`decode/package_registry.go`), NOT raw `payloadString`/
   `payloadBoolPtr`/`payloadStringSlice`, reusing the family-neutral
   quarantine apparatus `oci_registry`/`terraform_state` introduced: a fact
   missing a required identity field (`package_id`, `version_id`, `version`,
@@ -91,10 +117,10 @@
   merging when they agree on the value, dead-lettering as `input_invalid`
   when they disagree — instead of depending on Go's randomized map iteration
   order (#5820 P2 review finding). `PackageRegistryArtifactRow` and its
-  decode/row-building helper live in `package_registry_canonical_artifact.go`,
+  decode/row-building helper live in `canonical/package_registry_artifact.go`,
   split out of
-  `package_registry_canonical.go` to stay under the 500-line file cap (mirrors
-  `tfstate_canonical_types.go`'s split from `tfstate_canonical.go`).
+  `canonical/package_registry.go` to stay under the 500-line file cap (mirrors
+  `canonical/terraform_state_types.go`'s split from `canonical/terraform_state.go`).
   `.registry_event` projects onto a `RegistryEvent` node carrying the
   per-version publish/yank/unyank/deprecate/delete/unlist lifecycle timeline
   the epic names. `package_id` and `version_id` are schema-OPTIONAL on this
@@ -104,7 +130,7 @@
   registry-wide event has nothing to attach a graph edge to), NOT a
   dead-letter — do not add `version_id` to the required-field list above.
   `PackageRegistryEventRow` and its decode/row-building helper live in
-  `package_registry_canonical_event.go`, split out the same way. The four
+  `canonical/package_registry_event.go`, split out the same way. The four
   remaining typed-but-not-yet-consumed kinds (`.source_hint`,
   `.vulnerability_hint`, `.repository_hosting`, `.warning`) have no projector
   decode site; `.source_hint`'s payload is read only by the reducer's
@@ -119,7 +145,7 @@
   `internal/storage/postgres`.
 - **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
   parent directories exist before children during graph writes
-  (`canonical_builder.go:191`).
+  (`canonical/builder.go:191`).
 - **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
   `EntityKey`, then `FactID` before enqueue. Do not remove this sort.
 - **Intent family dependency direction** — extracted family packages must
@@ -188,7 +214,7 @@
   the `aws_resource_materialization:<scope>` entity key with the AWS node
   builders for the canonical-nodes readiness gate. The root fan-out fixture's
   profile-typed `aws_resource` helper (`iamInstanceProfileResourceFact`) moved
-  into `scope_generation_intents_fanout_test.go` with the extraction.
+  into `runtime/scope_generation_intents_fanout_test.go` with the extraction.
 - **CI/CD run-correlation family (#6057)** — the `ci_cd_run_correlation`
   builder lives in `cicd/run/correlation/` and consumes the lookup like the
   families above. It carries no decode seam: it triggers on a `ci.run` fact,
@@ -200,7 +226,7 @@
   root test file mixed builder-level assertions with `buildProjection`
   dispatcher assertions; all four cases actually exercise `buildProjection`,
   so the whole file stayed at root, renamed
-  `ci_cd_run_correlation_projection_test.go`.
+  `runtime/ci_cd_run_correlation_projection_test.go`.
 - **Container-image-identity family (#6057)** — the
   `container_image_identity` builder lives in `container/image/identity/` and
   consumes the lookup like the families above. It is decode-seam-bearing:
@@ -225,14 +251,14 @@
   than moved. **This family is NOT covered by the root fan-out parity
   fixture** — `reducer.DomainCrossplaneSatisfiedByMaterialization` appears in
   neither `fanOutParityExpectations` nor `fanOutParityExpectedOrder` in
-  `scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
-  `scope_generation_intents_fanout_test.go` carries no
+  `runtime/scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
+  `runtime/scope_generation_intents_fanout_test.go` carries no
   `K8sResource`/`CrossplaneXRD` content-entity fact, so the child package's
   own tests are the only coverage for its reason string, entity key, and
   source-system derivation. The root test file mixed builder-level
   assertions with `buildProjection` dispatcher assertions; all three cases
   actually exercise `buildProjection`, so the whole file stayed at root,
-  renamed `crossplane_satisfied_by_materialization_projection_test.go`.
+  renamed `runtime/crossplane_satisfied_by_materialization_projection_test.go`.
 - **Multi-cloud runtime drift family (#6057)** — the
   `multi_cloud_runtime_drift` builder lives in `cloud/runtime/drift/multi/` and
   consumes the lookup like the families above. It carries no decode seam: it
@@ -243,15 +269,15 @@
   than moved. **This family IS covered by the root fan-out parity fixture**
   — `reducer.DomainMultiCloudRuntimeDrift` appears in both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
-  `scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
-  `scope_generation_intents_fanout_test.go` carries both a
+  `runtime/scope_generation_intents_fanout_parity_test.go`, and the shared fixture in
+  `runtime/scope_generation_intents_fanout_test.go` carries both a
   `gcp_cloud_resource` fact (`gcp-resource-1`) and an `azure_cloud_resource`
   fact (`azure-resource-1`) — the opposite of the crossplane-satisfied-by
   family above; do not assume either coverage state without checking both
   fixture files. The root test file mixed builder-level `buildProjection`
   dispatcher assertions with two tests that called the private
   `multiCloudRuntimeDriftSourceSystem` helper directly; the dispatcher cases
-  stayed at root, renamed `multi_cloud_runtime_drift_projection_test.go`,
+  stayed at root, renamed `runtime/multi_cloud_drift_projection_test.go`,
   while the two direct-helper tests were rewritten against the child
   package's exported builder (with the two source-system tiers still set to
   different values) and moved into the child's own test file, since the
@@ -271,7 +297,7 @@
   covered by the root fan-out parity fixture —
   `reducer.DomainAWSCloudRuntimeDrift` appears in both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
-  `scope_generation_intents_fanout_parity_test.go`. The pre-extraction root
+  `runtime/scope_generation_intents_fanout_parity_test.go`. The pre-extraction root
   test file was NOT single-family: alongside `buildProjection` dispatch
   assertions for `aws_cloud_runtime_drift`, it also carried the only dispatch
   coverage for the unrelated `aws_resource_materialization` builder (still at
@@ -282,12 +308,12 @@
   silently deleted that coverage and broken every dependent file. It split
   three ways instead: the `aws_cloud_runtime_drift`-specific `buildProjection`
   cases moved into the new root file
-  `aws_cloud_runtime_drift_projection_test.go`; the
+  `runtime/aws_cloud_drift_projection_test.go`; the
   `aws_resource_materialization` cases moved into a new root file matching
   its builder's name (which previously had no dedicated test file), today
-  `aws_resource_materialization_projection_test.go`; and the two shared
+  `runtime/aws_resource_materialization_projection_test.go`; and the two shared
   fixtures moved
-  into a new root file, `reducer_intent_test_helpers_test.go`. The child
+  into a new root file, `runtime/reducer_intent_test_helpers_test.go`. The child
   package's own test file (`reducer_intent_test.go`) carries fresh
   builder-level unit tests in the `aws/cloud/image` style (anchor selection,
   entity key, both source-system tiers, the negative case) rather than any of
@@ -297,7 +323,7 @@
   `semantic_entity_materialization` builder lives in `semantic/entity/` and is
   the one extracted family that is NOT a scope-generation probe. Root calls
   `projectorentity.BuildSemanticEntityReducerIntent` once per input
-  fact from `buildProjection`'s loop in `runtime.go`, so it takes a
+  fact from `buildProjection`'s loop in `runtime/projection.go`, so it takes a
   `facts.Envelope` rather than an `intent.FactLookup` and can return an
   intent for many facts in one generation; they share the `repo:<repo_id>`
   entity key and collapse on the reducer's per-key claim. It is therefore
@@ -309,8 +335,8 @@
   fallback, so substituting the seam here would be a behavior change. All
   four topic-split test files were builder-only and moved into the child;
   the `Runtime.Project` and `buildProjection` cases that also assert this
-  domain stayed at root in `runtime_test.go` and
-  `runtime_clone_removal_test.go`.
+  domain stayed at root in `runtime/projection_test.go` and
+  `runtime/clone_removal_test.go`.
 - **AWS-resource-materialization family (#6057)** — the
   `aws_resource_materialization` builder lives in `aws/resource/` and consumes
   the lookup like the families above. It carries no decode seam: it triggers
@@ -327,7 +353,7 @@
   fan-out parity fixture: `reducer.DomainAWSResourceMaterialization` appears in
   both `fanOutParityExpectations` and `fanOutParityExpectedOrder`. Root keeps
   the dispatch-level coverage in
-  `aws_resource_materialization_projection_test.go` (renamed from
+  `runtime/aws_resource_materialization_projection_test.go` (renamed from
   `..._intents_test.go` when the builder moved out), because it drives
   `buildProjection`, a root-only function; the child's own
   `materialization_intents_test.go` carries builder-level unit tests in the
@@ -357,15 +383,15 @@
 
 ## Common changes and how to scope them
 
-- **Add a new entity type** → add to `entityTypeLabelMap` in `canonical.go`,
+- **Add a new entity type** → add to `entityTypeLabelMap` in `canonical/materialization.go`,
   add a schema constraint in the graph schema file, run
   `go test ./internal/projector -count=1`. Why: `EntityTypeLabel` and
   `extractEntities` both gate on this map; missing entries silently drop nodes.
 
 - **Add a new projection stage write** → add to `Runtime.Project` in
-  `runtime.go`; add `ProjectorStageDuration` recording with the new stage label
-  in `runtime_stages.go`; add a span if the stage crosses a service boundary;
-  add a test in `runtime_test.go`. Why: all stage telemetry is labeled and must
+  `runtime/projection.go`; add `ProjectorStageDuration` recording with the new stage label
+  in `runtime/stages.go`; add a span if the stage crosses a service boundary;
+  add a test in `runtime/projection_test.go`. Why: all stage telemetry is labeled and must
   appear in the telemetry contract at `go/internal/telemetry/contract.go`.
 
 - **Change concurrency behavior** → touch `service.go` `runConcurrent`,
@@ -378,14 +404,14 @@
 
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
-  new `build*ReducerIntent` helper in `runtime.go` (or, for the semantic-entity
+  new `build*ReducerIntent` helper in `runtime/projection.go` (or, for the semantic-entity
   family, `semantic/entity/intents.go`), add a test in
-  `stage_relationships_test.go` or that family package's own test files.
+  `stage/relationships_test.go` or that family package's own test files.
   Why: intent domain values must be parseable by `reducer.ParseDomain`.
 
 - **Add a new typed canonical family** → besides wiring it into
   `buildCanonicalMaterialization`, add its fact-kind prefix to
-  `quarantinedFactStagePrefixes` in `factschema_quarantine.go`. Why: a family
+  `quarantinedFactStagePrefixes` in `decode/quarantine.go`. Why: a family
   with no matching prefix falls through to the `unknown_canonical` stage label,
   so its dead letters are reported under a placeholder instead of the owning
   stage and an operator cannot see that family's input_invalid rate at all. The

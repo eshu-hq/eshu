@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -159,7 +159,7 @@ func blockedResourceConflictPolicy(domain reducer.Domain) reducerResourceConflic
 // platform-node-writer pair. This is the smallest provably-correct partition:
 // it removes the false serialization between the graph-edge / Postgres-fact
 // domains while preserving the real same-target Platform MERGE serialization.
-func reducerConflictDomainKey(intent projector.ReducerIntent) (string, string) {
+func reducerConflictDomainKey(intent runtime.ReducerIntent) (string, string) {
 	scopeKey := strings.TrimSpace(intent.ScopeID)
 	if policy, ok := reducerResourceConflictPolicyFor(intent.Domain); ok {
 		if policy.Status == reducerResourceConflictStatusSafe {
@@ -252,7 +252,7 @@ func reducerResourceConflictPolicyFor(domain reducer.Domain) (reducerResourceCon
 	return reducerResourceConflictPolicy{}, false
 }
 
-func reducerCloudResourceNodeConflictKey(intent projector.ReducerIntent) (string, bool) {
+func reducerCloudResourceNodeConflictKey(intent runtime.ReducerIntent) (string, bool) {
 	entityKey := strings.TrimSpace(intent.EntityKey)
 	if !strings.HasPrefix(entityKey, "aws_resource_materialization:") {
 		return "", false

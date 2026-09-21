@@ -7,7 +7,7 @@
 // factschema package's kind-keyed seam (decode.go, decode_terraformstate.go).
 //
 // Eight fact kinds live here. Six are CONSUMED today by the projector's
-// source-local canonical extractor (go/internal/projector/tfstate_canonical.go)
+// source-local canonical extractor (go/internal/projector/canonical/terraform_state.go)
 // and decode through the seam on the read path:
 //
 //   - Snapshot            (terraform_state_snapshot)

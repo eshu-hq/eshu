@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // KustomizeOverlayRow is one (uid, path, base_refs) row for a KustomizeOverlay
@@ -122,7 +122,7 @@ SET ko.base_refs = row.base_refs`
 // -- NOT metadataString, which only handles a plain string and would
 // silently drop the []any shape "bases" arrives as after the fact
 // envelope's JSON round trip.
-func collectKustomizeOverlayEntities(entities []projector.EntityRow) []KustomizeOverlayRow {
+func collectKustomizeOverlayEntities(entities []canonical.EntityRow) []KustomizeOverlayRow {
 	var rows []KustomizeOverlayRow
 	for _, entity := range entities {
 		if entity.Label != "KustomizeOverlay" {
@@ -284,7 +284,7 @@ func kustomizeOverlayBaseRefPropertyRows(touched []KustomizeOverlayRow) []map[st
 // so this is a no-op for every non-Kustomize repository.
 func (w *CanonicalNodeWriter) kustomizeExtendsBaseEdgeStatements(
 	ctx context.Context,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	touched := collectKustomizeOverlayEntities(mat.Entities)
 	deletedPaths := kustomizeOverlayDeletedFilePaths(mat.DeltaDeletedFilePaths)
@@ -383,7 +383,7 @@ func (w *CanonicalNodeWriter) kustomizeExtendsBaseEdgeStatements(
 // KustomizeOverlayResolver is wired on this writer. Mirrors
 // TerraformStateResolversConfigured (canonical_node_writer_tfstate_resolvers.go):
 // cmd/*-level wiring tests type-assert their constructed
-// projector.CanonicalWriter to *CanonicalNodeWriter and call this accessor to
+// runtime.CanonicalWriter to *CanonicalNodeWriter and call this accessor to
 // prove the deployed construction path actually attaches the resolver, not
 // just that the isolated adapter type behaves correctly in unit tests.
 func (w *CanonicalNodeWriter) KustomizeOverlayResolverConfigured() bool {

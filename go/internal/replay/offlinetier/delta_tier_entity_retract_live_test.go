@@ -31,14 +31,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/replay/offlinetier"
 	"gopkg.in/yaml.v3"
 )
 
 // cassetteContentEntityLabels reads the delta cassette and returns the sorted,
 // de-duplicated set of graph labels its gen1 content_entity facts project to,
-// via the production projector.EntityTypeLabel mapping. This is the source of
+// via the production canonical.EntityTypeLabel mapping. This is the source of
 // truth for the entity-retract coverage set.
 func cassetteContentEntityLabels(t *testing.T) []string {
 	t.Helper()
@@ -68,7 +68,7 @@ func cassetteContentEntityLabels(t *testing.T) []string {
 		if f.FactKind != "content_entity" {
 			continue
 		}
-		label, ok := projector.EntityTypeLabel(f.Payload.EntityType)
+		label, ok := canonical.EntityTypeLabel(f.Payload.EntityType)
 		if !ok {
 			t.Fatalf("gen1 content_entity entity_type %q has no projector label mapping", f.Payload.EntityType)
 		}
@@ -140,7 +140,7 @@ func TestDeltaEntityRetractGraphTruth(t *testing.T) {
 // surviving instance in the base cassette, so a bare-label count is exact.
 func assertEntityLabelCount(ctx context.Context, t *testing.T, exec liveExecutor, label string, want int64, msg string) {
 	t.Helper()
-	// Labels come from the enumerated projector.EntityTypeLabel vocabulary (no
+	// Labels come from the enumerated canonical.EntityTypeLabel vocabulary (no
 	// Cypher metacharacters). Backtick-quoting the label defeats the match on
 	// NornicDB (verified: `MATCH (n:` + "`" + `Label` + "`" + `)` returns 0 for an
 	// existing node), so the label is interpolated unquoted.

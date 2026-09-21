@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterFileScopedContainmentKeepsNormalOneRowBatchGrouped(t *testing.T) {
@@ -16,12 +16,12 @@ func TestCanonicalNodeWriterFileScopedContainmentKeepsNormalOneRowBatchGrouped(t
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityLabelBatchSize("K8sResource", 1)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "k8s-1",
 				Label:        "K8sResource",
@@ -89,12 +89,12 @@ func TestCanonicalNodeWriterFileScopedContainment_TriggerSubstringsStayInBatch(t
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityBatchSize(10)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "fn-1",
 				Label:        "Function",
@@ -170,12 +170,12 @@ func TestCanonicalNodeWriterFileScopedContainmentBatchesTerraformVariableCurlyBr
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityBatchSize(10)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "tf-var-1",
 				Label:        "TerraformVariable",
@@ -223,12 +223,12 @@ func TestCanonicalNodeWriterFileScopedContainmentBatchesTerraformVariableDescrip
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityBatchSize(10)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "tf-var-1",
 				Label:        "TerraformVariable",
@@ -281,12 +281,12 @@ func TestCanonicalNodeWriterFileScopedContainmentKeepsNonDefaultCurlyMetadataBat
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil).
 		WithEntityContainmentInEntityUpsert().
 		WithEntityBatchSize(10)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "tf-local-1",
 				Label:        "TerraformLocal",

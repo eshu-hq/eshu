@@ -6,14 +6,14 @@ package admin
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 )
 
 // TestUnsafeReplayClassesPinnedToSourceConstants keeps the refusal set bound to
 // the authoritative failure-class contracts so it never silently drifts.
 func TestUnsafeReplayClassesPinnedToSourceConstants(t *testing.T) {
-	if _, ok := unsafeReplayRefusal(string(projector.FailureClassInputInvalid)); !ok {
+	if _, ok := unsafeReplayRefusal(string(failure.FailureClassInputInvalid)); !ok {
 		t.Fatalf("projector input_invalid (non-retryable) must be an unsafe replay class")
 	}
 	if _, ok := unsafeReplayRefusal(string(semanticqueue.StatusUnsafePayload)); !ok {
@@ -28,7 +28,7 @@ func TestUnsafeReplayClassesPinnedToSourceConstants(t *testing.T) {
 // POST /api/v0/admin/replay with no --force, contradicting the triage contract
 // documented in internal/projector (#3502, #3514).
 func TestUnsafeReplayClassesIncludeManualReviewTriage(t *testing.T) {
-	manualReview := projector.ManualReviewTriageClasses()
+	manualReview := failure.ManualReviewTriageClasses()
 	if len(manualReview) == 0 {
 		t.Fatal("projector must expose at least one manual_review triage class")
 	}
@@ -43,10 +43,10 @@ func TestUnsafeReplayClassesIncludeManualReviewTriage(t *testing.T) {
 	}
 
 	// The poison bucket is the highest-risk class and must be refused by name.
-	if _, unsafe := unsafeReplayRefusal(string(projector.TriageClassProjectionBug)); !unsafe {
+	if _, unsafe := unsafeReplayRefusal(string(failure.TriageClassProjectionBug)); !unsafe {
 		t.Fatalf("projection_bug (poison) must refuse an un-forced replay")
 	}
-	if _, unsafe := unsafeReplayRefusal(string(projector.TriageClassResourceExhausted)); !unsafe {
+	if _, unsafe := unsafeReplayRefusal(string(failure.TriageClassResourceExhausted)); !unsafe {
 		t.Fatalf("resource_exhausted (manual review) must refuse an un-forced replay")
 	}
 }
@@ -97,10 +97,10 @@ func TestUnsafeReplayFailureClassListSorted(t *testing.T) {
 	// The base non-retryable/quarantine classes and the manual_review triage
 	// classes must all be present in the SQL exclusion list.
 	want := map[string]bool{
-		string(projector.FailureClassInputInvalid):     false,
-		string(semanticqueue.StatusUnsafePayload):      false,
-		string(projector.TriageClassProjectionBug):     false,
-		string(projector.TriageClassResourceExhausted): false,
+		string(failure.FailureClassInputInvalid):     false,
+		string(semanticqueue.StatusUnsafePayload):    false,
+		string(failure.TriageClassProjectionBug):     false,
+		string(failure.TriageClassResourceExhausted): false,
 	}
 	for _, class := range list {
 		if _, tracked := want[class]; tracked {

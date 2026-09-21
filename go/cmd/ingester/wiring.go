@@ -11,20 +11,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -110,7 +111,7 @@ const (
 
 func buildIngesterService(
 	database db.ExecQueryer,
-	canonicalWriter projector.CanonicalWriter,
+	canonicalWriter runtime.CanonicalWriter,
 	getenv func(string) string,
 	getwd func() (string, error),
 	environ func() []string,
@@ -233,7 +234,7 @@ func buildIngesterCollectorService(
 
 func buildIngesterProjectorService(
 	database db.ExecQueryer,
-	canonicalWriter projector.CanonicalWriter,
+	canonicalWriter runtime.CanonicalWriter,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -362,24 +363,24 @@ func largeGenMaxConcurrent(getenv func(string) string) int {
 
 func buildIngesterProjectorRuntime(
 	database db.ExecQueryer,
-	canonicalWriter projector.CanonicalWriter,
-	intentWriter projector.ReducerIntentWriter,
-	retryInjector projector.RetryInjector,
+	canonicalWriter runtime.CanonicalWriter,
+	intentWriter runtime.ReducerIntentWriter,
+	retryInjector failure.RetryInjector,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (projector.Runtime, error) {
+) (runtime.Runtime, error) {
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
-		return projector.Runtime{}, err
+		return runtime.Runtime{}, err
 	}
 	contentWriter := postgres.NewContentWriter(database).
 		WithLogger(logger).
 		WithInstruments(instruments).
 		WithEntityBatchSize(contentConfig.EntityBatchSize)
 
-	return projector.Runtime{
+	return runtime.Runtime{
 		CanonicalWriter:               canonicalWriter,
 		ContentWriter:                 contentWriter,
 		IntentWriter:                  intentWriter,

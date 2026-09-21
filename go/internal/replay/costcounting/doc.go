@@ -74,7 +74,7 @@
 // have no committed cassette: their writers operate over flat reducer rows or
 // candidates (semantic.EntityRow, reducer.SharedProjectionIntentRow,
 // map[string]any node/edge rows, model.Candidate), not a
-// projector.CanonicalMaterialization, so their deterministic input is an
+// canonical.CanonicalMaterialization, so their deterministic input is an
 // in-package Go literal fixture (the same convention semantic_entity_test.go
 // already uses), and their budget JSON records that explicitly in place of a
 // cassette path.

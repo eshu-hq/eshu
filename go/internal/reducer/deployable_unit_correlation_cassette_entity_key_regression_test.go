@@ -62,7 +62,7 @@ func deployableUnitCassetteRegressionRepoRoot(t *testing.T) string {
 // fact's name/graph_id -- correctly-spelled fields the #5993 bug never
 // touched, so that path could never have caught this). It builds
 // intent.EntityKeys the way production actually does in the live gate:
-// go/internal/projector/runtime_reducer_intent.go reads a
+// go/internal/projector/runtime/reducer_intent.go reads a
 // shared_followup fact's "entity_key" payload field verbatim
 // (payloadString(fact.Payload, "entity_key")) -- reproduced here as a plain
 // map read, not imported, since internal/projector is not a dependency this
@@ -115,7 +115,7 @@ func TestDeployableUnitCorrelationCommittedCassetteEntityKeySurvivesFilter(t *te
 			}
 			// Production's own read of this field: a plain payload map
 			// lookup, no trimming or normalization at the source
-			// (go/internal/projector/runtime_reducer_intent.go:24).
+			// (go/internal/projector/runtime/reducer_intent.go, BuildReducerIntent).
 			key, ok := fact.Payload["entity_key"].(string)
 			if !ok || key == "" {
 				t.Fatalf("app repo's deployable_unit_correlation shared_followup fact has no entity_key payload field")

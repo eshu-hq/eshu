@@ -58,7 +58,7 @@ const orphanSweepAbsentPropertyValue = "<absent>"
 //     marked, never deleted.
 //
 // Eshu's own writers do not create a lang-less canonical Module. Every released
-// Module upsert set the property from a projector.ModuleRow.Language, which is
+// Module upsert set the property from a canonical.ModuleRow.Language, which is
 // a Go string and therefore never a Cypher null, so the pre-cutover
 // `SET m.lang = coalesce(m.lang, row.language)` never removed it. A lang-less
 // node comes from outside the writer -- hand-run repair Cypher, a partial

@@ -183,7 +183,7 @@ func TestMutateCassetteMissingFieldQuarantinesNotDeadLetters(t *testing.T) {
 // runtime path exercised end to end: driving this mutation through a real
 // stack (scripts/verify-ifa-dead-letter-determinism.sh) showed the projector's
 // OWN, earlier admission-time schema-version gate
-// (go/internal/projector/schema_version_admission.go) rejects a
+// (go/internal/projector/decode/schema_version_admission.go) rejects a
 // core-registered fact kind's unsupported major BEFORE the reducer's
 // typed-decode seam is ever reached, dead-lettering the whole projector work
 // item with failure_class="projection_bug" rather than the reducer's

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
@@ -29,12 +29,12 @@ type discardProvenanceReplayIntentWriter struct{}
 
 func (discardProvenanceReplayIntentWriter) Enqueue(
 	_ context.Context,
-	intents []projector.ReducerIntent,
-) (projector.IntentResult, error) {
-	return projector.IntentResult{Count: len(intents)}, nil
+	intents []runtime.ReducerIntent,
+) (runtime.IntentResult, error) {
+	return runtime.IntentResult{Count: len(intents)}, nil
 }
 
-func newProvenanceReplayProjectorRuntime(executor provenanceReplayExecutor) *projector.Runtime {
+func newProvenanceReplayProjectorRuntime(executor provenanceReplayExecutor) *runtime.Runtime {
 	phaseExecutor := storagenornicdb.PhaseGroupExecutor{
 		Inner:                    executor,
 		MaxStatements:            storagenornicdb.DefaultPhaseGroupStatements,
@@ -50,7 +50,7 @@ func newProvenanceReplayProjectorRuntime(executor provenanceReplayExecutor) *pro
 		cypher.NewCanonicalNodeWriter(phaseExecutor, 500, nil),
 		storagenornicdb.DefaultWriterConfig(),
 	)
-	return &projector.Runtime{
+	return &runtime.Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter:   &content.MemoryWriter{},
 		IntentWriter:    discardProvenanceReplayIntentWriter{},
@@ -60,7 +60,7 @@ func newProvenanceReplayProjectorRuntime(executor provenanceReplayExecutor) *pro
 func projectProvenanceReplayCanonicalGeneration(
 	ctx context.Context,
 	t *testing.T,
-	runtime *projector.Runtime,
+	runtime *runtime.Runtime,
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()

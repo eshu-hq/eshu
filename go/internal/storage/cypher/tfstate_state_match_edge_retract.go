@@ -4,7 +4,7 @@
 package cypher
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // canonicalTerraformStateMatchesConfigEdgeRetractCypher deletes a stale
@@ -104,7 +104,7 @@ DELETE e`
 // UID-FILTERED (#5623 P1 review, then its own P1 follow-up finding), not
 // "every row this generation upserted": this retract only considers state
 // resources whose OwnershipOutcome this cycle is NOT
-// projector.TerraformStateOwnershipTransientFailure. "This generation
+// canonical.TerraformStateOwnershipTransientFailure. "This generation
 // upserted the node" and "we know its correct owner this cycle" are DIFFERENT
 // facts -- resolveTerraformStateOwnership's resolver
 // (TerraformStateOwnershipResolver.ResolveOwningRepoID) can fail for an
@@ -160,14 +160,14 @@ DELETE e`
 // retract convention this follows). buildTerraformStateStatements runs this
 // BEFORE terraformStateMatchesConfigEdgeStatements' MERGE, matching that
 // precedent's retract-then-MERGE ordering.
-func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(mat canonical.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
 		return nil
 	}
 
 	uids := make([]string, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
-		if row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure {
+		if row.OwnershipOutcome == canonical.TerraformStateOwnershipTransientFailure {
 			continue
 		}
 		uids = append(uids, row.UID)

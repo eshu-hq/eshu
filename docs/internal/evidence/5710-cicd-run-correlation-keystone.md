@@ -2,7 +2,7 @@
 
 `ci_cd_run_correlation` was registered, had a wired handler, and had cross-scope
 dependency metadata declared (#5709), but no builder in
-`go/internal/projector/scope_generation_intents.go` ever emitted
+`go/internal/projector/runtime/scope_generation_intents.go` ever emitted
 `Domain=ci_cd_run_correlation`. It was unreachable outside unit tests and Ifá
 replay: `list_ci_cd_run_correlations` always returned zero in the golden gate and
 in any live deploy.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterAnnotatesAtomicGroupStatementsWithPhaseMetadata(t *testing.T) {
@@ -17,23 +17,23 @@ func TestCanonicalNodeWriterAnnotatesAtomicGroupStatementsWithPhaseMetadata(t *t
 	exec := &mockGroupExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 2, nil)
 
-	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "repo",
 			Path:   "/repo",
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repo/src", Name: "src", ParentPath: "/repo", RepoID: "repo-1", Depth: 0},
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repo/src/a.go", RelativePath: "src/a.go", Name: "a.go", Language: "go", RepoID: "repo-1", DirPath: "/repo/src"},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "function-1",
 				Label:        "Function",

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestDeltaFileAndDirectoryRetractsUsePositiveInWorklist is the #6715
@@ -29,7 +29,7 @@ func TestDeltaFileAndDirectoryRetractsUsePositiveInWorklist(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         "scope-1",
 		GenerationID:    "gen-2",
 		RepoID:          "repo-1",
@@ -42,10 +42,10 @@ func TestDeltaFileAndDirectoryRetractsUsePositiveInWorklist(t *testing.T) {
 		DeltaDeletedDirectoryPaths: []string{
 			"/repos/repo/old/emptydir",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{Path: "/repos/repo/changed.go", RepoID: "repo-1"},
 		},
-		Directories: []projector.DirectoryRow{
+		Directories: []canonical.DirectoryRow{
 			{Path: "/repos/repo/old/emptydir", ParentPath: "/repos/repo/old", RepoID: "repo-1", Depth: 2},
 		},
 	}

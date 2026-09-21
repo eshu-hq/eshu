@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -22,7 +22,7 @@ func TestWorkloadReplayDuringClaimReturnsAckToPending(t *testing.T) {
 	suffix := testSuffix(t)
 	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
 	entityKey := "repo:workload-replay-" + suffix
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainWorkloadMaterialization,
@@ -33,7 +33,7 @@ func TestWorkloadReplayDuringClaimReturnsAckToPending(t *testing.T) {
 
 	queue := NewReducerQueue(SQLDB{DB: db}, "workload-replay-worker", time.Minute)
 	queue.ClaimDomain = reducer.DomainWorkloadMaterialization
-	if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 		t.Fatalf("enqueue workload materialization: %v", err)
 	}
 	claimed, ok, err := queue.Claim(ctx)
@@ -301,7 +301,7 @@ func seedClaimedWorkloadReplay(
 	suffix := testSuffix(t) + "-" + suffixLabel
 	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
 	entityKey := "repo:workload-replay-" + suffix
-	intent := projector.ReducerIntent{
+	intent := runtime.ReducerIntent{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainWorkloadMaterialization,
@@ -311,7 +311,7 @@ func seedClaimedWorkloadReplay(
 	}
 	queue := NewReducerQueue(SQLDB{DB: db}, "workload-replay-worker-"+suffix, time.Minute)
 	queue.ClaimDomain = reducer.DomainWorkloadMaterialization
-	if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{intent}); err != nil {
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
 		t.Fatalf("enqueue workload materialization: %v", err)
 	}
 	claimed, ok, err := queue.Claim(ctx)

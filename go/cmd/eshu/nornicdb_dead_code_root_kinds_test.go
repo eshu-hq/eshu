@@ -11,7 +11,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -90,7 +90,7 @@ func TestNornicDBCanonicalWriterFunctionSourceRemoveCompatibility(t *testing.T) 
 
 		mat := groupedWriteMaterialization("eshu-nornicdb-function-source-remove")
 		filePath := mat.Files[0].Path
-		mat.Entities = make([]projector.EntityRow, 0, 5)
+		mat.Entities = make([]canonical.EntityRow, 0, 5)
 		for i := range 5 {
 			metadata := map[string]any{}
 			if i == 4 {
@@ -98,7 +98,7 @@ func TestNornicDBCanonicalWriterFunctionSourceRemoveCompatibility(t *testing.T) 
 					"WHERE n.repo_id IN $repo_ids\n" +
 					"REMOVE n.impl_context, n.docstring"
 			}
-			mat.Entities = append(mat.Entities, projector.EntityRow{
+			mat.Entities = append(mat.Entities, canonical.EntityRow{
 				EntityID:     "entity:remove-source:function:" + string(rune('a'+i)),
 				Label:        "Function",
 				EntityName:   "functionWithRemoveSource",

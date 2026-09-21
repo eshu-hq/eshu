@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
 // Replay request status values persisted in the admin_replay_requests ledger.
@@ -45,7 +45,7 @@ func buildUnsafeReplayFailureClasses() map[string]string {
 		"input_invalid":  "the work item failed input validation; replaying the same input will fail again. Fix or re-ingest the source, then refinalize the scope.",
 		"unsafe_payload": "the payload was quarantined as unsafe; replaying could re-trigger the unsafe condition. Investigate the source before forcing a replay.",
 	}
-	for _, class := range projector.ManualReviewTriageClasses() {
+	for _, class := range failure.ManualReviewTriageClasses() {
 		if _, exists := classes[class]; exists {
 			continue
 		}

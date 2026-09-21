@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/yaml"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // TestKustomizeDeployableOverlayB7FixtureExtendsBase guards the B-7 corpus
@@ -68,10 +68,10 @@ func TestKustomizeDeployableOverlayB7FixtureExtendsBase(t *testing.T) {
 			},
 		},
 	}
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		RepoID:       "kustomize-deployable-overlay",
 		GenerationID: "gen-fixture",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				Label:    "KustomizeOverlay",
 				EntityID: "uid-overlay",

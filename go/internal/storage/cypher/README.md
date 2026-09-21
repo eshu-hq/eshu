@@ -494,7 +494,7 @@ names. Unlike the artifact row, this row's identity gate requires BOTH
 a registry-wide event with no version to anchor on is a valid decode the row
 builder drops rather than materializing an edge-less orphan node (see
 `packageRegistryEventRow`'s doc comment in
-`go/internal/projector/package_registry_canonical_event.go`). The deferred
+`go/internal/projector/canonical/package_registry_event.go`). The deferred
 `HAS_REGISTRY_EVENT` edge (same NornicDB read-your-writes deferral as
 `HAS_VERSION`/`HAS_ARTIFACT`) attaches each event to its owning
 `PackageVersion`. Event rows join the same package-identity lock gate as

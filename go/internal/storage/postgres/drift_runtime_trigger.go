@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -33,7 +33,7 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // drift-evaluated until the next bootstrap-index run (issue #5593).
 //
 // Queue is typically the same admission-aware ReducerIntentWriter the
-// runtime's projector.Runtime.IntentWriter uses (see
+// runtime's runtime.Runtime.IntentWriter uses (see
 // cmd/ingester/wiring.go's ingesterReducerIntentWriter), so this trigger
 // observes the same graph-write-pressure backpressure as every other
 // reducer intent instead of bypassing it with a raw queue handle.
@@ -95,7 +95,7 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // runConfigStateDriftTriggerHook's doc comment in
 // projector_queue_config_state_drift_trigger_hook.go for that path's bound.
 type ConfigStateDriftRuntimeTrigger struct {
-	Queue       projector.ReducerIntentWriter
+	Queue       runtime.ReducerIntentWriter
 	Instruments *telemetry.Instruments
 }
 
@@ -113,7 +113,7 @@ func (t ConfigStateDriftRuntimeTrigger) TriggerConfigStateDrift(
 		return fmt.Errorf("config state drift runtime trigger requires a reducer intent writer")
 	}
 
-	result, err := t.Queue.Enqueue(ctx, []projector.ReducerIntent{{
+	result, err := t.Queue.Enqueue(ctx, []runtime.ReducerIntent{{
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		Domain:       reducer.DomainConfigStateDrift,

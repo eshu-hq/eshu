@@ -17,7 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -91,7 +91,7 @@ func buildBootstrapCollector(
 func buildBootstrapProjector(
 	ctx context.Context,
 	database bootstrapDB,
-	canonicalWriter projector.CanonicalWriter,
+	canonicalWriter runtime.CanonicalWriter,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -128,7 +128,7 @@ func buildBootstrapProjector(
 	if err != nil {
 		return projectorDeps{}, err
 	}
-	runtime := projector.Runtime{
+	runtime := runtime.Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
@@ -196,7 +196,7 @@ func openBootstrapCanonicalWriter(
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
-) (projector.CanonicalWriter, io.Closer, error) {
+) (runtime.CanonicalWriter, io.Closer, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, err

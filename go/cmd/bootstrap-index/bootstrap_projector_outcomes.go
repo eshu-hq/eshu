@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 )
 
 // bootstrapAckDeferredLogEvery spaces repeated busy-scope Ack logs; with the
@@ -31,7 +32,7 @@ func dropLostBootstrapClaim(
 	span trace.Span,
 	logger *slog.Logger,
 ) bool {
-	if !errors.Is(err, projector.ErrWorkClaimLost) {
+	if !errors.Is(err, failure.ErrWorkClaimLost) {
 		return false
 	}
 	logBootstrapDrop(ctx, work, workerID, err, operation, "claim_lost",
@@ -51,7 +52,7 @@ func dropDeferredBootstrapAck(
 	span trace.Span,
 	logger *slog.Logger,
 ) bool {
-	if !errors.Is(err, projector.ErrWorkAckDeferred) {
+	if !errors.Is(err, failure.ErrWorkAckDeferred) {
 		return false
 	}
 	if ctx.Err() != nil {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // DeltaMaterialization is the result of applying one generation on top of another.
@@ -22,12 +22,12 @@ type DeltaMaterialization struct {
 	// It is returned here (rather than re-derived by the caller) so gen1's fact
 	// stream is drained exactly once — a CollectedGeneration's fact channel is
 	// closed after a single range, so draining it twice yields an empty stream.
-	Gen1 projector.CanonicalMaterialization
+	Gen1 canonical.CanonicalMaterialization
 	// Gen2 is the canonical materialization for the second generation. Its
 	// FirstGeneration field is false, which enables the production retract
 	// statements (canonicalNodeRetractDirectoriesCypher etc.) to fire and
 	// remove entities that are absent from or tombstoned in gen2.
-	Gen2 projector.CanonicalMaterialization
+	Gen2 canonical.CanonicalMaterialization
 	// TombstonedDirectoryPaths is the set of directory paths that appear as
 	// tombstones in gen2 and therefore must be ABSENT from the graph after
 	// the gen2 write. This is the retraction assertion contract: the caller

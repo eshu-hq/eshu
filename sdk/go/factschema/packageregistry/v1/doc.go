@@ -8,7 +8,7 @@
 //
 // Nine fact kinds live here. Five are CONSUMED today by the projector's
 // source-local canonical extractor
-// (go/internal/projector/package_registry_canonical.go) and decode through the
+// (go/internal/projector/canonical/package_registry.go) and decode through the
 // seam on the read path:
 //
 //   - Package             (package_registry.package)

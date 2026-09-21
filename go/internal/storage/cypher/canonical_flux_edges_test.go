@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // fluxKustomizationRowEntity builds a FluxKustomization EntityRow with the
 // sourceRef/namespace metadata fields the parser (flux.go) actually emits.
-func fluxKustomizationRowEntity(uid, filePath, namespace, refKind, refName, refNamespace string) projector.EntityRow {
+func fluxKustomizationRowEntity(uid, filePath, namespace, refKind, refName, refNamespace string) canonical.EntityRow {
 	meta := map[string]any{}
 	if namespace != "" {
 		meta["namespace"] = namespace
@@ -26,7 +26,7 @@ func fluxKustomizationRowEntity(uid, filePath, namespace, refKind, refName, refN
 	if refNamespace != "" {
 		meta["source_ref_namespace"] = refNamespace
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:      "FluxKustomization",
 		EntityID:   uid,
 		EntityName: "kustomization",
@@ -38,12 +38,12 @@ func fluxKustomizationRowEntity(uid, filePath, namespace, refKind, refName, refN
 // fluxSourceRowEntity builds a FluxGitRepository/FluxOCIRepository/FluxBucket
 // EntityRow with the fields sourceRef resolution needs. name == "" mirrors a
 // generateName-only CR (never joinable).
-func fluxSourceRowEntity(label, uid, name, namespace, filePath string) projector.EntityRow {
+func fluxSourceRowEntity(label, uid, name, namespace, filePath string) canonical.EntityRow {
 	meta := map[string]any{}
 	if namespace != "" {
 		meta["namespace"] = namespace
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		Label:      label,
 		EntityID:   uid,
 		EntityName: name,
@@ -59,9 +59,9 @@ func fluxSourceRowEntity(label, uid, name, namespace, filePath string) projector
 func TestFluxReconcilesFromT1NamespaceExact(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -95,9 +95,9 @@ func TestFluxReconcilesFromT1NamespaceExact(t *testing.T) {
 func TestFluxReconcilesFromNamespaceDefaultedFromKustomizationNamespace(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "flux-system", ""),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -124,9 +124,9 @@ func TestFluxReconcilesFromNamespaceDefaultedFromKustomizationNamespace(t *testi
 func TestFluxReconcilesFromT2SameFileWins(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/clusters/prod/gotk-sync.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-same-file", "flux-system", "flux-system", "/repo/clusters/prod/gotk-sync.yaml"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-other-file", "flux-system", "flux-system", "/repo/clusters/staging/gotk-sync.yaml"),
@@ -153,9 +153,9 @@ func TestFluxReconcilesFromT2SameFileWins(t *testing.T) {
 func TestFluxReconcilesFromT2NearestPathWins(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/clusters/prod/apps/kustomization.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-near", "flux-system", "flux-system", "/repo/clusters/prod/sources.yaml"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-far", "flux-system", "flux-system", "/repo/clusters/staging/sources.yaml"),
@@ -182,9 +182,9 @@ func TestFluxReconcilesFromT2NearestPathWins(t *testing.T) {
 func TestFluxReconcilesFromT2TieSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/clusters/apps.yaml", "flux-system", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-a", "flux-system", "flux-system", "/repo/clusters/prod/sources.yaml"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-b", "flux-system", "flux-system", "/repo/clusters/staging/sources.yaml"),
@@ -205,9 +205,9 @@ func TestFluxReconcilesFromT2TieSkips(t *testing.T) {
 func TestFluxReconcilesFromT3AbsentNamespaceCandidateUnique(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "", "/repo/sources.yaml"),
 		},
@@ -230,9 +230,9 @@ func TestFluxReconcilesFromT3AbsentNamespaceCandidateUnique(t *testing.T) {
 func TestFluxReconcilesFromT3AmbiguousAbsentNamespaceSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-1", "flux-system", "", "/repo/sources-a.yaml"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-2", "flux-system", "", "/repo/sources-b.yaml"),
@@ -254,9 +254,9 @@ func TestFluxReconcilesFromT3AmbiguousAbsentNamespaceSkips(t *testing.T) {
 func TestFluxReconcilesFromT4RefNamespaceFullyUnknownUniqueNameResolves(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", ""),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "some-namespace", "/repo/sources.yaml"),
 		},
@@ -281,9 +281,9 @@ func TestFluxReconcilesFromT4RefNamespaceFullyUnknownUniqueNameResolves(t *testi
 func TestFluxReconcilesFromT4AmbiguousRepoWideSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", ""),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-1", "flux-system", "namespace-a", "/repo/sources-a.yaml"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr-2", "flux-system", "namespace-b", "/repo/sources-b.yaml"),
@@ -304,9 +304,9 @@ func TestFluxReconcilesFromT4AmbiguousRepoWideSkips(t *testing.T) {
 func TestFluxReconcilesFromDanglingRefSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "does-not-exist", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -327,9 +327,9 @@ func TestFluxReconcilesFromDanglingRefSkips(t *testing.T) {
 func TestFluxReconcilesFromDeclaredNamespaceMismatchSkips(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "", "GitRepository", "flux-system", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "other-namespace", "/repo/sources.yaml"),
 		},
@@ -350,9 +350,9 @@ func TestFluxReconcilesFromDeclaredNamespaceMismatchSkips(t *testing.T) {
 func TestFluxReconcilesFromKustomizationEmptySourceRefNameNeverResolves(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		GenerationID: "gen-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			fluxKustomizationRowEntity("uid-k", "/repo/apps.yaml", "flux-system", "GitRepository", "", "flux-system"),
 			fluxSourceRowEntity("FluxGitRepository", "uid-gr", "flux-system", "flux-system", "/repo/sources.yaml"),
 		},
@@ -379,7 +379,7 @@ func TestFluxReconcilesFromKustomizationEmptySourceRefNameNeverResolves(t *testi
 func TestCollectFluxSourceEntitiesExcludesEmptyNameCandidates(t *testing.T) {
 	t.Parallel()
 
-	entities := []projector.EntityRow{
+	entities := []canonical.EntityRow{
 		fluxSourceRowEntity("FluxGitRepository", "uid-named", "flux-system", "flux-system", "/repo/sources.yaml"),
 		fluxSourceRowEntity("FluxGitRepository", "uid-generated", "", "flux-system", "/repo/sources.yaml"),
 	}

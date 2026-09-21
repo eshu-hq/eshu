@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -88,8 +88,8 @@ func TestIngesterNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 	if got, want := timeoutErr.FailureClass(), sourcecypher.GraphWriteTimeoutFailureClass; got != want {
 		t.Fatalf("FailureClass() = %q, want %q", got, want)
 	}
-	if !projector.IsRetryable(err) {
-		t.Fatalf("projector.IsRetryable(%v) = false, want queue retry", err)
+	if !failure.IsRetryable(err) {
+		t.Fatalf("failure.IsRetryable(%v) = false, want queue retry", err)
 	}
 	if elapsed := time.Since(started); elapsed >= 80*time.Millisecond {
 		t.Fatalf("RunWrite() elapsed = %s, want client timeout well before the outer deadline", elapsed)

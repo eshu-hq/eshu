@@ -13,7 +13,7 @@ exist."
 
 REPORTED, not re-run here — two committed figures record what the unwritten
 state actually is. The comment on `entityTypeLabelMap` in
-`go/internal/projector/canonical.go` records a live golden-corpus run
+`go/internal/projector/canonical/materialization.go` records a live golden-corpus run
 measuring `(Variable) count=0`, with no `Variable` key in `graph.node_counts`
 at all. That zero and the label's reachability are not in conflict, and the
 comment now says so: the only `Variable` writer left is the reducer's
@@ -48,14 +48,14 @@ git diff origin/main...HEAD -- go/internal/collector/gitrepo/git_snapshot_entity
 
 returns nothing.
 
-VERIFIED — `go/internal/projector/canonical.go` is semantically identical.
+VERIFIED — `go/internal/projector/canonical/materialization.go` is semantically identical.
 Stripping comments and collapsing runs of spaces, the old and new files are
 byte-identical; its three "changed" lines are gofmt realignment of existing map
 entries after a comment was inserted above them:
 
 ```
-git show origin/main:go/internal/projector/canonical.go | rg -v '^\s*//' | tr -s ' ' > old
-rg -v '^\s*//' go/internal/projector/canonical.go       | tr -s ' ' > new
+git show origin/main:go/internal/projector/canonical/materialization.go | rg -v '^\s*//' | tr -s ' ' > old
+rg -v '^\s*//' go/internal/projector/canonical/materialization.go       | tr -s ' ' > new
 diff old new    # exit 0
 ```
 

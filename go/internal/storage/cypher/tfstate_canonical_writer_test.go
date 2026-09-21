@@ -8,17 +8,17 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "tf-scope-1",
 		GenerationID: "tf-generation-1",
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:                   "tf-resource-uid-1",
 			Address:               "module.app.aws_instance.web",
 			Mode:                  "managed",
@@ -48,7 +48,7 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 				"user_data":     "#!/bin/bash\necho hello",
 			},
 		}},
-		TerraformStateModules: []projector.TerraformStateModuleRow{{
+		TerraformStateModules: []canonical.TerraformStateModuleRow{{
 			UID:              "tf-module-uid-1",
 			ModuleAddress:    "module.app",
 			ResourceCount:    1,
@@ -60,7 +60,7 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 		}},
-		TerraformStateOutputs: []projector.TerraformStateOutputRow{{
+		TerraformStateOutputs: []canonical.TerraformStateOutputRow{{
 			UID:              "tf-output-uid-1",
 			Name:             "web_instance_id",
 			Sensitive:        true,
@@ -246,10 +246,10 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 func TestTerraformStateResourceRowsEmitEmptyProviderWhenUnbound(t *testing.T) {
 	t.Parallel()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "tf-scope-unbound",
 		GenerationID: "tf-generation-unbound",
-		TerraformStateResources: []projector.TerraformStateResourceRow{{
+		TerraformStateResources: []canonical.TerraformStateResourceRow{{
 			UID:              "tf-resource-uid-unbound",
 			Address:          "aws_instance.unbound",
 			Mode:             "managed",

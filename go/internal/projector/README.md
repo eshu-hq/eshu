@@ -8,6 +8,40 @@ rows, source-backed repository ref metadata, and reducer intents for
 shared-domain follow-up. It does not make cross-source admission decisions —
 those belong to `internal/reducer`.
 
+## Package layout
+
+The root package is the service: the claim/lease loop, the work-item
+lifecycle, and the two sweepers. Everything the projection itself does lives
+in five subpackages (#6781), which form a DAG with the root at the top and
+`decode` and `failure` as leaves:
+
+```
+decode            -> (leaf)   typed decoders, payload accessors, quarantine
+failure           -> (leaf)   failure classes, retry disposition, triage
+canonical         -> decode   canonical rows and the per-family extractors
+runtime           -> canonical, decode, failure   one projection, end to end
+stage             -> canonical, decode, runtime   per-family projection stages
+root (projector)  -> canonical, runtime, failure  the service loop
+```
+
+No subpackage imports the root. Run `go list -deps` against the tree to
+confirm the shape rather than trusting this block.
+
+Two placements are not what their original file names suggested, and both are
+load-bearing:
+
+- `decode/payload.go` holds the untyped payload accessors. Every caller moved
+  out of the root with the packages that use them, so the accessors followed
+  the callers.
+- `decode/fact_kind.go` holds `NormalizeFactKind` and the `Filter*Facts`
+  selectors, which arrived as `stage_facts.go`. They are fact-kind selection,
+  not a stage: `canonical` uses them as heavily as `stage` does, and leaving
+  them in `stage` made `canonical -> stage -> runtime -> canonical` a cycle.
+
+A test that drives a full projection lives in `runtime/` even when it asserts
+on a canonical or decode behavior, because `runtime` imports both and the test
+would otherwise close an import cycle in the test binary.
+
 ## Where this fits in the pipeline
 
 ```mermaid
@@ -229,7 +263,7 @@ work and cannot retract previously observed truth. Root retains assembly,
 enqueue, retry, and telemetry ownership.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
-`reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
+`reducerIntentFactIndex` (`runtime/reducer_intent_fact_index.go`) over `inputFacts` and
 passes it to all 45 reducer-intent builder probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
@@ -253,9 +287,9 @@ remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
 The "45 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
-in `reducer_intent_fact_index.go` pins it, and
+in `runtime/reducer_intent_fact_index.go` pins it, and
 `TestReducerIntentProbeCountMatchesDocumentedCount` parses
-`scope_generation_intents.go` with `go/ast` to count the real distinct
+`runtime/scope_generation_intents.go` with `go/ast` to count the real distinct
 reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
@@ -455,7 +489,7 @@ backend-specific adapters.
   converge on the same graph truth, not create second paths.
 - `PhasePublisher.PublishGraphProjectionPhases` must succeed before the projector
   acks a work item. If publish fails and `RepairQueue` is wired, a repair row is
-  enqueued so reducer can re-gate on phase state (`runtime_phase.go`).
+  enqueued so reducer can re-gate on phase state (`runtime/phase.go`).
 - Terraform-state snapshot-only and warning-only generations still publish the
   `terraform_resource_uid` and `terraform_module_uid`
   `canonical_nodes_committed` checkpoints. Empty state snapshots and missing
@@ -463,7 +497,7 @@ backend-specific adapters.
   "zero rows projected" signal workflow completion needs.
 - `Module` and `Parameter` entity types are excluded from the generic
   `EntityRow` extraction path because they use different MERGE keys in the graph
-  schema; they get their own extraction phases (`canonical_builder.go:227`).
+  schema; they get their own extraction phases (`canonical/builder.go:227`).
 - Plain `Variable` content entities are excluded from source-local canonical
   `EntityRow` extraction. They stay in the Postgres content/search surface;
   reducer-owned semantic entity materialization writes the smaller graph-backed
@@ -474,7 +508,7 @@ backend-specific adapters.
   unreachable: those two semantic shapes come out of ordinary filesystem
   parsing of `.ex` and `.tsx` files, so a repo in either language does get
   `Variable` nodes. `canonicalEntityPhaseSkipOwners` in
-  `canonical_unwritten_entity_labels_test.go` pins that set: every label phase E
+  `canonical/unwritten_entity_labels_test.go` pins that set: every label phase E
   refuses is listed there with the phase that covers it instead, and `Variable`
   is the one entry with no *source-local* writer. A new entry means a registered
   label was stranded; deleting `Variable`'s means re-enabling its projection,
@@ -486,7 +520,7 @@ backend-specific adapters.
 - OCI image identity is digest-backed. `oci_registry.image_tag_observation`
   facts can create weak tag evidence only when they include a resolved digest;
   tag-only facts must not mint canonical image identity. The OCI rows live on
-  `CanonicalMaterialization` alongside Terraform rows (`canonical.go:27`), and
+  `CanonicalMaterialization` alongside Terraform rows (`canonical/materialization.go:27`), and
   the label map includes the ContainerImage and OciImage labels required by the
   graph schema. OCI registry generations now enqueue
   `DomainContainerImageIdentity` and `DomainSupplyChainImpact` follow-up
@@ -500,17 +534,17 @@ backend-specific adapters.
   payload carries both subject and referrer digests.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
-  graph (`canonical_builder.go:112`).
+  graph (`canonical/builder.go:112`).
 - The `ContentBeforeCanonical` flag on `Runtime` writes the content index before
   graph projection. This is intentional only for local profiles where the graph
   backend may be degraded; do not set it in full-stack deployments
-  (`runtime.go:36`).
+  (`runtime/projection.go:36`).
 - Directories in `CanonicalMaterialization.Directories` are sorted root-first
   by `Depth` so parent nodes exist before children during ordered writes
-  (`canonical_builder.go:191`).
+  (`canonical/builder.go:191`).
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
   before enqueue to produce a stable queue order.
-- `buildContentEntityRecord`'s `entity_id` fallback (`runtime.go`) only fires
+- `runtime.BuildContentEntityRecord`'s `entity_id` fallback (`runtime/projection.go`) only fires
   for a `content_entity` fact that arrives without a collector-minted
   `entity_id` — version skew, a replayed old cassette, or a non-git producer.
   That fallback and `internal/content/shape`'s per-file mint MUST stay in
@@ -522,7 +556,7 @@ backend-specific adapters.
   .Metadata` once and pass the same map into the mint call. See
   `internal/content/README.md`'s Identity section.
 
-- Schema-version admission is centralized in `schema_version_admission.go`:
+- Schema-version admission is centralized in `decode/schema_version_admission.go`:
   `validateFactSchemaVersion` calls `facts.ValidateSchemaVersion` once per fact,
   replacing the seven per-family validators and covering every core fact family
   uniformly. Core-owned facts with an unsupported (or blank) schema version are
@@ -638,7 +672,7 @@ spans are added.
 
 Benchmark Evidence: issue #4875's shared `reducerIntentFactIndex` refactor is
 covered by `BenchmarkAppendScopeGenerationReducerIntentsFanOut`
-(`scope_generation_intents_fanout_bench_test.go`), which runs
+(`runtime/scope_generation_intents_fanout_bench_test.go`), which runs
 `appendScopeGenerationReducerIntents` against a representative multi-domain
 fixture (`fanOutParityFixture`, spanning 43 emitted domains across all 45 probes)
 padded to 5,005 total facts with source-code-domain decoy kinds none of the 45
@@ -661,11 +695,11 @@ FanOut-10     665.0 ± 0%        172.0 ± 0%  -74.14% (p=0.002 n=6)
 ```
 
 Wall time drops ~82% and allocation count drops ~74%; the ~10% B/op increase is
-the shared index's own O(N) position storage (`reducer_intent_fact_index.go`
+the shared index's own O(N) position storage (`runtime/reducer_intent_fact_index.go`
 counts each fact kind once, then fills exactly-sized `[]int` position slices —
 no `append`-growth waste), which is expected and bounded by generation size,
 not by the number of probes. `TestAppendScopeGenerationReducerIntentsFanOutParity`
-(`scope_generation_intents_fanout_parity_test.go`) is the accuracy half of this
+(`runtime/scope_generation_intents_fanout_parity_test.go`) is the accuracy half of this
 proof: it pins the exact anchor `FactID`, `EntityKey`, `Reason`, `SourceSystem`,
 and `Payload` every one of the 42 emitted domains produces for the same fixture,
 captured from the pre-refactor full-scan implementation, and must still pass
@@ -709,83 +743,11 @@ Observability Evidence: each sweep emits a structured
 counter and duration plus its per-cycle log with considered/included/skipped/
 written/retired counts. No new metric series or spans are added.
 
-## Dead-letter triage (issue #3502, #3514)
+## Dead-letter triage
 
-`dead_letter_triage.go` turns a failed work item into an operator-facing triage
-class on the durable dead-letter row. `TriageFailure` reconciles two signals that
-previously disagreed: the canonical `IsRetryable()` / `Retryable()` retry
-authority (the live projector- and reducer-queue path) and the rich
-`ClassifyFailure` categorization that issue #3514 flagged as dead code with no
-production caller. Retryable() stays the sole authority for whether an item is
-retried; `TriageClass` only records why it landed where it did, so the durable
-`failure_class` reads `retry_exhausted` / `input_invalid` /
-`dependency_unavailable` / `resource_exhausted` / `timeout` / `projection_bug`
-instead of the coarse `projection_failed` / `reducer_failed` fallback.
-
-#3514 is resolved by wiring, not deletion: the live dead-letter path in
-`storage/postgres` (`projector_queue.go` `Fail`, `reducer_queue_helpers.go`
-`failIntent`) now calls `deadLetterTriageMetadata`, which runs `ClassifyFailure`
-through `TriageFailure`. `Retryable()` remains the single source of truth for the
-retry-vs-dead-letter decision; the requeue/backpressure fix from #3513 is
-unchanged because the retry branch is taken before triage classification runs.
-
-The triage class feeds the existing operator requeue path with no new surface:
-`eshu admin facts replay --failure-class retry_exhausted` drains the safe
-transient bucket, while `projection_bug` / `resource_exhausted` map to
-`manual_review` and require `--force` after the cause is addressed. The
-`reconcileTriage` disposition can never contradict the authority — a retryable
-cause never carries `non_retryable` and vice versa, asserted by
-`TriageDispositionConflicts` and `TestTriageFailureConsistencyWithRetryable`.
-
-Performance Evidence: the dead-letter path is the cold failure branch, not the
-success hot path. `TriageFailure` adds one `ClassifyFailure` call (the same
-`errors.As` / type-switch work the reducer already ran via `queueFailureMetadata`)
-plus one `fmt.Sprintf` per dead-lettered item; no new query, index, lease, or
-graph write is introduced, and the durable `UPDATE` is byte-for-byte the prior
-`failProjectorWorkQuery` / `failReducerWorkQuery` with only the `failure_class`,
-message, and details argument values changed.
-No-Regression Evidence: `cd go && go test ./internal/projector
-./internal/storage/postgres ./internal/reducer -race -count=1` passed (3484
-tests, no data races); the retry branch and its
-`TestProjectorQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted` /
-`TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted`
-proofs are unchanged, and `TestProjectorQueueFailDeadLettersWithTriageClass`,
-`TestProjectorQueueFailDeadLettersRetryExhaustedWithTriageClass`, and
-`TestReducerQueueFailDeadLettersTerminalWithTriageClass` prove the live queue
-writes the triage class on the dead-letter row.
-
-Observability Evidence: the operator-facing signal is the durable
-`fact_work_items.failure_class` value on dead-lettered rows, surfaced through the
-existing `eshu admin facts list --status dead_letter` query and the
-`replay --failure-class` filter. The structured `details` string carries
-`stage=`, `triage=`, `class=`, `code=`, `disposition=`, `retryable=`, and
-`exhausted=` so an operator inspecting one dead letter at 3 AM can tell a
-transient pileup (safe to replay) from a poison projection bug (needs code fix)
-without reading the projector source. No new metric series or span is added; the
-change relabels an existing durable column.
-
-`ManualReviewTriageClasses` exposes the `manual_review` triage classes
-(`projection_bug`, `resource_exhausted`) as the single source of truth for the
-admin replay-safety guard in `internal/query`, so a poison item cannot drain via
-`POST /api/v0/admin/replay` without `--force`. The disposition table
-`terminalTriageDispositions` backs both `reconcileTriage` and
-`ManualReviewTriageClasses`, so the guard can never drift from the disposition
-actually written on a dead-letter row.
-
-Performance Evidence: `ManualReviewTriageClasses` is an in-memory iteration over
-a five-entry map plus a sort, evaluated once at `internal/query` package init
-(`buildUnsafeReplayFailureClasses`), not on any request or projection path.
-`reconcileTriage` keeps the same single map lookup it already did per
-dead-lettered item; no new query, index, lock, or graph write is introduced.
-No-Regression Evidence: `cd go && go test ./internal/projector ./internal/query
--race -count=1` passed (3486 tests, no data races); the live-path triage proofs
-and the retry-branch proofs are unchanged, and the new
-`TestReplayRefusesManualReviewTriageClassWithoutForce` /
-`TestUnsafeReplayClassesIncludeManualReviewTriage` prove the guard refuses an
-un-forced `projection_bug` replay.
-No-Observability-Change: the guard reuses the existing
-`replay_refused_unsafe_class` governance-audit reason code and the existing
-422 refusal envelope; no new metric, span, or log scope is added.
+Failure classification, retry disposition and dead-letter triage moved to
+`failure/` (#6781). See [failure/README.md](failure/README.md) for the
+triage classes, the operator runbook and the issue history (#3502, #3514).
 
 ## Related docs
 

@@ -24,7 +24,7 @@ import (
 //     schema_version is untouched) and is QUARANTINED per fact once a
 //     canonical extractor or reducer handler decodes it:
 //     go/internal/reducer/factdecode's PartitionDecodeFailures (and
-//     its projector-side twin, go/internal/projector/factschema_quarantine.go)
+//     its projector-side twin, go/internal/projector/decode/quarantine.go)
 //     skip that one fact, increment a metric, and log a structured error,
 //     but the surrounding work item still SUCCEEDS. No fact_work_items row is
 //     ever written for it — this outcome is NOT durable and NOT comparable by
@@ -35,9 +35,9 @@ import (
 //     version for (facts.SchemaVersion, e.g. gcp_cloud_resource -> "1.1.0")
 //     is caught EARLIER than the reducer's typed-decode seam: the
 //     projector's own per-fact admission gate
-//     (go/internal/projector/schema_version_admission.go's
+//     (go/internal/projector/decode/schema_version_admission.go's
 //     validateFactSchemaVersion, called from buildProjection in
-//     go/internal/projector/runtime.go) rejects it before canonicalization
+//     go/internal/projector/runtime/projection.go) rejects it before canonicalization
 //     even starts. That gate fails the WHOLE projector work item for the
 //     scope/generation on the FIRST offending fact — not a per-fact skip —
 //     so the reducer's own follow-up materialization intents (e.g.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // MaterializationFromGeneration drains a replayed CollectedGeneration's fact
@@ -21,14 +21,14 @@ import (
 // It returns an error when the generation carries no repository fact or any
 // fact is malformed, so a bad cassette fails loudly rather than projecting an
 // empty graph that would look green.
-func MaterializationFromGeneration(gen collector.CollectedGeneration) (projector.CanonicalMaterialization, error) {
+func MaterializationFromGeneration(gen collector.CollectedGeneration) (canonical.CanonicalMaterialization, error) {
 	envelopes := make([]facts.Envelope, 0, gen.FactCount())
 	for env := range gen.Facts {
 		envelopes = append(envelopes, env)
 	}
 	if gen.FactStreamErr != nil {
 		if err := gen.FactStreamErr(); err != nil {
-			return projector.CanonicalMaterialization{}, fmt.Errorf("fact stream error: %w", err)
+			return canonical.CanonicalMaterialization{}, fmt.Errorf("fact stream error: %w", err)
 		}
 	}
 	return materializationFromEnvelopes(gen.Scope.ScopeID, gen.Generation.GenerationID, envelopes)
@@ -61,8 +61,8 @@ const (
 func materializationFromEnvelopes(
 	scopeID, generationID string,
 	envelopes []facts.Envelope,
-) (projector.CanonicalMaterialization, error) {
-	mat := projector.CanonicalMaterialization{
+) (canonical.CanonicalMaterialization, error) {
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:         scopeID,
 		GenerationID:    generationID,
 		FirstGeneration: true,
@@ -80,10 +80,10 @@ func materializationFromEnvelopes(
 		case factKindRepository:
 			repo, err := repositoryRowFromPayload(env.Payload)
 			if err != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			if mat.Repository != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: duplicate repository fact", i, env.FactKind)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: duplicate repository fact", i, env.FactKind)
 			}
 			mat.Repository = &repo
 			mat.RepoID = repo.RepoID
@@ -91,34 +91,34 @@ func materializationFromEnvelopes(
 		case factKindDirectory:
 			dir, err := directoryRowFromPayload(env.Payload)
 			if err != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			mat.Directories = append(mat.Directories, dir)
 		case factKindFile:
 			file, err := fileRowFromPayload(env.Payload)
 			if err != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			mat.Files = append(mat.Files, file)
 		case factKindGitlabPipeline:
 			entity, err := gitlabPipelineEntityRowFromPayload(env.Payload)
 			if err != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			mat.Entities = append(mat.Entities, entity)
 		case factKindGitlabJob:
 			entity, err := gitlabJobEntityRowFromPayload(env.Payload)
 			if err != nil {
-				return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
+				return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d] %s: %w", i, env.FactKind, err)
 			}
 			mat.Entities = append(mat.Entities, entity)
 		default:
-			return projector.CanonicalMaterialization{}, fmt.Errorf("fact[%d]: unsupported fact_kind %q for offline tier", i, env.FactKind)
+			return canonical.CanonicalMaterialization{}, fmt.Errorf("fact[%d]: unsupported fact_kind %q for offline tier", i, env.FactKind)
 		}
 	}
 
 	if mat.Repository == nil {
-		return projector.CanonicalMaterialization{}, fmt.Errorf("cassette generation %q has no repository fact", generationID)
+		return canonical.CanonicalMaterialization{}, fmt.Errorf("cassette generation %q has no repository fact", generationID)
 	}
 
 	// Project content_entity facts through the production entity mapping now that
@@ -126,7 +126,7 @@ func materializationFromEnvelopes(
 	// entity nodes through the same extractEntities path the projector uses, so
 	// the tier proves their create-then-retract on the real backend.
 	if len(entityEnvelopes) > 0 {
-		mat.Entities = append(mat.Entities, projector.ExtractEntityRows(entityEnvelopes, mat.RepoID, mat.RepoPath)...)
+		mat.Entities = append(mat.Entities, canonical.ExtractEntityRows(entityEnvelopes, mat.RepoID, mat.RepoPath)...)
 	}
 
 	// Canonical directory writes are ordered root-first by depth so a parent node
@@ -139,20 +139,20 @@ func materializationFromEnvelopes(
 	return mat, nil
 }
 
-func repositoryRowFromPayload(payload map[string]any) (projector.RepositoryRow, error) {
+func repositoryRowFromPayload(payload map[string]any) (canonical.RepositoryRow, error) {
 	repoID, err := requireString(payload, "repo_id")
 	if err != nil {
-		return projector.RepositoryRow{}, err
+		return canonical.RepositoryRow{}, err
 	}
 	name, err := requireString(payload, "name")
 	if err != nil {
-		return projector.RepositoryRow{}, err
+		return canonical.RepositoryRow{}, err
 	}
 	path, err := requireString(payload, "path")
 	if err != nil {
-		return projector.RepositoryRow{}, err
+		return canonical.RepositoryRow{}, err
 	}
-	return projector.RepositoryRow{
+	return canonical.RepositoryRow{
 		RepoID:    repoID,
 		Name:      name,
 		Path:      path,
@@ -160,28 +160,28 @@ func repositoryRowFromPayload(payload map[string]any) (projector.RepositoryRow, 
 	}, nil
 }
 
-func directoryRowFromPayload(payload map[string]any) (projector.DirectoryRow, error) {
+func directoryRowFromPayload(payload map[string]any) (canonical.DirectoryRow, error) {
 	path, err := requireString(payload, "path")
 	if err != nil {
-		return projector.DirectoryRow{}, err
+		return canonical.DirectoryRow{}, err
 	}
 	name, err := requireString(payload, "name")
 	if err != nil {
-		return projector.DirectoryRow{}, err
+		return canonical.DirectoryRow{}, err
 	}
 	parentPath, err := requireString(payload, "parent_path")
 	if err != nil {
-		return projector.DirectoryRow{}, err
+		return canonical.DirectoryRow{}, err
 	}
 	repoID, err := requireString(payload, "repo_id")
 	if err != nil {
-		return projector.DirectoryRow{}, err
+		return canonical.DirectoryRow{}, err
 	}
 	depth, err := requireInt(payload, "depth")
 	if err != nil {
-		return projector.DirectoryRow{}, err
+		return canonical.DirectoryRow{}, err
 	}
-	return projector.DirectoryRow{
+	return canonical.DirectoryRow{
 		Path:       path,
 		Name:       name,
 		ParentPath: parentPath,
@@ -190,32 +190,32 @@ func directoryRowFromPayload(payload map[string]any) (projector.DirectoryRow, er
 	}, nil
 }
 
-func fileRowFromPayload(payload map[string]any) (projector.FileRow, error) {
+func fileRowFromPayload(payload map[string]any) (canonical.FileRow, error) {
 	path, err := requireString(payload, "path")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
 	relativePath, err := requireString(payload, "relative_path")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
 	name, err := requireString(payload, "name")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
 	language, err := requireString(payload, "language")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
 	repoID, err := requireString(payload, "repo_id")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
 	dirPath, err := requireString(payload, "dir_path")
 	if err != nil {
-		return projector.FileRow{}, err
+		return canonical.FileRow{}, err
 	}
-	return projector.FileRow{
+	return canonical.FileRow{
 		Path:         path,
 		RelativePath: relativePath,
 		Name:         name,
@@ -225,28 +225,28 @@ func fileRowFromPayload(payload map[string]any) (projector.FileRow, error) {
 	}, nil
 }
 
-func gitlabPipelineEntityRowFromPayload(payload map[string]any) (projector.EntityRow, error) {
+func gitlabPipelineEntityRowFromPayload(payload map[string]any) (canonical.EntityRow, error) {
 	uid, err := requireString(payload, "uid")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	name, err := requireString(payload, "name")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	filePath, err := requireString(payload, "file_path")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	relativePath, err := requireString(payload, "relative_path")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	repoID, err := requireString(payload, "repo_id")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		EntityID:     uid,
 		Label:        "GitlabPipeline",
 		EntityName:   name,
@@ -257,32 +257,32 @@ func gitlabPipelineEntityRowFromPayload(payload map[string]any) (projector.Entit
 	}, nil
 }
 
-func gitlabJobEntityRowFromPayload(payload map[string]any) (projector.EntityRow, error) {
+func gitlabJobEntityRowFromPayload(payload map[string]any) (canonical.EntityRow, error) {
 	uid, err := requireString(payload, "uid")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	name, err := requireString(payload, "name")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	filePath, err := requireString(payload, "file_path")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	relativePath, err := requireString(payload, "relative_path")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	repoID, err := requireString(payload, "repo_id")
 	if err != nil {
-		return projector.EntityRow{}, err
+		return canonical.EntityRow{}, err
 	}
 	metadata := map[string]any{}
 	if needs, ok := optionalString(payload, "needs"); ok {
 		metadata["needs"] = needs
 	}
-	return projector.EntityRow{
+	return canonical.EntityRow{
 		EntityID:     uid,
 		Label:        "GitlabJob",
 		EntityName:   name,

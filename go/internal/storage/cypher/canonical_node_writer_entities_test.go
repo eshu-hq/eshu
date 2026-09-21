@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 func TestCanonicalNodeWriterSeparatesEntityUpsertsFromContainmentEdges(t *testing.T) {
@@ -17,17 +17,17 @@ func TestCanonicalNodeWriterSeparatesEntityUpsertsFromContainmentEdges(t *testin
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Repository: &projector.RepositoryRow{
+		Repository: &canonical.RepositoryRow{
 			RepoID: "repo-1",
 			Name:   "my-repo",
 			Path:   "/repos/my-repo",
 		},
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/my-repo/src/main.go",
 				RelativePath: "src/main.go",
@@ -37,7 +37,7 @@ func TestCanonicalNodeWriterSeparatesEntityUpsertsFromContainmentEdges(t *testin
 				DirPath:      "/repos/my-repo/src",
 			},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "entity-1",
 				Label:        "Function",
@@ -172,11 +172,11 @@ func TestCanonicalNodeWriterSplitsEntityContainmentByFile(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "entity-1",
 				Label:      "Function",
@@ -234,11 +234,11 @@ func TestCanonicalNodeWriterCanInlineEntityContainmentForBackendCompatibility(t 
 	writer := NewCanonicalNodeWriter(exec, 500, nil).
 		WithEntityContainmentInEntityUpsert()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "entity-1",
 				Label:      "Function",
@@ -307,11 +307,11 @@ func TestCanonicalNodeWriterCanInlineEntityContainmentAcrossFilesForPatchedBacke
 	writer := NewCanonicalNodeWriter(exec, 500, nil).
 		WithBatchedEntityContainmentInEntityUpsert()
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:   "entity-1",
 				Label:      "Function",
@@ -399,12 +399,12 @@ func TestCanonicalNodeWriterKeepsShortestPathRowsBatched(t *testing.T) {
 	exec := &mockExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 2, nil)
 
-	mat := projector.CanonicalMaterialization{
+	mat := canonical.CanonicalMaterialization{
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		RepoID:       "repo-1",
 		RepoPath:     "/repos/my-repo",
-		Files: []projector.FileRow{
+		Files: []canonical.FileRow{
 			{
 				Path:         "/repos/my-repo/src/main.go",
 				RelativePath: "src/main.go",
@@ -414,7 +414,7 @@ func TestCanonicalNodeWriterKeepsShortestPathRowsBatched(t *testing.T) {
 				DirPath:      "/repos/my-repo/src",
 			},
 		},
-		Entities: []projector.EntityRow{
+		Entities: []canonical.EntityRow{
 			{
 				EntityID:     "entity-1",
 				Label:        "Function",

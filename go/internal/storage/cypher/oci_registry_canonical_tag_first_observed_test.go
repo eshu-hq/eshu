@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // tagFirstObservedMat builds a single-observation CanonicalMaterialization for
 // the #5459 first_observed_at writer tests below.
-func tagFirstObservedMat(observedAt time.Time) projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func tagFirstObservedMat(observedAt time.Time) canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-oci-tag-1",
 		GenerationID: "gen-oci-tag-1",
-		OCIImageTagObservations: []projector.OCIImageTagObservationRow{
+		OCIImageTagObservations: []canonical.OCIImageTagObservationRow{
 			{
 				UID:            "oci-tag-observation-uid-1",
 				RepositoryID:   "oci-registry://ghcr.io/eshu-hq/demo",
@@ -33,7 +33,7 @@ func tagFirstObservedMat(observedAt time.Time) projector.CanonicalMaterializatio
 
 // ociTagIdentityUpsertStatement returns the single dispatched identity-upsert
 // statement for the tag-observation mat, failing the test if it is absent.
-func ociTagIdentityUpsertStatement(t *testing.T, mat projector.CanonicalMaterialization) Statement {
+func ociTagIdentityUpsertStatement(t *testing.T, mat canonical.CanonicalMaterialization) Statement {
 	t.Helper()
 	exec := &recordingExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)

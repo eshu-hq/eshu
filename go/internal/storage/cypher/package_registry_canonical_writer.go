@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 const (
@@ -124,7 +124,7 @@ SET d.id = row.uid,
     d.generation_id = row.generation_id,
     d.evidence_source = 'projector/package_registry'`
 
-func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat canonical.CanonicalMaterialization) []Statement {
 	var statements []Statement
 	statements = append(statements, w.buildPackageRegistryPackageStatements(mat)...)
 	statements = append(statements, w.buildPackageRegistryVersionStatements(mat)...)
@@ -134,7 +134,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.Canon
 	return statements
 }
 
-func (w *CanonicalNodeWriter) buildPackageRegistryPackageStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildPackageRegistryPackageStatements(mat canonical.CanonicalMaterialization) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryPackageUpsertCypher,
 		packageRegistryPackageRows(mat),
@@ -145,7 +145,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryPackageStatements(mat projecto
 	)
 }
 
-func (w *CanonicalNodeWriter) buildPackageRegistryVersionStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildPackageRegistryVersionStatements(mat canonical.CanonicalMaterialization) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryVersionUpsertCypher,
 		packageRegistryVersionRows(mat),
@@ -156,7 +156,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryVersionStatements(mat projecto
 	)
 }
 
-func (w *CanonicalNodeWriter) buildPackageRegistryDependencyStatements(mat projector.CanonicalMaterialization) []Statement {
+func (w *CanonicalNodeWriter) buildPackageRegistryDependencyStatements(mat canonical.CanonicalMaterialization) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryDependencyUpsertCypher,
 		packageRegistryDependencyRows(mat),
@@ -168,7 +168,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryDependencyStatements(mat proje
 }
 
 func (w *CanonicalNodeWriter) buildPackageRegistryDependencyPackageStatements(
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	return packageRegistryBatchedStatements(
 		canonicalPackageRegistryDependencyTargetUpsertCypher,
@@ -186,7 +186,7 @@ func packageRegistryBatchedStatements(
 	batchSize int,
 	label string,
 	phase string,
-	mat projector.CanonicalMaterialization,
+	mat canonical.CanonicalMaterialization,
 ) []Statement {
 	statements := BuildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
@@ -204,7 +204,7 @@ func packageRegistryBatchedStatements(
 	return statements
 }
 
-func packageRegistryPackageRows(mat projector.CanonicalMaterialization) []map[string]any {
+func packageRegistryPackageRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	packageRows := deduplicatePackageRegistryPackageRows(mat.PackageRegistryPackages)
 	rows := make([]map[string]any, 0, len(packageRows))
 	for _, row := range packageRows {
@@ -238,9 +238,9 @@ func packageRegistryPackageRows(mat projector.CanonicalMaterialization) []map[st
 }
 
 func deduplicatePackageRegistryPackageRows(
-	rows []projector.PackageRegistryPackageRow,
-) []projector.PackageRegistryPackageRow {
-	seen := make(map[string]projector.PackageRegistryPackageRow, len(rows))
+	rows []canonical.PackageRegistryPackageRow,
+) []canonical.PackageRegistryPackageRow {
+	seen := make(map[string]canonical.PackageRegistryPackageRow, len(rows))
 	for _, row := range rows {
 		if existing, ok := seen[row.UID]; ok && !packageRegistryPackageRowTakesPrecedence(row, existing) {
 			continue
@@ -252,7 +252,7 @@ func deduplicatePackageRegistryPackageRows(
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	out := make([]projector.PackageRegistryPackageRow, 0, len(keys))
+	out := make([]canonical.PackageRegistryPackageRow, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, seen[key])
 	}
@@ -260,8 +260,8 @@ func deduplicatePackageRegistryPackageRows(
 }
 
 func packageRegistryPackageRowTakesPrecedence(
-	candidate projector.PackageRegistryPackageRow,
-	existing projector.PackageRegistryPackageRow,
+	candidate canonical.PackageRegistryPackageRow,
+	existing canonical.PackageRegistryPackageRow,
 ) bool {
 	if candidate.ObservedAt.After(existing.ObservedAt) {
 		return true
@@ -275,7 +275,7 @@ func packageRegistryPackageRowTakesPrecedence(
 	return candidate.StableFactKey > existing.StableFactKey
 }
 
-func packageRegistryVersionRows(mat projector.CanonicalMaterialization) []map[string]any {
+func packageRegistryVersionRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.PackageRegistryVersions))
 	for _, row := range mat.PackageRegistryVersions {
 		rows = append(rows, map[string]any{
@@ -309,7 +309,7 @@ func packageRegistryVersionRows(mat projector.CanonicalMaterialization) []map[st
 	return rows
 }
 
-func packageRegistryDependencyRows(mat projector.CanonicalMaterialization) []map[string]any {
+func packageRegistryDependencyRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.PackageRegistryDependencies))
 	for _, row := range mat.PackageRegistryDependencies {
 		rows = append(rows, map[string]any{
@@ -346,7 +346,7 @@ func packageRegistryDependencyRows(mat projector.CanonicalMaterialization) []map
 	return rows
 }
 
-func packageRegistryDependencyTargetPackageRows(mat projector.CanonicalMaterialization) []map[string]any {
+func packageRegistryDependencyTargetPackageRows(mat canonical.CanonicalMaterialization) []map[string]any {
 	packageUIDs := packageRegistryPackageUIDSet(mat.PackageRegistryPackages)
 	seen := make(map[string]map[string]any, len(mat.PackageRegistryDependencies))
 	for _, row := range mat.PackageRegistryDependencies {
@@ -385,7 +385,7 @@ func packageRegistryDependencyTargetPackageRows(mat projector.CanonicalMateriali
 	return rows
 }
 
-func packageRegistryPackageUIDSet(rows []projector.PackageRegistryPackageRow) map[string]struct{} {
+func packageRegistryPackageUIDSet(rows []canonical.PackageRegistryPackageRow) map[string]struct{} {
 	if len(rows) == 0 {
 		return nil
 	}

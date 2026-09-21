@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 )
 
 // capturingGroupExecutor records every ExecuteGroup invocation's statements so a
@@ -27,11 +27,11 @@ func (e *capturingGroupExecutor) ExecuteGroup(_ context.Context, stmts []Stateme
 	return nil
 }
 
-func packageRegistryEdgeFixture() projector.CanonicalMaterialization {
-	return projector.CanonicalMaterialization{
+func packageRegistryEdgeFixture() canonical.CanonicalMaterialization {
+	return canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{{
 			UID:              "npm://registry.npmjs.org/lodash",
 			Ecosystem:        "npm",
 			Registry:         "registry.npmjs.org",
@@ -42,7 +42,7 @@ func packageRegistryEdgeFixture() projector.CanonicalMaterialization {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "package_registry",
 		}},
-		PackageRegistryVersions: []projector.PackageRegistryVersionRow{{
+		PackageRegistryVersions: []canonical.PackageRegistryVersionRow{{
 			UID:              "npm://registry.npmjs.org/lodash@1.0.0",
 			PackageID:        "npm://registry.npmjs.org/lodash",
 			Ecosystem:        "npm",
@@ -54,7 +54,7 @@ func packageRegistryEdgeFixture() projector.CanonicalMaterialization {
 			SourceConfidence: facts.SourceConfidenceReported,
 			CollectorKind:    "package_registry",
 		}},
-		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+		PackageRegistryDependencies: []canonical.PackageRegistryDependencyRow{{
 			UID:                  "package-registry-dependency-1",
 			PackageID:            "npm://registry.npmjs.org/lodash",
 			VersionID:            "npm://registry.npmjs.org/lodash@1.0.0",
@@ -137,10 +137,10 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackagesWithDeterministic
 
 	observedAt := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
-	statements := writer.buildPackageRegistryPackageStatements(projector.CanonicalMaterialization{
+	statements := writer.buildPackageRegistryPackageStatements(canonical.CanonicalMaterialization{
 		ScopeID:      "package-registry-scope-1",
 		GenerationID: "package-registry-generation-1",
-		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+		PackageRegistryPackages: []canonical.PackageRegistryPackageRow{
 			{
 				UID:              "npm://registry.npmjs.org/graphql",
 				Ecosystem:        "npm",
