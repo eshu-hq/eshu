@@ -60,13 +60,16 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 		{
 			name:  "stage counts",
 			query: stageCountsQuery,
+			// reducer|succeeded counts 2: the fixture's w-old-succeeded plus
+			// the standing eshu:global code_value_flow_refresh singleton
+			// migration 115 seeds on every migrated database.
 			want: []string{
 				"projector|pending|1",
 				"reducer|claimed|2",
 				"reducer|failed|1",
 				"reducer|pending|4",
 				"reducer|retrying|1",
-				"reducer|succeeded|1",
+				"reducer|succeeded|2",
 			},
 		},
 		{
@@ -74,8 +77,10 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 			query: queueSnapshotQuery,
 			args:  []any{statusSemanticsAsOf},
 			// total counts every row, hidden stale rows included. The
-			// bootstrap records the 096 provenance upgrade marker.
-			want: []string{"13|8|5|2|1|1|0|1|true|0|1800|1"},
+			// bootstrap records the 096 provenance upgrade marker, and
+			// migration 115 adds the one standing succeeded refresh row
+			// (total 14, succeeded 2).
+			want: []string{"14|8|5|2|1|2|0|1|true|0|1800|1"},
 		},
 		{
 			name:  "domain backlog",

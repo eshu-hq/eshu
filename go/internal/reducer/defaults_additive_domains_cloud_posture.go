@@ -116,6 +116,7 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 			ReadinessLookup:      handlers.ReadinessLookup,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
 			CrossScopeTargets:    handlers.IAMCanPerformCrossScopeTargets,
+			AffectedGraph:        handlers.RefreshAffectedGraph,
 			ReadinessWaits:       handlers.ReadinessWaits,
 			Tracer:               handlers.Tracer,
 			Instruments:          handlers.Instruments,

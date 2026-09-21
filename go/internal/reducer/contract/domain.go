@@ -41,6 +41,9 @@ const (
 	DomainCodeInterprocEvidence Domain = "code_interproc_evidence"
 	// DomainCodeTaintEvidence owns code taint evidence.
 	DomainCodeTaintEvidence Domain = "code_taint_evidence"
+	// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint after
+	// late producers land (issue #6785).
+	DomainCodeValueFlowRefresh Domain = "code_value_flow_refresh"
 	// DomainCodeownersOwnership owns CODEOWNERS materialization.
 	DomainCodeownersOwnership Domain = "codeowners_ownership"
 	// DomainConfigStateDrift owns configuration-state drift correlation.
@@ -231,6 +234,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainCodeInterprocEvidence:                    {},
 	DomainCodeTaintEvidence:                        {},
 	DomainCodeFunctionSummary:                      {},
+	DomainCodeValueFlowRefresh:                     {},
 	DomainOwnership:                                {},
 	DomainGovernance:                               {},
 	DomainWorkloadMaterialization:                  {},

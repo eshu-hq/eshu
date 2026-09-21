@@ -14,15 +14,24 @@ import (
 // rowCounter returns the number of rows in one seeded table.
 type rowCounter func(ctx context.Context, table string) (int, error)
 
+// standingRefreshSeedRows is the value-flow refresh singleton migration 115
+// (go/internal/storage/postgres/migrations/115_value_flow_refresh_global_seed.sql)
+// leaves on every freshly migrated database: the eshu:global scope, its
+// genesis generation, and the succeeded code_value_flow_refresh item. The
+// exact-count read-back below must name it, so a future standing row breaks
+// this gate loudly instead of passing as surplus.
+const standingRefreshSeedRows = 1
+
 // expectedRelationalCounts is the row count each Postgres table this gate
 // seeds holds after a correct seed: the plan's scopes, generations and work
-// items, and one fact_records row per IaC fact. Nothing else writes these tables
-// on a freshly migrated database, so the counts are exact.
+// items, one fact_records row per IaC fact, plus the standing refresh seed
+// above. Nothing else writes these tables on a freshly migrated database,
+// so the counts are exact.
 func expectedRelationalCounts(plan SeedPlan, facts []SeedIaCFact) map[string]int {
 	return map[string]int{
-		"ingestion_scopes":  len(plan.Scopes),
-		"scope_generations": countGenerations(plan),
-		"fact_work_items":   countWorkItems(plan),
+		"ingestion_scopes":  len(plan.Scopes) + standingRefreshSeedRows,
+		"scope_generations": countGenerations(plan) + standingRefreshSeedRows,
+		"fact_work_items":   countWorkItems(plan) + standingRefreshSeedRows,
 		"fact_records":      len(facts),
 	}
 }

@@ -48,13 +48,13 @@ func TestBootstrapDefinitionsIncludeCrossScopeCompletionQueue(t *testing.T) {
 
 	var indexDef Definition
 	for _, candidate := range BootstrapDefinitions() {
-		if candidate.Name == "fact_work_items_cross_scope_source_idx" {
+		if candidate.Name == "fact_work_items_cross_scope_source_v2_idx" {
 			indexDef = candidate
 			break
 		}
 	}
 	if indexDef.Name == "" {
-		t.Fatal("fact_work_items_cross_scope_source_idx definition missing")
+		t.Fatal("fact_work_items_cross_scope_source_v2_idx definition missing")
 	}
 	if !strings.Contains(indexDef.SQL, "CREATE INDEX CONCURRENTLY IF NOT EXISTS") {
 		t.Fatalf("populated fact_work_items index must build concurrently:\n%s", indexDef.SQL)
@@ -145,7 +145,7 @@ func TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly(t *testing.T) {
 			t.Fatalf("completion producer catalog drift: migration missing %q", fragment)
 		}
 	}
-	indexSQL := MigrationSQL("fact_work_items_cross_scope_source_idx")
+	indexSQL := MigrationSQL("fact_work_items_cross_scope_source_v2_idx")
 	consumerList := quotedSorted(consumerSet)
 	if fragment := "domain IN (" + consumerList + ")"; !strings.Contains(indexSQL, fragment) {
 		t.Fatalf("completion consumer catalog drift: index missing %q", fragment)

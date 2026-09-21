@@ -39,6 +39,20 @@ func dependencyCatalog() map[reducercontract.Domain]reducercontract.CrossScopeDe
 				reducercontract.DomainCICDRunCorrelation,
 			},
 		},
+		// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint
+		// when the graph chain it reads lands late (issue #6785): RUNS_IN
+		// from workload materialization, USES from workload-cloud
+		// relationship materialization, CAN_PERFORM from IAM CAN_PERFORM
+		// materialization, and the CloudResource nodes from AWS resource
+		// materialization.
+		reducercontract.DomainCodeValueFlowRefresh: {
+			ProducerDomains: []reducercontract.Domain{
+				reducercontract.DomainWorkloadMaterialization,
+				reducercontract.DomainWorkloadCloudRelationshipMaterialization,
+				reducercontract.DomainIAMCanPerformMaterialization,
+				reducercontract.DomainAWSResourceMaterialization,
+			},
+		},
 	}
 }
 

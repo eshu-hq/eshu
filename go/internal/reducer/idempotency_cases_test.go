@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -145,6 +147,50 @@ func idempotencyReplayCases() []idempotencyReplayCase {
 		platformInfraReplayCase(),
 		codeownersOwnershipReplayCase(),
 		submodulePinReplayCase(),
+		codeValueFlowRefreshReplayCase(),
+	}
+}
+
+// replayRecordingFixpointProjector replays one deterministic fixpoint result
+// so the refresh replay case can compare handler outputs across replays.
+type replayRecordingFixpointProjector struct {
+	result value.FixpointProjectionResult
+	calls  int
+}
+
+func (f *replayRecordingFixpointProjector) ProjectValueFlowFixpointEvidence(
+	_ context.Context,
+	scopeID, generationID string,
+) (value.FixpointProjectionResult, error) {
+	f.calls++
+	return f.result, nil
+}
+
+// codeValueFlowRefreshReplayCase proves the refresh handler is a pure
+// function of (intent, fixpoint result): two runs project byte-identical
+// rows, so replaying the singleton never duplicates or drifts the refresh.
+func codeValueFlowRefreshReplayCase() idempotencyReplayCase {
+	return idempotencyReplayCase{
+		domain: DomainCodeValueFlowRefresh,
+		run: func(t *testing.T) []idempotencyRow {
+			t.Helper()
+			projector := &replayRecordingFixpointProjector{
+				result: value.FixpointProjectionResult{FindingCount: 1, GraphRows: 1},
+			}
+			handler := refresh.Handler{Fixpoint: projector}
+			intent := replayIntent(DomainCodeValueFlowRefresh, "eshu:global", []string{"code_value_flow_refresh:global"})
+			result, err := handler.Handle(drainContext(), intent)
+			if err != nil {
+				t.Fatalf("refresh Handle: %v", err)
+			}
+			if projector.calls != 1 {
+				t.Fatalf("fixpoint runs = %d, want 1", projector.calls)
+			}
+			return []idempotencyRow{{
+				identity: "code_value_flow_refresh:global",
+				contents: fmt.Sprintf("writes=%d;summary=%s", result.CanonicalWrites, result.EvidenceSummary),
+			}}
+		},
 	}
 }
 

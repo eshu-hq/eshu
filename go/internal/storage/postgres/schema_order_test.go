@@ -173,8 +173,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"container_image_identity_current_support_facts_function",
 	// migration 093 (#5740 durable producer-completion fanout queue).
 	"cross_scope_completion_queue",
-	// migration 094 (#5740 non-blocking source-intent lookup index).
-	"fact_work_items_cross_scope_source_idx",
 	// migration 095 (#5740 quiet-upgrade producer replay seed).
 	"cross_scope_completion_upgrade_seed",
 	// migration 096 (#5827 one-time provenance edge identity rebuild seed).
@@ -234,4 +232,24 @@ var orderedBootstrapDefinitionNames = []string{
 	// for the #6837 band self-join. Numbered 111 because main merged the
 	// #6785 readiness-waits migration as 110 first.
 	"code_function_fingerprint",
+	// migration 112 (#6785) admits the four value-flow refresh producer
+	// domains to the completion CHECK and fallback trigger on installs that
+	// already applied 093; guarded to converge once.
+	"value_flow_refresh_producer_domains",
+	// migration 113 (#6785) rebuilds the fanout consumer-intent lookup under
+	// a NEW name with the predicate widened to code_value_flow_refresh. A
+	// same-name drop+create would rebuild this index on every bootstrap
+	// (no applied-migration ledger); 094's create is gone from the tree.
+	"fact_work_items_cross_scope_source_v2_idx",
+	// migration 114 (#6785) drops the legacy name 113 supersedes.
+	"drop_fact_work_items_cross_scope_source_idx_legacy",
+	// migration 115 (#6785) seeds the value-flow refresh singleton anchor:
+	// scope eshu:global with one perpetually-active generation plus the
+	// code_value_flow_refresh item, all ON CONFLICT DO NOTHING.
+	"value_flow_refresh_global_seed",
+	// migration 116 (#6785) publishes the vacuous canonical-nodes phase for
+	// the eshu:global anchor: without it the global scope (no git facts,
+	// never any) holds the canonical-code quiescence lane forever and the
+	// golden drain never reaches terminal.
+	"value_flow_refresh_global_canonical_phase",
 }

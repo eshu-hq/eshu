@@ -55,6 +55,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			ReadinessLookup:           handlers.ReadinessLookup,
 			PriorGenerationCheck:      handlers.PriorGenerationCheck,
 			WorkloadInstanceExistence: handlers.WorkloadInstanceExistence,
+			AffectedGraph:             handlers.RefreshAffectedGraph,
+			Tracer:                    handlers.Tracer,
 			ReadinessWaits:            handlers.ReadinessWaits,
 			Instruments:               handlers.Instruments,
 		}

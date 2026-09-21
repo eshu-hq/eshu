@@ -76,6 +76,9 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				// materialization records endpoint presence whenever the handles_route
 				// gate is enabled — never coupled to the secrets/IAM flag.
 				EndpointPresenceWriter: handlers.APIEndpointRepoPathPresenceWriter,
+				AffectedGraph:          handlers.RefreshAffectedGraph,
+				Tracer:                 handlers.Tracer,
+				Instruments:            handlers.Instruments,
 			}
 		case DomainCodeCallMaterialization:
 			def.Handler = CodeCallMaterializationHandler{

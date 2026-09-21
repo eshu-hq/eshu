@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -204,6 +205,15 @@ type DefaultHandlers struct {
 	// resolving to a real :ContainerImage node. The handler also gates on
 	// ReadinessLookup so edges never resolve against an uncommitted source.
 	CloudResourceContainerImageEdgeWriter CloudResourceContainerImageEdgeWriter
+
+	// RefreshAffectedGraph runs the value-flow refresh emit gate (issue #6785)
+	// over each producer's committed keys. It is the shared graph query
+	// runner: the four producer handlers consult it after their graph writes
+	// commit, so the gate reads the run's own edges. Optional: a nil value
+	// keeps every gate failed open (a spurious refresh is a bounded extra
+	// solve; a missed one is silent accuracy loss); production wires the
+	// durable graph-backed runner.
+	RefreshAffectedGraph affected.Runner
 
 	// ContainerImageExistence reports which candidate target ContainerImage
 	// uids already exist in the canonical graph, so

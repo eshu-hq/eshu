@@ -571,9 +571,18 @@ type Instruments struct {
 	// set); settled_missing — a later evaluation committed at once on an
 	// already settled set). A steady abandoned or settled_missing rate names
 	// upstream nodes that never materialize.
-	ReducerReadinessWaits      metric.Int64Counter
-	SBOMAttestationAttachments metric.Int64Counter
-	SupplyChainImpactFindings  metric.Int64Counter
+	ReducerReadinessWaits metric.Int64Counter
+	// ValueFlowRefreshGateEvaluations counts value-flow refresh emit-gate
+	// evaluations (issue #6785). Labels: domain (the producer reducer
+	// domain), outcome (affected — the graph read found cloud-calling repos
+	// and the ACK may emit; suppressed — an explicit zero withholds the
+	// event; fail_open — the gate was unwired or its read errored, so the
+	// ACK emits rather than risk silent accuracy loss). A steady fail_open
+	// rate names a broken gate runner; a suppressed-heavy mix is the gate
+	// earning its keep.
+	ValueFlowRefreshGateEvaluations metric.Int64Counter
+	SBOMAttestationAttachments      metric.Int64Counter
+	SupplyChainImpactFindings       metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -2998,6 +3007,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerReadinessWaits counter: %w", err)
+	}
+
+	inst.ValueFlowRefreshGateEvaluations, err = meter.Int64Counter(
+		"eshu_dp_value_flow_refresh_gate_evaluations_total",
+		metric.WithDescription("Total value-flow refresh emit-gate evaluations by producer domain and outcome (affected/suppressed/fail_open)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ValueFlowRefreshGateEvaluations counter: %w", err)
 	}
 
 	inst.IAMCanPerformConditioned, err = meter.Int64Counter(

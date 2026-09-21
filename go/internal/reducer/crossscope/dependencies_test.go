@@ -44,6 +44,33 @@ func TestDependencyValidate(t *testing.T) {
 // TestDependencyCatalogIsValid asserts every entry in the single source of
 // truth names a registered consumer and only registered producers, so a typo
 // in the catalog fails here rather than silently disabling completion replay.
+// TestValueFlowRefreshConsumerDeclaresFourProducers pins the #6785 refresh
+// wiring: the code_value_flow_refresh consumer completes on workload
+// (RUNS_IN), workload-cloud (USES), IAM CAN_PERFORM, and aws_resource
+// completions.
+func TestValueFlowRefreshConsumerDeclaresFourProducers(t *testing.T) {
+	t.Parallel()
+
+	dependency, ok := dependencyCatalog()[reducercontract.DomainCodeValueFlowRefresh]
+	if !ok {
+		t.Fatal("catalog has no code_value_flow_refresh consumer")
+	}
+	want := []reducercontract.Domain{
+		reducercontract.DomainWorkloadMaterialization,
+		reducercontract.DomainWorkloadCloudRelationshipMaterialization,
+		reducercontract.DomainIAMCanPerformMaterialization,
+		reducercontract.DomainAWSResourceMaterialization,
+	}
+	if len(dependency.ProducerDomains) != len(want) {
+		t.Fatalf("code_value_flow_refresh producers = %v, want %v", dependency.ProducerDomains, want)
+	}
+	for _, producer := range want {
+		if !slices.Contains(dependency.ProducerDomains, producer) {
+			t.Errorf("code_value_flow_refresh producers = %v, missing %q", dependency.ProducerDomains, producer)
+		}
+	}
+}
+
 func TestDependencyCatalogIsValid(t *testing.T) {
 	t.Parallel()
 
@@ -64,9 +91,13 @@ func TestDependencyCatalogIsValid(t *testing.T) {
 func TestCompletionEdgesExposeCatalogExactly(t *testing.T) {
 	t.Parallel()
 	want := []CompletionEdge{
+		{Producer: reducercontract.DomainAWSResourceMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},
 		{Producer: reducercontract.DomainCICDRunCorrelation, Consumer: reducercontract.DomainSupplyChainImpact},
 		{Producer: reducercontract.DomainContainerImageIdentity, Consumer: reducercontract.DomainCICDRunCorrelation},
 		{Producer: reducercontract.DomainContainerImageIdentity, Consumer: reducercontract.DomainSupplyChainImpact},
+		{Producer: reducercontract.DomainIAMCanPerformMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},
+		{Producer: reducercontract.DomainWorkloadCloudRelationshipMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},
+		{Producer: reducercontract.DomainWorkloadMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},
 	}
 	if got := CompletionEdges(); !slices.Equal(got, want) {
 		t.Fatalf("CompletionEdges() = %v, want %v", got, want)

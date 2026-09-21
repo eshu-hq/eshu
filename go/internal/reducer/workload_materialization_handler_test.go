@@ -5,6 +5,7 @@ package reducer //nolint:filelength // 994 lines: workload materialization handl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -86,6 +87,102 @@ func TestWorkloadMaterializationHandlerMaterializesFromFacts(t *testing.T) {
 	}
 	if len(executor.calls) == 0 {
 		t.Fatal("CypherExecutor calls = 0, want > 0")
+	}
+}
+
+// productiveWorkloadGateLoader feeds one repository plus one Deployment so the
+// handler commits workload rows for the emit-gate tests.
+func productiveWorkloadGateLoader(now time.Time) *stubFactLoader {
+	return &stubFactLoader{
+		envelopes: []facts.Envelope{
+			{
+				FactID:   "fact-repo",
+				FactKind: "repository",
+				Payload: map[string]any{
+					"graph_id": "repo-payments",
+					"name":     "payments",
+				},
+				ObservedAt: now,
+			},
+			{
+				FactID:   "fact-file",
+				FactKind: "file",
+				Payload: map[string]any{
+					"repo_id": "repo-payments",
+					"parsed_file_data": map[string]any{
+						"k8s_resources": []any{
+							map[string]any{
+								"name":      "payments",
+								"kind":      "Deployment",
+								"namespace": "production",
+							},
+						},
+					},
+				},
+				ObservedAt: now,
+			},
+		},
+	}
+}
+
+func productiveWorkloadGateIntent(now time.Time) Intent {
+	return Intent{
+		IntentID:        "intent-wm-gate",
+		ScopeID:         "scope-payments",
+		GenerationID:    "gen-1",
+		SourceSystem:    "git",
+		Domain:          DomainWorkloadMaterialization,
+		Cause:           "facts projected",
+		EntityKeys:      []string{"repo-payments"},
+		RelatedScopeIDs: []string{"scope-payments"},
+		EnqueuedAt:      now,
+		AvailableAt:     now,
+		Status:          IntentStatusPending,
+	}
+}
+
+// TestWorkloadMaterializationReportsAffectedRepos pins the #6785 emit gate: a
+// productive run reports the affected-repo count for the refresh ACK.
+func TestWorkloadMaterializationReportsAffectedRepos(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	executor := &recordingCypherExecutor{}
+	handler := WorkloadMaterializationHandler{
+		FactLoader:    productiveWorkloadGateLoader(now),
+		Materializer:  NewWorkloadMaterializer(executor),
+		AffectedGraph: &stubAffectedGraph{rows: []map[string]any{{"repo_id": "repo-payments"}}},
+	}
+	result, err := handler.Handle(context.Background(), productiveWorkloadGateIntent(now))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if result.CanonicalWrites == 0 {
+		t.Fatal("CanonicalWrites = 0, want the committed rows")
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1", got)
+	}
+}
+
+// TestWorkloadMaterializationGateErrorFailsOpen pins fail-open: a gate read
+// error must not suppress the refresh.
+func TestWorkloadMaterializationGateErrorFailsOpen(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	executor := &recordingCypherExecutor{}
+	handler := WorkloadMaterializationHandler{
+		FactLoader:    productiveWorkloadGateLoader(now),
+		Materializer:  NewWorkloadMaterializer(executor),
+		AffectedGraph: &stubAffectedGraph{err: errors.New("graph down")},
+	}
+	result, err := handler.Handle(context.Background(), productiveWorkloadGateIntent(now))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1 (fail open)", got)
 	}
 }
 
