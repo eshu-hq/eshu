@@ -413,7 +413,7 @@ linters:
       - path: 'internal/parser/golang/language\.go'
         linters:
           - funlen
-      - path: 'internal/parser/javascript/javascript_language\.go'
+      - path: 'internal/parser/javascript/language\.go'
         linters:
           - funlen
       - path: 'internal/parser/json/dbt_manifest\.go'
