@@ -114,7 +114,7 @@ func allowedLanguageSet(allowed []string) map[string]struct{} {
 }
 
 func filesByLanguage(paths []string, allowedSet map[string]struct{}) map[string][]string {
-	filesByLanguage := make(map[string][]string)
+	byLanguage := make(map[string][]string)
 	for _, path := range paths {
 		config, ok := extensionConfigs[strings.ToLower(filepath.Ext(path))]
 		if !ok {
@@ -123,9 +123,9 @@ func filesByLanguage(paths []string, allowedSet map[string]struct{}) map[string]
 		if _, ok := allowedSet[config.Language]; !ok {
 			continue
 		}
-		filesByLanguage[config.Language] = append(filesByLanguage[config.Language], path)
+		byLanguage[config.Language] = append(byLanguage[config.Language], path)
 	}
-	return filesByLanguage
+	return byLanguage
 }
 
 // IsAvailable reports whether the external scip-* binary is installed for the language.
