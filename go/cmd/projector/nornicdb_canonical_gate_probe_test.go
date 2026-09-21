@@ -100,6 +100,7 @@ func TestProjectorCanonicalExecutorComposedInnerStillSatisfiesProbeExecutor(t *t
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	pge, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {

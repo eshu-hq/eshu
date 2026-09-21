@@ -108,6 +108,46 @@ func TestSessionStreamsWithoutClose(t *testing.T) {
 	}
 }
 
+// configuredReader mirrors querycontract.GraphConfiguredReader: it reports
+// whether the reader actually has a live backend wired, distinct from
+// being merely non-nil.
+type configuredReader struct {
+	fakeReader
+	configured bool
+}
+
+func (r configuredReader) GraphConfigured() bool { return r.configured }
+
+// TestReaderSkipsUndrivenReaders pins the lightweight-profile contract:
+// decorating a non-nil but undriven reader must not flip it to configured.
+// Handlers gate graph-free responses on that signal, so the session leaves
+// such a reader exactly as it found it.
+func TestReaderSkipsUndrivenReaders(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	dir := t.TempDir()
+	getenv := func(key string) string {
+		if key == "ESHU_DIFFERENTIAL_CAPTURE_DIR" {
+			return dir
+		}
+		return ""
+	}
+	session, err := Open(getenv, "drain-test")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	undriven := configuredReader{configured: false}
+	if got := session.ReaderIfConfigured(undriven); got != backendconformance.GraphQuery(undriven) {
+		t.Fatal("ReaderIfConfigured() wrapped an undriven reader")
+	}
+	driven := configuredReader{configured: true}
+	if got := session.ReaderIfConfigured(driven); got == backendconformance.GraphQuery(driven) {
+		t.Fatal("ReaderIfConfigured() skipped a driven reader")
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 // TestSessionCapturesReadsAndWrites is the end-to-end decorator proof
 // without a backend: statements run through both decorated seams land in
 // the recordings directory labeled with the configured backend.

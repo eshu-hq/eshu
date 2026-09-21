@@ -28,6 +28,7 @@ func TestProjectorCanonicalExecutorBoundsRealNornicDBFanout(t *testing.T) {
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	phase, ok := executor.(sourcecypher.PhaseGroupExecutor)
 	if !ok {
@@ -74,6 +75,7 @@ func TestProjectorCanonicalExecutorSharesNornicDBGateWithDrain(t *testing.T) {
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {

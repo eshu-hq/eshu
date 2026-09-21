@@ -227,6 +227,7 @@ func TestProjectorNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {
@@ -270,6 +271,7 @@ func TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable(t *testing.T)
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	writer := sourcecypher.NewCanonicalNodeWriter(executor, sourcecypher.DefaultBatchSize, nil)
 	err := writer.Write(context.Background(), canonical.CanonicalMaterialization{

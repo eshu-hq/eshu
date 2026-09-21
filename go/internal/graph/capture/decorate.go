@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/backendconformance"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -65,6 +66,23 @@ func (s *Session) Reader(inner backendconformance.GraphQuery) backendconformance
 		return inner
 	}
 	return backendconformance.WrapGraphQuery(inner, s.recorder, s.backend)
+}
+
+// ReaderIfConfigured decorates the read seam unless inner reports itself
+// undriven through the optional querycontract.GraphConfiguredReader
+// interface. A non-nil but driverless reader (local-lightweight profile)
+// must stay exactly as it is: handlers gate graph-free responses on that
+// signal, and a decorator does not implement it, so wrapping would flip
+// the reader to configured. Readers that do not implement the interface
+// are treated as configured whenever non-nil, matching querycontract.
+func (s *Session) ReaderIfConfigured(inner backendconformance.GraphQuery) backendconformance.GraphQuery {
+	if s == nil {
+		return inner
+	}
+	if configured, ok := inner.(querycontract.GraphConfiguredReader); ok && !configured.GraphConfigured() {
+		return inner
+	}
+	return s.Reader(inner)
 }
 
 // Writer decorates the graph write seam with capture. On a nil session it

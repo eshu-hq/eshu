@@ -33,6 +33,7 @@ func TestBootstrapCanonicalExecutorGroupedWritesStillUsesPerPhase(t *testing.T) 
 		nil,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)

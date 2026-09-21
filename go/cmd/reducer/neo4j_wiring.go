@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -208,15 +210,35 @@ func (r neo4jSessionRunner) RunSingle(ctx context.Context, cypher string, params
 // reducerNeo4jDriverCloser wraps driver close with a timeout.
 type reducerNeo4jDriverCloser struct {
 	Driver neo4jdriver.DriverWithContext
+	// captureSession surfaces a stashed streaming failure at shutdown. It
+	// is nil unless differential capture opened a session; records already
+	// stream to disk as statements execute, so Close never replays them.
+	captureSession *capture.Session
 }
 
 func (c reducerNeo4jDriverCloser) Close() error {
+	var sessionErr error
+	if c.captureSession != nil {
+		sessionErr = c.captureSession.Close()
+	}
 	if c.Driver == nil {
-		return nil
+		return sessionErr
 	}
 	closeCtx, cancel := context.WithTimeout(context.Background(), reducerNeo4jCloseTimeout)
 	defer cancel()
-	return c.Driver.Close(closeCtx)
+	return errors.Join(sessionErr, c.Driver.Close(closeCtx))
+}
+
+// applyReducerCapture decorates the reducer's wrappable graph seams: the
+// canonical write chain above its retry seam (logical statements, so a
+// transient retry never re-records) and the query read facet. The
+// existence-probe facet (sourcecypher.CypherReader) and the materializer
+// chain below its own retry seam are covered separately: the probe facet
+// has no capture-shaped method, and the materializer adapter is wrapped
+// inside newReducerCypherExecutor. A nil session returns both seams
+// unchanged.
+func applyReducerCapture(session *capture.Session, exec sourcecypher.Executor, reader query.GraphQuery) (sourcecypher.Executor, query.GraphQuery) {
+	return session.Writer(exec), session.ReaderIfConfigured(reader)
 }
 
 // openReducerNeo4jAdapters opens a Neo4j driver and returns the executor
@@ -237,6 +259,13 @@ func openReducerNeo4jAdapters(
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
+	// Differential capture (#6782 slice 3) opens before any datastore so a
+	// half-configured capture fails closed with nothing to leak: the flag
+	// without a directory errors here instead of running uncaptured.
+	captureSession, err := capture.Open(getenv, "reducer")
+	if err != nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("open differential capture: %w", err)
+	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -248,11 +277,12 @@ func openReducerNeo4jAdapters(
 		TxTimeout:    reducerTransactionTimeout(graphBackend, getenv),
 	}
 
-	return newReducerNeo4jExecutor(runner, instruments),
-		newReducerCypherExecutor(runner, instruments),
+	canonicalExec, graphReader := applyReducerCapture(captureSession, newReducerNeo4jExecutor(runner, instruments), runner)
+	return canonicalExec,
+		newReducerCypherExecutor(runner, instruments, captureSession),
 		runner,
-		runner,
-		reducerNeo4jDriverCloser{Driver: driver},
+		graphReader,
+		reducerNeo4jDriverCloser{Driver: driver, captureSession: captureSession},
 		nil
 }
 

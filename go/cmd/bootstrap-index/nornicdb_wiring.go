@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -67,6 +68,7 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	gate *sourcecypher.BackpressureGate,
+	captureSession *capture.Session,
 ) (sourcecypher.Executor, error) {
 	instrumented := &sourcecypher.InstrumentedExecutor{
 		Inner: &sourcecypher.RetryingExecutor{
@@ -79,7 +81,8 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	}
 	if graphBackend != runtimecfg.GraphBackendNornicDB {
 		// Neo4j has no fan-out wrapper, so the gate applies directly here.
-		return graphbackpressure.WrapExecutorWithGate(instrumented, gate), nil
+		// A nil session returns the chain unchanged.
+		return captureSession.Writer(graphbackpressure.WrapExecutorWithGate(instrumented, gate)), nil
 	}
 
 	groupedWrites, err := nornicDBCanonicalGroupedWrites(getenv)
@@ -120,6 +123,11 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	// this function returns below (see the function doc comment). A nil gate
 	// (default) leaves bounded unchanged.
 	bounded = graphbackpressure.WrapExecutorWithGate(bounded, gate)
+	// Capture the same inner grouped layer, never the phase-only outer: the
+	// outer fan-out calls Execute and ExecuteGroup on this value, both of
+	// which the capture decorator records and forwards. A nil session
+	// returns it unchanged.
+	bounded = captureSession.Writer(bounded)
 	if groupedWrites {
 		// The toggle requested whole-materialization atomic canonical writes (one
 		// ExecuteGroup for every node phase). NornicDB cannot satisfy that for a

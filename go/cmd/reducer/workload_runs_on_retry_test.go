@@ -83,7 +83,7 @@ func TestWorkloadRunsOnAtomicGroupReplaysCommitConflicts(t *testing.T) {
 	for _, test := range conflicts {
 		t.Run(test.name, func(t *testing.T) {
 			runner := &runsOnConflictRunner{conflict: test.err, legacyPresent: true}
-			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil, nil))
 			projection := &reducer.ProjectionResult{RuntimePlatformRows: []reducer.RuntimePlatformRow{{
 				Environment:  "production",
 				Confidence:   0.9,
@@ -123,7 +123,7 @@ func TestWorkloadRunsOnAtomicGroupDefersNornicDBTransactionTimeoutToDurableRetry
 		},
 		legacyPresent: true,
 	}
-	materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+	materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil, nil))
 	projection := &reducer.ProjectionResult{RuntimePlatformRows: []reducer.RuntimePlatformRow{{
 		Environment:  "production",
 		Confidence:   0.9,
@@ -206,7 +206,7 @@ func TestWorkloadRunsOnAtomicGroupDoesNotDeferTimeoutNestedInUnknownOutcome(t *t
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &runsOnConflictRunner{conflict: tt.err, legacyPresent: true}
-			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil, nil))
 			projection := &reducer.ProjectionResult{RuntimePlatformRows: []reducer.RuntimePlatformRow{{
 				Environment:  "production",
 				Confidence:   0.9,

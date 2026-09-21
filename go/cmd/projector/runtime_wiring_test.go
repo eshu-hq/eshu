@@ -86,6 +86,7 @@ func TestProjectorCanonicalExecutorRetriesNornicDBMergeUniqueConflict(t *testing
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	group, ok := executor.(sourcecypher.PhaseGroupExecutor)
 	if !ok {
@@ -123,6 +124,7 @@ func TestProjectorCanonicalExecutorWrapsNornicDBWithTimeoutHint(t *testing.T) {
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {
@@ -151,6 +153,7 @@ func TestProjectorCanonicalExecutorUsesNornicDBPhaseGroups(t *testing.T) {
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	if _, ok := executor.(sourcecypher.PhaseGroupExecutor); !ok {
 		t.Fatalf("NornicDB projector executor type = %T, want PhaseGroupExecutor", executor)
@@ -180,6 +183,7 @@ func TestProjectorCanonicalExecutorPreservesConfiguredNornicDBFanout(t *testing.
 		getenv,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
 	if !ok {
@@ -203,6 +207,7 @@ func TestProjectorCanonicalExecutorKeepsNeo4jGroupedWithoutNornicDBTimeout(t *te
 		func(string) string { return "" },
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	if _, ok := executor.(sourcecypher.TimeoutExecutor); ok {
 		t.Fatal("Neo4j projector executor unexpectedly uses NornicDB timeout wrapper")

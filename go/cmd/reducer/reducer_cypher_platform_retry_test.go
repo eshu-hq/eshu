@@ -22,7 +22,7 @@ func TestReducerCypherExecutorRetriesTypedNornicDBPlatformCommitUniqueConflict(t
 		},
 		nil,
 	}}
-	executor := newReducerCypherExecutor(session, nil)
+	executor := newReducerCypherExecutor(session, nil, nil)
 
 	err := executor.ExecuteCypher(context.Background(), `UNWIND $rows AS row
 MERGE (p:Platform {id: row.platform_id})

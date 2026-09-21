@@ -109,6 +109,7 @@ func TestBootstrapCanonicalGateBoundsConcurrentEntityFanOut(t *testing.T) {
 		nil,
 		nil,
 		gate,
+		nil, // no capture session: passthrough
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)
@@ -203,6 +204,7 @@ func TestBootstrapCanonicalGateTerminatesUnderMixedFanOutPressure(t *testing.T) 
 		nil,
 		nil,
 		gate,
+		nil, // no capture session: passthrough
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)
@@ -313,6 +315,7 @@ func TestBootstrapCanonicalGateDisabledFanOutIsUnbounded(t *testing.T) {
 		nil,
 		nil,
 		nil, // disabled gate
+		nil, // no capture session: passthrough
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)

@@ -19,6 +19,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -203,7 +204,7 @@ func TestReducerCypherExecutorExecutesCypher(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{}
-	executor := newReducerCypherExecutor(session, nil)
+	executor := newReducerCypherExecutor(session, nil, nil)
 
 	err := executor.ExecuteCypher(
 		context.Background(),
@@ -225,7 +226,7 @@ func TestReducerCypherExecutorPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	session := &fakeNeo4jSession{err: errors.New("connection refused")}
-	executor := newReducerCypherExecutor(session, nil)
+	executor := newReducerCypherExecutor(session, nil, nil)
 
 	err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload)", nil)
 	if err == nil {
@@ -242,7 +243,7 @@ func TestReducerCypherExecutorRetriesTransientDeadlock(t *testing.T) {
 			nil,
 		},
 	}
-	executor := newReducerCypherExecutor(session, nil)
+	executor := newReducerCypherExecutor(session, nil, nil)
 
 	err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload {id: $id})", map[string]any{"id": "workload:retry"})
 	if err != nil {
@@ -492,5 +493,85 @@ func TestNornicDBSemanticObservedExecutorLogsStatementDuration(t *testing.T) {
 		if !strings.Contains(logText, want) {
 			t.Fatalf("semantic statement log missing %q:\n%s", want, logText)
 		}
+	}
+}
+
+func openTestCaptureSession(t *testing.T, backend string) (*capture.Session, string) {
+	t.Helper()
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	dir := t.TempDir()
+	getenv := func(key string) string {
+		switch key {
+		case "ESHU_DIFFERENTIAL_CAPTURE_DIR":
+			return dir
+		case "ESHU_GRAPH_BACKEND":
+			return backend
+		}
+		return ""
+	}
+	session, err := capture.Open(getenv, "reducer-test")
+	if err != nil {
+		t.Fatalf("capture.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := session.Close(); err != nil {
+			t.Errorf("session.Close() error = %v", err)
+		}
+	})
+	return session, dir
+}
+
+func TestReducerCypherExecutorCapturesStatements(t *testing.T) {
+	session, dir := openTestCaptureSession(t, "nornicdb")
+	executor := newReducerCypherExecutor(&fakeNeo4jSession{}, nil, session)
+
+	if err := executor.ExecuteCypher(context.Background(), "MERGE (w:Workload {id: $workload_id})", map[string]any{"workload_id": "workload:my-api"}); err != nil {
+		t.Fatalf("ExecuteCypher() error = %v", err)
+	}
+	byBackend, err := capture.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("capture.LoadDir() error = %v", err)
+	}
+	if len(byBackend["nornicdb"]) != 1 {
+		t.Fatalf("captured nornicdb records = %d, want 1", len(byBackend["nornicdb"]))
+	}
+}
+
+// fakeCaptureReader is a backend-free GraphQuery for the capture-composition
+// test: it answers one canned row so the read facet records without a driver.
+type fakeCaptureReader struct{}
+
+func (fakeCaptureReader) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return []map[string]any{{"n": 1}}, nil
+}
+
+func (fakeCaptureReader) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return map[string]any{"n": 1}, nil
+}
+
+func TestApplyReducerCaptureDecoratesBothSeams(t *testing.T) {
+	session, dir := openTestCaptureSession(t, "nornicdb")
+	exec, reader := applyReducerCapture(session, newReducerNeo4jExecutor(&fakeNeo4jSession{}, nil), fakeCaptureReader{})
+
+	if err := exec.Execute(context.Background(), sourcecypher.Statement{Cypher: "MERGE (w:Workload)"}); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if _, err := reader.Run(context.Background(), "MATCH (w:Workload) RETURN w", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	byBackend, err := capture.LoadDir(dir)
+	if err != nil {
+		t.Fatalf("capture.LoadDir() error = %v", err)
+	}
+	if len(byBackend["nornicdb"]) != 2 {
+		t.Fatalf("captured nornicdb records = %d, want 2 (one write, one read)", len(byBackend["nornicdb"]))
+	}
+}
+
+func TestReducerNeo4jDriverCloserClosesCaptureSession(t *testing.T) {
+	session, _ := openTestCaptureSession(t, "nornicdb")
+	closer := reducerNeo4jDriverCloser{captureSession: session}
+	if err := closer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceauditasync"
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
@@ -49,6 +50,13 @@ func wireAPI(
 	graphBackend, err := loadGraphBackend(getenv)
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load graph backend: %w", err)
+	}
+	// Differential capture (#6782 slice 3) opens before any datastore so a
+	// half-configured capture fails closed with nothing to leak: the flag
+	// without a directory errors here instead of running uncaptured.
+	captureSession, err := capture.Open(getenv, "mcp-server")
+	if err != nil {
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("open differential capture: %w", err)
 	}
 	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
 	if err != nil {
@@ -226,12 +234,15 @@ func wireAPI(
 		neo4jDB,
 		query.WithNeo4jReaderObservability(logger, instruments),
 	)
+	// Capture the read seam when a session is open. Undriven readers stay
+	// undecorated so lightweight profiles keep their graph-free responses.
+	graphReader := captureSession.ReaderIfConfigured(neo4jReader)
 	contentReader := query.NewContentReader(rawDB)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted, then start the #6793 infra read
 	// model backfill in the background. Graph-disabled profiles skip both.
 	if driver != nil {
-		if err := query.RunStartupBackfills(ctx, rawDB, neo4jReader, logger, instruments); err != nil {
+		if err := query.RunStartupBackfills(ctx, rawDB, graphReader, logger, instruments); err != nil {
 			_ = rawDB.Close()
 			_ = driver.Close(ctx)
 			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
@@ -266,7 +277,7 @@ func wireAPI(
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	router := newMCPQueryRouterWithSemanticEmbedding(
 		rawDB,
-		neo4jReader,
+		graphReader,
 		contentReader,
 		statusReader,
 		queryProfile,
@@ -343,6 +354,12 @@ func wireAPI(
 	}
 
 	cleanup := func() {
+		// Records stream to disk as statements execute, so Close only
+		// surfaces a stashed streaming failure; log it rather than
+		// failing shutdown over an already-complete recording.
+		if err := captureSession.Close(); err != nil && logger != nil {
+			logger.Error("differential capture close failed", telemetry.EventAttr("runtime.shutdown.failed"), slog.String("error", err.Error()))
+		}
 		// Close allowedReadAudit BEFORE db.Close(): its worker's final
 		// shutdown flush still needs a live connection, and Close() is
 		// bounded (default 5s) so a stuck sink cannot hang shutdown.
