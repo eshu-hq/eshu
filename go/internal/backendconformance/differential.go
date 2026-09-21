@@ -391,6 +391,12 @@ type differentialGroupRecorder struct {
 // the grouped/phased/probe surface when inner lacks GroupExecutor — the
 // same capability-stripping composition WrapExecutorWithGate uses, so a
 // wrapped non-grouping inner keeps its sequential fallback.
+//
+// Wrap the inner grouped executor, not a phase-only outer (e.g. the
+// NornicDB PhaseGroupExecutor, which is not a GroupExecutor): a phase-only
+// inner gets the execute-only recorder and loses its phased surface. This
+// mirrors the backpressure call-site discipline of gating at the inner
+// grouped layer, never the phase-only outer.
 func WrapExecutor(inner sourcecypher.Executor, recorder *DifferentialRecorder, backend string) sourcecypher.Executor {
 	if inner == nil || recorder == nil || !CaptureEnabled() {
 		return inner

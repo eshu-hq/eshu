@@ -531,6 +531,29 @@ func TestCompareRecordingsFlagsOneSidedFailure(t *testing.T) {
 	}
 }
 
+// TestCompareRecordingsFlagsDoubledWrite pins that execution-count
+// divergence compares unequal even when every execution agrees: the
+// per-fingerprint digest multiset differs in length, so a doubled write
+// (2 vs 3 successful executions) cannot pass silent.
+func TestCompareRecordingsFlagsDoubledWrite(t *testing.T) {
+	t.Parallel()
+	fp := DifferentialFingerprint{Statement: "MERGE (n:File {path: $path})", Parameters: `{"path":"a"}`}
+	mk := func(n int) []DifferentialRecord {
+		out := make([]DifferentialRecord, 0, n)
+		for range n {
+			out = append(out, DifferentialRecord{Backend: "x", Fingerprint: fp})
+		}
+		return out
+	}
+	if diffs := CompareRecordings(mk(2), mk(2)); len(diffs) != 0 {
+		t.Fatalf("differences = %v, want none for equal execution counts", diffs)
+	}
+	diffs := CompareRecordings(mk(2), mk(3))
+	if len(diffs) != 1 {
+		t.Fatalf("differences = %v, want the doubled write", diffs)
+	}
+}
+
 func TestCompareRecordingsReportsMissingStatements(t *testing.T) {
 	t.Parallel()
 	a := []DifferentialRecord{
