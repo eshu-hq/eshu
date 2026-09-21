@@ -29,7 +29,7 @@ const (
 	// from the Postgres read model alone (for example category=k8s).
 	InfraResourceAggregateSourceReadModel InfraResourceAggregateSource = "read_model"
 	// InfraResourceAggregateSourceHybrid means content-derived nodes came from
-	// the Postgres read model, and the graph-only labels (infraGraphOnlyLabels)
+	// the Postgres read model, and the graph-only labels (inventory.GraphOnlyLabels)
 	// plus the mixed-writer labels' other nodes (infraMixedWriterGraphSource)
 	// from one graph pass in the same read.
 	InfraResourceAggregateSourceHybrid InfraResourceAggregateSource = "hybrid"
@@ -452,18 +452,3 @@ func (s GraphInfraResourceAggregateStore) inventoryFromGraph(
 	return paginateInfraResourceBuckets(mergeInfraResourceAggregateBuckets(rows), dimension, limit, offset),
 		InfraResourceAggregateSourceGraph, nil
 }
-
-// infraResourceAggregateFilterClauses renders the optional indexed-property
-// filters shared by every per-label aggregate branch, WITHOUT any label
-// predicate (each branch's `MATCH (n:Label)` supplies the label). Filter
-// values flow through bound parameters; nothing user-supplied is interpolated.
-//
-// Property predicates use direct equality on TerraformResource fields for
-// category-specific Terraform reads. The clauses only render when the caller
-// passed a non-empty filter value, so the coalesce-wrapped form is semantically
-// equivalent to direct equality (Cypher equality is null-rejecting). Direct
-// equality keeps the predicate eligible for the `tf_resource_provider` /
-// `tf_resource_environment` / `tf_resource_service` / `tf_resource_category`
-// indexes on TerraformResource; the coalesce wrapper would block planner
-// index selection. The all-category scope uses an OR across equivalent
-// provider/service fields so CloudResource rows remain reachable.
