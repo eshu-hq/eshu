@@ -186,15 +186,16 @@ columns behave differently and an unscoped claim here would be wrong:
   `/cloud/inventory` is one of the 16, at 145,851 -> 145,866: it held
   rather than collapsing to 21 -- see the corpus section above.
 - `rows`: nothing rose. `GET /api/v0/status/governance` moved 68 -> 66
-  (-2.94%), `GET /api/v0/infra/resources/count` 88 -> 80, and exactly ten
-  named routes moved 16 -> 14. Eight of those ten are floor-riders: the
-  whole row is identical to the `default` row in both snapshots, so under
-  the renderer's "no named row below the default row" rule they track the
-  default row's own cross-run noise (16 -> 14) rather than any change in
-  their own traffic. The other two, `/cloud/inventory` and
-  `/infra/resources/inventory`, are not identical to the default row --
-  they carry their own `blks` and are accounted for separately above.
-  Only their `rows` column tracks the default row's 16 -> 14 move.
+  (-2.94%), `GET /api/v0/infra/resources/count` 88 -> 80 (-9.09%), and
+  exactly ten named routes moved 16 -> 14. Eight of those ten are
+  floor-riders: the whole row is identical to the `default` row in both
+  snapshots, so under the renderer's "no named row below the default
+  row" rule they track the default row's own cross-run noise (16 -> 14)
+  rather than any change in their own traffic. The other two,
+  `/cloud/inventory` and `/infra/resources/inventory`, are not identical
+  to the default row -- they carry their own `blks` and are accounted for
+  separately above. Only their `rows` column tracks the default row's
+  16 -> 14 move.
 
 Every `rows` delta tightens a guard. The `blks` column moved both ways:
 16 named budgets rose, none by more than 0.18%, and three fell. Those
