@@ -13,7 +13,7 @@ const Divergence = `
       "post": {
         "tags": ["code"],
         "summary": "Find parallel implementations",
-        "description": "Reports repo-scoped parallel_implementation findings: functions with identical token streams (exact), identical streams up to renaming (renamed), or reducer-verified near-duplicate pairs (drifted), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Reports repo-scoped parallel_implementation findings: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), or call-graph-qualified wrapper families (wrapper_bypass; see kind), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findCodeDivergence",
         "x-scoped-token-support": true,
         "requestBody": {
