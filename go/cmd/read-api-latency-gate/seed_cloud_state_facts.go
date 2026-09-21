@@ -13,22 +13,32 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Graph-only fact kinds the #6843 Reader serves from fact_records, with the
-// payload keys the collectors and the reducer emit. Admission identities
-// join provider facts per provider identity key (AWS arn, GCP
+// Cloud-identity and Terraform-state fact kinds seeded into fact_records so
+// the read-API routes that serve from them are exercised at corpus scale.
+// GET /api/v0/cloud/inventory reads reducer_cloud_resource_identity
+// (query.cloudInventoryFactKind); without these rows it reads a handful of
+// blocks and its work budget collapses to the default row, which is no guard
+// at all.
+//
+// Payload keys are the ones the collectors and the reducer emit. Admission
+// identities join provider facts per provider identity key (AWS arn, GCP
 // full_resource_name, Azure arm_resource_id); EC2 posture rows carry their
-// own identity; state resources join provider bindings per resource
-// address. The corpus mirrors nodesPerLabel 1:1 so the cold read measures
-// the same scale the whole-label graph scan used to walk.
+// own identity; state resources join provider bindings per resource address.
+// The corpus mirrors nodesPerLabel 1:1.
+//
+// #6843 introduced this seed to feed a Postgres read model for the
+// graph-only labels. #6912 removed that read model, and these routes no
+// longer read fact_records -- but /cloud/inventory always did, so the seed
+// stays and keeps its budget meaningful.
 const (
-	graphOnlyAdmissionKind = "reducer_cloud_resource_identity"
-	graphOnlyEC2Kind       = "ec2_instance_posture"
-	graphOnlyStateKind     = "terraform_state_resource"
-	graphOnlyBindingKind   = "terraform_state_provider_binding"
+	cloudIdentityFactKind = "reducer_cloud_resource_identity"
+	ec2PostureFactKind    = "ec2_instance_posture"
+	stateResourceFactKind = "terraform_state_resource"
+	stateBindingFactKind  = "terraform_state_provider_binding"
 )
 
-// SeedGraphOnlyFact is one fact_records row for the graph-only corpus.
-type SeedGraphOnlyFact struct {
+// SeedCloudStateFact is one fact_records row for the cloud/state corpus.
+type SeedCloudStateFact struct {
 	FactID       string
 	ScopeID      string
 	GenerationID string
@@ -37,13 +47,13 @@ type SeedGraphOnlyFact struct {
 	Payload      map[string]any
 }
 
-// BuildGraphOnlyFacts renders count graph-only facts anchored on one
+// BuildCloudStateFacts renders count cloud/state facts anchored on one
 // scope generation: one admission identity plus its provider fact per i,
 // one EC2 posture fact per AWS i, and one state resource plus its provider
 // binding per i. Providers cycle aws/gcp/azure so the provider rollup has
 // real buckets, not an all-one degenerate case.
-func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnlyFact {
-	facts := make([]SeedGraphOnlyFact, 0, count*4+count/3)
+func BuildCloudStateFacts(scopeID, generationID string, count int) []SeedCloudStateFact {
+	facts := make([]SeedCloudStateFact, 0, count*4+count/3)
 	for i := 0; i < count; i++ {
 		provider := seedProviders[i%len(seedProviders)]
 		uid := fmt.Sprintf("gate-cr-%d", i)
@@ -67,10 +77,10 @@ func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnl
 			serviceKind = "ec2"
 		}
 		facts = append(facts,
-			SeedGraphOnlyFact{
+			SeedCloudStateFact{
 				FactID:  fmt.Sprintf("%s-graphonly-adm-%d", generationID, i),
 				ScopeID: scopeID, GenerationID: generationID,
-				Kind: graphOnlyAdmissionKind, SourceSystem: provider,
+				Kind: cloudIdentityFactKind, SourceSystem: provider,
 				Payload: map[string]any{
 					"cloud_resource_uid": uid,
 					"resource_type":      resourceType,
@@ -78,7 +88,7 @@ func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnl
 					"provider":           provider,
 				},
 			},
-			SeedGraphOnlyFact{
+			SeedCloudStateFact{
 				FactID:  fmt.Sprintf("%s-graphonly-prov-%d", generationID, i),
 				ScopeID: scopeID, GenerationID: generationID,
 				Kind: providerKind, SourceSystem: provider,
@@ -89,10 +99,10 @@ func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnl
 			},
 		)
 		if provider == "aws" {
-			facts = append(facts, SeedGraphOnlyFact{
+			facts = append(facts, SeedCloudStateFact{
 				FactID:  fmt.Sprintf("%s-graphonly-ec2-%d", generationID, i),
 				ScopeID: scopeID, GenerationID: generationID,
-				Kind: graphOnlyEC2Kind, SourceSystem: "aws",
+				Kind: ec2PostureFactKind, SourceSystem: "aws",
 				Payload: map[string]any{
 					"account_id":   "111",
 					"region":       "us-east-1",
@@ -103,20 +113,20 @@ func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnl
 		}
 		address := fmt.Sprintf("aws_instance.gate%06d", i)
 		facts = append(facts,
-			SeedGraphOnlyFact{
+			SeedCloudStateFact{
 				FactID:  fmt.Sprintf("%s-graphonly-tsr-%d", generationID, i),
 				ScopeID: scopeID, GenerationID: generationID,
-				Kind: graphOnlyStateKind, SourceSystem: "tfstate",
+				Kind: stateResourceFactKind, SourceSystem: "tfstate",
 				Payload: map[string]any{
 					"address": address,
 					"type":    "aws_instance",
 					"name":    fmt.Sprintf("gate-%d", i),
 				},
 			},
-			SeedGraphOnlyFact{
+			SeedCloudStateFact{
 				FactID:  fmt.Sprintf("%s-graphonly-bind-%d", generationID, i),
 				ScopeID: scopeID, GenerationID: generationID,
-				Kind: graphOnlyBindingKind, SourceSystem: "tfstate",
+				Kind: stateBindingFactKind, SourceSystem: "tfstate",
 				Payload: map[string]any{
 					"resource_address": address,
 					"provider_address": "registry.terraform.io/hashicorp/aws",
@@ -128,9 +138,9 @@ func BuildGraphOnlyFacts(scopeID, generationID string, count int) []SeedGraphOnl
 	return facts
 }
 
-// SeedGraphOnlyFacts bulk-inserts the graph-only corpus into fact_records
+// SeedCloudStateFacts bulk-inserts the cloud/state corpus into fact_records
 // via COPY, reusing the IaC fact column shape.
-func SeedGraphOnlyFacts(ctx context.Context, pool *pgxpool.Pool, facts []SeedGraphOnlyFact, now time.Time) error {
+func SeedCloudStateFacts(ctx context.Context, pool *pgxpool.Pool, facts []SeedCloudStateFact, now time.Time) error {
 	rows := make([][]any, 0, len(facts))
 	for _, f := range facts {
 		payload, err := json.Marshal(f.Payload)
@@ -147,7 +157,7 @@ func SeedGraphOnlyFacts(ctx context.Context, pool *pgxpool.Pool, facts []SeedGra
 		iacFactColumns,
 		pgx.CopyFromRows(rows),
 	); err != nil {
-		return fmt.Errorf("seed graph-only fact_records: %w", err)
+		return fmt.Errorf("seed cloud/state fact_records: %w", err)
 	}
 	return nil
 }

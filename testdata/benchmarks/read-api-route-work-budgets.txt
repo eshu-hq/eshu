@@ -5,32 +5,32 @@
 # counter exceeds its budget. Formulas over the max GREEN value: calls = ceil(max*1.25)+5,
 # blks = ceil(max*3.0), rows = ceil(max*2.0). No named row is below the default row.
 
-default	13	18	16
+default	13	18	14
 
-GET /api/v0/capabilities	13	18	16	GREEN-derived work guard
-GET /api/v0/cloud/inventory	13	145851	16	GREEN-derived work guard
-GET /api/v0/collector-readiness	13	18	16	GREEN-derived work guard
-GET /api/v0/collectors	39	58434	52	GREEN-derived work guard
-GET /api/v0/evidence/bundle	39	58434	52	GREEN-derived work guard
-GET /api/v0/freshness/generations	13	92919	102	GREEN-derived work guard
-GET /api/v0/graph/entities	13	18	16	GREEN-derived work guard
-GET /api/v0/iac/resources	13	74925	104	GREEN-derived work guard
-GET /api/v0/index-status	34	54504	48	GREEN-derived work guard
-GET /api/v0/infra/resources/count	13	663066	88	GREEN-derived work guard
-GET /api/v0/infra/resources/inventory	13	663066	16	GREEN-derived work guard
-GET /api/v0/ingesters	34	54504	48	GREEN-derived work guard
-GET /api/v0/repositories	13	18	16	GREEN-derived work guard
-GET /api/v0/repositories/language-inventory	13	18	16	GREEN-derived work guard
-GET /api/v0/status/collector-readiness	13	18	16	GREEN-derived work guard
-GET /api/v0/status/collectors	39	58434	52	GREEN-derived work guard
-GET /api/v0/status/freshness-causality	39	58434	52	GREEN-derived work guard
-GET /api/v0/status/governance	40	58437	68	GREEN-derived work guard
-GET /api/v0/status/hosted-readiness	39	58434	52	GREEN-derived work guard
-GET /api/v0/status/index	34	54504	48	GREEN-derived work guard
-GET /api/v0/status/ingesters	34	54504	48	GREEN-derived work guard
-GET /api/v0/status/operations	40	72831	254	GREEN-derived work guard
-GET /api/v0/status/operator-control-plane	39	58434	52	GREEN-derived work guard
-GET /api/v0/status/pipeline	39	58434	52	GREEN-derived work guard
-GET /api/v0/status/semantic-extraction	39	58434	52	GREEN-derived work guard
-GET /api/v0/supply-chain/container-images/identities/count	13	18	16	GREEN-derived work guard
-GET /api/v0/supply-chain/impact/findings/count	13	18	16	GREEN-derived work guard
+GET /api/v0/capabilities	13	18	14	GREEN-derived work guard
+GET /api/v0/cloud/inventory	13	145866	14	GREEN-derived work guard
+GET /api/v0/collector-readiness	13	18	14	GREEN-derived work guard
+GET /api/v0/collectors	39	58512	52	GREEN-derived work guard
+GET /api/v0/evidence/bundle	39	58518	52	GREEN-derived work guard
+GET /api/v0/freshness/generations	13	91860	102	GREEN-derived work guard
+GET /api/v0/graph/entities	13	18	14	GREEN-derived work guard
+GET /api/v0/iac/resources	13	74931	104	GREEN-derived work guard
+GET /api/v0/index-status	34	54578	48	GREEN-derived work guard
+GET /api/v0/infra/resources/count	13	74739	80	GREEN-derived work guard
+GET /api/v0/infra/resources/inventory	13	74739	14	GREEN-derived work guard
+GET /api/v0/ingesters	34	54576	48	GREEN-derived work guard
+GET /api/v0/repositories	13	18	14	GREEN-derived work guard
+GET /api/v0/repositories/language-inventory	13	18	14	GREEN-derived work guard
+GET /api/v0/status/collector-readiness	13	18	14	GREEN-derived work guard
+GET /api/v0/status/collectors	39	58512	52	GREEN-derived work guard
+GET /api/v0/status/freshness-causality	39	58512	52	GREEN-derived work guard
+GET /api/v0/status/governance	40	58515	66	GREEN-derived work guard
+GET /api/v0/status/hosted-readiness	39	58512	52	GREEN-derived work guard
+GET /api/v0/status/index	34	54576	48	GREEN-derived work guard
+GET /api/v0/status/ingesters	34	54576	48	GREEN-derived work guard
+GET /api/v0/status/operations	40	72960	254	GREEN-derived work guard
+GET /api/v0/status/operator-control-plane	39	58512	52	GREEN-derived work guard
+GET /api/v0/status/pipeline	39	58512	52	GREEN-derived work guard
+GET /api/v0/status/semantic-extraction	39	58512	52	GREEN-derived work guard
+GET /api/v0/supply-chain/container-images/identities/count	13	18	14	GREEN-derived work guard
+GET /api/v0/supply-chain/impact/findings/count	13	18	14	GREEN-derived work guard

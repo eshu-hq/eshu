@@ -251,14 +251,14 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed IaC facts: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d graph-only facts per label on scope %s (#6843: the fact truth the read model serves instead of the whole-label graph scan)\n", opts.nodesPerLabel, iacScope.ScopeID)
-	graphOnlyFacts := BuildGraphOnlyFacts(iacScope.ScopeID, iacScope.ActiveGenerationID, opts.nodesPerLabel)
-	if err := SeedGraphOnlyFacts(ctx, pool, graphOnlyFacts, time.Now().UTC()); err != nil {
-		return fmt.Errorf("seed graph-only facts: %w", err)
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d cloud/state facts per label on scope %s (the fact corpus /cloud/inventory reads)\n", opts.nodesPerLabel, iacScope.ScopeID)
+	cloudStateFacts := BuildCloudStateFacts(iacScope.ScopeID, iacScope.ActiveGenerationID, opts.nodesPerLabel)
+	if err := SeedCloudStateFacts(ctx, pool, cloudStateFacts, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed cloud/state facts: %w", err)
 	}
 
 	expectedCounts := expectedRelationalCounts(plan, iacFacts)
-	expectedCounts["fact_records"] += len(graphOnlyFacts)
+	expectedCounts["fact_records"] += len(cloudStateFacts)
 	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}

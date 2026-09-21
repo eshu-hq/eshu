@@ -33,20 +33,20 @@ type LatencyExemption struct {
 // ceiling blocks again.
 //
 // GET /api/v0/infra/resources/count and
-// GET /api/v0/infra/resources/inventory are exempt under #6909: identical
-// Postgres work every run (3 calls, 221025 buffers) with p95 swinging
-// 1.6-2.3s against the 2s ceiling on shared runners, while production SLO
-// (2500ms) holds. Their work budgets keep blocking.
-var LatencyExemptions = map[string]LatencyExemption{
-	"GET /api/v0/infra/resources/count": {
-		Issue:  "#6909",
-		Reason: "deterministic Postgres work with runner-speed p95 variance against the 2s ceiling; production SLO holds",
-	},
-	"GET /api/v0/infra/resources/inventory": {
-		Issue:  "#6909",
-		Reason: "deterministic Postgres work with runner-speed p95 variance against the 2s ceiling; production SLO holds",
-	},
-}
+// GET /api/v0/infra/resources/inventory were exempt under #6909 on the
+// reading that their p95 swing was runner-speed variance over deterministic
+// Postgres work. The work counter refutes that, and the refutation is the
+// constancy rather than the failures. The grant's own evidence block in
+// testdata/benchmarks/read-api-route-budgets.txt records four CI runs
+// (35561409959, 35574822547, 35566424509, 35590760445) with "identical work
+// every time (3 calls, 221025 buffers)", and run 35593350187 on a fifth,
+// unrelated PR reads 221,026 -- against 24,913 before #6843. Runner speed
+// varies p95; it cannot hold buffer hits constant to within two blocks
+// across five runners. The 8.9x was a deterministic regression, not
+// variance. #6912 removed the #6843 read-model workaround, returning both
+// routes to ~24,913 buffers, so the grant is removed and the ceiling blocks
+// again.
+var LatencyExemptions = map[string]LatencyExemption{}
 
 // ValidateLatencyExemptions rejects any entry with an empty Issue or Reason.
 // An untracked exemption can never be found and removed, so the gate refuses

@@ -143,35 +143,41 @@ func TestLatencyExemptionsIsEmptyUnlessExplicitlyGranted(t *testing.T) {
 	}
 }
 
-// TestLatencyExemptionsGrantsOnly6909InfraRoutes pins the shipped grant set:
-// exactly the two infra/resources routes exempt under #6909, each with its
-// issue reference and reason, so a silent addition still fails a test
-// instead of drifting unnoticed. Update this test deliberately if the grant
-// set ever changes.
-func TestLatencyExemptionsGrantsOnly6909InfraRoutes(t *testing.T) {
-	want := map[string]bool{
-		"GET /api/v0/infra/resources/count":     false,
-		"GET /api/v0/infra/resources/inventory": false,
-	}
-	if len(LatencyExemptions) != len(want) {
-		t.Fatalf("LatencyExemptions has %d entries, want %d (the #6909 infra pair); update this test deliberately if the grant set changes", len(LatencyExemptions), len(want))
-	}
-	for route := range LatencyExemptions {
-		if _, ok := want[route]; !ok {
-			t.Fatalf("unexpected LatencyExemptions entry %q; update this test deliberately if the grant set changes", route)
-		}
-	}
-	for route := range want {
-		ex, ok := LatencyExemptions[route]
-		if !ok {
-			t.Fatalf("LatencyExemptions missing %q", route)
-		}
-		if ex.Issue != "#6909" || ex.Reason == "" {
-			t.Errorf("LatencyExemptions[%q] = %+v, want Issue #6909 with a reason", route, ex)
-		}
+// TestLatencyExemptionsShipsNoGrants pins the shipped grant set: it is
+// empty, so every route's latency ceiling blocks.
+//
+// This reads the real package-level table, NOT a substitute, which is what
+// makes it a guard rather than a restatement. withExemption swaps that
+// table and restores it in t.Cleanup, so this test is only meaningful
+// while the tests in this package run sequentially. No test here calls
+// t.Parallel(). If you add one to a withExemption test, this guard can
+// read the substituted table and pass vacuously -- give it a pristine
+// copy first, or it stops guarding anything. #6909's two infra grants
+// were removed with #6912 -- their premise was runner-speed variance, and the
+// work counter showed a deterministic 8.9x regression instead. A silent
+// addition still fails this test rather than drifting unnoticed. Update it
+// deliberately, with the measurement, if a grant is ever added back.
+func TestLatencyExemptionsShipsNoGrants(t *testing.T) {
+	if len(LatencyExemptions) != 0 {
+		t.Fatalf("LatencyExemptions has %d entries, want 0: %+v; a latency ceiling must not become advisory without a measurement that justifies it", len(LatencyExemptions), LatencyExemptions)
 	}
 	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
 		t.Errorf("the shipped LatencyExemptions table fails its own validation: %v", err)
+	}
+}
+
+// TestInfraResourceAggregateCeilingsBlockAgain is the regression guard for
+// #6912: the two routes #6843 regressed and #6909 exempted must have no
+// exemption, so a return of the 12-20x latency regression breaks the gate
+// instead of printing an advisory BREACH-EXEMPT.
+func TestInfraResourceAggregateCeilingsBlockAgain(t *testing.T) {
+	for _, route := range []string{
+		"GET /api/v0/infra/resources/count",
+		"GET /api/v0/infra/resources/inventory",
+	} {
+		if ex, exempt := LatencyExemptions[route]; exempt {
+			t.Errorf("%s is exempt (%+v); #6912 restored it to ~24,913 buffers, so its ceiling must block", route, ex)
+		}
 	}
 }
 

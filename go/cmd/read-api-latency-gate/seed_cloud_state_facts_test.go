@@ -8,17 +8,22 @@ import (
 	"testing"
 )
 
-// TestBuildGraphOnlyFactsJoinKeysAgree pins the #6843 gate corpus contract:
-// every admission identity's raw_identity must equal its provider fact's
-// identity key (or the Reader's provider join finds nothing and the corpus
-// measures an empty join), and every state resource address must equal its
-// binding's resource_address.
-func TestBuildGraphOnlyFactsJoinKeysAgree(t *testing.T) {
-	facts := BuildGraphOnlyFacts("scope-x", "gen-x", 9)
+// TestBuildCloudStateFactsJoinKeysAgree pins the gate corpus's join
+// contract: every admission identity's raw_identity must equal its provider
+// fact's identity key, or /cloud/inventory's provider join finds nothing and
+// the corpus measures an empty join instead of the real read. Every state
+// resource address must likewise equal its binding's resource_address.
+//
+// The contract predates #6912 and outlived the read model it was written
+// for: #6843 added these facts for its Postgres read model, #6912 removed
+// that read model, and the corpus stays because /cloud/inventory reads the
+// same rows on its own.
+func TestBuildCloudStateFactsJoinKeysAgree(t *testing.T) {
+	facts := BuildCloudStateFacts("scope-x", "gen-x", 9)
 	if len(facts) == 0 {
-		t.Fatal("no graph-only facts built")
+		t.Fatal("no cloud/state facts built")
 	}
-	byID := map[string]SeedGraphOnlyFact{}
+	byID := map[string]SeedCloudStateFact{}
 	for _, f := range facts {
 		if f.ScopeID != "scope-x" || f.GenerationID != "gen-x" {
 			t.Fatalf("fact %s anchors on %s/%s, want scope-x/gen-x", f.FactID, f.ScopeID, f.GenerationID)
@@ -33,7 +38,7 @@ func TestBuildGraphOnlyFactsJoinKeysAgree(t *testing.T) {
 	admissions, providers, states, bindings, ec2 := 0, 0, 0, 0, 0
 	for _, f := range facts {
 		switch f.Kind {
-		case graphOnlyAdmissionKind:
+		case cloudIdentityFactKind:
 			admissions++
 		case "aws_resource", "gcp_cloud_resource", "azure_cloud_resource":
 			providers++
@@ -41,14 +46,14 @@ func TestBuildGraphOnlyFactsJoinKeysAgree(t *testing.T) {
 			if f.Payload[key] == nil || f.Payload[key] == "" {
 				t.Fatalf("provider fact %s lacks identity key %s", f.FactID, key)
 			}
-		case graphOnlyEC2Kind:
+		case ec2PostureFactKind:
 			ec2++
 			if f.Payload["instance_id"] == nil || f.Payload["instance_id"] == "" {
 				t.Fatalf("EC2 fact %s lacks instance_id", f.FactID)
 			}
-		case graphOnlyStateKind:
+		case stateResourceFactKind:
 			states++
-		case graphOnlyBindingKind:
+		case stateBindingFactKind:
 			bindings++
 			if f.Payload["resource_address"] == nil || f.Payload["resource_address"] == "" {
 				t.Fatalf("binding fact %s lacks resource_address", f.FactID)
