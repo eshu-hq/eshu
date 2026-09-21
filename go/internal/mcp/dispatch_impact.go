@@ -13,14 +13,5 @@ import (
 // resolveRoute's default case, the same point in the chain the family's own
 // switch occupied before the extraction.
 func impactRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := impacttools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(impacttools.Route(toolName, routecontract.Arguments(args)))
 }

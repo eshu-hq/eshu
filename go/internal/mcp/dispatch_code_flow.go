@@ -13,14 +13,5 @@ import (
 // position in resolveRoute that the family's own selector occupied before the
 // extraction.
 func codeFlowRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := codeflowtools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(codeflowtools.Route(toolName, routecontract.Arguments(args)))
 }

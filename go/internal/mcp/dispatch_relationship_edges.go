@@ -17,10 +17,6 @@ func relationshipEdgesRoute(toolName string, args map[string]any) (*routecontrac
 	if !handled || err != nil {
 		return nil, handled, err
 	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true, nil
+	adapted, handled := adaptChildRoute(request, handled)
+	return adapted, handled, nil
 }

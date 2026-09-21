@@ -16,14 +16,5 @@ import (
 // MCP dispatch surface treats that as a non-error envelope response so
 // callers see a clean tool result rather than a transport error.
 func askRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := asktools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(asktools.Route(toolName, routecontract.Arguments(args)))
 }

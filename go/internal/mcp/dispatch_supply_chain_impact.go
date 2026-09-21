@@ -11,14 +11,5 @@ import (
 // supplyChainImpactRoute adapts the child package's supply-chain-impact
 // request selection into the root dispatcher's transport route.
 func supplyChainImpactRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := supplychainimpacttools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(supplychainimpacttools.Route(toolName, routecontract.Arguments(args)))
 }

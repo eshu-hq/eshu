@@ -11,14 +11,5 @@ import (
 // admissionDecisionsRoute adapts the child package's admission-decisions
 // request selection into the root dispatcher's transport route.
 func admissionDecisionsRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := admissiondecisionstools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(admissiondecisionstools.Route(toolName, routecontract.Arguments(args)))
 }

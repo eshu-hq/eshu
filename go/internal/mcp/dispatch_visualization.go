@@ -11,14 +11,5 @@ import (
 // visualizationRoute adapts the child package's visualization request into
 // the root dispatcher's transport route.
 func visualizationRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
-	request, handled := visualizationtools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &routecontract.Request{
-		Method: request.Method,
-		Path:   request.Path,
-		Body:   request.Body,
-		Query:  request.Query,
-	}, true
+	return adaptChildRoute(visualizationtools.Route(toolName, routecontract.Arguments(args)))
 }
