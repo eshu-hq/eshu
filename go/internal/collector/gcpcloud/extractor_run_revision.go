@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeRunRevision is the CAI asset type for a Cloud Run Revision. The VPC
@@ -93,7 +93,7 @@ func extractRunRevision(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode run revision data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount)
+	saDigest := posture.GCPServiceAccountEmailDigest(data.ServiceAccount)
 	image, digest := runRevisionPrimaryImage(data)
 	attrs := runRevisionAttributes(ctx.ProjectID, data, saDigest, image, digest)
 

@@ -83,8 +83,9 @@ Every directory ends at 40 non-test files or fewer.
 4. **The shared database interfaces in `storage/postgres/db.go` move to
    `storage/postgres/db`.** Not `sql`, which would collide with the standard
    library's `database/sql`.
-5. **`collector/secretsiam` is shared source-fact support, not a collector runtime.**
-   It makes no API calls. During in-tree naming cleanup it becomes
+5. **`collector/access/posture` (formerly `collector/secretsiam`) is shared
+   source-fact support, not a collector runtime.**
+   It makes no API calls. The in-tree naming cleanup moved it to
    `collector/access/posture`; its public fact shapes move to `eshu-sdk`, while
    provider acquisition follows each collector repository. The fact kind
    `secrets_iam_posture` remains unchanged. Effective-access reduction stays in

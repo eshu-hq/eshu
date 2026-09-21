@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeComputeFirewall is the CAI asset type for a VPC firewall rule. The
@@ -82,7 +82,7 @@ func extractFirewall(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, firewallEdge(ctx, relationshipTypeFirewallAppliesToNetwork, networkName, assetTypeComputeNetwork))
 	}
 	for _, email := range data.TargetServiceAccounts {
-		if digest := secretsiam.GCPServiceAccountEmailDigest(email); digest != "" {
+		if digest := posture.GCPServiceAccountEmailDigest(email); digest != "" {
 			anchors = append(anchors, digest)
 		}
 	}

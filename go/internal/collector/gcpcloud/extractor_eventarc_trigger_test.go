@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const eventarcTriggerFullName = "//eventarc.googleapis.com/projects/demo-project/locations/us-central1/triggers/run-trigger"
@@ -47,7 +47,7 @@ func TestExtractEventarcTriggerCloudRun(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("eventarc-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("eventarc-sa@demo-project.iam.gserviceaccount.com")
 	if saDigest == "" {
 		t.Fatalf("service account digest must be non-empty")
 	}

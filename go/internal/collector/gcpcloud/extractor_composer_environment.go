@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeComposerEnvironment is the Cloud Asset Inventory asset type for a
@@ -217,7 +217,7 @@ func composerServiceAccountFingerprint(email string) string {
 	if trimmed == "" || strings.EqualFold(trimmed, defaultServiceAccountSentinel) {
 		return ""
 	}
-	return secretsiam.GCPServiceAccountEmailDigest(trimmed)
+	return posture.GCPServiceAccountEmailDigest(trimmed)
 }
 
 // gkeClusterResourceNamePrefix is the CAI full-resource-name prefix for the

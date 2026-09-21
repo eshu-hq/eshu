@@ -4,13 +4,13 @@
 package vaultlive
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // mapAuthMount builds a vault_auth_mount source fact from metadata.
-func mapAuthMount(vaultCtx secretsiam.VaultContext, sourceURI string, m AuthMount) (facts.Envelope, error) {
-	return secretsiam.NewVaultAuthMountEnvelope(secretsiam.VaultAuthMountObservation{
+func mapAuthMount(vaultCtx posture.VaultContext, sourceURI string, m AuthMount) (facts.Envelope, error) {
+	return posture.NewVaultAuthMountEnvelope(posture.VaultAuthMountObservation{
 		Context:                vaultCtx,
 		MountPath:              m.Path,
 		MountAccessor:          m.Accessor,
@@ -23,8 +23,8 @@ func mapAuthMount(vaultCtx secretsiam.VaultContext, sourceURI string, m AuthMoun
 }
 
 // mapAuthRole builds a vault_auth_role source fact from metadata.
-func mapAuthRole(vaultCtx secretsiam.VaultContext, sourceURI string, r AuthRole) (facts.Envelope, error) {
-	return secretsiam.NewVaultAuthRoleEnvelope(secretsiam.VaultAuthRoleObservation{
+func mapAuthRole(vaultCtx posture.VaultContext, sourceURI string, r AuthRole) (facts.Envelope, error) {
+	return posture.NewVaultAuthRoleEnvelope(posture.VaultAuthRoleObservation{
 		Context:                       vaultCtx,
 		MountPath:                     r.MountPath,
 		RoleName:                      r.RoleName,
@@ -39,15 +39,15 @@ func mapAuthRole(vaultCtx secretsiam.VaultContext, sourceURI string, r AuthRole)
 }
 
 // mapACLPolicy builds a vault_acl_policy source fact from metadata.
-func mapACLPolicy(vaultCtx secretsiam.VaultContext, sourceURI string, p ACLPolicy) (facts.Envelope, error) {
-	rules := make([]secretsiam.VaultACLPolicyRuleSummary, 0, len(p.Rules))
+func mapACLPolicy(vaultCtx posture.VaultContext, sourceURI string, p ACLPolicy) (facts.Envelope, error) {
+	rules := make([]posture.VaultACLPolicyRuleSummary, 0, len(p.Rules))
 	for _, rule := range p.Rules {
-		rules = append(rules, secretsiam.VaultACLPolicyRuleSummary{
+		rules = append(rules, posture.VaultACLPolicyRuleSummary{
 			Path:         rule.Path,
 			Capabilities: rule.Capabilities,
 		})
 	}
-	return secretsiam.NewVaultACLPolicyEnvelope(secretsiam.VaultACLPolicyObservation{
+	return posture.NewVaultACLPolicyEnvelope(posture.VaultACLPolicyObservation{
 		Context:    vaultCtx,
 		PolicyName: p.PolicyName,
 		PolicyHash: p.PolicyHash,
@@ -57,8 +57,8 @@ func mapACLPolicy(vaultCtx secretsiam.VaultContext, sourceURI string, p ACLPolic
 }
 
 // mapIdentityEntity builds a vault_identity_entity source fact from metadata.
-func mapIdentityEntity(vaultCtx secretsiam.VaultContext, sourceURI string, e IdentityEntity) (facts.Envelope, error) {
-	return secretsiam.NewVaultIdentityEntityEnvelope(secretsiam.VaultIdentityEntityObservation{
+func mapIdentityEntity(vaultCtx posture.VaultContext, sourceURI string, e IdentityEntity) (facts.Envelope, error) {
+	return posture.NewVaultIdentityEntityEnvelope(posture.VaultIdentityEntityObservation{
 		Context:    vaultCtx,
 		EntityID:   e.EntityID,
 		EntityName: e.EntityName,
@@ -70,8 +70,8 @@ func mapIdentityEntity(vaultCtx secretsiam.VaultContext, sourceURI string, e Ide
 }
 
 // mapIdentityAlias builds a vault_identity_alias source fact from metadata.
-func mapIdentityAlias(vaultCtx secretsiam.VaultContext, sourceURI string, a IdentityAlias) (facts.Envelope, error) {
-	return secretsiam.NewVaultIdentityAliasEnvelope(secretsiam.VaultIdentityAliasObservation{
+func mapIdentityAlias(vaultCtx posture.VaultContext, sourceURI string, a IdentityAlias) (facts.Envelope, error) {
+	return posture.NewVaultIdentityAliasEnvelope(posture.VaultIdentityAliasObservation{
 		Context:       vaultCtx,
 		AliasID:       a.AliasID,
 		EntityID:      a.EntityID,
@@ -83,8 +83,8 @@ func mapIdentityAlias(vaultCtx secretsiam.VaultContext, sourceURI string, a Iden
 }
 
 // mapKVMetadata builds a vault_kv_metadata source fact from KV v2 metadata.
-func mapKVMetadata(vaultCtx secretsiam.VaultContext, sourceURI string, m KVMetadata) (facts.Envelope, error) {
-	return secretsiam.NewVaultKVMetadataEnvelope(secretsiam.VaultKVMetadataObservation{
+func mapKVMetadata(vaultCtx posture.VaultContext, sourceURI string, m KVMetadata) (facts.Envelope, error) {
+	return posture.NewVaultKVMetadataEnvelope(posture.VaultKVMetadataObservation{
 		Context:                vaultCtx,
 		MountPath:              m.MountPath,
 		Path:                   m.Path,
@@ -99,8 +99,8 @@ func mapKVMetadata(vaultCtx secretsiam.VaultContext, sourceURI string, m KVMetad
 }
 
 // mapSecretEngineMount builds a vault_secret_engine_mount source fact.
-func mapSecretEngineMount(vaultCtx secretsiam.VaultContext, sourceURI string, m SecretEngineMount) (facts.Envelope, error) {
-	return secretsiam.NewVaultSecretEngineMountEnvelope(secretsiam.VaultSecretEngineMountObservation{
+func mapSecretEngineMount(vaultCtx posture.VaultContext, sourceURI string, m SecretEngineMount) (facts.Envelope, error) {
+	return posture.NewVaultSecretEngineMountEnvelope(posture.VaultSecretEngineMountObservation{
 		Context:                vaultCtx,
 		MountPath:              m.MountPath,
 		MountAccessor:          m.MountAccessor,

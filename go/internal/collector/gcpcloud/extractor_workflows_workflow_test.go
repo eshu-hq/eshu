@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const workflowsWorkflowFullName = "//workflows.googleapis.com/projects/demo-project/locations/us-central1/workflows/order-pipeline"
@@ -47,7 +47,7 @@ func TestExtractWorkflowsWorkflowActiveWithServiceAccountAndCMEK(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wantFingerprint := secretsiam.GCPServiceAccountEmailDigest("workflow-runner@demo-project.iam.gserviceaccount.com")
+	wantFingerprint := posture.GCPServiceAccountEmailDigest("workflow-runner@demo-project.iam.gserviceaccount.com")
 	if wantFingerprint == "" {
 		t.Fatalf("expected non-empty service account fingerprint for test setup")
 	}

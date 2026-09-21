@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeCloudFunctionV1 is the CAI asset type for a first-generation Cloud
@@ -66,7 +66,7 @@ func extractCloudFunctionV1(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud function v1 data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudFunctionV1ServiceAccountEmail(ctx.ProjectID, data))
+	saDigest := posture.GCPServiceAccountEmailDigest(cloudFunctionV1ServiceAccountEmail(ctx.ProjectID, data))
 	attrs := cloudFunctionV1Attributes(ctx.ProjectID, data, saDigest)
 
 	var anchors []string

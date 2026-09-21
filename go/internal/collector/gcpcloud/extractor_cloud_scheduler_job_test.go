@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const cloudSchedulerJobFullName = "//cloudscheduler.googleapis.com/projects/demo-project/locations/us-central1/jobs/nightly"
@@ -82,7 +82,7 @@ func TestExtractCloudSchedulerJobHTTPTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("scheduler-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("scheduler-sa@demo-project.iam.gserviceaccount.com")
 	if got.Attributes["target_type"] != "http" {
 		t.Errorf("target_type = %v, want http", got.Attributes["target_type"])
 	}

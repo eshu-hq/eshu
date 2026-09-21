@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeDataprocCluster is the CAI asset type for a Dataproc cluster. Its edge
@@ -105,7 +105,7 @@ func extractDataprocCluster(ctx ExtractContext) (AttributeExtraction, error) {
 				anchors = append(anchors, subnet)
 				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
 			}
-			if fp := secretsiam.GCPServiceAccountEmailDigest(gce.ServiceAccount); fp != "" {
+			if fp := posture.GCPServiceAccountEmailDigest(gce.ServiceAccount); fp != "" {
 				anchors = append(anchors, fp)
 			}
 		}
@@ -148,7 +148,7 @@ func dataprocClusterAttributes(data dataprocClusterData) map[string]any {
 		if gce.InternalIPOnly != nil {
 			attrs["internal_ip_only"] = *gce.InternalIPOnly
 		}
-		if fp := secretsiam.GCPServiceAccountEmailDigest(gce.ServiceAccount); fp != "" {
+		if fp := posture.GCPServiceAccountEmailDigest(gce.ServiceAccount); fp != "" {
 			attrs["service_account_fingerprint"] = fp
 		}
 	}

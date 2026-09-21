@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // apiKeyAssetType is the Cloud Asset Inventory asset type for a GCP API Key.
@@ -86,7 +86,7 @@ func extractAPIKey(ctx ExtractContext) (AttributeExtraction, error) {
 	// address). No outbound edge is emitted because the email is not a resolvable
 	// CAI full resource name — the IAM/trust layer joins on the digest.
 	var anchors []string
-	if digest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccountEmail); digest != "" {
+	if digest := posture.GCPServiceAccountEmailDigest(data.ServiceAccountEmail); digest != "" {
 		attrs["authorized_service_account_email_fingerprint"] = digest
 		anchors = append(anchors, digest)
 	}

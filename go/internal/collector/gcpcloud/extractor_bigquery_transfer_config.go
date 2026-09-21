@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeBigQueryTransferConfig is the CAI asset type for a BigQuery Data
@@ -73,7 +73,7 @@ func extractBigQueryTransferConfig(ctx ExtractContext) (AttributeExtraction, err
 		anchors = append(anchors, dataset)
 		rels = append(rels, bigQueryTransferConfigEdge(ctx, relationshipTypeTransferConfigWritesToDataset, dataset, assetTypeBigQueryDataset))
 	}
-	if fp := secretsiam.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
+	if fp := posture.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
 		anchors = append(anchors, fp)
 	}
 	if topic := pubSubTopicRefFullName(data.NotificationTopic); topic != "" {
@@ -115,7 +115,7 @@ func bigQueryTransferConfigAttributes(data bigQueryTransferConfigData) map[strin
 	if data.EncryptionConfig != nil && strings.TrimSpace(data.EncryptionConfig.KMSKeyName) != "" {
 		attrs["customer_managed_encryption"] = true
 	}
-	if fp := secretsiam.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
+	if fp := posture.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
 		attrs["owner_email_fingerprint"] = fp
 	}
 	return attrs

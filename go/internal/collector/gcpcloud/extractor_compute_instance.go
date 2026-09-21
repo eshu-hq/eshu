@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // Bounded provider relationship types for the compute Engine Instance edges
@@ -129,7 +129,7 @@ func extractInstance(ctx ExtractContext) (AttributeExtraction, error) {
 		}
 	}
 	for _, sa := range data.ServiceAccounts {
-		if digest := secretsiam.GCPServiceAccountEmailDigest(sa.Email); digest != "" {
+		if digest := posture.GCPServiceAccountEmailDigest(sa.Email); digest != "" {
 			anchors = append(anchors, digest)
 		}
 	}

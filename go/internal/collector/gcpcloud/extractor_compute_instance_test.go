@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const instanceFullName = "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/instances/web-1"
@@ -98,7 +98,7 @@ func TestExtractInstanceFullResource(t *testing.T) {
 		network    = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
 		subnetwork = "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/prod-subnet"
 	)
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("runtime@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("runtime@demo-project.iam.gserviceaccount.com")
 
 	wantAnchors := []string{bootDisk, dataDisk, network, subnetwork, saDigest}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {

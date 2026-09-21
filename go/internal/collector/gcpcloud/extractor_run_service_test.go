@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const runServiceFullName = "//run.googleapis.com/projects/demo-project/locations/us-central1/services/api-service"
@@ -69,7 +69,7 @@ func TestExtractRunServiceFullResource(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
 	if saDigest == "" {
 		t.Fatalf("service account email digest must be non-empty")
 	}

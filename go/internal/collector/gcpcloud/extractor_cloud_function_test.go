@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const cloudFunctionFullName = "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-central1/functions/api-fn"
@@ -59,8 +59,8 @@ func TestExtractCloudFunctionGen2FullResource(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	runtimeDigest := secretsiam.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
-	triggerDigest := secretsiam.GCPServiceAccountEmailDigest("trigger-sa@demo-project.iam.gserviceaccount.com")
+	runtimeDigest := posture.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
+	triggerDigest := posture.GCPServiceAccountEmailDigest("trigger-sa@demo-project.iam.gserviceaccount.com")
 	if runtimeDigest == "" || triggerDigest == "" {
 		t.Fatalf("service account digests must be non-empty")
 	}
@@ -131,7 +131,7 @@ func TestExtractCloudFunctionGen1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	legacyDigest := secretsiam.GCPServiceAccountEmailDigest("legacy-sa@demo-project.iam.gserviceaccount.com")
+	legacyDigest := posture.GCPServiceAccountEmailDigest("legacy-sa@demo-project.iam.gserviceaccount.com")
 	wantAttrs := map[string]any{
 		"environment":                 "GEN_1",
 		"state":                       "ACTIVE",

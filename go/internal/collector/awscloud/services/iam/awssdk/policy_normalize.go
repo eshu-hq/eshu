@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 )
 
 // normalizePolicyDocument parses one IAM identity policy document (inline or
@@ -201,7 +201,7 @@ func webIdentitySubjectFingerprint(subject string) (string, bool) {
 	if !isExactKubernetesSubject(subject) {
 		return "", false
 	}
-	return secretsiam.WebIdentitySubjectFingerprint(subject), false
+	return posture.WebIdentitySubjectFingerprint(subject), false
 }
 
 func isExactKubernetesSubject(subject string) bool {

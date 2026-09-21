@@ -37,7 +37,7 @@ impersonation trust layer needed for GKE Workload Identity.
   become principals; human/group/public members are not chain identities. The
   member fingerprint reuses `gcpcloud.FingerprintMember`, so the principal,
   permission, and binding-observation fingerprints align by construction.
-- Envelope builders: `go/internal/collector/secretsiam/gcp_envelope.go` and
+- Envelope builders: `go/internal/collector/access/posture/gcp_envelope.go` and
   `gcp_trust_envelope.go` (`NewGCPPrincipalEnvelope`,
   `NewGCPTrustPolicyEnvelope`, `NewGCPPermissionPolicyEnvelope`), GCP-native
   payload (`provider=gcp_iam`, `project_id`), covered by the package leakage
@@ -77,7 +77,7 @@ impersonation trust layer needed for GKE Workload Identity.
 ## Evidence
 
 No-Regression Evidence: `go test ./internal/reducer/... -run 'GCP.*(Grant|Trust|Secret)|GCPSecret|GCPBroad|GCPNarrow'`,
-`go test ./internal/collector/secretsiam -run GCP`, `go test
+`go test ./internal/collector/access/posture -run GCP`, `go test
 ./internal/collector/gcpcloud -run 'GCP|ServiceAccountEmail'`, `go test
 ./internal/collector/kuberneteslive ./cmd/collector-kubernetes-live -run
 'GCP|WorkloadIdentity'`, `go test ./internal/facts -run SecretsIAM`, `go test

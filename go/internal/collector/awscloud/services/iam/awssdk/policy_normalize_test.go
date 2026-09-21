@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 )
 
 func TestNormalizePolicyDocumentExtractsStatementsWithoutRawJSON(t *testing.T) {
@@ -188,7 +188,7 @@ func TestNormalizeTrustPolicyCapturesWebIdentitySubjectFingerprintOnly(t *testin
 	if len(statements) != 1 {
 		t.Fatalf("len(statements) = %d, want 1", len(statements))
 	}
-	want := secretsiam.WebIdentitySubjectFingerprint("system:serviceaccount:checkout:payments-api")
+	want := posture.WebIdentitySubjectFingerprint("system:serviceaccount:checkout:payments-api")
 	if !slices.Contains(statements[0].WebIdentitySubjectFingerprints, want) {
 		t.Fatalf("WebIdentitySubjectFingerprints = %v, want %q", statements[0].WebIdentitySubjectFingerprints, want)
 	}

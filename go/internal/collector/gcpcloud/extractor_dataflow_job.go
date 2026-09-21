@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeDataflowJob is the Cloud Asset Inventory asset type for a Dataflow
@@ -115,7 +115,7 @@ func extractDataflowJob(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 
 	if env := data.Environment; env != nil {
-		if fp := secretsiam.GCPServiceAccountEmailDigest(strings.TrimSpace(env.ServiceAccountEmail)); fp != "" {
+		if fp := posture.GCPServiceAccountEmailDigest(strings.TrimSpace(env.ServiceAccountEmail)); fp != "" {
 			attrs["service_account_fingerprint"] = fp
 			anchors = append(anchors, fp)
 		}

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const cloudFunctionV1FullName = "//cloudfunctions.googleapis.com/projects/demo-project/locations/us-central1/functions/api-fn-v1"
@@ -50,7 +50,7 @@ func TestExtractCloudFunctionV1FullResource(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("runtime-sa@demo-project.iam.gserviceaccount.com")
 	if saDigest == "" {
 		t.Fatalf("service account digest must be non-empty")
 	}
@@ -147,7 +147,7 @@ func TestExtractCloudFunctionV1DefaultServiceAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wantDigest := secretsiam.GCPServiceAccountEmailDigest("demo-project@appspot.gserviceaccount.com")
+	wantDigest := posture.GCPServiceAccountEmailDigest("demo-project@appspot.gserviceaccount.com")
 	if wantDigest == "" {
 		t.Fatalf("default SA digest must be non-empty")
 	}

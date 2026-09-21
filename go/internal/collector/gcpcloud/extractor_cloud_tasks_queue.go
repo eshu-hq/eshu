@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeCloudTasksQueue is the CAI asset type this extractor registers for.
@@ -67,7 +67,7 @@ func extractCloudTasksQueue(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud tasks queue data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudTasksQueueServiceAccountEmail(data))
+	saDigest := posture.GCPServiceAccountEmailDigest(cloudTasksQueueServiceAccountEmail(data))
 	hostFP := cloudTasksQueueHostFingerprint(data)
 	attrs := cloudTasksQueueAttributes(data, saDigest, hostFP)
 

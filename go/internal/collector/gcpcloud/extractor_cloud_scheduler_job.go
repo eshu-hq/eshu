@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeCloudSchedulerJob is the CAI asset type for a Cloud Scheduler job. Its
@@ -69,7 +69,7 @@ func extractCloudSchedulerJob(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud scheduler job data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudSchedulerJobServiceAccountEmail(data))
+	saDigest := posture.GCPServiceAccountEmailDigest(cloudSchedulerJobServiceAccountEmail(data))
 	hostFP := cloudSchedulerHostFingerprint(data)
 	attrs := cloudSchedulerJobAttributes(data, saDigest, hostFP)
 

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const firewallFullName = "//compute.googleapis.com/projects/demo-project/global/firewalls/allow-web"
@@ -67,7 +67,7 @@ func TestExtractFirewallFullResource(t *testing.T) {
 	}
 
 	const network = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("runtime@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("runtime@demo-project.iam.gserviceaccount.com")
 
 	wantAnchors := []string{network, saDigest}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {

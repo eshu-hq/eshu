@@ -12,7 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -125,7 +125,7 @@ const (
 func collectFamily[T any](
 	ctx context.Context,
 	dst []facts.Envelope,
-	vaultCtx secretsiam.VaultContext,
+	vaultCtx posture.VaultContext,
 	uri string,
 	family string,
 	list func() ([]T, error),
@@ -136,10 +136,10 @@ func collectFamily[T any](
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("list vault %s: %w", family, ctx.Err())
 		}
-		warning, werr := secretsiam.NewVaultCoverageWarningEnvelope(secretsiam.VaultCoverageWarningObservation{
+		warning, werr := posture.NewVaultCoverageWarningEnvelope(posture.VaultCoverageWarningObservation{
 			Context:       vaultCtx,
 			WarningKind:   "partial_family",
-			SourceState:   secretsiam.SourceStatePartial,
+			SourceState:   posture.SourceStatePartial,
 			ResourceScope: family,
 			ErrorClass:    "list_failed",
 			SourceURI:     uri,
@@ -186,8 +186,8 @@ func collectInto[T any](
 // vaultContext builds the secretsiam VaultContext for the target scope. The
 // caller passes an already-sanitized sourceURI so no credential-bearing Vault
 // address reaches the fact context.
-func (s Source) vaultContext(target VaultTarget, sourceURI string) secretsiam.VaultContext {
-	return secretsiam.VaultContext{
+func (s Source) vaultContext(target VaultTarget, sourceURI string) posture.VaultContext {
+	return posture.VaultContext{
 		VaultClusterID:      target.VaultClusterID,
 		Namespace:           target.Namespace,
 		ScopeID:             target.ScopeID,

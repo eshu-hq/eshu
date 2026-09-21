@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/secretsiam guidance
+# AGENTS.md - internal/collector/access/posture guidance
 
 ## Read First
 
