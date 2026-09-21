@@ -63,9 +63,11 @@ Neo4j `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0ea
   preserved (DoubledWrite still fails closed by default).
 - `capture`: allowlist tier vocabulary (`statement` wildcard + five kinds),
   kind-scoped matching, executions-tier staleness exemption.
-- `specs/backend-divergence-allowlist.v1.yaml`: 53 entries (28 dialect
-  reads → #6906, 6 phased writes + 10 correlation/sweep + 9 executions →
-  #6782), each with exact statement text, tier, reason, upstream, owner.
+- `specs/backend-divergence-allowlist.v1.yaml`: 53 entries at capture7
+  (28 dialect reads → #6906, 6 phased writes + 10 correlation/sweep +
+  9 executions → #6782), each with exact statement text, tier, reason,
+  upstream, owner. Net at slice end: 53 + 20 triaged − 1 retired
+  (entry 57, converged) = 72; see the capture8 appendix below.
 
 ## Fresh-leg re-proof (capture7, commits through dd6736ec8)
 
@@ -74,7 +76,8 @@ Neo4j `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0ea
   (`/tmp/diffproof7-neo4j.log`); captures `/tmp/diff-capture7/{nornicdb,
   neo4j}` (12 files each).
 - Compare: **26 unexcused of 653 groups** (`/tmp/diffproof7-compare.log`).
-  After 20 new allowlist entries (exact normalized statement text):
+  After 20 new allowlist entries (exact normalized statement text; 19 net —
+  entry 57 later retired as converged, see appendix):
   **backend-diff clean, exit 0** (`/tmp/diffproof7-compare2.log`):
   2708 nornicdb records, 2637 neo4j records, 653 allowlisted.
 - Keeper fixes proven on live legs: the failures-kind detail now names
@@ -168,3 +171,30 @@ Burn-down: 53 entries + 20 triaged − 1 retired (entry 57) = **72 total**
 #6922 (Platform MERGE UNIQUE race, open), #6923 (CAN_PERFORM probe
 drain-timing wobble, open). #6915 stays open for the remaining ORDER BY
 entries.
+
+## Multi-leg quorum end to end (owner direction 2026-09-21)
+
+CI run 35635362608 went red on 2 Module/orphan divergences the capture8
+legs never showed (orphan scan 58v59 rows; candidate probe 7v14 executions
+with agreeing digests). Recording-level triage of the uploaded
+`differential-capture` artifact traced both to a single extra orphan row on
+the neo4j leg: the 59th orphan duplicates the `database/sql/go` candidate
+key, and the UNWIND explosion counts it twice per execution (7v14, same
+digest). Scheduling noise, not backend divergence — the case for quorum.
+
+Quorum proof with the branch binary (no new legs run):
+
+- Pairing 1 (local capture8: `/tmp/diff-capture8/{nornicdb,neo4j}`, 2669/2657
+  records): 2 unexcused — CAN_PERFORM sink probe (14v12 rows), Platform
+  MERGE race (1v0 failures). Single-pair mode: exit 1
+  (`/tmp/quorum-pair-local.log`).
+- Pairing 2 (CI run 35635362608 artifact, 2743/2702 records): 2 unexcused —
+  Module orphan scan, Module candidate probe. Single-pair mode: exit 1
+  (`/tmp/quorum-pair-ci.log`, `/tmp/quorum-single-recheck.log`).
+- Quorum mode over both pairings (`-diff-left2/-diff-right2`): intersection
+  empty, exit 0 — required `nornicdb_vs_neo4j_quorum` PASS plus advisory
+  `nornicdb_vs_neo4j_nonreproducing` listing all 4 pairing-local
+  divergences (`/tmp/quorum-proof.log`: "2 pass, 0 required-fail,
+  0 advisory-warn"). Each single pairing stays red on its own; a systematic
+  divergence (same fingerprint both pairings) still fails by construction,
+  pinned at unit level by `TestQuorumIntersectionKeepsReproducedDivergences`.

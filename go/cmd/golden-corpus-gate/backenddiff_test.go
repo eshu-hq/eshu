@@ -18,6 +18,13 @@ import (
 // real capture sink, so the gate phase test exercises the on-disk format.
 func writeBackendDiffDir(t *testing.T, backend string, digests ...string) string {
 	t.Helper()
+	return writeBackendDiffDirStmt(t, backend, "MATCH (n) RETURN n", digests...)
+}
+
+// writeBackendDiffDirStmt is writeBackendDiffDir for an explicit statement,
+// so quorum tests can diverge different statements per pairing.
+func writeBackendDiffDirStmt(t *testing.T, backend, statement string, digests ...string) string {
+	t.Helper()
 	dir := t.TempDir()
 	sink, err := capture.OpenDir(dir, backend, "testbin")
 	if err != nil {
@@ -26,7 +33,7 @@ func writeBackendDiffDir(t *testing.T, backend string, digests ...string) string
 	for _, digest := range digests {
 		err := sink.Append(backendconformance.DifferentialRecord{
 			Fingerprint: backendconformance.DifferentialFingerprint{
-				Statement:  "MATCH (n) RETURN n",
+				Statement:  statement,
 				Parameters: "{}",
 			},
 			Backend:  backend,
@@ -140,5 +147,89 @@ func TestRunBackendDiffMissingBackend(t *testing.T) {
 	right := writeBackendDiffDir(t, "nornicdb", "abc123")
 	if err := runBackendDiffPhase(t, left, right, writeEmptyBackendDiffAllowlist(t)); err == nil {
 		t.Errorf("single-backend comparison passed the gate")
+	}
+}
+
+// runBackendDiffQuorumPhase runs the backend-diff phase with two pairings,
+// exercising the multi-leg quorum path end to end through flag parsing.
+func runBackendDiffQuorumPhase(t *testing.T, left, right, left2, right2, allowlist string) error {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	return run(context.Background(), []string{
+		"-phase=backend-diff",
+		"-diff-left=" + left,
+		"-diff-right=" + right,
+		"-diff-left2=" + left2,
+		"-diff-right2=" + right2,
+		"-diff-allowlist=" + allowlist,
+	}, os.Getenv, &stdout, &stderr)
+}
+
+// A divergence reproducing across both pairings fails quorum: the same
+// statement answers differently on each backend in both pairings.
+func TestRunBackendDiffQuorumReproducedFails(t *testing.T) {
+	left := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1")
+	right := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d2")
+	left2 := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1")
+	right2 := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d2")
+	if err := runBackendDiffQuorumPhase(t, left, right, left2, right2, writeEmptyBackendDiffAllowlist(t)); err == nil {
+		t.Errorf("reproduced divergence passed quorum")
+	}
+}
+
+// Pairing-local noise passes quorum: each pairing is red on its own
+// divergence, but nothing reproduces, so the gate stays green.
+func TestRunBackendDiffQuorumDisjointPasses(t *testing.T) {
+	left := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (a) RETURN a", "d1")
+	right := writeBackendDiffDirStmt(t, "neo4j", "MATCH (a) RETURN a", "d2")
+	left2 := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (b) RETURN b", "d1")
+	right2 := writeBackendDiffDirStmt(t, "neo4j", "MATCH (b) RETURN b", "d2")
+	if err := runBackendDiffQuorumPhase(t, left, right, left2, right2, writeEmptyBackendDiffAllowlist(t)); err != nil {
+		t.Errorf("disjoint pairings failed quorum: %v", err)
+	}
+}
+
+// Half a second pairing is a flag error, not a silent single-pair run.
+func TestRunBackendDiffQuorumHalfFlagsFails(t *testing.T) {
+	left := writeBackendDiffDir(t, "nornicdb", "abc123")
+	right := writeBackendDiffDir(t, "neo4j", "abc123")
+	left2 := writeBackendDiffDir(t, "nornicdb", "abc123")
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{
+		"-phase=backend-diff",
+		"-diff-left=" + left,
+		"-diff-right=" + right,
+		"-diff-left2=" + left2,
+		"-diff-allowlist=" + writeEmptyBackendDiffAllowlist(t),
+	}, os.Getenv, &stdout, &stderr)
+	if err == nil {
+		t.Errorf("half quorum flags passed the gate")
+	}
+}
+
+// Repeating the first pairing as the second degrades quorum to single-pair:
+// fail closed instead of silently passing noise through.
+func TestRunBackendDiffQuorumIdenticalDirsFails(t *testing.T) {
+	left := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (a) RETURN a", "d1")
+	right := writeBackendDiffDirStmt(t, "neo4j", "MATCH (a) RETURN a", "d2")
+	if err := runBackendDiffQuorumPhase(t, left, right, left, right, writeEmptyBackendDiffAllowlist(t)); err == nil {
+		t.Errorf("identical quorum pairings passed the gate")
+	}
+}
+
+// Stale-allowlist enforcement is per pairing, not weakened by quorum: an
+// entry matching pairing 1 but nothing in pairing 2 fails the gate.
+func TestRunBackendDiffQuorumStalePerPairingFails(t *testing.T) {
+	left := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1")
+	right := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d2")
+	left2 := writeBackendDiffDir(t, "nornicdb", "abc123")
+	right2 := writeBackendDiffDir(t, "neo4j", "abc123")
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "entries:\n- statement: \"MATCH (s) RETURN s\"\n  tier: \"statement\"\n  reason: \"seeded test divergence\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := runBackendDiffQuorumPhase(t, left, right, left2, right2, allowlist); err == nil {
+		t.Errorf("pairing-local stale entry passed quorum")
 	}
 }

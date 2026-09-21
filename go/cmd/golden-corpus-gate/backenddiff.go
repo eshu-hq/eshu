@@ -52,6 +52,9 @@ func runBackendDiff(o options, stdout io.Writer, r *Report) error {
 	if strings.TrimSpace(o.diffLeft2) == "" || strings.TrimSpace(o.diffRight2) == "" {
 		return fmt.Errorf("quorum mode requires both -diff-left2 and -diff-right2, or neither")
 	}
+	if strings.TrimSpace(o.diffLeft2) == left && strings.TrimSpace(o.diffRight2) == right {
+		return fmt.Errorf("quorum mode requires two distinct pairings: -diff-left2/-diff-right2 repeat the first pairing, which would silently degrade quorum to single-pair")
+	}
 	return runBackendDiffQuorum(o, allow, stdout, r)
 }
 
