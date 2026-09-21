@@ -123,7 +123,9 @@ func (w *SemanticEntityWriter) WithLabelScopedRetract() *SemanticEntityWriter {
 }
 
 // WithMaxGroupRows caps UNWIND parameter rows per grouped transaction; values
-// at or below zero keep the current limit.
+// at or below zero keep the current limit. Keep it at or above the largest
+// per-statement batch size: a single statement larger than the cap still
+// fails, and the work item retry replays the whole write to convergence.
 func (w *SemanticEntityWriter) WithMaxGroupRows(maxRows int) *SemanticEntityWriter {
 	if w == nil || maxRows <= 0 {
 		return w
@@ -163,13 +165,19 @@ func (w *SemanticEntityWriter) groupRowLimit() int {
 
 // semanticStatementRowCount reports how many UNWIND parameter rows a statement
 // carries toward the grouped-transaction row cap. Retract statements carry
-// repo ID lists instead of rows and never force a split on their own; a single
-// statement that alone exceeds the backend request ceiling still fails, and the
-// work item retry replays the whole write to convergence.
+// repo ID lists instead of rows and never force a split on their own;
+// singleton-parameterized upserts carry one row each without a "rows" key,
+// so they count 1 and an oversized write in that mode can still force a
+// split. A single statement that alone exceeds the backend request ceiling
+// still fails, and the work item retry replays the whole write to
+// convergence.
 func semanticStatementRowCount(stmt Statement) int {
 	rows, ok := stmt.Parameters["rows"]
 	if !ok {
-		return 0
+		if stmt.Operation == OperationCanonicalRetract {
+			return 0
+		}
+		return 1
 	}
 	switch typed := rows.(type) {
 	case []map[string]any:

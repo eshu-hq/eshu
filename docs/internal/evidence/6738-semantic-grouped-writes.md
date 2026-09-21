@@ -19,9 +19,11 @@ sequential groups capped at `DefaultMaxGroupRows` (2000) UNWIND parameter
 rows each, preserving statement order (retracts lead upserts), and dispatches
 one `ExecuteGroup` per group. A group failure aborts the write; the work item
 retry replays all groups. Retract statements carry repo ID lists, not rows,
-and never force a split on their own. `MaxGroupRows`/`WithMaxGroupRows`
-override the cap; writes under the cap dispatch exactly one group, identical
-to the old path.
+and never force a split on their own; singleton-parameterized upserts carry
+one row each without a `rows` key and count 1 apiece. `MaxGroupRows`/
+`WithMaxGroupRows` override the cap — keep it at or above the largest
+per-statement batch size. Writes under the cap dispatch exactly one group,
+identical to the old path.
 
 No-Regression Evidence: writes at or under the cap produce a single group —
 byte-identical dispatch to before. Splitting only engages past 2000 rows,
