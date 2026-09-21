@@ -59,6 +59,7 @@ rationale_lib="${repo_root}/scripts/lib/ifa_rationale_live.sh"
 rationale_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_rationale_cells.sh"
 rationale_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-rationale-cases.sh"; submodule_pin_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-submodule-pin-cases.sh"  # packed for the 500-line cap
 entrypoint_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-entrypoint-cases.sh"; marker_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-marker-cases.sh"; cell_catalog_doc="${repo_root}/docs/internal/ifa-fault-cell-catalog.md"; cell_pins_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh"  # packed for the 500-line cap
+reclaim_assert_lib="${repo_root}/scripts/lib/ifa_fault_reclaim_assert.sh"; reclaim_assert_cases_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-reclaim-assert-cases.sh"  # packed for the 500-line cap
 assertions_lib="${repo_root}/scripts/lib/test-ifa-fault-injection-assertions.sh"
 # The pin-helper meta-gate, split out of the assertions lib under #6261 when
 # that file had been sitting at exactly 499/500 for a whole review cycle.
@@ -257,6 +258,16 @@ run_ifa_fault_injection_cell_pins_cases
 # always satisfied by its own line.
 [[ "$(_ifa_count_code_matches 'run_ifa_fault_injection_cell_pins_cases' "${BASH_SOURCE[0]}")" -eq 3 ]] \
 	|| fail "this mirror no longer calls run_ifa_fault_injection_cell_pins_cases (expected the call, this pin, and the name in this message) -- the numbered per-cell pins would all stop running"
+
+# Cell 3's forced-expiry re-claim assertion is proven behaviourally, not by a
+# source pin: the pins above prove the cell CALLS it, these prove it actually
+# fails when the expiry caused no re-claim.
+# shellcheck source=scripts/lib/test-ifa-fault-injection-reclaim-assert-cases.sh
+source "${reclaim_assert_cases_lib}"
+run_ifa_fault_injection_reclaim_assert_cases
+# EXACTLY THREE, for the same reason as the pin above.
+[[ "$(_ifa_count_code_matches 'run_ifa_fault_injection_reclaim_assert_cases' "${BASH_SOURCE[0]}")" -eq 3 ]] \
+	|| fail "this mirror no longer calls run_ifa_fault_injection_reclaim_assert_cases (expected the call, this pin, and the name in this message) -- cell 3's non-vacuity assertion would stop being proven"
 
 # documentation_edges (#5994) cases live in a sourced case module so this
 # structural verifier stays below 500 lines (mirroring the deployable-unit

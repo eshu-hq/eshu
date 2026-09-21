@@ -127,17 +127,28 @@ cell_expirelease() {
 	log "cell expire-lease-mid-handler: fresh stack"
 	fresh_stack expirelease
 	drive_all_cassettes expirelease
-	local projector_pid reducer_pid claimed_before
+	local projector_pid reducer_pid claimed_before reclaimed_before reclaimed_after
 	ifa_det_start_bg "${log_dir}" "projector-expirelease" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-expirelease" reducer_pid "${bin_dir}/eshu-reducer"
 	claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
 		|| die "expire-lease-mid-handler: no row was ever claimed before the forced expiry -- non-vacuous precondition failed"
 	printf 'expire-lease-mid-handler: non-vacuous: %s claimed/running row(s) observed before forced expiry\n' "${claimed_before}"
+	# Captured BEFORE the expiry so the assertion after the drain measures what
+	# this expiry caused, not a retry that predated it.
+	reclaimed_before="$(ifa_fault_count_reclaimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
 	log "expire-lease-mid-handler: force claim_until = now() on every claimed/running reducer row (SQL, no kill)"
 	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		"UPDATE fact_work_items SET claim_until = now() WHERE stage = 'reducer' AND status IN ('claimed', 'running');" \
 		"${compose_file}" >/dev/null
 	run_drain_gate expirelease
+	# The result, not the precondition. claimed_before proves rows were held
+	# when the expiry landed; only a rise in the re-claimed count proves the
+	# expiry actually made another worker take one over mid-handler. Without
+	# this the cell passes identically whether it exercised the race or the
+	# handlers had already finished.
+	reclaimed_after="$(ifa_fault_assert_reclaimed_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${reclaimed_before}")" \
+		|| die "expire-lease-mid-handler: the forced expiry never produced a re-claim -- reducer rows with attempt_count > 1 never rose above the pre-expiry count of ${reclaimed_before}. The cell drained without exercising the mid-handler reclaim it exists to test, so a pass here would prove nothing. Root-cause the claim poll or the handler timing before trusting this gate."
+	printf 'expire-lease-mid-handler: non-vacuous: re-claimed rows rose %s -> %s after the forced expiry\n' "${reclaimed_before}" "${reclaimed_after}"
 	assert_no_dead_letters expirelease
 	capture_digest expirelease
 	assert_matches_baseline expirelease
