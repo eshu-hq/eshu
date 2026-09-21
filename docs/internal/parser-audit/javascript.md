@@ -75,7 +75,7 @@ to `../../../../tests/fixtures` for the extra directory level.
   `dead_code_commonjs.go`, `dead_code_framework_exports.go`,
   `dead_code_framework_routes.go`, `dead_code_hapi.go`,
   `dead_code_hapi_route.go`, `dead_code_hapi_proxy.go`,
-  `javascript_dead_code_node_roots.go`, `dead_code_package.go`,
+  `dead_code_package.go`,
   `dead_code_typescript_surface.go`,
   `dead_code_typescript_import_exports.go`)
 - **Hapi routes**: method, path, handler pairs from route config objects
