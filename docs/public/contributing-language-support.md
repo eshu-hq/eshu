@@ -40,7 +40,7 @@ Repository-wide config that many files share (a language's project manifest,
 not a single source file) should be memoized per resolved config path, not
 recomputed per file and not collapsed to one value per repository root. The
 JavaScript-family parser's `tsconfig.json`/`package.json` resolution
-(`go/internal/parser/javascript/config_scope_cache.go`) is the reference
+(`go/internal/parser/javascript/project/scope_cache.go`) is the reference
 pattern: it caches parsed config content keyed by the resolved absolute config
 file path, invalidates the entry on `(mtime, size)` change so a re-scanned
 repository never serves a stale generation, and coalesces concurrent same-path
