@@ -13,6 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// DerivationEcosystems normalizes the configured ecosystem filter for
+// package-registry target derivation into a set, dropping any value that is
+// not a supported owned-dependency ecosystem. An empty filter defaults to npm
+// rather than to every ecosystem, so an unconfigured instance derives a
+// bounded set.
 func DerivationEcosystems(values []string) map[string]struct{} {
 	out := map[string]struct{}{}
 	source := values

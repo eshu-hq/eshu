@@ -316,6 +316,10 @@ const (
 	maxDerivedPackageTargets     = 5000
 )
 
+// DerivedTargetLimit resolves how many derived package-registry targets one
+// instance may plan. An unset or non-positive raw value falls back to the
+// package default, and any value above the ceiling is clamped, so a
+// misconfigured instance cannot plan an unbounded target set.
 func DerivedTargetLimit(raw int) int {
 	limit := schedule.DerivationLimit(raw, defaultDerivedPackageTargets)
 	if limit > maxDerivedPackageTargets {
