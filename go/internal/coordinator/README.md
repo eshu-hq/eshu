@@ -505,6 +505,35 @@ advisory payloads.
 
 ## Evidence
 
+No-Regression Evidence (#6781): `cd go && go test ./internal/coordinator/... ./cmd/workflow-coordinator/... -count=1`
+passes after the root split from 49 to 35 non-test files. The split is a file
+and symbol relocation, so the proof a refactor owes is that the contract did
+not move with the files: the discovered test-name set is byte-identical to
+`origin/main` at 279 names, compared with
+`go test -list '.*' ./internal/coordinator/... ./cmd/workflow-coordinator/...`
+on both trees and an empty `comm` diff in both directions. That check exists
+because a moved test file can compile clean and register nothing. `go vet
+./...` is clean module-wide and caught eight test-compilation breaks that
+`go build ./...` reported clean, since build ignores `_test.go` entirely.
+
+The semantic-provider worker moved to `semantic/` unchanged apart from
+identifier renames. Its claim loop, lease fencing, `MaxClaimsPerPass` bound,
+egress re-check order, and `FOR UPDATE SKIP LOCKED` claim query are untouched,
+so `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the same work it did
+before the move; the benchmark now lives at `./internal/coordinator/semantic`.
+No worker count, lease duration, batch size, queue ordering, or retry
+behavior changed. `minInt` was replaced by the `min` builtin at two capacity
+hints, which is the same function.
+
+No-Observability-Change (#6781): the split adds or renames no metric, span,
+log field, status field, queue, worker, lease, or runtime setting. The
+`ESHU_SEMANTIC_PROVIDER_*` environment variable strings are unchanged; only
+their Go constant names dropped the `Semantic` prefix.
+`eshu_dp_workflow_coordinator_semantic_provider_claim_total` keeps its name and
+dimensions. `MetricPrefix` is now exported so `cmd/workflow-coordinator` can
+pass it to `semantic.NewProviderWorkerMetrics`, which keeps the instrument in
+the same namespace without the subpackage importing this one.
+
 No-Regression Evidence: `go test ./internal/coordinator/planner/aws/scheduled ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
 covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
 the audit-only run recorded when all configured tuples are invalid.
