@@ -81,3 +81,17 @@ session's is how a "confirmed" result turns out to be someone else's.
 Nothing here bypasses `scripts/dev/bootstrap-hooks.sh`, which installs the git
 pre-commit and pre-push hooks. The two sets are unrelated: git hooks gate
 commits and pushes, agent hooks gate tool calls.
+
+## Muse Code activation
+
+The Muse port is project-level: `.muse/hooks.json` plus `.muse/hooks/`.
+Settings are read at session start, so start a new session after changing
+either. Project hooks load only in a trusted workspace -- an untrusted
+session skips them silently, with no enforcement and no warning naming
+hooks. `muse exec --trust-workspace` loads them for one run. Diagnose the
+same three ways as above, reading `.muse/hooks.json` for the
+(event, matcher, command) triple; `scripts/test-muse-hooks.sh` asserts all
+three, and the Muse tool names differ (`write_file`, `edit_file`, `bash`,
+`read_skill` -- a Claude `Write` matcher under Muse is present, silent,
+and easy to mistake for absent). The envelope, output protocol, and limits
+are in [Muse Hooks](agent-hooks-muse.md).

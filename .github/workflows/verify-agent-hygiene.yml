@@ -55,6 +55,9 @@ jobs:
       - name: Run goal-refresh hook test mirror
         run: scripts/test-goal-refresh-hook.sh
 
+      - name: Run Muse hooks port test mirror
+        run: scripts/test-muse-hooks.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10

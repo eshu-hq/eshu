@@ -1,0 +1,106 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/on-compact.sh\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/goal-refresh.sh\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/skill-nudge.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "edit_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/skill-nudge.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/guard-live-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/eshu-doc-staleness.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "edit_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/eshu-doc-staleness.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "read_skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/skill-loaded.sh\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/on-compact.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec \"$r/.muse/hooks/goal-continue.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
