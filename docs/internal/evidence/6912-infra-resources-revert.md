@@ -194,18 +194,23 @@ columns behave differently and an unscoped claim here would be wrong:
   their own traffic. The other two, `/cloud/inventory` and
   `/infra/resources/inventory`, are not identical to the default row --
   they carry their own `blks` and are accounted for separately above.
-  Only their `rows` column sits on that floor.
+  Only their `rows` column tracks the default row's 16 -> 14 move.
 
 Every `rows` delta tightens a guard. The `blks` column moved both ways:
 16 named budgets rose, none by more than 0.18%, and three fell. Those
-shifts are between the reports main's table was rendered from and this
-drive's two reports, not between this drive's own runs, which agreed to
-the block as recorded above. A budget that rises is a looser guard, so
-the residual risk here runs in both directions at noise scale: a raised
-budget hides that much more, and a lowered one breaches if a future run
-lands between the old and the new value. Both are inherent to
-regenerating from measured maxima, not specific to this change. An
-independent check confirms the rendered table admits every measured route:
+shifts are between the reports main's committed table was rendered from
+and this drive's two reports: the renderer takes the max over whatever
+reports it is given, so a budget moves when its inputs do. That holds
+whether or not the two runs agreed. This drive's runs did agree to the
+block on the four routes compared above; no such comparison was made for
+the other changed routes, and this claim does not rest on one.
+
+A budget that rises is a looser guard, so the residual risk here runs in
+both directions at noise scale: a raised budget hides that much more, and
+a lowered one breaches if a future run lands between the old and the new
+value. Both are inherent to regenerating from measured maxima, not
+specific to this change. An independent check confirms the rendered table
+admits every measured route:
 65 routes checked across both reports, zero breaches, and the checker
 fails as expected on a seeded violation.
 
