@@ -178,10 +178,12 @@ func canonicalizeGraphValue(value any) any {
 }
 
 // nornicRelationshipShape recognizes the NornicDB relationships(path)
-// element: exactly {type, properties}. The exact-keys guard keeps an
-// ordinary result map with a "type" key from collapsing into a relationship.
+// element: {type, properties}, plus the backend-assigned _edgeId the live
+// backend attaches. The exact-keys guard keeps an ordinary result map with
+// a "type" key from collapsing into a relationship: only _edgeId may ride
+// along, and it blinds like every other backend element identity.
 func nornicRelationshipShape(value map[string]any) (string, any, bool) {
-	if len(value) != 2 {
+	if len(value) != 2 && len(value) != 3 {
 		return "", nil, false
 	}
 	relType, ok := value["type"].(string)
@@ -191,6 +193,11 @@ func nornicRelationshipShape(value map[string]any) (string, any, bool) {
 	props, ok := value["properties"].(map[string]any)
 	if !ok {
 		return "", nil, false
+	}
+	if len(value) == 3 {
+		if _, ok := value["_edgeId"].(string); !ok {
+			return "", nil, false
+		}
 	}
 	return relType, props, true
 }
@@ -266,6 +273,13 @@ func canonicalizeDigestValue(value any) any {
 		for key, item := range typed {
 			if isClockKey(key) {
 				out[key] = 0
+				continue
+			}
+			if item == nil {
+				// NornicDB materializes explicit null properties where
+				// Neo4j omits the key; the absent-vs-null distinction is
+				// serialization, not graph truth. A nil-vs-value
+				// disagreement still digests differently.
 				continue
 			}
 			out[key] = canonicalizeDigestValue(item)

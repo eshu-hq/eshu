@@ -261,3 +261,78 @@ func TestFingerprintsKeepLineageDigestValues(t *testing.T) {
 		t.Fatal("fingerprints pair across distinct run-scoped sweep keys")
 	}
 }
+
+// TestDigestRowsCanonicalizesNornicEdgeID pins the live NornicDB shape:
+// relationships(path) elements arrive as {type, properties} plus a
+// backend-assigned _edgeId. The edge id blinds like every other backend
+// element identity, so the row digests like the Neo4j driver Relationship.
+func TestDigestRowsCanonicalizesNornicEdgeID(t *testing.T) {
+	t.Parallel()
+	props := map[string]any{"confidence": 0.96, "evidence_type": "argocd"}
+	neo := []map[string]any{{"rel": neo4jdriver.Relationship{
+		Id: 12, ElementId: "5:aaa:12", StartId: 1, EndId: 2,
+		Type: "DEPENDS_ON", Props: props,
+	}}}
+	nornic := []map[string]any{{"rel": map[string]any{
+		"type": "DEPENDS_ON", "properties": props, "_edgeId": "merge-2ccecb42e83c",
+	}}}
+	a, err := DigestRows(neo, false)
+	if err != nil {
+		t.Fatalf("DigestRows() error = %v", err)
+	}
+	b, err := DigestRows(nornic, false)
+	if err != nil {
+		t.Fatalf("DigestRows() error = %v", err)
+	}
+	if a != b {
+		t.Fatalf("digests differ across backend relationship shapes:\n%s\n%s", a, b)
+	}
+}
+
+// TestDigestRowsKeepsNonEdgeIDThirdKey pins the exact-keys guard: a result
+// map that happens to carry type/properties plus an unrelated third key is
+// an ordinary row, not a relationship, and must not collapse into one.
+func TestDigestRowsKeepsNonEdgeIDThirdKey(t *testing.T) {
+	t.Parallel()
+	rel := []map[string]any{{"rel": map[string]any{
+		"type": "DEPENDS_ON", "properties": map[string]any{"a": 1}, "_edgeId": "merge-1",
+	}}}
+	row := []map[string]any{{"rel": map[string]any{
+		"type": "DEPENDS_ON", "properties": map[string]any{"a": 1}, "other": 2,
+	}}}
+	a, err := DigestRows(rel, false)
+	if err != nil {
+		t.Fatalf("DigestRows() error = %v", err)
+	}
+	b, err := DigestRows(row, false)
+	if err != nil {
+		t.Fatalf("DigestRows() error = %v", err)
+	}
+	if a == b {
+		t.Fatal("ordinary result map collapsed into a relationship shape")
+	}
+}
+
+// TestDigestRowsStripsExplicitNulls pins the null-property agreement:
+// NornicDB materializes explicit nulls where Neo4j omits the key, so a
+// nil-valued cell blinds while a nil-vs-value disagreement still digests
+// differently.
+func TestDigestRowsStripsExplicitNulls(t *testing.T) {
+	t.Parallel()
+	digest := func(rows []map[string]any) string {
+		out, err := DigestRows(rows, false)
+		if err != nil {
+			t.Fatalf("DigestRows() error = %v", err)
+		}
+		return out
+	}
+	withNull := digest([]map[string]any{{"source_tool": nil, "confidence": 0.96}})
+	without := digest([]map[string]any{{"confidence": 0.96}})
+	if withNull != without {
+		t.Fatalf("explicit null digests differently than absent key:\n%s\n%s", withNull, without)
+	}
+	withValue := digest([]map[string]any{{"source_tool": "argocd", "confidence": 0.96}})
+	if withNull == withValue {
+		t.Fatal("nil-vs-value disagreement digests identically: masking")
+	}
+}
