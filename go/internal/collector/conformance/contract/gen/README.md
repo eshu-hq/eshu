@@ -18,7 +18,7 @@ scripts/verify-contracttest.sh
 ## Ownership boundary
 This command owns the YAML-to-Go contract code generation. It does not own the
 contract types (`CollectorContract`, `FactKindShape`) — those are defined in the parent
-`contracttest` package. It does not own the YAML spec — that is owned by Epic A
+`contract` package. It does not own the YAML spec — that is owned by Epic A
 (#3736) and governed by the collector contract spec process.
 
 ## Invariants
@@ -30,7 +30,7 @@ contract types (`CollectorContract`, `FactKindShape`) — those are defined in t
 
 ## Dependencies
 - `gopkg.in/yaml.v3` — YAML spec parsing.
-- Parent `contracttest` package — contract types are consumed by generated code.
+- Parent `contract` package — contract types are consumed by generated code.
 
 ## Evidence
 - No-Regression Evidence: contract-gen is a build-time code generator with
