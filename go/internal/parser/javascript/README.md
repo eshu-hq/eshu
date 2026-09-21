@@ -36,9 +36,9 @@ They do not give this child package ownership of parent parser dispatch.
 
 The package is responsible for JavaScript-family tree-sitter traversal,
 payload assembly, import and re-export extraction, call metadata, component
-evidence, TypeScript declaration rows, package.json roots, tsconfig alias
-resolution, Hapi route evidence, framework callback roots, and deterministic
-bucket sorting.
+evidence, TypeScript declaration rows, package.json roots and tsconfig alias
+resolution (via the `project` subpackage), Hapi route evidence, framework
+callback roots, and deterministic bucket sorting.
 
 The parent `internal/parser` package owns registry dispatch, runtime grammar
 caching, Engine.ParsePath, Engine.PreScanRepositoryPathsWithWorkers, and the
@@ -47,13 +47,37 @@ options. Production files in this package must not import the parent parser
 package. External black-box tests may import it to exercise the public engine
 without giving child production code a reverse dependency.
 
+
+## Subpackages
+
+Three leaf packages sit under this one, and none may import it back -- that
+would be an import cycle, which the symbol census behind issue #6771 showed
+this directory's call graph produces readily. Each has its own README.
+
+- `project/` -- a source file's project context from the repository layout:
+  nearest `tsconfig.json` and its `baseUrl`/`paths` aliases, nearest
+  `package.json` and the entry points it declares, repo-relative path
+  normalization, and the stat-keyed cache that keeps those lookups off the hot
+  path.
+- `syntax/` -- AST-level extraction primitives: declared names, docstrings and
+  function/method kinds, type parameters and references, implemented
+  interfaces, member-expression decomposition, parameter counts, and the
+  per-parse `ParentLookup` index. It reports what the grammar says; deciding
+  what a framework means stays here.
+- `jsdataflow/` -- CFG and reaching definitions behind `Options.EmitDataflow`.
+
+`project` and `syntax` are independent of each other; this package imports both.
+
 ## Exported surface
 
-The godoc contract is in `doc.go`. Current exports are `ParserFactory`,
-`Parse`, `PreScan`, `TSConfigImportResolver`,
-`NewTSConfigImportResolver`, `TSConfigImportResolver.ResolveSource`,
-`TSConfigSourceCandidates`, `PackageFileRootKinds`, `NearestPackageRoot`, and
-`PackagePublicSourcePaths`, and `ExpressServerSymbols`.
+The godoc contract is in `doc.go`. Current root-package exports are
+`ParserFactory`, `Parse`, `PreScan`, and `ExpressServerSymbols`. Project-context
+resolution (`TSConfigImportResolver`, `NewTSConfigImportResolver`,
+`TSConfigSourceCandidates`, `PackageFileRootKinds`, `NearestPackageRoot`,
+`PackagePublicSourcePaths`) and AST-shape extraction (`ParentLookup`,
+`FunctionName`, and the other primitives listed under "Subpackages" below)
+moved into the leaf subpackages this package imports and calls into; see their
+own `doc.go`/`README.md` for their exported surfaces.
 
 The `embedded_shell_commands` payload bucket records import-backed
 `child_process` calls with function, line, API, and language metadata only. It
@@ -69,9 +93,12 @@ collector runs full parse immediately afterward.
 
 This package imports tree-sitter, the Go standard library, and
 `internal/parser/shared` for payload, source, tree, path, and option helpers.
-The local alias file only exposes helper names with package-local callers.
-Production code must not import the parent parser package, collector packages,
-graph storage, or reducer code. `fastify_threading_bench_test.go` and the
+It also imports its own leaf subpackages, `project` and `syntax` (see
+Subpackages above); files that moved into either one call `shared.*` directly
+instead of this package's local alias names, since those aliases are not
+visible outside this package. The local alias file only exposes helper names
+with package-local callers. Production code must not import the parent parser
+package, collector packages, graph storage, or reducer code. `fastify_threading_bench_test.go` and the
 TypeScript implemented-interface regression are external-package tests; both
 import the parent parser to exercise the public `Engine.ParsePath` path. The
 separate `fastify_threading_characterization_test.go` stays in `package
@@ -91,11 +118,14 @@ A small set of regular expressions is retained deliberately. Each runs only
 against the value of a string literal or an identifier token, never as a
 source scanner, and each is a documented within-string-content exception:
 
-- `javaScriptStaticComputedMemberNameRe` (`javascript_names.go`) validates that
+- `staticComputedMemberNameRe` (unexported, `syntax/names.go`) validates that
   an already-unquoted computed-property string value looks like a static member
   path or numeric literal. It checks within-string content, not source layout.
+  It moved with its owning symbol under issue #6771; see `syntax/AGENTS.md` for
+  the full residual-regex rationale and `syntax/names_test.go` for its
+  characterization tests.
 - `javaScriptAWSClientServiceRe` / `javaScriptGCPServiceRe`
-  (`javascript_semantics_ast.go`) extract the service slug from an
+  (`semantics_ast.go`) extract the service slug from an
   `@aws-sdk/client-*` or `@google-cloud/*` package specifier. The specifier
   string is isolated from the AST `import_statement`/`require` node first; the
   regex only parses the trailing slug inside that isolated string.
@@ -134,12 +164,12 @@ node, so the pattern scaled as O(n_declarations * depth) cgo crossings per file.
 A full-corpus CPU profile on JavaScript/TypeScript parsing (#3586) showed
 `runtime.cgocall`, driven by `ts_node_parent`, at roughly 48% of all parse CPU.
 
-`javaScriptParentLookup` (`parent_lookup.go`) removes those per-node crossings.
+`syntax.ParentLookup` (`syntax/parent_lookup.go`) removes those per-node crossings.
 `Parse` builds one child-to-parent map per tree in a single O(n) pass (the only
 cgo it costs is the one-time `Node.Child` walk over the tree the parser already
-built), then every helper consults the Go map via `parent(node)` instead of
+built), then every helper consults the Go map via `parents.Parent(node)` instead of
 calling `node.Parent()`. The map keys on `Node.Id()`, a pure Go field read, so
-lookups never re-enter cgo. The mechanism is output-identical: `parent(x)`
+lookups never re-enter cgo. The mechanism is output-identical: `parents.Parent(x)`
 returns the exact node `x.Parent()` returns, so every helper's boolean and
 string results are unchanged. This is a mechanism optimization, not a behavior
 change.
@@ -190,7 +220,7 @@ walk up from a source file's own directory to find its nearest
 `tsconfig.json`/`package.json`, then read and parse that file. Before this
 cache, every `Parse` call repeated the read and parse independently, even
 though every file under one package/tsconfig scope resolves to the identical
-config file. `config_scope_cache.go` memoizes the parsed content keyed by the
+config file. `project/scope_cache.go` memoizes the parsed content keyed by the
 resolved config file's absolute path (NOT by repo root, since a monorepo can
 have several distinct tsconfig.json/package.json files each owning a different
 subtree — keying by repo root would incorrectly collapse those and leak one
@@ -199,7 +229,7 @@ config file and only reuses the parsed value when `(mtime, size)` still match
 what was cached, so a repository re-scanned after its config changed on disk
 recomputes rather than serving stale evidence across scan generations.
 
-The generic `configScopeCache[V]` type backs both memoizers. Single-flight
+The generic exported `project.ScopeCache[V]` type backs both memoizers. Single-flight
 coalescing keys the in-flight computation by the FULL `(path, stat)` tuple, not
 by path alone: an earlier revision keyed the map only by path, so a second
 goroutine observing a NEWER generation for the same path (the file changed
@@ -209,8 +239,9 @@ clobbered the map entry — a waiter blocked on the OTHER goroutine's
 `WaitGroup` could wake up and read back the wrong generation's value (a GitHub
 Copilot PR review finding on #4669). Keying the entry by `(path, stat)` makes
 that impossible: a changed generation is a distinct key/slot, never an
-overwrite of an in-flight one. The cache is also a bounded LRU
-(`configScopeCacheCapacity` = 4096 keys): it is process-global and used by a
+overwrite of an in-flight one. The cache is also a bounded LRU (the
+package-internal `scopeCacheCapacity` = 4096 keys, unexported in `project`): it
+is process-global and used by a
 long-running ingester scanning many repositories over its lifetime, so an
 unbounded map would grow without bound (a second #4669 review finding);
 evicting the least-recently-used key only means the next file under it
@@ -237,12 +268,13 @@ racy double-compute that happens to be safe).
 `TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange` and
 `TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup` reproduce
 and guard the path-only-keying overwrite defect directly against
-`configScopeCache[V].get` (failed before the `(path, stat)` key existed:
+`project.ScopeCache[V].Get` (failed before the `(path, stat)` key existed:
 reverting the key to path-only reintroduces either the wrong-generation value
 or a cross-generation deadlock, both observed while diagnosing this fix).
 `TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity` guards the bounded-LRU
-fix, asserting cache size never exceeds `configScopeCacheCapacity` and that an
-evicted key correctly recomputes on its next access.
+fix, asserting cache size never exceeds the package-internal
+`scopeCacheCapacity` and that an evicted key correctly recomputes on its next
+access.
 
 No-Regression Evidence: this is a caching/memoization change only. No
 `Parse` signature changed and no payload field changed; every js/ts/tsx
@@ -334,11 +366,17 @@ generic defaults that reference imported declaration types.
 
 ## Tests
 
-`config_scope_cache_test.go`, `tsconfig_test.go`, `package_json_test.go`,
 `parent_lookup_regression_test.go`, `walk_count_test.go`,
 `fastify_threading_characterization_test.go`, and
-`javascript_residual_regex_characterization_test.go` run in-package
-(`package javascript`) and cover package-local helpers directly.
+`residual_regex_characterization_test.go` run in-package
+(`package javascript`) and cover package-local helpers directly. The `project`
+and `syntax` subpackages carry their own in-package suites instead of sharing
+this one: `project/scope_cache_test.go`, `project/tsconfig_test.go`, and
+`project/package_json_test.go` (`package project`), and `syntax/names_test.go`
+(`package syntax` -- five of the ten residual-regex tests that used to live in
+this package's own residual-regex file before issue #6771 moved
+`staticComputedMemberNameRe` into `syntax/names.go`; the other five, for the
+two regexes that stayed here, remain in `residual_regex_characterization_test.go`).
 
 The Engine-level regressions that used to live in `internal/parser` as
 `engine_javascript_*_test.go` now run as external black-box tests in `package
@@ -369,35 +407,35 @@ stay at root (`engine_test.go`, `engine_framework_test_helpers_test.go`).
 
 A second relocation under the same issue moved the parent-level dead-code,
 value-flow, and parent-lookup benchmark suites the same way:
-`javascript_cfg_dataflow_test.go`, `javascript_compat_test.go`,
-`javascript_dead_code_commonjs_class_test.go`,
-`javascript_dead_code_framework_routes_test.go`,
-`javascript_dead_code_hapi_alias_test.go`,
-`javascript_dead_code_hapi_typescript_test.go`,
-`javascript_dead_code_node_entrypoints_test.go`,
-`javascript_dead_code_node_roots_test.go`,
-`javascript_dead_code_node_typescript_fixture_test.go`,
-`javascript_dead_code_package_scripts_test.go`,
-`javascript_dead_code_roots_test.go`,
-`javascript_dead_code_typescript_surface_test.go`, and
-`js_parent_lookup_bench_test.go`. `javascript_dead_code_roots_test.go` split
+`cfg_dataflow_test.go`, `compat_test.go`,
+`dead_code_commonjs_class_test.go`,
+`dead_code_framework_routes_test.go`,
+`dead_code_hapi_alias_test.go`,
+`dead_code_hapi_typescript_test.go`,
+`dead_code_node_entrypoints_test.go`,
+`dead_code_node_roots_test.go`,
+`dead_code_node_typescript_fixture_test.go`,
+`dead_code_package_scripts_test.go`,
+`dead_code_roots_test.go`,
+`dead_code_typescript_surface_test.go`, and
+`js_parent_lookup_bench_test.go`. `dead_code_roots_test.go` split
 into two files at the 500-line cap
-(`javascript_dead_code_roots_nextjs_migration_test.go` carries the Next.js
+(`dead_code_roots_nextjs_migration_test.go` carries the Next.js
 app-router and TypeScript migration/module-contract cases). The relocated
-parent file `javascript_dead_code_typescript_import_exports_test.go` collided
+parent file `dead_code_typescript_import_exports_test.go` collided
 with a pre-existing subdirectory file of the same name (which parses TypeScript
 re-export clauses directly against the AST in `package javascript`), so it was
 renamed to `engine_javascript_dead_code_typescript_import_exports_test.go`.
 `engine_javascript_test_helpers_test.go` gained `assertFunctionByNameAndClass`,
 `assertParserStringSliceFieldValue`, and `repoFixturePath` to cover these
-suites; `javascript_compat_test.go` keeps its parent-package name for
+suites; `compat_test.go` keeps its parent-package name for
 `javaScriptExpressServerSymbols`, a thin wrapper over the exported
-`ExpressServerSymbols` that `javascript_dead_code_roots_test.go` calls. The
+`ExpressServerSymbols` that `dead_code_roots_test.go` calls. The
 wrapper is not redundant: it lives in the external `javascript_test` package
 while `ExpressServerSymbols` is declared in the non-test `javascript` package
-(`javascript_dead_code_roots.go`), so the call still needs the `jsparser.`
+(`dead_code_roots.go`), so the call still needs the `jsparser.`
 qualifier. Deleting the wrapper on the assumption that the two sit in one
-package would break `javascript_dead_code_roots_test.go`.
+package would break `dead_code_roots_test.go`.
 
 A third relocation under the same issue moved the last three parent-level files
 named for this family: `engine_typescript_advanced_semantics_test.go` (7 tests
