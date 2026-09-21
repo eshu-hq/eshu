@@ -10,12 +10,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
+// DefaultMaxGroupRows caps how many UNWIND parameter rows one grouped
+// semantic transaction may hold. Backends reject a single request past
+// their transaction size ceiling (NornicDB: "Txn is too big to fit into
+// one request"), so the writer splits larger materializations into
+// sequential bounded groups. Retract statements carry no row parameters
+// and do not count toward the cap.
+const DefaultMaxGroupRows = 2000
+
 // SemanticEntityWriter writes Annotation, Typedef, TypeAlias, TypeAnnotation,
 // Component, Module, ImplBlock, Protocol, ProtocolImplementation, Variable,
 // and semantic Function nodes into the canonical graph.
 type SemanticEntityWriter struct {
-	executor              Executor
-	BatchSize             int
+	executor  Executor
+	BatchSize int
+	// MaxGroupRows caps UNWIND parameter rows per grouped transaction;
+	// non-positive means DefaultMaxGroupRows. Retract statements carry no
+	// row parameters and never force a split on their own.
+	MaxGroupRows          int
 	entityLabelBatchSizes map[string]int
 	writeMode             semanticEntityWriteMode
 	retractMode           semanticEntityRetractMode
@@ -110,6 +122,16 @@ func (w *SemanticEntityWriter) WithLabelScopedRetract() *SemanticEntityWriter {
 	return w
 }
 
+// WithMaxGroupRows caps UNWIND parameter rows per grouped transaction; values
+// at or below zero keep the current limit.
+func (w *SemanticEntityWriter) WithMaxGroupRows(maxRows int) *SemanticEntityWriter {
+	if w == nil || maxRows <= 0 {
+		return w
+	}
+	w.MaxGroupRows = maxRows
+	return w
+}
+
 // WithEntityLabelBatchSize overrides the per-statement row batch size for one
 // semantic entity label.
 func (w *SemanticEntityWriter) WithEntityLabelBatchSize(label string, batchSize int) *SemanticEntityWriter {
@@ -132,12 +154,70 @@ func (w *SemanticEntityWriter) batchSizeForLabel(label string) int {
 	return w.batchSize()
 }
 
+func (w *SemanticEntityWriter) groupRowLimit() int {
+	if w != nil && w.MaxGroupRows > 0 {
+		return w.MaxGroupRows
+	}
+	return DefaultMaxGroupRows
+}
+
+// semanticStatementRowCount reports how many UNWIND parameter rows a statement
+// carries toward the grouped-transaction row cap. Retract statements carry
+// repo ID lists instead of rows and never force a split on their own; a single
+// statement that alone exceeds the backend request ceiling still fails, and the
+// work item retry replays the whole write to convergence.
+func semanticStatementRowCount(stmt Statement) int {
+	rows, ok := stmt.Parameters["rows"]
+	if !ok {
+		return 0
+	}
+	switch typed := rows.(type) {
+	case []map[string]any:
+		return len(typed)
+	case []any:
+		return len(typed)
+	default:
+		return 0
+	}
+}
+
+// splitSemanticStatements packs statements into sequential groups holding at
+// most limit parameter rows each, preserving order so retracts still lead
+// upserts. Every group holds at least one statement.
+func splitSemanticStatements(stmts []Statement, limit int) [][]Statement {
+	if limit <= 0 {
+		return [][]Statement{stmts}
+	}
+	var groups [][]Statement
+	var current []Statement
+	currentRows := 0
+	flush := func() {
+		if len(current) > 0 {
+			groups = append(groups, current)
+			current = nil
+			currentRows = 0
+		}
+	}
+	for _, stmt := range stmts {
+		if len(current) > 0 && currentRows+semanticStatementRowCount(stmt) > limit {
+			flush()
+		}
+		current = append(current, stmt)
+		currentRows += semanticStatementRowCount(stmt)
+	}
+	flush()
+	return groups
+}
+
 // WriteSemanticEntities retracts stale semantic nodes for the touched
-// repositories and upserts the current rows. Retract and upsert statements
-// share one grouped transaction on GroupExecutor-capable executors, so they
-// commit or roll back atomically; executors that expose only Execute (NornicDB's
-// default ExecuteOnlyExecutor, and test stubs) fall back to a per-statement
-// loop in the same order.
+// repositories and upserts the current rows. On GroupExecutor-capable
+// executors the statements dispatch as sequential row-bounded groups in
+// statement order, so no single transaction exceeds the backend request
+// ceiling; each group commits atomically and a group failure aborts the
+// write, with the work item retry replaying all groups to convergence.
+// Executors that expose only Execute (NornicDB's default
+// ExecuteOnlyExecutor, and test stubs) fall back to a per-statement loop
+// in the same order.
 //
 // The retract used to be held out of the group and dispatched one autocommit
 // statement at a time on NornicDB, because grouped DETACH DELETEs under-applied
@@ -305,13 +385,23 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		})
 	}
 
+	groups := 0
 	if len(stmts) > 0 {
-		// Prefer atomic grouped execution; fall back to per-statement dispatch
+		// Prefer grouped execution; fall back to per-statement dispatch
 		// for executors that expose only Execute — NornicDB's default
 		// ExecuteOnlyExecutor, and test stubs.
 		if ge, ok := w.executor.(GroupExecutor); ok {
-			if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-				return semantic.EntityWriteResult{}, fmt.Errorf("write semantic entities: %w", WrapRetryableNeo4jError(err))
+			// Split oversized writes into sequential row-bounded groups so
+			// no single transaction exceeds the backend request ceiling.
+			// Groups dispatch in order (retracts lead upserts); a group
+			// failure aborts the write and the work item retry replays all
+			// groups to convergence.
+			split := splitSemanticStatements(stmts, w.groupRowLimit())
+			for i, group := range split {
+				if err := ge.ExecuteGroup(ctx, group); err != nil {
+					return semantic.EntityWriteResult{}, fmt.Errorf("write semantic entities group %d of %d: %w", i+1, len(split), WrapRetryableNeo4jError(err))
+				}
+				groups++
 			}
 		} else {
 			for _, stmt := range stmts {
@@ -322,7 +412,7 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		}
 	}
 
-	return semantic.EntityWriteResult{CanonicalWrites: writes}, nil
+	return semantic.EntityWriteResult{CanonicalWrites: writes, Groups: groups}, nil
 }
 
 func (w *SemanticEntityWriter) semanticRetractStatements(repoIDs []string) []Statement {

@@ -45,6 +45,9 @@ type EntityWrite struct {
 // EntityWriteResult captures the canonical semantic-entity write outcome.
 type EntityWriteResult struct {
 	CanonicalWrites int
+	// Groups counts grouped transactions dispatched; oversized writes split
+	// into sequential row-bounded groups. Per-statement fallback reports 0.
+	Groups int
 }
 
 // EntityWriter persists Annotation, Typedef, TypeAlias,
@@ -158,6 +161,7 @@ func (h Handler) Handle(
 		factCount:               len(envelopes),
 		repoCount:               len(repoIDs),
 		rowCount:                len(rows),
+		groupCount:              writeResult.Groups,
 		skipRetract:             skipRetract,
 		deltaProjection:         deltaScope.Delta,
 		deltaFileCount:          len(deltaScope.FilePaths),
@@ -185,6 +189,7 @@ type semanticEntityMaterializationTiming struct {
 	factCount               int
 	repoCount               int
 	rowCount                int
+	groupCount              int
 	skipRetract             bool
 	deltaProjection         bool
 	deltaFileCount          int
@@ -210,6 +215,7 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("row_count", timing.rowCount),
+		slog.Int("group_count", timing.groupCount),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Bool("delta_projection", timing.deltaProjection),
 		slog.Int("delta_file_count", timing.deltaFileCount),
