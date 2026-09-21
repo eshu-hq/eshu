@@ -72,6 +72,22 @@ controls — a same-id/different-domain pairing, and an identical duplicate that
 deduped without supersession — stay green under both, so they are not satisfied
 by the change itself.
 
+## Result pairing
+
+A reclaim duplicates the result as well as the ack. `AckBatch` keyed `resultByID`
+off the first occurrence of a work item id, which paired the surviving claim with
+the superseded run's result once the split started keeping the newest. That is
+not cosmetic: `splitValueFlowRefreshAckIntents` reads that result through
+`shouldEmitValueFlowRefresh`, and `ShouldEmitRefresh` returns false on
+`CanonicalWrites <= 0`, so a superseded run that wrote nothing would suppress the
+completion event a winning run earned — the silent-miss outcome
+`value_flow_refresh_ack.go` explicitly calls the worse one. The split now records
+the batch position of each surviving claim and `resultByID` is built from those
+positions, after the split rather than before it.
+`TestReducerQueueAckBatchPairsTheSurvivingClaimsResult` fails with `emit ids = []`
+against the intermediate implementation and passes after. Fail-open on a missing
+result entry is unchanged, including the `results == nil` call sites.
+
 No serialization was used. Worker count, batch size, poll interval, lease
 duration, and the drain bound are untouched; two workers still execute the same
 intent concurrently under this fault, which is what the cell injects and what the
@@ -82,17 +98,21 @@ darwin/arm64, Apple M1 Max, `-benchtime=2000x -count=6`, median of six, baseline
 `origin/main` at `f6ce3e59a` in a separate worktree on the same machine, same
 input generator, no duplicates (the hot path):
 
-| batch | baseline ns/op | candidate ns/op | delta | baseline allocs/op | candidate allocs/op |
-| --- | --- | --- | --- | --- | --- |
-| 16 | 3,952 (3,653–4,253) | 3,258 (3,142–3,612) | −17.6% | 22 | 7 |
-| 64 | 13,062 (12,890–14,571) | 9,825 (9,400–10,075) | −24.8% | 70 | 7 |
-| 256 | 46,810 (46,328–47,386) | 34,812 (33,826–35,776) | −25.6% | 262 | 7 |
+| batch | baseline ns/op | candidate ns/op | delta | baseline B/op | candidate B/op | baseline allocs/op | candidate allocs/op |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 16 | 3,952 (3,653–4,253) | 3,961 (3,668–4,171) | +0.2% | 20,138 | 21,376 | 22 | 11 |
+| 64 | 13,062 (12,890–14,571) | 11,306 (11,051–11,976) | −13.4% | 79,144 | 83,328 | 70 | 11 |
+| 256 | 46,810 (46,328–47,386) | 40,188 (39,103–41,025) | −14.1% | 308,520 | 322,179 | 262 | 11 |
 
-Ranges do not overlap at any size. The gain is incidental, not the point: the
-previous map stored whole `reducer.Intent` values, so every distinct work item
-copied the struct into the map; keeping an index into the retained slice removes
-that copy and leaves allocations flat in batch size. Bytes per op are unchanged
-within noise — the same intents are still retained.
+Read this as no regression rather than as a win. At batch 16 the ranges overlap
+completely and the medians differ by 0.2%, so there is no measurable change at
+the size the acker actually flushes most often (`batchSize` defaults well under
+64). The gain at 64 and 256 is incidental: the previous map stored whole
+`reducer.Intent` values, so every distinct work item copied the struct into the
+map, and keeping indices instead leaves allocations flat in batch size. Bytes per
+op rise 4–6% — the second index map, `keptResultIndexByID`, is the cost of
+pairing the surviving claim with its own result. That is a deliberate trade: the
+alternative silently drops a value-flow refresh completion event.
 
 Observability Evidence: a dropped superseded ack now reaches the existing
 `reducer batch ack rejected stale claim` WARN, with

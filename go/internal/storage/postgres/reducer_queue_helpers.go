@@ -359,6 +359,13 @@ type reducerAckBatchSplit struct {
 	// same work item. A dropped ack carries a result that was never applied,
 	// so AckBatch reports the batch as claim-rejected rather than succeeded.
 	supersededClaims int
+
+	// keptResultIndexByID maps each retained work item to the position its
+	// surviving intent held in the input batch, so the caller can pair it with
+	// the result that intent's handler produced. A batch carrying two claims of
+	// one work item also carries two results, and the value-flow refresh emit
+	// gate (#6785) must read the surviving claim's.
+	keptResultIndexByID map[string]int
 }
 
 // splitReducerAckBatchIntents routes one ack batch to the statement each
@@ -383,12 +390,14 @@ func splitReducerAckBatchIntents(
 	intents []reducer.Intent,
 ) (reducerAckBatchSplit, error) {
 	indexByID := make(map[string]int, len(intents))
+	keptResultIndexByID := make(map[string]int, len(intents))
 	kept := make([]reducer.Intent, 0, len(intents))
 	supersededClaims := 0
-	for _, intent := range intents {
+	for position, intent := range intents {
 		index, ok := indexByID[intent.IntentID]
 		if !ok {
 			indexByID[intent.IntentID] = len(kept)
+			keptResultIndexByID[intent.IntentID] = position
 			kept = append(kept, intent)
 			continue
 		}
@@ -408,14 +417,16 @@ func splitReducerAckBatchIntents(
 		supersededClaims++
 		if newerReducerClaim(intent, prior) {
 			kept[index] = intent
+			keptResultIndexByID[intent.IntentID] = position
 		}
 	}
 
 	split := reducerAckBatchSplit{
-		target:           make([]reducer.Intent, 0, len(kept)),
-		cicd:             make([]reducer.Intent, 0, len(kept)),
-		unrelated:        make([]reducer.Intent, 0, len(kept)),
-		supersededClaims: supersededClaims,
+		target:              make([]reducer.Intent, 0, len(kept)),
+		cicd:                make([]reducer.Intent, 0, len(kept)),
+		unrelated:           make([]reducer.Intent, 0, len(kept)),
+		supersededClaims:    supersededClaims,
+		keptResultIndexByID: keptResultIndexByID,
 	}
 	for _, intent := range kept {
 		switch intent.Domain {

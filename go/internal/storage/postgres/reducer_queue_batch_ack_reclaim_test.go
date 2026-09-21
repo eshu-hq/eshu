@@ -176,3 +176,67 @@ func TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected(t *testing.T)
 		t.Fatalf("AckBatch() acked claim = %v, want the newest claim %v", claimedAts[0], freshClaim)
 	}
 }
+
+// A reclaim duplicates the ack AND its result. The surviving claim is the
+// newest one, so the result that decides the value-flow refresh emit gate
+// (#6785) must be the newest claim's result too. Pairing the newest intent
+// with the superseded handler's result silently drops a completion event
+// whenever the superseded run wrote nothing and the winning run did -- the
+// exact outcome value_flow_refresh_ack.go's fail-open comment calls the worse
+// one.
+func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
+	t.Parallel()
+
+	const intentID = "intent-6162-refresh-producer-reclaim"
+	staleClaim := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
+	freshClaim := staleClaim.Add(900 * time.Millisecond)
+
+	database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	queue := ReducerQueue{
+		database:      database,
+		LeaseOwner:    "reducer-6162",
+		LeaseDuration: time.Minute,
+	}
+
+	err := queue.AckBatch(
+		context.Background(),
+		[]reducer.Intent{
+			{
+				IntentID:     intentID,
+				Domain:       reducer.DomainWorkloadMaterialization,
+				AttemptCount: 1,
+				ClaimedAt:    &staleClaim,
+			},
+			{
+				IntentID:     intentID,
+				Domain:       reducer.DomainWorkloadMaterialization,
+				AttemptCount: 2,
+				ClaimedAt:    &freshClaim,
+			},
+		},
+		// The superseded run wrote nothing; the surviving run wrote rows.
+		[]reducer.Result{
+			{IntentID: intentID, CanonicalWrites: 0},
+			{IntentID: intentID, CanonicalWrites: 7},
+		},
+	)
+	if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
+		t.Fatalf("AckBatch() error = %v, want a claim rejection", err)
+	}
+	if got, want := len(database.execs), 1; got != want {
+		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+	}
+
+	// ackValueFlowRefreshProducerReducerWorkBatchQuery binds the emit ids last.
+	args := database.execs[0].args
+	emitIDs, ok := args[len(args)-1].([]string)
+	if !ok {
+		t.Fatalf("emit id argument type = %T, want []string", args[len(args)-1])
+	}
+	if len(emitIDs) != 1 || emitIDs[0] != intentID {
+		t.Fatalf(
+			"emit ids = %v, want [%s]: the surviving claim wrote 7 canonical rows, so its refresh must emit",
+			emitIDs, intentID,
+		)
+	}
+}

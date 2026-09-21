@@ -83,24 +83,25 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 
 	now := q.now()
 
-	// results rides parallel to intents at the service call site; a missing
-	// entry fails open to emit (a bounded spurious refresh beats a silent
-	// missed one), while a paired zero Result still suppresses.
-	resultByID := make(map[string]reducer.Result, len(intents))
-	for i, intent := range intents {
-		if i >= len(results) {
-			break
-		}
-		if _, ok := resultByID[intent.IntentID]; !ok {
-			resultByID[intent.IntentID] = results[i]
-		}
-	}
-
 	split, err := splitReducerAckBatchIntents(intents)
 	if err != nil {
 		return err
 	}
 	targetIntents, cicdIntents, unrelatedIntents := split.target, split.cicd, split.unrelated
+
+	// results rides parallel to intents at the service call site; a missing
+	// entry fails open to emit (a bounded spurious refresh beats a silent
+	// missed one), while a paired zero Result still suppresses. The result is
+	// keyed off the position the SURVIVING claim held: a lease reclaim puts two
+	// claims of one work item in the batch, and pairing the winner with the
+	// superseded run's result would drop a refresh the winner earned (#6162).
+	resultByID := make(map[string]reducer.Result, len(split.keptResultIndexByID))
+	for intentID, position := range split.keptResultIndexByID {
+		if position >= len(results) {
+			continue
+		}
+		resultByID[intentID] = results[position]
+	}
 
 	claimRejected := split.supersededClaims > 0
 
