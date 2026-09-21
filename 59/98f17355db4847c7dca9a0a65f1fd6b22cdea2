@@ -1,0 +1,14 @@
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 11,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5998f17355db4847c7dca9a0a65f1fd6b22cdea2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
