@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 113 gates. Local execution runs the primary
+The registry currently defines 114 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -115,6 +115,7 @@ Advisory rows remain visible but do not block merge.
 | `ifa-dead-letter-matrix` | Ifa P3 failure-path (dead-letter set) determinism matrix | exactness | pre-pr | true | `bash scripts/test-verify-ifa-dead-letter-matrix.sh` | ifa-determinism-gate.yml / dead-letter-matrix | 11 path(s): scripts/lib/ifa_mirror_pins.sh, go/internal/ifa/mutate.go, go/internal/ifa/dead_letters.go, … |
 | `ifa-fault-injection` | Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-fault-injection.sh` | ifa-determinism-gate.yml / fault-injection (shard 1/4), fault-injection (shard 2/4), fault-injection (shard 3/4), fault-injection (shard 4/4) | 263 path(s): scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh, scripts/lib/ifa_live_gate_*.sh, go/internal/storage/postgres/migrations/**, … |
 | `ifa-load-saturation` | Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression) | exactness | pre-pr | true | `cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1` | static-contract-gates.yml / Verify Ifa P5 load/saturation gate | 13 path(s): .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, go/internal/ifa/amplify.go, … |
+| `cassette-author` | Cassette author gate (private-data scan + v1 format contract) | security | pre-pr | true | `bash scripts/verify-cassette-author.sh`<br>then self-test: `bash scripts/test-verify-cassette-author.sh` | static-contract-gates.yml / Verify cassette author gate | 7 path(s): testdata/cassettes/**, scripts/verify-cassette-author.sh, scripts/test-verify-cassette-author.sh, … |
 | `ifa-replay-drive` | Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-replay-drive.sh` | static-contract-gates.yml / Verify Ifa replay-drive mirror gate | 7 path(s): scripts/lib/ifa_mirror_pins.sh, .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, … |
 | `parserfixture-tests` | Parser Fixture Replay Tests | exactness | pre-pr | true | `cd go && go test ./internal/replay/parserfixture/... -count=1` | test.yml / go-race-complete | 2 path(s): go/internal/replay/parserfixture/**, specs/parser-backing-ledger.v1.yaml |
 | `authz-scoped-route-tests` | Authorization Scoped Route Replay Tests | exactness | pre-pr | true | `cd go && ../scripts/go-test-run-guard.sh 6 'Test(AuthorizationReplayCoverageContract\|SecretsIAMPostureSummaryScopedGrant\|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1` | replay-coverage-gate.yml / coverage-gate (blocking) | 8 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/scopedtoken/**, … |

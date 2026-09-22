@@ -4005,6 +4005,36 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: cassette-author
+    name: Cassette author gate (private-data scan + v1 format contract)
+    category: security
+    tier: pre-pr
+    blocking: true
+    triggers:
+      # Every committed cassette: the scan's subject (#6965 Phase 2). A leak
+      # pushed to a PR branch is already public, so this runs in the
+      # pre-push floor rather than only in CI.
+      - "testdata/cassettes/**"
+      - "scripts/verify-cassette-author.sh"
+      - "scripts/test-verify-cassette-author.sh"
+      # The alternatives, the fail-closed allowlist and the controls that
+      # prove them. Without a row here, neutering the pattern re-runs nothing.
+      - "scripts/lib/cassette_private_data_pattern.sh"
+      # The v1 cassette-format validator the second half of the gate drives.
+      - "go/internal/replay/schema/**"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-cassette-author.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-cassette-author.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify cassette author gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: ifa-replay-drive
     name: Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract)
     category: exactness

@@ -55,9 +55,14 @@ graph, milliseconds:
 scripts/verify-cassette-author.sh
 ```
 
-It wraps the focused `go test` that drives `ValidateCassetteBytes` across
+It first runs the private-data scan from
+`scripts/lib/cassette_private_data_pattern.sh` over every file under
+`testdata/cassettes` (IP literals, account ids, ARNs, hostnames, and
+organisation identifiers against a fail-closed allowlist; see
+[Cassette Replay](../../../../docs/public/reference/cassette-replay.md)),
+then wraps the focused `go test` that drives `ValidateCassetteBytes` across
 `testdata/cassettes/*/*.json`, plus the structural and unknown-field negative
-cases.
+cases. Its test mirror is `scripts/test-verify-cassette-author.sh`.
 
 ## Relationship to the loader
 

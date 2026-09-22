@@ -217,7 +217,7 @@
               "network_interfaces": [
                 {
                   "network_interface_id": "eni-0000000000000000a",
-                  "private_ipv4_address": "10.0.0.5",
+                  "private_ipv4_address": "192.0.2.10",
                   "subnet_id": "subnet-0000000000000000a"
                 }
               ],
