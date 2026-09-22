@@ -4,8 +4,10 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,7 +67,8 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 			return nil, nil
 		},
 	}
-	handler := &Handler{Neo4j: reader}
+	var logs bytes.Buffer
+	handler := &Handler{Neo4j: reader, Logger: slog.New(slog.NewJSONHandler(&logs, nil))}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repository:repo-a/context", nil)
 	req.SetPathValue("repo_id", "repository:repo-a")
 	rec := httptest.NewRecorder()
@@ -78,6 +81,9 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 	for _, read := range contextDegradedReadMarkers {
 		if !querytestutil.AnySliceContains(reasons, read.reason) {
 			t.Errorf("%s read failed but partial_reasons = %#v lacks %q", read.name, reasons, read.reason)
+		}
+		if !strings.Contains(logs.String(), `"failure_class":"`+read.reason+`"`) {
+			t.Errorf("%s read failed but no stage log carries failure_class=%s; logs = %s", read.name, read.reason, logs.String())
 		}
 	}
 	for _, key := range []string{"consumers", "relationships", "languages", "entry_points"} {
@@ -106,7 +112,8 @@ func TestRepositoryContextEmptyReadsAreNotDegraded(t *testing.T) {
 			return []map[string]any{}, nil
 		},
 	}
-	handler := &Handler{Neo4j: reader}
+	var logs bytes.Buffer
+	handler := &Handler{Neo4j: reader, Logger: slog.New(slog.NewJSONHandler(&logs, nil))}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repository:repo-a/context", nil)
 	req.SetPathValue("repo_id", "repository:repo-a")
 	rec := httptest.NewRecorder()
@@ -120,6 +127,9 @@ func TestRepositoryContextEmptyReadsAreNotDegraded(t *testing.T) {
 		if querytestutil.AnySliceContains(reasons, read.reason) {
 			t.Errorf("healthy empty %s read reported %q in partial_reasons = %#v", read.name, read.reason, reasons)
 		}
+	}
+	if strings.Contains(logs.String(), "failure_class") {
+		t.Errorf("healthy empty reads emitted a failure_class stage log; logs = %s", logs.String())
 	}
 }
 
@@ -166,7 +176,8 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 			Consumers: []map[string]any{{"id": "repository:repo-c", "name": "repo-c"}},
 		},
 	}
-	handler := &Handler{Neo4j: reader, Content: content}
+	var logs bytes.Buffer
+	handler := &Handler{Neo4j: reader, Content: content, Logger: slog.New(slog.NewJSONHandler(&logs, nil))}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repository:repo-a/context", nil)
 	req.SetPathValue("repo_id", "repository:repo-a")
 	rec := httptest.NewRecorder()
@@ -180,6 +191,12 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 		if !querytestutil.AnySliceContains(reasons, reason) {
 			t.Fatalf("partial_reasons = %#v, want %q", reasons, reason)
 		}
+		if !strings.Contains(logs.String(), `"failure_class":"`+reason+`"`) {
+			t.Fatalf("no stage log carries failure_class=%s; logs = %s", reason, logs.String())
+		}
+	}
+	if !strings.Contains(logs.String(), `"stage":"deployable_unit_relationships"`) {
+		t.Fatalf("logs missing the deployable_unit_relationships stage; logs = %s", logs.String())
 	}
 	for _, reason := range []string{relationshipsReadDegradedReason, relationshipOverviewReadDegradedReason, consumersReadDegradedReason} {
 		if querytestutil.AnySliceContains(reasons, reason) {
