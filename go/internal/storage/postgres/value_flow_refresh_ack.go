@@ -254,13 +254,24 @@ var ValueFlowInputsFenceSharedDomains = []reducer.Domain{
 	reducer.DomainInvokesCloudAction,
 }
 
+// valueFlowInputsFenceStatusList is the fact_work_items status set that holds
+// the fence: rows that will still commit a graph write without operator
+// action. It deliberately omits failed and dead_letter, unlike #6887's
+// cloudAdmissionNonterminalStatusList: a retract that skips a dead-lettered
+// admission leaks forever, but a refresh that solves past a dead-lettered
+// producer is re-triggered by that producer's ACK when an operator replays
+// it (the replayed row is pending again and holds the fence naturally). Holding
+// on them instead would stall EVERY refresh cycle by the full bound, because
+// each fanout reopen resets the cycle anchor. Each status value is one range
+// on fact_work_items_stage_domain_status_idx.
+const valueFlowInputsFenceStatusList = `('pending', 'claimed', 'running', 'retrying')`
+
 // valueFlowInputsFenceSQL is the #6923 value-flow refresh input-liveness
 // fence: one statement, UNION ALL, so both halves share the same READ
 // COMMITTED snapshot. Each half is LIMIT 5 so the pending sample stays
-// bounded and a single row is enough to refuse. The reducer half reuses
-// cloudAdmissionNonterminalStatusList (the #6887 status enumeration) and
-// joins on active_generation_id so a superseded generation's nonterminal
-// rows never hold the fence. Built from ValueFlowInputsFenceReducerDomains /
+// bounded and a single row is enough to refuse. The reducer half uses
+// valueFlowInputsFenceStatusList and joins on active_generation_id so a
+// superseded generation's nonterminal rows never hold the fence. Built from ValueFlowInputsFenceReducerDomains /
 // ValueFlowInputsFenceSharedDomains (not a hand-copied literal) so the SQL
 // and the exported, test-covered domain lists cannot drift apart. See
 // docs/internal/evidence/6923-value-flow-single-solve.md for the EXPLAIN
@@ -276,7 +287,7 @@ var valueFlowInputsFenceSQL = `
   AND scope.active_generation_id = work.generation_id
  WHERE work.stage = 'reducer'
    AND work.domain IN ` + sqlDomainInList(ValueFlowInputsFenceReducerDomains) + `
-   AND work.status IN ` + cloudAdmissionNonterminalStatusList + `
+   AND work.status IN ` + valueFlowInputsFenceStatusList + `
  ORDER BY work.scope_id, work.generation_id
  LIMIT 5)
 UNION ALL

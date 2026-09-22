@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -121,11 +122,20 @@ func (h Handler) checkInputsLiveness(ctx context.Context, intent reducercontract
 		return nil
 	}
 	fenceCtx, span := h.beginFenceSpan(ctx)
+	outcome := fenceOutcomeProceed
 	pending, err := h.InputsLiveness.PendingValueFlowInputs(fenceCtx)
-	if span != nil {
+	defer func() {
+		if span == nil {
+			return
+		}
+		span.SetAttributes(
+			telemetry.AttrOutcome(outcome),
+			attribute.Int("pending_input_count", len(pending)),
+		)
 		span.End()
-	}
+	}()
 	if err != nil {
+		outcome = fenceOutcomeError
 		return fmt.Errorf("check value-flow inputs liveness: %w", err)
 	}
 	if len(pending) == 0 {
@@ -135,27 +145,30 @@ func (h Handler) checkInputsLiveness(ctx context.Context, intent reducercontract
 	now := h.now()
 	anchor := crossscope.ReadinessCycleAnchor(intent)
 	if anchor.IsZero() || now.Sub(anchor) < crossscope.ProducerReadinessMaxWait {
-		h.recordReadinessWait(ctx, "deferred")
+		outcome = crossscope.ReadinessWaitDeferred
+		h.recordReadinessWait(ctx, outcome)
 		slog.Info(
 			"value-flow refresh deferred: cloud-sink chain inputs not drained",
 			"scope_id", intent.ScopeID,
 			"generation_id", intent.GenerationID,
 			"failure_class", crossscope.ValueFlowInputsNotReadyFailureClass,
-			"readiness_wait_outcome", "deferred",
+			"readiness_wait_outcome", outcome,
 			"pending_input_count", len(pending),
 			"pending_input_sample", pending,
+			"elapsed_since_cycle_anchor", now.Sub(anchor),
 			"max_wait", crossscope.ProducerReadinessMaxWait,
 		)
 		return crossscope.WrapValueFlowInputsUndrained(pending)
 	}
 
-	h.recordReadinessWait(ctx, "abandoned")
+	outcome = crossscope.ReadinessWaitAbandoned
+	h.recordReadinessWait(ctx, outcome)
 	slog.Warn(
 		"value-flow refresh solving with undrained cloud-sink chain inputs: starvation bound reached",
 		"scope_id", intent.ScopeID,
 		"generation_id", intent.GenerationID,
 		"failure_class", crossscope.ValueFlowInputsNotReadyFailureClass,
-		"readiness_wait_outcome", "abandoned",
+		"readiness_wait_outcome", outcome,
 		"pending_input_count", len(pending),
 		"pending_input_sample", pending,
 		"elapsed_since_cycle_anchor", now.Sub(anchor),
@@ -164,8 +177,19 @@ func (h Handler) checkInputsLiveness(ctx context.Context, intent reducercontract
 	return nil
 }
 
+// Fence span outcomes that are not readiness-wait outcomes: the fence found
+// nothing pending and the solve proceeds, or the fence read itself failed.
+// The wait outcomes reuse crossscope.ReadinessWaitDeferred and
+// ReadinessWaitAbandoned so the span, the counter, and the log agree.
+const (
+	fenceOutcomeProceed = "proceed"
+	fenceOutcomeError   = "error"
+)
+
 // beginFenceSpan starts the fence-read span when a tracer is wired; a nil
-// Tracer (as in every unit test) skips tracing entirely.
+// Tracer (as in every unit test) skips tracing entirely. checkInputsLiveness
+// ends the span after the decision so it carries the outcome attribute
+// (proceed, deferred, abandoned, or error) and the pending row count.
 func (h Handler) beginFenceSpan(ctx context.Context) (context.Context, trace.Span) {
 	if h.Tracer == nil {
 		return ctx, nil

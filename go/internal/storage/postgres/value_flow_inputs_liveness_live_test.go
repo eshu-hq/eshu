@@ -20,9 +20,11 @@ import (
 // TestValueFlowInputsLivenessFenceSharesSnapshot proves the #6923 value-flow
 // refresh fence against a live Postgres: an open runs_in shared-projection
 // intent refuses; completing it clears the fence; a dead_letter
-// iam_can_perform_materialization work item on a SUPERSEDED generation does
-// not hold the fence (that generation's admission will never run); the same
-// row on the ACTIVE generation refuses again.
+// iam_can_perform_materialization work item does not hold the fence on a
+// SUPERSEDED generation (that generation will never run) nor on the ACTIVE
+// one (a dead-lettered producer only contributes again when an operator
+// replays it, and that replay re-triggers the refresh); the same row set to
+// retrying on the ACTIVE generation refuses.
 //
 // Skipped by default; set ESHU_VALUE_FLOW_REFRESH_LIVE=1 and
 // ESHU_POSTGRES_DSN. Every seeded id is uniquely prefixed per run so
@@ -128,13 +130,19 @@ ON CONFLICT (work_item_id) DO UPDATE SET generation_id = EXCLUDED.generation_id,
 		t.Fatalf("probe with dead_letter on superseded generation = %v, %v; want empty, nil (not the active generation)", pending, err)
 	}
 
-	// The same row on the ACTIVE generation refuses.
+	// The same row on the ACTIVE generation does not hold the fence either:
+	// failed and dead_letter are outside valueFlowInputsFenceStatusList.
 	seedWork(genActive, "dead_letter")
+	if pending, err := probe(); err != nil || len(pending) != 0 {
+		t.Fatalf("probe with dead_letter on active generation = %v, %v; want empty, nil (dead-lettered producers do not hold the fence)", pending, err)
+	}
+	// A retrying row on the ACTIVE generation refuses.
+	seedWork(genActive, "retrying")
 	pending, err = probe()
 	if err != nil {
-		t.Fatalf("probe with dead_letter on active generation: %v", err)
+		t.Fatalf("probe with retrying row on active generation: %v", err)
 	}
 	if len(pending) == 0 {
-		t.Fatal("fence must refuse while a dead_letter row sits on the active generation")
+		t.Fatal("fence must refuse while a retrying row sits on the active generation")
 	}
 }

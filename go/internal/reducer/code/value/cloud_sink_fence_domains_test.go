@@ -18,14 +18,27 @@ import (
 // `(var:Label` (a paren, never a bracket), so this never matches a label.
 var cloudSinkChainRelationshipPattern = regexp.MustCompile(`\[[A-Za-z0-9_]*:([A-Z_]+)\]`)
 
+// cloudSinkChainBracketPattern matches EVERY bracketed relationship pattern,
+// including shapes the extraction regex above does not understand
+// (`[:A|B]`, `[:A*1..2]`, lowercase types). The guard compares the two
+// counts so a future statement edit that adds such a hop fails loudly
+// instead of silently dropping the hop from the derived writer set.
+var cloudSinkChainBracketPattern = regexp.MustCompile(`\[[^\]]*\]`)
+
 // cloudSinkChainRelationshipTypes extracts every relationship type the two
 // #6923 probe statements traverse, directly from the production consts (not
 // a hand-copied list), so a future edit to either statement's chain is what
 // this guard actually tracks.
-func cloudSinkChainRelationshipTypes() map[string]struct{} {
+func cloudSinkChainRelationshipTypes(t *testing.T) map[string]struct{} {
+	t.Helper()
 	types := make(map[string]struct{})
 	for _, cypher := range []string{value.CloudSinkWorkloadRowsCypher, value.CloudSinkTargetsByPairCypher} {
-		for _, m := range cloudSinkChainRelationshipPattern.FindAllStringSubmatch(cypher, -1) {
+		matched := cloudSinkChainRelationshipPattern.FindAllStringSubmatch(cypher, -1)
+		if brackets := cloudSinkChainBracketPattern.FindAllString(cypher, -1); len(brackets) != len(matched) {
+			t.Fatalf("statement has %d bracketed relationship patterns but the extraction regex understood %d (%q); widen the regex before trusting the fence",
+				len(brackets), len(matched), brackets)
+		}
+		for _, m := range matched {
 			types[m[1]] = struct{}{}
 		}
 	}
@@ -96,7 +109,7 @@ func TestValueFlowInputsFenceDomainsCoverCloudSinkChain(t *testing.T) {
 		fenced[d] = struct{}{}
 	}
 
-	relTypes := cloudSinkChainRelationshipTypes()
+	relTypes := cloudSinkChainRelationshipTypes(t)
 	if len(relTypes) == 0 {
 		t.Fatal("extracted zero relationship types from the cloud-sink probe statements; the regex is broken, not the fence")
 	}

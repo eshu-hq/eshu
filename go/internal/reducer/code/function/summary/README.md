@@ -86,8 +86,11 @@ No dedicated metric instrument. `Handle` emits one structured log,
 `factdecode.RecordQuarantinedFacts`, which records the
 `ReducerInputInvalidFacts` counter when `Instruments` is wired. The
 `refresh_affected_repos` sub-signal this handler always sets is consumed by
-`storage/postgres`'s value-flow refresh ACK, which owns
-`eshu_dp_value_flow_refresh_gate_evaluations_total`.
+`storage/postgres`'s value-flow refresh ACK emit gate
+(`affected.ShouldEmitRefresh`). The
+`eshu_dp_value_flow_refresh_gate_evaluations_total` counter belongs to
+`code/value/affected` and is emitted only by the four producers that read
+the graph gate; this handler never emits it.
 
 ## Gotchas / invariants
 

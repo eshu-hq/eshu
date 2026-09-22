@@ -259,6 +259,17 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		}
 	}
 	canonicalWrites := persistedFunctionCount + removedFunctionCount
+	// A full-snapshot replace is itself one canonical write even when the
+	// row counts net to zero: if the ACK of a replace that emptied a repo
+	// fails and the item is re-claimed, the re-run loads the already-emptied
+	// snapshot (previous=0, persisted=0) and would otherwise report zero
+	// writes and never emit the refresh, leaving that repo's stale
+	// cloud-sink edges until an unrelated producer reopens the singleton
+	// (#6923 review F7). A zero-function repo generation therefore always
+	// triggers one coalesced global solve; the fence keeps it converged.
+	if fullSnapshot && canonicalWrites == 0 {
+		canonicalWrites = 1
+	}
 
 	slog.Info(
 		"code function summary persistence completed",

@@ -452,3 +452,34 @@ func TestCodeFunctionSummaryHandlerDoesNotSolveInline(t *testing.T) {
 		t.Fatalf("SubSignals[refresh_affected_repos] = %v, want 1 (summaries are fixpoint inputs by definition, no graph gate read)", got)
 	}
 }
+
+// TestCodeFunctionSummaryHandlerRetriedEmptyReplaceStillEmits covers the
+// ACK-failure retry of a repo-emptying full-snapshot replace: the re-run
+// loads the already-emptied snapshot (0 previous, 0 persisted), and the
+// replace itself must still count as one canonical write so the refresh
+// singleton is reopened (#6923 review F7).
+func TestCodeFunctionSummaryHandlerRetriedEmptyReplaceStillEmits(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCodeFunctionSummaryWriter{previous: parsed.NewStore().Snapshot()}
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{},
+		Writer: writer,
+	}
+	intent := codeFunctionSummaryIntent()
+	intent.Payload = map[string]any{"full_snapshot": true, "repo_id": "repo-1"}
+
+	result, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("Handle error: %v", err)
+	}
+	if writer.replaceCalls != 1 {
+		t.Fatalf("replace calls = %d, want 1", writer.replaceCalls)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1 (the replace itself) so a retried empty replace still emits the refresh", result.CanonicalWrites)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Fatalf("SubSignals[refresh_affected_repos] = %v, want 1", got)
+	}
+}

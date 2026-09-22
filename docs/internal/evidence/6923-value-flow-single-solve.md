@@ -126,6 +126,28 @@ cloud_sink_fence_domains_test.go:125: relationship RUNS_IN owner domain
 
 — and restoring the entry turned it GREEN again.
 
+### Orchestrator re-run of both guards (2026-09-22, head 989ce794fe)
+
+Re-proven on the committed tree, not from the executor's manual run. A first
+attempt with a `\s`-based BSD sed pattern never applied either mutation (empty
+`git diff --stat`) and reported a vacuous green; a second attempt that deleted
+the enrollment line failed the build (unused `crossscope` import), which is not
+the guard firing. Both mutations below were asserted non-empty before the test
+ran and compiled.
+
+- Fence-domain guard: replacing `reducer.DomainRunsIn,` in
+  `ValueFlowInputsFenceSharedDomains` with a comment ->
+  `--- FAIL: TestValueFlowInputsFenceDomainsCoverCloudSinkChain` /
+  `relationship RUNS_IN owner domain "runs_in" (family "runs_in") is not in
+  the fence's declared domain set`; restored -> `ok`.
+- Enrollment guard: replacing `crossscope.ValueFlowInputsNotReadyFailureClass,`
+  in `nonCountingReducerRetryFailureClasses` with a duplicate
+  `crossscope.ProducerNotReadyFailureClass,` (compiles, unenrolls the class) ->
+  `--- FAIL: TestEveryReadinessFailureClassIsEnrolled` naming
+  `value_flow_inputs_not_ready (crossscope/value_flow_inputs_readiness.go)` and
+  `--- FAIL: TestReducerQueueFailDefersValueFlowInputsReadinessPastAttemptBudget`;
+  restored -> `ok`.
+
 ## TDD RED/GREEN pairs
 
 - `refresh.TestHandlerRefusesWhileInputsUndrained` /
