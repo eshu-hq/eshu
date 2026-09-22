@@ -72,6 +72,48 @@ real code. That is a separate change on top of PR 31.
   `make pre-pr-full` for a package move (build tags can hide files from
   `./...`, and only the whole-module race lane exercises them).
 
+## The query-plan pins, inspected
+
+The issue asks for this before any `CodeHandler` rename: "inspect the current
+query-plan entries and record affected digests and proof". Done — and it turns
+out to bind every move PR, not just that rename.
+
+`go/internal/queryplan` pins query code **by path**, in two places:
+
+| manifest | keys | sha256 |
+| --- | ---: | --- |
+| `testdata/query-source-coverage.yaml` | 100 `file:` keys | `38fe4386acd7b595a74e9f18cf791509143182b90d3cbf25ea88380d54f9e562` |
+| `testdata/hot-cypher.yaml` | 1 `CodeHandler` entry | `7a0092f6bccc0281edcf5a0ec1443d9b920ef638b3715cff183c5f7da5c39131` |
+| `testdata/handler-hot-cypher.yaml` | 0 `CodeHandler` entries | `fc4d4294b63737fbdd4d30d7676679f48b7eda9f2a786752b783d8224e2a8c97` |
+| `grandfathered_non_hot.go` | 16 entries, each `path:(*Type).method` → content digest | generated |
+
+The 100 source-coverage keys sit under the directories this plan touches —
+`repository` 15, `codequery` 15, `impact` 14, `entity` 8, `impacttrace` 6,
+`package/registry` 4, `taghistory`, `service`, `queryselector` 2 each, plus
+root-file keys. `grandfathered_non_hot.go` splits 7 under `codequery/` and the
+rest on root files that move:
+
+```
+compare.go:(*CompareHandler).environmentSnapshot                     -> compare/handler.go
+compare.go:(*CompareHandler).fetchWorkload                           -> compare/handler.go
+infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts  -> infra/summary/packet.go
+infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap    -> infra/summary/packet.go
+infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoLanguages       -> infra/summary/packet.go
+infra_relationship_filter.go:(*InfraHandler).getRelationships        -> infra/relationship/filter.go
+status.go:(*StatusHandler).getIndexStatus                            -> status/handler.go
+```
+
+Every one of those keys changes when its file moves. The digests are content
+hashes, so a pure `git mv` leaves the hash valid and only the key stale — which
+is the dangerous shape, because a stale key silently stops matching rather than
+failing loudly. **Each move PR re-keys its own pins and proves the count is
+unchanged**, and the `codequery` → `code/` PR re-keys 7 grandfathered entries
+and 15 source-coverage keys in one go.
+
+Thirty distinct `CodeHandler` methods are pinned across these manifests. That is
+the inspection the `CodeHandler` rename owes, and it is now recorded; whether
+the rename happens at all remains open under #6649.
+
 ## Restack rule (the dirgate ledger trap)
 
 `scripts/lib/dirgate-grandfather.tsv` row `internal/query` and its generated
