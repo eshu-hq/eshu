@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -29,7 +30,87 @@ type schemaConnectionExecutor struct {
 }
 
 type schemaMigrationTracker interface {
-	applyTrackedDefinitions(context.Context, []Definition, time.Duration, *slog.Logger) error
+	applyTrackedDefinitions(context.Context, []Definition, schemaStatementBounds, *slog.Logger) error
+}
+
+// schemaStatementBounds are the per-statement bounds of one bootstrap run:
+// the lock_timeout each attempt sets, and the total backoff a statement may
+// spend retrying after lock_timeout before the run fails.
+type schemaStatementBounds struct {
+	lockTimeout     time.Duration
+	lockRetryBudget time.Duration
+}
+
+// Coordination bounds for one bootstrap run (#6956). The migrator holds a
+// session advisory lock while it applies statements, so another
+// bootstrapper (a retried Job, bootstrap-index next to db-migrate) must wait
+// for it rather than fail after one statement timeout; and a statement that
+// loses a lock race (SQLSTATE 55P03, e.g. against an anti-wraparound
+// autovacuum's ShareUpdateExclusiveLock) applied nothing and is retried.
+// Both bounds are wall clock: the ownership wait runs before any statement,
+// and the lock retry budget is one deadline shared by every statement of the
+// run (it counts the lock_timeout each failed attempt waited as well as the
+// sleeps). The defaults sum to 6 minutes, leaving 4 minutes of the chart's
+// schema bootstrap Job deadline (schemaBootstrap.activeDeadlineSeconds,
+// 600 s) for pod start, the migrations' own work and the graph schema; a
+// bound the Job cannot reach never prints its holder diagnostic.
+// TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline binds this to
+// the chart value.
+const (
+	defaultSchemaOwnershipWait   = 3 * time.Minute
+	defaultSchemaLockRetryBudget = 3 * time.Minute
+	schemaOwnershipPollInterval  = time.Second
+	schemaOwnershipLogInterval   = 15 * time.Second
+	schemaLockRetryMaxBackoff    = 15 * time.Second
+)
+
+type schemaBootstrapCoordination struct {
+	ownershipWait   time.Duration
+	lockRetryBudget time.Duration
+}
+
+func (c schemaBootstrapCoordination) withDefaults() schemaBootstrapCoordination {
+	if c.ownershipWait <= 0 {
+		c.ownershipWait = defaultSchemaOwnershipWait
+	}
+	if c.lockRetryBudget <= 0 {
+		c.lockRetryBudget = defaultSchemaLockRetryBudget
+	}
+	return c
+}
+
+// connAdvisoryLocker is the coordination.Locker for the bootstrap session:
+// one non-blocking try per poll, and the granted holder(s) from pg_locks for
+// the operator log. Advisory locks are scoped per database, so the holder
+// query filters on the current database: the same key held in another
+// database of the instance does not block this one and must not be named.
+type connAdvisoryLocker struct{ conn *sql.Conn }
+
+func (l connAdvisoryLocker) TryLock(ctx context.Context) (bool, error) {
+	var locked bool
+	err := l.conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1, $2)",
+		schemaBootstrapAdvisoryLockClass, schemaBootstrapAdvisoryLockID).Scan(&locked)
+	return locked, err
+}
+
+func (l connAdvisoryLocker) DescribeHolder(ctx context.Context) (string, error) {
+	var holder sql.NullString
+	err := l.conn.QueryRowContext(ctx, `
+SELECT string_agg(format('pid=%s application_name=%s state=%s connected_for=%s',
+    a.pid, coalesce(a.application_name, ''), coalesce(a.state, ''),
+    date_trunc('second', now() - a.backend_start)), '; ' ORDER BY a.pid)
+FROM pg_locks l
+JOIN pg_stat_activity a ON a.pid = l.pid
+WHERE l.locktype = 'advisory' AND l.classid = $1 AND l.objid = $2 AND l.granted
+  AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+		schemaBootstrapAdvisoryLockClass, schemaBootstrapAdvisoryLockID).Scan(&holder)
+	if err != nil {
+		return "", err
+	}
+	if !holder.Valid || holder.String == "" {
+		return "no granted holder visible", nil
+	}
+	return holder.String, nil
 }
 
 type schemaMigrationKey struct {
@@ -172,9 +253,10 @@ func (executor schemaConnectionExecutor) loadSchemaMigrationLedger(
 func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 	ctx context.Context,
 	definitions []Definition,
-	lockTimeout time.Duration,
+	bounds schemaStatementBounds,
 	logger *slog.Logger,
 ) error {
+	lockTimeout := bounds.lockTimeout
 	if err := ValidateDefinitions(definitions); err != nil {
 		return err
 	}
@@ -240,6 +322,10 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		plans = append(plans, schemaMigrationPlan{definition: def, checksum: checksum, variant: variant, apply: true})
 	}
 
+	// One retry deadline for the whole run: a statement that spends the
+	// budget leaves nothing for the next, so the run cannot exceed the bound
+	// by the number of contended statements.
+	retryDeadline := time.Now().Add(bounds.lockRetryBudget)
 	appliedCount := 0
 	for index, plan := range plans {
 		if !plan.apply {
@@ -273,7 +359,16 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 					plan.definition.Name, deleted)
 			}
 		}
-		if _, err := executor.execContextWithLockTimeout(ctx, plan.definition.SQL, lockTimeout); err != nil {
+		retryPolicy := coordination.LockRetryPolicy{
+			Budget:         bounds.lockRetryBudget,
+			Deadline:       retryDeadline,
+			InitialBackoff: max(lockTimeout, time.Second),
+			MaxBackoff:     schemaLockRetryMaxBackoff,
+		}
+		if err := coordination.RetryOnLockTimeout(ctx, logger, plan.definition.Path, retryPolicy, coordination.SleepContext, time.Now, func() error {
+			_, err := executor.execContextWithLockTimeout(ctx, plan.definition.SQL, lockTimeout)
+			return err
+		}); err != nil {
 			return fmt.Errorf("apply %s: %w", plan.definition.Name, err)
 		}
 		if _, err := executor.ExecContext(ctx,
@@ -337,13 +432,23 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	return result, errors.Join(execErr, resetSchemaLockTimeout(executor.conn))
 }
 
+// withSchemaBootstrapLock runs apply on one session that owns the schema
+// advisory lock, waiting up to ownershipWait for another bootstrapper to
+// release it (#6956).
 func (database SQLDB) withSchemaBootstrapLock(
 	ctx context.Context,
-	waitTimeout time.Duration,
+	logger *slog.Logger,
+	ownershipWait time.Duration,
 	apply func(db.Executor) error,
 ) error {
 	if database.DB == nil {
 		return fmt.Errorf("postgres SQLDB requires a database handle")
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if ownershipWait <= 0 {
+		ownershipWait = defaultSchemaOwnershipWait
 	}
 	conn, err := database.DB.Conn(ctx)
 	if err != nil {
@@ -351,20 +456,12 @@ func (database SQLDB) withSchemaBootstrapLock(
 	}
 	defer func() { _ = conn.Close() }()
 
-	lockCtx := ctx
-	cancel := func() {}
-	if waitTimeout > 0 {
-		lockCtx, cancel = context.WithTimeout(ctx, waitTimeout)
-	}
-	_, err = conn.ExecContext(
-		lockCtx,
-		"SELECT pg_advisory_lock($1, $2)",
-		schemaBootstrapAdvisoryLockClass,
-		schemaBootstrapAdvisoryLockID,
-	)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("acquire schema bootstrap ownership: %w", err)
+	if err := coordination.WaitForOwnership(ctx, logger, connAdvisoryLocker{conn: conn}, coordination.OwnershipPolicy{
+		Wait:     ownershipWait,
+		Poll:     schemaOwnershipPollInterval,
+		LogEvery: schemaOwnershipLogInterval,
+	}, coordination.SleepContext, time.Now); err != nil {
+		return err
 	}
 
 	applyErr := apply(schemaConnectionExecutor{database: database, conn: conn})

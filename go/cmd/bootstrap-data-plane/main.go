@@ -102,10 +102,24 @@ func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv fun
 		}
 	}
 
-	return postgres.ApplyBootstrapWithOptions(ctx, exec, postgres.BootstrapOptions{
-		DeferContentSearchIndexes: deferred,
-		Logger:                    logger,
-	})
+	options, err := schemaBootstrapOptions(getenv, logger)
+	if err != nil {
+		return err
+	}
+	options.DeferContentSearchIndexes = deferred
+	return postgres.ApplyBootstrapWithOptions(ctx, exec, options)
+}
+
+// schemaBootstrapOptions reads the #6956 coordination knobs
+// (postgres.OwnershipWaitEnv, postgres.LockRetryBudgetEnv); unset leaves the
+// postgres package defaults in force.
+func schemaBootstrapOptions(getenv func(string) string, logger *slog.Logger) (postgres.BootstrapOptions, error) {
+	options, err := postgres.BootstrapOptionsFromEnv(getenv)
+	if err != nil {
+		return postgres.BootstrapOptions{}, err
+	}
+	options.Logger = logger
+	return options, nil
 }
 
 func newLogger(bootstrap telemetry.Bootstrap, writer io.Writer) *slog.Logger {

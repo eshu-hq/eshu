@@ -7,6 +7,11 @@
 // freshness triggers, AWS scan status, hosted tenant/workspace grant state, and
 // workflow coordination tables.
 //
+// Schema bootstrap runs under a session advisory lock; the bounded wait for
+// another bootstrapper and the retry of a migration statement that lost a
+// lock race (SQLSTATE 55P03) are the coordination subpackage's loops, and the
+// lock, the session locker, and the migration ledger stay here (#6956).
+//
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery
 // operations. Callers must respect transaction scope, lease timing,

@@ -42,6 +42,34 @@ retry, though, the invalid index still costs write overhead on every insert
 while serving no reads, so a failed build is worth restarting promptly rather
 than leaving in place.
 
+One bootstrapper at a time owns the Postgres schema through a session
+advisory lock. A second bootstrapper started while the first is still
+applying (a retried Job, or bootstrap-index next to `db-migrate`) waits for
+the owner instead of failing after one statement timeout: it tries the lock
+once a second, logs `bootstrap.postgres.ownership.waiting` on the first
+failed try and then every 15 s with the holder's pid, state, connection age
+and application name (when the client set one), and gives up only after
+`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m). Waiters are not
+queued: when the lock frees they race for it, each bounded by its own wait.
+A migration statement that hits `lock_timeout` (5 s, SQLSTATE 55P03)
+because another session holds a conflicting table lock, such as an
+anti-wraparound autovacuum, applied nothing and is retried with doubling
+backoff (5 s up to 15 s) until `ESHU_SCHEMA_LOCK_RETRY_BUDGET` (default 3 m)
+of wall-clock time is spent; the budget is one deadline shared by every
+statement of the run and counts the `lock_timeout` each failed attempt
+waited, so contended statements cannot multiply it. Each retry logs
+`bootstrap.postgres.migration.lock_wait`
+and the eventual success logs `bootstrap.postgres.migration.lock_recovered`
+with the attempt count. Any other statement failure still fails the
+bootstrap on the first attempt. `db-migrate` (`eshu-bootstrap-data-plane`)
+and `bootstrap-index` both read the two variables; the local supervisor
+applies its schema without the ownership lock and is unaffected. The two
+defaults sum to 6 m, leaving 4 m of the schema bootstrap Job's
+`activeDeadlineSeconds` (600 in the chart) for pod start, the migrations'
+own work and the graph schema; keep that relation when raising either
+bound, because a bound the Job cannot reach never prints its holder
+diagnostic (#6956).
+
 ## Deployment Contract
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after

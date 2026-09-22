@@ -13,9 +13,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/otel/metric"
 )
@@ -492,6 +492,5 @@ func (q ProjectorQueue) maxAttempts() int {
 // isPostgresLockNotAvailable reports SQLSTATE 55P03, raised when lock_timeout
 // expires while a statement waits for a lock.
 func isPostgresLockNotAvailable(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
+	return coordination.IsLockNotAvailable(err)
 }

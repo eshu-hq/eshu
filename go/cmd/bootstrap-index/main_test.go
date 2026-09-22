@@ -54,7 +54,7 @@ func TestRunAppliesSchemaAndDrainsCollectorAndProjector(t *testing.T) {
 		func(context.Context, func(string) string) (bootstrapDB, error) {
 			return db, nil
 		},
-		func(ctx context.Context, database bootstrapDB) error {
+		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {
 			schemaApplied = true
 			return nil
 		},
@@ -123,7 +123,7 @@ func TestRunReturnsSchemaError(t *testing.T) {
 		func(context.Context, func(string) string) (bootstrapDB, error) {
 			return db, nil
 		},
-		func(ctx context.Context, database bootstrapDB) error {
+		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {
 			return schemaErr
 		},
 		func(context.Context, bootstrapDB) error {
@@ -167,7 +167,7 @@ func TestRunReturnsCollectorError(t *testing.T) {
 		func(context.Context, func(string) string) (bootstrapDB, error) {
 			return db, nil
 		},
-		func(ctx context.Context, database bootstrapDB) error {
+		func(ctx context.Context, database bootstrapDB, _ *slog.Logger) error {
 			return nil
 		},
 		func(context.Context, bootstrapDB) error {
