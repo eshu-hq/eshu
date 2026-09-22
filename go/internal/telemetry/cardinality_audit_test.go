@@ -5,6 +5,7 @@ package telemetry_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -111,28 +112,15 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 
 	var violations []string
 	seen := make(map[string]bool)
-	for _, dir := range telemetryContractDirs(t) {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		for _, e := range entries {
-			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-				continue
-			}
-			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
-			if err != nil {
-				t.Fatalf("read %s: %v", e.Name(), err)
-			}
-			matches := re.FindAllStringSubmatch(string(content), -1)
-			for _, m := range matches {
-				key := m[1]
-				if hardBanned[key] && !seen[key] {
-					seen[key] = true
-					violations = append(violations, fmt.Sprintf(
-						"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name(),
-					))
-				}
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
+		for _, m := range matches {
+			key := m[1]
+			if hardBanned[key] && !seen[key] {
+				seen[key] = true
+				violations = append(violations, fmt.Sprintf(
+					"hard-banned dimension key %q used via attribute.String() in %s", key, src.rel,
+				))
 			}
 		}
 	}
@@ -163,28 +151,14 @@ func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
 	var violations []string
-	for _, dir := range telemetryContractDirs(t) {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		for _, e := range entries {
-			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-				continue
-			}
-			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
-			if err != nil {
-				t.Fatalf("read %s: %v", e.Name(), err)
-			}
-
-			matches := re.FindAllStringSubmatch(string(content), -1)
-			for _, m := range matches {
-				wireKey := m[1]
-				if hardBanned[wireKey] {
-					violations = append(violations, fmt.Sprintf(
-						"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name(),
-					))
-				}
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
+		for _, m := range matches {
+			wireKey := m[1]
+			if hardBanned[wireKey] {
+				violations = append(violations, fmt.Sprintf(
+					"hard-banned wire key %q in dimension constant in %s", wireKey, src.rel,
+				))
 			}
 		}
 	}
@@ -322,48 +296,66 @@ func collectWireKeysFromContracts(t *testing.T) map[string]bool {
 	wireKeys := make(map[string]bool)
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
-	for _, dir := range telemetryContractDirs(t) {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		for _, e := range entries {
-			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-				continue
-			}
-			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
-			if err != nil {
-				t.Fatalf("read %s: %v", e.Name(), err)
-			}
-
-			matches := re.FindAllStringSubmatch(string(content), -1)
-			for _, m := range matches {
-				wireKeys[m[1]] = true
-			}
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
+		for _, m := range matches {
+			wireKeys[m[1]] = true
 		}
 	}
 
 	return wireKeys
 }
 
-// telemetryContractDirs returns every directory whose Go source may declare a
-// MetricDimensionXxx = "wire_key" constant: the root telemetry package (for
-// contract.go, registry.go, and any remaining flat contract file) plus the
-// nested contract, contract/observability, and contract/thirdparty
-// subpackages the frozen per-family declarations moved into (issue #6777).
-func telemetryContractDirs(t *testing.T) []string {
+// telemetrySource is one non-test Go source file under the telemetry package
+// tree, with its path relative to the package root for violation messages.
+type telemetrySource struct {
+	rel     string
+	content string
+}
+
+// telemetrySourceFiles returns every non-test Go file under the telemetry
+// package root, walking all subdirectories. Issue #6777 moved the per-family
+// contract declarations into contract/ and its subpackages; walking the tree
+// keeps any future nested package covered by construction instead of relying
+// on a hardcoded directory list. It fails closed if the walk finds no file
+// under contract/, so a relocation cannot silently empty the scan.
+func telemetrySourceFiles(t *testing.T) []telemetrySource {
 	t.Helper()
 	root := telemetrySourceDir(t)
-	dirs := []string{
-		root,
-		filepath.Join(root, "contract"),
-		filepath.Join(root, "contract", "observability"),
-		filepath.Join(root, "contract", "thirdparty"),
-	}
-	for _, d := range dirs {
-		if fi, err := os.Stat(d); err != nil || !fi.IsDir() {
-			t.Fatalf("expected telemetry contract directory %s to exist: %v", d, err)
+	var files []telemetrySource
+	sawContract := false
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
+		if d.IsDir() {
+			if d.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path) // #nosec G304 -- path comes from walking the package's own source tree
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(filepath.ToSlash(rel), "contract/") {
+			sawContract = true
+		}
+		files = append(files, telemetrySource{rel: filepath.ToSlash(rel), content: string(content)})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk telemetry source tree %s: %v", root, err)
 	}
-	return dirs
+	if !sawContract {
+		t.Fatalf("no Go source found under %s/contract; the contract declarations moved and this scan would be empty", root)
+	}
+	return files
 }
