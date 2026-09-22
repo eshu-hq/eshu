@@ -31,10 +31,11 @@ removed, or renamed. `handler_tracing.go` and its package-local
 ## Queryplan digests re-pinned
 
 `queryplan` binds production symbols by content hash, so editing a function body
-inside a pinned symbol invalidates the manifest even though nothing moved. Seven
-digests were re-derived across `query-source-coverage.yaml`, `hot-cypher.yaml`,
-`handler-hot-cypher.yaml` and `grandfathered_non_hot.go` by iterating the
-binding tests to a fixed point.
+inside a pinned symbol invalidates the manifest even though nothing moved. Six
+digests were re-derived, across seven pinned lines (one symbol is pinned twice),
+in `query-source-coverage.yaml`, `hot-cypher.yaml` and `grandfathered_non_hot.go`,
+by iterating the binding tests to a fixed point. `handler-hot-cypher.yaml` holds
+no digest this change touches.
 
 This is the first live instance of the trap the target-tree plan records, and it
 arrived on a change that moved no file at all — the inverse of the predicted
