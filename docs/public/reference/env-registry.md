@@ -337,6 +337,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | int | `10` | Maximum idle Postgres connections (capped at max open). |
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | int | `30` | Maximum open Postgres connections. |
 | `ESHU_POSTGRES_PING_TIMEOUT` | duration | `10s` | Timeout for the startup/readiness connectivity ping. |
+| `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` | duration | `3m` | How long a schema bootstrap (db-migrate, bootstrap-index) waits for another bootstrapper that owns the Postgres schema advisory lock before failing; unset keeps the default, a set value must be positive (#6956). |
+| `ESHU_SCHEMA_LOCK_RETRY_BUDGET` | duration | `3m` | Wall-clock deadline, shared by every migration statement of one schema bootstrap run, for retrying a statement after lock_timeout (SQLSTATE 55P03) before the bootstrap fails; unset keeps the default, a set value must be positive (#6956). |
 
 ## projector
 

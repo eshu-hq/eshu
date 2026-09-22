@@ -31,6 +31,8 @@ var coreEntries = []Entry{
 	{Name: "ESHU_POSTGRES_CONN_MAX_LIFETIME", Type: VarDuration, Default: "30m", Subsystem: "postgres", Description: "Connection lifetime before recycling."},
 	{Name: "ESHU_POSTGRES_CONN_MAX_IDLE_TIME", Type: VarDuration, Default: "10m", Subsystem: "postgres", Description: "Idle timeout before a connection is closed."},
 	{Name: "ESHU_POSTGRES_PING_TIMEOUT", Type: VarDuration, Default: "10s", Subsystem: "postgres", Description: "Timeout for the startup/readiness connectivity ping."},
+	{Name: "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT", Type: VarDuration, Default: "3m", Subsystem: "postgres", Description: "How long a schema bootstrap (db-migrate, bootstrap-index) waits for another bootstrapper that owns the Postgres schema advisory lock before failing; unset keeps the default, a set value must be positive (#6956)."},
+	{Name: "ESHU_SCHEMA_LOCK_RETRY_BUDGET", Type: VarDuration, Default: "3m", Subsystem: "postgres", Description: "Wall-clock deadline, shared by every migration statement of one schema bootstrap run, for retrying a statement after lock_timeout (SQLSTATE 55P03) before the bootstrap fails; unset keeps the default, a set value must be positive (#6956)."},
 
 	// graph
 	{Name: "ESHU_GRAPH_BACKEND", Type: VarEnum, Default: "nornicdb", Subsystem: "graph", Allowed: []string{"neo4j", "nornicdb"}, Description: "Graph database backend."},
