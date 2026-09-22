@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 106 test)
+### `root (stays)` (4 non-test, 109 test)
 
 ```text
 adapters.go -> adapters.go
@@ -63,7 +63,10 @@ generation_prior_live_test.go -> generation_prior_live_test.go
 graph_node_owner_store_test.go -> graph_node_owner_store_test.go   # SPLIT: reads private symbols of graph/owner, lock
 iac_inventory_index_schema_test.go -> iac_inventory_index_schema_test.go
 identity_admin_fake_rows_test.go -> identity_admin_fake_rows_test.go   # no production references
+identity_admin_reads_test.go -> identity_admin_reads_test.go   # SPLIT: reads private symbols of identity, identity/admin
+identity_api_tokens_list_test.go -> identity_api_tokens_list_test.go   # SPLIT: reads private symbols of identity, identity/api
 identity_epoch_index_replay_live_test.go -> identity_epoch_index_replay_live_test.go
+identity_local_mfa_status_test.go -> identity_local_mfa_status_test.go   # SPLIT: reads private symbols of identity, identity/local
 identity_provider_config_fake_db_test.go -> identity_provider_config_fake_db_test.go   # SPLIT: reads private symbols of identity/provider, identity/saml
 incident_routing_sql_schema_lockstep_test.go -> incident_routing_sql_schema_lockstep_test.go   # SPLIT: reads private symbols of incident, service
 infra_resource_entities_fence_test.go -> infra_resource_entities_fence_test.go

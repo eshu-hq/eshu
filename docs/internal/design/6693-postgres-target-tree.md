@@ -231,7 +231,7 @@ so a comment edit would stop bootstrap on every existing database.
 **D6. Shared test fakes become a real package, `fake/`, and that is a code
 change.** Test files cannot be imported across packages. In total, 71 helper
 test files are used by tests that land in two or more destinations, and
-`work_queue_lifecycle_test.go` alone serves 39. Its fake database decides what to
+`work_queue_lifecycle_test.go` alone serves 38. Its fake database decides what to
 return by matching root's private query constants (`activeScopeGenerationQuery`
 and `listDeferredScopedRelationshipFactRecordsQuery`,
 `work_queue_lifecycle_test.go:205,239`), which another package cannot see. So
@@ -300,10 +300,10 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 387 | it only needs its own package and packages below it |
-| external test package (`package x_test`) | 135 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
-| external test package plus `export_test.go` shim | 85 | as above, and it also reads its subject's private symbols |
-| stays in root, split at move time (`SPLIT`) | 36 | it reads private symbols of two or more future packages |
+| in-package test | 378 | it only needs its own package and packages below it |
+| external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
+| external test package plus `export_test.go` shim | 87 | as above, and it also reads its subject's private symbols |
+| stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
 | stays in root | 70 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
@@ -419,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 106 | ok |
+| `storage/postgres` (root) | 4 | 109 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 2 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -449,11 +449,11 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `graph/owner/` | 2 | 3 | ok |
 | `iac/` | 1 | 1 | ok |
 | `identity/` | 1 | 1 | ok |
-| `identity/admin/` | 4 | 4 | ok |
-| `identity/api/` | 7 | 4 | ok |
+| `identity/admin/` | 4 | 3 | ok |
+| `identity/api/` | 7 | 3 | ok |
 | `identity/bootstrap/` | 6 | 8 | ok |
 | `identity/github/` | 2 | 1 | ok |
-| `identity/local/` | 12 | 14 | ok |
+| `identity/local/` | 12 | 13 | ok |
 | `identity/oidc/` | 3 | 2 | ok |
 | `identity/provider/` | 8 | 6 | ok |
 | `identity/saml/` | 5 | 3 | ok |
