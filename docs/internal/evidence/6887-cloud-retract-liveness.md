@@ -193,3 +193,106 @@ deferred retract.
 - Writer tests: uid-anchored `MATCH` + `DETACH DELETE`, no `MERGE`, no
   `evidence_source` predicate, UNWIND batching, sequential dispatch,
   fail-closed nil executor.
+
+## #6946: keep the live probe on the partial index at chunk size
+
+Two causes, each with its own RED, both measured on a private PostgreSQL 18
+stack seeded with 2,000 scopes (a superseded and an active generation each,
+100 admitted uids per generation, 400,000 `reducer_cloud_resource_identity`
+rows) and a 500-candidate array (250 alive):
+
+1. Expression estimate. Postgres does not use a partial index's expression
+   statistics, so `payload->>'cloud_resource_uid' = ANY($1)` gets the
+   default selectivity per element (2,000 rows per candidate here), a
+   500-candidate chunk looks like most of the table, and the custom plan
+   walks `ingestion_scopes` into `fact_records_scope_generation_idx`.
+   Migration `119_cloud_resource_retract_liveness_stats.sql` adds extended
+   statistics on the expression and `ANALYZE`s, and the estimate becomes
+   516 rows.
+2. Scope cardinality. After an onboarding burst `ingestion_scopes` carries
+   its pre-burst planner cardinality until autoanalyze runs; a scope-first
+   join then looks cheap and the custom plan walks again even with the
+   expression statistics present. `liveAdmissionCloudUIDsAliveSQL` fetches
+   the candidate slice in a `MATERIALIZED` CTE before joining
+   `ingestion_scopes`, so the candidate-first order does not depend on the
+   scope estimate; the fenced probe embeds that read verbatim, and the
+   shape guard pins both. The alive row set is unchanged (a separate
+   review proved the multiset identical for NULL, duplicate, empty,
+   tombstone-in-one-scope, stale-generation and wrong-kind inputs).
+
+The retracter reaches the probe through pgx's default
+`QueryExecModeCacheStatement` (no override in-tree), so after five
+executions per pooled connection PostgreSQL compares the generic plan's
+cost with the custom plan's and settles on the generic plan (53.79 vs
+1,350.58 on this seed). The generic plan is where the walk hurts most
+(580-822 ms per chunk, the array unknown so every scope probes the index)
+and where the CTE alone already keeps the index: a generic plan assumes a
+short array, and the materialized slice pins the join order.
+
+Rejected on measurement: an `unnest`-driven join instead of `= ANY`
+(14,060 buffers, no change); the CTE alone without statistics for the
+custom plan (`Seq Scan` inside the CTE, 12,078 buffers); an earlier
+attempt to drop the CTE, whose "no-op" reading came from a shim that had
+analyzed `ingestion_scopes` as well (`6946-shim5`) and so never exercised
+cause 2. Migration 103's note that `CREATE STATISTICS` did not move a
+multi-column join estimate is a different case: this is a single-expression
+equality whose only missing input is the expression's own ndistinct/MCV.
+
+Proof: `TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive`
+disables autovacuum on `ingestion_scopes` for its duration, analyzes it
+before seeding (so its cardinality is the pre-seed one), seeds, derives the
+alive branch from the shipped fenced probe at its `UNION ALL` boundary,
+and runs four arms: `stale-scopes` (`VACUUM (ANALYZE) fact_records` only,
+with a precondition that `ingestion_scopes` reltuples still reads
+pre-seed) and `fresh` (every touched table vacuumed and analyzed), each
+under `force_custom_plan` and `force_generic_plan` via `PREPARE` plus
+`EXPLAIN EXECUTE` on a dedicated session (an EXPLAIN of the bare
+parameterized text never shows the generic plan). Each arm requires the
+partial index, no `fact_records_scope_generation_idx` scan, and at most
+5,000 shared buffers on the root node (hit + read + dirtied + written; an
+unparseable root `Buffers:` line fails the arm).
+
+| variant | stale-scopes / custom | stale-scopes / generic | fresh / custom | fresh / generic |
+| --- | --- | --- | --- | --- |
+| main's SQL, no statistics (before) | walk, 37.7 ms | walk, 733 ms | walk (shim: 14,115-14,619 buffers, 39.6 ms) | walk (shim: 14,142-14,752 buffers, 580-822 ms) |
+| main's SQL + migration 119 | walk, 123.7 ms (RED for the CTE) | Nested Loop, 2,499 | Hash Join, 1,346 | Nested Loop, 2,499 |
+| CTE, no statistics | walk (RED for 119) | Hash Join, 1,346 | walk (RED for 119) | Hash Join, 1,346 |
+| CTE + migration 119 (shipped) | Hash Join, 1,346-1,700 | Nested Loop, 2,499-2,877 | Hash Join, 1,346 | Nested Loop, 2,499 |
+
+Buffer figures are root-node shared buffers from the committed test's
+EXPLAIN on a stack recreated from scratch (`docker compose down -v`, then
+the branch's `db-migrate`); the shipped row is two consecutive runs on that
+stack, the RED rows one run each with the named half swapped out. The
+"before" row's timings come from the same test with the statistics object
+dropped and the CTE absent on an earlier stack. The test's `VACUUM
+(ANALYZE)` calls are table-wide and the stack is not hermetic, which is why
+the budget sits far above the observed band and far below the walk. The
+liveness live tests and the postgres unit suite pass on the branch.
+
+The real migrator applies migration 119: on the recreated stack
+`db-migrate` recorded it (ledger checksum equals the file's) and left
+`fact_records_cloud_retract_admission_uid_stats` analyzed. Editing an
+already-applied migration file is not an option for a boundary note: the
+ledger checksums the whole file, comments included, and every existing
+database would refuse bootstrap.
+
+Migration 118's header records the walk at "~204k buffers per chunk". That
+figure is the #6892 shim row in the fence table above (2,000 scopes x 10
+generations, 200,000 admission facts, the since-destroyed `wt6887` stack);
+on this seed the same plan shape costs 14,115-14,619 buffers on a vacuumed
+heap. The walk fetches one heap page per matching fact per scope, so its
+cost tracks heap layout and size; the index path's does not. 118's text
+stays as written because of the ledger.
+
+`ANALYZE fact_records` samples 30,000 rows (`default_statistics_target`
+100 x 300) whatever the table size and took 326-328 ms on the 400,000-row
+seed with 800,000 dead tuples, warm cache; a cold heap pays I/O for the
+sampled pages on top. It runs inside the migrator's 5 s bootstrap
+ownership window, whose `lock_timeout` bounds lock acquisition only and
+whose 55P03 handling hard-fails; that is a pre-existing migrator property
+that migration 118's index build already sat inside, filed as #6956.
+
+Performance Evidence: 500-candidate probe, same seed and host, custom plan 14,115-14,619 buffers / 37.7-123.7 ms (walk) -> 1,346-1,700 buffers / ~1.5 ms (partial index); generic plan (production steady state) 14,142-14,752 buffers / 580-822 ms -> 2,499-2,877 buffers / ~1 ms. Alive row set unchanged (250 of 500). ANALYZE cost 326-328 ms once at migration, then autovacuum.
+
+No-Observability-Change: no new metrics, spans, or log keys; the probe's
+row counts and the per-chunk retract log are unchanged.

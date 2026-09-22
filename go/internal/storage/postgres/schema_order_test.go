@@ -264,4 +264,5 @@ var orderedBootstrapDefinitionNames = []string{
 	// non-tombstone slice. Numbered 118 because main merged the #6837
 	// shingles migration as 117 first.
 	"cloud_resource_retract_liveness_index",
+	"cloud_resource_retract_liveness_stats",
 }
