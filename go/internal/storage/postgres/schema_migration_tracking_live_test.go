@@ -336,7 +336,7 @@ func TestBootstrapPreservesReceiptsAfterLaterMigrationFailureLive(t *testing.T) 
 		{Name: "first", Path: "test/001_first.sql", SQL: "CREATE TABLE first_migration (id INT)"},
 		{Name: "second", Path: "test/002_second.sql", SQL: "INVALID SQL"},
 	}
-	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions, slog.Default()); err == nil {
+	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: db}, definitions, slog.Default(), schemaBootstrapCoordination{}); err == nil {
 		t.Fatal("first apply unexpectedly succeeded")
 	}
 	var recorded int
@@ -347,7 +347,7 @@ func TestBootstrapPreservesReceiptsAfterLaterMigrationFailureLive(t *testing.T) 
 		t.Fatalf("retained receipts = %d, want 1", recorded)
 	}
 	definitions[1].SQL = "CREATE TABLE second_migration (id INT)"
-	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions, slog.Default()); err != nil {
+	if err := applyBootstrapDefinitionsWith(ctx, SQLDB{DB: db}, definitions, slog.Default(), schemaBootstrapCoordination{}); err != nil {
 		t.Fatalf("resume after later migration failure: %v", err)
 	}
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM eshu_schema_migrations").Scan(&recorded); err != nil {

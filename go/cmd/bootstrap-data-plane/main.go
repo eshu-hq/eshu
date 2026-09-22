@@ -55,6 +55,14 @@ type (
 const (
 	graphSchemaStatementTimeoutEnv     = "ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT"
 	defaultGraphSchemaStatementTimeout = 2 * time.Minute
+	// schemaOwnershipWaitEnv bounds how long this run waits for another
+	// bootstrapper that owns the Postgres schema advisory lock (#6956).
+	// Unset defers to the postgres package default (10m).
+	schemaOwnershipWaitEnv = "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT"
+	// schemaLockRetryBudgetEnv bounds the total backoff one migration
+	// statement may spend retrying after lock_timeout (#6956). Unset defers
+	// to the postgres package default (10m).
+	schemaLockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET"
 )
 
 func main() {
@@ -102,10 +110,55 @@ func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv fun
 		}
 	}
 
-	return postgres.ApplyBootstrapWithOptions(ctx, exec, postgres.BootstrapOptions{
-		DeferContentSearchIndexes: deferred,
-		Logger:                    logger,
-	})
+	options, err := schemaBootstrapOptions(getenv, logger)
+	if err != nil {
+		return err
+	}
+	options.DeferContentSearchIndexes = deferred
+	return postgres.ApplyBootstrapWithOptions(ctx, exec, options)
+}
+
+// schemaBootstrapOptions reads the #6956 coordination knobs; zero values
+// leave the postgres package defaults in force.
+func schemaBootstrapOptions(getenv func(string) string, logger *slog.Logger) (postgres.BootstrapOptions, error) {
+	ownershipWait, err := schemaOwnershipWait(getenv)
+	if err != nil {
+		return postgres.BootstrapOptions{}, err
+	}
+	retryBudget, err := schemaLockRetryBudget(getenv)
+	if err != nil {
+		return postgres.BootstrapOptions{}, err
+	}
+	return postgres.BootstrapOptions{
+		Logger:          logger,
+		OwnershipWait:   ownershipWait,
+		LockRetryBudget: retryBudget,
+	}, nil
+}
+
+func schemaOwnershipWait(getenv func(string) string) (time.Duration, error) {
+	return optionalPositiveDuration(getenv, schemaOwnershipWaitEnv)
+}
+
+func schemaLockRetryBudget(getenv func(string) string) (time.Duration, error) {
+	return optionalPositiveDuration(getenv, schemaLockRetryBudgetEnv)
+}
+
+// optionalPositiveDuration returns zero for an unset variable and refuses a
+// value that does not parse or is not strictly positive.
+func optionalPositiveDuration(getenv func(string) string, env string) (time.Duration, error) {
+	raw := strings.TrimSpace(getenv(env))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", env, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", env)
+	}
+	return value, nil
 }
 
 func newLogger(bootstrap telemetry.Bootstrap, writer io.Writer) *slog.Logger {

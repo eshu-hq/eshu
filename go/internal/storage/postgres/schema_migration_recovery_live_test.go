@@ -31,7 +31,7 @@ func TestBootstrapRetryAfterRecordedIndexRecoveryFailsLive(t *testing.T) {
 		{Name: "index", Path: "test/002_recovery_index.sql", SQL: "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS eshu_6738_recovery_idx ON eshu_6738_recovery (id)"},
 	}
 	apply := func() error {
-		return applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions, slog.Default())
+		return applyBootstrapDefinitionsWith(ctx, SQLDB{DB: db}, definitions, slog.Default(), schemaBootstrapCoordination{})
 	}
 	if err := apply(); err != nil {
 		t.Fatalf("apply initial migration: %v", err)

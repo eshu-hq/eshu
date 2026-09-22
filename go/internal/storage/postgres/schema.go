@@ -28,10 +28,19 @@ type Definition struct {
 	fullChecksum string
 }
 
-// BootstrapOptions controls deferred content indexes and migration progress logs.
+// BootstrapOptions controls deferred content indexes, migration progress
+// logs, and how the migrator waits on other sessions (#6956).
 type BootstrapOptions struct {
 	DeferContentSearchIndexes bool
 	Logger                    *slog.Logger
+	// OwnershipWait bounds how long this bootstrapper waits for another
+	// bootstrapper that owns the schema advisory lock before failing. Zero
+	// means defaultSchemaOwnershipWait.
+	OwnershipWait time.Duration
+	// LockRetryBudget bounds the total backoff one migration statement may
+	// spend retrying after lock_timeout (SQLSTATE 55P03) before the
+	// migrator fails. Zero means defaultSchemaLockRetryBudget.
+	LockRetryBudget time.Duration
 }
 
 type schemaLockTimeoutExecutor interface {
@@ -39,7 +48,7 @@ type schemaLockTimeoutExecutor interface {
 }
 
 type schemaBootstrapLocker interface {
-	withSchemaBootstrapLock(context.Context, time.Duration, func(db.Executor) error) error
+	withSchemaBootstrapLock(context.Context, *slog.Logger, time.Duration, func(db.Executor) error) error
 }
 
 const defaultSchemaLockTimeout = 5 * time.Second
@@ -206,19 +215,27 @@ func ApplyBootstrapWithOptions(ctx context.Context, exec db.Executor, options Bo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return applyBootstrapDefinitions(ctx, exec, definitions, logger)
+	return applyBootstrapDefinitionsWith(ctx, exec, definitions, logger, schemaBootstrapCoordination{
+		ownershipWait:   options.OwnershipWait,
+		lockRetryBudget: options.LockRetryBudget,
+	})
 }
 
-func applyBootstrapDefinitions(
+// applyBootstrapDefinitionsWith applies definitions under the schema
+// ownership lock with the given coordination bounds (zero fields take the
+// package defaults).
+func applyBootstrapDefinitionsWith(
 	ctx context.Context,
 	exec db.Executor,
 	definitions []Definition,
 	logger *slog.Logger,
+	coordination schemaBootstrapCoordination,
 ) error {
+	coordination = coordination.withDefaults()
 	if locker, ok := exec.(schemaBootstrapLocker); ok {
-		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked db.Executor) error {
+		return locker.withSchemaBootstrapLock(ctx, logger, coordination.ownershipWait, func(locked db.Executor) error {
 			if tracker, ok := locked.(schemaMigrationTracker); ok {
-				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout, logger)
+				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout, coordination.lockRetryBudget, logger)
 			}
 			return ApplyDefinitions(ctx, locked, definitions)
 		})

@@ -42,6 +42,22 @@ retry, though, the invalid index still costs write overhead on every insert
 while serving no reads, so a failed build is worth restarting promptly rather
 than leaving in place.
 
+One bootstrapper at a time owns the Postgres schema through a session
+advisory lock. A second bootstrapper started while the first is still
+applying (a retried Job, or bootstrap-index next to `db-migrate`) waits for
+the owner instead of failing after one statement timeout: it polls the lock
+every second, logs `bootstrap.postgres.ownership.waiting` with the holder's
+pid and application name every 15 s, and gives up only after
+`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 10 m). A migration statement
+that hits `lock_timeout` (5 s, SQLSTATE 55P03) because another session holds
+a conflicting table lock, such as an anti-wraparound autovacuum, applied
+nothing and is retried with doubling backoff (5 s up to 15 s) until
+`ESHU_SCHEMA_LOCK_RETRY_BUDGET` (default 10 m) is spent; each retry logs
+`bootstrap.postgres.migration.lock_wait` and the eventual success logs
+`bootstrap.postgres.migration.lock_recovered` with the attempt count. Any
+other statement failure still fails the bootstrap on the first attempt
+(#6956).
+
 ## Deployment Contract
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
