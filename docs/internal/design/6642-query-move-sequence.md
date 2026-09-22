@@ -31,7 +31,7 @@ order is the shared spine: nothing moves before PR 1.
 | ---: | --- | ---: | --- |
 | 1a | **Envelope spine repoint** ([#6977](https://github.com/eshu-hq/eshu/pull/6977)). Delete `requiredProfile` and `acceptsEnvelope`; repoint 31 files. | 0 moved | clears 1 of the 5 dominant spine symbols |
 | 1b | **Authz/capability spine repoint.** Delete `capabilityUnsupported`, `repositoryAccessFilterFromContext` and the `repositoryAccessFilter` type; repoint 83 files. | 0 moved | clears 3 more. `startQueryHandlerSpan` is the 5th and belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818), not here — so this series clears 4 of 5, and the spine is clear for every move that follows |
-| 2 | `capability/` — 4 root files, plus `capabilities.go`, `capability_matrix.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go` and `registry.go` from today's `contract/` | 9 | starts draining the `contract/` name. **Not small**: see the note below |
+| 2 | `capability/` — 3 root files, plus `capabilities.go`, `capability_matrix.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go` and `registry.go` from today's `contract/` | 8 | starts draining the `contract/` name. **Not small**: see the note below |
 | 3 | `querycontract`'s seven leaf extractions, in place, without the rename | 19 | closes the #6597 split; the rename waits for the name |
 | 4 | `testutil/` nesting — the `content` and `graph` leaves only. The `querytestutil` → `testutil` **rename itself belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818)** | 42 | test helpers, no production risk |
 | 6 | the 52 root auth files, nested five ways under whatever `queryauth` is called by then | 52 | the largest root family; `auth/route/` alone is 24 files |
@@ -48,8 +48,11 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
 2026-09-22 by performing the move in a throwaway worktree and compiling with
 `go build -gcflags=-e ./internal/query/...`:
 
-- It is **9 files**, not 7 — 4 from root and 5 from `contract/`. The cost page's
-  "4 root files + 5 from `contract/` = 9" was right; this table was not.
+- It is **8 files** — 3 from root and 5 from `contract/`. Both the earlier
+  "7" here and the cost page's "4 root + 5 = 9" were wrong.
+  `capability_keys.go` does not move: it holds the six capability-id
+  constants root's own handlers name, and its own doc comment says they
+  stayed at root "because the routes did". Moving it strands all six.
 - The move breaks **42 files with 57 distinct undefined symbols, across two
   packages** — root `query` and `contract`. `registry.go` holds `register`,
   `capabilitySupport`, `truthExact` and `truthDerived`, which all 36 remaining
