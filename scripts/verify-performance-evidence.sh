@@ -107,16 +107,84 @@ is_hot_path_by_location() {
   esac
 }
 
+# Absolute paths of changed Go files matching the hot-content patterns below,
+# built once (single rg pass) instead of one rg spawn per changed file. The
+# per-file loop below queries this set with grep, so a 3489-file diff pays
+# one content scan instead of thousands. Membership is equivalent to running
+# the four patterns below against each file: rg -l reports exactly the files
+# any pattern matches, and files absent from the set (missing on disk,
+# unreadable, or pattern-free) fail the grep exactly as the old per-file
+# `rg -q` failed them.
+_perf_content_hot_file=""
+_perf_build_content_hot_set() {
+  local list_path="$1"
+  _perf_content_hot_file="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-content-hot.XXXXXX")"
+  # Scan in bounded chunks instead of one rg spawn per file. Chunking keeps
+  # argv small no matter how many files changed; each chunk appends its
+  # matches. rg exits 1 when a chunk matches nothing, which is a normal empty
+  # result, not an error -- only exit codes above 1 fail. (xargs cannot be
+  # used here: it collapses a chunk's exit-1 no-match and exit-2 hard error
+  # into one status.) Deleted files are excluded up front: rg errors on a
+  # missing operand, and the old per-file check returned false for files
+  # missing on disk.
+  local chunk=()
+  local chunk_status
+  while IFS= read -r scan_file || [ -n "$scan_file" ]; do
+    chunk+=("$scan_file")
+    if [ "${#chunk[@]}" -ge 200 ]; then
+      rg -l \
+        -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
+        -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
+        -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
+        -e 'go[[:space:]]+func[[:space:]]*\(' \
+        "${chunk[@]}" >>"$_perf_content_hot_file" 2>/dev/null
+      chunk_status=$?
+      if [ "$chunk_status" -gt 1 ]; then
+        printf 'verify-performance-evidence: hot-content scan failed\n' >&2
+        return 1
+      fi
+      chunk=()
+    fi
+  done <"$list_path"
+  if [ "${#chunk[@]}" -gt 0 ]; then
+    rg -l \
+      -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
+      -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
+      -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
+      -e 'go[[:space:]]+func[[:space:]]*\(' \
+      "${chunk[@]}" >>"$_perf_content_hot_file" 2>/dev/null
+    chunk_status=$?
+    if [ "$chunk_status" -gt 1 ]; then
+      printf 'verify-performance-evidence: hot-content scan failed\n' >&2
+      return 1
+    fi
+  fi
+  return 0
+}
 is_hot_path_by_content() {
   local path="$1"
   local absolute="$repo_root/$path"
   [ -f "$absolute" ] || return 1
 
-  rg -q -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
-    -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
-    -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
-    -e 'go[[:space:]]+func[[:space:]]*\(' \
-    "$absolute"
+  if [ -z "$_perf_content_hot_file" ]; then
+    local scan_list="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-content-scan.XXXXXX")"
+    local changed_path
+    for changed_path in "${changed_files[@]}"; do
+      case "$changed_path" in
+        *.go) ;;
+        *) continue ;;
+      esac
+      [ -f "$repo_root/$changed_path" ] && printf '%s\n' "$repo_root/$changed_path" >>"$scan_list"
+    done
+    # No scannable Go files: every query misses, same as an empty rg result.
+    if [ ! -s "$scan_list" ]; then
+      rm -f "$scan_list"
+      return 1
+    fi
+    _perf_build_content_hot_set "$scan_list" || { rm -f "$scan_list"; return 1; }
+    rm -f "$scan_list"
+  fi
+  grep -Fxq "$absolute" "$_perf_content_hot_file"
 }
 
 is_runtime_config_file() {
@@ -244,13 +312,26 @@ fi
 # and YAML comments (#), and blank lines. New/deleted/renamed files
 # default to false (gate fires) — we cannot tell comment-only intent from
 # those cheaply, and defaulting to "gate fires" is the safe side.
+# Sorted set of changed files whose diff holds only comment/blank lines,
+# built once instead of one awk scan of the whole change map per candidate
+# file. A file lands in the set exactly when the old per-file lookup exited
+# 0 for it: the map emits a 0-row at each file header before any 1-row, so
+# the last row for a path is 0 if and only if no 1-row exists. Files absent
+# from the map (no diff at all) miss the set, and the grep below fails them
+# exactly as the old lookup did.
+_perf_comment_only_file=""
 is_comment_only_change() {
   local path="$1"
   [ -n "${_perf_code_change_map}" ] || return 1
-  printf '%s' "${_perf_code_change_map}" | awk -F '\t' -v path="$path" '
-    $1 == path { value = $2 }
-    END { exit !(value == "0") }
-  '
+  if [ -z "$_perf_comment_only_file" ]; then
+    _perf_comment_only_file="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-comment-only.XXXXXX")"
+    printf '%s' "${_perf_code_change_map}" | awk -F '\t' '
+      $2 == "0" { seen0[$1] = 1 }
+      $2 == "1" { has1[$1] = 1 }
+      END { for (f in seen0) if (!(f in has1)) print f }
+    ' | LC_ALL=C sort -u >"$_perf_comment_only_file"
+  fi
+  grep -Fxq "$path" "$_perf_comment_only_file"
 }
 
 is_evidence_file() {
@@ -354,6 +435,8 @@ fi
 
 if [ "${#hot_files[@]}" -eq 0 ]; then
   printf 'verify-performance-evidence: no hot Cypher/concurrency/runtime files changed\n'
+  [ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
+  [ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
   exit 0
 fi
 
@@ -363,15 +446,23 @@ fi
 # (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
 # as something this diff contributed, so it must not satisfy the gate.
 #
-# Filters the already-fetched _perf_diff_cache instead of spawning a fresh
-# `git diff` per evidence file -- the cache above exists precisely so
-# per-file checks are O(1) lookups, not one git invocation each. Uses plain
-# string comparisons (not regex) so an evidence path containing regex
-# metacharacters (e.g. a literal `.` in a filename) still compares exactly.
-added_lines_for_evidence_file() {
-  local rel="$1"
+# Collects the added diff lines of EVERY evidence file in one awk pass over
+# the already-fetched _perf_diff_cache, instead of re-scanning the whole
+# cache per evidence file (a 6.5MB cache times 840 evidence files). Only the
+# two global flags below consume this union, and both are set-or-nothing
+# ("any evidence file's added lines match"), so scanning the union with the
+# unchanged marker patterns decides exactly what the per-file loop decided:
+# a marker sets its flag iff some evidence file contributed a matching added
+# line. Uses exact path membership (associative array loaded from the list
+# file), never regex, so evidence paths containing regex metacharacters
+# (e.g. a literal `.` in a filename) still compare exactly.
+evidence_added_union() {
+  local list_path="$1"
   [ -n "${_perf_diff_cache}" ] || return 0
-  printf '%s\n' "${_perf_diff_cache}" | awk -v target="${rel}" '
+  printf '%s\n' "${_perf_diff_cache}" | awk -v list="${list_path}" '
+    BEGIN {
+      while ((getline line < list) > 0) evidence[line] = 1
+    }
     substr($0, 1, 6) == "+++ b/" {
       # No /dev/null guard needed here: "+++ b/" is exactly six characters, so
       # substr($0, 7) is always the path *after* b/ -- for "+++ b/dev/null" it
@@ -386,7 +477,7 @@ added_lines_for_evidence_file() {
     substr($0, 1, 6) == "--- a/" { next }
     $0 == "--- /dev/null" { next }
     substr($0, 1, 1) == "+" {
-      if (cur == target) print substr($0, 2)
+      if (cur in evidence) print substr($0, 2)
       next
     }
   '
@@ -395,10 +486,14 @@ added_lines_for_evidence_file() {
 has_performance_evidence=1
 has_observability_evidence=1
 if [ "${#evidence_files[@]}" -gt 0 ]; then
+  _perf_evidence_list="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-list.XXXXXX")"
   for evidence_file in "${evidence_files[@]}"; do
-    evidence_rel="${evidence_file#"$repo_root"/}"
-    evidence_added="$(added_lines_for_evidence_file "$evidence_rel")"
-    [ -z "$evidence_added" ] && continue
+    printf '%s\n' "${evidence_file#"$repo_root"/}" >>"$_perf_evidence_list"
+  done
+  _perf_evidence_added_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-added.XXXXXX")"
+  evidence_added_union "$_perf_evidence_list" >"$_perf_evidence_added_path"
+  rm -f "$_perf_evidence_list"
+  if [ -s "$_perf_evidence_added_path" ]; then
     # Tolerates an optional single parenthetical/bracketed qualifier between
     # the marker phrase and the colon (e.g. "No-Regression Evidence (#5369):"),
     # an established, already-merged convention on main (docs/public/
@@ -419,20 +514,23 @@ if [ "${#evidence_files[@]}" -gt 0 ]; then
     # which is why the small-evidence cases never caught it. Do not reintroduce
     # a pipe here, with or without -q; see
     # scripts/test-verify-performance-evidence-large-marker.sh.
-    evidence_added_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-added.XXXXXX")"
-    printf '%s\n' "$evidence_added" >"$evidence_added_path"
-    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$evidence_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$_perf_evidence_added_path"; then
       has_performance_evidence=0
     fi
-    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$evidence_added_path"; then
+    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$_perf_evidence_added_path"; then
       has_observability_evidence=0
     fi
-    rm -f "$evidence_added_path"
-  done
+  fi
+  rm -f "$_perf_evidence_added_path"
 fi
 
 if [ "$has_performance_evidence" -eq 0 ] && [ "$has_observability_evidence" -eq 0 ]; then
   printf 'verify-performance-evidence: benchmark and observability markers found for hot-path changes\n'
+  # Guarded: rm -f with an empty operand still exits nonzero, which under
+  # set -e would flip this passing exit into a failure when a set was never
+  # built (e.g. no content check ran).
+  [ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
+  [ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
   exit 0
 fi
 
@@ -458,4 +556,6 @@ fi
   printf 'Compose/Helm settings are covered.\n'
 } >&2
 
+[ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
+[ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
 exit 1
