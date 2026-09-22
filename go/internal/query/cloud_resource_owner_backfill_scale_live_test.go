@@ -25,8 +25,8 @@ const (
 	cloudResourceOwnerBackfillScaleCleanupEnv = "ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_CLEANUP"
 	// cloudResourceOwnerBackfillScaleDefaultNodes matches the population #6842
 	// measured: 150,000 uid-constrained CloudResource nodes, where the first
-	// page shipped without a uid range predicate took 17.9s against the 10s
-	// graph-read deadline.
+	// page shipped without a uid range predicate failed the 10s graph-read
+	// deadline (raw shape 29.5s to 45.9s with a 150s cap).
 	cloudResourceOwnerBackfillScaleDefaultNodes = 150_000
 	cloudResourceOwnerBackfillScalePrefix       = "cloud-owner-backfill-scale-"
 	// cloudResourceOwnerBackfillScaleSeedBatch matches the constrained-label

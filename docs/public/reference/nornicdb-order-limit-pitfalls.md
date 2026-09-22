@@ -5,7 +5,7 @@ property is planned on the pinned NornicDB build, and what a keyset page must
 carry to be served from the ordered index rather than a label scan. Split out
 as its own page rather than added to
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) because that page
-is at its grandfathered 500-line-cap ceiling and must not grow; see that page
+is grandfathered at 851 lines above the 500-line cap and must not grow; see that page
 for label-disjunction, union, arrow-head, and multi-clause read pitfalls,
 [NornicDB Write-Shape Pitfalls](nornicdb-write-shape-pitfalls.md) for write
 statements, and [NornicDB Behavior and Pitfalls](nornicdb-pitfalls.md) for
