@@ -7,7 +7,8 @@ reads such as the Module orphan page) follows separately.
 
 ## Symptom
 
-PR #6962 run 35756330320 (job 106842907693, head 2a808d10b) failed quorum
+PR #6962 run 35756330128 attempt 1 (job 106842906473 `differential
+nornicdb vs neo4j`, head 2a808d10b) failed quorum
 with 42 reproduced `rowcount` divergences, first:
 
 `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
@@ -21,7 +22,8 @@ carries an already-seen digest. Per exploded element the recordings are
 in the reducer until the pair resolves, and one leg observes the converged
 row in one more poll iteration. Final answers agree on both backends; only
 the observation counts differ. The re-run (job 106859287633) went green,
-confirming poll timing, not truth.
+consistent with poll timing rather than truth — the mechanism case rests on
+the digest-set agreement plus the 0/1-row poll shape above.
 
 ## Change
 
