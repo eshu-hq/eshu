@@ -6,6 +6,8 @@ package status
 import (
 	"sort"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // OperatorControlPlane is the unified operator read model for the control-plane
@@ -96,7 +98,7 @@ type OperatorDeadLetters struct {
 	// Domains with zero dead letters are excluded.
 	ByDomain []DomainDeadLetter
 	// CollectorGeneration summarizes pre-queue collector commit dead letters.
-	CollectorGeneration CollectorGenerationDeadLetterSnapshot
+	CollectorGeneration collector.GenerationDeadLetterSnapshot
 	// LatestFailureClass is the newest queue failure class, empty when none.
 	LatestFailureClass string
 	// LatestFailureDomain is the newest queue failure domain.
@@ -181,9 +183,9 @@ func controlPlaneCollectorFamilies(report Report) []OperatorCollectorFamily {
 	// A nil catalog enumerates the full collector fleet so every known family
 	// yields a verdict, including absent and unsupported families an operator
 	// must still see in the read model.
-	proofs := CollectorPromotionProofs(report, CollectorPromotionOptions{
+	proofs := collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
 		AsOf:       report.AsOf,
-		StaleAfter: DefaultCollectorPromotionStaleAfter,
+		StaleAfter: collector.DefaultPromotionStaleAfter,
 	})
 	return rollupOperatorCollectorFamilies(proofs)
 }
@@ -192,7 +194,7 @@ func controlPlaneCollectorFamilies(report Report) []OperatorCollectorFamily {
 // one verdict per collector family, keeping the newest observation and the worst
 // (least-promoted) verdict so an operator sees the family as unhealthy when any
 // instance is. The worst-verdict instance's runtime fields travel with it.
-func rollupOperatorCollectorFamilies(proofs []CollectorPromotionProof) []OperatorCollectorFamily {
+func rollupOperatorCollectorFamilies(proofs []collector.PromotionProof) []OperatorCollectorFamily {
 	byKind := map[string]*OperatorCollectorFamily{}
 	order := make([]string, 0, len(proofs))
 	for _, proof := range proofs {
@@ -240,21 +242,21 @@ func rollupOperatorCollectorFamilies(proofs []CollectorPromotionProof) []Operato
 // its least-healthy instance. Higher is worse.
 func collectorPromotionSeverity(state string) int {
 	switch state {
-	case CollectorPromotionImplemented:
+	case collector.PromotionImplemented:
 		return 0
-	case CollectorPromotionPartial:
+	case collector.PromotionPartial:
 		return 1
-	case CollectorPromotionStale:
+	case collector.PromotionStale:
 		return 2
-	case CollectorPromotionGated:
+	case collector.PromotionGated:
 		return 3
-	case CollectorPromotionDisabled:
+	case collector.PromotionDisabled:
 		return 4
-	case CollectorPromotionPermissionHidden:
+	case collector.PromotionPermissionHidden:
 		return 5
-	case CollectorPromotionUnsupported:
+	case collector.PromotionUnsupported:
 		return 6
-	case CollectorPromotionFailed:
+	case collector.PromotionFailed:
 		return 7
 	default:
 		return 1

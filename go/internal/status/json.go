@@ -9,70 +9,81 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // RenderJSON returns a stable machine-readable projection of the report.
 func RenderJSON(report Report) ([]byte, error) {
+	// Project the collector evidence once: the three readbacks below all
+	// consume the same slice of the report.
+	evidence := collectorEvidence(report)
+
 	payload := struct {
-		Version                        string                            `json:"version"`
-		AsOf                           string                            `json:"as_of"`
-		Health                         HealthSummary                     `json:"health"`
-		Coordinator                    *coordinatorSnapshotJSON          `json:"coordinator,omitempty"`
-		CollectorRuntimes              []collectorRuntimeStatusJSON      `json:"collector_runtimes,omitempty"`
-		CollectorPromotionProofs       []collectorPromotionProofJSON     `json:"collector_promotion_proofs,omitempty"`
-		Flow                           []flowSummaryJSON                 `json:"flow"`
-		Queue                          queueJSON                         `json:"queue"`
-		LatestFailure                  *queueFailureJSON                 `json:"latest_failure,omitempty"`
-		RetryPolicies                  []retryPolicyJSON                 `json:"retry_policies"`
-		RegistryCollectors             []registryCollectorJSON           `json:"registry_collectors,omitempty"`
-		AWSCloudScans                  []awsCloudScanJSON                `json:"aws_cloud_scans,omitempty"`
-		AWSFreshness                   *awsFreshnessJSON                 `json:"aws_freshness,omitempty"`
-		InfraInventory                 *infraInventoryJSON               `json:"infra_inventory,omitempty"`
-		VulnerabilitySources           []vulnerabilitySourceJSON         `json:"vulnerability_sources,omitempty"`
-		SemanticExtraction             semanticExtractionJSON            `json:"semantic_extraction"`
-		AnswerNarration                answerNarrationJSON               `json:"answer_narration"`
-		CollectorGenerationDeadLetters collectorGenerationDeadLetterJSON `json:"collector_generation_dead_letters"`
-		AWSCloudScansTruncated         bool                              `json:"aws_cloud_scans_truncated,omitempty"`
-		AWSCloudScanLimit              int                               `json:"aws_cloud_scan_limit,omitempty"`
-		ScopeActivity                  scopeActivityJSON                 `json:"scope_activity"`
-		GenerationHistory              generationHistoryJSON             `json:"generation_history"`
-		GenerationTransitions          []generationTransitionJSON        `json:"generation_transitions"`
-		Scopes                         map[string]int                    `json:"scopes"`
-		Generations                    map[string]int                    `json:"generations"`
-		Stages                         []StageSummary                    `json:"stages"`
-		Domains                        []domainBacklogJSON               `json:"domains"`
-		DomainBacklogsTruncated        bool                              `json:"domain_backlogs_truncated,omitempty"`
-		DomainBacklogsLimit            int                               `json:"domain_backlogs_limit,omitempty"`
-		QueueBlockages                 []queueBlockageJSON               `json:"queue_blockages"`
-		TerraformState                 *terraformStateJSON               `json:"terraform_state,omitempty"`
+		Version                        string                              `json:"version"`
+		AsOf                           string                              `json:"as_of"`
+		Health                         HealthSummary                       `json:"health"`
+		Coordinator                    *coordinatorSnapshotJSON            `json:"coordinator,omitempty"`
+		CollectorRuntimes              []collector.RuntimeStatusJSON       `json:"collector_runtimes,omitempty"`
+		CollectorPromotionProofs       []collector.PromotionProofJSON      `json:"collector_promotion_proofs,omitempty"`
+		Flow                           []flowSummaryJSON                   `json:"flow"`
+		Queue                          queueJSON                           `json:"queue"`
+		LatestFailure                  *queueFailureJSON                   `json:"latest_failure,omitempty"`
+		RetryPolicies                  []retryPolicyJSON                   `json:"retry_policies"`
+		RegistryCollectors             []registryCollectorJSON             `json:"registry_collectors,omitempty"`
+		AWSCloudScans                  []cloud.AWSScanJSON                 `json:"aws_cloud_scans,omitempty"`
+		AWSFreshness                   *cloud.AWSFreshnessJSON             `json:"aws_freshness,omitempty"`
+		InfraInventory                 *infraInventoryJSON                 `json:"infra_inventory,omitempty"`
+		VulnerabilitySources           []collector.VulnerabilitySourceJSON `json:"vulnerability_sources,omitempty"`
+		SemanticExtraction             semantic.ExtractionJSON             `json:"semantic_extraction"`
+		AnswerNarration                answerNarrationJSON                 `json:"answer_narration"`
+		CollectorGenerationDeadLetters collector.GenerationDeadLetterJSON  `json:"collector_generation_dead_letters"`
+		AWSCloudScansTruncated         bool                                `json:"aws_cloud_scans_truncated,omitempty"`
+		AWSCloudScanLimit              int                                 `json:"aws_cloud_scan_limit,omitempty"`
+		ScopeActivity                  scopeActivityJSON                   `json:"scope_activity"`
+		GenerationHistory              generationHistoryJSON               `json:"generation_history"`
+		GenerationTransitions          []generation.TransitionJSON         `json:"generation_transitions"`
+		Scopes                         map[string]int                      `json:"scopes"`
+		Generations                    map[string]int                      `json:"generations"`
+		Stages                         []StageSummary                      `json:"stages"`
+		Domains                        []domainBacklogJSON                 `json:"domains"`
+		DomainBacklogsTruncated        bool                                `json:"domain_backlogs_truncated,omitempty"`
+		DomainBacklogsLimit            int                                 `json:"domain_backlogs_limit,omitempty"`
+		QueueBlockages                 []queueBlockageJSON                 `json:"queue_blockages"`
+		TerraformState                 *tfstate.ReportJSON                 `json:"terraform_state,omitempty"`
 	}{
 		Version:           buildinfo.AppVersion(),
 		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
 		Health:            report.Health,
 		Coordinator:       coordinatorJSON(report.Coordinator),
-		CollectorRuntimes: collectorRuntimeStatusesJSON(CollectorRuntimeStatuses(report)),
-		CollectorPromotionProofs: collectorPromotionProofsJSON(CollectorPromotionProofs(report, CollectorPromotionOptions{
-			Catalog:    presentCollectorCatalog(report),
+		CollectorRuntimes: collector.RuntimeStatusesJSON(collector.RuntimeStatuses(evidence)),
+		CollectorPromotionProofs: collector.PromotionProofsJSON(collector.PromotionProofs(evidence, collector.PromotionOptions{
+			Catalog:    collector.PresentCatalog(evidence),
 			AsOf:       report.AsOf,
-			StaleAfter: DefaultCollectorPromotionStaleAfter,
+			StaleAfter: collector.DefaultPromotionStaleAfter,
 		})),
 		Flow:                           flowSummariesJSON(report.FlowSummaries),
 		Queue:                          queueJSONFromReport(report.Queue),
 		LatestFailure:                  queueFailureJSONFromReport(report.LatestQueueFailure),
 		RetryPolicies:                  retryPoliciesJSON(report.RetryPolicies),
 		RegistryCollectors:             registryCollectorsJSON(report.RegistryCollectors),
-		AWSCloudScans:                  awsCloudScansJSON(report.AWSCloudScans),
-		AWSFreshness:                   awsFreshnessJSONFromReport(report.AWSFreshness),
+		AWSCloudScans:                  cloud.AWSScansJSON(report.AWSCloudScans),
+		AWSFreshness:                   cloud.AWSFreshnessJSONFrom(report.AWSFreshness),
 		InfraInventory:                 infraInventoryJSONFromReport(report.InfraInventory),
-		VulnerabilitySources:           vulnerabilitySourcesJSON(report.VulnerabilitySources),
-		SemanticExtraction:             semanticExtractionStatusJSON(report.SemanticExtraction),
+		VulnerabilitySources:           collector.VulnerabilitySourcesJSON(report.VulnerabilitySources),
+		SemanticExtraction:             semantic.ExtractionStatusJSON(report.SemanticExtraction),
 		AnswerNarration:                answerNarrationStatusJSON(report.AnswerNarration),
-		CollectorGenerationDeadLetters: collectorGenerationDeadLetterJSONFromReport(report.CollectorGenerationDeadLetters),
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterJSONFrom(report.CollectorGenerationDeadLetters),
 		AWSCloudScansTruncated:         report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanLimitJSON(report),
 		ScopeActivity:                  scopeActivityJSONFromReport(report.ScopeActivity),
 		GenerationHistory:              generationHistoryJSONFromReport(report.GenerationHistory),
-		GenerationTransitions:          generationTransitionsJSON(report.GenerationTransitions),
+		GenerationTransitions:          generation.TransitionsJSON(report.GenerationTransitions),
 		Scopes:                         cloneCounts(report.ScopeTotals),
 		Generations:                    cloneCounts(report.GenerationTotals),
 		Stages:                         slices.Clone(report.StageSummaries),
@@ -80,7 +91,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		DomainBacklogsTruncated:        report.DomainBacklogsTruncated,
 		DomainBacklogsLimit:            domainBacklogsLimitJSON(report),
 		QueueBlockages:                 queueBlockagesJSON(report.QueueBlockages),
-		TerraformState:                 terraformStateReportJSON(report.TerraformState),
+		TerraformState:                 tfstate.ReportJSONFrom(report.TerraformState),
 	}
 
 	return json.MarshalIndent(payload, "", "  ")
@@ -130,11 +141,6 @@ type generationHistoryJSON struct {
 	Other      int `json:"other"`
 }
 
-type namedCountJSON struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
 type collectorInstanceJSON struct {
 	InstanceID     string  `json:"instance_id"`
 	CollectorKind  string  `json:"collector_kind"`
@@ -150,10 +156,10 @@ type collectorInstanceJSON struct {
 
 type coordinatorSnapshotJSON struct {
 	CollectorInstances    []collectorInstanceJSON        `json:"collector_instances"`
-	RunStatusCounts       []namedCountJSON               `json:"run_status_counts"`
-	WorkItemStatusCounts  []namedCountJSON               `json:"work_item_status_counts"`
-	CompletenessCounts    []namedCountJSON               `json:"completeness_counts"`
-	CollectorBackpressure []collectorBackpressureJSON    `json:"collector_backpressure,omitempty"`
+	RunStatusCounts       []shared.NamedCountJSON        `json:"run_status_counts"`
+	WorkItemStatusCounts  []shared.NamedCountJSON        `json:"work_item_status_counts"`
+	CompletenessCounts    []shared.NamedCountJSON        `json:"completeness_counts"`
+	CollectorBackpressure []collector.BackpressureJSON   `json:"collector_backpressure,omitempty"`
 	ActiveClaims          int                            `json:"active_claims"`
 	OverdueClaims         int                            `json:"overdue_claims"`
 	OldestPendingAge      string                         `json:"oldest_pending_age"`
@@ -170,15 +176,15 @@ type coordinatorRecentFailuresJSON struct {
 }
 
 type registryCollectorJSON struct {
-	CollectorKind              string               `json:"collector_kind"`
-	ConfiguredInstances        int                  `json:"configured_instances"`
-	ActiveScopes               int                  `json:"active_scopes"`
-	RecentCompletedGenerations int                  `json:"recent_completed_generations"`
-	LastCompletedAt            string               `json:"last_completed_at,omitempty"`
-	RetryableFailures          int                  `json:"retryable_failures"`
-	TerminalFailures           int                  `json:"terminal_failures"`
-	FailureClassCounts         []namedCountJSON     `json:"failure_class_counts,omitempty"`
-	MetadataTargets            []metadataTargetJSON `json:"metadata_targets,omitempty"`
+	CollectorKind              string                  `json:"collector_kind"`
+	ConfiguredInstances        int                     `json:"configured_instances"`
+	ActiveScopes               int                     `json:"active_scopes"`
+	RecentCompletedGenerations int                     `json:"recent_completed_generations"`
+	LastCompletedAt            string                  `json:"last_completed_at,omitempty"`
+	RetryableFailures          int                     `json:"retryable_failures"`
+	TerminalFailures           int                     `json:"terminal_failures"`
+	FailureClassCounts         []shared.NamedCountJSON `json:"failure_class_counts,omitempty"`
+	MetadataTargets            []metadataTargetJSON    `json:"metadata_targets,omitempty"`
 }
 
 type metadataTargetJSON struct {
@@ -189,56 +195,6 @@ type metadataTargetJSON struct {
 	Stale       int    `json:"stale"`
 	Failed      int    `json:"failed"`
 	RateLimited int    `json:"rate_limited"`
-}
-
-type awsCloudScanJSON struct {
-	CollectorInstanceID string `json:"collector_instance_id"`
-	AccountID           string `json:"account_id"`
-	Region              string `json:"region"`
-	ServiceKind         string `json:"service_kind"`
-	Status              string `json:"status"`
-	CommitStatus        string `json:"commit_status"`
-	FailureClass        string `json:"failure_class,omitempty"`
-	FailureMessage      string `json:"failure_message,omitempty"`
-	APICallCount        int    `json:"api_call_count"`
-	ThrottleCount       int    `json:"throttle_count"`
-	WarningCount        int    `json:"warning_count"`
-	ResourceCount       int    `json:"resource_count"`
-	RelationshipCount   int    `json:"relationship_count"`
-	TagObservationCount int    `json:"tag_observation_count"`
-	BudgetExhausted     bool   `json:"budget_exhausted"`
-	CredentialFailed    bool   `json:"credential_failed"`
-	LastStartedAt       string `json:"last_started_at,omitempty"`
-	LastObservedAt      string `json:"last_observed_at,omitempty"`
-	LastCompletedAt     string `json:"last_completed_at,omitempty"`
-	LastSuccessfulAt    string `json:"last_successful_at,omitempty"`
-	UpdatedAt           string `json:"updated_at,omitempty"`
-}
-
-type vulnerabilitySourceJSON struct {
-	CollectorInstanceID string `json:"collector_instance_id"`
-	ScopeID             string `json:"scope_id"`
-	Source              string `json:"source"`
-	Ecosystem           string `json:"ecosystem,omitempty"`
-	WindowStart         string `json:"window_start,omitempty"`
-	WindowEnd           string `json:"window_end,omitempty"`
-	LastAttemptAt       string `json:"last_attempt_at,omitempty"`
-	LastSuccessAt       string `json:"last_success_at,omitempty"`
-	NextRetryAt         string `json:"next_retry_at,omitempty"`
-	LastErrorClass      string `json:"last_error_class,omitempty"`
-	FreshnessState      string `json:"freshness_state"`
-	TerminalStatus      string `json:"terminal_status"`
-	ResultCount         int    `json:"result_count"`
-	WarningCount        int    `json:"warning_count"`
-	UpdatedAt           string `json:"updated_at,omitempty"`
-}
-
-type collectorGenerationDeadLetterJSON struct {
-	DeadLetter              int     `json:"dead_letter"`
-	ReplayRequested         int     `json:"replay_requested"`
-	ReplayAttempts          int     `json:"replay_attempts"`
-	OldestDeadLetterAge     string  `json:"oldest_dead_letter_age"`
-	OldestDeadLetterSeconds float64 `json:"oldest_dead_letter_age_seconds"`
 }
 
 type domainBacklogJSON struct {
@@ -262,25 +218,25 @@ type queueBlockageJSON struct {
 	OldestAgeSeconds float64 `json:"oldest_age_seconds"`
 }
 
-func queueJSONFromReport(queue QueueSnapshot) queueJSON {
+func queueJSONFromReport(snapshot QueueSnapshot) queueJSON {
 	return queueJSON{
-		Total:                                 queue.Total,
-		Outstanding:                           queue.Outstanding,
-		Pending:                               queue.Pending,
-		InFlight:                              queue.InFlight,
-		Retrying:                              queue.Retrying,
-		Succeeded:                             queue.Succeeded,
-		Failed:                                queue.Failed,
-		DeadLetter:                            queue.DeadLetter,
-		ProvenanceEdgeIdentityUpgradeApplied:  queue.ProvenanceEdgeIdentityUpgradeApplied,
-		ProvenanceEdgeIdentityUpgradeRequired: queue.ProvenanceEdgeIdentityUpgradeRequired,
-		OverdueClaims:                         queue.OverdueClaims,
-		OldestOutstandingAge:                  queue.OldestOutstandingAge.String(),
-		OldestOutstandingAgeSeconds:           queue.OldestOutstandingAge.Seconds(),
+		Total:                                 snapshot.Total,
+		Outstanding:                           snapshot.Outstanding,
+		Pending:                               snapshot.Pending,
+		InFlight:                              snapshot.InFlight,
+		Retrying:                              snapshot.Retrying,
+		Succeeded:                             snapshot.Succeeded,
+		Failed:                                snapshot.Failed,
+		DeadLetter:                            snapshot.DeadLetter,
+		ProvenanceEdgeIdentityUpgradeApplied:  snapshot.ProvenanceEdgeIdentityUpgradeApplied,
+		ProvenanceEdgeIdentityUpgradeRequired: snapshot.ProvenanceEdgeIdentityUpgradeRequired,
+		OverdueClaims:                         snapshot.OverdueClaims,
+		OldestOutstandingAge:                  snapshot.OldestOutstandingAge.String(),
+		OldestOutstandingAgeSeconds:           snapshot.OldestOutstandingAge.Seconds(),
 	}
 }
 
-func queueFailureJSONFromReport(snapshot *QueueFailureSnapshot) *queueFailureJSON {
+func queueFailureJSONFromReport(snapshot *queue.FailureSnapshot) *queueFailureJSON {
 	if snapshot == nil {
 		return nil
 	}
@@ -295,7 +251,7 @@ func queueFailureJSONFromReport(snapshot *QueueFailureSnapshot) *queueFailureJSO
 		FailureClass:   snapshot.FailureClass,
 		FailureMessage: snapshot.FailureMessage,
 		FailureDetails: snapshot.FailureDetails,
-		UpdatedAt:      nullableRFC3339Value(snapshot.UpdatedAt),
+		UpdatedAt:      shared.NullableRFC3339Value(snapshot.UpdatedAt),
 	}
 }
 
@@ -321,7 +277,7 @@ func domainBacklogsJSON(rows []DomainBacklog) []domainBacklogJSON {
 	return projected
 }
 
-func queueBlockagesJSON(rows []QueueBlockage) []queueBlockageJSON {
+func queueBlockagesJSON(rows []queue.Blockage) []queueBlockageJSON {
 	projected := make([]queueBlockageJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, queueBlockageJSON{
@@ -361,10 +317,10 @@ func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
 
 	return &coordinatorSnapshotJSON{
 		CollectorInstances:    instances,
-		RunStatusCounts:       namedCountsJSON(snapshot.RunStatusCounts),
-		WorkItemStatusCounts:  namedCountsJSON(snapshot.WorkItemStatusCounts),
-		CompletenessCounts:    namedCountsJSON(snapshot.CompletenessCounts),
-		CollectorBackpressure: collectorBackpressureJSONRows(snapshot.CollectorBackpressure),
+		RunStatusCounts:       shared.NamedCountsJSON(snapshot.RunStatusCounts),
+		WorkItemStatusCounts:  shared.NamedCountsJSON(snapshot.WorkItemStatusCounts),
+		CompletenessCounts:    shared.NamedCountsJSON(snapshot.CompletenessCounts),
+		CollectorBackpressure: collector.BackpressureJSONRows(snapshot.CollectorBackpressure),
 		ActiveClaims:          snapshot.ActiveClaims,
 		OverdueClaims:         snapshot.OverdueClaims,
 		OldestPendingAge:      snapshot.OldestPendingAge.String(),
@@ -386,14 +342,6 @@ func coordinatorRecentFailuresJSONValue(recent *CoordinatorRecentFailures) *coor
 	}
 }
 
-func namedCountsJSON(rows []NamedCount) []namedCountJSON {
-	projected := make([]namedCountJSON, 0, len(rows))
-	for _, row := range rows {
-		projected = append(projected, namedCountJSON(row))
-	}
-	return projected
-}
-
 func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollectorJSON {
 	projected := make([]registryCollectorJSON, 0, len(rows))
 	for _, row := range rows {
@@ -402,10 +350,10 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 			ConfiguredInstances:        row.ConfiguredInstances,
 			ActiveScopes:               row.ActiveScopes,
 			RecentCompletedGenerations: row.RecentCompletedGenerations,
-			LastCompletedAt:            nullableRFC3339Value(row.LastCompletedAt),
+			LastCompletedAt:            shared.NullableRFC3339Value(row.LastCompletedAt),
 			RetryableFailures:          row.RetryableFailures,
 			TerminalFailures:           row.TerminalFailures,
-			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
+			FailureClassCounts:         shared.NamedCountsJSON(row.FailureClassCounts),
 			MetadataTargets:            metadataTargetsJSON(row.MetadataTargetCounts),
 		})
 	}
@@ -418,19 +366,6 @@ func metadataTargetsJSON(rows []RegistryMetadataTargetCount) []metadataTargetJSO
 		projected = append(projected, metadataTargetJSON(row))
 	}
 	return projected
-}
-
-func collectorGenerationDeadLetterJSONFromReport(
-	snapshot CollectorGenerationDeadLetterSnapshot,
-) collectorGenerationDeadLetterJSON {
-	snapshot = cloneCollectorGenerationDeadLetterSnapshot(snapshot)
-	return collectorGenerationDeadLetterJSON{
-		DeadLetter:              snapshot.DeadLetter,
-		ReplayRequested:         snapshot.ReplayRequested,
-		ReplayAttempts:          snapshot.ReplayAttempts,
-		OldestDeadLetterAge:     snapshot.OldestDeadLetterAge.String(),
-		OldestDeadLetterSeconds: snapshot.OldestDeadLetterAge.Seconds(),
-	}
 }
 
 func awsCloudScanLimitJSON(report Report) int {
@@ -453,11 +388,4 @@ func nullableRFC3339String(value time.Time) *string {
 	}
 	formatted := value.UTC().Format(time.RFC3339)
 	return &formatted
-}
-
-func nullableRFC3339Value(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return value.UTC().Format(time.RFC3339)
 }

@@ -6,6 +6,8 @@ package status
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // FlowSummary describes one operator-facing lane in the collector/projector/
@@ -21,21 +23,21 @@ func buildFlowSummaries(
 	scopeTotals map[string]int,
 	generationTotals map[string]int,
 	stageSummaries []StageSummary,
-	queue QueueSnapshot,
+	queueSnapshot QueueSnapshot,
 	domainBacklogs []DomainBacklog,
 ) []FlowSummary {
 	return []FlowSummary{
 		{
 			Lane:     "collector",
 			Source:   "live",
-			Progress: fmt.Sprintf("scopes %s", formatNamedTotals(scopeTotals)),
-			Backlog:  fmt.Sprintf("generations %s", formatNamedTotals(generationTotals)),
+			Progress: fmt.Sprintf("scopes %s", shared.FormatTotals(scopeTotals)),
+			Backlog:  fmt.Sprintf("generations %s", shared.FormatTotals(generationTotals)),
 		},
 		{
 			Lane:     "projector",
 			Source:   "live",
 			Progress: fmt.Sprintf("stage %s", stageSummaryText(stageSummaries, "projector")),
-			Backlog:  fmt.Sprintf("queue %s", queuePressureText(queue)),
+			Backlog:  fmt.Sprintf("queue %s", queuePressureText(queueSnapshot)),
 		},
 		{
 			Lane:     "reducer",
@@ -108,16 +110,16 @@ func stageSummaryText(rows []StageSummary, stage string) string {
 	return "none"
 }
 
-func queuePressureText(queue QueueSnapshot) string {
+func queuePressureText(queueSnapshot QueueSnapshot) string {
 	return fmt.Sprintf(
 		"outstanding=%d in_flight=%d retrying=%d dead_letter=%d failed=%d oldest=%s overdue_claims=%d",
-		queue.Outstanding,
-		queue.InFlight,
-		queue.Retrying,
-		queue.DeadLetter,
-		queue.Failed,
-		queue.OldestOutstandingAge,
-		queue.OverdueClaims,
+		queueSnapshot.Outstanding,
+		queueSnapshot.InFlight,
+		queueSnapshot.Retrying,
+		queueSnapshot.DeadLetter,
+		queueSnapshot.Failed,
+		queueSnapshot.OldestOutstandingAge,
+		queueSnapshot.OverdueClaims,
 	)
 }
 

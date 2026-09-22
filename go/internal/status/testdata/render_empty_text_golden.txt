@@ -1,0 +1,16 @@
+Version: dev
+Health: healthy
+Queue: outstanding=0 in_flight=0 retrying=0 dead_letter=0 failed=0 oldest=0s overdue_claims=0
+Provenance edge identity upgrade: applied=false required=0
+Retry policies: none
+Scope activity: active=0 changed=0 unchanged=0
+Scope statuses: none
+Generation history: active=0 pending=0 completed=0 superseded=0 failed=0 other=0
+Generation transitions: none
+Reasons: no outstanding queue backlog
+Semantic extraction: state=unavailable reason=provider_not_configured code_hints=disabled documentation_observations=disabled deterministic_paths=unaffected provider_profiles=0
+Collector generation dead letters: dead_letter=0 replay_requested=0 replay_attempts=0 oldest=0s
+Flow:
+  collector source=live progress=scopes none backlog=generations none
+  projector source=live progress=stage none backlog=queue outstanding=0 in_flight=0 retrying=0 dead_letter=0 failed=0 oldest=0s overdue_claims=0
+  reducer source=live progress=stage none backlog=top domain none

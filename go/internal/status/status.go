@@ -13,6 +13,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 const (
@@ -23,10 +30,10 @@ const (
 )
 
 // NamedCount captures one status bucket and its count.
-type NamedCount struct {
-	Name  string
-	Count int
-}
+// See [shared.NamedCount]. This alias keeps the ~170 packages that
+// import internal/status compiling across the #6775 nest; it is removed once
+// the last caller has moved to the leaf.
+type NamedCount = shared.NamedCount
 
 // StageStatusCount captures one stage/status bucket from the work queue.
 type StageStatusCount struct {
@@ -57,22 +64,6 @@ type QueueSnapshot struct {
 	ProvenanceEdgeIdentityUpgradeRequired int
 	OldestOutstandingAge                  time.Duration
 	OverdueClaims                         int
-}
-
-// QueueFailureSnapshot captures the newest queued work failure metadata shown
-// on operator status surfaces. Values are rendered only in status payloads and
-// must not be promoted to metric labels.
-type QueueFailureSnapshot struct {
-	Stage          string
-	Domain         string
-	Status         string
-	WorkItemID     string
-	ScopeID        string
-	GenerationID   string
-	FailureClass   string
-	FailureMessage string
-	FailureDetails string
-	UpdatedAt      time.Time
 }
 
 // DomainBacklog captures backlog depth for one reducer or projection domain.
@@ -111,8 +102,8 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		opts.DomainLimit = DefaultOptions().DomainLimit
 	}
 
-	scopeTotals := toCountMap(raw.ScopeCounts)
-	generationTotals := toCountMap(raw.GenerationCounts)
+	scopeTotals := shared.CountMap(raw.ScopeCounts)
+	generationTotals := shared.CountMap(raw.GenerationCounts)
 	scopeActivity := raw.ScopeActivity
 	if scopeActivity == (ScopeActivitySnapshot{}) {
 		scopeActivity = deriveScopeActivity(scopeTotals, generationTotals)
@@ -124,46 +115,46 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		generationHistory = deriveGenerationHistory(generationTotals)
 	}
 	stageSummaries := summarizeStages(raw.StageCounts)
-	queue := normalizeQueueSnapshot(raw.Queue)
+	queueSnapshot := normalizeQueueSnapshot(raw.Queue)
 	domainBacklogs, domainBacklogsTruncated := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
 	producerActivity := normalizeProducerActivitySnapshot(raw.ProducerActivity)
 	coordinator := cloneCoordinatorSnapshot(raw.Coordinator)
-	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
+	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queueSnapshot, domainBacklogs)
 
 	return Report{
 		AsOf:                           raw.AsOf,
-		Health:                         evaluateHealth(queue, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
+		Health:                         evaluateHealth(queueSnapshot, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
 		FlowSummaries:                  flowSummaries,
-		Queue:                          queue,
+		Queue:                          queueSnapshot,
 		RetryPolicies:                  cloneRetryPolicies(raw.RetryPolicies),
 		ScopeActivity:                  scopeActivity,
 		GenerationHistory:              generationHistory,
-		GenerationTransitions:          cloneGenerationTransitions(raw.GenerationTransitions),
+		GenerationTransitions:          generation.CloneTransitions(raw.GenerationTransitions),
 		ScopeTotals:                    scopeTotals,
 		GenerationTotals:               generationTotals,
 		StageSummaries:                 stageSummaries,
 		DomainBacklogs:                 domainBacklogs,
 		DomainBacklogsTruncated:        domainBacklogsTruncated,
 		DomainBacklogsLimit:            opts.DomainLimit,
-		QueueBlockages:                 cloneQueueBlockages(raw.QueueBlockages),
-		LatestQueueFailure:             cloneQueueFailure(raw.LatestQueueFailure),
+		QueueBlockages:                 queue.CloneBlockages(raw.QueueBlockages),
+		LatestQueueFailure:             queue.CloneFailure(raw.LatestQueueFailure),
 		Coordinator:                    coordinator,
 		RegistryCollectors:             cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
-		AWSCloudScans:                  cloneAWSCloudScanStatuses(raw.AWSCloudScans),
-		AWSFreshness:                   cloneAWSFreshnessSnapshot(raw.AWSFreshness),
+		AWSCloudScans:                  cloud.CloneAWSScanStatuses(raw.AWSCloudScans),
+		AWSFreshness:                   cloud.CloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
-		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
-		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
+		VulnerabilitySources:           collector.CloneVulnerabilitySourceStates(raw.VulnerabilitySources),
+		SemanticExtraction:             semantic.NormalizeExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
-		CollectorGenerationDeadLetters: cloneCollectorGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
-		CollectorFactEvidence:          cloneCollectorFactEvidence(raw.CollectorFactEvidence),
+		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
+		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              raw.AWSCloudScanLimit,
-		TerraformState: TerraformStateReport{
-			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
-			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
-			WarningsByKind: GroupTerraformStateWarningsByKind(raw.TerraformStateRecentWarnings),
-			WarningSummary: SummarizeTerraformStateWarnings(raw.TerraformStateRecentWarnings),
+		TerraformState: tfstate.Report{
+			LastSerials:    tfstate.SortSerials(raw.TerraformStateLastSerials),
+			RecentWarnings: tfstate.SortWarnings(raw.TerraformStateRecentWarnings),
+			WarningsByKind: tfstate.GroupWarningsByKind(raw.TerraformStateRecentWarnings),
+			WarningSummary: tfstate.SummarizeWarnings(raw.TerraformStateRecentWarnings),
 		},
 	}
 }
@@ -184,6 +175,10 @@ func deriveScopeActivity(scopeTotals map[string]int, generationTotals map[string
 
 // RenderText returns a compact admin-panel-style text summary.
 func RenderText(report Report) string {
+	// Project the collector evidence once: the three readbacks below all
+	// consume the same slice of the report.
+	evidence := collectorEvidence(report)
+
 	lines := []string{
 		fmt.Sprintf("Version: %s", buildinfo.AppVersion()),
 		fmt.Sprintf("Health: %s", report.Health.State),
@@ -207,32 +202,32 @@ func RenderText(report Report) string {
 			"Scope activity: %s",
 			scopeActivityText(report.ScopeActivity),
 		),
-		fmt.Sprintf("Scope statuses: %s", formatNamedTotals(report.ScopeTotals)),
+		fmt.Sprintf("Scope statuses: %s", shared.FormatTotals(report.ScopeTotals)),
 		fmt.Sprintf("Generation history: %s", generationHistoryText(report.GenerationHistory)),
-		fmt.Sprintf("Generation transitions: %s", generationTransitionsText(report.GenerationTransitions)),
+		fmt.Sprintf("Generation transitions: %s", generation.TransitionsText(report.GenerationTransitions)),
 	}
 
 	if len(report.Health.Reasons) > 0 {
 		lines = append(lines, fmt.Sprintf("Reasons: %s", strings.Join(report.Health.Reasons, "; ")))
 	}
-	if latestFailure := queueFailureText(report.LatestQueueFailure); latestFailure != "" {
+	if latestFailure := queue.FailureText(report.LatestQueueFailure); latestFailure != "" {
 		lines = append(lines, fmt.Sprintf("Latest queue failure: %s", latestFailure))
 	}
-	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
+	lines = append(lines, queue.RenderBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
-	lines = append(lines, renderCollectorRuntimeStatusLines(CollectorRuntimeStatuses(report))...)
-	lines = append(lines, renderCollectorPromotionProofLines(CollectorPromotionProofs(report, CollectorPromotionOptions{
-		Catalog:    presentCollectorCatalog(report),
+	lines = append(lines, collector.RenderRuntimeStatusLines(collector.RuntimeStatuses(evidence))...)
+	lines = append(lines, collector.RenderPromotionProofLines(collector.PromotionProofs(evidence, collector.PromotionOptions{
+		Catalog:    collector.PresentCatalog(evidence),
 		AsOf:       report.AsOf,
-		StaleAfter: DefaultCollectorPromotionStaleAfter,
+		StaleAfter: collector.DefaultPromotionStaleAfter,
 	}))...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
-	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
-	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
+	lines = append(lines, cloud.RenderAWSScanLines(report.AWSCloudScans)...)
+	lines = append(lines, cloud.RenderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderInfraInventoryLines(report.InfraInventory)...)
-	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
-	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
-	lines = append(lines, renderCollectorGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
+	lines = append(lines, collector.RenderVulnerabilitySourceLines(report.VulnerabilitySources)...)
+	lines = append(lines, semantic.RenderExtractionLine(report.SemanticExtraction))
+	lines = append(lines, collector.RenderGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}
@@ -354,19 +349,6 @@ func topDomainBacklogs(rows []DomainBacklog, limit int) (result []DomainBacklog,
 	return filtered, false
 }
 
-func toCountMap(rows []NamedCount) map[string]int {
-	counts := make(map[string]int, len(rows))
-	for _, row := range rows {
-		name := strings.TrimSpace(row.Name)
-		if name == "" {
-			continue
-		}
-		counts[name] += row.Count
-	}
-
-	return counts
-}
-
 func cloneCounts(values map[string]int) map[string]int {
 	if len(values) == 0 {
 		return map[string]int{}
@@ -376,49 +358,4 @@ func cloneCounts(values map[string]int) map[string]int {
 		cloned[key] = value
 	}
 	return cloned
-}
-
-func formatNamedTotals(values map[string]int) string {
-	if len(values) == 0 {
-		return "none"
-	}
-
-	keys := make([]string, 0, len(values))
-	for key, value := range values {
-		if value <= 0 {
-			continue
-		}
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return countOrder(keys[i]) < countOrder(keys[j]) ||
-			(countOrder(keys[i]) == countOrder(keys[j]) && keys[i] < keys[j])
-	})
-
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))
-	}
-	if len(parts) == 0 {
-		return "none"
-	}
-
-	return strings.Join(parts, " ")
-}
-
-func countOrder(name string) int {
-	switch name {
-	case "active":
-		return 0
-	case "pending":
-		return 1
-	case "completed":
-		return 2
-	case "succeeded":
-		return 3
-	case "failed":
-		return 4
-	default:
-		return 100
-	}
 }

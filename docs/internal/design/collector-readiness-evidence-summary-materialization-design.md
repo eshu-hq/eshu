@@ -136,13 +136,14 @@ The new read references **no `fact_records`** — the bounded-query guarantee.
 ## Staleness-verdict safety (timestamp lag)
 
 `MAX(observed_at)/MAX(ingested_at)` are not display-only: `derivePromotionState`
--> `evidenceIsStale` uses them to derive `CollectorPromotionStale`
-(`collector_promotion_proof.go`). The summary stores the **real fact
+-> `evidenceIsStale` uses them to derive `collector.PromotionStale`
+(`internal/status/collector/promotion_proof.go`). The summary stores the **real fact
 timestamps**, not the materialization time, so the only error is recency: a fact
 ingested within the last cadence may not yet be reflected, making
 `MAX(observed_at)` at most one cadence stale.
 
-`DefaultCollectorPromotionStaleAfter = 24h` (`collector_promotion_proof_json.go`).
+`collector.DefaultPromotionStaleAfter = 24h`
+(`internal/status/collector/promotion_proof_json.go`).
 With a default resweep cadence of 60s the margin is 24h / 60s = **1440x**, so a
 cadence lag can never flip a stale/fresh verdict. Asserted by a test that the
 cadence is `<<` the stale window. (30s cadence -> 2880x; either is safe.)

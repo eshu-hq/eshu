@@ -3,26 +3,19 @@
 
 package status
 
-import "time"
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
 
-// nonNegativeDuration normalizes status-age fields that can briefly go
-// negative when database timestamps are newer than the status read clock.
-func nonNegativeDuration(value time.Duration) time.Duration {
-	if value < 0 {
-		return 0
-	}
-	return value
-}
-
-func normalizeQueueSnapshot(queue QueueSnapshot) QueueSnapshot {
-	queue.OldestOutstandingAge = nonNegativeDuration(queue.OldestOutstandingAge)
-	return queue
+func normalizeQueueSnapshot(snapshot QueueSnapshot) QueueSnapshot {
+	snapshot.OldestOutstandingAge = shared.NonNegativeDuration(snapshot.OldestOutstandingAge)
+	return snapshot
 }
 
 func normalizeDomainBacklogs(rows []DomainBacklog) []DomainBacklog {
 	normalized := make([]DomainBacklog, 0, len(rows))
 	for _, row := range rows {
-		row.OldestAge = nonNegativeDuration(row.OldestAge)
+		row.OldestAge = shared.NonNegativeDuration(row.OldestAge)
 		normalized = append(normalized, row)
 	}
 	return normalized

@@ -6,6 +6,8 @@ package status
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // TestOperationsComposesSnapshotSectionsAndLiveActivity verifies the
@@ -30,7 +32,7 @@ func TestOperationsComposesSnapshotSectionsAndLiveActivity(t *testing.T) {
 			{Domain: "workload_materialization", Outstanding: 5, OldestAge: 6 * time.Minute},
 		},
 		Coordinator: &CoordinatorSnapshot{
-			CollectorInstances: []CollectorInstanceSummary{
+			CollectorInstances: []collector.InstanceSummary{
 				{
 					InstanceID:     "github-1",
 					CollectorKind:  "github",

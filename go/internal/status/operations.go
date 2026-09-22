@@ -3,7 +3,11 @@
 
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+)
 
 // LiveActivityRow is one in-flight work item (status claimed, running, or
 // retrying) joined to its originating ingestion scope, giving an operator
@@ -86,7 +90,7 @@ type OperationsReport struct {
 	// Collectors is the unified collector runtime view (coordinator
 	// registration, direct status evidence, and persisted fact evidence),
 	// each carrying LastObservedAt as its heartbeat signal.
-	Collectors []CollectorRuntimeStatus
+	Collectors []collector.RuntimeStatus
 	// StageSummaries collapses queue counts into one row per pipeline stage.
 	StageSummaries []StageSummary
 	// DomainBacklogs lists reducer/projection domain backlogs.
@@ -113,7 +117,7 @@ func Operations(report Report, activity []LiveActivityRow, truncated bool, limit
 	return OperationsReport{
 		AsOf:           report.AsOf,
 		Health:         report.Health,
-		Collectors:     CollectorRuntimeStatuses(report),
+		Collectors:     collector.RuntimeStatuses(collectorEvidence(report)),
 		StageSummaries: cloneStageSummaries(report.StageSummaries),
 		DomainBacklogs: cloneDomainBacklogs(report.DomainBacklogs),
 		Queue:          report.Queue,

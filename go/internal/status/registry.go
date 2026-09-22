@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // RegistryCollectorSnapshot summarizes claim-driven registry collector runtime
@@ -65,7 +67,7 @@ func renderRegistryCollectorLines(rows []RegistryCollectorSnapshot) []string {
 			line += fmt.Sprintf(" last_completed_at=%s", row.LastCompletedAt.UTC().Format(time.RFC3339))
 		}
 		if len(row.FailureClassCounts) > 0 {
-			line += fmt.Sprintf(" failure_classes=%s", formatNamedTotals(toCountMap(row.FailureClassCounts)))
+			line += fmt.Sprintf(" failure_classes=%s", shared.FormatTotals(shared.CountMap(row.FailureClassCounts)))
 		}
 		if len(row.MetadataTargetCounts) > 0 {
 			line += fmt.Sprintf(" metadata_targets=%s", formatMetadataTargetCounts(row.MetadataTargetCounts))

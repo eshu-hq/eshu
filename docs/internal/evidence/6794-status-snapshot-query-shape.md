@@ -75,7 +75,7 @@ Before any code change, a cheap shim tested the plan theory. Forcing
 
   Downstream effects, all intended: a lease with no pending intent is idle
   worker activity, not backlog. The existing `sharedProjectionBacklog`
-  comment in `internal/status/status_health.go` already treats lease-only
+  comment in `internal/status/health.go` already treats lease-only
   rows that way. So for a domain whose only signal is a live lease:
   - hosted readiness `shared_projection`
     (`internal/query/status_hosted_readiness.go`) can move from fail to pass;
