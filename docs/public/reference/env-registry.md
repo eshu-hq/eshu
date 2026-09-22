@@ -57,6 +57,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_LIVE` | string | — | Set to 1 to run the opt-in CloudResource owner-ledger backfill scale proof (go/internal/query) against the disposable NornicDB named by ESHU_NEO4J_URI; it seeds 150k nodes and skips when unset. |
 | `ESHU_DIFFERENTIAL_CAPTURE` | string | — | Set to 1 to record differential statement fingerprints during a gate run; recording additionally requires ESHU_DIFFERENTIAL_CAPTURE_DIR, and a stray flag alone never records outside a gate run. |
 | `ESHU_DIFFERENTIAL_CAPTURE_DIR` | string | — | Directory differential recording files land in; the run fails closed when ESHU_DIFFERENTIAL_CAPTURE is set without it. |
 | `ESHU_REPOS_DIR` | string | — | Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset. |

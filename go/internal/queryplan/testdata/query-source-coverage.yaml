@@ -30,7 +30,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: e880d8dffc11a92dffd957c10c727395224d8ff98a69d938fe534ecab0c01681
+          source_sha256: 4f87fbe45d8927006052d1f517ec82504a00130fef5e8bc6d98affa01b86b4be
           label: CloudResource
           max_results: 500
   - file: cloud_resources.go
