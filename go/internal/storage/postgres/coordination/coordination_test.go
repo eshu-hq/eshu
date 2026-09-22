@@ -140,9 +140,10 @@ func TestRetryOnLockTimeoutStopsWhenTheContextEnds(t *testing.T) {
 }
 
 type fakeAdvisoryLocker struct {
-	answers []bool
-	calls   int
-	holder  string
+	answers   []bool
+	calls     int
+	describes int
+	holder    string
 }
 
 func (f *fakeAdvisoryLocker) TryLock(context.Context) (bool, error) {
@@ -155,7 +156,10 @@ func (f *fakeAdvisoryLocker) TryLock(context.Context) (bool, error) {
 	return false, nil
 }
 
-func (f *fakeAdvisoryLocker) DescribeHolder(context.Context) (string, error) { return f.holder, nil }
+func (f *fakeAdvisoryLocker) DescribeHolder(context.Context) (string, error) {
+	f.describes++
+	return f.holder, nil
+}
 
 // TestWaitForSchemaOwnershipPollsUntilTheOwnerReleases pins #6956 cause 1:
 // a bootstrapper behind another owner keeps polling the advisory lock,
@@ -176,6 +180,9 @@ func TestWaitForSchemaOwnershipPollsUntilTheOwnerReleases(t *testing.T) {
 	}
 	if locker.calls != 3 || len(sleeps.waits) != 2 {
 		t.Fatalf("calls=%d sleeps=%v, want 3 tries and 2 polls", locker.calls, sleeps.waits)
+	}
+	if locker.describes != 2 {
+		t.Fatalf("DescribeHolder ran %d times, want once per logged wait (2)", locker.describes)
 	}
 	text := logs.String()
 	if !strings.Contains(text, "bootstrap.postgres.ownership.waiting") || !strings.Contains(text, "pid=42") {

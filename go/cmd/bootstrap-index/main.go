@@ -108,7 +108,7 @@ func main() {
 		context.Background(),
 		os.Getenv,
 		openBootstrapDB,
-		applySchema,
+		applySchemaFromEnv(os.Getenv),
 		func(ctx context.Context, database bootstrapDB) error {
 			beginner, ok := database.(db.Beginner)
 			if !ok {

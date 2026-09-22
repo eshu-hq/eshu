@@ -30,7 +30,15 @@ type schemaConnectionExecutor struct {
 }
 
 type schemaMigrationTracker interface {
-	applyTrackedDefinitions(context.Context, []Definition, time.Duration, time.Duration, *slog.Logger) error
+	applyTrackedDefinitions(context.Context, []Definition, schemaStatementBounds, *slog.Logger) error
+}
+
+// schemaStatementBounds are the per-statement bounds of one bootstrap run:
+// the lock_timeout each attempt sets, and the total backoff a statement may
+// spend retrying after lock_timeout before the run fails.
+type schemaStatementBounds struct {
+	lockTimeout     time.Duration
+	lockRetryBudget time.Duration
 }
 
 // Coordination bounds for one bootstrap run (#6956). The migrator holds a
@@ -39,9 +47,13 @@ type schemaMigrationTracker interface {
 // for it rather than fail after one statement timeout; and a statement that
 // loses a lock race (SQLSTATE 55P03, e.g. against an anti-wraparound
 // autovacuum's ShareUpdateExclusiveLock) applied nothing and is retried.
+// The two defaults sum to 8 minutes so that, with the migrations themselves,
+// a run stays inside the chart's schema bootstrap Job deadline
+// (schemaBootstrap.activeDeadlineSeconds, 600 s): a bound the Job cannot
+// reach never prints its holder diagnostic.
 const (
-	defaultSchemaOwnershipWait   = 10 * time.Minute
-	defaultSchemaLockRetryBudget = 10 * time.Minute
+	defaultSchemaOwnershipWait   = 4 * time.Minute
+	defaultSchemaLockRetryBudget = 4 * time.Minute
 	schemaOwnershipPollInterval  = time.Second
 	schemaOwnershipLogInterval   = 15 * time.Second
 	schemaLockRetryMaxBackoff    = 15 * time.Second
@@ -64,7 +76,9 @@ func (c schemaBootstrapCoordination) withDefaults() schemaBootstrapCoordination 
 
 // connAdvisoryLocker is the coordination.Locker for the bootstrap session:
 // one non-blocking try per poll, and the granted holder(s) from pg_locks for
-// the operator log.
+// the operator log. Advisory locks are scoped per database, so the holder
+// query filters on the current database: the same key held in another
+// database of the instance does not block this one and must not be named.
 type connAdvisoryLocker struct{ conn *sql.Conn }
 
 func (l connAdvisoryLocker) TryLock(ctx context.Context) (bool, error) {
@@ -82,7 +96,8 @@ SELECT string_agg(format('pid=%s application_name=%s state=%s connected_for=%s',
     date_trunc('second', now() - a.backend_start)), '; ' ORDER BY a.pid)
 FROM pg_locks l
 JOIN pg_stat_activity a ON a.pid = l.pid
-WHERE l.locktype = 'advisory' AND l.classid = $1 AND l.objid = $2 AND l.granted`,
+WHERE l.locktype = 'advisory' AND l.classid = $1 AND l.objid = $2 AND l.granted
+  AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
 		schemaBootstrapAdvisoryLockClass, schemaBootstrapAdvisoryLockID).Scan(&holder)
 	if err != nil {
 		return "", err
@@ -233,10 +248,10 @@ func (executor schemaConnectionExecutor) loadSchemaMigrationLedger(
 func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 	ctx context.Context,
 	definitions []Definition,
-	lockTimeout time.Duration,
-	lockRetryBudget time.Duration,
+	bounds schemaStatementBounds,
 	logger *slog.Logger,
 ) error {
+	lockTimeout := bounds.lockTimeout
 	if err := ValidateDefinitions(definitions); err != nil {
 		return err
 	}
@@ -336,7 +351,7 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 			}
 		}
 		retryPolicy := coordination.LockRetryPolicy{
-			Budget:         lockRetryBudget,
+			Budget:         bounds.lockRetryBudget,
 			InitialBackoff: max(lockTimeout, time.Second),
 			MaxBackoff:     schemaLockRetryMaxBackoff,
 		}

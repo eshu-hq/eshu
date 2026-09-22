@@ -193,6 +193,48 @@ func ApplyDefinitionsWithLockTimeout(
 	return nil
 }
 
+// Environment variables BootstrapOptionsFromEnv reads (#6956).
+const (
+	// OwnershipWaitEnv bounds how long a bootstrapper waits for another one
+	// that owns the schema advisory lock.
+	OwnershipWaitEnv = "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT"
+	// LockRetryBudgetEnv bounds the total backoff one migration statement may
+	// spend retrying after lock_timeout.
+	LockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET"
+)
+
+// BootstrapOptionsFromEnv returns options whose OwnershipWait and
+// LockRetryBudget come from the environment. An unset variable leaves the
+// package default in force; a value that does not parse as a duration or is
+// not strictly positive is refused by name, so a typo cannot disable a
+// bound.
+func BootstrapOptionsFromEnv(getenv func(string) string) (BootstrapOptions, error) {
+	ownershipWait, err := optionalPositiveDuration(getenv, OwnershipWaitEnv)
+	if err != nil {
+		return BootstrapOptions{}, err
+	}
+	lockRetryBudget, err := optionalPositiveDuration(getenv, LockRetryBudgetEnv)
+	if err != nil {
+		return BootstrapOptions{}, err
+	}
+	return BootstrapOptions{OwnershipWait: ownershipWait, LockRetryBudget: lockRetryBudget}, nil
+}
+
+func optionalPositiveDuration(getenv func(string) string, env string) (time.Duration, error) {
+	raw := strings.TrimSpace(getenv(env))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", env, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", env)
+	}
+	return value, nil
+}
+
 // ApplyBootstrap applies the Wave 2 schema bootstrap layout.
 func ApplyBootstrap(ctx context.Context, exec db.Executor) error {
 	return ApplyBootstrapWithOptions(ctx, exec, BootstrapOptions{})
@@ -235,7 +277,10 @@ func applyBootstrapDefinitionsWith(
 	if locker, ok := exec.(schemaBootstrapLocker); ok {
 		return locker.withSchemaBootstrapLock(ctx, logger, coordination.ownershipWait, func(locked db.Executor) error {
 			if tracker, ok := locked.(schemaMigrationTracker); ok {
-				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout, coordination.lockRetryBudget, logger)
+				return tracker.applyTrackedDefinitions(ctx, definitions, schemaStatementBounds{
+					lockTimeout:     defaultSchemaLockTimeout,
+					lockRetryBudget: coordination.lockRetryBudget,
+				}, logger)
 			}
 			return ApplyDefinitions(ctx, locked, definitions)
 		})

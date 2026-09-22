@@ -65,8 +65,10 @@ func IsLockNotAvailable(err error) bool {
 }
 
 // WaitForOwnership polls locker until the lock is taken, logging the holder
-// while it waits, and fails once policy.Wait is spent so a stuck owner cannot
-// hang a bootstrapper forever. now is injectable for tests.
+// on the first failed poll and then every policy.LogEvery, and fails once
+// policy.Wait is spent so a stuck owner cannot hang a bootstrapper forever.
+// Polling has no queue order: two waiters race for the lock when it frees,
+// and each is bounded only by its own wait. now is injectable for tests.
 func WaitForOwnership(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -96,17 +98,15 @@ func WaitForOwnership(
 		polls++
 		current := now()
 		waited := current.Sub(started)
-		holder, holderErr := locker.DescribeHolder(ctx)
-		if holderErr != nil {
-			holder = "unknown (" + holderErr.Error() + ")"
-		}
 		if waited > policy.Wait {
-			return fmt.Errorf("acquire schema bootstrap ownership: another bootstrapper (%s) held it for more than %s", holder, policy.Wait)
+			return fmt.Errorf("acquire schema bootstrap ownership: another bootstrapper (%s) held it for more than %s", describeHolder(ctx, locker), policy.Wait)
 		}
+		// The holder is queried only when it is about to be logged: on the
+		// first failed poll and then every LogEvery.
 		if lastLog.IsZero() || current.Sub(lastLog) >= policy.LogEvery {
 			logger.InfoContext(ctx, "postgres schema bootstrap waiting for ownership",
 				telemetry.EventAttr("bootstrap.postgres.ownership.waiting"),
-				"holder", holder,
+				"holder", describeHolder(ctx, locker),
 				"waited_ms", waited.Milliseconds(),
 				"wait_ms", policy.Wait.Milliseconds(),
 			)
@@ -116,6 +116,14 @@ func WaitForOwnership(
 			return fmt.Errorf("acquire schema bootstrap ownership: %w", err)
 		}
 	}
+}
+
+func describeHolder(ctx context.Context, locker Locker) string {
+	holder, err := locker.DescribeHolder(ctx)
+	if err != nil {
+		return "unknown (" + err.Error() + ")"
+	}
+	return holder
 }
 
 // RetryOnLockTimeout runs exec until it succeeds, fails for a reason other

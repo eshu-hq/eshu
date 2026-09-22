@@ -32,8 +32,19 @@ func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrap
 	return &bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}, raw: db}, nil
 }
 
-func applySchema(ctx context.Context, db bootstrapDB) error {
-	return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, db)
+// applySchemaFromEnv applies the bootstrap layout with content search
+// indexes deferred, honoring the #6956 coordination knobs
+// (postgres.OwnershipWaitEnv, postgres.LockRetryBudgetEnv) the same way
+// db-migrate does.
+func applySchemaFromEnv(getenv func(string) string) applyBootstrapFn {
+	return func(ctx context.Context, db bootstrapDB) error {
+		options, err := postgres.BootstrapOptionsFromEnv(getenv)
+		if err != nil {
+			return err
+		}
+		options.DeferContentSearchIndexes = true
+		return postgres.ApplyBootstrapWithOptions(ctx, db, options)
+	}
 }
 
 func openBootstrapGraph(ctx context.Context, database bootstrapDB, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments) (graphDeps, error) {

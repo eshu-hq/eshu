@@ -45,18 +45,25 @@ than leaving in place.
 One bootstrapper at a time owns the Postgres schema through a session
 advisory lock. A second bootstrapper started while the first is still
 applying (a retried Job, or bootstrap-index next to `db-migrate`) waits for
-the owner instead of failing after one statement timeout: it polls the lock
-every second, logs `bootstrap.postgres.ownership.waiting` with the holder's
-pid and application name every 15 s, and gives up only after
-`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 10 m). A migration statement
-that hits `lock_timeout` (5 s, SQLSTATE 55P03) because another session holds
-a conflicting table lock, such as an anti-wraparound autovacuum, applied
-nothing and is retried with doubling backoff (5 s up to 15 s) until
-`ESHU_SCHEMA_LOCK_RETRY_BUDGET` (default 10 m) is spent; each retry logs
-`bootstrap.postgres.migration.lock_wait` and the eventual success logs
-`bootstrap.postgres.migration.lock_recovered` with the attempt count. Any
-other statement failure still fails the bootstrap on the first attempt
-(#6956).
+the owner instead of failing after one statement timeout: it tries the lock
+once a second, logs `bootstrap.postgres.ownership.waiting` on the first
+failed try and then every 15 s with the holder's pid, state, connection age
+and application name (when the client set one), and gives up only after
+`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 4 m). Waiters are not
+queued: when the lock frees they race for it, each bounded by its own wait.
+A migration statement that hits `lock_timeout` (5 s, SQLSTATE 55P03)
+because another session holds a conflicting table lock, such as an
+anti-wraparound autovacuum, applied nothing and is retried with doubling
+backoff (5 s up to 15 s) until `ESHU_SCHEMA_LOCK_RETRY_BUDGET` (default 4 m)
+of backoff is spent; each retry logs `bootstrap.postgres.migration.lock_wait`
+and the eventual success logs `bootstrap.postgres.migration.lock_recovered`
+with the attempt count. Any other statement failure still fails the
+bootstrap on the first attempt. `db-migrate` (`eshu-bootstrap-data-plane`)
+and `bootstrap-index` both read the two variables; the local supervisor
+applies its schema without the ownership lock and is unaffected. Keep the
+sum of the two bounds, plus the migrations themselves, under the schema
+bootstrap Job's `activeDeadlineSeconds` (600 in the chart): a bound the Job
+cannot reach never prints its holder diagnostic (#6956).
 
 ## Deployment Contract
 
