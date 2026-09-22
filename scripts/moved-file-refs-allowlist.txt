@@ -256,3 +256,8 @@ go/internal/storage/cypher/evidence-4367-iam-variable-retract.md:go/cmd/reducer/
 docs/internal/evidence/5167-freshness-family-allowlist.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
 docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
 docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
+
+# #6777: synthetic fixture, not a reference. The test writes this path into a
+# temp repo to keep covering the gate's still-supported flat contract_*.go arm;
+# the nested contract/thirdparty/jira.go case sits beside it.
+scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_jira.go
