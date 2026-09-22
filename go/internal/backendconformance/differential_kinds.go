@@ -4,6 +4,8 @@
 package backendconformance
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,7 +13,8 @@ import (
 
 // AdvisoryStatementMaxLen is the default per-statement truncation bound for
 // [TopAdvisoryStatementReports]: long enough to identify a Cypher statement,
-// short enough that a report line stays readable in a CI log (#6941).
+// short enough that a report line stays readable in a CI log (#6941). A cut
+// label carries the elision marker and an 8-hex digest on top of the bound.
 const AdvisoryStatementMaxLen = 120
 
 // Divergence kinds name the check that caught a difference, so the
@@ -210,10 +213,11 @@ func SplitAdvisory(diffs []DifferentialDifference) (required, advisory []Differe
 // how many divergences each statement contributed, and formats the top n
 // groups as "<statement> (<count>)" — descending by count, tied broken by
 // statement text ascending so the order is deterministic across runs instead
-// of depending on map iteration. Each statement is bounded to maxLen runes
-// by eliding its middle (maxLen <= 0 disables truncation), so one long
-// Cypher statement cannot dominate a one-line gate report and statements
-// sharing a long prefix keep distinct labels. n <= 0 returns
+// of depending on map iteration. A statement longer than maxLen runes is
+// elided in the middle and suffixed with the first 8 hex characters of its
+// SHA-256 (maxLen <= 0 disables truncation), so one long Cypher statement
+// cannot dominate a one-line gate report and statements that differ only
+// inside the elided span still print as distinct labels. n <= 0 returns
 // every ranked group. Nil or empty diffs return nil (#6941: the advisory
 // ceiling finding names its top offenders instead of only the first).
 func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) []string {
@@ -243,16 +247,30 @@ func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) 
 	}
 	out := make([]string, 0, len(ranked))
 	for _, sc := range ranked {
-		out = append(out, fmt.Sprintf("%s (%d)", truncateStatement(sc.statement, maxLen), sc.count))
+		out = append(out, fmt.Sprintf("%s (%d)", statementLabel(sc.statement, maxLen), sc.count))
 	}
 	return out
 }
 
+// statementLabel is the statement text an advisory or ceiling finding
+// prints for one ranked group: the statement itself when it fits in
+// maxLen runes, otherwise the middle-elided text followed by an 8-hex
+// SHA-256 digest of the full statement. Any fixed cut can land on the one
+// span two statements differ in (the corpus has a 116-statement UNWIND
+// family that shares head and tail and diverges at rune 142), so the
+// digest, not the cut position, is what keeps elided labels distinct.
+func statementLabel(s string, maxLen int) string {
+	cut := truncateStatement(s, maxLen)
+	if cut == s {
+		return s
+	}
+	sum := sha256.Sum256([]byte(s))
+	return cut + " [" + hex.EncodeToString(sum[:4]) + "]"
+}
+
 // truncateStatement bounds s to maxLen runes by eliding the middle
-// ("head...tail") so two statements that share a long prefix -- the corpus
-// has one 120-rune prefix shared by 115 distinct UNWIND statements -- still
-// print as distinct labels. Below 8 runes there is no room for a tail and
-// the head is kept with a "..." suffix. maxLen <= 0 disables truncation.
+// ("head...tail"); below 8 runes there is no room for a tail and the head
+// is kept with a "..." suffix. maxLen <= 0 disables truncation.
 func truncateStatement(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return s

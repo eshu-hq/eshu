@@ -4,6 +4,8 @@
 package backendconformance
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"slices"
 	"strings"
 	"testing"
@@ -231,7 +233,8 @@ func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
 	fp := DifferentialFingerprint{Statement: long, Parameters: `{}`}
 	diffs := []DifferentialDifference{{Fingerprint: fp}}
 	got := TopAdvisoryStatementReports(diffs, 3, 4)
-	want := []string{"xxxx... (1)"}
+	sum := sha256.Sum256([]byte(long))
+	want := []string{"xxxx... [" + hex.EncodeToString(sum[:4]) + "] (1)"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
 	}
@@ -246,26 +249,36 @@ func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
 	}
 }
 
-// TestTopAdvisoryStatementReportsKeepsSharedPrefixStatementsDistinct pins
-// the middle elision (#6941): two statements that agree on a prefix longer
-// than the bound must still print as two different labels, or the top-3
-// detail cannot tell an operator which one regressed.
-func TestTopAdvisoryStatementReportsKeepsSharedPrefixStatementsDistinct(t *testing.T) {
+// TestTopAdvisoryStatementReportsKeepsElidedStatementsDistinct pins the
+// digest suffix (#6941): the corpus has a family of UNWIND statements that
+// share their head and their tail and differ only in the relationship type
+// past rune 140, inside any middle elision, so the elided text alone is one
+// label for all of them. The digest must keep them apart, and a statement
+// that fits carries no digest.
+func TestTopAdvisoryStatementReportsKeepsElidedStatementsDistinct(t *testing.T) {
 	t.Parallel()
-	prefix := "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:"
-	a := DifferentialFingerprint{Statement: prefix + "ATTACHED_TO]->(target)", Parameters: `{}`}
-	b := DifferentialFingerprint{Statement: prefix + "ROUTES_TO]->(target)", Parameters: `{}`}
+	head := "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:"
+	tail := "]->(target) ON CREATE SET rel.first_seen = row.observed_at SET rel.last_seen = row.observed_at, rel.evidence_kind = row.evidence_kind RETURN count(rel)"
+	a := DifferentialFingerprint{Statement: head + "AWS_ec2_instance_uses_ami" + tail, Parameters: `{}`}
+	b := DifferentialFingerprint{Statement: head + "GCP_address_in_network" + tail, Parameters: `{}`}
+	if truncateStatement(a.Statement, AdvisoryStatementMaxLen) != truncateStatement(b.Statement, AdvisoryStatementMaxLen) {
+		t.Fatal("fixture drift: the two statements must collide on the elided text for this test to prove anything")
+	}
 	got := TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: a}, {Fingerprint: b}}, 3, AdvisoryStatementMaxLen)
 	if len(got) != 2 || got[0] == got[1] {
 		t.Fatalf("TopAdvisoryStatementReports = %v, want two distinct labels", got)
 	}
 	for _, label := range got {
-		if n := len([]rune(label)); n > AdvisoryStatementMaxLen+len("... (1)") {
-			t.Fatalf("label %q is %d runes, want at most %d plus the marker and count", label, n, AdvisoryStatementMaxLen)
+		if n := len([]rune(label)); n > AdvisoryStatementMaxLen+len("... [01234567] (1)") {
+			t.Fatalf("label %q is %d runes, want at most %d plus marker, digest and count", label, n, AdvisoryStatementMaxLen)
 		}
-		if !strings.Contains(label, "...") || !strings.HasSuffix(label, "]->(target) (1)") {
-			t.Fatalf("label %q lost its tail or its elision marker", label)
+		if !strings.Contains(label, "...") || !strings.Contains(label, " [") || !strings.HasSuffix(label, "] (1)") {
+			t.Fatalf("label %q lacks the elision marker or the digest", label)
 		}
+	}
+	short := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
+	if got := TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, AdvisoryStatementMaxLen); !slices.Equal(got, []string{"MATCH (n) RETURN n (1)"}) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want no digest on a statement that fits", got)
 	}
 }
 

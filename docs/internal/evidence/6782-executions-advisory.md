@@ -164,11 +164,18 @@ the first recorded divergence with its per-statement execution counts
 but not whether the total is spread across many statements (scheduling
 noise, the expected shape) or concentrated on one or two (a possible
 regression). It now names the top 3 statements by reproduced-divergence
-count (`backendconformance.TopAdvisoryStatementReports`), each label
-elided in the middle to 120 runes so statements sharing a long prefix stay
-distinct; the ceiling finding names the same top statements. The
-per-statement execution magnitude is no longer on the summary line; it
-stays in the per-pairing dump printed above it. That trade is deliberate:
+count (`backendconformance.TopAdvisoryStatementReports`); a statement over
+120 runes is elided in the middle and suffixed with an 8-hex SHA-256
+digest, because the corpus has a 116-statement UNWIND family sharing head
+and tail that diverges at rune 142, inside any fixed cut (census over the
+nornicdb leg of the run 35664395755 pairing-1 capture: 634 distinct
+statements give 634 distinct labels with the digest, worst family 1;
+the elided text alone gives 490, worst family 116). The ceiling finding names the same top
+statements. The per-statement execution magnitude (`nornicdb=N, neo4j=M`)
+is no longer on the summary line, and on the passing path it is on no
+surface: the per-pairing dump prints at most `capture.MaxReportedDiffs`
+(20) divergences per pairing, and the capture artifact is uploaded only
+when the job fails. That trade is deliberate:
 the ceiling and the detail both count reproduced fingerprints, because a
 drain-pass regression shows up as more statements diverging, not as one
 statement's counts drifting further apart.
