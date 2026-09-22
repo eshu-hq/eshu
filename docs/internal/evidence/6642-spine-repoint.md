@@ -15,7 +15,7 @@ content-based performance-evidence gate selects it. No query was added,
 removed, or reshaped: the edits replace an unqualified call with its
 package-qualified equivalent, and the callee is the same function in both cases.
 
-**No-Regression Evidence:** the changed call sites resolve to the identical
+No-Regression Evidence: the changed call sites resolve to the identical
 function body (`querycontract.RequiredProfile`, `querycontract.AcceptsEnvelope`)
 that the deleted forwarders already delegated to, so there is no runtime delta
 to measure on any query path. Backend go1.27 darwin/arm64. Measured on the
@@ -24,7 +24,7 @@ clean; `go test ./internal/query/... -count=1` 53 packages ok;
 `go test ./internal/queryplan/ -count=1` ok. No Cypher statement text, anchor,
 index, batch size, worker count, lease, or timeout changed.
 
-**No-Observability-Change:** no span, metric, log key, or status field is added,
+No-Observability-Change: no span, metric, log key, or status field is added,
 removed, or renamed. `handler_tracing.go` and its package-local
 `queryHandlerTracer` test seam are untouched.
 
