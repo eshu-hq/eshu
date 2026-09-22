@@ -201,8 +201,10 @@ expression appears in `RETURN`. NornicDB at `a427a468` does that only for a
 single-node `MATCH` whose keys are all plain `var.prop` terms, because it sorts
 those nodes before projection. Every other statement is sorted after
 projection. After a single-node `MATCH` or a relationship pattern, a sort key
-then only takes effect when it is an alias or has the same text as a projected
-expression. After `OPTIONAL MATCH`, only aliases take effect. Every other key is silently
+then only takes effect when it is an alias, has the same text as a projected
+expression, or is `var.prop` on a node the statement returns (B8). After
+`OPTIONAL MATCH`, only aliases and `var.prop` on a returned node take effect
+(the latter is not in the shim but follows from the same code). Every other key is silently
 ignored. With `LIMIT`, the window is then taken from a partly sorted or
 unsorted row stream, which is why F3 and D1 return the wrong rows and not only
 the wrong order.
@@ -254,8 +256,10 @@ predicted before they were run (bare `MATCH` with a `coalesce` key, and
   other key, such as an alias. The statement then takes the post-projection
   path with the `RETURN`-item resolver. F4 matches on that path because
   `e.name` and `e.id` are the exact text of its `RETURN` expressions.
-- The relationship-pattern path in `match.go` always sorts after projection,
-  using the `RETURN`-item resolver (B2, B6, B7).
+- The relationship-pattern path in `match.go` sorts after projection, using
+  the `RETURN`-item resolver (B2, B6, B7). The exception is the indexed
+  end-node top-K fast path (`traversal.go`, needs `LIMIT` and a usable
+  property index), which no shim statement reaches.
 - The `OPTIONAL MATCH` paths (`optional_match_traversal.go`, `clauses.go`) call
   `orderResultRows`, which passes no resolver (B3, F1, F3).
 - For a node value, the same file maps a `.id` path segment to the internal
