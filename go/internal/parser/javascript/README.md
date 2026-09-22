@@ -148,7 +148,7 @@ syntax nodes, so those non-code matches are no longer reported:
   not instantiate them there.
 
 Both narrowings have engine-level regression tests in
-`engine_javascript_ast_conversion_test.go`
+`engine_ast_conversion_test.go`
 (`TestDefaultEngineParsePathReactHookMemberCallParity`,
 `TestDefaultEngineParsePathAWSClientSymbolConstructorOnly`).
 
@@ -295,7 +295,7 @@ tree-sitter node walks over a tree the parser already builds for core symbols.
 No new full-source pass is added; sibling dead-code files are parsed once per
 `Parse` call and cached, mirroring the previous one-time `os.ReadFile` reads and
 only invoking tree-sitter when a non-empty sibling file exists. The payload is
-identical for valid code: every `engine_javascript_*`, `engine_typescript_*`,
+identical for valid code: every `engine_*`, `engine_typescript_*`,
 `engine_tsx_*` test and the js/ts/tsx comprehensive golden fixtures pass
 unchanged (`go test ./internal/parser/...`). The only behavioral differences are
 the intentional bug-fix narrowings described under "Intentional parity
@@ -379,26 +379,26 @@ this package's own residual-regex file before issue #6771 moved
 two regexes that stayed here, remain in `residual_regex_characterization_test.go`).
 
 The Engine-level regressions that used to live in `internal/parser` as
-`engine_javascript_*_test.go` now run as external black-box tests in `package
+`engine_*_test.go` now run as external black-box tests in `package
 javascript_test`, so they exercise JavaScript/TypeScript/TSX extraction the way
 callers reach it — through `parser.DefaultEngine().ParsePath` — rather than
-through package internals: `engine_javascript_ast_conversion_test.go`,
-`engine_javascript_call_metadata_test.go`,
-`engine_javascript_computed_property_test.go`, `engine_javascript_handler_test.go`,
-`engine_javascript_koa_fastify_nestjs_route_entries_test.go`,
-`engine_javascript_koa_router_require_route_entries_test.go`,
-`engine_javascript_nextjs_route_entries_test.go`,
-`engine_javascript_package_surface_cache_test.go`,
-`engine_javascript_reexports_test.go`,
-`engine_javascript_repo_config_cache_bench_test.go`,
-`engine_javascript_repo_config_cache_test.go`, `engine_javascript_require_test.go`,
-`engine_javascript_route_handler_test.go`, `engine_javascript_semantics_test.go`,
-`engine_javascript_tsconfig_baseurl_test.go`, and
-`engine_javascript_type_parameters_test.go`. `fastify_threading_bench_test.go`
+through package internals: `engine_ast_conversion_test.go`,
+`engine_call_metadata_test.go`,
+`engine_computed_property_test.go`, `engine_handler_test.go`,
+`engine_koa_fastify_nestjs_route_entries_test.go`,
+`engine_koa_router_require_route_entries_test.go`,
+`engine_nextjs_route_entries_test.go`,
+`engine_package_surface_cache_test.go`,
+`engine_reexports_test.go`,
+`engine_repo_config_cache_bench_test.go`,
+`engine_repo_config_cache_test.go`, `engine_require_test.go`,
+`engine_route_handler_test.go`, `engine_semantics_test.go`,
+`engine_tsconfig_baseurl_test.go`, and
+`engine_type_parameters_test.go`. `fastify_threading_bench_test.go`
 and `engine_typescript_implements_test.go` were already external `javascript_test`
 regressions before this relocation.
 
-`engine_javascript_test_helpers_test.go` carries the helpers `parsertest` does
+`engine_test_helpers_test.go` carries the helpers `parsertest` does
 not have (`writeTestFile`, `assertStringFieldValue`,
 `assertBucketItemByFieldValue`, `assertFunctionByName`,
 `assertNoFrameworkOrNoRoutes`, and others) for the relocated suites; the
@@ -425,8 +425,8 @@ app-router and TypeScript migration/module-contract cases). The relocated
 parent file `dead_code_typescript_import_exports_test.go` collided
 with a pre-existing subdirectory file of the same name (which parses TypeScript
 re-export clauses directly against the AST in `package javascript`), so it was
-renamed to `engine_javascript_dead_code_typescript_import_exports_test.go`.
-`engine_javascript_test_helpers_test.go` gained `assertFunctionByNameAndClass`,
+renamed to `engine_dead_code_typescript_import_exports_test.go`.
+`engine_test_helpers_test.go` gained `assertFunctionByNameAndClass`,
 `assertParserStringSliceFieldValue`, and `repoFixturePath` to cover these
 suites; `compat_test.go` keeps its parent-package name for
 `javaScriptExpressServerSymbols`, a thin wrapper over the exported
@@ -448,7 +448,7 @@ only `parser.DefaultEngine`, `ParsePath`, and `Options`, so they run as
 `javascript_test` like their siblings. They reuse this package's existing
 helpers rather than adding near-duplicates, take `assertIntFieldValue` from
 `parsertest`, and contributed `assertBoolFieldValue` to
-`engine_javascript_test_helpers_test.go` -- `parsertest` has no bool variant, so
+`engine_test_helpers_test.go` -- `parsertest` has no bool variant, so
 each package that needs one carries its own. Relocating them left
 `assertStringSliceFieldValue`, `assertBucketItemByFieldValue`, and
 `findAllNamedBucketItems` with no parent-side caller, so those parent copies

@@ -8,14 +8,14 @@ import (
 )
 
 // assertNoFrameworkOrNoRoutes used to live here, but its only caller
-// (engine_javascript_koa_fastify_nestjs_route_entries_test.go and
-// engine_javascript_koa_router_require_route_entries_test.go) relocated to
+// (engine_koa_fastify_nestjs_route_entries_test.go and
+// engine_koa_router_require_route_entries_test.go) relocated to
 // internal/parser/javascript as part of #6062. The relocated javascript_test
-// package keeps its own copy in engine_javascript_test_helpers_test.go.
+// package keeps its own copy in engine_test_helpers_test.go.
 
 // frameworkSemanticsMap, nestedSemanticsSection, assertFrameworksEqual,
 // assertNestedStringSliceEqual, and assertNestedRouteEntriesEqual also used
-// to live here (they arrived from engine_javascript_semantics_test.go when
+// to live here (they arrived from engine_semantics_test.go when
 // that file relocated to internal/parser/javascript). Their last parent-side
 // caller, kotlin_spring_route_semantics_test.go, relocated to
 // internal/parser/kotlin as part of #6062, and the relocated kotlin_test
@@ -25,7 +25,7 @@ import (
 // findAllNamedBucketItems used to live here too. Its last parent-side caller,
 // engine_typescript_advanced_semantics_test.go, relocated to
 // internal/parser/javascript as part of #6062, and the relocated
-// javascript_test package uses the copy in engine_javascript_semantics_test.go.
+// javascript_test package uses the copy in engine_semantics_test.go.
 // This file now keeps only findNamedBucketItem, whose remaining caller is
 // engine_infra_test.go.
 

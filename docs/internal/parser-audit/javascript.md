@@ -13,7 +13,7 @@ evidence, dead-code root modeling (20+ root kinds), embedded shell commands,
 TypeScript type parameters and declaration merging, and opt-in value-flow
 analysis. A parent-lookup optimization eliminated per-node cgo crossings
 (#3586). The test suite is the largest of any parser. The
-`engine_javascript_*_test.go` files that used to be counted as parent-level
+`engine_*_test.go` files that used to be counted as parent-level
 relocated into `go/internal/parser/javascript` as external `javascript_test`
 black-box coverage (#6062), matching the earlier Elixir relocation (#6335). A
 second relocation under the same issue moved the parent-level
@@ -25,7 +25,7 @@ split into two files (`dead_code_roots_test.go` and
 500-line cap, and the pre-existing subdirectory file named
 `dead_code_typescript_import_exports_test.go` kept its name, so the
 relocated parent file of the same name is now
-`engine_javascript_dead_code_typescript_import_exports_test.go`. A third
+`engine_dead_code_typescript_import_exports_test.go`. A third
 relocation under the same issue moved the last three parent-level files named
 for this family -- `engine_typescript_advanced_semantics_test.go`,
 `engine_tsx_advanced_semantics_test.go`, and
@@ -121,21 +121,21 @@ benchmarks (`go test -list` against that package, final tree); the sibling
 - Basic JS/TS/TSX payload construction: `TestDefaultEngineParsePathJavaScript`
 - Annotation metadata and usage kinds
 
-**Imports and re-exports (engine_javascript_*.go)**:
+**Imports and re-exports (engine_*.go)**:
 - Static relative re-exports:
-  `engine_javascript_reexports_test.go:TestDefaultEngineParsePathJavaScriptStaticRelativeReExports`
+  `engine_reexports_test.go:TestDefaultEngineParsePathJavaScriptStaticRelativeReExports`
 - Require imports:
-  `engine_javascript_require_test.go:TestDefaultEngineParsePathJavaScriptRequireImports`
+  `engine_require_test.go:TestDefaultEngineParsePathJavaScriptRequireImports`
 - Require template literal interpolation skipped:
-  `engine_javascript_require_test.go:TestDefaultEngineParsePathJavaScriptRequireTemplateLiteralInterpolationIsSkipped`
+  `engine_require_test.go:TestDefaultEngineParsePathJavaScriptRequireTemplateLiteralInterpolationIsSkipped`
 
-**Call metadata (engine_javascript_call_metadata_test.go)**:
+**Call metadata (engine_call_metadata_test.go)**:
 - Chain preservation and JSX call kinds:
   `TestDefaultEngineParsePathJavaScriptCallMetadataPreservesChainsAndJSXKinds`
 - Nested functions carry enclosing function:
   `TestDefaultEngineParsePathJavaScriptNestedFunctionsCarryEnclosingFunction`
 
-**Computed properties (engine_javascript_computed_property_test.go)**:
+**Computed properties (engine_computed_property_test.go)**:
 - Static computed member names:
   `TestDefaultEngineParsePathJavaScriptComputedClassMemberNames`
 - Concatenation in computed names:
@@ -143,8 +143,8 @@ benchmarks (`go test -list` against that package, final tree); the sibling
 - Runtime-dependent names skipped:
   `TestDefaultEngineParsePathJavaScriptComputedClassMemberRuntimeDependentNameIsSkipped`
 
-**Handler/route detection (engine_javascript_handler_test.go,
-engine_javascript_route_handler_test.go)**:
+**Handler/route detection (engine_handler_test.go,
+engine_route_handler_test.go)**:
 - Hapi binds named handler only:
   `TestDefaultEngineParsePathJavaScriptHapiBindsNamedHandlerOnly`
 - Express captures named handler:
@@ -152,7 +152,7 @@ engine_javascript_route_handler_test.go)**:
 - Express duplicate route stays unbound:
   `TestDefaultEngineParsePathJavaScriptExpressDuplicateRouteStaysUnbound`
 
-**Framework semantics (engine_javascript_semantics_test.go)**:
+**Framework semantics (engine_semantics_test.go)**:
 - Framework semantics (AWS/GCP/React):
   `TestDefaultEngineParsePathJavaScriptFrameworkSemantics`
 - Hapi route entries preserve method/path pairs:
@@ -162,7 +162,7 @@ engine_javascript_route_handler_test.go)**:
 - Generator functions:
   `TestDefaultEngineParsePathJavaScriptGeneratorFunctions`
 
-**AST conversion parity (engine_javascript_ast_conversion_test.go)**:
+**AST conversion parity (engine_ast_conversion_test.go)**:
 - React hook member call parity:
   `TestDefaultEngineParsePathReactHookMemberCallParity`
 - AWS client symbol constructor only:
@@ -190,7 +190,7 @@ engine_javascript_route_handler_test.go)**:
   `dead_code_roots_test.go` to stay under the 500-line cap)
 - TS public surface and re-exports:
   `dead_code_typescript_surface_test.go`,
-  `engine_javascript_dead_code_typescript_import_exports_test.go` (relocated
+  `engine_dead_code_typescript_import_exports_test.go` (relocated
   parent-level TypeScript public-surface marking, renamed to avoid colliding
   with the pre-existing subdirectory file below),
   `dead_code_typescript_import_exports_test.go` (pre-existing
@@ -198,8 +198,8 @@ engine_javascript_route_handler_test.go)**:
   Subdirectory unit tests entry below),
   `dead_code_typescript_surface_reexport_test.go`
 
-**TypeScript (engine_javascript_tsconfig_baseurl_test.go,
-engine_javascript_type_parameters_test.go,
+**TypeScript (engine_tsconfig_baseurl_test.go,
+engine_type_parameters_test.go,
 engine_typescript_advanced_semantics_test.go)**:
 - tsconfig baseUrl resolution
 - Type parameters
@@ -270,19 +270,19 @@ engine_tsx_component_wrapper_test.go)**:
   are not all pinned.
 
 ## Edge Cases Considered
-- **Require template literal interpolation skipped**: `engine_javascript_require_test.go` (line 53)
-- **Computed property concatenation still detected**: `engine_javascript_computed_property_test.go` (line 41)
-- **Runtime-dependent computed names rejected**: `engine_javascript_computed_property_test.go` (line 71)
-- **Express duplicate route stays unbound**: `engine_javascript_route_handler_test.go` (line 54)
-- **React hook member call parity with old regex**: `engine_javascript_ast_conversion_test.go`
-- **AWS client symbol constructor only** (not import bindings): `engine_javascript_ast_conversion_test.go`
+- **Require template literal interpolation skipped**: `engine_require_test.go` (line 53)
+- **Computed property concatenation still detected**: `engine_computed_property_test.go` (line 41)
+- **Runtime-dependent computed names rejected**: `engine_computed_property_test.go` (line 71)
+- **Express duplicate route stays unbound**: `engine_route_handler_test.go` (line 54)
+- **React hook member call parity with old regex**: `engine_ast_conversion_test.go`
+- **AWS client symbol constructor only** (not import bindings): `engine_ast_conversion_test.go`
 - **Nested package.json ownership** (workspace root doesn't claim nested): `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptNestedPackageDeadCodeRoots`
 - **Nested Hapi handler roots**: `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptNestedHapiHandlerRoots`
 - **Hapi plugin register roots via init pattern**: `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots`
 - **CommonJS mixin export roots method**: `dead_code_commonjs_class_test.go:TestDefaultEngineParsePathJavaScriptCommonJSMixinExportRootsMethod`
 - **All 3 residual regexes with + and - cases**: `residual_regex_characterization_test.go` (17 tests)
 - **Parent lookup cgo elimination**: `parent_lookup_regression_test.go` (line 106)
-- **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_javascript_ast_conversion_test.go`
+- **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_ast_conversion_test.go`
 - **Comprehensive golden fixtures**: js/ts/tsx comprehensive golden fixtures in `engine_long_tail_test.go`
 - **TypeScript import/export re-exports from root (Fastify shape)**:
   `dead_code_typescript_import_exports_test.go:TestTypeScriptImportedExportClauseReexportsFromRootHandlesFastifyShape`

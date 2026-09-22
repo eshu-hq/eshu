@@ -49,7 +49,7 @@
 // omitted.
 //
 // The Engine-level black-box regressions that used to live in
-// internal/parser as engine_javascript_*_test.go now live here as external
+// internal/parser as engine_*_test.go now live here as external
 // package javascript_test, matching the earlier Elixir relocation (#6335).
 // They drive extraction through parser.DefaultEngine().ParsePath, which Go
 // compiles separately from this package's own tests, so exercising the

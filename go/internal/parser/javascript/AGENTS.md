@@ -26,8 +26,8 @@
     tests for package-local Fastify computations; it does not import the parent
 13. engine_typescript_implements_test.go - external-package regression for
     implemented-interface metadata through the public parent engine
-14. engine_javascript_test_helpers_test.go - shared helpers for the relocated
-    `engine_javascript_*_test.go`, `dead_code_*_test.go`,
+14. engine_test_helpers_test.go - shared helpers for the relocated
+    `engine_*_test.go`, `dead_code_*_test.go`,
     `cfg_dataflow_test.go`, `js_parent_lookup_bench_test.go`,
     `engine_typescript_advanced_semantics_test.go`, and `engine_tsx_*_test.go`
     external-package suites (issue #6062). It owns `assertBoolFieldValue`
@@ -56,7 +56,7 @@
   its public engine contract. The Fastify characterization test stays in
   `package javascript` and must not import the parent; the external Fastify
   benchmark, TypeScript implemented-interface regression, and the relocated
-  `engine_javascript_*_test.go` Engine-level suites (issue #6062, following the
+  `engine_*_test.go` Engine-level suites (issue #6062, following the
   Elixir precedent in #6335) are the black-box exceptions. Add new
   Engine-level JavaScript/TypeScript/TSX regressions to `package
   javascript_test`, not to `internal/parser`.
@@ -94,7 +94,7 @@
 - No-Regression Evidence: the AST conversion replaces multi-pass regex scans
   with single-pass walks over an already-built tree; sibling files are parsed
   once and cached. Output is identical for valid code, proven by the unchanged
-  `engine_javascript_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
+  `engine_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
   js/ts/tsx comprehensive golden fixtures. Two framework-semantics buckets are
   intentionally narrowed because the prior raw-source regexes matched code-shaped
   tokens inside comments, strings, imports, and type annotations: `react.hooks_used`
@@ -103,7 +103,7 @@
   `XxxClient` names. Dynamic `import("@aws-sdk/client-*")` is now covered for the
   service buckets alongside static import and require. These narrowings drop prior
   false positives and have regression tests in
-  `engine_javascript_ast_conversion_test.go`.
+  `engine_ast_conversion_test.go`.
 - No-Observability-Change: this package emits no telemetry by design; the
   conversion neither adds nor removes spans, metrics, or logs.
 
