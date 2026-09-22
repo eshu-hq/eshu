@@ -154,35 +154,46 @@ Each row below is measured: exported symbol count, the number of `query.X`
 references to those symbols from outside `go/internal/query`, and the number of
 unexported symbols the file also declares.
 
-**1,509 external `query.X` references resolve through these files.** That, not
-the file count, is the caller-migration bill for Part A's endgame. Repo-wide,
-336 files outside `go/internal/query` (128 of them non-test) name 585 distinct
-`query.X` symbols — the issue's "313 external files name 535 distinct symbols"
-has grown to 336/585 since it was written.
+**1,420 external `query.X` references resolve through these files.** That, not
+the file count, is the caller-migration bill for Part A's endgame.
+
+The counting rule matters, because a looser one inflates it. These figures count
+only **tracked `.go` files outside `go/internal/query` that import the package
+*and* name a `query.X` symbol** — not every file whose text happens to contain
+`query.Something`. On that rule, 314 files (120 of them non-test) name 474
+distinct `query.X` symbols, and 184 of the 393 symbols the alias files export are
+actually referenced from outside. The issue's "313 external files name 535
+distinct symbols" is the same order of magnitude measured differently; 314/474
+is what this rule gives today.
 
 | file | exported | external refs | unexported | disposition |
 | --- | ---: | ---: | ---: | --- |
-| `envelope_aliases.go` | 52 | **1026** | 4 | SPLIT FIRST: hoist `requiredProfile`/`acceptsEnvelope` (PR 1), then delete with the largest caller migration in the issue |
-| `admin_alias.go` | 63 | 130 | 0 | DELETE with caller migration to `admin/` |
-| `local_identity_alias.go` | 32 | 67 | 4 | DELETE with caller migration to `local/` |
-| `iac_alias.go` | 62 | 42 | 36 | DELETE; 36 unexported symbols must land in `iac/` first |
-| `freshness_alias.go` | 22 | 42 | 2 | DELETE with caller migration to `freshness/` |
+| `envelope_aliases.go` | 52 | **1022** | 4 | SPLIT FIRST: hoist `requiredProfile`/`acceptsEnvelope` (PR 1), then delete with the largest caller migration in the issue |
+| `admin_alias.go` | 63 | 115 | 0 | DELETE with caller migration to `admin/` |
+| `local_identity_alias.go` | 32 | 60 | 4 | DELETE with caller migration to `local/` |
 | `semantic_search_alias.go` | 21 | 35 | 0 | DELETE with caller migration to `semantic/search/` |
-| `query_playbook_alias.go` | 22 | 34 | 6 | DELETE with caller migration to `playbook/` |
-| `incident_alias.go` | 48 | 25 | 0 | DELETE with caller migration to `incident/` |
-| `service_alias.go` | 14 | 17 | 17 | DELETE; 17 unexported symbols, 15 of them test-only |
-| `secrets_alias.go` | 7 | 16 | 6 | DELETE with caller migration to `secrets/` |
-| `work_item_alias.go` | 14 | 14 | 1 | DELETE with caller migration to `workitem/` |
+| `freshness_alias.go` | 22 | 34 | 2 | DELETE with caller migration to `freshness/` |
+| `query_playbook_alias.go` | 22 | 22 | 6 | DELETE with caller migration to `playbook/` |
+| `iac_alias.go` | 62 | 20 | 36 | DELETE; 36 unexported symbols must land in `iac/` first |
+| `incident_alias.go` | 48 | 17 | 0 | DELETE with caller migration to `incident/` |
+| `secrets_alias.go` | 7 | 15 | 6 | DELETE with caller migration to `secrets/` |
+| `service_alias.go` | 14 | 14 | 17 | DELETE; 17 unexported symbols, 13 of them test-only |
 | `content_read_alias.go` | 8 | 12 | 0 | DELETE in the Part B change, as the issue directs |
-| `visualization_alias.go` | 10 | 11 | 0 | DELETE with caller migration to `visualization/` |
-| `entity_alias.go` | 2 | 10 | 13 | DELETE; all 13 unexported symbols are test-only |
-| `code_alias.go` | 1 | 8 | 0 | DELETE; one symbol, `CodeHandler`, 8 external refs |
+| `work_item_alias.go` | 14 | 9 | 1 | DELETE with caller migration to `workitem/` |
+| `visualization_alias.go` | 10 | 9 | 0 | DELETE with caller migration to `visualization/` |
+| `entity_alias.go` | 2 | 9 | 13 | DELETE; all 13 unexported symbols are test-only |
 | `repository_alias.go` | 3 | 8 | 0 | DELETE with caller migration to `repository/` |
+| `code_alias.go` | 1 | 8 | 0 | DELETE; one symbol, `CodeHandler` |
 | `package_registry_alias.go` | 6 | 7 | 0 | DELETE with caller migration to `package/registry/` |
-| `language_alias.go` | 3 | 4 | 3 | DELETE with caller migration to `language/` |
+| `language_alias.go` | 3 | 3 | 3 | DELETE with caller migration to `language/` |
 | `answer_metadata_alias.go` | 3 | 1 | 1 | DELETE with caller migration to `ask/` |
 | `k8s_match_alias.go` | 0 | 0 | 8 | DELETE outright: no exported surface, no external caller |
 | `entity_alias_live.go` | 0 | 0 | 1 | DELETE outright, but it is build-tag gated — see below |
+
+A large `exported` count with a small `external refs` count is the interesting
+shape: `iac_alias.go` exports 62 symbols and 20 references reach them, and
+`incident_alias.go` exports 48 for 17. Most of each file is already dead weight
+that the family move can simply drop.
 
 Two qualifications the raw counts hide:
 

@@ -22,7 +22,7 @@ order is the shared spine: nothing moves before PR 1.
 | 31 | `code/` ← `codequery` + the four `code*` siblings | 102 | large but mechanical; `CodeHandler` is **not** renamed here |
 | 32 | `repository/artifacts` ← `repositoryartifacts` (rename only); `repository/` itself stays at 45 pending the UNDECIDED below | 20 | queryplan pins regenerate |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
-| 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,509 external references | −21 | each family's aliases can only die after that family has moved |
+| 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
 | 35 | Root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row entirely | — | definition of done |
 
 `CodeHandler` is deliberately not renamed anywhere in this plan. The issue
