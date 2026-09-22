@@ -53,7 +53,13 @@ decision, and they did.
 - `Evidence`, `RootEvidence` — per-file root evidence, gathered once per parse
 - `RootKinds` — the root kinds for one declaration
 - `RegisteredDeadCodeRootKinds`, `MergeRegisteredRootKinds` — registration-derived
-  root kinds and the merge over that map shape
+  root kinds and the merge over that map shape. These two are exported **only**
+  for the parent's `walk_count_test.go`, which is a mechanism gate for the
+  #4925 gathering optimization and has to reproduce production's exact call
+  sequence to count AST walks against it. Exporting for a test is normally a
+  smell; it is accepted here because the alternative is a test that measures a
+  paraphrase of the production path instead of the path itself. Do not build
+  production callers on them.
 - `ExpressServerSymbols` — Express server symbols from route semantics
 - `HapiRouteHandlerReferenceCall` — Hapi route-config handler reference
 - `CommonJSExportName`, `CollectCommonJSModuleExportAlias`,
