@@ -34,7 +34,7 @@ container of the pinned image
 (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468`, digest
 `eb69530f…`) at filler 300, run after the final edit: hub 40, leaf 0, mid 2,
 flux 40, production equal to the shipped statement everywhere, pre-change
-statement equal too (`scratchpad` run `6811-accuracy-300-r2.log`, exit 0).
+statement equal too (`scratchpad` run `6811-accuracy-300-r3.log`, exit 0).
 The 11-of-40 result the issue saw on `v1.3.3` did not reproduce on the
 pinned build, so this change is a performance fix with row-set parity, not
 an accuracy fix.
