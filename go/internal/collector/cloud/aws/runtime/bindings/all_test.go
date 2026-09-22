@@ -26,7 +26,7 @@ import (
 // fails. The Diff helper is unit-tested in internal/guardset, including the
 // "dir present but not imported" negative case.
 func TestBindingsImportsEveryRuntimebindDir(t *testing.T) {
-	dirs, err := guardset.BindServiceDirs(servicesDir(t))
+	dirs, err := guardset.BindServiceDirs(serviceDir(t))
 	if err != nil {
 		t.Fatalf("BindServiceDirs() error = %v", err)
 	}
@@ -53,7 +53,7 @@ func TestBindingsImportsEveryRuntimebindDir(t *testing.T) {
 // It catches a binding that imports but fails to register at init, which the
 // import set-diff alone cannot see.
 func TestBindingsRegistersEveryImportedKind(t *testing.T) {
-	dirs, err := guardset.BindServiceDirs(servicesDir(t))
+	dirs, err := guardset.BindServiceDirs(serviceDir(t))
 	if err != nil {
 		t.Fatalf("BindServiceDirs() error = %v", err)
 	}
@@ -62,16 +62,16 @@ func TestBindingsRegistersEveryImportedKind(t *testing.T) {
 	}
 }
 
-// servicesDir resolves go/internal/collector/cloud/aws/service from this test
+// serviceDir resolves go/internal/collector/cloud/aws/service from this test
 // file's location so the directory walk does not depend on the go test working
 // directory.
-func servicesDir(t *testing.T) string {
+func serviceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := stdruntime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// bindings_test.go lives in runtime/bindings/; services is two levels up
+	// all_test.go lives in runtime/bindings/; service is two levels up
 	// under aws/.
 	return filepath.Join(filepath.Dir(currentFile), "..", "..", "service")
 }

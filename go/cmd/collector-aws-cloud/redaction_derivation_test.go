@@ -112,17 +112,17 @@ func expectedRedactionPhrase(kinds []string) string {
 // the registry-derived set must match what the bindings actually register.
 func redactionRequiringServiceDirs(t *testing.T) []string {
 	t.Helper()
-	servicesDir := awsServicesDir(t)
-	entries, err := os.ReadDir(servicesDir)
+	serviceDir := awsServiceDir(t)
+	entries, err := os.ReadDir(serviceDir)
 	if err != nil {
-		t.Fatalf("read services dir %q: %v", servicesDir, err)
+		t.Fatalf("read services dir %q: %v", serviceDir, err)
 	}
 	var services []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		bindFile := filepath.Join(servicesDir, entry.Name(), "bind", "register.go")
+		bindFile := filepath.Join(serviceDir, entry.Name(), "bind", "register.go")
 		data, readErr := os.ReadFile(bindFile)
 		if os.IsNotExist(readErr) {
 			continue
@@ -138,9 +138,9 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 	return services
 }
 
-// awsServicesDir resolves go/internal/collector/cloud/aws/service from this
+// awsServiceDir resolves go/internal/collector/cloud/aws/service from this
 // test file's location so the walk does not depend on the working directory.
-func awsServicesDir(t *testing.T) string {
+func awsServiceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := stdruntime.Caller(0)
 	if !ok {

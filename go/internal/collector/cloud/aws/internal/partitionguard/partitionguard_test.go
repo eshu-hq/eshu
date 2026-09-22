@@ -17,8 +17,8 @@ import (
 // partition graph-join bug class by construction — a new scanner that hardcodes
 // `arn:aws:<service>:` or `arn:aws:s3:::` fails CI here.
 func TestLiveScannerTreeHasNoHardcodedPartitions(t *testing.T) {
-	servicesDir := liveServicesDir(t)
-	violations, err := partitionguard.ScanForHardcodedPartitions(servicesDir)
+	serviceDir := liveServiceDir(t)
+	violations, err := partitionguard.ScanForHardcodedPartitions(serviceDir)
 	if err != nil {
 		t.Fatalf("scan for hardcoded partitions: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestLiveScannerTreeHasNoHardcodedPartitions(t *testing.T) {
 	}
 }
 
-func liveServicesDir(t *testing.T) string {
+func liveServiceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {

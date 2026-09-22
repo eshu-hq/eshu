@@ -136,7 +136,7 @@ func TestDiff(t *testing.T) {
 // service bind directories from the live tree, independent of any
 // hardcoded list or the registry.
 func TestBindServiceDirs(t *testing.T) {
-	serviceDir := liveServicesDir(t)
+	serviceDir := liveServiceDir(t)
 	dirs, err := guardset.BindServiceDirs(serviceDir)
 	if err != nil {
 		t.Fatalf("BindServiceDirs() error = %v", err)
@@ -163,7 +163,7 @@ func TestBindingsImportServices(t *testing.T) {
 		t.Fatalf("BindingsImportServices() = empty, want the live import set")
 	}
 
-	dirs, err := guardset.BindServiceDirs(liveServicesDir(t))
+	dirs, err := guardset.BindServiceDirs(liveServiceDir(t))
 	if err != nil {
 		t.Fatalf("BindServiceDirs() error = %v", err)
 	}
@@ -173,9 +173,9 @@ func TestBindingsImportServices(t *testing.T) {
 	}
 }
 
-// liveServicesDir resolves go/internal/collector/cloud/aws/service from this
+// liveServiceDir resolves go/internal/collector/cloud/aws/service from this
 // test file's location so the walk does not depend on the working directory.
-func liveServicesDir(t *testing.T) string {
+func liveServiceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
