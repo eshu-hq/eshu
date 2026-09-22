@@ -103,24 +103,23 @@ The two residual reds are the USES read, which #6932 fixes; main and #6932
 themselves go green. The advisory counts are the noise the 21 entries had
 been excusing plus the unexcused tail.
 
-No-Regression Evidence: the three changed Go files run only inside the
-gate's offline backend-diff phase, never on a service path. Baseline binary
-built from main 2cafb7558 (the branch base when measured; later rebases
-changed no file under `go/internal/backendconformance`,
-`go/internal/graph/capture`, or `go/cmd/golden-corpus-gate`, so the baseline
-still isolates this branch: `git diff 2cafb7558..HEAD -- <those three
-paths>` shows only this branch's commits) versus the head binary built at
-49e95c530, whose Go tree is identical to every later head of the branch,
-`-phase=backend-diff` in quorum mode over the PR #6892 capture set (10,820
-records across both pairings) with the committed allowlist, same host,
-three consecutive runs each, every run reported (`/usr/bin/time -p`):
-baseline real 2.17 / 0.24 / 0.25 s, user 0.23 / 0.23 / 0.24 s; head real
-1.29 / 0.23 / 0.25 s, user 0.23 / 0.22 / 0.23 s. The first run of each
-binary is a cold page-cache launch of a fresh build, which is why its wall
-time differs while CPU does not; runs 2-3 are the comparable figures. Input
+No-Regression Evidence: the files the perf-evidence gate names as hot
+(`backendconformance/differential_kinds.go`, `capture/allowlist.go`,
+`capture/diff.go`) run only inside the gate's offline backend-diff phase,
+never on a service path. Baseline binary built from main 0f1a7e2864 (the
+branch base when measured) versus the head binary built at a1c7535d97
+(commits after it on this branch touch no Go file: `git diff a1c7535d97..HEAD
+-- '*.go'` is empty), `-phase=backend-diff` in quorum mode over the PR #6892
+capture set (10,820 records across both pairings) with the committed
+allowlist, same host, three consecutive runs each, every run reported
+(`/usr/bin/time -p`): baseline real 1.27 / 0.24 / 0.25 s, user 0.23 / 0.23
+/ 0.23 s; head real 1.27 / 0.25 / 0.31 s, user 0.23 / 0.22 / 0.23 s. The
+first run of each binary is a cold launch of a fresh build, which is why
+its wall time differs while CPU does not; runs 2-3 are the comparable
+figures, and the 0.31 s is one wall-clock outlier with unchanged CPU. Input
 shape and terminal verdicts as in the table above; the only added work is
-one O(n) partition over an already-materialized slice and one report line
-bounded by `capture.MaxReportedDiffs`.
+one O(n) partition over an already-materialized slice and per-pairing and
+advisory report lines bounded by `capture.MaxReportedDiffs`.
 
 No-Observability-Change: no new metrics, spans, or log keys. The gate report
 gains one finding line per quorum run.
