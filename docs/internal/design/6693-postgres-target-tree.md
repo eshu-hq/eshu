@@ -97,8 +97,13 @@ from a file name.
   importing both `internal/reducer/semantic` and this package does not need an
   alias. Where two new leaves share a last word and meet in one caller, the
   clause adds the parent: `cloud/aws/drift` is `awsdriftstore` and
-  `terraform/state/drift` is `statedriftstore`. `cloud/inventory` is
-  `inventorystore`, because `infra/inventory` already uses `package inventory`.
+  `terraform/state/drift` is `statedriftstore`. The four `freshness/`
+  children do the same (`awsfreshnessstore`, `gcpfreshnessstore`,
+  `incidentfreshnessstore`, `vulnerabilityfreshnessstore`), so they do not
+  collide with `cloud/aws` (`awsstore`) or `incident/` (`incidentstore`).
+  `cloud/inventory` is `inventorystore`, because `infra/inventory` already uses
+  `package inventory`. Deriving every clause this way gives no collision with
+  an existing package name under `go/`.
 - Exported identifiers will stutter after some moves
   (`reducerstore.ReducerQueue`, `imagestore.ContainerImageIdentityBeginner`).
   This plan records those and does not rename identifiers. A move PR changes
