@@ -64,7 +64,7 @@ const (
 // identity columns the comparison keys on (path, artifact_id, source and
 // target ids); deployEvidenceAnchorCandidateIncoming is the shipped
 // bound-anchored form with the same abridged RETURN.
-// deployEvidenceAnchorOldFlux is FetchFluxDeploymentSourceTargetBindings'
+// deployEvidenceAnchorShippedFlux is FetchFluxDeploymentSourceTargetBindings'
 // shipped expansion read verbatim (impact_trace_deployment_flux_bindings.go)
 // with the unscoped (AllScopes:true) access predicates -- both empty strings
 // -- inlined; deployEvidenceAnchorCandidateFlux is the mirrored form that was
@@ -92,7 +92,7 @@ const (
 		ORDER BY path, artifact_id
 		LIMIT $limit
 	`
-	deployEvidenceAnchorOldFlux = `
+	deployEvidenceAnchorShippedFlux = `
 		UNWIND $artifact_ids AS artifact_id
 		MATCH (artifact:EvidenceArtifact {id: artifact_id})<-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]-(repo:Repository)
 		MATCH (artifact)-[targetRel:EVIDENCES_REPOSITORY_RELATIONSHIP]->(targetRepo:Repository {id: $repo_id})
@@ -483,7 +483,7 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 		sort.Strings(artifactIDs)
 		fluxParams := map[string]any{"repo_id": seed.hubID, "artifact_ids": artifactIDs, "source_repo_ids": seed.srcIDs}
 
-		oldRows, err := reader.Run(ctx, deployEvidenceAnchorOldFlux, fluxParams)
+		oldRows, err := reader.Run(ctx, deployEvidenceAnchorShippedFlux, fluxParams)
 		if err != nil {
 			t.Fatalf("old flux statement: %v", err)
 		}

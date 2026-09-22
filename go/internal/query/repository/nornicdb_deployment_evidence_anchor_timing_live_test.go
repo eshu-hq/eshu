@@ -71,7 +71,7 @@ func deployEvidenceAnchorShapes(seed deployEvidenceAnchorSeed) map[string]struct
 	}{
 		"old-incoming":       {deployEvidenceAnchorOldIncoming, incoming},
 		"candidate-incoming": {deployEvidenceAnchorCandidateIncoming, incoming},
-		"old-flux":           {deployEvidenceAnchorOldFlux, flux},
+		"old-flux":           {deployEvidenceAnchorShippedFlux, flux},
 		"candidate-flux":     {deployEvidenceAnchorCandidateFlux, flux},
 	}
 }
@@ -113,7 +113,15 @@ func TestLiveNornicDBDeploymentEvidenceAnchorTiming(t *testing.T) {
 	reader.write(ctx, t, deployEvidenceAnchorCleanup)
 	seedStart := time.Now()
 	seed := seedDeployEvidenceAnchor(ctx, t, reader, fillerCount)
-	defer reader.write(context.Background(), t, deployEvidenceAnchorCleanup)
+	// Best-effort cleanup with its own short bound: after a TIMEOUT the
+	// container is still executing the runaway statement and the harness
+	// discards it, so a cleanup that cannot finish must not hold the process.
+	defer func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		_, _ = neo4jdriver.ExecuteQuery(cleanupCtx, driver, deployEvidenceAnchorCleanup, nil,
+			neo4jdriver.EagerResultTransformer, neo4jdriver.ExecuteQueryWithDatabase("nornic"))
+	}()
 	t.Logf("SEED filler=%d seconds=%.1f", fillerCount, time.Since(seedStart).Seconds())
 
 	shapes := deployEvidenceAnchorShapes(seed)

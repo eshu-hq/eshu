@@ -18,7 +18,8 @@ is **unchanged**: its mirrored form was measured below and not adopted.
 deployment-evidence read too and fails on the old shape (verified by
 restoring the pre-change file: "incoming read is right-anchored on the bound
 repository"). No queryplan digest moved: the manifests bind
-`queryRepoDeploymentEvidenceDirection`, whose body is unchanged.
+`queryRepoDeploymentEvidenceDirection`, whose body is unchanged, and the flux
+read whose digests they also bind is unchanged.
 
 ## Row-set truth first
 
