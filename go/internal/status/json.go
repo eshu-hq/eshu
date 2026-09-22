@@ -20,6 +20,10 @@ import (
 
 // RenderJSON returns a stable machine-readable projection of the report.
 func RenderJSON(report Report) ([]byte, error) {
+	// Project the collector evidence once: the three readbacks below all
+	// consume the same slice of the report.
+	evidence := collectorEvidence(report)
+
 	payload := struct {
 		Version                        string                              `json:"version"`
 		AsOf                           string                              `json:"as_of"`
@@ -57,9 +61,9 @@ func RenderJSON(report Report) ([]byte, error) {
 		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
 		Health:            report.Health,
 		Coordinator:       coordinatorJSON(report.Coordinator),
-		CollectorRuntimes: collector.RuntimeStatusesJSON(collector.RuntimeStatuses(collectorEvidence(report))),
-		CollectorPromotionProofs: collector.PromotionProofsJSON(collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
-			Catalog:    collector.PresentCatalog(collectorEvidence(report)),
+		CollectorRuntimes: collector.RuntimeStatusesJSON(collector.RuntimeStatuses(evidence)),
+		CollectorPromotionProofs: collector.PromotionProofsJSON(collector.PromotionProofs(evidence, collector.PromotionOptions{
+			Catalog:    collector.PresentCatalog(evidence),
 			AsOf:       report.AsOf,
 			StaleAfter: collector.DefaultPromotionStaleAfter,
 		})),

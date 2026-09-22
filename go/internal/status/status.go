@@ -175,6 +175,10 @@ func deriveScopeActivity(scopeTotals map[string]int, generationTotals map[string
 
 // RenderText returns a compact admin-panel-style text summary.
 func RenderText(report Report) string {
+	// Project the collector evidence once: the three readbacks below all
+	// consume the same slice of the report.
+	evidence := collectorEvidence(report)
+
 	lines := []string{
 		fmt.Sprintf("Version: %s", buildinfo.AppVersion()),
 		fmt.Sprintf("Health: %s", report.Health.State),
@@ -211,9 +215,9 @@ func RenderText(report Report) string {
 	}
 	lines = append(lines, queue.RenderBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
-	lines = append(lines, collector.RenderRuntimeStatusLines(collector.RuntimeStatuses(collectorEvidence(report)))...)
-	lines = append(lines, collector.RenderPromotionProofLines(collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
-		Catalog:    collector.PresentCatalog(collectorEvidence(report)),
+	lines = append(lines, collector.RenderRuntimeStatusLines(collector.RuntimeStatuses(evidence))...)
+	lines = append(lines, collector.RenderPromotionProofLines(collector.PromotionProofs(evidence, collector.PromotionOptions{
+		Catalog:    collector.PresentCatalog(evidence),
 		AsOf:       report.AsOf,
 		StaleAfter: collector.DefaultPromotionStaleAfter,
 	}))...)
