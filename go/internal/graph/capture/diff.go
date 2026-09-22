@@ -45,17 +45,17 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 		return fmt.Errorf("differential comparison needs both backends, have nornicdb=%v neo4j=%v", okNornic, okNeo)
 	}
 	diffs := backendconformance.CompareRecordings(nornic, neo)
-	excused, err := allow.Excuse(diffs)
+	unexcused, err := allow.Excuse(diffs)
 	if err != nil {
 		return fmt.Errorf("apply divergence allowlist: %w", err)
 	}
-	remaining, advisory := backendconformance.SplitAdvisory(excused)
+	remaining, advisory := backendconformance.SplitAdvisory(unexcused)
 	if err := reportAdvisory(w, advisory); err != nil {
 		return err
 	}
 	if len(remaining) == 0 {
 		return report(w, "differential comparison clean: %d nornicdb records, %d neo4j records, %d allowlisted, %d advisory\n",
-			len(nornic), len(neo), len(diffs)-len(excused), len(advisory))
+			len(nornic), len(neo), len(diffs)-len(unexcused), len(advisory))
 	}
 	if err := report(w, "differential comparison found %d unexcused divergence(s) (%d nornicdb records, %d neo4j records):\n",
 		len(remaining), len(nornic), len(neo)); err != nil {

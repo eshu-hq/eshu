@@ -56,6 +56,20 @@ divergence either.
 Row truth is unchanged: every read is still compared through `results` and
 `missing`, and a one-sided error still fails through `failures`.
 
+What the change gives up: on a write statement, `executions` was the only
+differential signal. Writes return no rows, so `results` compares two empty
+digests, `rowcount` is unreachable once counts differ (the classifier
+returns `executions` first), and `missing` fires only when the statement ran
+on one backend alone. A write that one backend silently drops and the
+reducer re-drives to convergence therefore shows here only as a count
+difference, which is now advisory. Its consequence is still caught by two
+layers this phase does not own: a later read in the same capture observes
+the resulting state and diverges on `results` or `missing` (a MERGE that
+duplicates on one backend, or a drop that is never re-driven, still fails
+there), and the B-12 snapshot's node and edge count tolerances on the
+canonical backend. The advisory count itself has no ceiling yet; #6941
+tracks bounding it.
+
 ## Proof
 
 Seeded RED/GREEN pairs, all run with `go test -count=1`:

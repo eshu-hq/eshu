@@ -292,6 +292,16 @@ func TestRunBackendDiffQuorumResultsBesideExecutionsFails(t *testing.T) {
 	if !strings.Contains(out, "found 1 reproduced divergence(s), first: MATCH (r) RETURN r") {
 		t.Fatalf("stdout = %q, want the required finding to count only the results divergence", out)
 	}
+	// The executions divergence was routed to advisory, not dropped.
+	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_executions: 1 reproduced execution-count divergence(s)") {
+		t.Fatalf("stdout = %q, want the executions divergence routed to the advisory finding", out)
+	}
+	// Both divergences reproduced in both pairings, so nothing was
+	// pairing-local: 2+2 unexcused minus 2*2 reproduced. Pins the dropped
+	// arithmetic against a regression to counting only the required subset.
+	if !strings.Contains(out, "0 pairing-local divergence(s) did not reproduce") {
+		t.Fatalf("stdout = %q, want zero pairing-local divergences", out)
+	}
 }
 
 // appendStmt adds one more recorded statement to an existing capture dir.
