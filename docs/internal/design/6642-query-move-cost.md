@@ -85,8 +85,9 @@ depends on another, so none of them can become a Go package while the others
 stand still.
 
 Most of that is an artifact of today's root, not of the tree. Retire the two
-things PR 1 and the alias sweep remove — the five spine symbols, and every edge
-into a `*_alias.go` or into root — and the picture improves but does not clear:
+things the spine repoints and the alias sweep remove — the spine symbols, and
+every edge into a `*_alias.go` or into root — and the picture improves but does
+not clear:
 **23 destinations remain in one component, across 18 mutually-importing pairs
 and 85 distinct unexported symbols.**
 
@@ -142,10 +143,10 @@ move: the family's PR first lifts the symbols on its row above into `contract/`
 only then relocates the files. The 85 symbols are the complete bill, measured,
 and each row names its own share. The sequencing table reflects this.
 
-No family PR is "independent once PR 1 lands" — that claim was wrong in the
-first draft of this page and is retracted here. What PR 1 buys is the removal
-of the root and alias edges, which is what takes the component from 38 nodes to
-23.
+No family PR is "independent once the spine lands" — that claim was wrong in the
+first draft of this page and is retracted here. The 38-to-23 reduction is what
+the spine repoints (1a, 1b) **and** the alias sweep (PR 34) buy together, not
+either alone. **The 23 is an unre-measured projection**; re-run the pass.
 
 ## The three seam leaves dissolve
 

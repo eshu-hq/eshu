@@ -8,11 +8,15 @@ pair, `requiredProfile` and `acceptsEnvelope`. It did not clear the rest of the
 spine. Three unexported root symbols remained, each a one-line forwarder onto an
 exported twin that already existed in `querycontract`:
 
-| symbol | declared in | root files naming it | twin |
-| --- | --- | ---: | --- |
-| `capabilityUnsupported` | `handler.go` | 25 | `querycontract.CapabilityUnsupported` |
-| `repositoryAccessFilterFromContext` | `repository_authz.go` | 30 | `querycontract.RepositoryAccessFilterFromContext` |
-| `repositoryAccessFilter` (a type) | `repository_authz.go` | 24 | `querycontract.RepositoryAccessFilter` |
+| symbol | declared in | root non-test files naming it | all non-test files under `query/` | twin |
+| --- | --- | ---: | ---: | --- |
+| `capabilityUnsupported` | `handler.go` | 25 | 25 | `querycontract.CapabilityUnsupported` |
+| `repositoryAccessFilterFromContext` | `repository_authz.go` | 29 | 30 | `querycontract.RepositoryAccessFilterFromContext` |
+| `repositoryAccessFilter` (a type) | `repository_authz.go` | 20 | 24 | `querycontract.RepositoryAccessFilter` |
+
+Counted on the base tree with `git ls-tree -r`, root meaning files directly in
+`go/internal/query/`. An earlier draft of this table printed the recursive
+counts under a "root files" heading, which overstated two of the three rows.
 
 `repository_authz.go` carried a comment recording the deliberate decision to
 keep them — "Go has no function aliases, so the ~185 call sites keep this
