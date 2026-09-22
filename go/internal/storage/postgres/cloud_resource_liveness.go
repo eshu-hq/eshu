@@ -162,6 +162,9 @@ func LiveAdmissionCloudUIDs(
 // (LiveAdmissionCloudUIDs) repeats the same predicate in the same statement
 // as the admission rows, which is what makes the answer consistent.
 func RequireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
+	if q == nil {
+		return fmt.Errorf("cloud resource liveness queryer is required")
+	}
 	rows, err := q.QueryContext(ctx, undrainedCloudAdmissionSQL)
 	if err != nil {
 		return fmt.Errorf("query undrained cloud admission work: %w", err)

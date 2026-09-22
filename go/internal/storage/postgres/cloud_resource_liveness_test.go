@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -114,5 +115,17 @@ func TestNormalizeEC2PostureCandidate(t *testing.T) {
 		AccountID: "222", Region: "eu-west-1",
 	}); ok {
 		t.Fatal("identity-free candidate must not normalize")
+	}
+}
+
+// TestRequireCloudAdmissionDrainedRejectsNilQueryer pins parity with
+// LiveAdmissionCloudUIDs: a nil queryer is an error, never a panic, so a
+// miswired pre-lock fence fails closed with an attributable message.
+func TestRequireCloudAdmissionDrainedRejectsNilQueryer(t *testing.T) {
+	t.Parallel()
+
+	err := RequireCloudAdmissionDrained(context.Background(), nil)
+	if err == nil || !strings.Contains(err.Error(), "queryer is required") {
+		t.Fatalf("RequireCloudAdmissionDrained(nil) = %v, want the queryer-required error", err)
 	}
 }
