@@ -99,7 +99,15 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		if _, err := fmt.Fprintf(stdout, "pairing %d: %d unexcused divergence(s)\n", i+1, len(remaining)); err != nil {
 			return fmt.Errorf("report pairing %d: %w", i+1, err)
 		}
-		for _, diff := range remaining {
+		// Bounded like every other gate report: the full recordings persist
+		// in the CI artifact, so past the cap only the remainder count prints.
+		for j, diff := range remaining {
+			if j >= capture.MaxReportedDiffs {
+				if _, err := fmt.Fprintf(stdout, "... and %d more (see recording artifacts)\n", len(remaining)-capture.MaxReportedDiffs); err != nil {
+					return fmt.Errorf("report pairing %d: %w", i+1, err)
+				}
+				break
+			}
 			if _, err := fmt.Fprintf(stdout, "- %s [%s]: %s\n", diff.Fingerprint.Statement, diff.Fingerprint.Parameters, diff.Detail); err != nil {
 				return fmt.Errorf("report pairing %d: %w", i+1, err)
 			}

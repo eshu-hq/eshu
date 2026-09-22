@@ -10,11 +10,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/backendconformance"
 )
 
-// maxReportedDiffs bounds the failure report: a systemic backend break
+// MaxReportedDiffs bounds the failure report: a systemic backend break
 // could diverge thousands of statements, and the gate log must stay
 // readable. The full recording files remain in the CI artifact for the
 // unbounded case.
-const maxReportedDiffs = 20
+const MaxReportedDiffs = 20
 
 // Compare diffs the NornicDB and Neo4j recordings in left and right and
 // reports the divergences the allowlist does not excuse to w. It returns
@@ -62,8 +62,8 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 		return err
 	}
 	for i, diff := range remaining {
-		if i >= maxReportedDiffs {
-			if err := report(w, "... and %d more (see recording artifacts)\n", len(remaining)-maxReportedDiffs); err != nil {
+		if i >= MaxReportedDiffs {
+			if err := report(w, "... and %d more (see recording artifacts)\n", len(remaining)-MaxReportedDiffs); err != nil {
 				return err
 			}
 			break
@@ -87,8 +87,8 @@ func reportAdvisory(w io.Writer, advisory []backendconformance.DifferentialDiffe
 		return err
 	}
 	for i, diff := range advisory {
-		if i >= maxReportedDiffs {
-			return report(w, "... and %d more advisory (see recording artifacts)\n", len(advisory)-maxReportedDiffs)
+		if i >= MaxReportedDiffs {
+			return report(w, "... and %d more advisory (see recording artifacts)\n", len(advisory)-MaxReportedDiffs)
 		}
 		if err := report(w, "- advisory: %s [%s]: %s\n", diff.Fingerprint.Statement, diff.Fingerprint.Parameters, diff.Detail); err != nil {
 			return err

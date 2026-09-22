@@ -62,6 +62,9 @@ and `.github/workflows/golden-corpus-gate.yml`.
   so retired entries cannot linger.
 - `OpenDir` / `LoadDir` — JSONL sink and loader; unknown backends fail on
   both sides.
+- `MaxReportedDiffs` — the per-report line cap (20) shared by `Compare`
+  and the gate's quorum per-pairing dump; the recordings artifact keeps
+  the unbounded list.
 
 ## Telemetry
 

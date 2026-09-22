@@ -115,7 +115,7 @@ binary is a cold page-cache launch of a fresh build, which is why its wall
 time differs while CPU does not; runs 2-3 are the comparable figures. Input
 shape and terminal verdicts as in the table above; the only added work is
 one O(n) partition over an already-materialized slice and one report line
-bounded by `maxReportedDiffs`.
+bounded by `capture.MaxReportedDiffs`.
 
 No-Observability-Change: no new metrics, spans, or log keys. The gate report
 gains one finding line per quorum run.

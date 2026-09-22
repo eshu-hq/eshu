@@ -41,7 +41,7 @@
   reintroduce an `executions` tier: that kind is advisory at the gate
   (`backendconformance.AdvisoryKind`), so an entry for it is dead weight
   and the parser rejects it.
-- **Richer diff output** → keep `maxReportedDiffs` bounded; the full
+- **Richer diff output** → keep `MaxReportedDiffs` bounded (the gate's quorum phase shares it for its per-pairing dump); the full
   recordings stay in the CI artifact for the unbounded case.
 - **New capture tier** → open the session once at binary startup with
   the binary name, decorate the outermost seam, and close it on the

@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -322,5 +323,39 @@ func appendStmt(t *testing.T, dir, backend, statement, digest string) {
 	}
 	if err := sink.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+}
+
+// The per-pairing divergence dump is bounded like every other report in
+// the gate: past capture.MaxReportedDiffs lines it prints a remainder count
+// and points at the recording artifact, so 70-plus advisory execution-count
+// divergences per pairing do not print in full twice per run (#6942 review).
+func TestRunBackendDiffQuorumPairingReportIsBounded(t *testing.T) {
+	const extra = 5
+	n := capture.MaxReportedDiffs + extra
+	left := t.TempDir()
+	right := t.TempDir()
+	left2 := t.TempDir()
+	right2 := t.TempDir()
+	for i := range n {
+		stmt := fmt.Sprintf("MATCH (s%d) RETURN s%d", i, i)
+		appendStmt(t, left, "nornicdb", stmt, "d1")
+		appendStmt(t, right, "neo4j", stmt, "d2")
+		appendStmt(t, left2, "nornicdb", stmt, "d1")
+		appendStmt(t, right2, "neo4j", stmt, "d2")
+	}
+	out, err := runBackendDiffQuorumPhaseOutput(t, left, right, left2, right2, writeEmptyBackendDiffAllowlist(t))
+	if err == nil {
+		t.Fatalf("%d reproduced results divergences passed quorum\n%s", n, out)
+	}
+	if !strings.Contains(out, fmt.Sprintf("pairing 1: %d unexcused divergence(s)", n)) {
+		t.Fatalf("stdout = %q, want the full pairing count in the header", out)
+	}
+	want := fmt.Sprintf("... and %d more (see recording artifacts)", extra)
+	if got := strings.Count(out, want); got != 2 {
+		t.Fatalf("stdout has %d remainder lines %q, want one per pairing (2)\n%s", got, want, out)
+	}
+	if got := strings.Count(out, "\n- MATCH (s"); got != 2*capture.MaxReportedDiffs {
+		t.Fatalf("stdout printed %d divergence lines, want %d (cap per pairing)\n%s", got, 2*capture.MaxReportedDiffs, out)
 	}
 }
