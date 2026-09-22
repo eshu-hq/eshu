@@ -541,7 +541,7 @@ for `<kind>` in `vulnerability.cve`, `vulnerability.affected_package`,
 `vulnerability.known_exploited`, `reducer_supply_chain_impact_finding`, and
 `reducer_sbom_attestation_attachment`
 (`schema_fact_records_vulnerability_indexes.go`, `schema_fact_records.go`,
-`schema_fact_records_sbom.go`). The partial predicate carves the scan down from
+`migrations/003a_fact_record_sbom_attestation_indexes.sql`). The partial predicate carves the scan down from
 "all of `fact_records`" to "this one fact_kind's active, non-tombstone tuples,"
 which is the bound the aggregate needs. The `(scope_id, generation_id)` leading
 key columns are the exact join keys to `scope_generations` / `ingestion_scopes`,
