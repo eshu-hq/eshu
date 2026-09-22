@@ -122,6 +122,64 @@ handler-failure log; no new metric. A scope stuck in `dead_letter` is
 already the operator's queue alarm and now also names itself in every
 deferred retract.
 
+### #6946: keep the live probe on the partial index at chunk size
+
+The boundary recorded above (the alive probe abandoning the migration-118
+partial index once the candidate array reaches lock-chunk size) has two
+causes, both proven on the private Postgres 18 stack with the same seed as
+the shim table (2,000 active scopes, each with a superseded generation, 100
+admitted uids per generation; 400,000 `reducer_cloud_resource_identity`
+rows; `ANALYZE` after seeding; every measurement a rolled-back transaction
+unless stated):
+
+1. Estimate. Postgres does not use a partial index's expression statistics
+   for planning, so `payload->>'cloud_resource_uid' = ANY($1)` gets the
+   default 0.5% selectivity per element: 2,000 rows per candidate, so 500
+   candidates look like most of the table and the planner walks
+   `ingestion_scopes` into `fact_records_scope_generation_idx` (14,115
+   shared buffers, 39.6 ms). An `unnest`-driven join does not change that
+   (14,060 buffers); a MATERIALIZED CTE alone flips to a `Seq Scan` inside
+   the CTE at 500 candidates (12,078 buffers). Extended statistics on the
+   expression (`CREATE STATISTICS ... ON ((payload->>'cloud_resource_uid'))`)
+   are used: the estimate becomes 516 rows and the plan an `Index Scan
+   using fact_records_cloud_retract_admission_uid_idx` at 2 / 50 / 500
+   candidates (13 / 253 / 1,346 buffers; 0.04 / 0.23 / 1.7 ms).
+2. Join order. With the estimate right but dead tuples in the table (the
+   plan live test's earlier seeds), the planner twice chose a Merge Join
+   that scans `fact_records_scope_generation_idx` expecting early
+   termination (60-93 ms). A MATERIALIZED CTE that fetches the candidate
+   slice first removes that choice: with the statistics present the CTE
+   plans on the partial index and the outer join sees 516 rows, bloated or
+   vacuumed (1,369-1,372 buffers, 1.4-1.9 ms at 500; 328 at 50).
+
+Change: migration `119_cloud_resource_retract_liveness_stats.sql` (extended
+statistics plus `ANALYZE`) and `liveAdmissionCloudUIDsAliveSQL`, the
+admission read as a MATERIALIZED CTE, embedded verbatim in the fenced
+probe. The shape guard asserts both. Migration 103's note that
+`CREATE STATISTICS` did not move a multi-column join estimate is a different
+case: this is a single-expression equality whose only missing input is the
+expression's own ndistinct/MCV.
+
+Proof: `TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive`
+seeds the shape above, `VACUUM (ANALYZE)`s, explains the production read
+for 500 candidates and requires the partial index, no
+`fact_records_scope_generation_idx` scan, and at most 5,000 shared buffers.
+RED against the old probe without statistics ("did not use the partial uid
+index"), RED against the old probe with statistics on a bloated table (the
+Merge Join, twice), RED against the new probe with the statistics object
+dropped, GREEN after applying the migration file (three consecutive runs:
+1,700 / 1,393 / 1,393 buffers). The liveness live tests and the graph-side
+live battery pass on the new shape.
+
+Performance Evidence: before/after on the same seed and host, 500-candidate
+probe: 14,115 shared buffers and 39.6 ms (scope walk) -> 1,346-1,393
+buffers and 1.4-1.9 ms (partial index); 50 candidates 253-328 buffers /
+0.2-0.4 ms; 2 candidates 13 buffers. Row multiset identical (250 alive of
+500). ANALYZE cost is paid once at migration and by autovacuum afterwards.
+
+No-Observability-Change: no new metrics, spans, or log keys; the probe's
+row counts and the per-chunk retract log are unchanged.
+
 ## Performance Evidence: battery EXPLAIN, live shape, and live end-to-end (NornicDB + Postgres)
 
 - Live end-to-end (`TestLiveCloudRetractEndToEnd`, private Postgres 18 +

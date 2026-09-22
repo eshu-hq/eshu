@@ -61,6 +61,30 @@ SELECT work.scope_id || '/' || work.generation_id || '=' || work.status AS pendi
 ORDER BY work.scope_id, work.generation_id
 LIMIT 5`
 
+// liveAdmissionCloudUIDsAliveSQL is the admission read on its own: which of
+// the candidate uids have a live (active-generation, non-tombstone)
+// reducer_cloud_resource_identity row in any scope. The MATERIALIZED CTE
+// pins the plan (#6946): the candidate slice is fetched first through the
+// migration-118 partial expression index, then joined to ingestion_scopes.
+// Without it the planner is free to start from ingestion_scopes and walk
+// fact_records_scope_generation_idx (14k buffers per 500-candidate chunk at
+// 2,000 scopes) or to gamble on an early-terminating merge join; migration
+// 119's extended statistics make the CTE's estimate accurate so the index
+// wins inside it at every chunk size. Exported to the plan live test so it
+// explains exactly this statement.
+const liveAdmissionCloudUIDsAliveSQL = `
+WITH cand AS MATERIALIZED (
+  SELECT fact.scope_id, fact.generation_id, fact.payload->>'cloud_resource_uid' AS uid
+  FROM fact_records AS fact
+  WHERE fact.fact_kind = '` + cloudRetractAdmissionFactKind + `'
+    AND fact.is_tombstone = FALSE
+    AND fact.payload->>'cloud_resource_uid' = ANY($1::text[]))
+SELECT DISTINCT cand.uid AS uid
+FROM cand
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = cand.scope_id
+ AND scope.active_generation_id = cand.generation_id`
+
 // liveAdmissionCloudUIDsFencedSQL is the in-transaction probe: the fence
 // rows and the admission rows come back from ONE statement, so under READ
 // COMMITTED both see the same snapshot and a scope's active pointer cannot
@@ -73,14 +97,7 @@ const liveAdmissionCloudUIDsFencedSQL = `
  ORDER BY work.scope_id, work.generation_id
  LIMIT 5)
 UNION ALL
-(SELECT DISTINCT 'alive' AS kind, fact.payload->>'cloud_resource_uid' AS value
- FROM fact_records AS fact
- JOIN ingestion_scopes AS scope
-   ON scope.scope_id = fact.scope_id
-  AND scope.active_generation_id = fact.generation_id
- WHERE fact.fact_kind = '` + cloudRetractAdmissionFactKind + `'
-   AND fact.is_tombstone = FALSE
-   AND fact.payload->>'cloud_resource_uid' = ANY($1::text[]))`
+(SELECT 'alive' AS kind, alive.uid AS value FROM (` + liveAdmissionCloudUIDsAliveSQL + `) AS alive)`
 
 // liveEC2PostureUIDsSQL reports which candidate EC2 tuples still have a live
 // posture fact in some scope's current generation. The tuple predicate
