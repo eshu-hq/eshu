@@ -12,9 +12,11 @@ import (
 )
 
 // RequireImportEntries returns one import record per binding a require declarator
-// introduces, covering the plain, destructured, and property-of-module forms. It
-// returns nil for a node that is not a variable_declarator, and for one whose value
-// is not a statically resolvable require call.
+// introduces, covering the plain identifier, object-destructured and
+// property-of-module forms. It returns nil for a node that is not a
+// variable_declarator, for one whose value is not a statically resolvable require
+// call, and for any other binding form -- an array pattern such as
+// "const [a] = require(...)" is not destructured into entries.
 func RequireImportEntries(
 	node *tree_sitter.Node,
 	source []byte,

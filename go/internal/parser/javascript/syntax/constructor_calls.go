@@ -65,8 +65,10 @@ func CollectNewExpressionVariableType(
 // TypedBindingName returns the bound identifier of a possibly type-annotated
 // binding, preferring the grammar's name field and falling back to the text
 // before the first colon when that field is unset. The fallback strips a rest
-// prefix, an optional marker, and any default-value clause, and returns an empty
-// string when the text carries no annotation.
+// prefix, an optional marker and any default-value clause, then takes the last
+// whitespace-separated token, so a TypeScript parameter property such as
+// "public readonly foo: T" yields "foo" rather than its modifiers. It returns an
+// empty string when the text carries no annotation.
 func TypedBindingName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
