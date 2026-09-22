@@ -115,6 +115,14 @@ LIMIT $limit`, access.GraphPredicate("repo")), params)
 	return resources, nil
 }
 
+// LoadConfigDerivedCloudResourceDependencies returns the cloud resources
+// whose name, config path, resource ID, or ARN text-matches the deployment
+// evidence anchors, paginated by LIMIT. The ORDER BY must name every
+// projected alias for the same reason as
+// LoadMaterializedServiceCloudResourceDependencies: tied (name, id) rows
+// plus LIMIT truncation flip page contents between backends (#6933).
+// NULL placement stays implicit per that loader's contract: no explicit
+// NULL form parses on both backends.
 func LoadConfigDerivedCloudResourceDependencies(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
@@ -188,7 +196,7 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(c.account_id, '') AS account_id,
        coalesce(c.region, '') AS region,
        coalesce(c.config_path, '') AS config_path
-ORDER BY name, id
+ORDER BY name, id, kind, resource_type, provider, environment, resource_id, arn, account_id, region, config_path
 LIMIT $limit`, map[string]any{
 		"config_anchor_pattern": anchorPattern,
 		"limit":                 limit,

@@ -19,7 +19,7 @@ source_coverage:
       - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: 4e68e222f8f3a30f8a9eecdde969a0d9c7548928f6427b43085356917659d0ed, key_bound: single_key, max_results: 51}}
   - file: impacttrace/cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 7d33975ea4d3dbd2e2e57236a8b6d0cf52b6a65ea297bfaea95a8d89eb70f552, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: cb25567150f575246fd0cbdfe9d876db5ed4b5b1ba72b33d03fe1ae012d730d9, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
       - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: c12098c98fcc3e9bbdd585558eb57eaf01e5badd257e6f24068d61e04c86cb47, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: impacttrace/deployment_trace_enrichment.go
     calls:

@@ -48,6 +48,45 @@ func TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey(t *te
 	}
 }
 
+// TestLoadConfigDerivedCloudResourceDependenciesOrderByIsTotalKey extends
+// the #6782 entry-57 lesson (#6932, #6933) to the config-derived sibling:
+// its ORDER BY name, id plus LIMIT truncates tied rows in backend-undefined
+// order, so every projected alias must be a sort key with the name, id lead
+// preserved.
+func TestLoadConfigDerivedCloudResourceDependenciesOrderByIsTotalKey(t *testing.T) {
+	t.Parallel()
+	var captured string
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		captured = cypher
+		return nil, nil
+	}}
+	evidence := map[string]any{"artifacts": []any{map[string]any{
+		"relationship_type": "READS_CONFIG_FROM",
+		"matched_value":     "svc-proof",
+	}}}
+
+	_, _, err := LoadConfigDerivedCloudResourceDependenciesBounded(t.Context(), reader, evidence, 10)
+	if err != nil {
+		t.Fatalf("LoadConfigDerivedCloudResourceDependenciesBounded() error = %v", err)
+	}
+
+	aliases := returnAliases(t, captured)
+	keys := orderKeys(t, captured)
+	var missing []string
+	for _, alias := range aliases {
+		if !keys[alias] {
+			missing = append(missing, alias)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("ORDER BY misses projected aliases %q (keys %s)", missing, sortedKeys(keys))
+	}
+	ordered := orderKeyList(t, captured)
+	if len(ordered) < 2 || ordered[0] != "name" || ordered[1] != "id" {
+		t.Errorf("ORDER BY must lead with name, id to preserve existing order, got %q", ordered)
+	}
+}
+
 // sortedKeys renders the ORDER BY key set compactly for failure messages.
 func sortedKeys(keys map[string]bool) string {
 	list := make([]string, 0, len(keys))
