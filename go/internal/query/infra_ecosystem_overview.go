@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // ecosystemOverviewCounts lists the labels summarized by the ecosystem overview
@@ -98,7 +100,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 			"unsupported_capability",
 			"platform_impact.context_overview",
 			h.profile(),
-			requiredProfile("platform_impact.context_overview"),
+			querycontract.RequiredProfile("platform_impact.context_overview"),
 		)
 		return
 	}

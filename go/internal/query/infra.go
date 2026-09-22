@@ -201,7 +201,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 			"unsupported_capability",
 			"platform_impact.deployment_chain",
 			h.profile(),
-			requiredProfile("platform_impact.deployment_chain"),
+			querycontract.RequiredProfile("platform_impact.deployment_chain"),
 		)
 		return
 	}

@@ -356,7 +356,7 @@ func (h *CloudRuntimeDriftHandler) writeContractError(
 		w, r, status, message, code,
 		cloudRuntimeDriftReadbackCapability,
 		h.profile(),
-		requiredProfile(cloudRuntimeDriftReadbackCapability),
+		querycontract.RequiredProfile(cloudRuntimeDriftReadbackCapability),
 	)
 }
 

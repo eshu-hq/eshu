@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -82,7 +83,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 			ErrorCodeUnsupportedCapability,
 			cloudResourceListCapability,
 			h.profile(),
-			requiredProfile(cloudResourceListCapability),
+			querycontract.RequiredProfile(cloudResourceListCapability),
 		)
 		return
 	}
@@ -95,7 +96,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 			ErrorCodeBackendUnavailable,
 			cloudResourceListCapability,
 			h.profile(),
-			requiredProfile(cloudResourceListCapability),
+			querycontract.RequiredProfile(cloudResourceListCapability),
 		)
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -145,7 +146,7 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 			ErrorCodeUnsupportedCapability,
 			graphEntityInventoryCapability,
 			h.profile(),
-			requiredProfile(graphEntityInventoryCapability),
+			querycontract.RequiredProfile(graphEntityInventoryCapability),
 		)
 		return
 	}

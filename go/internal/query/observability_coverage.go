@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -83,7 +84,7 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 			ErrorCodeUnsupportedCapability,
 			observabilityCoverageCorrelationsCapability,
 			h.profile(),
-			requiredProfile(observabilityCoverageCorrelationsCapability),
+			querycontract.RequiredProfile(observabilityCoverageCorrelationsCapability),
 		)
 		return
 	}
@@ -133,7 +134,7 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 			ErrorCodeBackendUnavailable,
 			observabilityCoverageCorrelationsCapability,
 			h.profile(),
-			requiredProfile(observabilityCoverageCorrelationsCapability),
+			querycontract.RequiredProfile(observabilityCoverageCorrelationsCapability),
 		)
 		return
 	}

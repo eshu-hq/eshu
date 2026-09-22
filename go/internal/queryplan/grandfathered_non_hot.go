@@ -22,7 +22,7 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRelationshipCounts": "22168d083366531f6a88eeee694dc46f6fbc46bfa2d0e4815b32bbce42cee411",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoEcosystemMap":   "f1fbee8ad896a2c3047c9eb0a317a009e1cd61222dd1facf39a33926c52b0875",
 	"infra_graph_summary_packet.go:(*InfraHandler).graphSummaryRepoLanguages":      "40d0f7cbec027134499cc8398fbb75bda6819812002e675c5b11de57644b8e88",
-	"infra_relationship_filter.go:(*InfraHandler).getRelationships":                "8e93d2f5888cf3de38dafe0537c7c89c8821f5da4fb6ed580be70caea730a247",
+	"infra_relationship_filter.go:(*InfraHandler).getRelationships":                "90fb40b507dc65032cda01a89a4770dbeb406e2933c38964733c4b99b3ed00ba",
 	"neo4j.go:(*Neo4jReader).RelationshipTypes":                                    "0a1d2ac1a82d38e0bd8766758df6b1f894f95c94a169c2419666ab521f8bcce4",
 	"neo4j.go:(*Neo4jReader).RunSingle":                                            "b77731433ac905d12ca935b11decf557c81280901ef22fcdfb0a3bf2dedf1227",
 	"status.go:(*StatusHandler).getIndexStatus":                                    "573b83514e91247fca70bd919a4f22eb7491f2f600fb984c152d1906bd04b3f8",

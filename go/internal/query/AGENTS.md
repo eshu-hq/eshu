@@ -40,7 +40,7 @@
   not concrete types.
 
 - **Envelope negotiation is stable** — `WriteSuccess` branches on
-  `acceptsEnvelope(r)` (`handler.go:29`). MCP tool dispatch relies on the
+  `AcceptsEnvelope(r)` (`querycontract/http.go:38`). MCP tool dispatch relies on the
   `ResponseEnvelope` shape when `Accept: application/eshu.envelope+json` is
   sent. Do not change the envelope field names or remove the negotiation
   branch.

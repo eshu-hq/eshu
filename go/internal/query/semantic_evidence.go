@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -118,7 +119,7 @@ func (h *SemanticEvidenceHandler) list(
 			ErrorCodeUnsupportedCapability,
 			capability,
 			h.profile(),
-			requiredProfile(capability),
+			querycontract.RequiredProfile(capability),
 		)
 		return
 	}
@@ -296,7 +297,7 @@ func writeSemanticEvidenceError(
 	message string,
 	capability string,
 ) {
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:       code,
 			Message:    message,

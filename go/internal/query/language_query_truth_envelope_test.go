@@ -180,7 +180,8 @@ func TestHandleLanguageQueryContentBackedBranchReportsDerivedContentIndex(t *tes
 // TestHandleLanguageQueryPlainRequestGetsUnwrappedBody is the backward-
 // compatibility proof: WriteSuccess (handler.go) only wraps the response in a
 // ResponseEnvelope when the caller sends the envelope Accept header
-// (acceptsEnvelope); a caller that does not ask for the envelope must keep
+// (querycontract.AcceptsEnvelope); a caller that does not ask for the envelope
+// must keep
 // getting the identical plain data body it always has.
 func TestHandleLanguageQueryPlainRequestGetsUnwrappedBody(t *testing.T) {
 	t.Parallel()

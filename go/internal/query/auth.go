@@ -399,7 +399,7 @@ func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 func scopedRouteDeniedResponse(w http.ResponseWriter, r *http.Request) {
 	markScopedRouteDenied(r.Context())
 	const message = "scoped authorization is not yet enabled for this route"
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          ErrorCodePermissionDenied,
 			Message:       message,
@@ -416,7 +416,7 @@ func scopedRouteDeniedResponse(w http.ResponseWriter, r *http.Request) {
 
 func csrfDeniedResponse(w http.ResponseWriter, r *http.Request) {
 	const message = "csrf token is required for browser session requests"
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          ErrorCodePermissionDenied,
 			Message:       message,

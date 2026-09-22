@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 
@@ -89,7 +90,7 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 			ErrorCodeUnsupportedCapability,
 			relationshipsCatalogCapability,
 			h.profile(),
-			requiredProfile(relationshipsCatalogCapability),
+			querycontract.RequiredProfile(relationshipsCatalogCapability),
 		)
 		return
 	}
@@ -290,7 +291,7 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 			ErrorCodeUnsupportedCapability,
 			relationshipsCatalogCapability,
 			h.profile(),
-			requiredProfile(relationshipsCatalogCapability),
+			querycontract.RequiredProfile(relationshipsCatalogCapability),
 		)
 		return
 	}

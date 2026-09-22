@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -118,7 +119,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 			ErrorCodeUnsupportedCapability,
 			tagHistoryCapability,
 			h.profile(),
-			requiredProfile(tagHistoryCapability),
+			querycontract.RequiredProfile(tagHistoryCapability),
 		)
 		return
 	}
@@ -162,7 +163,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 			ErrorCodeBackendUnavailable,
 			tagHistoryCapability,
 			h.profile(),
-			requiredProfile(tagHistoryCapability),
+			querycontract.RequiredProfile(tagHistoryCapability),
 		)
 		return
 	}
@@ -437,7 +438,7 @@ func (h *TagHistoryHandler) tagHistoryBounds(
 				ErrorCodeCapabilityDegraded,
 				tagHistoryCapability,
 				h.profile(),
-				requiredProfile(tagHistoryCapability),
+				querycontract.RequiredProfile(tagHistoryCapability),
 			)
 			return 0, nil, 0, tagHistoryOutcomeCursorUnavailable
 		}

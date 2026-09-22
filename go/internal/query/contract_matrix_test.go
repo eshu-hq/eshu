@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"gopkg.in/yaml.v3"
 )
 
@@ -161,8 +162,8 @@ func TestLocalAuthoritativeSupportsFullStackPlatformImpactCapabilities(t *testin
 			if capabilityUnsupported(ProfileLocalAuthoritative, capability) {
 				t.Fatalf("%s is unsupported for %s", capability, ProfileLocalAuthoritative)
 			}
-			if got, want := requiredProfile(capability), ProfileLocalAuthoritative; got != want {
-				t.Fatalf("requiredProfile(%q) = %q, want %q", capability, got, want)
+			if got, want := querycontract.RequiredProfile(capability), ProfileLocalAuthoritative; got != want {
+				t.Fatalf("querycontract.RequiredProfile(%q) = %q, want %q", capability, got, want)
 			}
 			got := BuildTruthEnvelope(ProfileLocalAuthoritative, capability, TruthBasisHybrid, "test")
 			if got.Level != TruthLevelDerived {

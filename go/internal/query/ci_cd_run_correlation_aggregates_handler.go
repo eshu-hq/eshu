@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -37,7 +38,7 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 			ErrorCodeUnsupportedCapability,
 			cicdRunCorrelationAggregateCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
 		)
 		return
 	}
@@ -62,7 +63,7 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 			ErrorCodeBackendUnavailable,
 			cicdRunCorrelationAggregateCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
 		)
 		return
 	}
@@ -103,7 +104,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeUnsupportedCapability,
 			cicdRunCorrelationAggregateCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
 		)
 		return
 	}
@@ -145,7 +146,7 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeBackendUnavailable,
 			cicdRunCorrelationAggregateCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationAggregateCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationAggregateCapability),
 		)
 		return
 	}

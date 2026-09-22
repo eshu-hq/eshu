@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -40,7 +41,7 @@ func (h *DocumentationHandler) countDocumentationFindings(w http.ResponseWriter,
 			ErrorCodeBackendUnavailable,
 			documentationFindingAggregateCapability,
 			h.profile(),
-			requiredProfile(documentationFindingAggregateCapability),
+			querycontract.RequiredProfile(documentationFindingAggregateCapability),
 		)
 		return
 	}
@@ -102,7 +103,7 @@ func (h *DocumentationHandler) documentationFindingInventory(w http.ResponseWrit
 			ErrorCodeBackendUnavailable,
 			documentationFindingAggregateCapability,
 			h.profile(),
-			requiredProfile(documentationFindingAggregateCapability),
+			querycontract.RequiredProfile(documentationFindingAggregateCapability),
 		)
 		return
 	}

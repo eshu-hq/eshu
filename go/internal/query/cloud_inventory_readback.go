@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -162,7 +163,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeUnsupportedCapability,
 			cloudInventoryReadbackCapability,
 			h.profile(),
-			requiredProfile(cloudInventoryReadbackCapability),
+			querycontract.RequiredProfile(cloudInventoryReadbackCapability),
 		)
 		return
 	}
@@ -200,7 +201,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeInternalError,
 			cloudInventoryReadbackCapability,
 			h.profile(),
-			requiredProfile(cloudInventoryReadbackCapability),
+			querycontract.RequiredProfile(cloudInventoryReadbackCapability),
 		)
 		return
 	}
@@ -241,7 +242,7 @@ func (h *CloudInventoryHandler) writeReadModelUnavailable(w http.ResponseWriter,
 		ErrorCodeReadModelUnavailable,
 		cloudInventoryReadbackCapability,
 		h.profile(),
-		requiredProfile(cloudInventoryReadbackCapability),
+		querycontract.RequiredProfile(cloudInventoryReadbackCapability),
 	)
 }
 
@@ -373,7 +374,7 @@ func (h *CloudInventoryHandler) writeInvalidArgument(w http.ResponseWriter, r *h
 		ErrorCodeInvalidArgument,
 		cloudInventoryReadbackCapability,
 		h.profile(),
-		requiredProfile(cloudInventoryReadbackCapability),
+		querycontract.RequiredProfile(cloudInventoryReadbackCapability),
 	)
 }
 

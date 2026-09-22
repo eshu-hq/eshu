@@ -32,14 +32,15 @@ workflow for ecosystem-totals questions.
 
 **Handler contract, grouping dimensions, and bounds validation** —
 `go/internal/query/documentation_finding_aggregates_test.go`:
-`TestDocumentationFindingAggregateCountReturnsRollups`,
+`TestCountDocumentationFindingsReturnsRollups`,
 `TestDocumentationFindingAggregateInventoryReturnsBuckets`,
 `TestDocumentationFindingAggregateInventoryReportsTruncated`,
 `TestDocumentationFindingAggregateInventoryRejectsUnknownDimension`, and
 `TestDocumentationFindingAggregateInventoryRejectsOversizedLimit`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestDocumentationFindingAggregate -count=1
+cd go && go test ./internal/query \
+  -run 'TestDocumentationFindingAggregate|TestCountDocumentationFindings' -count=1
 ```
 
 **Store-unavailable honesty** —

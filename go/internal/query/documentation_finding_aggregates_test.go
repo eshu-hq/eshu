@@ -79,7 +79,7 @@ func TestDocumentationFindingAggregateRoutesReturn503WhenStoreMissing(t *testing
 	}
 }
 
-func TestDocumentationFindingAggregateCountReturnsRollups(t *testing.T) {
+func TestCountDocumentationFindingsReturnsRollups(t *testing.T) {
 	t.Parallel()
 
 	store := &stubDocumentationFindingAggregateStore{
