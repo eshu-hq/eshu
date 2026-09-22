@@ -305,6 +305,36 @@ func TestRunBackendDiffQuorumResultsBesideExecutionsFails(t *testing.T) {
 	}
 }
 
+// A reproduced digest disagreement on a registered transient read is not
+// a backend divergence: orphan scans read timing-dependent state, so the
+// gate holds them in a visible transient finding and stays green (#6782
+// option 1). RED: no transient exclusion exists, so quorum fails.
+func TestRunBackendDiffQuorumTransientOrphanPasses(t *testing.T) {
+	const orphan = "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+	writePair := func() (string, string) {
+		nornic := writeBackendDiffDirStmt(t, "nornicdb", orphan, "left")
+		neo := writeBackendDiffDirStmt(t, "neo4j", orphan, "right")
+		return nornic, neo
+	}
+	left, right := writePair()
+	left2, right2 := writePair()
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "transient_reads:\n- statement: \"" + orphan + "\"\n  reason: \"seeded transient read\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n  owner: \"graph\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	out, err := runBackendDiffQuorumPhaseOutput(t, left, right, left2, right2, allowlist)
+	if err != nil {
+		t.Fatalf("reproduced transient-read divergence failed quorum: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_transient") {
+		t.Fatalf("stdout = %q, want a transient finding", out)
+	}
+	if !strings.Contains(out, orphan) {
+		t.Fatalf("stdout = %q, want the transient finding to name the statement", out)
+	}
+}
+
 // appendStmt adds one more recorded statement to an existing capture dir.
 func appendStmt(t *testing.T, dir, backend, statement, digest string) {
 	t.Helper()

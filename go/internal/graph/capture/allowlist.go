@@ -4,6 +4,7 @@
 package capture
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -53,18 +54,45 @@ var allowlistTiers = map[string]string{
 // every divergence fails the gate until an entry names it with a reason
 // and an upstream issue link.
 type Allowlist struct {
-	entries []AllowlistEntry
+	entries   []AllowlistEntry
+	transient []TransientRead
 }
+
+// TransientRead is one registered transient-state read (option 1,
+// #6782): an orphan scan or readiness poll whose result depends on where
+// the drain is when the page is read, so a digest disagreement across
+// legs is timing, not backend truth. Unlike an allowlist entry it takes
+// no tier — the exclusion covers the observed-noise kinds by design —
+// and it is never stale-checked, because a transient read agrees on most
+// runs by definition.
+type TransientRead struct {
+	Statement  string `yaml:"statement"`
+	Parameters string `yaml:"parameters"`
+	Reason     string `yaml:"reason"`
+	Upstream   string `yaml:"upstream"`
+	Owner      string `yaml:"owner"`
+}
+
+// transientReadMarkers are the syntactic proof a statement reads
+// transient state: uid-anchored orphan scans and the orphan-observation
+// timestamp the sweep pages on. The parse guard requires one of them, so
+// a steady-state read can never be registered as transient by accident.
+var transientReadMarkers = []string{"uid IS NULL", "eshu_orphan_observed_at_unix"}
 
 // ParseAllowlist parses and validates raw allowlist YAML. A missing reason
 // or a missing/non-issue upstream link fails the parse, so a divergence
 // can never be silenced without an explanation and a tracked issue.
 func ParseAllowlist(raw []byte) (*Allowlist, error) {
 	var document struct {
-		Entries []AllowlistEntry `yaml:"entries"`
+		Entries   []AllowlistEntry `yaml:"entries"`
+		Transient []yaml.Node      `yaml:"transient_reads"`
 	}
 	if err := yaml.Unmarshal(raw, &document); err != nil {
 		return nil, fmt.Errorf("parse divergence allowlist: %w", err)
+	}
+	transient, err := parseTransientReads(document.Transient)
+	if err != nil {
+		return nil, err
 	}
 	for i, entry := range document.Entries {
 		if strings.TrimSpace(entry.Statement) == "" {
@@ -80,7 +108,117 @@ func ParseAllowlist(raw []byte) (*Allowlist, error) {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): upstream must be a GitHub issue URL", i, entry.Statement)
 		}
 	}
-	return &Allowlist{entries: document.Entries}, nil
+	return &Allowlist{entries: document.Entries, transient: transient}, nil
+}
+
+// parseTransientReads validates the transient_reads section: same
+// accountability as an allowlist entry (statement, reason, upstream
+// issue), no tier key (strict-decoded, so a tier is a parse error rather
+// than a silent no-op), and the transient-state guard — the statement
+// must carry one of the transientReadMarkers, proving it reads transient
+// state rather than steady-state truth.
+func parseTransientReads(nodes []yaml.Node) ([]TransientRead, error) {
+	reads := make([]TransientRead, 0, len(nodes))
+	for i, node := range nodes {
+		var read TransientRead
+		dec, err := strictNodeDecoder(node)
+		if err != nil {
+			return nil, fmt.Errorf("transient read %d: %w", i, err)
+		}
+		if err := dec.Decode(&read); err != nil {
+			return nil, fmt.Errorf("transient read %d: %w", i, err)
+		}
+		if strings.TrimSpace(read.Statement) == "" {
+			return nil, fmt.Errorf("transient read %d: statement is required", i)
+		}
+		if !isTransientStatement(read.Statement) {
+			return nil, fmt.Errorf("transient read %d (%q): statement shows no transient-state marker (want one of %q)", i, read.Statement, transientReadMarkers)
+		}
+		if strings.TrimSpace(read.Reason) == "" {
+			return nil, fmt.Errorf("transient read %d (%q): reason is required", i, read.Statement)
+		}
+		if !upstreamIssueRE.MatchString(strings.TrimSpace(read.Upstream)) {
+			return nil, fmt.Errorf("transient read %d (%q): upstream must be a GitHub issue URL", i, read.Statement)
+		}
+		reads = append(reads, read)
+	}
+	return reads, nil
+}
+
+// strictNodeDecoder decodes one YAML mapping node with unknown fields
+// rejected, so a misspelled or meaningless key (like a tier on a
+// transient read) fails loudly instead of parsing into a zero value the
+// gate would silently honor.
+func strictNodeDecoder(node yaml.Node) (*yaml.Decoder, error) {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	if err := enc.Encode(&node); err != nil {
+		return nil, fmt.Errorf("re-encode entry: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return nil, fmt.Errorf("close entry encoder: %w", err)
+	}
+	dec := yaml.NewDecoder(&buf)
+	dec.KnownFields(true)
+	return dec, nil
+}
+
+// isTransientStatement reports whether the statement carries a
+// transient-state marker. Case-sensitive and fail-closed: a future read
+// spelled differently is rejected at parse with the marker list, never
+// admitted silently.
+func isTransientStatement(statement string) bool {
+	for _, marker := range transientReadMarkers {
+		if strings.Contains(statement, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ExcludeTransient removes the divergences registered transient reads
+// explain and returns the rest alongside the excluded set for visible
+// reporting. A transient entry matches by statement fingerprint with
+// optional parameter narrowing, like an allowlist entry, but only for
+// the observed-noise kinds (results, rowcount, executions): a backend
+// error or a one-sided recording on a transient read stays required, so
+// the exclusion can never mask a real breakage. Unlike Excuse there is
+// no staleness error — a transient read agrees on most runs by design.
+func (a *Allowlist) ExcludeTransient(diffs []backendconformance.DifferentialDifference) (remaining, excluded []backendconformance.DifferentialDifference) {
+	if a == nil {
+		return diffs, nil
+	}
+	for _, diff := range diffs {
+		if transientExcludes(a.transient, diff) {
+			excluded = append(excluded, diff)
+			continue
+		}
+		remaining = append(remaining, diff)
+	}
+	return remaining, excluded
+}
+
+// transientExcludes reports whether any registered transient read covers
+// diff's statement without narrowing it away by parameters, restricted
+// to the observed-noise divergence kinds.
+func transientExcludes(reads []TransientRead, diff backendconformance.DifferentialDifference) bool {
+	switch diff.Kind {
+	case backendconformance.DivergenceResults,
+		backendconformance.DivergenceRowCount,
+		backendconformance.DivergenceExecutions:
+	default:
+		return false
+	}
+	for _, read := range reads {
+		if read.Statement != diff.Fingerprint.Statement {
+			continue
+		}
+		if read.Parameters != "" && read.Parameters != diff.Fingerprint.Parameters {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // Excuse removes the divergences the allowlist names and returns the rest.

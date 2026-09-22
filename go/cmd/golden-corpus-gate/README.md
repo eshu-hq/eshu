@@ -82,7 +82,12 @@ through the `results` and `missing` kinds on every read. The
 advisory finding's detail names the top 3 statements by reproduced-divergence
 count (`backendconformance.TopAdvisoryStatementReports`), not only the first
 recorded, so a regression concentrated on a handful of statements is visible
-without reading the full pairing dump.
+without reading the full pairing dump. Divergences on registered
+transient-state reads (`transient_reads` in the allowlist spec, #6782
+option 1 — orphan scans whose digest disagrees across legs because the
+result depends on the drain point) report in their own advisory finding
+(`nornicdb_vs_neo4j_transient`), never in the executions advisory whose
+"agreeing results" wording would be false, and never as a failure.
 
 That advisory total is otherwise unbounded (#6941): a backend regression that
 triples drain passes would still report as an advisory `WARN` and pass the
