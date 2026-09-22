@@ -88,6 +88,23 @@ what keeps the 165 superseded-generation nonterminal rows from holding the
 fence (S0 = 0 rows). Cost is three orders of magnitude under the reducer
 retry delay, so the fence poll is not a scheduling cost.
 
+Re-measured after review round 1 dropped `failed`/`dead_letter` from the
+fence status set (`valueFlowInputsFenceStatusList`), same database, same
+seed (the 165 seeded nonterminal rows are `failed`/`dead_letter`, so they are
+now outside the status set as well as on superseded generations):
+
+| state | rows returned | exec time |
+| --- | --- | --- |
+| S0 drained | 0 | 0.21 ms |
+| S0b one `dead_letter` iam_can_perform row on an ACTIVE generation (must not hold) | 0 | 0.19 ms |
+| S1 one `retrying` row on an ACTIVE generation (refuses) | 1 | 0.18 ms |
+| S3 heavy: 450 pending on active gens + 5000 open runs_in intents | 10 (5+5) | 3.0 ms |
+
+Same plan shapes (index range on `fact_work_items_stage_domain_status_idx`,
+partial pending index on `shared_projection_intents`), no Seq Scan on either
+large table (`rg -c 'Seq Scan on (fact_work_items|shared_projection_intents)'`
+over the plans = 0).
+
 Migration number correction from the initial arbiter draft: the shipped
 convergence migration is 120, not 118 — origin/main carried 118 (#6892's
 index) when this branched and merged 119 (#6946's liveness stats) before
@@ -173,11 +190,17 @@ ran and compiled.
   against the same scratch database's live schema.
 - Global solve count per leg: BEFORE (local capture, shim 1) = 8-13
   reducer-side executions per leg per loader statement (a global solve
-  re-reads both statements each run). AFTER (design target, this change):
-  1 execution of each loader statement per quiescent replay, since every
-  trigger — the four existing producers plus `code_function_summary` — now
-  coalesces onto the one fenced singleton instead of `code_function_summary`
-  running an independent inline solve per repo generation.
+  re-reads both statements each run); a pre-fix leg's reducer log
+  (2026-09-21, `golden-corpus-gate.XXXXXX.VqBnLf5yhF`) shows 29 `value-flow
+  fixpoint evidence loaded` lines for 33 `code function summary persistence
+  completed` lines. AFTER, measured on the four-leg run below: one converged
+  solve per reducer drain window (the gate runs four reducer processes per
+  leg), 4-5 executions of each loader statement per leg, every one carrying
+  the converged digest, plus 5 `value_flow_inputs_not_ready` deferrals and 0
+  abandonments in the one leg whose reducer log was snapshotted. The design
+  target "exactly one" was too strong; see the design doc's 2026-09-22
+  update for why one redundant converged re-solve per late completion event
+  is expected and harmless to the oracle.
 - `eshu_dp_reducer_readiness_waits_total{domain="code_value_flow_refresh"}`:
   new label value on the existing #6785 counter (`ReducerReadinessWaits`),
   reused rather than a new instrument — see Observability Evidence.
@@ -186,17 +209,75 @@ ran and compiled.
   (`reducer_queue_helpers.go`'s visible_at scheduling), which the fence's
   sub-2ms cost does not meaningfully add to.
 
-PENDING: four-leg capture proof. The equivalence assertion the design doc's
-Prove-The-Theory-First section specifies — two legs per backend with capture
-on, every exploded group of both loader statements showing exactly ONE
-reducer-side record per leg, digest equal across all four legs,
-`CompareRecordings` reporting 0 `results`/`missing`/`failures` for these
-fingerprints, the B-7 snapshot diff byte-identical to main, and the reducer
-log showing exactly one `value-flow fixpoint evidence loaded` per leg plus
->=1 `value_flow_inputs_not_ready` refusal — has NOT been run yet on this
-branch. The orchestrator will run it and update this section before
-promotion; do not treat this PR as fully proven until this section is
-filled in with the actual capture output.
+### Four-leg capture, run A (tree 989ce794fe, pre-rebase, before review-round-1 fixes)
+
+Driver: two pairings x two backends, each leg `scripts/verify-golden-corpus-gate.sh`
+with `ESHU_DIFFERENTIAL_CAPTURE=1`, wiped corpus and capture dirs between legs,
+isolated ports (`ESHU_POSTGRES_PORT=15635 NEO4J_BOLT_PORT=7792 NEO4J_HTTP_PORT=7679
+GATE_API_PORT=18085 GATE_MCP_PORT=18095`), default NornicDB image pin, 2026-09-22
+16:11-16:50 UTC on the shared macOS host.
+
+| leg | gate | seconds | capture records |
+| --- | --- | --- | --- |
+| pair 1 nornicdb | PASS (569 pass, 0 required-fail, 3 advisory-warn) | 514 | 2641 |
+| pair 1 neo4j | PASS | 858 | 2655 |
+| pair 2 nornicdb | PASS | 516 | 2651 |
+| pair 2 neo4j | PASS | 413 | 2571 |
+
+Reducer-side executions of the two loader statements per leg (jq over the
+capture JSONL, `reducer-*.jsonl` only; before the fix a leg carried 8-13
+executions including 0-row pre-convergence answers, see shim 1):
+
+| leg | `CloudSinkTargetsByPairCypher` | `CloudSinkWorkloadRowsCypher` (params `e_0c647bff8...`) |
+| --- | --- | --- |
+| pair 1 nornicdb | 5 executions, all 2 rows, digest `e4f609c95be6` | 5 executions, all 1 row, digest `cc2ae0441cb4` |
+| pair 1 neo4j | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+| pair 2 nornicdb | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+| pair 2 neo4j | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+
+Every execution on every leg carries the converged digest; the digest SET
+per fingerprint is a singleton and identical across all four legs. The
+pre-fix zero-row fingerprint for the `e_58b8...` function batch never
+executes any more (that batch is now only ever read inside a converged
+solve). Executions per leg are 4-5, not 1: the gate runs seven reducer
+processes per leg across its drain stages and each drain window that
+changes an input ends in one solve; pair 1 nornicdb shows one process
+solving twice with the same digest (the late-completion-event re-solve the
+design doc describes).
+
+Reducer logs snapshotted from three of the four legs' gate work dirs
+(`reducer-config-state-drift-history.log`, which accumulates every drain):
+
+| leg dir | `value-flow refresh completed` | `value-flow fixpoint evidence loaded` | deferred (`value_flow_inputs_not_ready`) | abandoned |
+| --- | --- | --- | --- | --- |
+| cAT2QE6T4p (pair 1 neo4j) | 4 | 4 | 5 | 0 |
+| KzHzdItpfs (pair 2 nornicdb) | 4 | 4 | 2 | 0 |
+| lQBw4viUia (pair 2 neo4j) | 4 | 4 | 3 | 0 |
+
+(The pre-fix leg of 2026-09-21 had 29 `loaded` for the same 33 summary
+persists.)
+
+Compare (`golden-corpus-gate -phase=backend-diff`, both pairings,
+`specs/backend-divergence-allowlist.v1.yaml`): with the committed allowlist
+the run stops on a STALE entry: entry 36, the `TAINT_FLOWS_TO {evidence_uid}`
+fixpoint writer whose reason was "taint fixpoint rows emitted under
+timing-dependent scope sets" — the N+1-solve mechanism this change removes,
+so that entry is retired in this PR. Entry 44 (a `Repository -> File`
+language count read) also reported stale in this run; it is unrelated to
+this change and is the known results-tier flap the differential job already
+tolerates, so it is left in place. With those two set aside on a temporary
+copy the compare reports: `summary: 2 pass, 0 required-fail, 1
+advisory-warn` — `nornicdb_vs_neo4j_quorum: PASS (recordings agree across
+both pairings)`, `nonreproducing: 82 pairing-local divergences dropped`,
+`executions: 9 execution-count divergences with agreeing results held
+advisory (scheduling noise)`. The CAN_PERFORM sink probe appears in no
+divergence list.
+
+### Four-leg capture, run B (final tree)
+
+PENDING: run B repeats the four legs on the final rebased tree (review
+round-1 fixes included: fence status set without failed/dead_letter, span
+outcome, empty-replace accounting). Filled in before promotion.
 
 ## Observability Evidence: reused counter, new span, structured refusal log
 

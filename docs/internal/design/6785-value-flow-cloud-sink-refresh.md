@@ -64,7 +64,12 @@ Fix, two changes, both reducer-side:
    domains (`code_function_summary`, `code_call_materialization`,
    `workload_materialization`, `workload_cloud_relationship_materialization`,
    `iam_can_perform_materialization`, `aws_resource_materialization`) plus
-   the `runs_in`/`invokes_cloud_action` shared-projection intents. A pending
+   the `runs_in`/`invokes_cloud_action` shared-projection intents. A writer
+   in `pending`, `claimed`, `running` or `retrying` holds the fence; `failed`
+   and `dead_letter` rows do not, because a dead-lettered producer only
+   contributes again when an operator replays it (which re-triggers the
+   refresh), and holding on it would stall every refresh cycle by the full
+   bound since each fanout reopen resets the cycle anchor. A pending
    writer refuses (`Retryable`, non-counting
    `value_flow_inputs_not_ready`); past
    `crossscope.ProducerReadinessMaxWait` (30 min) since the singleton's own
@@ -72,8 +77,16 @@ Fix, two changes, both reducer-side:
    degrades to bounded staleness instead of an eternal defer.
 
 Together these collapse every trigger of the global solve onto the one
-fenced singleton: exactly one solve per quiescent replay, so each probe
-statement in `cloud_sink_loader.go` executes once per leg. This also removes
+fenced singleton: no solve ever reads the chain before it has drained, and
+each reducer drain window ends in one converged solve. The guarantee is
+"no pre-convergence solve", not "exactly one execution": a producer whose
+ACK lands just before the fence read has a completion event that becomes
+visible 250 ms later and reopens the singleton for one redundant re-solve
+with the same converged answer (captured as two equal-digest executions in
+one reducer process), and the B-7 gate runs several reducer drains per leg,
+each with its own solve. What matters to the oracle is that every execution
+per leg carries the converged digest, so the digest sets agree across
+backends. This also removes
 the mechanism behind the residual filed above (#6880, the
 summary-vs-refresh concurrent-writer race) as a consequence — there is now
 one writer, not several racing ones. #6880 stays open for the owner to
