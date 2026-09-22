@@ -287,11 +287,11 @@ engine_tsx_component_wrapper_test.go)**:
 - **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_ast_conversion_test.go`
 - **Comprehensive golden fixtures**: js/ts/tsx comprehensive golden fixtures in `engine_long_tail_test.go`
 - **TypeScript import/export re-exports from root (Fastify shape)**:
-  `dead_code_typescript_import_exports_test.go:TestTypeScriptImportedExportClauseReexportsFromRootHandlesFastifyShape`
+  `deadcode/typescript_import_exports_test.go:TestTypeScriptImportedExportClauseReexportsFromRootHandlesFastifyShape`
 - **Block comments ignored in re-export clauses**:
-  `dead_code_typescript_import_exports_test.go:TestTypeScriptImportedExportClauseReexportsFromRootIgnoresBlockComments`
+  `deadcode/typescript_import_exports_test.go:TestTypeScriptImportedExportClauseReexportsFromRootIgnoresBlockComments`
 - **Imported type references from public declarations**:
-  `dead_code_typescript_import_exports_test.go:TestTypeScriptImportedTypeReferencesFromPublicDeclarations`
+  `deadcode/typescript_import_exports_test.go:TestTypeScriptImportedTypeReferencesFromPublicDeclarations`
 
 ## Edge Cases NOT Considered
 - **Empty JS/TS/TSX file**: no test for zero-byte source.
