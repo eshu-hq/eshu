@@ -18,20 +18,20 @@ const APISurfaceEndpointLimit = 50
 const repositoryAPISurfaceEndpointLimit = APISurfaceEndpointLimit
 
 // queryRepoAPISurface reads API endpoint graph truth for repository context.
-func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) map[string]any {
+func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) (map[string]any, bool) {
 	countRows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:EXPOSES_ENDPOINT]->(endpoint:Endpoint)
 		RETURN count(endpoint) AS endpoint_count
 	`, params)
 	if err != nil {
-		return nil
+		return nil, true
 	}
 	endpointCount := 0
 	if len(countRows) > 0 {
 		endpointCount = querycontract.IntVal(countRows[0], "endpoint_count")
 	}
 	if endpointCount == 0 {
-		return nil
+		return nil, false
 	}
 	detailParams := querycontract.CopyMap(params)
 	detailParams["limit"] = repositoryAPISurfaceEndpointLimit
@@ -51,10 +51,13 @@ func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, p
 		ORDER BY path, endpoint_id
 		LIMIT $limit
 	`, detailParams)
-	if err != nil || len(rows) == 0 {
-		return nil
+	if err != nil {
+		return nil, true
 	}
-	return buildGraphAPISurface(rows, endpointCount)
+	if len(rows) == 0 {
+		return nil, false
+	}
+	return buildGraphAPISurface(rows, endpointCount), false
 }
 
 // buildGraphAPISurface converts Endpoint nodes into the API surface contract.
@@ -144,6 +147,6 @@ func countFrameworkEndpointRows(rows []map[string]any) int {
 
 // queryRepoAPISurface keeps the in-package spelling after the #6060 export;
 // root stayers name QueryRepoAPISurface.
-func queryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) map[string]any {
+func queryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) (map[string]any, bool) {
 	return QueryRepoAPISurface(ctx, reader, params)
 }

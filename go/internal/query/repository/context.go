@@ -48,11 +48,15 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	contentCoverage := loadRepositoryContentCoverage(ctx, h.Content, repoID)
 	readModelSummary := querycontract.LoadRepositoryReadModelSummary(ctx, h.Content, repoID)
 	relationshipReadModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
+	partialReasons := make([]string, 0)
 	if relationshipReadModel != nil {
-		relationshipReadModel = mergeRepositoryDeployableUnitRelationships(
-			relationshipReadModel,
-			queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params),
-		)
+		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployable_unit_relationships")
+		deployableUnitRows, deployableUnitDegraded := queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params)
+		timer.Done(ctx, degradedReadLogAttrs(len(deployableUnitRows), deployableUnitDegraded, deployableUnitRelationshipsReadDegradedReason)...)
+		if deployableUnitDegraded {
+			partialReasons = append(partialReasons, deployableUnitRelationshipsReadDegradedReason)
+		}
+		relationshipReadModel = mergeRepositoryDeployableUnitRelationships(relationshipReadModel, deployableUnitRows)
 		// #5167 W3 P0 (fourth vector): bind the merged read-model relationship
 		// rows and consumers to the caller's grant before result["relationships"],
 		// result["relationship_overview"], and result["consumers"] derive from
@@ -91,11 +95,13 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		"dependency_count": counts.dependencyCount,
 	}
 
-	partialReasons := make([]string, 0)
-
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "entry_points")
-	result["entry_points"] = queryRepoEntryPoints(ctx, h.Neo4j, h.Content, params)
-	timer.Done(ctx, slog.Int("row_count", len(result["entry_points"].([]map[string]any))))
+	entryPoints, entryPointsDegraded := queryRepoEntryPoints(ctx, h.Neo4j, h.Content, params)
+	result["entry_points"] = entryPoints
+	timer.Done(ctx, degradedReadLogAttrs(len(entryPoints), entryPointsDegraded, entryPointsReadDegradedReason)...)
+	if entryPointsDegraded {
+		partialReasons = append(partialReasons, entryPointsReadDegradedReason)
+	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "infrastructure")
 	infrastructure, infrastructureDegraded, infrastructureTruncated := queryRepoInfrastructure(ctx, h.Neo4j, h.Content, params)
@@ -109,21 +115,29 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "relationships")
+	relationshipsDegraded := false
 	if dependencies := repositoryReadModelDependencies(relationshipReadModel); dependencies != nil {
 		result["relationships"] = dependencies
 	} else {
-		result["relationships"] = queryRepoDependencies(ctx, h.Neo4j, params)
+		result["relationships"], relationshipsDegraded = queryRepoDependencies(ctx, h.Neo4j, params)
 	}
-	timer.Done(ctx, slog.Int("row_count", len(result["relationships"].([]map[string]any))))
+	timer.Done(ctx, degradedReadLogAttrs(len(result["relationships"].([]map[string]any)), relationshipsDegraded, relationshipsReadDegradedReason)...)
+	if relationshipsDegraded {
+		partialReasons = append(partialReasons, relationshipsReadDegradedReason)
+	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "relationship_overview")
 	var relationshipRows []map[string]any
+	relationshipOverviewDegraded := false
 	if relationshipReadModel != nil {
 		relationshipRows = relationshipReadModel.Relationships
 	} else {
-		relationshipRows = queryRepoRelationshipOverview(ctx, h.Neo4j, params)
+		relationshipRows, relationshipOverviewDegraded = queryRepoRelationshipOverview(ctx, h.Neo4j, params)
 	}
-	timer.Done(ctx, slog.Int("row_count", len(relationshipRows)))
+	timer.Done(ctx, degradedReadLogAttrs(len(relationshipRows), relationshipOverviewDegraded, relationshipOverviewReadDegradedReason)...)
+	if relationshipOverviewDegraded {
+		partialReasons = append(partialReasons, relationshipOverviewReadDegradedReason)
+	}
 	if len(relationshipRows) == 0 {
 		relationshipRows = result["relationships"].([]map[string]any)
 	}
@@ -132,18 +146,26 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "consumers")
+	consumersDegraded := false
 	if relationshipReadModel != nil {
 		result["consumers"] = relationshipReadModel.Consumers
 	} else {
-		result["consumers"] = queryRepoConsumers(ctx, h.Neo4j, params)
+		result["consumers"], consumersDegraded = queryRepoConsumers(ctx, h.Neo4j, params)
 	}
-	timer.Done(ctx, slog.Int("row_count", len(result["consumers"].([]map[string]any))))
+	timer.Done(ctx, degradedReadLogAttrs(len(result["consumers"].([]map[string]any)), consumersDegraded, consumersReadDegradedReason)...)
+	if consumersDegraded {
+		partialReasons = append(partialReasons, consumersReadDegradedReason)
+	}
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "api_surface")
-	if apiSurface := queryRepoAPISurface(ctx, h.Neo4j, params); len(apiSurface) > 0 {
+	apiSurface, apiSurfaceDegraded := queryRepoAPISurface(ctx, h.Neo4j, params)
+	if apiSurfaceDegraded {
+		partialReasons = append(partialReasons, apiSurfaceReadDegradedReason)
+	}
+	if len(apiSurface) > 0 {
 		result["api_surface"] = apiSurface
-		timer.Done(ctx, slog.Int("row_count", len(apiSurface)))
+		timer.Done(ctx, degradedReadLogAttrs(len(apiSurface), apiSurfaceDegraded, apiSurfaceReadDegradedReason)...)
 	} else {
-		timer.Done(ctx, slog.Int("row_count", 0))
+		timer.Done(ctx, degradedReadLogAttrs(0, apiSurfaceDegraded, apiSurfaceReadDegradedReason)...)
 	}
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployment_evidence")
 	deploymentEvidence, err := queryRepoDeploymentEvidence(ctx, h.Neo4j, h.Content, params)
@@ -192,27 +214,38 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		timer.Done(ctx, slog.Bool("error", err != nil))
 	}
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "languages")
+	languagesDegraded := false
 	if languages, ok := repositoryLanguageDistributionFromCoverage(contentCoverage); ok {
 		result["languages"] = languages
 	} else {
-		result["languages"] = queryRepoLanguageDistribution(ctx, h.Neo4j, params)
+		result["languages"], languagesDegraded = queryRepoLanguageDistribution(ctx, h.Neo4j, params)
 	}
-	timer.Done(ctx, slog.Int("row_count", len(result["languages"].([]map[string]any))))
+	timer.Done(ctx, degradedReadLogAttrs(len(result["languages"].([]map[string]any)), languagesDegraded, languagesReadDegradedReason)...)
+	if languagesDegraded {
+		partialReasons = append(partialReasons, languagesReadDegradedReason)
+	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "tech_fingerprint")
 	languageBreakdown := buildLanguageBreakdownFromRows(result["languages"].([]map[string]any))
 	if len(languageBreakdown) > 0 {
 		result["language_breakdown"] = languageBreakdown
 	}
-	sourceToolBreakdown := buildSourceToolBreakdownFromRows(queryRepoSourceToolBreakdown(ctx, h.Neo4j, params))
+	sourceToolRows, sourceToolDegraded := queryRepoSourceToolBreakdown(ctx, h.Neo4j, params)
+	sourceToolBreakdown := buildSourceToolBreakdownFromRows(sourceToolRows)
 	if len(sourceToolBreakdown) > 0 {
 		result["source_tool_breakdown"] = sourceToolBreakdown
 	}
-	timer.Done(
-		ctx,
+	if sourceToolDegraded {
+		partialReasons = append(partialReasons, sourceToolBreakdownReadDegradedReason)
+	}
+	fingerprintAttrs := []slog.Attr{
 		slog.Int("language_count", len(languageBreakdown)),
 		slog.Int("source_tool_count", len(sourceToolBreakdown)),
-	)
+	}
+	if sourceToolDegraded {
+		fingerprintAttrs = append(fingerprintAttrs, slog.String("failure_class", sourceToolBreakdownReadDegradedReason))
+	}
+	timer.Done(ctx, fingerprintAttrs...)
 
 	result["partial_reasons"] = partialReasons
 

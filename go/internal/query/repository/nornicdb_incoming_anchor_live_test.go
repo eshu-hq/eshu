@@ -108,15 +108,15 @@ func TestLiveNornicDBRepositoryIncomingAnchor(t *testing.T) {
 		t.Run(tc.repo, func(t *testing.T) {
 			params := map[string]any{"repo_id": tc.repo}
 
-			overview := incomingRows(queryRepoRelationshipOverview(ctx, reader, params))
-			oldOverview := queryRepoRelationshipOverviewDirection(ctx, reader, params, incomingAnchorOldOverview)
+			overview := incomingRows(healthyRows(t, "overview")(queryRepoRelationshipOverview(ctx, reader, params)))
+			oldOverview := healthyRows(t, "pre-change overview")(queryRepoRelationshipOverviewDirection(ctx, reader, params, incomingAnchorOldOverview))
 			assertIncomingRows(t, "overview", overview, incomingRows(oldOverview), tc.overviewIn)
 
-			deployable := incomingRows(queryRepoDeployableUnitRelationshipOverview(ctx, reader, params))
-			oldDeployable := queryRepoRelationshipOverviewDirection(ctx, reader, params, incomingAnchorOldDeployableUnit)
+			deployable := incomingRows(healthyRows(t, "deployable unit")(queryRepoDeployableUnitRelationshipOverview(ctx, reader, params)))
+			oldDeployable := healthyRows(t, "pre-change deployable unit")(queryRepoRelationshipOverviewDirection(ctx, reader, params, incomingAnchorOldDeployableUnit))
 			assertIncomingRows(t, "deployable unit", deployable, incomingRows(oldDeployable), tc.deployableIn)
 
-			consumers := joinField(queryRepoConsumers(ctx, reader, params), "name")
+			consumers := joinField(healthyRows(t, "consumers")(queryRepoConsumers(ctx, reader, params)), "name")
 			oldConsumerRows, err := reader.Run(ctx, incomingAnchorOldConsumers, params)
 			if err != nil {
 				t.Fatalf("old consumers read: %v", err)
@@ -125,6 +125,20 @@ func TestLiveNornicDBRepositoryIncomingAnchor(t *testing.T) {
 				t.Fatalf("consumers = %q, pre-change = %q, want %q", consumers, old, tc.consumers)
 			}
 		})
+	}
+}
+
+// healthyRows unwraps a helper's (rows, degraded) pair and fails the parity
+// proof if the live read degraded: a failed read must never pass as an empty
+// row set here (#6810).
+func healthyRows(t *testing.T, name string) func([]map[string]any, bool) []map[string]any {
+	t.Helper()
+	return func(rows []map[string]any, degraded bool) []map[string]any {
+		t.Helper()
+		if degraded {
+			t.Fatalf("%s read degraded; the parity proof needs a healthy read", name)
+		}
+		return rows
 	}
 }
 

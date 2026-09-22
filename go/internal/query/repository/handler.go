@@ -361,8 +361,11 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "relationships")
-		relationships := queryRepoDependencies(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID})
-		timer.Done(r.Context(), slog.Int("row_count", len(relationships)))
+		relationships, relationshipsDegraded := queryRepoDependencies(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID})
+		timer.Done(r.Context(), degradedReadLogAttrs(len(relationships), relationshipsDegraded, relationshipsReadDegradedReason)...)
+		if relationshipsDegraded {
+			storyLimitations = append(storyLimitations, relationshipsReadDegradedReason)
+		}
 		if relationshipOverview := buildRepositoryRelationshipOverview(relationships); relationshipOverview != nil {
 			if infrastructureOverview == nil {
 				infrastructureOverview = map[string]any{}

@@ -61,7 +61,7 @@ func TestQueryRepoEntryPointsUsesContentRowsBeforeGraph(t *testing.T) {
 		},
 	}
 
-	got := repository.QueryRepoEntryPoints(
+	got, _ := repository.QueryRepoEntryPoints(
 		t.Context(),
 		reader,
 		content,
@@ -90,7 +90,7 @@ func TestQueryRepoEntryPointsFiltersNonEntrypointGraphRows(t *testing.T) {
 		},
 	}
 
-	got := repository.QueryRepoEntryPoints(t.Context(), reader, nil, map[string]any{"repo_id": "repo-1"})
+	got, _ := repository.QueryRepoEntryPoints(t.Context(), reader, nil, map[string]any{"repo_id": "repo-1"})
 	if len(got) != 1 {
 		t.Fatalf("len(queryRepoEntryPoints) = %d, want 1 graph entry-point row: %#v", len(got), got)
 	}

@@ -114,7 +114,7 @@ func TestQueryServiceTechFingerprintOmitsBreakdownsWhenNoRepoID(t *testing.T) {
 	}
 
 	workloadCtx := map[string]any{"name": "empty-repo-svc"} // no repo_id key
-	langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(context.Background(), reader, workloadCtx)
+	langBreakdown, toolBreakdown, _ := repository.QueryServiceTechFingerprint(context.Background(), reader, workloadCtx)
 
 	if langBreakdown != nil {
 		t.Errorf("language_breakdown = %v, want nil when repo_id missing", langBreakdown)
