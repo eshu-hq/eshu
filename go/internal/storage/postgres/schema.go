@@ -200,7 +200,7 @@ const (
 	OwnershipWaitEnv = "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT"
 	// LockRetryBudgetEnv bounds the total backoff one migration statement may
 	// spend retrying after lock_timeout.
-	LockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET"
+	LockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET" // #nosec G101 -- environment variable name, not a credential value
 )
 
 // BootstrapOptionsFromEnv returns options whose OwnershipWait and
