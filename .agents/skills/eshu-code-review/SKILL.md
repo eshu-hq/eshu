@@ -48,6 +48,13 @@ or the user explicitly requests self-review, name that mode and limitation. An
 external-review replacement has additional independence requirements in
 `eshu-issue-driver`; author-side review does not satisfy that second review.
 
+This skill runs at **Workhorse tier**; see
+[default model bindings by tier](../../../docs/internal/agent-orchestration.md#default-model-bindings-by-tier).
+A Deep-tier orchestrator dispatches it to the reviewer role rather than
+reviewing inline. The role carries the model binding -- `review-eshu` on Claude
+Code and opencode, a review profile on Codex -- so this skill never names a
+model, and a subagent never changes its own.
+
 ## Promotion And Evidence Reuse
 
 After focused proof, complete a preliminary full review before push. Do not
