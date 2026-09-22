@@ -229,9 +229,11 @@ func splitValueFlowRefreshAckIntents(
 // materialization (the CloudResource node writer). Exported so
 // TestValueFlowInputsFenceDomainsCoverCloudSinkChain
 // (go/internal/reducer/code/value) can assert this set covers every
-// relationship type and every node label the two probe statements in
-// go/internal/reducer/code/value/cloud_sink_loader.go traverse, plus the
-// shared-intent enqueuer, so this list cannot drift from those statements.
+// relationship type the two probe statements in
+// go/internal/reducer/code/value/cloud_sink_loader.go traverse, every node
+// label they traverse (directly or through the fenced edge writer that
+// anchors on it), the shared-intent enqueuer, and the fixpoint input
+// producer, so this list cannot drift from those statements.
 var ValueFlowInputsFenceReducerDomains = []reducer.Domain{
 	reducer.DomainCodeFunctionSummary,
 	reducer.DomainCodeCallMaterialization,

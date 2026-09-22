@@ -145,9 +145,14 @@ relationship-type writers, so dropping `aws_resource_materialization` (the
 `CloudResource` node writer) or `code_function_summary` (the `Function` node
 writer) from the fence list left it green. The guard now also extracts every
 node label the two probe statements traverse (`Function`, `CloudAction`,
-`Workload`, `WorkloadInstance`, `CloudResource`), maps each to its writer
-domain, fails on an unmapped label, and asserts `code_call_materialization`
-(the shared-intent enqueuer) stays fenced. Seeded violation, orchestrator-run
+`Workload`, `WorkloadInstance`, `CloudResource`), maps each to the fenced
+domain whose completion guarantees the node is present (Function is covered
+transitively by the `runs_in` edge writer, which anchors on the Function node
+and whose intents stay open until the producing phase has published; the
+`:Function` writer itself is `code/semantic` materialization and is not
+fenced), fails on an unmapped label, and asserts `code_call_materialization`
+(the shared-intent enqueuer) and `code_function_summary` (the fixpoint input
+producer) stay fenced. Seeded violation, orchestrator-run
 with the mutation asserted unique: replacing `reducer.DomainAWSResourceMaterialization,`
 in the fence list with a comment ->
 `--- FAIL: TestValueFlowInputsFenceDomainsCoverCloudSinkChain` /

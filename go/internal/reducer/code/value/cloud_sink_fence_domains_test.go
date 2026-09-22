@@ -32,13 +32,22 @@ var cloudSinkChainBracketPattern = regexp.MustCompile(`\[[^\]]*\]`)
 // these NODES, not only of the relationships between them: a Function that
 // does not exist yet or a CloudResource still materializing makes the probe
 // read a partial chain exactly as a missing edge does.
-var cloudSinkChainNodeLabelPattern = regexp.MustCompile(`\(\w*:([A-Z][A-Za-z]+)`)
+var cloudSinkChainNodeLabelPattern = regexp.MustCompile(`\(\w*:([A-Z][A-Za-z0-9_]+)`)
 
 // cloudSinkChainNodeLabelOwners maps every node label the probe statements
-// traverse to the fenced domain that writes it. An unmapped label fails the
-// guard so a new hop cannot go unfenced silently.
+// traverse to the fenced domain whose completion guarantees that node is
+// present for the probe. An unmapped label fails the guard so a new hop
+// cannot go unfenced silently.
+//
+// Function is covered transitively, not by its writer: the :Function MERGE
+// belongs to code/semantic materialization, which is not fenced, but both
+// fenced edge writers anchor on MATCH (func:Function {uid: ...}) and the
+// shared worker holds runs_in/invokes_cloud_action intents until the
+// producing phase has published, so a Function that is not materialized yet
+// keeps its intents open and the fence refuses on them. runs_in is the
+// canonical cover here (invokes_cloud_action is its sibling).
 var cloudSinkChainNodeLabelOwners = map[string]reducer.Domain{
-	"Function":         reducer.DomainCodeFunctionSummary,
+	"Function":         reducer.DomainRunsIn,
 	"CloudAction":      reducer.DomainCodeCallMaterialization,
 	"Workload":         reducer.DomainWorkloadMaterialization,
 	"WorkloadInstance": reducer.DomainWorkloadMaterialization,
@@ -229,6 +238,12 @@ func TestValueFlowInputsFenceDomainsCoverCloudSinkChain(t *testing.T) {
 	// the reducer half refuses while those intents are still being produced.
 	if _, covered := fenced[reducer.DomainCodeCallMaterialization]; !covered {
 		t.Errorf("domain %q (shared-intent enqueuer) is not in the fence's declared domain set", reducer.DomainCodeCallMaterialization)
+	}
+	// code_function_summary writes no graph node; it is fenced because it
+	// persists the function summaries, sources, and graph ids the fixpoint
+	// loads as inputs, and it is the fifth refresh producer.
+	if _, covered := fenced[reducer.DomainCodeFunctionSummary]; !covered {
+		t.Errorf("domain %q (fixpoint input producer) is not in the fence's declared domain set", reducer.DomainCodeFunctionSummary)
 	}
 
 	for relType := range relTypes {
