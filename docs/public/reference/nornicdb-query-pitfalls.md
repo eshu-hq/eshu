@@ -329,7 +329,7 @@ deadline and repository context rendered no incoming rows.
 
 Write an incoming read from the bound node with `<-[...]-`, keeping `RETURN`
 and `ORDER BY` unchanged. `TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository`
-(`go/internal/query/repository`) guards the repository context reads.
+(`go/internal/query/repository`) guards the context and deployment-evidence reads (#6794, #6811).
 
 ## Pitfall: Outer Aggregation Over A `CALL { ... }` Subquery Collapses The Group Key
 
