@@ -234,6 +234,37 @@ and `service_story_target_support.go:4` each record "methods on the root
 `ContentReader` must live in package query". The `content/read/` leaf is what
 retires all four.
 
+## How much of the mapping the receiver test actually settles
+
+The receiver test is decisive where it applies, and it applies to just over half
+the tree. Of the 250 mapped files, **135 (54%) declare at least one method**;
+the other 115 are free functions, types and constants that no receiver pins
+anywhere. Those were placed from the cross-reference graph — which destination's
+files actually call them — and, where that was also silent, from the name.
+
+Twenty-nine destinations are settled mainly by receiver. Thirteen are not, and
+those are where a move PR's own census is most likely to disagree with this
+page:
+
+| destination | files | declare a method | placed from |
+| --- | ---: | ---: | --- |
+| `auth/route` | 24 | 1 | the scoped-route registration cluster; free functions throughout |
+| `content/relationship` | 9 | 1 | reference graph |
+| `investigation/packet` | 8 | 0 | reference graph |
+| `auth` | 8 | 2 | reference graph |
+| `ask` | 6 | 2 | reference graph |
+| `capability`, `compare` | 4 each | 1 each | reference graph |
+| `repository/seam` | 3 | 0 | reference graph |
+| `supply/chain` | 3 | 1 | reference graph |
+| `code/seam`, `semantic` | 2 each | 0 | reference graph |
+| `decode`, `semantic/evidence` | 1 each | 0 | reference graph |
+
+`auth/route` is the one to watch: 24 files, one receiver between them. They are
+a registration cluster, and the grouping is as good as the reference graph makes
+it, not better. Like the reducer plan's triage roll, these rows are
+**proposed here and confirmed by the move PR's own `go/types` census**; where
+the census disagrees, the census wins and this page is amended.
+
 ## Build-tagged files
 
 One non-test root file is behind a build tag: `entity_alias_live.go`
