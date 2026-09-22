@@ -285,11 +285,57 @@ both pairings)`, `nonreproducing: 82 pairing-local divergences dropped`,
 advisory (scheduling noise)`. The CAN_PERFORM sink probe appears in no
 divergence list.
 
-### Four-leg capture, run B (final tree)
+### Four-leg capture, run B (final runtime tree)
 
-PENDING: run B repeats the four legs on the final rebased tree (review
-round-1 fixes included: fence status set without failed/dead_letter, span
-outcome, empty-replace accounting). Filled in before promotion.
+Same driver, same ports, 2026-09-22 16:52-17:23 UTC, on the tree carrying the
+rebase onto main 5d26325ee2 and the review round-1 fixes (fence status set
+without `failed`/`dead_letter`, span outcome, at-least-one-write replace
+accounting). Round 2 changed only tests, docs and a contract comment, and
+the final rebase onto 4a04039dbb touched no file this branch touches, so
+run B covers the runtime code that ships.
+
+| leg | gate | seconds | capture records |
+| --- | --- | --- | --- |
+| pair 1 nornicdb | PASS | 438 | 2622 |
+| pair 1 neo4j | PASS | 486 | 2589 |
+| pair 2 nornicdb | PASS | 445 | 2633 |
+| pair 2 neo4j | PASS | 464 | 2571 |
+
+Reducer-side executions of the two loader statements per leg (seven
+reducer processes per leg):
+
+| leg | `CloudSinkTargetsByPairCypher` | `CloudSinkWorkloadRowsCypher` |
+| --- | --- | --- |
+| pair 1 nornicdb | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+| pair 1 neo4j | 5 executions, all 2 rows, `e4f609c95be6` | 5 executions, all 1 row, `cc2ae0441cb4` |
+| pair 2 nornicdb | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+| pair 2 neo4j | 4 executions, all 2 rows, `e4f609c95be6` | 4 executions, all 1 row, `cc2ae0441cb4` |
+
+Every execution converged; digest sets are singletons and identical across
+all four legs and identical to run A. The at-least-one-write replace rule
+did not raise the execution count (4-5 per leg, as in run A).
+
+Reducer logs snapshotted from three legs (`reducer-config-state-drift-history.log`):
+
+| leg dir | completed | loaded | deferred | abandoned | fence `error` outcome |
+| --- | --- | --- | --- | --- | --- |
+| bYPlPDOW2r | 4 | 4 | 4 | 0 | 0 |
+| JFSvGdzAjO | 4 | 4 | 4 | 0 | 0 |
+| XDfdwvB90b | 5 | 5 | 3 | 0 | 0 |
+
+Compare, run twice: (1) inside the driver with the binary built from the
+run-B tree, committed allowlist (entry 36 retired): exit 0. (2) After the
+final rebase, with `golden-corpus-gate` rebuilt from head f3cecb1bb9 (which
+carries #6941's comparison changes) and CI's
+`-diff-executions-advisory-max=200`: exit 0, `summary: 2 pass, 0
+required-fail, 1 advisory-warn`, `nornicdb_vs_neo4j_quorum: PASS`,
+`nonreproducing: 87 pairing-local divergences dropped`, `executions: 5
+execution-count divergences with agreeing results held advisory`, no stale
+entry (entry 44 did not flap in this run), no `TAINT_FLOWS_TO` `missing`
+divergence now that entry 36 is unexcused, and the CAN_PERFORM sink probe
+in no divergence list. Logs: `/tmp/6923-legs-runB/compare.log`,
+`/tmp/6923-legs-runB/compare-final.log`; captures
+`/tmp/diff-capture-6923-runB/pair{1,2}/{nornicdb,neo4j}`.
 
 ## Observability Evidence: reused counter, new span, structured refusal log
 
