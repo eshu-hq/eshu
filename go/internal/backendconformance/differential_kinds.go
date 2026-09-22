@@ -10,8 +10,9 @@ import (
 )
 
 // Divergence kinds name the check that caught a difference, so the
-// divergence allowlist can excuse scheduling noise without ever excusing a
-// result disagreement: "missing" (one-sided group), "results" (digest sets
+// divergence allowlist can excuse a named dialect divergence without ever
+// excusing a result disagreement, and the gate can hold execution-count
+// noise advisory (see [AdvisoryKind]): "missing" (one-sided group), "results" (digest sets
 // differ), "executions" (same result sets, different execution counts),
 // "failures" (failed-execution counts differ), "rowcount" (same result sets
 // and execution counts, different row totals).
@@ -171,6 +172,33 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 		return strings.Compare(x.Fingerprint.Parameters, y.Fingerprint.Parameters)
 	})
 	return diffs
+}
+
+// AdvisoryKind reports whether a divergence kind is advisory at the gate.
+// Only executions is: agreeing result sets with different execution counts
+// are scheduling noise by this package's own definition (drain passes,
+// retries, regrouped batches), and the two backends drain at systematically
+// different speeds, so the difference reproduces across leg pairings and
+// quorum cannot filter it. Excusing it statement by statement in the
+// allowlist was open-ended whack-a-mole (#6782 permanent disposition,
+// 2026-09-21). Row truth stays covered: results and missing on the reads
+// compare final state, and failures still catches a one-sided error.
+func AdvisoryKind(kind string) bool {
+	return kind == DivergenceExecutions
+}
+
+// SplitAdvisory partitions diffs into the gate-failing divergences and the
+// advisory ones (see [AdvisoryKind]), preserving input order in both. Nil
+// in, nil out on both sides.
+func SplitAdvisory(diffs []DifferentialDifference) (required, advisory []DifferentialDifference) {
+	for _, diff := range diffs {
+		if AdvisoryKind(diff.Kind) {
+			advisory = append(advisory, diff)
+			continue
+		}
+		required = append(required, diff)
+	}
+	return required, advisory
 }
 
 // quorumKey identifies one divergence across leg pairings: the same

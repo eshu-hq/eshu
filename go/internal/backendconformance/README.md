@@ -87,8 +87,11 @@ No-Observability-Change: unchanged from above — no new signals.
 
 `CompareRecordings` diffs recordings group by group with a named kind per
 divergence (`missing`, `results`, `executions`, `failures`, `rowcount`), so
-the allowlist excuses scheduling noise without ever excusing a result
-disagreement. UNWIND batches and single-use IN-list filters explode into
+the allowlist excuses a named dialect divergence without ever excusing a
+result disagreement. `AdvisoryKind`/`SplitAdvisory` hold the `executions`
+kind advisory at the gate (#6782 permanent disposition): agreeing result
+sets with different execution counts are drain-pass noise that reproduces
+across quorum pairings because the backends drain at different speeds. UNWIND batches and single-use IN-list filters explode into
 per-element groups (batch regrouping across runs pairs element-wise);
 fingerprints normalize the run generation stamp wherever it propagates
 (`generation_id` keys, `resolved_id` middles, `artifact_id` cells); digest

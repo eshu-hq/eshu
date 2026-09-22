@@ -3,7 +3,10 @@
 
 package backendconformance
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // TestCompareRecordingsLabelsDivergenceKinds pins the kind decomposition of
 // issue #6782 slice 3: every divergence carries the check that caught it, so
@@ -122,5 +125,50 @@ func TestQuorumIntersectionDropsDisjointPairings(t *testing.T) {
 	}
 	if kept := QuorumIntersection(first, nil); len(kept) != 0 {
 		t.Fatalf("quorum kept %v against an empty pairing, want none", kept)
+	}
+}
+
+// TestSplitAdvisorySeparatesExecutions pins the permanent disposition of the
+// executions kind (#6782): agreeing result sets with different execution
+// counts are scheduling noise by the classifier's own definition, so they
+// partition into the advisory slice and never into the gate-failing one.
+// Every other kind stays required, and both slices keep input order.
+func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (a) RETURN a"), Kind: DivergenceResults},
+		{Fingerprint: fp("MATCH (b) RETURN b"), Kind: DivergenceExecutions},
+		{Fingerprint: fp("MATCH (c) RETURN c"), Kind: DivergenceMissing},
+		{Fingerprint: fp("MATCH (d) RETURN d"), Kind: DivergenceExecutions},
+		{Fingerprint: fp("MATCH (e) RETURN e"), Kind: DivergenceFailures},
+		{Fingerprint: fp("MATCH (f) RETURN f"), Kind: DivergenceRowCount},
+	}
+	required, advisory := SplitAdvisory(diffs)
+	wantRequired := []string{"MATCH (a) RETURN a", "MATCH (c) RETURN c", "MATCH (e) RETURN e", "MATCH (f) RETURN f"}
+	wantAdvisory := []string{"MATCH (b) RETURN b", "MATCH (d) RETURN d"}
+	got := func(ds []DifferentialDifference) []string {
+		out := make([]string, 0, len(ds))
+		for _, d := range ds {
+			out = append(out, d.Fingerprint.Statement)
+		}
+		return out
+	}
+	if g := got(required); !slices.Equal(g, wantRequired) {
+		t.Fatalf("required = %v, want %v", g, wantRequired)
+	}
+	if g := got(advisory); !slices.Equal(g, wantAdvisory) {
+		t.Fatalf("advisory = %v, want %v", g, wantAdvisory)
+	}
+	for _, kind := range []string{DivergenceMissing, DivergenceResults, DivergenceFailures, DivergenceRowCount} {
+		if AdvisoryKind(kind) {
+			t.Fatalf("AdvisoryKind(%q) = true, want false: only executions is advisory", kind)
+		}
+	}
+	if !AdvisoryKind(DivergenceExecutions) {
+		t.Fatal("AdvisoryKind(executions) = false, want true")
+	}
+	if r, a := SplitAdvisory(nil); r != nil || a != nil {
+		t.Fatalf("SplitAdvisory(nil) = %v, %v; want nil, nil", r, a)
 	}
 }

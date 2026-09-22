@@ -36,18 +36,17 @@ type AllowlistEntry struct {
 // for scheduling noise can never cover a result disagreement on the same
 // statement. "statement" excuses any kind on the named statement (a genuine
 // whole-statement dialect divergence); any other tier excuses only its named
-// kind (see backendconformance.Divergence*). An executions-tier entry is
-// result-agreement-conditional by construction — it only matches when both
-// backends returned the same result sets — so it is exempt from the stale
-// match requirement: poll iteration counts agree exactly on some runs, and a
-// flap between stale-failure and excuse would make the gate nondeterministic.
+// kind (see backendconformance.Divergence*). There is no executions tier:
+// execution-count noise with agreeing results is advisory at the gate
+// (backendconformance.AdvisoryKind, #6782 permanent disposition), so it
+// needs no excuse, and every remaining tier must match at least one
+// divergence per run or the entry is stale.
 var allowlistTiers = map[string]string{
-	"statement":  "",
-	"missing":    backendconformance.DivergenceMissing,
-	"results":    backendconformance.DivergenceResults,
-	"executions": backendconformance.DivergenceExecutions,
-	"failures":   backendconformance.DivergenceFailures,
-	"rowcount":   backendconformance.DivergenceRowCount,
+	"statement": "",
+	"missing":   backendconformance.DivergenceMissing,
+	"results":   backendconformance.DivergenceResults,
+	"failures":  backendconformance.DivergenceFailures,
+	"rowcount":  backendconformance.DivergenceRowCount,
 }
 
 // Allowlist is the parsed divergence allowlist. It is empty by default:
@@ -72,7 +71,7 @@ func ParseAllowlist(raw []byte) (*Allowlist, error) {
 			return nil, fmt.Errorf("divergence allowlist entry %d: statement is required", i)
 		}
 		if _, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]; !ok {
-			return nil, fmt.Errorf("divergence allowlist entry %d (%q): tier must be one of statement, missing, results, executions, failures, rowcount", i, entry.Statement)
+			return nil, fmt.Errorf("divergence allowlist entry %d (%q): tier must be one of statement, missing, results, failures, rowcount (executions is advisory at the gate since #6782 and needs no entry)", i, entry.Statement)
 		}
 		if strings.TrimSpace(entry.Reason) == "" {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): reason is required", i, entry.Statement)
@@ -108,8 +107,7 @@ func (a *Allowlist) Excuse(diffs []backendconformance.DifferentialDifference) ([
 		}
 	}
 	for i, entry := range a.entries {
-		kind := allowlistTiers[strings.TrimSpace(entry.Tier)]
-		if !matched[i] && kind != backendconformance.DivergenceExecutions {
+		if !matched[i] {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): matched no divergence in this run (stale)", i, entry.Statement)
 		}
 	}
