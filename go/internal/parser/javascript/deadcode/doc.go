@@ -35,13 +35,15 @@
 // ways. Nothing about the parse seam moved, which #6062 requires stay at the
 // root pending the LanguageProvider decision.
 //
-// The two seams differ in how they treat nil, and neither is blanket-safe.
-// A nil SiblingSource answers "no sibling evidence" rather than panicking, but
-// only when consulted through rootForFile: calling RootForFile on a nil
-// interface panics, so callers inside this package must not invoke the method
-// directly. FrameworkEvidence has no nil tolerance at all -- roots.go calls
-// its methods directly and every caller passes a non-nil implementation
-// (javascript.frameworkEvidence, a stateless struct{}).
+// Both seams treat a nil implementation as absence of evidence rather than as
+// a programming error, and neither is blanket-safe: that answer holds only when
+// the seam is consulted through its package-local wrapper. Call rootForFile
+// rather than SiblingSource.RootForFile, and frameworkRootKinds,
+// expressSemantics or isControllerMethod rather than the FrameworkEvidence
+// method, because dispatching on a nil interface panics where the concrete
+// pointers these interfaces replaced returned a zero answer. Production always
+// supplies a real implementation; a nil reaches the seam through tests and
+// through exported entry points such as RegisteredDeadCodeRootKinds.
 //
 // This package may import javascript/syntax and javascript/project. It must
 // never import the parent javascript package.

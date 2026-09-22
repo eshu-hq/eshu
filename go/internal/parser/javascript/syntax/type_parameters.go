@@ -116,6 +116,9 @@ func splitTopLevelSections(text string) []string {
 	return sections
 }
 
+// TypeParameters returns the declared type-parameter names on node's
+// type_parameters field, in declaration order. An empty slice, never nil, is
+// returned when node declares none.
 func TypeParameters(node *tree_sitter.Node, source []byte) []string {
 	if node == nil {
 		return []string{}

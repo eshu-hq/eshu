@@ -10,6 +10,11 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// ReExportEntries returns one import record per symbol a barrel re-exports from a
+// relative module, collapsing "export * from" to a single "*" entry. It returns nil
+// for a node that is not an export_statement, and for one whose specifier is a
+// package rather than a relative path, since only relative re-exports resolve to a
+// file inside the repository.
 func ReExportEntries(
 	node *tree_sitter.Node,
 	source []byte,
@@ -52,6 +57,10 @@ func ReExportEntries(
 	return items
 }
 
+// ReExportSource returns the unquoted module specifier of an export statement,
+// reading the grammar's source field and falling back to the text after "from"
+// when that field is unset. It returns an empty string when the statement
+// re-exports nothing.
 func ReExportSource(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -136,6 +145,10 @@ func IsStarReExport(node *tree_sitter.Node, source []byte) bool {
 	return true
 }
 
+// ReExportSpecifiers returns each "name as alias" mapping in an export clause,
+// defaulting the exported name to the original name when no alias is present. It
+// falls back to parsing the brace-delimited clause text when the grammar produces
+// no export_specifier children.
 func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifier {
 	specifiers := make([]ReExportSpecifier, 0)
 	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {

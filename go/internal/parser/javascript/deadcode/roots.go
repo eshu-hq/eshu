@@ -14,6 +14,13 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// Evidence is the per-file dead-code root evidence gathered once per parse.
+// RootKinds answers per declaration from it, so the filesystem and AST work
+// behind these fields happens once rather than per declaration (#4925).
+//
+// Callers outside this package must obtain one from RootEvidence rather than
+// composing a literal: the framework seam it carries is unexported, and a
+// zero value would answer as though no framework evidence existed.
 type Evidence struct {
 	registeredRootKinds map[string][]string
 	typeScriptRootKinds map[string][]string
@@ -32,6 +39,12 @@ type Evidence struct {
 	framework FrameworkEvidence
 }
 
+// RootEvidence gathers every per-file dead-code root signal for path in one
+// pass: framework route registrations, Hapi handler/plugin/controller
+// placement, TypeScript public surface, and the package manifest entry points.
+//
+// siblingParser and framework may both be nil; each is then read as absence of
+// that evidence rather than as an error.
 func RootEvidence(
 	repoRoot string,
 	path string,
@@ -60,7 +73,7 @@ func RootEvidence(
 		registeredRootKinds,
 		javaScriptCommonJSDefaultExportAliasRootKinds(root, source),
 	)
-	MergeRegisteredRootKinds(registeredRootKinds, framework.RegisteredRootKinds(root, source, fastifyBases, expressBases, koaBases))
+	MergeRegisteredRootKinds(registeredRootKinds, frameworkRootKinds(framework, root, source, fastifyBases, expressBases, koaBases))
 	if hapiHandlerFile {
 		MergeRegisteredRootKinds(
 			registeredRootKinds,
@@ -93,6 +106,14 @@ var javaScriptRouteExportNames = map[string]struct{}{
 	"OPTIONS": {},
 }
 
+// ExpressRouteMethods is the set of Express router method names that register a
+// route. Membership is what makes a call like app.get(path, handler) a route
+// registration, and so makes its handler a dead-code root.
+//
+// The keys are lower case; every lookup lowers the method name first. It is
+// exported because the parent package's route-entry detection and its Express
+// semantics match against this same set, and a route the three read differently
+// would be a root to one and dead to another.
 var ExpressRouteMethods = map[string]struct{}{
 	"get":     {},
 	"post":    {},
@@ -103,6 +124,11 @@ var ExpressRouteMethods = map[string]struct{}{
 	"options": {},
 }
 
+// RegisteredDeadCodeRootKinds returns the dead-code root kinds implied by
+// framework route registrations in root, keyed by lower-cased handler name.
+//
+// framework may be nil, which is read as no framework evidence and yields an
+// empty result.
 func RegisteredDeadCodeRootKinds(
 	root *tree_sitter.Node,
 	source []byte,
@@ -114,7 +140,7 @@ func RegisteredDeadCodeRootKinds(
 	}
 
 	allowedBases := make(map[string]struct{})
-	if express, ok := framework.ExpressSemantics(root, source); ok {
+	if express, ok := expressSemantics(framework, root, source); ok {
 		for _, symbol := range javaScriptExpressServerSymbols(express) {
 			allowedBases[strings.ToLower(strings.TrimSpace(symbol))] = struct{}{}
 		}
@@ -181,6 +207,9 @@ func ExpressServerSymbols(express map[string]any) []string {
 	return serverSymbols
 }
 
+// RootKinds returns the dead-code root kinds for one declaration, using the
+// per-file evidence gathered by RootEvidence. An empty result means the
+// declaration is reachable only through an in-repository caller.
 func RootKinds(
 	path string,
 	node *tree_sitter.Node,
@@ -260,7 +289,7 @@ func RootKinds(
 	for _, rootKind := range evidence.typeScriptRootKinds[strings.TrimSpace(name)] {
 		rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 	}
-	if evidence.framework.IsControllerMethod(node, source, evidence.Parents) {
+	if isControllerMethod(evidence.framework, node, source, evidence.Parents) {
 		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.nestjs_controller_method")
 	}
 	slices.Sort(rootKinds)

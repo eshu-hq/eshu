@@ -87,16 +87,19 @@ path live in the parent `javascript` package, which owns the parse lifecycle.
 
 ## Gotchas / invariants
 
-- **A nil `SiblingSource` means absence of evidence, and you must go through
-  `rootForFile` to get that.** This is subtler than it looks and it bit this
-  refactor. The parameter used to be a concrete `*javaScriptSiblingParser`
-  whose method guarded `p == nil`, so a nil parser answered ok false. A nil
-  typed pointer and a nil *interface* are not alike: the first dispatches to
-  the method, the second panics. Production always supplies a real parser, but
-  tests pass nil and the walk-count tests only survived because they also pass
-  `repoRoot ""` and return before the seam. `rootForFile` restores the
-  pre-#6771 behaviour; `sibling_test.go` pins it with a control that fails
-  loudly if an earlier guard starts short-circuiting the probe.
+- **A nil at either seam means absence of evidence, and you must go through
+  the wrapper to get that.** This is subtler than it looks and it bit this
+  refactor twice. Each parameter used to be a concrete pointer whose method
+  guarded `p == nil`, so a nil answered ok false. A nil typed pointer and a nil
+  *interface* are not alike: the first dispatches to the method, the second
+  panics. Production always supplies a real implementation, but tests pass nil
+  and the walk-count tests only survived because they also pass `repoRoot ""`
+  and return before the seam. `rootForFile` restores the pre-#6771 behaviour
+  for `SiblingSource`; `frameworkRootKinds`, `expressSemantics` and
+  `isControllerMethod` do the same for `FrameworkEvidence`, which shipped in
+  #6940 without one. `sibling_test.go` and `framework_test.go` pin both, each
+  with a control that fails loudly if an earlier guard starts short-circuiting
+  the probe.
 - **Never import the parent.** Go would reject the cycle, and the census behind
   #6771 shows how readily this directory's call graph produces one. New
   framework knowledge belongs in the parent, reached through

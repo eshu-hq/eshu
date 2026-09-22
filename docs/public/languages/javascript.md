@@ -76,6 +76,19 @@ Focused coverage lives in
 `go/internal/query/codequery/deadcode/javascript_roots_test.go`, and
 `go/internal/query/codequery/deadcode/node_typescript_matrix_test.go`.
 
+Dead-code detection lives in `go/internal/parser/javascript/deadcode`, split
+out of the parser package by #6771. Deciding that a call registers a framework
+route, or reading a sibling file's exports, belongs to the parent parser, so
+the subpackage asks for those answers through two interfaces it declares
+itself: `SiblingSource` and `FrameworkEvidence`. Declaring them in the consumer
+is what keeps the compiled dependency pointing one way while the call graph
+still runs both, and it is why the dead-code files can be a package at all.
+
+Both seams read a missing implementation as absence of that evidence rather
+than as an error, so a caller that supplies neither still gets dead-code
+answers -- fewer roots, not a failure. `deadcode/sibling_test.go` and
+`deadcode/framework_test.go` pin that behaviour per seam.
+
 ## Support Maturity
 
 | Dimension | Status |

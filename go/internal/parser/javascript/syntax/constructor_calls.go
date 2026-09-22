@@ -62,6 +62,13 @@ func CollectNewExpressionVariableType(
 	}
 }
 
+// TypedBindingName returns the bound identifier of a possibly type-annotated
+// binding, preferring the grammar's name field and falling back to the text
+// before the first colon when that field is unset. The fallback strips a rest
+// prefix, an optional marker and any default-value clause, then takes the last
+// whitespace-separated token, so a TypeScript parameter property such as
+// "public readonly foo: T" yields "foo" rather than its modifiers. It returns an
+// empty string when the text carries no annotation.
 func TypedBindingName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -86,6 +93,10 @@ func TypedBindingName(node *tree_sitter.Node, source []byte) string {
 	return fields[len(fields)-1]
 }
 
+// FunctionReturnTypes maps each named function, generator, method, and
+// function-valued variable under root to its declared return type, skipping any
+// declaration missing either a name or an annotation. A repeated name keeps the
+// last declaration walked.
 func FunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
 	returnTypes := make(map[string]string)
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
@@ -111,6 +122,12 @@ func FunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]strin
 	return returnTypes
 }
 
+// CallInferredObjectType returns the recorded type of a member call's receiver,
+// carrying a constructor binding's type through to its later method calls. The
+// receiver text is matched whole, so a compound receiver resolves only when it
+// was recorded under exactly that text and is never matched by its base. It
+// returns an empty string when functionNode is not a member expression, when
+// typesByVariable is empty, and when the receiver has no recorded type.
 func CallInferredObjectType(
 	functionNode *tree_sitter.Node,
 	source []byte,
@@ -136,6 +153,9 @@ func CallInferredObjectType(
 	return typesByVariable[receiver]
 }
 
+// DeclaredTypeName returns the leaf name of a declaration's type annotation,
+// reading the grammar's type field and falling back to a direct type_annotation
+// child. It returns an empty string when the declaration carries no annotation.
 func DeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -156,6 +176,10 @@ func DeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	return ""
 }
 
+// NewExpressionConstructorName returns the trailing constructor name and the full
+// constructor expression of a new expression, so "new pkg.Thing()" yields "Thing"
+// and "pkg.Thing". It falls back to parsing the node text when the grammar leaves
+// the constructor field unset, and returns two empty strings for any other node.
 func NewExpressionConstructorName(node *tree_sitter.Node, source []byte) (string, string) {
 	if node == nil || node.Kind() != "new_expression" {
 		return "", ""
