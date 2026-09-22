@@ -1,0 +1,20 @@
+go/internal/backendconformance/README.md
+  h_78a442cba0b3e6 92-96
+go/internal/backendconformance/differential_kinds.go
+  h_78a442cba0b3e6 197-199
+go/internal/graph/capture/AGENTS.md
+  h_78a442cba0b3e6 41-43
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 24-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44505afb2473f85fe63119fdea9dd7886366e959",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
