@@ -112,7 +112,7 @@ Supported today:
 - AWS/GCP SDK evidence (`framework_semantics.{aws,gcp}.services` and
   `.client_symbols`) is parsed as framework evidence only. It is not modeled
   as a dead-code root kind (`javaScriptDeadCodeRootKinds` in
-  `go/internal/parser/javascript/dead_code_roots.go` never reacts
+  `go/internal/parser/javascript/deadcode/roots.go` never reacts
   to it) and has no dedicated query surface today.
 
 Not claimed today:

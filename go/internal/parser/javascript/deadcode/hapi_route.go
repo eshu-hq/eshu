@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"strings"
@@ -27,33 +27,33 @@ func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, sou
 		javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source, parents)
 }
 
-func javaScriptHapiRouteHandlerReferenceCall(
+func HapiRouteHandlerReferenceCall(
 	node *tree_sitter.Node,
 	nameNode *tree_sitter.Node,
 	valueNode *tree_sitter.Node,
 	source []byte,
 	lang string,
-	evidence javaScriptDeadCodeEvidence,
+	evidence Evidence,
 ) map[string]any {
 	if node == nil || node.Kind() != "pair" {
 		return nil
 	}
-	if strings.TrimSpace(nodeText(nameNode, source)) != "handler" {
+	if strings.TrimSpace(shared.NodeText(nameNode, source)) != "handler" {
 		return nil
 	}
 	if !javaScriptRouteHandlerReferenceValue(valueNode) {
 		return nil
 	}
-	routeConfigObject := evidence.parents.Parent(node)
+	routeConfigObject := evidence.Parents.Parent(node)
 	if routeConfigObject == nil || routeConfigObject.Kind() != "object" {
 		return nil
 	}
-	if (!evidence.hapiControllerFile || !javaScriptObjectIsCommonJSExported(routeConfigObject, source, evidence.parents)) &&
-		!javaScriptObjectIsInHapiServerRoute(routeConfigObject, source, evidence.parents) &&
-		!javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source, evidence.parents) {
+	if (!evidence.hapiControllerFile || !javaScriptObjectIsCommonJSExported(routeConfigObject, source, evidence.Parents)) &&
+		!javaScriptObjectIsInHapiServerRoute(routeConfigObject, source, evidence.Parents) &&
+		!javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source, evidence.Parents) {
 		return nil
 	}
-	fullName := strings.TrimSpace(nodeText(valueNode, source))
+	fullName := strings.TrimSpace(shared.NodeText(valueNode, source))
 	name := syntax.CallName(valueNode, source)
 	if name == "" {
 		name = syntax.IdentifierName(valueNode, source)
@@ -65,7 +65,7 @@ func javaScriptHapiRouteHandlerReferenceCall(
 		"name":        name,
 		"full_name":   fullName,
 		"call_kind":   "javascript.hapi_route_handler_reference",
-		"line_number": nodeLine(valueNode),
+		"line_number": shared.NodeLine(valueNode),
 		"lang":        lang,
 	}
 }
@@ -155,7 +155,7 @@ func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source
 		root = parents.Parent(root)
 	}
 	found := false
-	walkNamed(root, func(candidate *tree_sitter.Node) {
+	shared.WalkNamed(root, func(candidate *tree_sitter.Node) {
 		if found || candidate.Kind() != "assignment_expression" {
 			return
 		}
@@ -181,7 +181,7 @@ func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte, pare
 	if parent == nil || parent.Kind() != "pair" {
 		return nil
 	}
-	switch strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)) {
+	switch strings.TrimSpace(shared.NodeText(parent.ChildByFieldName("key"), source)) {
 	case "config", "options":
 	default:
 		return nil
@@ -207,7 +207,7 @@ func javaScriptObjectHasPairKey(objectNode *tree_sitter.Node, source []byte, key
 		if child.Kind() != "pair" {
 			continue
 		}
-		if strings.TrimSpace(nodeText(child.ChildByFieldName("key"), source)) == key {
+		if strings.TrimSpace(shared.NodeText(child.ChildByFieldName("key"), source)) == key {
 			return true
 		}
 	}
@@ -244,12 +244,12 @@ func javaScriptHapiPluginRegisterAliasRootKinds(
 	if root == nil {
 		return registered
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "assignment_expression" {
 			return
 		}
 		leftNode := node.ChildByFieldName("left")
-		if javaScriptCommonJSExportName(leftNode, source) != "plugin" {
+		if CommonJSExportName(leftNode, source) != "plugin" {
 			return
 		}
 		objectNode := node.ChildByFieldName("right")
@@ -274,7 +274,7 @@ func javaScriptHapiPluginRegisterAliasNames(objectNode *tree_sitter.Node, source
 		child := child
 		switch child.Kind() {
 		case "pair":
-			key := strings.TrimSpace(nodeText(child.ChildByFieldName("key"), source))
+			key := strings.TrimSpace(shared.NodeText(child.ChildByFieldName("key"), source))
 			if key != "register" {
 				continue
 			}
@@ -283,7 +283,7 @@ func javaScriptHapiPluginRegisterAliasNames(objectNode *tree_sitter.Node, source
 				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
-			name := strings.TrimSpace(nodeText(&child, source))
+			name := strings.TrimSpace(shared.NodeText(&child, source))
 			if name == "register" {
 				names = shared.AppendUniqueString(names, name)
 			}
@@ -320,11 +320,11 @@ func javaScriptObjectExportAliasRootKinds(
 	if root == nil || strings.TrimSpace(exportPrefix) == "" || strings.TrimSpace(rootKind) == "" {
 		return registered
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "export_statement" {
 			return
 		}
-		if !strings.HasPrefix(strings.TrimSpace(nodeText(node, source)), exportPrefix) {
+		if !strings.HasPrefix(strings.TrimSpace(shared.NodeText(node, source)), exportPrefix) {
 			return
 		}
 		objectNode := javaScriptFirstNamedDescendantOfKind(node, "object")
@@ -346,7 +346,7 @@ func javaScriptObjectAliasNames(objectNode *tree_sitter.Node, source []byte, key
 		child := child
 		switch child.Kind() {
 		case "pair":
-			key := strings.Trim(strings.TrimSpace(nodeText(child.ChildByFieldName("key"), source)), `"'`)
+			key := strings.Trim(strings.TrimSpace(shared.NodeText(child.ChildByFieldName("key"), source)), `"'`)
 			if keyFilter != "" && key != keyFilter {
 				continue
 			}
@@ -355,7 +355,7 @@ func javaScriptObjectAliasNames(objectNode *tree_sitter.Node, source []byte, key
 				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
-			name := strings.TrimSpace(nodeText(&child, source))
+			name := strings.TrimSpace(shared.NodeText(&child, source))
 			if keyFilter != "" && name != keyFilter {
 				continue
 			}
@@ -370,7 +370,7 @@ func javaScriptFirstNamedDescendantOfKind(node *tree_sitter.Node, kind string) *
 		return nil
 	}
 	if node.Kind() == kind {
-		return cloneNode(node)
+		return shared.CloneNode(node)
 	}
 	cursor := node.Walk()
 	defer cursor.Close()
@@ -396,16 +396,16 @@ func javaScriptPairInsideCommonJSPluginObject(node *tree_sitter.Node, source []b
 		!syntax.NodeSameRange(parent.ChildByFieldName("right"), objectNode) {
 		return false
 	}
-	return javaScriptCommonJSExportName(parent.ChildByFieldName("left"), source) == "plugin"
+	return CommonJSExportName(parent.ChildByFieldName("left"), source) == "plugin"
 }
 
 func javaScriptCommonJSAssignmentTarget(node *tree_sitter.Node, source []byte) bool {
 	if node == nil {
 		return false
 	}
-	switch strings.TrimSpace(nodeText(node, source)) {
+	switch strings.TrimSpace(shared.NodeText(node, source)) {
 	case "module.exports", "exports":
 		return true
 	}
-	return javaScriptCommonJSExportName(node, source) != ""
+	return CommonJSExportName(node, source) != ""
 }

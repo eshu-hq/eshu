@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -85,7 +86,7 @@ func javaScriptFunctionValueReferenceCall(
 	if !javaScriptFunctionValueReferenceNode(node) {
 		return nil
 	}
-	fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(nodeText(node, source), commonJSModuleAliases)
+	fullName := deadcode.RewriteCommonJSModuleExportAliasFullName(nodeText(node, source), commonJSModuleAliases)
 	name := syntax.CallName(node, source)
 	if name == "" || fullName == "" {
 		return nil

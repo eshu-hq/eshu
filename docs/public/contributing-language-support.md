@@ -290,7 +290,7 @@ To avoid re-parsing that identical closure once per file (issue #4765), the
 per-node facts the walk needs from each file it visits -- its static re-export
 edges, its named-import bindings, and which imported names each of its public
 declarations mentions -- are memoized in a package-root-scoped cache
-(`go/internal/parser/javascript/typescript_public_surface_cache.go`). The
+(`go/internal/parser/javascript/deadcode/public_surface_cache.go`). The
 cache key is `(package root, file path, mtime, size)`, so:
 
 - Two different packages in a monorepo never share cache entries, even if a

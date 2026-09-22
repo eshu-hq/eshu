@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -152,7 +153,7 @@ func javaScriptExpressRouteCalls(root *tree_sitter.Node, source []byte) []javaSc
 			return
 		}
 		method := strings.ToLower(strings.TrimSpace(nodeText(propertyNode, source)))
-		if _, ok := javaScriptExpressRouteMethods[method]; !ok {
+		if _, ok := deadcode.ExpressRouteMethods[method]; !ok {
 			return
 		}
 		argsNode := node.ChildByFieldName("arguments")

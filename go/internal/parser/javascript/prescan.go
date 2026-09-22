@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -78,7 +79,7 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 			if !syntax.IsFunctionValue(node.ChildByFieldName("right")) {
 				return
 			}
-			names = appendPreScanName(names, javaScriptExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)
+			names = appendPreScanName(names, deadcode.ExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)
 		}
 	})
 	return names

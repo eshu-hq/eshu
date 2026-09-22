@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 )
@@ -63,19 +65,22 @@ function healthHandler(req, res) { res.send("ok"); }
 	// reachable code: the root-indexes walk, the dead-code pre-walks, the
 	// main declaration walk, the type-reference walk, the framework
 	// semantics resolution, and the value-flow walk.
-	origWalkNamed := walkNamed
+	// Count through shared.SetWalkNamedHookForTest rather than by swapping this
+	// package's walkNamed alias. The alias only sees calls made from this
+	// package, and issue #6771 moved the dead-code walks into
+	// javascript/deadcode, where they call shared.WalkNamed directly -- so the
+	// alias-swap counted 0 of them and this assertion silently compared 5 to 5.
+	// The shared hook fires on every WalkNamed in the process, whichever package
+	// makes the call, which is what "walks during Parse" was always meant to be.
 	var count int
-	walkNamed = func(node *tree_sitter.Node, fn func(*tree_sitter.Node)) {
-		count++
-		origWalkNamed(node, fn)
-	}
-	defer func() { walkNamed = origWalkNamed }()
+	restoreWalkHook := shared.SetWalkNamedHookForTest(func() { count++ })
+	defer restoreWalkHook()
 
 	// Simulate the same sequence of walkNamed calls as Parse:
 	_ = buildJavaScriptRootIndexes(root, source, sourceText, "javascript")
-	_ = javaScriptDeadCodeRootEvidence("", "server.js", root, source, nil, parents, nil, nil, nil)
+	_ = deadcode.RootEvidence("", "server.js", root, source, nil, parents, nil, nil, nil, frameworkEvidence{})
 	// Main walk: Parse's walkNamed(root, ...)
-	origWalkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "call_expression":
 			_ = cloneNode(node)
@@ -93,7 +98,7 @@ function healthHandler(req, res) { res.send("ok"); }
 	count = 0
 	_ = buildJavaScriptRootIndexes(root, source, sourceText, "javascript")
 	_ = javaScriptDeadCodeRootEvidencePreGather(root, source)
-	origWalkNamed(root, func(node *tree_sitter.Node) {}) // main walk (no gathering)
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {}) // main walk (no gathering)
 	syntax.AppendTypeReferenceCalls(nil, root, source, "javascript")
 	_ = buildJavaScriptFrameworkSemanticsPreGather(root, source, parents)
 
@@ -114,14 +119,11 @@ function healthHandler(req, res) { res.send("ok"); }
 
 // javaScriptDeadCodeRootEvidencePreGather simulates the pre-gather dead-code
 // path that builds Express/Koa bases inside javaScriptFrameworkRegisteredDeadCodeRootKinds.
-func javaScriptDeadCodeRootEvidencePreGather(root *tree_sitter.Node, source []byte) javaScriptDeadCodeEvidence {
-	registeredRootKinds := javaScriptRegisteredDeadCodeRootKinds(root, source)
+func javaScriptDeadCodeRootEvidencePreGather(root *tree_sitter.Node, source []byte) map[string][]string {
+	registeredRootKinds := deadcode.RegisteredDeadCodeRootKinds(root, source, frameworkEvidence{})
 	// This calls the function that internally builds expressBases and koaBases
-	mergeJavaScriptRegisteredRootKinds(registeredRootKinds, javaScriptFrameworkRegisteredDeadCodeRootKindsPreGather(root, source, nil))
-	return javaScriptDeadCodeEvidence{
-		registeredRootKinds: registeredRootKinds,
-		parents:             nil,
-	}
+	deadcode.MergeRegisteredRootKinds(registeredRootKinds, javaScriptFrameworkRegisteredDeadCodeRootKindsPreGather(root, source, nil))
+	return registeredRootKinds
 }
 
 // javaScriptFrameworkRegisteredDeadCodeRootKindsPreGather simulates the
@@ -205,13 +207,16 @@ func TestWalkCount_DuringParse_FrameworkFile(t *testing.T) {
 	// heavy fixture. We install a counting wrapper before calling Parse's
 	// component functions, then verify the count is lower than the pre-
 	// optimization expected baseline.
-	origWalkNamed := walkNamed
+	// Count through shared.SetWalkNamedHookForTest rather than by swapping this
+	// package's walkNamed alias. The alias only sees calls made from this
+	// package, and issue #6771 moved the dead-code walks into
+	// javascript/deadcode, where they call shared.WalkNamed directly -- so the
+	// alias-swap counted 0 of them and this assertion silently compared 5 to 5.
+	// The shared hook fires on every WalkNamed in the process, whichever package
+	// makes the call, which is what "walks during Parse" was always meant to be.
 	var count int
-	walkNamed = func(node *tree_sitter.Node, fn func(*tree_sitter.Node)) {
-		count++
-		origWalkNamed(node, fn)
-	}
-	defer func() { walkNamed = origWalkNamed }()
+	restoreWalkHook := shared.SetWalkNamedHookForTest(func() { count++ })
+	defer restoreWalkHook()
 
 	fixture := `import express from "express";
 import fastify from "fastify";
@@ -250,9 +255,9 @@ function healthHandler(req, res) { res.send("ok"); }
 	// Replay the Parse call sequence:
 	count = 0
 	_ = ri // already counted
-	_ = javaScriptDeadCodeRootEvidence("", "server.js", root, source, nil, parents, ri.fastifyBases, ri.expressBases, ri.koaBases)
+	_ = deadcode.RootEvidence("", "server.js", root, source, nil, parents, ri.fastifyBases, ri.expressBases, ri.koaBases, frameworkEvidence{})
 	var gatheredCalls, gatheredMethods []*tree_sitter.Node
-	origWalkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "call_expression":
 			gatheredCalls = append(gatheredCalls, cloneNode(node))
@@ -278,13 +283,16 @@ function healthHandler(req, res) { res.send("ok"); }
 // asserts the current walkNamed count for a framework file and verifies
 // that the optimization reduces it.
 func TestWalkCount_AssertReduction(t *testing.T) {
-	origWalkNamed := walkNamed
+	// Count through shared.SetWalkNamedHookForTest rather than by swapping this
+	// package's walkNamed alias. The alias only sees calls made from this
+	// package, and issue #6771 moved the dead-code walks into
+	// javascript/deadcode, where they call shared.WalkNamed directly -- so the
+	// alias-swap counted 0 of them and this assertion silently compared 5 to 5.
+	// The shared hook fires on every WalkNamed in the process, whichever package
+	// makes the call, which is what "walks during Parse" was always meant to be.
 	var count int
-	walkNamed = func(node *tree_sitter.Node, fn func(*tree_sitter.Node)) {
-		count++
-		origWalkNamed(node, fn)
-	}
-	defer func() { walkNamed = origWalkNamed }()
+	restoreWalkHook := shared.SetWalkNamedHookForTest(func() { count++ })
+	defer restoreWalkHook()
 
 	fixture := `import express from "express";
 import fastify from "fastify";
@@ -324,11 +332,11 @@ function h(req, res) { res.send("ok"); }
 
 	count = 0
 	ri := buildJavaScriptRootIndexes(root, source, sourceText, "javascript")
-	deadCodeRoots := javaScriptDeadCodeRootEvidence("", "server.js", root, source, nil, parents, ri.fastifyBases, ri.expressBases, ri.koaBases)
+	deadCodeRoots := deadcode.RootEvidence("", "server.js", root, source, nil, parents, ri.fastifyBases, ri.expressBases, ri.koaBases, frameworkEvidence{})
 	_ = deadCodeRoots
 	payload := basePayload("server.js", "javascript", false)
 	var gatheredCalls, gatheredMethods []*tree_sitter.Node
-	origWalkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "call_expression":
 			gatheredCalls = append(gatheredCalls, cloneNode(node))

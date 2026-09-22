@@ -23,7 +23,7 @@ second relocation under the same issue moved the parent-level
 split into two files (`dead_code_roots_test.go` and
 `dead_code_roots_nextjs_migration_test.go`) to stay under the
 500-line cap, and the pre-existing subdirectory file named
-`dead_code_typescript_import_exports_test.go` kept its name, so the
+`deadcode/typescript_import_exports_test.go` kept its name, so the
 relocated parent file of the same name is now
 `engine_dead_code_typescript_import_exports_test.go`. A third
 relocation under the same issue moved the last three parent-level files named
@@ -71,17 +71,17 @@ to `../../../../tests/fixtures` for the extra directory level.
   typescript_declaration_public_surface, module_contract_export,
   constructor_function_value, function_value_reference, bin_script,
   main_entrypoint, exports_field, browser_field, package_types_field,
-  and more (`dead_code_roots.go`,
-  `dead_code_commonjs.go`, `dead_code_framework_exports.go`,
-  `dead_code_framework_routes.go`, `dead_code_hapi.go`,
-  `dead_code_hapi_route.go`, `dead_code_hapi_proxy.go`,
-  `dead_code_package.go`,
-  `dead_code_typescript_surface.go`,
-  `dead_code_typescript_import_exports.go`)
+  and more (`deadcode/roots.go`,
+  `deadcode/commonjs.go`, `deadcode/framework_exports.go`,
+  `dead_code_framework_routes.go`, `deadcode/hapi.go`,
+  `deadcode/hapi_route.go`, `deadcode/hapi_proxy.go`,
+  `deadcode/package_manifest.go`,
+  `deadcode/typescript_surface.go`,
+  `deadcode/typescript_import_exports.go`)
 - **Hapi routes**: method, path, handler pairs from route config objects
   (`hapi_routes.go`)
 - **Express routes**: server symbols extracted via
-  `ExpressServerSymbols` (`dead_code_roots.go`)
+  `ExpressServerSymbols` (`deadcode/roots.go`)
 - **Embedded shell commands**: `child_process` exec/spawn calls
   (`embedded_shell.go`)
 - **AWS/GCP client services**: service slugs from `@aws-sdk/client-*` or
@@ -97,8 +97,8 @@ to `../../../../tests/fixtures` for the extra directory level.
 - **TypeScript declaration merging**: namespace + class/function/enum merging
   (`typescript_declaration_merging.go`)
 - **TypeScript public surface re-exports**: static barrel-file walking with
-  depth cap (`dead_code_typescript_surface.go`,
-  `dead_code_typescript_import_exports.go`)
+  depth cap (`deadcode/typescript_surface.go`,
+  `deadcode/typescript_import_exports.go`)
 - **CommonJS module aliases**: `module.exports =` patterns
   (`language.go:73`)
 - **Parent lookup optimization**: single-pass child-to-parent map
@@ -193,10 +193,10 @@ engine_route_handler_test.go)**:
   `engine_dead_code_typescript_import_exports_test.go` (relocated
   parent-level TypeScript public-surface marking, renamed to avoid colliding
   with the pre-existing subdirectory file below),
-  `dead_code_typescript_import_exports_test.go` (pre-existing
+  `deadcode/typescript_import_exports_test.go` (pre-existing
   subdirectory file exercising the AST re-export helpers directly — see the
   Subdirectory unit tests entry below),
-  `dead_code_typescript_surface_reexport_test.go`
+  `deadcode/typescript_surface_reexport_test.go`
 
 **TypeScript (engine_tsconfig_baseurl_test.go,
 engine_type_parameters_test.go,
@@ -234,13 +234,13 @@ engine_tsx_component_wrapper_test.go)**:
 - package.json nearest ownership, public source mapping:
   `package_json_test.go`
 - Parent lookup cgo regression:
-  `parent_lookup_regression_test.go:TestJavaScriptParentLookupEliminatesCgoCrossings`
+  `deadcode/parent_lookup_regression_test.go:TestJavaScriptParentLookupEliminatesCgoCrossings`
 - Residual regex characterization (17 tests for 3 permanent regex exceptions):
   `residual_regex_characterization_test.go`
 - TS import/export re-exports from root:
-  `dead_code_typescript_import_exports_test.go` (4 tests)
+  `deadcode/typescript_import_exports_test.go` (4 tests)
 - TS surface re-export:
-  `dead_code_typescript_surface_reexport_test.go`
+  `deadcode/typescript_surface_reexport_test.go`
 
 **Cyclomatic complexity**: tested in `engine_cyclomatic_complexity_test.go`
 
@@ -281,7 +281,7 @@ engine_tsx_component_wrapper_test.go)**:
 - **Hapi plugin register roots via init pattern**: `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots`
 - **CommonJS mixin export roots method**: `dead_code_commonjs_class_test.go:TestDefaultEngineParsePathJavaScriptCommonJSMixinExportRootsMethod`
 - **All 3 residual regexes with + and - cases**: `residual_regex_characterization_test.go` (17 tests)
-- **Parent lookup cgo elimination**: `parent_lookup_regression_test.go` (line 106)
+- **Parent lookup cgo elimination**: `deadcode/parent_lookup_regression_test.go` (line 106)
 - **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_ast_conversion_test.go`
 - **Comprehensive golden fixtures**: js/ts/tsx comprehensive golden fixtures in `engine_long_tail_test.go`
 - **TypeScript import/export re-exports from root (Fastify shape)**:

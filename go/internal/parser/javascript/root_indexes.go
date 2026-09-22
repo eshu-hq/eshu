@@ -4,6 +4,7 @@
 package javascript
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -67,7 +68,7 @@ func buildJavaScriptRootIndexes(
 		if wantReactAliases {
 			javaScriptCollectReactAliasFromImportStatement(node, source, outputLanguage, reactAliases)
 		}
-		javaScriptCollectCommonJSModuleExportAlias(node, source, commonJSModuleAliases)
+		deadcode.CollectCommonJSModuleExportAlias(node, source, commonJSModuleAliases)
 		syntax.CollectNewExpressionVariableType(node, source, returnTypesByFunction, newExpressionTypes)
 		// Typed-parameter Fastify bases: no import gate — types come from
 		// @fastify/type-provider-typebox, not from the "fastify" package.

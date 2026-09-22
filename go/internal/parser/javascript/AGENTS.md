@@ -10,8 +10,9 @@
    shared internal/parser/dataflowemit renderer
 5. imports.go and exports.go - import, require, and
    re-export rows
-5. dead_code_roots.go and related `dead_code_*` files -
-   parser-proven dead-code root evidence
+5. deadcode/ - parser-proven dead-code root evidence, extracted as its own
+   leaf package (see deadcode/README.md); the parent supplies route and
+   sibling-file evidence through the two interfaces it declares
 6. semantics.go and semantics_helpers.go - framework and
    component semantics
 7. project/tsconfig.go - JSONC parsing, path alias resolution, and repository bounds

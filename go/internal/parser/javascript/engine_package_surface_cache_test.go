@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 )
 
 // buildBarrelReexportPackageFixture writes a package.json (types-based public
@@ -244,7 +244,7 @@ func TestEngineParsePathComputesPackageSurfaceClosureOnceForSharedBarrel(t *test
 	paths := buildBarrelReexportPackageFixture(t, repoRoot, moduleCount)
 
 	var siblingParses int
-	restore := jsparser.SetPackageSurfaceComputeHookForTest(func(string) { siblingParses++ })
+	restore := deadcode.SetPackageSurfaceComputeHookForTest(func(string) { siblingParses++ })
 	defer restore()
 
 	engine, err := parser.DefaultEngine()
@@ -295,7 +295,7 @@ func TestEngineParsePathConcurrentPackageSurfaceCacheIsRaceSafe(t *testing.T) {
 
 	var mu sync.Mutex
 	var siblingParses int
-	restore := jsparser.SetPackageSurfaceComputeHookForTest(func(string) {
+	restore := deadcode.SetPackageSurfaceComputeHookForTest(func(string) {
 		mu.Lock()
 		siblingParses++
 		mu.Unlock()

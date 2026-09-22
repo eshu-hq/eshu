@@ -366,7 +366,7 @@ generic defaults that reference imported declaration types.
 
 ## Tests
 
-`parent_lookup_regression_test.go`, `walk_count_test.go`,
+`deadcode/parent_lookup_regression_test.go`, `walk_count_test.go`,
 `fastify_threading_characterization_test.go`, and
 `residual_regex_characterization_test.go` run in-package
 (`package javascript`) and cover package-local helpers directly. The `project`
@@ -422,7 +422,7 @@ value-flow, and parent-lookup benchmark suites the same way:
 into two files at the 500-line cap
 (`dead_code_roots_nextjs_migration_test.go` carries the Next.js
 app-router and TypeScript migration/module-contract cases). The relocated
-parent file `dead_code_typescript_import_exports_test.go` collided
+parent file `deadcode/typescript_import_exports_test.go` collided
 with a pre-existing subdirectory file of the same name (which parses TypeScript
 re-export clauses directly against the AST in `package javascript`), so it was
 renamed to `engine_dead_code_typescript_import_exports_test.go`.
@@ -433,7 +433,7 @@ suites; `compat_test.go` keeps its parent-package name for
 `ExpressServerSymbols` that `dead_code_roots_test.go` calls. The
 wrapper is not redundant: it lives in the external `javascript_test` package
 while `ExpressServerSymbols` is declared in the non-test `javascript` package
-(`dead_code_roots.go`), so the call still needs the `jsparser.`
+(`deadcode/roots.go`), so the call still needs the `jsparser.`
 qualifier. Deleting the wrapper on the assumption that the two sit in one
 package would break `dead_code_roots_test.go`.
 

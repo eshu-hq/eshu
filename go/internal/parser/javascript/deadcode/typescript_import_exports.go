@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -27,7 +28,7 @@ func javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root *tree_sitter
 	}
 
 	reexports := make([]javaScriptTypeScriptSurfaceReexport, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "export_statement" {
 			return
 		}
@@ -58,7 +59,7 @@ func javaScriptTypeScriptNamedImportsByLocalName(root *tree_sitter.Node, source 
 	if root == nil {
 		return bindings
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "import_statement" {
 			return
 		}
@@ -102,7 +103,7 @@ func javaScriptTypeScriptPublicImportedTypeReferenceNames(
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
-	siblingParser *javaScriptSiblingParser,
+	siblingParser SiblingSource,
 ) map[string]struct{} {
 	const maxReferenceDepth = 8
 	references := make(map[string]struct{})
@@ -210,7 +211,7 @@ func javaScriptTypeScriptDeclarationMentionedNames(
 	if declaration == nil {
 		return mentioned
 	}
-	walkNamed(declaration, func(node *tree_sitter.Node) {
+	shared.WalkNamed(declaration, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "identifier", "type_identifier", "property_identifier",
 			"shorthand_property_identifier", "nested_type_identifier",
@@ -218,7 +219,7 @@ func javaScriptTypeScriptDeclarationMentionedNames(
 		default:
 			return
 		}
-		name := strings.TrimSpace(nodeText(node, source))
+		name := strings.TrimSpace(shared.NodeText(node, source))
 		if _, ok := importsByLocalName[name]; ok {
 			mentioned[name] = struct{}{}
 		}

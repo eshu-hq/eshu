@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -15,7 +16,7 @@ func javaScriptTypeAliasItem(
 	nameNode *tree_sitter.Node,
 	source []byte,
 	lang string,
-	deadCodeRoots javaScriptDeadCodeEvidence,
+	deadCodeRoots deadcode.Evidence,
 ) map[string]any {
 	name := nodeText(nameNode, source)
 	item := map[string]any{
@@ -28,7 +29,7 @@ func javaScriptTypeAliasItem(
 	if aliasKind := javaScriptTypeAliasKind(node); aliasKind != "" {
 		item["type_alias_kind"] = aliasKind
 	}
-	if rootKinds := javaScriptDeadCodeRootKinds("", node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+	if rootKinds := deadcode.RootKinds("", node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	return item
@@ -108,7 +109,7 @@ func javaScriptObjectLiteralBindingName(objectNode *tree_sitter.Node, source []b
 		return strings.TrimSpace(nodeText(parent.ChildByFieldName("name"), source))
 	case "assignment_expression":
 		leftNode := parent.ChildByFieldName("left")
-		if exportName := javaScriptCommonJSExportName(leftNode, source); exportName != "" {
+		if exportName := deadcode.CommonJSExportName(leftNode, source); exportName != "" {
 			return exportName
 		}
 		return strings.TrimSpace(nodeText(leftNode, source))

@@ -62,7 +62,7 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 		return registered
 	}
 
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
@@ -140,7 +140,7 @@ func javaScriptExpressRegistrationBases(root *tree_sitter.Node, source []byte, t
 	if !syntax.HasExpressImport(text) {
 		return bases
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		name, value := javaScriptVariableDeclaratorNameValue(node, source)
 		if name == "" || value == nil {
 			return
@@ -158,7 +158,7 @@ func javaScriptKoaRegistrationBases(root *tree_sitter.Node, source []byte, text 
 	if !javaScriptHasKoaRouterImport(text) {
 		return bases
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		name, value := javaScriptVariableDeclaratorNameValue(node, source)
 		if name == "" || value == nil {
 			return
@@ -190,7 +190,7 @@ func javaScriptFastifyRegistrationBases(root *tree_sitter.Node, source []byte, t
 	if !javaScriptHasFastifyImport(text) {
 		return bases
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		javaScriptCollectFastifyRegistrationBase(node, source, bases)
 	})
 	return bases
@@ -351,7 +351,7 @@ func javaScriptObjectHandlerValues(objectNode *tree_sitter.Node, source []byte) 
 		if child.Kind() != "pair" {
 			continue
 		}
-		key := strings.Trim(strings.TrimSpace(nodeText(child.ChildByFieldName("key"), source)), `"'`)
+		key := strings.Trim(strings.TrimSpace(shared.NodeText(child.ChildByFieldName("key"), source)), `"'`)
 		if key != "handler" {
 			continue
 		}

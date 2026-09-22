@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"path/filepath"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -79,12 +80,12 @@ func javaScriptProgramHasExportedConst(program *tree_sitter.Node, name string, s
 		return false
 	}
 	found := false
-	walkNamed(program, func(node *tree_sitter.Node) {
+	shared.WalkNamed(program, func(node *tree_sitter.Node) {
 		if found || node.Kind() != "variable_declarator" {
 			return
 		}
 		nameNode := node.ChildByFieldName("name")
-		if strings.TrimSpace(nodeText(nameNode, source)) != name {
+		if strings.TrimSpace(shared.NodeText(nameNode, source)) != name {
 			return
 		}
 		if javaScriptIsExported(node, parents) {

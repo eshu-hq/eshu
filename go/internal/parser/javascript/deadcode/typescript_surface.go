@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"path/filepath"
@@ -39,7 +39,7 @@ func javaScriptTypeScriptSurfaceRootKinds(
 	path string,
 	root *tree_sitter.Node,
 	source []byte,
-	siblingParser *javaScriptSiblingParser,
+	siblingParser SiblingSource,
 	parents *syntax.ParentLookup,
 ) map[string][]string {
 	rootKinds := make(map[string][]string)
@@ -95,7 +95,7 @@ func javaScriptTypeScriptPublicReexportNames(
 	publicPath string,
 	targetPath string,
 	exportedNames map[string]struct{},
-	siblingParser *javaScriptSiblingParser,
+	siblingParser SiblingSource,
 ) map[string]struct{} {
 	const maxReexportDepth = 8
 	publicNames := make(map[string]struct{})
@@ -213,7 +213,7 @@ func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node,
 	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) == "constructor" {
 		return false
 	}
-	methodSource := strings.TrimSpace(nodeText(node, source))
+	methodSource := strings.TrimSpace(shared.NodeText(node, source))
 	if strings.HasPrefix(methodSource, "private ") || strings.HasPrefix(methodSource, "protected ") {
 		return false
 	}
@@ -237,7 +237,7 @@ func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
 
 func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) map[string]struct{} {
 	names := make(map[string]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if !javaScriptIsExported(node, parents) {
 			return
 		}
@@ -277,7 +277,7 @@ func javaScriptTypeScriptStaticReexportsFromRoot(root *tree_sitter.Node, source 
 	if root == nil {
 		return reexports
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "export_statement" {
 			return
 		}
@@ -345,7 +345,7 @@ func javaScriptTypeScriptPublicTypeReferences(
 	if len(publicNames) == 0 {
 		return references
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		name := javaScriptTypeScriptDeclarationName(node, source)
 		if name == "" {
 			return
@@ -353,13 +353,13 @@ func javaScriptTypeScriptPublicTypeReferences(
 		if _, ok := publicNames[name]; !ok {
 			return
 		}
-		walkNamed(node, func(child *tree_sitter.Node) {
+		shared.WalkNamed(node, func(child *tree_sitter.Node) {
 			switch child.Kind() {
 			case "type_identifier", "nested_type_identifier", "scoped_type_identifier":
 			default:
 				return
 			}
-			typeName := syntax.TypeReferenceLeafName(nodeText(child, source))
+			typeName := syntax.TypeReferenceLeafName(shared.NodeText(child, source))
 			if _, ok := exportedNames[typeName]; ok {
 				references[typeName] = struct{}{}
 			}
@@ -377,7 +377,7 @@ func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, sourc
 	if len(functionNames) == 0 {
 		return members
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "object" || !javaScriptObjectLiteralIsExportedRegistry(node, source, parents) {
 			return
 		}
@@ -392,7 +392,7 @@ func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, sourc
 
 func javaScriptTypeScriptFunctionNames(root *tree_sitter.Node, source []byte) map[string]struct{} {
 	names := make(map[string]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "generator_function_declaration":
 			name := strings.TrimSpace(syntax.FunctionName(node.ChildByFieldName("name"), source))

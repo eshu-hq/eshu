@@ -57,12 +57,12 @@ func (p *javaScriptSiblingParser) Close() {
 	p.cache = make(map[string]*javaScriptSiblingTree)
 }
 
-// rootForFile parses path (or returns the cached parse) and yields its root node
+// RootForFile parses path (or returns the cached parse) and yields its root node
 // and source. ok is false when the file is missing, empty, of an unsupported
 // extension, or fails to parse. Parsing is only attempted for non-empty existing
 // files, mirroring the os.ReadFile guards it replaces so absent siblings never
 // invoke tree-sitter.
-func (p *javaScriptSiblingParser) rootForFile(path string) (*tree_sitter.Node, []byte, bool) {
+func (p *javaScriptSiblingParser) RootForFile(path string) (*tree_sitter.Node, []byte, bool) {
 	if p == nil || p.factory == nil {
 		return nil, nil, false
 	}

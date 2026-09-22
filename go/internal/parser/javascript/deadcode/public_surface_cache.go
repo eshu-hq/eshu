@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -98,7 +99,7 @@ func packageSurfaceCacheEncode(packageRoot string, path string) string {
 func packageSurfaceFacts(
 	packageRoot string,
 	path string,
-	siblingParser *javaScriptSiblingParser,
+	siblingParser SiblingSource,
 ) typeScriptPublicSurfaceNodeFacts {
 	cleaned := project.CleanPath(path)
 	encodedKey := packageSurfaceCacheEncode(project.CleanPath(packageRoot), cleaned)
@@ -119,8 +120,8 @@ func packageSurfaceFacts(
 // every public-kind exported declaration, the set of imported local names it
 // mentions. This is the only place that invokes the sibling parser for the
 // public-surface walks.
-func computePackageSurfaceFacts(path string, siblingParser *javaScriptSiblingParser) typeScriptPublicSurfaceNodeFacts {
-	root, source, ok := siblingParser.rootForFile(path)
+func computePackageSurfaceFacts(path string, siblingParser SiblingSource) typeScriptPublicSurfaceNodeFacts {
+	root, source, ok := siblingParser.RootForFile(path)
 	if !ok {
 		return typeScriptPublicSurfaceNodeFacts{}
 	}
@@ -152,7 +153,7 @@ func javaScriptTypeScriptPublicDeclarationMentionsByName(
 		return mentions
 	}
 	parents := syntax.BuildParentLookup(root)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if !javaScriptIsExported(node, parents) {
 			return
 		}

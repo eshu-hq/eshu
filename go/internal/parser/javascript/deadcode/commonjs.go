@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func mergeJavaScriptRegisteredRootKinds(dst map[string][]string, src map[string][]string) {
+func MergeRegisteredRootKinds(dst map[string][]string, src map[string][]string) {
 	for name, rootKinds := range src {
 		key := strings.ToLower(strings.TrimSpace(name))
 		if key == "" {
@@ -32,12 +32,12 @@ func javaScriptCommonJSExportAliasRootKinds(
 	if root == nil || strings.TrimSpace(rootKind) == "" {
 		return registered
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "assignment_expression" {
 			return
 		}
 		leftNode := node.ChildByFieldName("left")
-		if javaScriptCommonJSExportName(leftNode, source) == "" {
+		if CommonJSExportName(leftNode, source) == "" {
 			return
 		}
 		rightNode := node.ChildByFieldName("right")
@@ -59,12 +59,12 @@ func javaScriptCommonJSDefaultExportAliasRootKinds(
 	if root == nil {
 		return registered
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "assignment_expression" {
 			return
 		}
 		leftNode := node.ChildByFieldName("left")
-		if strings.TrimSpace(nodeText(leftNode, source)) != "module.exports" {
+		if strings.TrimSpace(shared.NodeText(leftNode, source)) != "module.exports" {
 			return
 		}
 		rightNode := node.ChildByFieldName("right")
@@ -78,17 +78,17 @@ func javaScriptCommonJSDefaultExportAliasRootKinds(
 	return registered
 }
 
-// javaScriptCollectCommonJSModuleExportAlias records dst[name] = struct{}{}
+// CollectCommonJSModuleExportAlias records dst[name] = struct{}{}
 // for one variable_declarator node that aliases module.exports to a local
 // name (`const alias = module.exports`). It is a no-op for any other node
 // kind, so callers may invoke it on every visited node in a shared traversal
 // without pre-filtering.
-func javaScriptCollectCommonJSModuleExportAlias(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
+func CollectCommonJSModuleExportAlias(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
 	if node.Kind() != "variable_declarator" {
 		return
 	}
 	valueNode := node.ChildByFieldName("value")
-	if strings.TrimSpace(nodeText(valueNode, source)) != "module.exports" {
+	if strings.TrimSpace(shared.NodeText(valueNode, source)) != "module.exports" {
 		return
 	}
 	name := syntax.IdentifierName(node.ChildByFieldName("name"), source)
@@ -115,7 +115,7 @@ func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source 
 		}
 		leftNode := current.ChildByFieldName("left")
 		rightNode := current.ChildByFieldName("right")
-		if strings.TrimSpace(nodeText(leftNode, source)) == "module.exports" &&
+		if strings.TrimSpace(shared.NodeText(leftNode, source)) == "module.exports" &&
 			javaScriptAssignmentRightChainContains(rightNode, classNode) {
 			return true
 		}
@@ -145,7 +145,7 @@ func javaScriptAssignmentRightChainContains(valueNode *tree_sitter.Node, target 
 	return javaScriptAssignmentRightChainContains(valueNode.ChildByFieldName("right"), target)
 }
 
-func rewriteJavaScriptCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
+func RewriteCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
 	fullName = strings.TrimSpace(fullName)
 	if fullName == "" || len(aliases) == 0 {
 		return fullName
@@ -168,7 +168,7 @@ func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []by
 			continue
 		}
 		leftNode := current.ChildByFieldName("left")
-		exportName := javaScriptCommonJSExportName(leftNode, source)
+		exportName := CommonJSExportName(leftNode, source)
 		return exportName == name
 	}
 	return false
@@ -187,13 +187,13 @@ func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source
 			return false
 		}
 		objectNode := leftNode.ChildByFieldName("object")
-		objectText := strings.TrimSpace(nodeText(objectNode, source))
+		objectText := strings.TrimSpace(shared.NodeText(objectNode, source))
 		return objectText == "module.exports.mixin" || objectText == "exports.mixin"
 	}
 	return false
 }
 
-func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string {
+func CommonJSExportName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
@@ -201,7 +201,7 @@ func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string 
 	if objectNode == nil || propertyNode == nil {
 		return ""
 	}
-	objectText := strings.TrimSpace(nodeText(objectNode, source))
+	objectText := strings.TrimSpace(shared.NodeText(objectNode, source))
 	switch {
 	case objectText == "module.exports" || strings.HasPrefix(objectText, "module.exports."):
 		return syntax.FunctionName(propertyNode, source)
@@ -235,19 +235,19 @@ func javaScriptCommonJSAliasTargetName(node *tree_sitter.Node, source []byte) st
 	if objectNode == nil || propertyNode == nil {
 		return ""
 	}
-	if strings.TrimSpace(nodeText(objectNode, source)) != "module.exports" {
+	if strings.TrimSpace(shared.NodeText(objectNode, source)) != "module.exports" {
 		return ""
 	}
 	return syntax.FunctionName(propertyNode, source)
 }
 
-func javaScriptExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
+func ExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
 	if node == nil {
 		return nil
 	}
-	if javaScriptCommonJSExportName(node, source) == "" {
+	if CommonJSExportName(node, source) == "" {
 		return nil
 	}
 	_, propertyNode := javaScriptCommonJSExportTargetNodes(node)
-	return cloneNode(propertyNode)
+	return shared.CloneNode(propertyNode)
 }

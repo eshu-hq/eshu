@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package deadcode
 
 import (
 	"path/filepath"
@@ -15,7 +15,7 @@ import (
 
 // javaScriptIsHapiHandlerFile reports whether the current source file sits
 // under a Hapi OpenAPI handler directory declared in this repository.
-func javaScriptIsHapiHandlerFile(repoRoot string, path string, siblingParser *javaScriptSiblingParser) bool {
+func javaScriptIsHapiHandlerFile(repoRoot string, path string, siblingParser SiblingSource) bool {
 	if strings.TrimSpace(repoRoot) == "" || strings.TrimSpace(path) == "" {
 		return false
 	}
@@ -31,7 +31,7 @@ func javaScriptIsHapiHandlerFile(repoRoot string, path string, siblingParser *ja
 	return false
 }
 
-func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser *javaScriptSiblingParser) []string {
+func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser SiblingSource) []string {
 	serviceRoots := []string{repoRoot}
 	if packageRoot, ok := nearestJavaScriptPackageRoot(repoRoot, path); ok {
 		serviceRoots = shared.AppendUniqueString(serviceRoots, packageRoot)
@@ -50,7 +50,7 @@ func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser *java
 
 	dirs := []string{}
 	for _, candidate := range candidates {
-		root, source, ok := siblingParser.rootForFile(candidate)
+		root, source, ok := siblingParser.RootForFile(candidate)
 		if !ok {
 			continue
 		}
@@ -75,7 +75,7 @@ func javaScriptHapiHandlerSpecDirs(root *tree_sitter.Node, source []byte) []stri
 	if root == nil {
 		return relatives
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "pair" {
 			return
 		}
@@ -102,10 +102,10 @@ func javaScriptDirnamePathArgument(node *tree_sitter.Node, source []byte) (strin
 	}
 	objectNode := functionNode.ChildByFieldName("object")
 	propertyNode := functionNode.ChildByFieldName("property")
-	if objectNode == nil || strings.TrimSpace(nodeText(objectNode, source)) != "path" {
+	if objectNode == nil || strings.TrimSpace(shared.NodeText(objectNode, source)) != "path" {
 		return "", false
 	}
-	switch strings.TrimSpace(nodeText(propertyNode, source)) {
+	switch strings.TrimSpace(shared.NodeText(propertyNode, source)) {
 	case "resolve", "join":
 	default:
 		return "", false
@@ -120,7 +120,7 @@ func javaScriptDirnamePathArgument(node *tree_sitter.Node, source []byte) (strin
 	if len(args) != 2 {
 		return "", false
 	}
-	if args[0].Kind() != "identifier" || strings.TrimSpace(nodeText(&args[0], source)) != "__dirname" {
+	if args[0].Kind() != "identifier" || strings.TrimSpace(shared.NodeText(&args[0], source)) != "__dirname" {
 		return "", false
 	}
 	if args[1].Kind() != "string" {

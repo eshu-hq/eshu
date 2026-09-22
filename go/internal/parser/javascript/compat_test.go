@@ -3,13 +3,15 @@
 
 package javascript_test
 
-import jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
+import "github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 
-// javaScriptExpressServerSymbols mirrors the parent parser package's helper of
-// the same name so javascript_dead_code_roots_test.go keeps its original call
-// shape after relocation. It is a thin indirection over the production
-// jsparser.ExpressServerSymbols, kept as its own file to match the exact
-// move-only diff (issue #6062, following the Elixir precedent in #6335).
+// javaScriptExpressServerSymbols mirrors the dead-code helper of the same name
+// so dead_code_roots_test.go keeps its original call shape after relocation. It
+// is a thin indirection over the production deadcode.ExpressServerSymbols, kept
+// as its own file to match the exact move-only diff (issue #6062, following the
+// Elixir precedent in #6335). The target moved from the parent javascript
+// package into deadcode/ with the root checks it belongs to (issue #6771); the
+// call shape here is unchanged.
 func javaScriptExpressServerSymbols(express map[string]any) []string {
-	return jsparser.ExpressServerSymbols(express)
+	return deadcode.ExpressServerSymbols(express)
 }

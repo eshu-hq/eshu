@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -75,9 +76,9 @@ func Parse(
 	reactAliases := rootIndexes.reactAliases
 	siblingParser := newJavaScriptSiblingParser(parserFactory, parserReturner)
 	defer siblingParser.Close()
-	deadCodeRoots := javaScriptDeadCodeRootEvidence(repoRoot, path, root, source, siblingParser, parents, rootIndexes.fastifyBases, rootIndexes.expressBases, rootIndexes.koaBases)
-	if len(deadCodeRoots.fileRootKinds) > 0 {
-		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
+	deadCodeRoots := deadcode.RootEvidence(repoRoot, path, root, source, siblingParser, parents, rootIndexes.fastifyBases, rootIndexes.expressBases, rootIndexes.koaBases, frameworkEvidence{})
+	if len(deadCodeRoots.FileRootKinds) > 0 {
+		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.FileRootKinds...)
 	}
 	commonJSModuleAliases := rootIndexes.commonJSModuleAliases
 	tsConfigImports := project.NewTSConfigImportResolver(repoRoot, path)
@@ -136,7 +137,7 @@ func Parse(
 					classItem["implemented_interfaces"] = interfaces
 				}
 			}
-			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+			if rootKinds := deadcode.RootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				classItem["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "classes", classItem)
@@ -159,7 +160,7 @@ func Parse(
 			if outputLanguage != "javascript" {
 				item["type_parameters"] = syntax.TypeParameters(node, source)
 			}
-			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+			if rootKinds := deadcode.RootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "interfaces", item)
@@ -188,7 +189,7 @@ func Parse(
 				"end_line":    nodeEndLine(node),
 				"lang":        outputLanguage,
 			}
-			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+			if rootKinds := deadcode.RootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
 			appendBucket(payload, "enums", item)
@@ -238,7 +239,7 @@ func Parse(
 			nameNode := node.ChildByFieldName("key")
 			valueNode := node.ChildByFieldName("value")
 			if !syntax.IsFunctionValue(valueNode) {
-				if item := javaScriptHapiRouteHandlerReferenceCall(node, nameNode, valueNode, source, outputLanguage, deadCodeRoots); item != nil {
+				if item := deadcode.HapiRouteHandlerReferenceCall(node, nameNode, valueNode, source, outputLanguage, deadCodeRoots); item != nil {
 					appendBucket(payload, "function_calls", item)
 				}
 				return
@@ -263,7 +264,7 @@ func Parse(
 			if wantFrameworkGather {
 				gatheredCallExpressions = append(gatheredCallExpressions, cloneNode(node))
 			}
-			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
+			fullName := deadcode.RewriteCommonJSModuleExportAliasFullName(
 				syntax.CallFullName(functionNode, source),
 				commonJSModuleAliases,
 			)
@@ -326,7 +327,7 @@ func Parse(
 			if !syntax.IsFunctionValue(rightNode) {
 				return
 			}
-			nameNode := javaScriptExportAssignmentNameNode(leftNode, source)
+			nameNode := deadcode.ExportAssignmentNameNode(leftNode, source)
 			if nameNode == nil {
 				return
 			}
@@ -404,7 +405,7 @@ func appendFunctionDeclaration(
 	source []byte,
 	lang string,
 	options shared.Options,
-	deadCodeRoots javaScriptDeadCodeEvidence,
+	deadCodeRoots deadcode.Evidence,
 	fpHasError bool,
 	fpStats *fingerprint.Stats,
 ) {
@@ -439,12 +440,12 @@ func appendFunctionDeclaration(
 		"name":            name,
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(declarationNode),
-		"decorators":      syntax.Decorators(declarationNode, source, deadCodeRoots.parents),
+		"decorators":      syntax.Decorators(declarationNode, source, deadCodeRoots.Parents),
 		"type_parameters": syntax.TypeParameters(declarationNode, source),
 		"parameter_count": syntax.ParameterCount(declarationNode.ChildByFieldName("parameters"), source),
 		"lang":            lang,
 	}
-	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
+	if rootKinds := deadcode.RootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
 	if functionType := syntax.FunctionKind(declarationNode, source); functionType != "" {
@@ -456,7 +457,7 @@ func appendFunctionDeclaration(
 	if docstring := syntax.Docstring(declarationNode, source); docstring != "" {
 		item["docstring"] = docstring
 	}
-	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang, deadCodeRoots.parents) {
+	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang, deadCodeRoots.Parents) {
 		item[key] = value
 	}
 	if options.IndexSource {
