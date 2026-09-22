@@ -19,6 +19,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
+
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 const (
@@ -64,22 +72,6 @@ type QueueSnapshot struct {
 	ProvenanceEdgeIdentityUpgradeRequired int
 	OldestOutstandingAge                  time.Duration
 	OverdueClaims                         int
-}
-
-// QueueFailureSnapshot captures the newest queued work failure metadata shown
-// on operator status surfaces. Values are rendered only in status payloads and
-// must not be promoted to metric labels.
-type QueueFailureSnapshot struct {
-	Stage          string
-	Domain         string
-	Status         string
-	WorkItemID     string
-	ScopeID        string
-	GenerationID   string
-	FailureClass   string
-	FailureMessage string
-	FailureDetails string
-	UpdatedAt      time.Time
 }
 
 // DomainBacklog captures backlog depth for one reducer or projection domain.
@@ -131,46 +123,46 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		generationHistory = deriveGenerationHistory(generationTotals)
 	}
 	stageSummaries := summarizeStages(raw.StageCounts)
-	queue := normalizeQueueSnapshot(raw.Queue)
+	queueSnapshot := normalizeQueueSnapshot(raw.Queue)
 	domainBacklogs, domainBacklogsTruncated := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
 	producerActivity := normalizeProducerActivitySnapshot(raw.ProducerActivity)
 	coordinator := cloneCoordinatorSnapshot(raw.Coordinator)
-	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
+	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queueSnapshot, domainBacklogs)
 
 	return Report{
 		AsOf:                           raw.AsOf,
-		Health:                         evaluateHealth(queue, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
+		Health:                         evaluateHealth(queueSnapshot, generationTotals, domainBacklogs, producerActivity, coordinator, raw.CollectorGenerationDeadLetters, opts),
 		FlowSummaries:                  flowSummaries,
-		Queue:                          queue,
+		Queue:                          queueSnapshot,
 		RetryPolicies:                  cloneRetryPolicies(raw.RetryPolicies),
 		ScopeActivity:                  scopeActivity,
 		GenerationHistory:              generationHistory,
-		GenerationTransitions:          cloneGenerationTransitions(raw.GenerationTransitions),
+		GenerationTransitions:          generation.CloneTransitions(raw.GenerationTransitions),
 		ScopeTotals:                    scopeTotals,
 		GenerationTotals:               generationTotals,
 		StageSummaries:                 stageSummaries,
 		DomainBacklogs:                 domainBacklogs,
 		DomainBacklogsTruncated:        domainBacklogsTruncated,
 		DomainBacklogsLimit:            opts.DomainLimit,
-		QueueBlockages:                 cloneQueueBlockages(raw.QueueBlockages),
-		LatestQueueFailure:             cloneQueueFailure(raw.LatestQueueFailure),
+		QueueBlockages:                 queue.CloneBlockages(raw.QueueBlockages),
+		LatestQueueFailure:             queue.CloneFailure(raw.LatestQueueFailure),
 		Coordinator:                    coordinator,
 		RegistryCollectors:             cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		AWSCloudScans:                  cloud.CloneAWSScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:                   cloud.CloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
 		VulnerabilitySources:           collector.CloneVulnerabilitySourceStates(raw.VulnerabilitySources),
-		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
+		SemanticExtraction:             semantic.NormalizeExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
 		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              raw.AWSCloudScanLimit,
-		TerraformState: TerraformStateReport{
-			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
-			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
-			WarningsByKind: GroupTerraformStateWarningsByKind(raw.TerraformStateRecentWarnings),
-			WarningSummary: SummarizeTerraformStateWarnings(raw.TerraformStateRecentWarnings),
+		TerraformState: tfstate.Report{
+			LastSerials:    tfstate.SortSerials(raw.TerraformStateLastSerials),
+			RecentWarnings: tfstate.SortWarnings(raw.TerraformStateRecentWarnings),
+			WarningsByKind: tfstate.GroupWarningsByKind(raw.TerraformStateRecentWarnings),
+			WarningSummary: tfstate.SummarizeWarnings(raw.TerraformStateRecentWarnings),
 		},
 	}
 }
@@ -216,16 +208,16 @@ func RenderText(report Report) string {
 		),
 		fmt.Sprintf("Scope statuses: %s", shared.FormatTotals(report.ScopeTotals)),
 		fmt.Sprintf("Generation history: %s", generationHistoryText(report.GenerationHistory)),
-		fmt.Sprintf("Generation transitions: %s", generationTransitionsText(report.GenerationTransitions)),
+		fmt.Sprintf("Generation transitions: %s", generation.TransitionsText(report.GenerationTransitions)),
 	}
 
 	if len(report.Health.Reasons) > 0 {
 		lines = append(lines, fmt.Sprintf("Reasons: %s", strings.Join(report.Health.Reasons, "; ")))
 	}
-	if latestFailure := queueFailureText(report.LatestQueueFailure); latestFailure != "" {
+	if latestFailure := queue.FailureText(report.LatestQueueFailure); latestFailure != "" {
 		lines = append(lines, fmt.Sprintf("Latest queue failure: %s", latestFailure))
 	}
-	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
+	lines = append(lines, queue.RenderBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
 	lines = append(lines, collector.RenderRuntimeStatusLines(collector.RuntimeStatuses(collectorEvidence(report)))...)
 	lines = append(lines, collector.RenderPromotionProofLines(collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
@@ -238,7 +230,7 @@ func RenderText(report Report) string {
 	lines = append(lines, cloud.RenderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderInfraInventoryLines(report.InfraInventory)...)
 	lines = append(lines, collector.RenderVulnerabilitySourceLines(report.VulnerabilitySources)...)
-	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
+	lines = append(lines, semantic.RenderExtractionLine(report.SemanticExtraction))
 	lines = append(lines, collector.RenderGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))

@@ -7,9 +7,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-func normalizeQueueSnapshot(queue QueueSnapshot) QueueSnapshot {
-	queue.OldestOutstandingAge = shared.NonNegativeDuration(queue.OldestOutstandingAge)
-	return queue
+func normalizeQueueSnapshot(snapshot QueueSnapshot) QueueSnapshot {
+	snapshot.OldestOutstandingAge = shared.NonNegativeDuration(snapshot.OldestOutstandingAge)
+	return snapshot
 }
 
 func normalizeDomainBacklogs(rows []DomainBacklog) []DomainBacklog {

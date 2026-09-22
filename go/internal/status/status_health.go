@@ -13,7 +13,7 @@ import (
 )
 
 func evaluateHealth(
-	queue QueueSnapshot,
+	queueSnapshot QueueSnapshot,
 	generationTotals map[string]int,
 	domainBacklogs []DomainBacklog,
 	producerActivity ProducerActivitySnapshot,
@@ -21,11 +21,11 @@ func evaluateHealth(
 	collectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot,
 	opts Options,
 ) HealthSummary {
-	if queue.OverdueClaims > 0 {
+	if queueSnapshot.OverdueClaims > 0 {
 		return HealthSummary{
 			State: healthStalled,
 			Reasons: []string{
-				fmt.Sprintf("%d overdue claims suggest stuck workers", queue.OverdueClaims),
+				fmt.Sprintf("%d overdue claims suggest stuck workers", queueSnapshot.OverdueClaims),
 			},
 		}
 	}
@@ -38,12 +38,12 @@ func evaluateHealth(
 		}
 	}
 	producerActive := recentProducerActivityReason(producerActivity, opts)
-	if queue.Outstanding > 0 && queue.InFlight == 0 && queue.OldestOutstandingAge >= opts.StallAfter {
+	if queueSnapshot.Outstanding > 0 && queueSnapshot.InFlight == 0 && queueSnapshot.OldestOutstandingAge >= opts.StallAfter {
 		if producerActive == "" {
 			if backlog := largestDomainBacklog(domainBacklogs); backlog.Outstanding > 0 {
 				oldestAge := backlog.OldestAge
 				if oldestAge <= 0 {
-					oldestAge = queue.OldestOutstandingAge
+					oldestAge = queueSnapshot.OldestOutstandingAge
 				}
 				return HealthSummary{
 					State: healthStalled,
@@ -62,8 +62,8 @@ func evaluateHealth(
 				Reasons: []string{
 					fmt.Sprintf(
 						"backlog has %d outstanding items with no in-flight work for %s",
-						queue.Outstanding,
-						queue.OldestOutstandingAge,
+						queueSnapshot.Outstanding,
+						queueSnapshot.OldestOutstandingAge,
 					),
 				},
 			}
@@ -78,14 +78,14 @@ func evaluateHealth(
 	collectorGenerationDeadLetters = collector.CloneGenerationDeadLetterSnapshot(collectorGenerationDeadLetters)
 	unresolvedCollectorGenerations := collectorGenerationDeadLetters.DeadLetter +
 		collectorGenerationDeadLetters.ReplayRequested
-	if queue.DeadLetter > 0 || queue.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) ||
+	if queueSnapshot.DeadLetter > 0 || queueSnapshot.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) ||
 		unresolvedCollectorGenerations > 0 {
 		reasons := make([]string, 0, 6)
-		if queue.DeadLetter > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d work items are dead-lettered", queue.DeadLetter))
+		if queueSnapshot.DeadLetter > 0 {
+			reasons = append(reasons, fmt.Sprintf("%d work items are dead-lettered", queueSnapshot.DeadLetter))
 		}
-		if queue.Failed > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d legacy work items remain failed", queue.Failed))
+		if queueSnapshot.Failed > 0 {
+			reasons = append(reasons, fmt.Sprintf("%d legacy work items remain failed", queueSnapshot.Failed))
 		}
 		if generationTotals["failed"] > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d generations are failed", generationTotals["failed"]))
@@ -115,10 +115,10 @@ func evaluateHealth(
 			Reasons: reasons,
 		}
 	}
-	if queue.Outstanding > 0 || generationTotals["pending"] > 0 {
+	if queueSnapshot.Outstanding > 0 || generationTotals["pending"] > 0 {
 		reason := "work remains queued"
-		if queue.InFlight > 0 {
-			reason = fmt.Sprintf("%d work items are currently in flight", queue.InFlight)
+		if queueSnapshot.InFlight > 0 {
+			reason = fmt.Sprintf("%d work items are currently in flight", queueSnapshot.InFlight)
 		} else if producerActive != "" {
 			reason = producerActive
 		}

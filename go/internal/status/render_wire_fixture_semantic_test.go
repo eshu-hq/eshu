@@ -3,20 +3,24 @@
 
 package status
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+)
+
 // fixtureSemanticExtractionStatus returns a fully populated
-// SemanticExtractionStatus, including ProviderProfiles, Queue, Budget, and
+// semantic.ExtractionStatus, including ProviderProfiles, Queue, Budget, and
 // Audit, for maxRawSnapshot (render_wire_fixture_test.go).
-func fixtureSemanticExtractionStatus() SemanticExtractionStatus {
-	return SemanticExtractionStatus{
-		State:                            SemanticExtractionAvailable,
-		Reason:                           SemanticExtractionReasonProviderConfigured,
+func fixtureSemanticExtractionStatus() semantic.ExtractionStatus {
+	return semantic.ExtractionStatus{
+		State:                            semantic.ExtractionAvailable,
+		Reason:                           semantic.ExtractionReasonProviderConfigured,
 		Detail:                           "fixture semantic extraction provider is configured and healthy",
 		ProviderConfigured:               true,
 		DocumentationObservationsEnabled: true,
 		CodeHintsEnabled:                 true,
 		DeterministicPathsAffected:       false,
 		UpdatedAt:                        fixtureTime(120),
-		ProviderProfiles: []SemanticProviderProfileStatus{
+		ProviderProfiles: []semantic.ProviderProfileStatus{
 			{
 				ProfileID:              "profile-fixture-a",
 				DisplayName:            "Fixture Provider A",
@@ -28,7 +32,7 @@ func fixtureSemanticExtractionStatus() SemanticExtractionStatus {
 				EndpointProfileID:      "endpoint-fixture-a",
 				SourceClasses:          []string{"documentation", "code_hints"},
 				SourcePolicyConfigured: true,
-				State:                  SemanticProviderProfileConfigured,
+				State:                  semantic.ProviderProfileConfigured,
 				Reason:                 "provider_profile_configured",
 				Detail:                 "fixture profile a detail",
 				UpdatedAt:              fixtureTime(121),
@@ -44,13 +48,13 @@ func fixtureSemanticExtractionStatus() SemanticExtractionStatus {
 				EndpointProfileID:      "endpoint-fixture-b",
 				SourceClasses:          []string{"documentation"},
 				SourcePolicyConfigured: true,
-				State:                  SemanticProviderProfileHealthy,
+				State:                  semantic.ProviderProfileHealthy,
 				Reason:                 "provider_profile_healthy",
 				Detail:                 "fixture profile b detail",
 				UpdatedAt:              fixtureTime(122),
 			},
 		},
-		Queue: SemanticExtractionQueueSnapshot{
+		Queue: semantic.ExtractionQueueSnapshot{
 			Total:               50,
 			Pending:             10,
 			Claimed:             8,
@@ -77,21 +81,21 @@ func fixtureSemanticExtractionStatus() SemanticExtractionStatus {
 				{Name: "provider_timeout", Count: 3},
 				{Name: "rate_limited", Count: 1},
 			},
-			ProviderProfileCounts: []SemanticExtractionProviderProfileQueueCount{
+			ProviderProfileCounts: []semantic.ExtractionProviderProfileQueueCount{
 				{ProviderKind: "embedding", ProviderProfileID: "profile-fixture-a", ProviderProfileClass: "primary", Count: 30},
 				{ProviderKind: "completion", ProviderProfileID: "profile-fixture-b", ProviderProfileClass: "secondary", Count: 20},
 			},
-			PolicyDecisionCounts: []SemanticExtractionDecisionCount{
+			PolicyDecisionCounts: []semantic.ExtractionDecisionCount{
 				{State: "allowed", Reason: "policy_allowed", Count: 40},
 				{State: "denied", Reason: "policy_denied", Count: 10},
 			},
-			GuardDecisionCounts: []SemanticExtractionDecisionCount{
+			GuardDecisionCounts: []semantic.ExtractionDecisionCount{
 				{State: "allowed", Reason: "guard_allowed", Count: 42},
 				{State: "denied", Reason: "unsafe_output", Count: 8},
 			},
 			UpdatedAt: fixtureTime(123),
 		},
-		Budget: SemanticExtractionBudgetSnapshot{
+		Budget: semantic.ExtractionBudgetSnapshot{
 			EstimatedInputTokens:  100000,
 			EstimatedOutputTokens: 20000,
 			EstimatedCostMicros:   500000,
@@ -101,12 +105,12 @@ func fixtureSemanticExtractionStatus() SemanticExtractionStatus {
 			RemainingTokens:       5000,
 			RemainingCostMicros:   30000,
 			Exhausted:             1,
-			DecisionCounts: []SemanticExtractionBudgetDecisionCount{
+			DecisionCounts: []semantic.ExtractionBudgetDecisionCount{
 				{State: "allowed", Reason: "within_budget", BudgetUnit: "tokens", Count: 90},
 				{State: "denied", Reason: "budget_exhausted", BudgetUnit: "cost_micros", Count: 10},
 			},
 		},
-		Audit: SemanticExtractionAuditSnapshot{
+		Audit: semantic.ExtractionAuditSnapshot{
 			ActorClassCounts: []NamedCount{
 				{Name: "collector", Count: 25},
 				{Name: "operator", Count: 5},

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // TestControlPlaneProjectsQueueClaimLatencyAndStuckWork verifies the unified
@@ -27,7 +29,7 @@ func TestControlPlaneProjectsQueueClaimLatencyAndStuckWork(t *testing.T) {
 			OldestOutstandingAge: 9 * time.Minute,
 		},
 		Coordinator: &CoordinatorSnapshot{OldestPendingAge: 7 * time.Minute},
-		QueueBlockages: []QueueBlockage{
+		QueueBlockages: []queue.Blockage{
 			{Stage: "reducer", Domain: "workload_materialization", Blocked: 3, OldestAge: 6 * time.Minute},
 			{Stage: "reducer", Domain: "deployable_unit_correlation", Blocked: 1, OldestAge: 2 * time.Minute},
 		},
@@ -80,7 +82,7 @@ func TestControlPlaneProjectsDeadLetterClasses(t *testing.T) {
 			ReplayRequested:     1,
 			OldestDeadLetterAge: 20 * time.Minute,
 		},
-		LatestQueueFailure: &QueueFailureSnapshot{
+		LatestQueueFailure: &queue.FailureSnapshot{
 			Stage:        "reducer",
 			Domain:       "workload_materialization",
 			Status:       "dead_letter",

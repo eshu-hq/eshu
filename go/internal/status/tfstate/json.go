@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package tfstate
 
 import (
 	"sort"
@@ -9,17 +9,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// terraformStateJSON is the operator-facing JSON shape for the tfstate admin
+// ReportJSON is the operator-facing JSON shape for the tfstate admin
 // status section. Empty slices are still emitted so consumers can rely on the
 // shape after the first report containing tfstate evidence.
-type terraformStateJSON struct {
-	LastSerials    []terraformStateSerialJSON                        `json:"last_serials"`
-	RecentWarnings []terraformStateWarningJSON                       `json:"recent_warnings"`
-	WarningsByKind map[string]map[string][]terraformStateWarningJSON `json:"warnings_by_kind"`
-	WarningSummary []terraformStateWarningSummaryJSON                `json:"warning_summary"`
+type ReportJSON struct {
+	LastSerials    []SerialJSON                        `json:"last_serials"`
+	RecentWarnings []WarningJSON                       `json:"recent_warnings"`
+	WarningsByKind map[string]map[string][]WarningJSON `json:"warnings_by_kind"`
+	WarningSummary []WarningSummaryJSON                `json:"warning_summary"`
 }
 
-type terraformStateSerialJSON struct {
+type SerialJSON struct {
 	SafeLocatorHash string `json:"safe_locator_hash"`
 	BackendKind     string `json:"backend_kind,omitempty"`
 	Lineage         string `json:"lineage,omitempty"`
@@ -28,7 +28,7 @@ type terraformStateSerialJSON struct {
 	ObservedAt      string `json:"observed_at,omitempty"`
 }
 
-type terraformStateWarningJSON struct {
+type WarningJSON struct {
 	SafeLocatorHash string `json:"safe_locator_hash"`
 	BackendKind     string `json:"backend_kind,omitempty"`
 	WarningKind     string `json:"warning_kind"`
@@ -41,7 +41,7 @@ type terraformStateWarningJSON struct {
 	ObservedAt      string `json:"observed_at,omitempty"`
 }
 
-type terraformStateWarningSummaryJSON struct {
+type WarningSummaryJSON struct {
 	WarningKind   string `json:"warning_kind"`
 	Reason        string `json:"reason"`
 	ScopeClass    string `json:"scope_class"`
@@ -50,21 +50,21 @@ type terraformStateWarningSummaryJSON struct {
 	Count         int    `json:"count"`
 }
 
-// terraformStateReportJSON projects the report-side TerraformStateReport into
+// ReportJSONFrom projects the report-side Report into
 // the wire JSON shape. Returns nil when the report carries no evidence so the
 // admin status response stays compact for runtimes that never observe tfstate.
-func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
+func ReportJSONFrom(report Report) *ReportJSON {
 	if len(report.LastSerials) == 0 && len(report.RecentWarnings) == 0 && len(report.WarningSummary) == 0 {
 		return nil
 	}
-	out := &terraformStateJSON{
-		LastSerials:    make([]terraformStateSerialJSON, 0, len(report.LastSerials)),
-		RecentWarnings: make([]terraformStateWarningJSON, 0, len(report.RecentWarnings)),
-		WarningsByKind: map[string]map[string][]terraformStateWarningJSON{},
-		WarningSummary: make([]terraformStateWarningSummaryJSON, 0, len(report.WarningSummary)),
+	out := &ReportJSON{
+		LastSerials:    make([]SerialJSON, 0, len(report.LastSerials)),
+		RecentWarnings: make([]WarningJSON, 0, len(report.RecentWarnings)),
+		WarningsByKind: map[string]map[string][]WarningJSON{},
+		WarningSummary: make([]WarningSummaryJSON, 0, len(report.WarningSummary)),
 	}
 	for _, row := range report.LastSerials {
-		out.LastSerials = append(out.LastSerials, terraformStateSerialJSON{
+		out.LastSerials = append(out.LastSerials, SerialJSON{
 			SafeLocatorHash: row.SafeLocatorHash,
 			BackendKind:     row.BackendKind,
 			Lineage:         row.Lineage,
@@ -84,7 +84,7 @@ func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
 	// order on a map is non-deterministic; we sort kind keys before emitting
 	// each locator's slice so the JSON shape is stable across reads.
 	for hash, byKind := range report.WarningsByKind {
-		nested := map[string][]terraformStateWarningJSON{}
+		nested := map[string][]WarningJSON{}
 		kinds := make([]string, 0, len(byKind))
 		for kind := range byKind {
 			kinds = append(kinds, kind)
@@ -92,7 +92,7 @@ func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
 		sort.Strings(kinds)
 		for _, kind := range kinds {
 			rows := byKind[kind]
-			projected := make([]terraformStateWarningJSON, 0, len(rows))
+			projected := make([]WarningJSON, 0, len(rows))
 			for _, row := range rows {
 				projected = append(projected, warningRowJSON(row))
 			}
@@ -103,8 +103,8 @@ func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
 	return out
 }
 
-func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON {
-	return terraformStateWarningJSON{
+func warningRowJSON(row LocatorWarning) WarningJSON {
+	return WarningJSON{
 		SafeLocatorHash: row.SafeLocatorHash,
 		BackendKind:     row.BackendKind,
 		WarningKind:     row.WarningKind,
@@ -118,8 +118,8 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 	}
 }
 
-func warningSummaryRowJSON(row TerraformStateWarningSummary) terraformStateWarningSummaryJSON {
-	return terraformStateWarningSummaryJSON{ //nolint:staticcheck // keep the public JSON projection explicit and decoupled from the internal summary type.
+func warningSummaryRowJSON(row WarningSummary) WarningSummaryJSON {
+	return WarningSummaryJSON{ //nolint:staticcheck // keep the public JSON projection explicit and decoupled from the internal summary type.
 		WarningKind:   row.WarningKind,
 		Reason:        row.Reason,
 		ScopeClass:    row.ScopeClass,

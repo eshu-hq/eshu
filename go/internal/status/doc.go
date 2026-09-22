@@ -17,7 +17,7 @@
 // failures within CoordinatorRecentFailures (a bounded recent window) rather
 // than cumulative all-time counts, so a recovered stack reports healthy again
 // instead of staying degraded until aged failure rows are pruned; cumulative
-// counts remain in the report as informational detail. The TerraformStateReport
+// counts remain in the report as informational detail. The tfstate.Report
 // section, surfaced under Report.TerraformState, exposes per-locator state
 // serial advance, safe source handles, and recent warning_fact rows grouped by
 // warning_kind with severity/actionability classification so operators can
@@ -48,7 +48,7 @@
 // before projector work existed, so operators can separate source-level replay
 // requests from normal queue replay; unresolved dead-letter and replay-request
 // rows keep health degraded until a later successful source commit clears them.
-// SemanticExtractionStatus reports optional LLM-assisted extraction liveness as
+// semantic.ExtractionStatus reports optional LLM-assisted extraction liveness as
 // unavailable when no provider is configured; when provider profiles are
 // configured, it carries redacted profile state and source-policy gates without
 // credential handles. That informational state never degrades health or blocks
@@ -58,39 +58,39 @@
 // canonical fallback. It carries only low-cardinality state, reason, retention,
 // policy hash, and validator reason-code metadata; it never carries prompts,
 // provider responses, credentials, source identifiers, or canonical truth.
-// GenerationLifecycleRecord, GenerationLifecycleFilter, and
-// GenerationLifecyclePage define the bounded scope-generation drilldown
+// generation.LifecycleRecord, generation.LifecycleFilter, and
+// generation.LifecyclePage define the bounded scope-generation drilldown
 // contract: one ordered page of active, pending, superseded, completed, or
 // failed generations joined with the owning scope identity, the per-generation
-// queue rollup (GenerationQueueStatus), and the latest failure
-// (GenerationLatestFailure). The filter clamps the page limit between one and
-// MaxGenerationLifecycleLimit and exposes HasScopeSelector so a named scope,
+// queue rollup (generation.QueueStatus), and the latest failure
+// (generation.LatestFailure). The filter clamps the page limit between one and
+// generation.MaxLifecycleLimit and exposes HasScopeSelector so a named scope,
 // repository, or generation that matches nothing is reported as not-found
 // rather than confident emptiness.
 //
-// ChangedSinceFilter, ChangedSinceSummary, ChangedSinceCategoryDelta, and the
-// ChangedSinceClassification/ChangedSinceCategory enums define the bounded
+// changedsince.Filter, changedsince.Summary, changedsince.CategoryDelta, and the
+// changedsince.Classification/changedsince.Category enums define the bounded
 // repository-scope changed-since contract: a diff of one prior generation's fact
 // set against the current active generation's fact set, grouped into evidence
 // categories (files, content entities, facts) and the closed verdict set
 // (added, updated, unchanged, retired, superseded). Counts are exact;
-// ChangedSinceFilter clamps the per-classification sample handles to
-// MaxChangedSinceSampleLimit. The Unavailable flag distinguishes a scope with no
+// changedsince.Filter clamps the per-classification sample handles to
+// changedsince.MaxSampleLimit. The Unavailable flag distinguishes a scope with no
 // current active generation from a genuinely empty delta so the surface never
 // reports all-unchanged when it cannot diff. UnavailableReason is populated for
 // fail-closed cases such as generation history pruned by retention.
 //
-// ServiceChangedSinceFilter and ServiceChangedSinceSummary define the
+// changedsince.ServiceFilter and changedsince.ServiceSummary define the
 // service-scope variant (#1943): the same verdict set, counts, sample, and
 // Unavailable shapes, but keyed by service_id and diffed over a per-service
 // materialization generation lineage instead of an ingestion scope. It reports
-// the ownership (ChangedSinceCategoryOwnership, #1943), deployment
-// (ChangedSinceCategoryDeployment, #1985), runtime
-// (ChangedSinceCategoryRuntime, #1986), dependencies
-// (ChangedSinceCategoryDependencies, #1987), docs
-// (ChangedSinceCategoryDocs, #1988), and incidents
-// (ChangedSinceCategoryIncidents, #1989) evidence families; the remaining family
-// appends to ServiceChangedSinceCategories as it lands.
+// the ownership (changedsince.CategoryOwnership, #1943), deployment
+// (changedsince.CategoryDeployment, #1985), runtime
+// (changedsince.CategoryRuntime, #1986), dependencies
+// (changedsince.CategoryDependencies, #1987), docs
+// (changedsince.CategoryDocs, #1988), and incidents
+// (changedsince.CategoryIncidents, #1989) evidence families; the remaining family
+// appends to changedsince.ServiceCategories as it lands.
 //
 // ControlPlane projects an already-built Report into OperatorControlPlane, the
 // unified operator read model for the control-plane epic: queue depth with

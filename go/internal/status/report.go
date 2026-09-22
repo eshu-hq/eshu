@@ -14,6 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
+
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.
@@ -23,21 +31,21 @@ type RawSnapshot struct {
 	GenerationCounts      []NamedCount
 	ScopeActivity         ScopeActivitySnapshot
 	GenerationHistory     GenerationHistorySnapshot
-	GenerationTransitions []GenerationTransitionSnapshot
+	GenerationTransitions []generation.TransitionSnapshot
 	StageCounts           []StageStatusCount
 	DomainBacklogs        []DomainBacklog
 	ProducerActivity      ProducerActivitySnapshot
-	QueueBlockages        []QueueBlockage
+	QueueBlockages        []queue.Blockage
 	RetryPolicies         []RetryPolicySummary
 	Queue                 QueueSnapshot
-	LatestQueueFailure    *QueueFailureSnapshot
+	LatestQueueFailure    *queue.FailureSnapshot
 	Coordinator           *CoordinatorSnapshot
 	RegistryCollectors    []RegistryCollectorSnapshot
 	AWSCloudScans         []cloud.AWSScanStatus
 	AWSFreshness          cloud.AWSFreshnessSnapshot
 	InfraInventory        InfraInventorySnapshot
 	VulnerabilitySources  []collector.VulnerabilitySourceState
-	SemanticExtraction    SemanticExtractionStatus
+	SemanticExtraction    semantic.ExtractionStatus
 	AnswerNarration       AnswerNarrationStatus
 	// CollectorGenerationDeadLetters captures commit failures that happened
 	// before normal projector/reducer queue rows existed.
@@ -51,11 +59,11 @@ type RawSnapshot struct {
 	// TerraformStateLastSerials carries the most recent observed serial per
 	// active state_snapshot scope, keyed by safe_locator_hash. Empty when the
 	// reader does not surface tfstate evidence.
-	TerraformStateLastSerials []TerraformStateLocatorSerial
-	// TerraformStateRecentWarnings carries up to MaxTerraformStateRecentWarnings
+	TerraformStateLastSerials []tfstate.LocatorSerial
+	// TerraformStateRecentWarnings carries up to tfstate.MaxRecentWarnings
 	// warning_fact rows per safe_locator_hash so operators can see recent
 	// warnings without scanning the fact stream.
-	TerraformStateRecentWarnings []TerraformStateLocatorWarning
+	TerraformStateRecentWarnings []tfstate.LocatorWarning
 }
 
 // SnapshotSelection controls which optional, expensive sections a status reader
@@ -139,20 +147,20 @@ type Report struct {
 	RetryPolicies                  []RetryPolicySummary
 	ScopeActivity                  ScopeActivitySnapshot
 	GenerationHistory              GenerationHistorySnapshot
-	GenerationTransitions          []GenerationTransitionSnapshot
+	GenerationTransitions          []generation.TransitionSnapshot
 	ScopeTotals                    map[string]int
 	GenerationTotals               map[string]int
 	StageSummaries                 []StageSummary
 	DomainBacklogs                 []DomainBacklog
-	QueueBlockages                 []QueueBlockage
-	LatestQueueFailure             *QueueFailureSnapshot
+	QueueBlockages                 []queue.Blockage
+	LatestQueueFailure             *queue.FailureSnapshot
 	Coordinator                    *CoordinatorSnapshot
 	RegistryCollectors             []RegistryCollectorSnapshot
 	AWSCloudScans                  []cloud.AWSScanStatus
 	AWSFreshness                   cloud.AWSFreshnessSnapshot
 	InfraInventory                 InfraInventorySnapshot
 	VulnerabilitySources           []collector.VulnerabilitySourceState
-	SemanticExtraction             SemanticExtractionStatus
+	SemanticExtraction             semantic.ExtractionStatus
 	AnswerNarration                AnswerNarrationStatus
 	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
 	CollectorFactEvidence          []collector.FactEvidence
@@ -172,7 +180,7 @@ type Report struct {
 	// derived from RawSnapshot.TerraformStateLastSerials and
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
 	// surface tfstate evidence.
-	TerraformState TerraformStateReport
+	TerraformState tfstate.Report
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live

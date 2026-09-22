@@ -15,6 +15,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
+
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 )
 
 // RenderJSON returns a stable machine-readable projection of the report.
@@ -35,14 +43,14 @@ func RenderJSON(report Report) ([]byte, error) {
 		AWSFreshness                   *cloud.AWSFreshnessJSON             `json:"aws_freshness,omitempty"`
 		InfraInventory                 *infraInventoryJSON                 `json:"infra_inventory,omitempty"`
 		VulnerabilitySources           []collector.VulnerabilitySourceJSON `json:"vulnerability_sources,omitempty"`
-		SemanticExtraction             semanticExtractionJSON              `json:"semantic_extraction"`
+		SemanticExtraction             semantic.ExtractionJSON             `json:"semantic_extraction"`
 		AnswerNarration                answerNarrationJSON                 `json:"answer_narration"`
 		CollectorGenerationDeadLetters collector.GenerationDeadLetterJSON  `json:"collector_generation_dead_letters"`
 		AWSCloudScansTruncated         bool                                `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit              int                                 `json:"aws_cloud_scan_limit,omitempty"`
 		ScopeActivity                  scopeActivityJSON                   `json:"scope_activity"`
 		GenerationHistory              generationHistoryJSON               `json:"generation_history"`
-		GenerationTransitions          []generationTransitionJSON          `json:"generation_transitions"`
+		GenerationTransitions          []generation.TransitionJSON         `json:"generation_transitions"`
 		Scopes                         map[string]int                      `json:"scopes"`
 		Generations                    map[string]int                      `json:"generations"`
 		Stages                         []StageSummary                      `json:"stages"`
@@ -50,7 +58,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		DomainBacklogsTruncated        bool                                `json:"domain_backlogs_truncated,omitempty"`
 		DomainBacklogsLimit            int                                 `json:"domain_backlogs_limit,omitempty"`
 		QueueBlockages                 []queueBlockageJSON                 `json:"queue_blockages"`
-		TerraformState                 *terraformStateJSON                 `json:"terraform_state,omitempty"`
+		TerraformState                 *tfstate.ReportJSON                 `json:"terraform_state,omitempty"`
 	}{
 		Version:           buildinfo.AppVersion(),
 		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
@@ -71,14 +79,14 @@ func RenderJSON(report Report) ([]byte, error) {
 		AWSFreshness:                   cloud.AWSFreshnessJSONFrom(report.AWSFreshness),
 		InfraInventory:                 infraInventoryJSONFromReport(report.InfraInventory),
 		VulnerabilitySources:           collector.VulnerabilitySourcesJSON(report.VulnerabilitySources),
-		SemanticExtraction:             semanticExtractionStatusJSON(report.SemanticExtraction),
+		SemanticExtraction:             semantic.ExtractionStatusJSON(report.SemanticExtraction),
 		AnswerNarration:                answerNarrationStatusJSON(report.AnswerNarration),
 		CollectorGenerationDeadLetters: collector.GenerationDeadLetterJSONFrom(report.CollectorGenerationDeadLetters),
 		AWSCloudScansTruncated:         report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanLimitJSON(report),
 		ScopeActivity:                  scopeActivityJSONFromReport(report.ScopeActivity),
 		GenerationHistory:              generationHistoryJSONFromReport(report.GenerationHistory),
-		GenerationTransitions:          generationTransitionsJSON(report.GenerationTransitions),
+		GenerationTransitions:          generation.TransitionsJSON(report.GenerationTransitions),
 		Scopes:                         cloneCounts(report.ScopeTotals),
 		Generations:                    cloneCounts(report.GenerationTotals),
 		Stages:                         slices.Clone(report.StageSummaries),
@@ -86,7 +94,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		DomainBacklogsTruncated:        report.DomainBacklogsTruncated,
 		DomainBacklogsLimit:            domainBacklogsLimitJSON(report),
 		QueueBlockages:                 queueBlockagesJSON(report.QueueBlockages),
-		TerraformState:                 terraformStateReportJSON(report.TerraformState),
+		TerraformState:                 tfstate.ReportJSONFrom(report.TerraformState),
 	}
 
 	return json.MarshalIndent(payload, "", "  ")
@@ -213,25 +221,25 @@ type queueBlockageJSON struct {
 	OldestAgeSeconds float64 `json:"oldest_age_seconds"`
 }
 
-func queueJSONFromReport(queue QueueSnapshot) queueJSON {
+func queueJSONFromReport(snapshot QueueSnapshot) queueJSON {
 	return queueJSON{
-		Total:                                 queue.Total,
-		Outstanding:                           queue.Outstanding,
-		Pending:                               queue.Pending,
-		InFlight:                              queue.InFlight,
-		Retrying:                              queue.Retrying,
-		Succeeded:                             queue.Succeeded,
-		Failed:                                queue.Failed,
-		DeadLetter:                            queue.DeadLetter,
-		ProvenanceEdgeIdentityUpgradeApplied:  queue.ProvenanceEdgeIdentityUpgradeApplied,
-		ProvenanceEdgeIdentityUpgradeRequired: queue.ProvenanceEdgeIdentityUpgradeRequired,
-		OverdueClaims:                         queue.OverdueClaims,
-		OldestOutstandingAge:                  queue.OldestOutstandingAge.String(),
-		OldestOutstandingAgeSeconds:           queue.OldestOutstandingAge.Seconds(),
+		Total:                                 snapshot.Total,
+		Outstanding:                           snapshot.Outstanding,
+		Pending:                               snapshot.Pending,
+		InFlight:                              snapshot.InFlight,
+		Retrying:                              snapshot.Retrying,
+		Succeeded:                             snapshot.Succeeded,
+		Failed:                                snapshot.Failed,
+		DeadLetter:                            snapshot.DeadLetter,
+		ProvenanceEdgeIdentityUpgradeApplied:  snapshot.ProvenanceEdgeIdentityUpgradeApplied,
+		ProvenanceEdgeIdentityUpgradeRequired: snapshot.ProvenanceEdgeIdentityUpgradeRequired,
+		OverdueClaims:                         snapshot.OverdueClaims,
+		OldestOutstandingAge:                  snapshot.OldestOutstandingAge.String(),
+		OldestOutstandingAgeSeconds:           snapshot.OldestOutstandingAge.Seconds(),
 	}
 }
 
-func queueFailureJSONFromReport(snapshot *QueueFailureSnapshot) *queueFailureJSON {
+func queueFailureJSONFromReport(snapshot *queue.FailureSnapshot) *queueFailureJSON {
 	if snapshot == nil {
 		return nil
 	}
@@ -272,7 +280,7 @@ func domainBacklogsJSON(rows []DomainBacklog) []domainBacklogJSON {
 	return projected
 }
 
-func queueBlockagesJSON(rows []QueueBlockage) []queueBlockageJSON {
+func queueBlockagesJSON(rows []queue.Blockage) []queueBlockageJSON {
 	projected := make([]queueBlockageJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, queueBlockageJSON{

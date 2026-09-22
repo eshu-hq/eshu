@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package queue
 
 import (
 	"fmt"
@@ -12,9 +12,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// QueueBlockage captures eligible work that could not be claimed because a
+// Blockage captures eligible work that could not be claimed because a
 // durable coordination gate is protecting the same conflict domain.
-type QueueBlockage struct {
+type Blockage struct {
 	Stage          string
 	Domain         string
 	ConflictDomain string
@@ -23,10 +23,10 @@ type QueueBlockage struct {
 	OldestAge      time.Duration
 }
 
-// cloneQueueBlockages normalizes queue-blockage rows into the same priority
+// CloneBlockages normalizes queue-blockage rows into the same priority
 // order used by the operator report: biggest and oldest blockers first.
-func cloneQueueBlockages(rows []QueueBlockage) []QueueBlockage {
-	cloned := make([]QueueBlockage, 0, len(rows))
+func CloneBlockages(rows []Blockage) []Blockage {
+	cloned := make([]Blockage, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.Stage) == "" {
 			continue
@@ -52,9 +52,9 @@ func cloneQueueBlockages(rows []QueueBlockage) []QueueBlockage {
 	return cloned
 }
 
-// renderQueueBlockageLines formats conflict-blocked queue diagnostics for the
+// RenderBlockageLines formats conflict-blocked queue diagnostics for the
 // text status report without promoting high-cardinality keys into metrics.
-func renderQueueBlockageLines(rows []QueueBlockage) []string {
+func RenderBlockageLines(rows []Blockage) []string {
 	if len(rows) == 0 {
 		return nil
 	}

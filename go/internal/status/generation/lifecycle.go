@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package generation
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// GenerationTransitionSnapshot captures one recent scope-generation lifecycle
+// TransitionSnapshot captures one recent scope-generation lifecycle
 // row straight from the status store.
-type GenerationTransitionSnapshot struct {
+type TransitionSnapshot struct {
 	ScopeID                   string
 	GenerationID              string
 	Status                    string
@@ -23,7 +23,7 @@ type GenerationTransitionSnapshot struct {
 	CurrentActiveGenerationID string
 }
 
-type generationTransitionJSON struct {
+type TransitionJSON struct {
 	ScopeID                   string `json:"scope_id"`
 	GenerationID              string `json:"generation_id"`
 	Status                    string `json:"status"`
@@ -35,17 +35,17 @@ type generationTransitionJSON struct {
 	CurrentActiveGenerationID string `json:"current_active_generation_id,omitempty"`
 }
 
-func cloneGenerationTransitions(rows []GenerationTransitionSnapshot) []GenerationTransitionSnapshot {
+func CloneTransitions(rows []TransitionSnapshot) []TransitionSnapshot {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	cloned := make([]GenerationTransitionSnapshot, len(rows))
+	cloned := make([]TransitionSnapshot, len(rows))
 	copy(cloned, rows)
 	return cloned
 }
 
-func generationTransitionsText(rows []GenerationTransitionSnapshot) string {
+func TransitionsText(rows []TransitionSnapshot) string {
 	if len(rows) == 0 {
 		return "none"
 	}
@@ -69,21 +69,21 @@ func generationTransitionsText(rows []GenerationTransitionSnapshot) string {
 	return strings.Join(parts, "; ")
 }
 
-func generationTransitionsJSON(rows []GenerationTransitionSnapshot) []generationTransitionJSON {
+func TransitionsJSON(rows []TransitionSnapshot) []TransitionJSON {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	projected := make([]generationTransitionJSON, 0, len(rows))
+	projected := make([]TransitionJSON, 0, len(rows))
 	for _, row := range rows {
-		projected = append(projected, generationTransitionJSONFromReport(row))
+		projected = append(projected, TransitionJSONFrom(row))
 	}
 
 	return projected
 }
 
-func generationTransitionJSONFromReport(row GenerationTransitionSnapshot) generationTransitionJSON {
-	return generationTransitionJSON{
+func TransitionJSONFrom(row TransitionSnapshot) TransitionJSON {
+	return TransitionJSON{
 		ScopeID:                   strings.TrimSpace(row.ScopeID),
 		GenerationID:              strings.TrimSpace(row.GenerationID),
 		Status:                    strings.TrimSpace(row.Status),

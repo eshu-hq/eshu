@@ -9,6 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
+
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
+
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
 )
 
 // fixtureBase anchors every deterministic timestamp used by maxRawSnapshot.
@@ -58,7 +64,7 @@ func maxRawSnapshot() RawSnapshot {
 			Failed:     1,
 			Other:      6,
 		},
-		GenerationTransitions: []GenerationTransitionSnapshot{
+		GenerationTransitions: []generation.TransitionSnapshot{
 			{
 				ScopeID:                   "scope-fixture-a",
 				GenerationID:              "generation-fixture-a1",
@@ -110,7 +116,7 @@ func maxRawSnapshot() RawSnapshot {
 			HasActiveOrPendingGeneration: true,
 			LatestGenerationAge:          fixtureDuration(180),
 		},
-		QueueBlockages: []QueueBlockage{
+		QueueBlockages: []queue.Blockage{
 			{Stage: "projector", Domain: "domain-fixture-a", ConflictDomain: "conflict-domain-a", ConflictKey: "conflict-key-a", Blocked: 8, OldestAge: fixtureDuration(801)},
 			{Stage: "reducer", Domain: "domain-fixture-b", ConflictDomain: "conflict-domain-b", ConflictKey: "conflict-key-b", Blocked: 5, OldestAge: fixtureDuration(501)},
 		},
@@ -132,7 +138,7 @@ func maxRawSnapshot() RawSnapshot {
 			OldestOutstandingAge:                  fixtureDuration(900),
 			OverdueClaims:                         2,
 		},
-		LatestQueueFailure: &QueueFailureSnapshot{
+		LatestQueueFailure: &queue.FailureSnapshot{
 			Stage:          "reducer",
 			Domain:         "domain-fixture-a",
 			Status:         "failed",
@@ -274,7 +280,7 @@ func maxRawSnapshot() RawSnapshot {
 		},
 		AWSCloudScansTruncated: true,
 		AWSCloudScanLimit:      2,
-		TerraformStateLastSerials: []TerraformStateLocatorSerial{
+		TerraformStateLastSerials: []tfstate.LocatorSerial{
 			{
 				SafeLocatorHash: "safe-locator-hash-a",
 				BackendKind:     "s3",
@@ -292,7 +298,7 @@ func maxRawSnapshot() RawSnapshot {
 				ObservedAt:      fixtureTime(81),
 			},
 		},
-		TerraformStateRecentWarnings: []TerraformStateLocatorWarning{
+		TerraformStateRecentWarnings: []tfstate.LocatorWarning{
 			{
 				SafeLocatorHash: "safe-locator-hash-a",
 				BackendKind:     "s3",

@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package semantic
 
 import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// SemanticExtractionQueueSnapshot captures aggregate semantic queue lifecycle
+// ExtractionQueueSnapshot captures aggregate semantic queue lifecycle
 // state without raw prompts, responses, source identifiers, or chunk hashes.
-type SemanticExtractionQueueSnapshot struct {
+type ExtractionQueueSnapshot struct {
 	Total                 int
 	Pending               int
 	Claimed               int
@@ -26,34 +28,34 @@ type SemanticExtractionQueueSnapshot struct {
 	ProviderUnavailable   int
 	Unchanged             int
 	Stale                 int
-	StatusCounts          []NamedCount
-	SourceClassCounts     []NamedCount
-	FailureClassCounts    []NamedCount
-	ProviderProfileCounts []SemanticExtractionProviderProfileQueueCount
-	PolicyDecisionCounts  []SemanticExtractionDecisionCount
-	GuardDecisionCounts   []SemanticExtractionDecisionCount
+	StatusCounts          []shared.NamedCount
+	SourceClassCounts     []shared.NamedCount
+	FailureClassCounts    []shared.NamedCount
+	ProviderProfileCounts []ExtractionProviderProfileQueueCount
+	PolicyDecisionCounts  []ExtractionDecisionCount
+	GuardDecisionCounts   []ExtractionDecisionCount
 	UpdatedAt             time.Time
 }
 
-// SemanticExtractionProviderProfileQueueCount is a bounded queue aggregate for
+// ExtractionProviderProfileQueueCount is a bounded queue aggregate for
 // one configured provider profile.
-type SemanticExtractionProviderProfileQueueCount struct {
+type ExtractionProviderProfileQueueCount struct {
 	ProviderKind         string
 	ProviderProfileID    string
 	ProviderProfileClass string
 	Count                int
 }
 
-// SemanticExtractionDecisionCount aggregates policy or guard decisions by
+// ExtractionDecisionCount aggregates policy or guard decisions by
 // bounded state and reason values.
-type SemanticExtractionDecisionCount struct {
+type ExtractionDecisionCount struct {
 	State  string
 	Reason string
 	Count  int
 }
 
-// SemanticExtractionBudgetSnapshot captures redacted semantic budget totals.
-type SemanticExtractionBudgetSnapshot struct {
+// ExtractionBudgetSnapshot captures redacted semantic budget totals.
+type ExtractionBudgetSnapshot struct {
 	EstimatedInputTokens  int64
 	EstimatedOutputTokens int64
 	EstimatedCostMicros   int64
@@ -63,26 +65,26 @@ type SemanticExtractionBudgetSnapshot struct {
 	RemainingTokens       int64
 	RemainingCostMicros   int64
 	Exhausted             int
-	DecisionCounts        []SemanticExtractionBudgetDecisionCount
+	DecisionCounts        []ExtractionBudgetDecisionCount
 }
 
-// SemanticExtractionBudgetDecisionCount aggregates semantic budget decisions.
-type SemanticExtractionBudgetDecisionCount struct {
+// ExtractionBudgetDecisionCount aggregates semantic budget decisions.
+type ExtractionBudgetDecisionCount struct {
 	State      string
 	Reason     string
 	BudgetUnit string
 	Count      int
 }
 
-// SemanticExtractionAuditSnapshot captures audit-safe enablement and egress
+// ExtractionAuditSnapshot captures audit-safe enablement and egress
 // classes without principals, source IDs, prompts, or provider responses.
-type SemanticExtractionAuditSnapshot struct {
-	ActorClassCounts []NamedCount
-	ACLStateCounts   []NamedCount
+type ExtractionAuditSnapshot struct {
+	ActorClassCounts []shared.NamedCount
+	ACLStateCounts   []shared.NamedCount
 	LastProcessedAt  time.Time
 }
 
-func normalizeSemanticExtractionQueueSnapshot(snapshot SemanticExtractionQueueSnapshot) SemanticExtractionQueueSnapshot {
+func normalizeSemanticExtractionQueueSnapshot(snapshot ExtractionQueueSnapshot) ExtractionQueueSnapshot {
 	out := snapshot
 	out.StatusCounts = normalizeNamedCounts(snapshot.StatusCounts)
 	out.SourceClassCounts = normalizeNamedCounts(snapshot.SourceClassCounts)
@@ -108,7 +110,7 @@ func normalizeSemanticExtractionQueueSnapshot(snapshot SemanticExtractionQueueSn
 	return out
 }
 
-func normalizeSemanticExtractionBudgetSnapshot(snapshot SemanticExtractionBudgetSnapshot) SemanticExtractionBudgetSnapshot {
+func normalizeSemanticExtractionBudgetSnapshot(snapshot ExtractionBudgetSnapshot) ExtractionBudgetSnapshot {
 	out := snapshot
 	out.DecisionCounts = normalizeBudgetDecisionCounts(snapshot.DecisionCounts)
 	out.EstimatedInputTokens = nonNegativeInt64(out.EstimatedInputTokens)
@@ -123,20 +125,20 @@ func normalizeSemanticExtractionBudgetSnapshot(snapshot SemanticExtractionBudget
 	return out
 }
 
-func normalizeSemanticExtractionAuditSnapshot(snapshot SemanticExtractionAuditSnapshot) SemanticExtractionAuditSnapshot {
-	return SemanticExtractionAuditSnapshot{
+func normalizeSemanticExtractionAuditSnapshot(snapshot ExtractionAuditSnapshot) ExtractionAuditSnapshot {
+	return ExtractionAuditSnapshot{
 		ActorClassCounts: normalizeNamedCounts(snapshot.ActorClassCounts),
 		ACLStateCounts:   normalizeNamedCounts(snapshot.ACLStateCounts),
 		LastProcessedAt:  snapshot.LastProcessedAt.UTC(),
 	}
 }
 
-func semanticExtractionQueueHasValues(snapshot SemanticExtractionQueueSnapshot) bool {
+func extractionQueueHasValues(snapshot ExtractionQueueSnapshot) bool {
 	return snapshot.Total > 0 || len(snapshot.StatusCounts) > 0 ||
 		len(snapshot.ProviderProfileCounts) > 0
 }
 
-func semanticExtractionBudgetHasValues(snapshot SemanticExtractionBudgetSnapshot) bool {
+func extractionBudgetHasValues(snapshot ExtractionBudgetSnapshot) bool {
 	return snapshot.EstimatedInputTokens > 0 || snapshot.EstimatedOutputTokens > 0 ||
 		snapshot.EstimatedCostMicros > 0 || snapshot.ActualInputTokens > 0 ||
 		snapshot.ActualOutputTokens > 0 || snapshot.ActualCostMicros > 0 ||
@@ -144,12 +146,12 @@ func semanticExtractionBudgetHasValues(snapshot SemanticExtractionBudgetSnapshot
 		snapshot.Exhausted > 0 || len(snapshot.DecisionCounts) > 0
 }
 
-func semanticExtractionAuditHasValues(snapshot SemanticExtractionAuditSnapshot) bool {
+func extractionAuditHasValues(snapshot ExtractionAuditSnapshot) bool {
 	return len(snapshot.ActorClassCounts) > 0 || len(snapshot.ACLStateCounts) > 0 ||
 		!snapshot.LastProcessedAt.IsZero()
 }
 
-func normalizeNamedCounts(rows []NamedCount) []NamedCount {
+func normalizeNamedCounts(rows []shared.NamedCount) []shared.NamedCount {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -166,14 +168,14 @@ func normalizeNamedCounts(rows []NamedCount) []NamedCount {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	out := make([]NamedCount, 0, len(names))
+	out := make([]shared.NamedCount, 0, len(names))
 	for _, name := range names {
-		out = append(out, NamedCount{Name: name, Count: counts[name]})
+		out = append(out, shared.NamedCount{Name: name, Count: counts[name]})
 	}
 	return out
 }
 
-func normalizeProviderProfileQueueCounts(rows []SemanticExtractionProviderProfileQueueCount) []SemanticExtractionProviderProfileQueueCount {
+func normalizeProviderProfileQueueCounts(rows []ExtractionProviderProfileQueueCount) []ExtractionProviderProfileQueueCount {
 	type key struct {
 		providerKind         string
 		providerProfileID    string
@@ -193,9 +195,9 @@ func normalizeProviderProfileQueueCounts(rows []SemanticExtractionProviderProfil
 			counts[k] += row.Count
 		}
 	}
-	out := make([]SemanticExtractionProviderProfileQueueCount, 0, len(counts))
+	out := make([]ExtractionProviderProfileQueueCount, 0, len(counts))
 	for k, count := range counts {
-		out = append(out, SemanticExtractionProviderProfileQueueCount{
+		out = append(out, ExtractionProviderProfileQueueCount{
 			ProviderKind:         k.providerKind,
 			ProviderProfileID:    k.providerProfileID,
 			ProviderProfileClass: k.providerProfileClass,
@@ -214,7 +216,7 @@ func normalizeProviderProfileQueueCounts(rows []SemanticExtractionProviderProfil
 	return out
 }
 
-func normalizeDecisionCounts(rows []SemanticExtractionDecisionCount) []SemanticExtractionDecisionCount {
+func normalizeDecisionCounts(rows []ExtractionDecisionCount) []ExtractionDecisionCount {
 	type key struct{ state, reason string }
 	counts := map[key]int{}
 	for _, row := range rows {
@@ -226,9 +228,9 @@ func normalizeDecisionCounts(rows []SemanticExtractionDecisionCount) []SemanticE
 			counts[k] += row.Count
 		}
 	}
-	out := make([]SemanticExtractionDecisionCount, 0, len(counts))
+	out := make([]ExtractionDecisionCount, 0, len(counts))
 	for k, count := range counts {
-		out = append(out, SemanticExtractionDecisionCount{State: k.state, Reason: k.reason, Count: count})
+		out = append(out, ExtractionDecisionCount{State: k.state, Reason: k.reason, Count: count})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].State == out[j].State {
@@ -239,7 +241,7 @@ func normalizeDecisionCounts(rows []SemanticExtractionDecisionCount) []SemanticE
 	return out
 }
 
-func normalizeBudgetDecisionCounts(rows []SemanticExtractionBudgetDecisionCount) []SemanticExtractionBudgetDecisionCount {
+func normalizeBudgetDecisionCounts(rows []ExtractionBudgetDecisionCount) []ExtractionBudgetDecisionCount {
 	type key struct{ state, reason, unit string }
 	counts := map[key]int{}
 	for _, row := range rows {
@@ -255,9 +257,9 @@ func normalizeBudgetDecisionCounts(rows []SemanticExtractionBudgetDecisionCount)
 			counts[k] += row.Count
 		}
 	}
-	out := make([]SemanticExtractionBudgetDecisionCount, 0, len(counts))
+	out := make([]ExtractionBudgetDecisionCount, 0, len(counts))
 	for k, count := range counts {
-		out = append(out, SemanticExtractionBudgetDecisionCount{
+		out = append(out, ExtractionBudgetDecisionCount{
 			State:      k.state,
 			Reason:     k.reason,
 			BudgetUnit: k.unit,

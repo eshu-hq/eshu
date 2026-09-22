@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package semantic
 
 import "time"
 
-type semanticProviderProfileJSON struct {
+type ProviderProfileJSON struct {
 	ProfileID              string   `json:"profile_id"`
 	DisplayName            string   `json:"display_name,omitempty"`
 	ProviderKind           string   `json:"provider_kind"`
@@ -22,15 +22,15 @@ type semanticProviderProfileJSON struct {
 	UpdatedAt              string   `json:"updated_at,omitempty"`
 }
 
-func semanticProviderProfilesJSON(
-	profiles []SemanticProviderProfileStatus,
-) []semanticProviderProfileJSON {
+func ProviderProfilesJSON(
+	profiles []ProviderProfileStatus,
+) []ProviderProfileJSON {
 	if len(profiles) == 0 {
 		return nil
 	}
-	rows := make([]semanticProviderProfileJSON, 0, len(profiles))
-	for _, profile := range cloneSemanticProviderProfiles(profiles) {
-		row := semanticProviderProfileJSON{
+	rows := make([]ProviderProfileJSON, 0, len(profiles))
+	for _, profile := range CloneProviderProfiles(profiles) {
+		row := ProviderProfileJSON{
 			ProfileID:              profile.ProfileID,
 			DisplayName:            profile.DisplayName,
 			ProviderKind:           profile.ProviderKind,
