@@ -269,10 +269,12 @@ const valueFlowInputsFenceStatusList = `('pending', 'claimed', 'running', 'retry
 // valueFlowInputsFenceSQL is the #6923 value-flow refresh input-liveness
 // fence: one statement, UNION ALL, so both halves share the same READ
 // COMMITTED snapshot. Each half is LIMIT 5 so the pending sample stays
-// bounded and a single row is enough to refuse. The reducer half uses
-// valueFlowInputsFenceStatusList and joins on active_generation_id so a
-// superseded generation's nonterminal rows never hold the fence. Built from ValueFlowInputsFenceReducerDomains /
-// ValueFlowInputsFenceSharedDomains (not a hand-copied literal) so the SQL
+// bounded and a single row is enough to refuse. Both halves join
+// ingestion_scopes on active_generation_id so a superseded generation's
+// nonterminal rows and orphaned open intents never hold the fence; the
+// reducer half additionally restricts to valueFlowInputsFenceStatusList.
+// Each pending description carries scope/generation so the deferral log
+// names what holds the singleton.
 // and the exported, test-covered domain lists cannot drift apart. See
 // docs/internal/evidence/6923-value-flow-single-solve.md for the EXPLAIN
 // (ANALYZE, BUFFERS) proof (index range scans only, sub-millisecond at B-7
@@ -292,11 +294,14 @@ var valueFlowInputsFenceSQL = `
  LIMIT 5)
 UNION ALL
 (SELECT 'shared' AS kind,
-        intent.projection_domain || ':' || intent.partition_key AS pending
+        intent.scope_id || '/' || intent.generation_id || '=' || intent.projection_domain || ':' || intent.partition_key AS pending
  FROM shared_projection_intents AS intent
+ JOIN ingestion_scopes AS scope
+   ON scope.scope_id = intent.scope_id
+  AND scope.active_generation_id = intent.generation_id
  WHERE intent.completed_at IS NULL
    AND intent.projection_domain IN ` + sqlDomainInList(ValueFlowInputsFenceSharedDomains) + `
- ORDER BY intent.projection_domain, intent.partition_key
+ ORDER BY intent.scope_id, intent.generation_id, intent.projection_domain, intent.partition_key
  LIMIT 5)
 `
 

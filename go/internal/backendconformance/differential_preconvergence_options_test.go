@@ -50,11 +50,11 @@ func TestCompareRecordingsLastWinsWouldMaskFlaps(t *testing.T) {
 	// ...while last-execution-wins would compare {answer-y} vs {answer-x}
 	// only when the flap lands on y, and report CLEAN when it lands on x.
 	lastWins := func(recs []DifferentialRecord) string { return recs[len(recs)-1].Digest }
-	stableCase := []DifferentialRecord{
+	flapLandsOnX := []DifferentialRecord{
 		{Fingerprint: fp, Backend: "nornicdb", RowCount: 2, Digest: "answer-y"},
 		{Fingerprint: fp, Backend: "nornicdb", RowCount: 2, Digest: "answer-x"},
 	}
-	if lastWins(stableCase) != lastWins(legB) {
+	if lastWins(flapLandsOnX) != lastWins(legB) {
 		t.Fatalf("shim setup broken")
 	}
 	t.Logf("PROVEN: last-wins reports clean whenever the flap lands on x — flap detection becomes luck")

@@ -110,6 +110,34 @@ convergence migration is 120, not 118 — origin/main carried 118 (#6892's
 index) when this branched and merged 119 (#6946's liveness stats) before
 this landed, so the file was renumbered on rebase.
 
+### PR review fix: the shared-intents half is scoped to the active generation
+
+The PR review on #6966 found the fence's `shared_projection_intents` half
+refused on any open `runs_in`/`invokes_cloud_action` intent regardless of
+generation, so an orphaned intent on a superseded generation could hold the
+global singleton for the full bound on every reopen. Both halves now join
+`ingestion_scopes` on `active_generation_id`, and each pending description
+carries `scope_id/generation_id` so the deferral log names the holder.
+
+Proof on the scratch database (plain queries, one open `runs_in` intent
+seeded on scope-7): on the SUPERSEDED generation `gen-7-2` the previous
+statement returned `shared|runs_in:p1` (held) and the joined statement
+returned no row; the same intent moved to the ACTIVE generation `gen-7-6`
+returned `shared|scope-7/gen-7-6=runs_in:p1` (held, with the holder named).
+`TestValueFlowInputsLivenessFenceSharesSnapshot` pins the superseded-intent
+case (does not hold) next to the active-intent case (refuses).
+
+Final statement `EXPLAIN (ANALYZE, BUFFERS)` on the same seed:
+
+| state | exec time |
+| --- | --- |
+| S0 drained | 0.23 ms |
+| S3 heavy: 450 pending on active gens + 5000 open runs_in intents on active gens | 2.0 ms |
+
+Plans: `fact_work_items_status_idx` and `shared_projection_intents_acceptance_partition_pending_idx`
+range scans joined to `ingestion_scopes_active_generation_idx`; no Seq Scan
+on either large table.
+
 ### Live fence proof (implementation-time, this branch)
 
 `TestValueFlowInputsLivenessFenceSharesSnapshot`

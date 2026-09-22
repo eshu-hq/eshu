@@ -19,7 +19,8 @@ import (
 
 // TestValueFlowInputsLivenessFenceSharesSnapshot proves the #6923 value-flow
 // refresh fence against a live Postgres: an open runs_in shared-projection
-// intent refuses; completing it clears the fence; a dead_letter
+// intent on the ACTIVE generation refuses; completing it clears the fence; an
+// open intent on a SUPERSEDED generation does not hold; a dead_letter
 // iam_can_perform_materialization work item does not hold the fence on a
 // SUPERSEDED generation (that generation will never run) nor on the ACTIVE
 // one (a dead-lettered producer only contributes again when an operator
@@ -109,6 +110,21 @@ VALUES ($1, 'runs_in', $2, $3, 'repo-1', 'run-1', $4, '{}'::jsonb, $5, NULL)`,
 	}
 	if pending, err := probe(); err != nil || len(pending) != 0 {
 		t.Fatalf("probe after completing runs_in intent = %v, %v; want empty, nil", pending, err)
+	}
+
+	// An open runs_in intent left on a SUPERSEDED generation does not hold
+	// the fence: the shared half joins the scope's active generation too.
+	staleIntentID := prefix + "-runs-in-intent-superseded"
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO shared_projection_intents
+  (intent_id, projection_domain, partition_key, scope_id, repository_id, source_run_id,
+   generation_id, payload, created_at, completed_at)
+VALUES ($1, 'runs_in', $2, $3, 'repo-1', 'run-1', $4, '{}'::jsonb, $5, NULL)`,
+		staleIntentID, prefix+"-partition-stale", scope, genPrior, now); err != nil {
+		t.Fatalf("seed superseded runs_in intent: %v", err)
+	}
+	if pending, err := probe(); err != nil || len(pending) != 0 {
+		t.Fatalf("probe with open runs_in intent on a superseded generation = %v, %v; want empty, nil", pending, err)
 	}
 
 	// A dead_letter iam_can_perform_materialization row on the SUPERSEDED

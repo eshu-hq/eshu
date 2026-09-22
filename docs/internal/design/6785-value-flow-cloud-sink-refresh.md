@@ -64,7 +64,9 @@ Fix, two changes, both reducer-side:
    domains (`code_function_summary`, `code_call_materialization`,
    `workload_materialization`, `workload_cloud_relationship_materialization`,
    `iam_can_perform_materialization`, `aws_resource_materialization`) plus
-   the `runs_in`/`invokes_cloud_action` shared-projection intents. A writer
+   the open `runs_in`/`invokes_cloud_action` shared-projection intents,
+   both halves joined to the scope's active generation so a superseded
+   generation's rows and orphaned intents never hold the singleton. A writer
    in `pending`, `claimed`, `running` or `retrying` holds the fence; `failed`
    and `dead_letter` rows do not, because a dead-lettered producer only
    contributes again when an operator replays it (which re-triggers the
