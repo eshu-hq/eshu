@@ -150,10 +150,10 @@ func TestHandleLanguageQueryUnconfiguredReaderReturns501ForGraphOnlyEntityType(t
 		t.Fatalf("body = %s, want to contain %s", w.Body.String(), want)
 	}
 	// #5761 F1 fix: the matrix entry for symbol_graph.language_entities must
-	// carry RequiredProfile so querycontract.RequiredProfile() reports the tier that
-	// actually serves this residue path (local_authoritative, the first tier
-	// with a graph sidecar) instead of falling through to
-	// requiredProfile's local_full_stack default -- local_lightweight already
+	// carry RequiredProfile so querycontract.RequiredProfile reports the tier
+	// that actually serves this residue path (local_authoritative, the first
+	// tier with a graph sidecar) instead of falling through to its
+	// local_full_stack default -- local_lightweight already
 	// publishes this capability as "supported", so naming local_full_stack
 	// here would tell an operator at a supported profile to upgrade twice as
 	// far as necessary.

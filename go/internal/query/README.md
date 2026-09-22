@@ -1373,10 +1373,10 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   `queryRepositoryGraphCoverageStats` is a no-content fallback, so
   `graph_gap_count` and `content_gap_count` stay zero when graph parity was not
   checked.
-- `WriteSuccess` branches on `acceptsEnvelope(r)` at `handler.go:29`; callers
-  that do not send `Accept: application/eshu.envelope+json` receive the legacy
-  payload shape. MCP tool dispatch relies on the envelope format; do not break
-  this negotiation logic.
+- `WriteSuccess` branches on `AcceptsEnvelope(r)` at `querycontract/http.go:38`;
+  callers that do not send `Accept: application/eshu.envelope+json` receive the
+  legacy payload shape. MCP tool dispatch relies on the envelope format; do not
+  break this negotiation logic.
 - Repository story and stats handlers use `WriteSuccess` so MCP can preserve
   `ResponseEnvelope` truth metadata while plain HTTP clients keep the legacy
   JSON body. No-Regression Evidence: `go test ./internal/query -run

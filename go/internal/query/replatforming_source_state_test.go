@@ -139,6 +139,6 @@ func TestReplatformingPlanReadinessCapabilityProfileGate(t *testing.T) {
 		}
 	}
 	if got := querycontract.RequiredProfile(replatformingPlanReadinessCapability); got != ProfileLocalAuthoritative {
-		t.Fatalf("requiredProfile = %q, want local_authoritative", got)
+		t.Fatalf("querycontract.RequiredProfile = %q, want local_authoritative", got)
 	}
 }
