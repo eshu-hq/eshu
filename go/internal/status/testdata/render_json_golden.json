@@ -1,0 +1,1258 @@
+{
+  "version": "dev",
+  "as_of": "2026-03-04T05:06:07Z",
+  "health": {
+    "state": "stalled",
+    "reasons": [
+      "2 overdue claims suggest stuck workers"
+    ]
+  },
+  "coordinator": {
+    "collector_instances": [
+      {
+        "instance_id": "collector-git-1",
+        "collector_kind": "git",
+        "mode": "direct",
+        "enabled": true,
+        "bootstrap": true,
+        "claims_enabled": false,
+        "display_name": "Git Fixture Instance",
+        "last_observed_at": "2026-03-04T06:46:07Z",
+        "updated_at": "2026-03-04T06:47:07Z",
+        "deactivated_at": "2026-03-04T06:48:07Z"
+      },
+      {
+        "instance_id": "collector-terraform-1",
+        "collector_kind": "terraform_state",
+        "mode": "claim_driven",
+        "enabled": true,
+        "bootstrap": false,
+        "claims_enabled": true,
+        "display_name": "Terraform State Fixture Instance",
+        "last_observed_at": "2026-03-04T06:49:07Z",
+        "updated_at": "2026-03-04T06:50:07Z",
+        "deactivated_at": "2026-03-04T06:51:07Z"
+      }
+    ],
+    "run_status_counts": [
+      {
+        "name": "collection_active",
+        "count": 5
+      },
+      {
+        "name": "failed",
+        "count": 2
+      }
+    ],
+    "work_item_status_counts": [
+      {
+        "name": "pending",
+        "count": 7
+      },
+      {
+        "name": "failed_terminal",
+        "count": 1
+      }
+    ],
+    "completeness_counts": [
+      {
+        "name": "pending",
+        "count": 3
+      },
+      {
+        "name": "blocked",
+        "count": 1
+      }
+    ],
+    "collector_backpressure": [
+      {
+        "collector_kind": "git",
+        "collector_instance_id": "collector-git-1",
+        "source_system": "github",
+        "pending": 9,
+        "claimed": 4,
+        "retrying": 2,
+        "dead_letter": 1,
+        "terminal_failed": 1,
+        "expired": 1,
+        "active_claims": 3,
+        "overdue_claims": 1,
+        "oldest_pending_age": "15m10s",
+        "oldest_pending_age_seconds": 910,
+        "oldest_retry_age": "15m20s",
+        "oldest_retry_age_seconds": 920,
+        "oldest_claim_age": "15m30s",
+        "oldest_claim_age_seconds": 930,
+        "next_retry_delay": "15m40s",
+        "next_retry_delay_seconds": 940,
+        "failure_class_counts": [
+          {
+            "name": "rate_limited",
+            "count": 1
+          },
+          {
+            "name": "transient_backend_error",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "collector_kind": "terraform_state",
+        "collector_instance_id": "collector-terraform-1",
+        "source_system": "s3",
+        "pending": 6,
+        "claimed": 2,
+        "retrying": 1,
+        "dead_letter": 1,
+        "terminal_failed": 1,
+        "expired": 0,
+        "active_claims": 1,
+        "overdue_claims": 0,
+        "oldest_pending_age": "15m50s",
+        "oldest_pending_age_seconds": 950,
+        "oldest_retry_age": "16m0s",
+        "oldest_retry_age_seconds": 960,
+        "oldest_claim_age": "16m10s",
+        "oldest_claim_age_seconds": 970,
+        "next_retry_delay": "16m20s",
+        "next_retry_delay_seconds": 980,
+        "failure_class_counts": [
+          {
+            "name": "credential_error",
+            "count": 2
+          },
+          {
+            "name": "timeout",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "active_claims": 4,
+    "overdue_claims": 2,
+    "oldest_pending_age": "16m30s",
+    "oldest_pending_age_seconds": 990,
+    "recent_failures": {
+      "window": "1h0m0s",
+      "window_seconds": 3600,
+      "failed_runs": 3,
+      "blocked_completeness": 1,
+      "terminal_work_items": 2
+    }
+  },
+  "collector_runtimes": [
+    {
+      "instance_id": "aws-collector-1",
+      "collector_kind": "aws",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "observed",
+      "evidence_sources": [
+        "aws_cloud_scan_status"
+      ],
+      "observation_count": 1,
+      "last_observed_at": "2026-03-04T05:37:07Z",
+      "updated_at": "2026-03-04T05:40:07Z",
+      "detail": "status evidence exists without workflow coordinator registration"
+    },
+    {
+      "instance_id": "aws-collector-2",
+      "collector_kind": "aws",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "degraded",
+      "evidence_sources": [
+        "aws_cloud_scan_status"
+      ],
+      "observation_count": 1,
+      "last_observed_at": "2026-03-04T05:47:07Z",
+      "updated_at": "2026-03-04T05:50:07Z",
+      "detail": "aws_cloud_scan_status status=failed commit_status=not_committed failure_class=credential_error budget_exhausted=true credential_failed=true service=ec2 region=us-west-2"
+    },
+    {
+      "instance_id": "documentation-collector-1",
+      "collector_kind": "documentation",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "observed",
+      "evidence_sources": [
+        "source_facts"
+      ],
+      "source_systems": [
+        "confluence",
+        "notion"
+      ],
+      "observation_count": 33,
+      "last_observed_at": "2026-03-04T06:16:07Z",
+      "updated_at": "2026-03-04T06:17:07Z",
+      "detail": "status evidence exists without workflow coordinator registration"
+    },
+    {
+      "instance_id": "fixture-uncataloged-instance",
+      "collector_kind": "fixture_uncataloged_kind",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "observed",
+      "evidence_sources": [
+        "reducer_facts"
+      ],
+      "source_systems": [
+        "fixture-source-a",
+        "fixture-source-b"
+      ],
+      "observation_count": 12,
+      "last_observed_at": "2026-03-04T06:18:07Z",
+      "updated_at": "2026-03-04T06:19:07Z",
+      "detail": "status evidence exists without workflow coordinator registration"
+    },
+    {
+      "instance_id": "collector-git-1",
+      "collector_kind": "git",
+      "mode": "direct",
+      "runtime_mode": "registration_only",
+      "status_category": "disabled",
+      "coordinator_registered": true,
+      "enabled": true,
+      "bootstrap": true,
+      "claims_enabled": false,
+      "display_name": "Git Fixture Instance",
+      "health": "disabled",
+      "evidence_sources": [
+        "workflow_coordinator"
+      ],
+      "last_observed_at": "2026-03-04T06:46:07Z",
+      "updated_at": "2026-03-04T06:47:07Z",
+      "deactivated_at": "2026-03-04T06:48:07Z",
+      "detail": "registered but disabled or deactivated"
+    },
+    {
+      "instance_id": "collector-terraform-1",
+      "collector_kind": "terraform_state",
+      "mode": "claim_driven",
+      "runtime_mode": "registration_only",
+      "status_category": "disabled",
+      "coordinator_registered": true,
+      "enabled": true,
+      "bootstrap": false,
+      "claims_enabled": true,
+      "display_name": "Terraform State Fixture Instance",
+      "health": "disabled",
+      "evidence_sources": [
+        "workflow_coordinator"
+      ],
+      "last_observed_at": "2026-03-04T06:49:07Z",
+      "updated_at": "2026-03-04T06:50:07Z",
+      "deactivated_at": "2026-03-04T06:51:07Z",
+      "detail": "registered but disabled or deactivated"
+    },
+    {
+      "instance_id": "vuln-collector-1",
+      "collector_kind": "vulnerability_intelligence",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "observed",
+      "evidence_sources": [
+        "vulnerability_source_state"
+      ],
+      "observation_count": 1,
+      "updated_at": "2026-03-04T06:01:07Z",
+      "detail": "status evidence exists without workflow coordinator registration"
+    },
+    {
+      "instance_id": "vuln-collector-2",
+      "collector_kind": "vulnerability_intelligence",
+      "runtime_mode": "direct",
+      "status_category": "unregistered",
+      "coordinator_registered": false,
+      "enabled": false,
+      "bootstrap": false,
+      "claims_enabled": false,
+      "health": "degraded",
+      "evidence_sources": [
+        "vulnerability_source_state"
+      ],
+      "observation_count": 1,
+      "updated_at": "2026-03-04T06:07:07Z",
+      "detail": "status evidence exists without workflow coordinator registration"
+    }
+  ],
+  "collector_promotion_proofs": [
+    {
+      "collector_kind": "aws",
+      "instance_id": "aws-collector-1",
+      "display_name": "AWS Cloud",
+      "promotion_state": "partial",
+      "runtime_category": "unregistered",
+      "health": "observed",
+      "claim_driven": true,
+      "claim_state": "direct",
+      "source_scope": "account",
+      "evidence_sources": [
+        "aws_cloud_scan_status"
+      ],
+      "observation_count": 1,
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "no fact evidence observed yet"
+      ],
+      "last_observed_at": "2026-03-04T05:37:07Z",
+      "updated_at": "2026-03-04T05:40:07Z"
+    },
+    {
+      "collector_kind": "aws",
+      "instance_id": "aws-collector-2",
+      "display_name": "AWS Cloud",
+      "promotion_state": "failed",
+      "runtime_category": "unregistered",
+      "health": "degraded",
+      "claim_driven": true,
+      "claim_state": "direct",
+      "source_scope": "account",
+      "evidence_sources": [
+        "aws_cloud_scan_status"
+      ],
+      "observation_count": 1,
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "runtime health degraded: aws_cloud_scan_status status=failed commit_status=not_committed failure_class=credential_error budget_exhausted=true credential_failed=true service=ec2 region=us-west-2"
+      ],
+      "last_observed_at": "2026-03-04T05:47:07Z",
+      "updated_at": "2026-03-04T05:50:07Z"
+    },
+    {
+      "collector_kind": "documentation",
+      "instance_id": "documentation-collector-1",
+      "display_name": "Documentation",
+      "promotion_state": "partial",
+      "runtime_category": "unregistered",
+      "health": "observed",
+      "claim_driven": false,
+      "claim_state": "direct",
+      "source_scope": "documentation_source",
+      "evidence_sources": [
+        "source_facts"
+      ],
+      "source_systems": [
+        "confluence",
+        "notion"
+      ],
+      "observation_count": 33,
+      "reducer_readback": "pending",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "reducer readback not yet available"
+      ],
+      "last_observed_at": "2026-03-04T06:16:07Z",
+      "updated_at": "2026-03-04T06:17:07Z"
+    },
+    {
+      "collector_kind": "fixture_uncataloged_kind",
+      "instance_id": "fixture-uncataloged-instance",
+      "display_name": "Fixture Uncataloged Kind",
+      "promotion_state": "partial",
+      "runtime_category": "unregistered",
+      "health": "observed",
+      "claim_driven": true,
+      "claim_state": "direct",
+      "source_scope": "fixture_uncataloged_kind",
+      "evidence_sources": [
+        "reducer_facts"
+      ],
+      "source_systems": [
+        "fixture-source-a",
+        "fixture-source-b"
+      ],
+      "observation_count": 12,
+      "reducer_readback": "available",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "claim-driven execution not active",
+        "collector kind not declared in readiness catalog"
+      ],
+      "last_observed_at": "2026-03-04T06:18:07Z",
+      "updated_at": "2026-03-04T06:19:07Z"
+    },
+    {
+      "collector_kind": "git",
+      "instance_id": "collector-git-1",
+      "display_name": "Git Repository",
+      "promotion_state": "disabled",
+      "runtime_category": "disabled",
+      "health": "disabled",
+      "claim_driven": false,
+      "claim_state": "registration_only",
+      "source_scope": "repository",
+      "evidence_sources": [
+        "workflow_coordinator"
+      ],
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "collector disabled or deactivated"
+      ],
+      "last_observed_at": "2026-03-04T06:46:07Z",
+      "updated_at": "2026-03-04T06:47:07Z"
+    },
+    {
+      "collector_kind": "terraform_state",
+      "instance_id": "collector-terraform-1",
+      "display_name": "Terraform State",
+      "promotion_state": "disabled",
+      "runtime_category": "disabled",
+      "health": "disabled",
+      "claim_driven": true,
+      "claim_state": "registration_only",
+      "source_scope": "state_snapshot",
+      "evidence_sources": [
+        "workflow_coordinator"
+      ],
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "collector disabled or deactivated"
+      ],
+      "last_observed_at": "2026-03-04T06:49:07Z",
+      "updated_at": "2026-03-04T06:50:07Z"
+    },
+    {
+      "collector_kind": "vulnerability_intelligence",
+      "instance_id": "vuln-collector-1",
+      "display_name": "Vulnerability Intelligence",
+      "promotion_state": "partial",
+      "runtime_category": "unregistered",
+      "health": "observed",
+      "claim_driven": true,
+      "claim_state": "direct",
+      "source_scope": "vulnerability_intelligence",
+      "evidence_sources": [
+        "vulnerability_source_state"
+      ],
+      "observation_count": 1,
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "no fact evidence observed yet"
+      ],
+      "updated_at": "2026-03-04T06:01:07Z"
+    },
+    {
+      "collector_kind": "vulnerability_intelligence",
+      "instance_id": "vuln-collector-2",
+      "display_name": "Vulnerability Intelligence",
+      "promotion_state": "failed",
+      "runtime_category": "unregistered",
+      "health": "degraded",
+      "claim_driven": true,
+      "claim_state": "direct",
+      "source_scope": "vulnerability_intelligence",
+      "evidence_sources": [
+        "vulnerability_source_state"
+      ],
+      "observation_count": 1,
+      "reducer_readback": "unavailable",
+      "telemetry_handles": [
+        "collector.observe",
+        "collector.stream",
+        "fact.emit",
+        "eshu_dp_facts_emitted_total",
+        "eshu_dp_facts_committed_total"
+      ],
+      "blockers": [
+        "runtime health degraded: status evidence exists without workflow coordinator registration"
+      ],
+      "updated_at": "2026-03-04T06:07:07Z"
+    }
+  ],
+  "flow": [
+    {
+      "lane": "collector",
+      "source": "live",
+      "progress": "scopes active=11 pending=4",
+      "backlog": "generations active=9 pending=3"
+    },
+    {
+      "lane": "projector",
+      "source": "live",
+      "progress": "stage pending=21 claimed=22 running=23 retrying=24 succeeded=25 dead_letter=27 failed=26",
+      "backlog": "queue outstanding=45 in_flight=15 retrying=6 dead_letter=5 failed=8 oldest=15m0s overdue_claims=2"
+    },
+    {
+      "lane": "reducer",
+      "source": "live",
+      "progress": "stage pending=31 claimed=32 running=33 retrying=34 succeeded=35 dead_letter=37 failed=36",
+      "backlog": "top domain domain-fixture-a outstanding=61 in_flight=6 retrying=5 dead_letter=3 failed=4 oldest=10m1s"
+    }
+  ],
+  "queue": {
+    "total": 200,
+    "outstanding": 45,
+    "pending": 20,
+    "in_flight": 15,
+    "retrying": 6,
+    "succeeded": 120,
+    "failed": 8,
+    "dead_letter": 5,
+    "provenance_edge_identity_upgrade_applied": true,
+    "provenance_edge_identity_upgrade_required": 3,
+    "overdue_claims": 2,
+    "oldest_outstanding_age": "15m0s",
+    "oldest_outstanding_age_seconds": 900
+  },
+  "latest_failure": {
+    "stage": "reducer",
+    "domain": "domain-fixture-a",
+    "status": "failed",
+    "work_item_id": "work-item-fixture-1",
+    "scope_id": "scope-fixture-a",
+    "generation_id": "generation-fixture-a1",
+    "failure_class": "transient_backend_error",
+    "failure_message": "fixture failure message",
+    "failure_details": "fixture failure details",
+    "updated_at": "2026-03-04T05:26:07Z"
+  },
+  "retry_policies": [
+    {
+      "stage": "projector",
+      "max_attempts": 4,
+      "retry_delay": "45s",
+      "retry_delay_seconds": 45
+    },
+    {
+      "stage": "reducer",
+      "max_attempts": 6,
+      "retry_delay": "1m30s",
+      "retry_delay_seconds": 90
+    }
+  ],
+  "registry_collectors": [
+    {
+      "collector_kind": "oci_registry",
+      "configured_instances": 3,
+      "active_scopes": 12,
+      "recent_completed_generations": 8,
+      "last_completed_at": "2026-03-04T06:56:07Z",
+      "retryable_failures": 2,
+      "terminal_failures": 1,
+      "failure_class_counts": [
+        {
+          "name": "rate_limited",
+          "count": 2
+        },
+        {
+          "name": "timeout",
+          "count": 1
+        }
+      ],
+      "metadata_targets": [
+        {
+          "ecosystem": "oci",
+          "planned": 20,
+          "completed": 15,
+          "skipped": 2,
+          "stale": 1,
+          "failed": 1,
+          "rate_limited": 1
+        },
+        {
+          "ecosystem": "helm",
+          "planned": 10,
+          "completed": 8,
+          "skipped": 1,
+          "stale": 0,
+          "failed": 1,
+          "rate_limited": 0
+        }
+      ]
+    },
+    {
+      "collector_kind": "package_registry",
+      "configured_instances": 2,
+      "active_scopes": 6,
+      "recent_completed_generations": 4,
+      "last_completed_at": "2026-03-04T06:57:07Z",
+      "retryable_failures": 1,
+      "terminal_failures": 0,
+      "failure_class_counts": [
+        {
+          "name": "not_found",
+          "count": 4
+        },
+        {
+          "name": "timeout",
+          "count": 2
+        }
+      ],
+      "metadata_targets": [
+        {
+          "ecosystem": "npm",
+          "planned": 30,
+          "completed": 25,
+          "skipped": 3,
+          "stale": 1,
+          "failed": 1,
+          "rate_limited": 0
+        },
+        {
+          "ecosystem": "go",
+          "planned": 15,
+          "completed": 12,
+          "skipped": 1,
+          "stale": 1,
+          "failed": 1,
+          "rate_limited": 0
+        }
+      ]
+    }
+  ],
+  "aws_cloud_scans": [
+    {
+      "collector_instance_id": "aws-collector-1",
+      "account_id": "111111111111",
+      "region": "us-east-1",
+      "service_kind": "s3",
+      "status": "succeeded",
+      "commit_status": "committed",
+      "api_call_count": 400,
+      "throttle_count": 2,
+      "warning_count": 1,
+      "resource_count": 88,
+      "relationship_count": 44,
+      "tag_observation_count": 12,
+      "budget_exhausted": false,
+      "credential_failed": false,
+      "last_started_at": "2026-03-04T05:36:07Z",
+      "last_observed_at": "2026-03-04T05:37:07Z",
+      "last_completed_at": "2026-03-04T05:38:07Z",
+      "last_successful_at": "2026-03-04T05:39:07Z",
+      "updated_at": "2026-03-04T05:40:07Z"
+    },
+    {
+      "collector_instance_id": "aws-collector-2",
+      "account_id": "222222222222",
+      "region": "us-west-2",
+      "service_kind": "ec2",
+      "status": "failed",
+      "commit_status": "not_committed",
+      "failure_class": "credential_error",
+      "failure_message": "fixture credential failure",
+      "api_call_count": 150,
+      "throttle_count": 5,
+      "warning_count": 3,
+      "resource_count": 20,
+      "relationship_count": 10,
+      "tag_observation_count": 4,
+      "budget_exhausted": true,
+      "credential_failed": true,
+      "last_started_at": "2026-03-04T05:46:07Z",
+      "last_observed_at": "2026-03-04T05:47:07Z",
+      "last_completed_at": "2026-03-04T05:48:07Z",
+      "last_successful_at": "2026-03-04T05:49:07Z",
+      "updated_at": "2026-03-04T05:50:07Z"
+    }
+  ],
+  "aws_freshness": {
+    "status_counts": [
+      {
+        "name": "queued",
+        "count": 6
+      },
+      {
+        "name": "claimed",
+        "count": 3
+      }
+    ],
+    "oldest_queued_age": "6m0s",
+    "oldest_queued_age_seconds": 360
+  },
+  "infra_inventory": {
+    "state": "fenced",
+    "marker_present": true,
+    "dirty_repos": 17,
+    "oldest_dirty_age": "12m0s",
+    "oldest_dirty_age_seconds": 720,
+    "reads_served_from_graph_because": "a content write from a session without the derive-aware writer setting (an older binary, manual SQL, or a pooler that dropped the setting) left fence marks the reducer has not repaired yet"
+  },
+  "vulnerability_sources": [
+    {
+      "collector_instance_id": "vuln-collector-1",
+      "scope_id": "scope-fixture-a",
+      "source": "osv",
+      "ecosystem": "go",
+      "window_start": "2026-03-04T05:56:07Z",
+      "window_end": "2026-03-04T05:57:07Z",
+      "last_attempt_at": "2026-03-04T05:58:07Z",
+      "last_success_at": "2026-03-04T05:59:07Z",
+      "next_retry_at": "2026-03-04T06:00:07Z",
+      "last_error_class": "rate_limited",
+      "freshness_state": "fresh",
+      "terminal_status": "succeeded",
+      "result_count": 14,
+      "warning_count": 2,
+      "updated_at": "2026-03-04T06:01:07Z"
+    },
+    {
+      "collector_instance_id": "vuln-collector-2",
+      "scope_id": "scope-fixture-b",
+      "source": "ghsa",
+      "ecosystem": "npm",
+      "window_start": "2026-03-04T06:02:07Z",
+      "window_end": "2026-03-04T06:03:07Z",
+      "last_attempt_at": "2026-03-04T06:04:07Z",
+      "last_success_at": "2026-03-04T06:05:07Z",
+      "next_retry_at": "2026-03-04T06:06:07Z",
+      "last_error_class": "timeout",
+      "freshness_state": "stale",
+      "terminal_status": "failed",
+      "result_count": 9,
+      "warning_count": 1,
+      "updated_at": "2026-03-04T06:07:07Z"
+    }
+  ],
+  "semantic_extraction": {
+    "state": "available",
+    "reason": "provider_configured",
+    "detail": "fixture semantic extraction provider is configured and healthy",
+    "provider_configured": true,
+    "documentation_observations_enabled": true,
+    "code_hints_enabled": true,
+    "deterministic_paths_affected": false,
+    "updated_at": "2026-03-04T07:06:07Z",
+    "provider_profiles": [
+      {
+        "profile_id": "profile-fixture-a",
+        "display_name": "Fixture Provider A",
+        "provider_kind": "embedding",
+        "credential_source_kind": "vault",
+        "credential_configured": true,
+        "model_id": "fixture-model-a",
+        "embedding_dimensions": 768,
+        "endpoint_profile_id": "endpoint-fixture-a",
+        "source_classes": [
+          "code_hints",
+          "documentation"
+        ],
+        "source_policy_configured": true,
+        "state": "configured",
+        "reason": "provider_profile_configured",
+        "detail": "fixture profile a detail",
+        "updated_at": "2026-03-04T07:07:07Z"
+      },
+      {
+        "profile_id": "profile-fixture-b",
+        "display_name": "Fixture Provider B",
+        "provider_kind": "completion",
+        "credential_source_kind": "environment",
+        "credential_configured": true,
+        "model_id": "fixture-model-b",
+        "embedding_dimensions": 1536,
+        "endpoint_profile_id": "endpoint-fixture-b",
+        "source_classes": [
+          "documentation"
+        ],
+        "source_policy_configured": true,
+        "state": "healthy",
+        "reason": "provider_profile_healthy",
+        "detail": "fixture profile b detail",
+        "updated_at": "2026-03-04T07:08:07Z"
+      }
+    ],
+    "queue": {
+      "total": 50,
+      "pending": 10,
+      "claimed": 8,
+      "retrying": 4,
+      "succeeded": 20,
+      "dead_letter": 2,
+      "skipped": 1,
+      "no_provider": 1,
+      "policy_denied": 1,
+      "budget_exhausted": 1,
+      "unsafe": 1,
+      "provider_unavailable": 1,
+      "unchanged": 3,
+      "stale": 2,
+      "status_counts": [
+        {
+          "name": "pending",
+          "count": 10
+        },
+        {
+          "name": "succeeded",
+          "count": 20
+        }
+      ],
+      "source_class_counts": [
+        {
+          "name": "code_hints",
+          "count": 20
+        },
+        {
+          "name": "documentation",
+          "count": 30
+        }
+      ],
+      "failure_class_counts": [
+        {
+          "name": "provider_timeout",
+          "count": 3
+        },
+        {
+          "name": "rate_limited",
+          "count": 1
+        }
+      ],
+      "provider_profile_counts": [
+        {
+          "provider_kind": "embedding",
+          "provider_profile_id": "profile-fixture-a",
+          "provider_profile_class": "primary",
+          "count": 30
+        },
+        {
+          "provider_kind": "completion",
+          "provider_profile_id": "profile-fixture-b",
+          "provider_profile_class": "secondary",
+          "count": 20
+        }
+      ],
+      "policy_decision_counts": [
+        {
+          "state": "allowed",
+          "reason": "policy_allowed",
+          "count": 40
+        },
+        {
+          "state": "denied",
+          "reason": "policy_denied",
+          "count": 10
+        }
+      ],
+      "guard_decision_counts": [
+        {
+          "state": "allowed",
+          "reason": "guard_allowed",
+          "count": 42
+        },
+        {
+          "state": "denied",
+          "reason": "unsafe_output",
+          "count": 8
+        }
+      ],
+      "updated_at": "2026-03-04T07:09:07Z"
+    },
+    "budget": {
+      "estimated_input_tokens": 100000,
+      "estimated_output_tokens": 20000,
+      "estimated_cost_micros": 500000,
+      "actual_input_tokens": 95000,
+      "actual_output_tokens": 18000,
+      "actual_cost_micros": 470000,
+      "remaining_tokens": 5000,
+      "remaining_cost_micros": 30000,
+      "exhausted": 1,
+      "decision_counts": [
+        {
+          "state": "allowed",
+          "reason": "within_budget",
+          "budget_unit": "tokens",
+          "count": 90
+        },
+        {
+          "state": "denied",
+          "reason": "budget_exhausted",
+          "budget_unit": "cost_micros",
+          "count": 10
+        }
+      ]
+    },
+    "audit": {
+      "actor_class_counts": [
+        {
+          "name": "collector",
+          "count": 25
+        },
+        {
+          "name": "operator",
+          "count": 5
+        }
+      ],
+      "acl_state_counts": [
+        {
+          "name": "allowed",
+          "count": 27
+        },
+        {
+          "name": "denied",
+          "count": 3
+        }
+      ],
+      "last_processed_at": "2026-03-04T07:10:07Z"
+    },
+    "supported_states": [
+      "unavailable",
+      "available",
+      "available_but_disabled_for_scope",
+      "disabled_by_policy",
+      "provider_unhealthy"
+    ],
+    "supported_provider_profile_states": [
+      "configured",
+      "unconfigured",
+      "healthy",
+      "unhealthy"
+    ]
+  },
+  "answer_narration": {
+    "state": "available",
+    "reason": "available",
+    "detail": "fixture answer narration is policy allowed",
+    "provider_configured": true,
+    "provider_traffic_enabled": true,
+    "policy_allowed": true,
+    "budget_available": true,
+    "publish_safety_enabled": true,
+    "deterministic_fallback_available": true,
+    "canonical_truth_affected": false,
+    "retention_posture": "metadata_only",
+    "policy_hash": "fixture-policy-hash-0123456789abcdef",
+    "supported_states": [
+      "unavailable",
+      "disabled",
+      "available",
+      "provider_unavailable"
+    ],
+    "supported_reasons": [
+      "disabled_by_default",
+      "policy_denied",
+      "budget_exhausted",
+      "unsafe_output",
+      "timeout",
+      "provider_unavailable",
+      "available",
+      "invalid_answer_narration_state"
+    ],
+    "validator_reason_codes": [
+      "uncited_factual_sentence",
+      "unsupported_confidence_drift",
+      "partial_signal_hidden",
+      "truth_class_promotion",
+      "unsafe_output",
+      "unknown_provenance",
+      "over_limit"
+    ],
+    "updated_at": "2026-03-04T07:16:07Z"
+  },
+  "collector_generation_dead_letters": {
+    "dead_letter": 4,
+    "replay_requested": 2,
+    "replay_attempts": 6,
+    "oldest_dead_letter_age": "20m0s",
+    "oldest_dead_letter_age_seconds": 1200
+  },
+  "aws_cloud_scans_truncated": true,
+  "aws_cloud_scan_limit": 2,
+  "scope_activity": {
+    "active": 11,
+    "changed": 4,
+    "unchanged": 7
+  },
+  "generation_history": {
+    "active": 9,
+    "pending": 3,
+    "completed": 15,
+    "superseded": 2,
+    "failed": 1,
+    "other": 6
+  },
+  "generation_transitions": [
+    {
+      "scope_id": "scope-fixture-a",
+      "generation_id": "generation-fixture-a1",
+      "status": "completed",
+      "trigger_kind": "scheduled",
+      "freshness_hint": "fresh",
+      "observed_at": "2026-03-04T05:16:07Z",
+      "activated_at": "2026-03-04T05:17:07Z",
+      "superseded_at": "2026-03-04T05:18:07Z",
+      "current_active_generation_id": "generation-fixture-a2"
+    },
+    {
+      "scope_id": "scope-fixture-b",
+      "generation_id": "generation-fixture-b1",
+      "status": "pending",
+      "trigger_kind": "webhook",
+      "freshness_hint": "stale",
+      "observed_at": "2026-03-04T05:19:07Z",
+      "activated_at": "2026-03-04T05:20:07Z",
+      "superseded_at": "2026-03-04T05:21:07Z",
+      "current_active_generation_id": "generation-fixture-b2"
+    }
+  ],
+  "scopes": {
+    "active": 11,
+    "pending": 4
+  },
+  "generations": {
+    "active": 9,
+    "pending": 3
+  },
+  "stages": [
+    {
+      "stage": "projector",
+      "pending": 21,
+      "claimed": 22,
+      "running": 23,
+      "retrying": 24,
+      "succeeded": 25,
+      "failed": 26,
+      "dead_letter": 27
+    },
+    {
+      "stage": "reducer",
+      "pending": 31,
+      "claimed": 32,
+      "running": 33,
+      "retrying": 34,
+      "succeeded": 35,
+      "failed": 36,
+      "dead_letter": 37
+    }
+  ],
+  "domains": [
+    {
+      "domain": "domain-fixture-a",
+      "outstanding": 61,
+      "in_flight": 6,
+      "retrying": 5,
+      "failed": 4,
+      "dead_letter": 3,
+      "oldest_age": "10m1s",
+      "oldest_age_seconds": 601
+    },
+    {
+      "domain": "domain-fixture-b",
+      "outstanding": 55,
+      "in_flight": 5,
+      "retrying": 4,
+      "failed": 3,
+      "dead_letter": 2,
+      "oldest_age": "9m11s",
+      "oldest_age_seconds": 551
+    },
+    {
+      "domain": "domain-fixture-c",
+      "outstanding": 49,
+      "in_flight": 4,
+      "retrying": 3,
+      "failed": 2,
+      "dead_letter": 1,
+      "oldest_age": "8m11s",
+      "oldest_age_seconds": 491
+    },
+    {
+      "domain": "domain-fixture-d",
+      "outstanding": 43,
+      "in_flight": 3,
+      "retrying": 2,
+      "failed": 1,
+      "dead_letter": 1,
+      "oldest_age": "7m11s",
+      "oldest_age_seconds": 431
+    },
+    {
+      "domain": "domain-fixture-e",
+      "outstanding": 37,
+      "in_flight": 2,
+      "retrying": 1,
+      "failed": 1,
+      "dead_letter": 1,
+      "oldest_age": "6m11s",
+      "oldest_age_seconds": 371
+    }
+  ],
+  "domain_backlogs_truncated": true,
+  "domain_backlogs_limit": 5,
+  "queue_blockages": [
+    {
+      "stage": "projector",
+      "domain": "domain-fixture-a",
+      "conflict_domain": "conflict-domain-a",
+      "conflict_key": "conflict-key-a",
+      "blocked": 8,
+      "oldest_age": "13m21s",
+      "oldest_age_seconds": 801
+    },
+    {
+      "stage": "reducer",
+      "domain": "domain-fixture-b",
+      "conflict_domain": "conflict-domain-b",
+      "conflict_key": "conflict-key-b",
+      "blocked": 5,
+      "oldest_age": "8m21s",
+      "oldest_age_seconds": 501
+    }
+  ],
+  "terraform_state": {
+    "last_serials": [
+      {
+        "safe_locator_hash": "safe-locator-hash-a",
+        "backend_kind": "s3",
+        "lineage": "lineage-fixture-a",
+        "serial": 101,
+        "generation_id": "generation-fixture-a1",
+        "observed_at": "2026-03-04T06:26:07Z"
+      },
+      {
+        "safe_locator_hash": "safe-locator-hash-b",
+        "backend_kind": "gcs",
+        "lineage": "lineage-fixture-b",
+        "serial": 202,
+        "generation_id": "generation-fixture-b1",
+        "observed_at": "2026-03-04T06:27:07Z"
+      }
+    ],
+    "recent_warnings": [
+      {
+        "safe_locator_hash": "safe-locator-hash-a",
+        "backend_kind": "s3",
+        "warning_kind": "drift_detected",
+        "reason": "resource_replaced",
+        "severity": "high",
+        "actionability": "actionable",
+        "source": "warning_fact",
+        "source_handle": "source-handle-a",
+        "generation_id": "generation-fixture-a1",
+        "observed_at": "2026-03-04T06:36:07Z"
+      },
+      {
+        "safe_locator_hash": "safe-locator-hash-b",
+        "backend_kind": "gcs",
+        "warning_kind": "stale_lock",
+        "reason": "lock_expired",
+        "severity": "medium",
+        "actionability": "informational",
+        "source": "warning_fact",
+        "source_handle": "source-handle-b",
+        "generation_id": "generation-fixture-b1",
+        "observed_at": "2026-03-04T06:37:07Z"
+      }
+    ],
+    "warnings_by_kind": {
+      "safe-locator-hash-a": {
+        "drift_detected": [
+          {
+            "safe_locator_hash": "safe-locator-hash-a",
+            "backend_kind": "s3",
+            "warning_kind": "drift_detected",
+            "reason": "resource_replaced",
+            "severity": "high",
+            "actionability": "actionable",
+            "source": "warning_fact",
+            "source_handle": "source-handle-a",
+            "generation_id": "generation-fixture-a1",
+            "observed_at": "2026-03-04T06:36:07Z"
+          }
+        ]
+      },
+      "safe-locator-hash-b": {
+        "stale_lock": [
+          {
+            "safe_locator_hash": "safe-locator-hash-b",
+            "backend_kind": "gcs",
+            "warning_kind": "stale_lock",
+            "reason": "lock_expired",
+            "severity": "medium",
+            "actionability": "informational",
+            "source": "warning_fact",
+            "source_handle": "source-handle-b",
+            "generation_id": "generation-fixture-b1",
+            "observed_at": "2026-03-04T06:37:07Z"
+          }
+        ]
+      }
+    },
+    "warning_summary": [
+      {
+        "warning_kind": "drift_detected",
+        "reason": "resource_replaced",
+        "scope_class": "s3",
+        "severity": "high",
+        "actionability": "actionable",
+        "count": 1
+      },
+      {
+        "warning_kind": "stale_lock",
+        "reason": "lock_expired",
+        "scope_class": "gcs",
+        "severity": "medium",
+        "actionability": "informational",
+        "count": 1
+      }
+    ]
+  }
+}

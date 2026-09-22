@@ -1,0 +1,70 @@
+Version: dev
+Health: stalled
+Queue: outstanding=45 in_flight=15 retrying=6 dead_letter=5 failed=8 oldest=15m0s overdue_claims=2
+Provenance edge identity upgrade: applied=true required=3
+Retry policies: projector max_attempts=4 retry_delay=45s; reducer max_attempts=6 retry_delay=1m30s
+Scope activity: active=11 changed=4 unchanged=7
+Scope statuses: active=11 pending=4
+Generation history: active=9 pending=3 completed=15 superseded=2 failed=1 other=6
+Generation transitions: scope=scope-fixture-a generation=generation-fixture-a1 status=completed trigger=scheduled freshness=fresh observed=2026-03-04T05:16:07Z activated=2026-03-04T05:17:07Z superseded=2026-03-04T05:18:07Z current_active=generation-fixture-a2; scope=scope-fixture-b generation=generation-fixture-b1 status=pending trigger=webhook freshness=stale observed=2026-03-04T05:19:07Z activated=2026-03-04T05:20:07Z superseded=2026-03-04T05:21:07Z current_active=generation-fixture-b2
+Reasons: 2 overdue claims suggest stuck workers
+Latest queue failure: stage=reducer domain=domain-fixture-a status=failed class=transient_backend_error message="fixture failure message" details="fixture failure details"
+Blocked queue work:
+  projector domain=domain-fixture-a conflict_domain=conflict-domain-a conflict_key=conflict-key-a blocked=8 oldest=13m21s
+  reducer domain=domain-fixture-b conflict_domain=conflict-domain-b conflict_key=conflict-key-b blocked=5 oldest=8m21s
+Coordinator: instances=2 active_claims=4 overdue_claims=2 oldest_pending=16m30s
+Coordinator runs: failed=2 collection_active=5
+Coordinator work items: pending=7 failed_terminal=1
+Coordinator completeness: pending=3 blocked=1
+Collector backpressure:
+  git/collector-git-1 source_system=github pending=9 claimed=4 retrying=2 dead_letter=1 terminal=1 expired=1 active_claims=3 overdue_claims=1 oldest_pending=15m10s oldest_retry=15m20s oldest_claim=15m30s next_retry=15m40s failure_classes=rate_limited=1,transient_backend_error=3
+  terraform_state/collector-terraform-1 source_system=s3 pending=6 claimed=2 retrying=1 dead_letter=1 terminal=1 expired=0 active_claims=1 overdue_claims=0 oldest_pending=15m50s oldest_retry=16m0s oldest_claim=16m10s next_retry=16m20s failure_classes=credential_error=2,timeout=1
+Collector instances:
+  collector-git-1 kind=git mode=direct enabled=true bootstrap=true claims_enabled=false display_name=Git Fixture Instance
+  collector-terraform-1 kind=terraform_state mode=claim_driven enabled=true bootstrap=false claims_enabled=true display_name=Terraform State Fixture Instance
+Collector runtimes:
+  aws-collector-1 kind=aws category=unregistered mode=direct coordinator_registered=false evidence=aws_cloud_scan_status health=observed observations=1
+  aws-collector-2 kind=aws category=unregistered mode=direct coordinator_registered=false evidence=aws_cloud_scan_status health=degraded observations=1
+  documentation-collector-1 kind=documentation category=unregistered mode=direct coordinator_registered=false evidence=source_facts source_systems=confluence,notion health=observed observations=33
+  fixture-uncataloged-instance kind=fixture_uncataloged_kind category=unregistered mode=direct coordinator_registered=false evidence=reducer_facts source_systems=fixture-source-a,fixture-source-b health=observed observations=12
+  collector-git-1 kind=git category=disabled mode=registration_only coordinator_registered=true evidence=workflow_coordinator health=disabled
+  collector-terraform-1 kind=terraform_state category=disabled mode=registration_only coordinator_registered=true evidence=workflow_coordinator health=disabled
+  vuln-collector-1 kind=vulnerability_intelligence category=unregistered mode=direct coordinator_registered=false evidence=vulnerability_source_state health=observed observations=1
+  vuln-collector-2 kind=vulnerability_intelligence category=unregistered mode=direct coordinator_registered=false evidence=vulnerability_source_state health=degraded observations=1
+Collector promotion proofs:
+  aws-collector-1 kind=aws state=partial readback=unavailable blocker="no fact evidence observed yet"
+  aws-collector-2 kind=aws state=failed readback=unavailable blocker="runtime health degraded: aws_cloud_scan_status status=failed commit_status=not_committed failure_class=credential_error budget_exhausted=true credential_failed=true service=ec2 region=us-west-2"
+  documentation-collector-1 kind=documentation state=partial readback=pending blocker="reducer readback not yet available"
+  fixture-uncataloged-instance kind=fixture_uncataloged_kind state=partial readback=available blocker="claim-driven execution not active"
+  collector-git-1 kind=git state=disabled readback=unavailable blocker="collector disabled or deactivated"
+  collector-terraform-1 kind=terraform_state state=disabled readback=unavailable blocker="collector disabled or deactivated"
+  vuln-collector-1 kind=vulnerability_intelligence state=partial readback=unavailable blocker="no fact evidence observed yet"
+  vuln-collector-2 kind=vulnerability_intelligence state=failed readback=unavailable blocker="runtime health degraded: status evidence exists without workflow coordinator registration"
+Registry collectors:
+  oci_registry instances=3 active_scopes=12 recent_completed_generations=8 retryable_failures=2 terminal_failures=1 last_completed_at=2026-03-04T06:56:07Z failure_classes=rate_limited=2 timeout=1 metadata_targets=oci(planned=20 completed=15 skipped=2 stale=1 failed=1 rate_limited=1) helm(planned=10 completed=8 skipped=1 stale=0 failed=1 rate_limited=0)
+  package_registry instances=2 active_scopes=6 recent_completed_generations=4 retryable_failures=1 terminal_failures=0 last_completed_at=2026-03-04T06:57:07Z failure_classes=not_found=4 timeout=2 metadata_targets=npm(planned=30 completed=25 skipped=3 stale=1 failed=1 rate_limited=0) go(planned=15 completed=12 skipped=1 stale=1 failed=1 rate_limited=0)
+AWS cloud scans:
+  aws-collector-1 111111111111/us-east-1/s3 status=succeeded commit=committed api_calls=400 throttles=2 warnings=1 resources=88 relationships=44 tags=12 last_completed_at=2026-03-04T05:38:07Z
+  aws-collector-2 222222222222/us-west-2/ec2 status=failed commit=not_committed api_calls=150 throttles=5 warnings=3 resources=20 relationships=10 tags=4 failure=credential_error budget_exhausted=true credential_failed=true last_completed_at=2026-03-04T05:48:07Z
+AWS freshness: queued=6 claimed=3 handed_off=0 failed=0 oldest_queued=6m0s
+Infra read model: state=fenced dirty_repos=17 oldest_dirty=12m0s
+Vulnerability sources:
+  osv scope=scope-fixture-a freshness=fresh terminal=succeeded results=14 warnings=2 ecosystem=go error_class=rate_limited next_retry_at=2026-03-04T06:00:07Z
+  ghsa scope=scope-fixture-b freshness=stale terminal=failed results=9 warnings=1 ecosystem=npm error_class=timeout next_retry_at=2026-03-04T06:06:07Z
+Semantic extraction: state=available reason=provider_configured code_hints=enabled documentation_observations=enabled deterministic_paths=unaffected provider_profiles=2 profile=profile-fixture-a provider=embedding credential_source=vault credential_configured=true state=configured source_policy=true sources=code_hints,documentation; profile=profile-fixture-b provider=completion credential_source=environment credential_configured=true state=healthy source_policy=true sources=documentation semantic_queue_total=50 semantic_queue_pending=10 semantic_queue_retrying=4 semantic_queue_dead_letter=2 semantic_budget_exhausted=1 semantic_estimated_input_tokens=100000 semantic_actual_input_tokens=95000 semantic_estimated_cost_micros=500000 semantic_actual_cost_micros=470000 semantic_audit_actor_classes=collector=25 operator=5
+Collector generation dead letters: dead_letter=4 replay_requested=2 replay_attempts=6 oldest=20m0s
+AWS cloud scans truncated: limit=2
+Flow:
+  collector source=live progress=scopes active=11 pending=4 backlog=generations active=9 pending=3
+  projector source=live progress=stage pending=21 claimed=22 running=23 retrying=24 succeeded=25 dead_letter=27 failed=26 backlog=queue outstanding=45 in_flight=15 retrying=6 dead_letter=5 failed=8 oldest=15m0s overdue_claims=2
+  reducer source=live progress=stage pending=31 claimed=32 running=33 retrying=34 succeeded=35 dead_letter=37 failed=36 backlog=top domain domain-fixture-a outstanding=61 in_flight=6 retrying=5 dead_letter=3 failed=4 oldest=10m1s
+Stages:
+  projector pending=21 claimed=22 running=23 retrying=24 succeeded=25 dead_letter=27 failed=26
+  reducer pending=31 claimed=32 running=33 retrying=34 succeeded=35 dead_letter=37 failed=36
+Domains:
+  domain-fixture-a outstanding=61 in_flight=6 retrying=5 dead_letter=3 failed=4 oldest=10m1s
+  domain-fixture-b outstanding=55 in_flight=5 retrying=4 dead_letter=2 failed=3 oldest=9m11s
+  domain-fixture-c outstanding=49 in_flight=4 retrying=3 dead_letter=1 failed=2 oldest=8m11s
+  domain-fixture-d outstanding=43 in_flight=3 retrying=2 dead_letter=1 failed=1 oldest=7m11s
+  domain-fixture-e outstanding=37 in_flight=2 retrying=1 dead_letter=1 failed=1 oldest=6m11s
+Domain backlogs truncated: limit=5
