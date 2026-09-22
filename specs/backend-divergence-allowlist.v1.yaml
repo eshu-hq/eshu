@@ -1,5 +1,5 @@
 version: backend-divergence-allowlist/v1
-updated_at: 2026-09-21
+updated_at: 2026-09-22
 issue: 6782
 parent_issue: 6788
 owners:
@@ -251,8 +251,8 @@ entries:
   owner: graph
 - statement: "MATCH (e:Function) OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE coalesce(e.cyclomatic_complexity, 0) > 0 RETURN e.id as id, e.name as name, labels(e) as labels, f.relative_path as file_path, repo.id as repo_id, repo.name as repo_name, coalesce(e.language, f.language) as language, e.start_line as start_line, e.end_line as end_line, e.docstring as docstring, e.class_context as class_context, e.method_kind as method_kind, e.constructor_kind as constructor_kind, e.annotation_kind as annotation_kind, e.context as context, e.type_annotation_count as type_annotation_count, e.type_annotation_kinds as type_annotation_kinds, e.type_parameters as type_parameters, e.dead_code_root_kinds as dead_code_root_kinds, e.type_alias_kind as type_alias_kind, e.framework as framework, e.module_kind as module_kind, e.jsx_fragment_shorthand as jsx_fragment_shorthand, e.component_type_assertion as component_type_assertion, e.component_wrapper_kind as component_wrapper_kind, e.protocol as protocol, e.implemented_for as implemented_for, e.attribute_kind as attribute_kind, e.value as value, e.declaration_merge_group as declaration_merge_group, e.declaration_merge_count as declaration_merge_count, e.declaration_merge_kinds as declaration_merge_kinds, e.kind as kind, e.target_kind as target_kind, e.type as type, e.decorators as decorators, e.async as async, e.semantic_kind as semantic_kind, e.metaclass as metaclass, e.source as source, e.terraform_source as terraform_source, e.config_path as config_path, e.includes as includes, e.inputs as inputs, e.locals as locals, e.deployment_name as deployment_name, e.repo_name as entity_repo_name, e.create_deploy as create_deploy, e.cluster_name as cluster_name, e.zone_id as zone_id, e.deploy_entry_point as deploy_entry_point, e.qualified_name as qualified_name, e.sql_entity_type as sql_entity_type, e.schema as schema, e.data_type as data_type, e.table_name as table_name, e.column_name as column_name, e.routine_kind as routine_kind, e.function_language as function_language, coalesce(e.cyclomatic_complexity, 0) as complexity ORDER BY complexity DESC, e.name, e.id LIMIT $limit"
   tier: results
-  reason: "NornicDB ORDER BY delivery diverges on distinct keys (cell proof: identical row multisets, different order, calibrated by digest replication); callers truncate without Go re-sort, so API answers differ. Tracked in #6915."
-  upstream: https://github.com/eshu-hq/eshu/issues/6915
+  reason: "NornicDB drops ORDER BY keys that are not returned columns after a relationship pattern or OPTIONAL MATCH (bare-backend proof: docs/internal/evidence/6915-orderby-shim.md); callers truncate without Go re-sort, so API answers differ. Eshu side tracked in #6915."
+  upstream: https://github.com/orneryd/NornicDB/issues/500
   owner: query
 - statement: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File) WHERE f.language IS NOT NULL RETURN f.language AS language, count(f) AS file_count ORDER BY file_count DESC"
   tier: results
@@ -266,8 +266,8 @@ entries:
   owner: query
 - statement: "MATCH (s:Repository)-[r:DEPLOYS_FROM]->(t) RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id, coalesce(s.name, s.path, s.id, s.uid) AS source_name, coalesce(t.id, t.uid, t.name, t.path) AS target_id, coalesce(t.name, t.path, t.id, t.uid) AS target_name, r.rationale AS evidence, r.source_tool AS source_tool ORDER BY s.id, coalesce(t.id, t.uid) LIMIT $limit"
   tier: results
-  reason: "NornicDB ORDER BY delivery diverges on distinct keys (cell proof: identical row multisets, different order, calibrated by digest replication); callers truncate without Go re-sort, so API answers differ. Tracked in #6915."
-  upstream: https://github.com/eshu-hq/eshu/issues/6915
+  reason: "NornicDB drops ORDER BY keys that are not returned columns after a relationship pattern or OPTIONAL MATCH (bare-backend proof: docs/internal/evidence/6915-orderby-shim.md); callers truncate without Go re-sort, so API answers differ. Eshu side tracked in #6915."
+  upstream: https://github.com/orneryd/NornicDB/issues/500
   owner: query
 - statement: "MATCH path = (start:CloudResource {id: $start_id})-[*1..4]->(repo:Repository) RETURN repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels ORDER BY depth, repo_name, repo_id LIMIT $limit"
   tier: results
