@@ -216,6 +216,54 @@ mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_a
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
 	"positive control carries 7 sample(s), expected 8"
 
+# The library must not depend on its caller's pipefail. A probe written as
+# `rg | head` returned head's status in a caller without pipefail, so an
+# uncompilable detect pattern (rg exit 2) read as a match and the positive
+# control proved nothing. Both directions, in a subshell with pipefail OFF:
+# the clean library's controls pass, and a scratch copy whose ipv4 pattern
+# cannot compile makes the control fail.
+run_controls_without_pipefail() {
+	local lib_path="$1" out_file="$2"
+	local -n _rcwp_rc="$3"
+	_rcwp_rc=0
+	(
+		set -eu
+		set +o pipefail
+		fail() { printf 'control: %s\n' "$*" >&2; exit 1; }
+		# shellcheck disable=SC1090
+		source "${lib_path}"
+		declare -A detect=() allow=()
+		cassette_private_data_patterns detect allow
+	) >"${out_file}" 2>&1 || _rcwp_rc=$?
+}
+rc=0
+run_controls_without_pipefail "${lib}" "${scratch}/nopipefail-clean.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "the controls fail in a caller without pipefail: $(cat "${scratch}/nopipefail-clean.out")"
+broken="${scratch}/broken-ipv4.sh"
+sed "s/^\\([[:space:]]*_cpd_detect\\[ipv4\\]=\\).*/\\1'(?<![0-9'/" "${lib}" >"${broken}"
+cmp -s "${lib}" "${broken}" && fail "the uncompilable-ipv4 mutation changed nothing"
+rc=0
+run_controls_without_pipefail "${broken}" "${scratch}/nopipefail-broken.out" rc
+[[ "${rc}" -ne 0 ]] \
+	|| fail "an uncompilable ipv4 pattern passed the control in a caller without pipefail; rg's exit 2 is being lost"
+rg --quiet --fixed-strings 'alternative ipv4 no longer detects its planted sample (rg exit 2)' "${scratch}/nopipefail-broken.out" \
+	|| fail "the uncompilable-ipv4 control went red for another reason than rg exit 2: $(cat "${scratch}/nopipefail-broken.out")"
+# ipv4 has an allow side, whose own probe went red by accident under the old
+# pipe and masked the detect-side hole. identifier has NO allow side, so a
+# lost rg exit 2 there passed the control in silence; that is the case that
+# must stay red.
+broken_ident="${scratch}/broken-identifier.sh"
+sed "s/^[[:space:]]*_cassette_identifier_pattern '_cpd_detect\\[identifier\\]'\$/	_cpd_detect[identifier]='(?<![0-9'/" "${lib}" >"${broken_ident}"
+cmp -s "${lib}" "${broken_ident}" && fail "the uncompilable-identifier mutation changed nothing"
+rc=0
+run_controls_without_pipefail "${broken_ident}" "${scratch}/nopipefail-broken-identifier.out" rc
+[[ "${rc}" -ne 0 ]] \
+	|| fail "an uncompilable identifier pattern passed the control in a caller without pipefail; with no allow side, rg's exit 2 is being lost in silence"
+rg --quiet --fixed-strings 'alternative identifier no longer detects its planted sample (rg exit 2)' "${scratch}/nopipefail-broken-identifier.out" \
+	|| fail "the uncompilable-identifier control went red for another reason than rg exit 2: $(cat "${scratch}/nopipefail-broken-identifier.out")"
+printf 'no-pipefail caller: clean controls pass; uncompilable ipv4 and identifier patterns fail with rg exit 2\n'
+
 # GREEN: the real gate over the committed tree, including the format go test.
 green_out="${scratch}/green.out"
 rc=0

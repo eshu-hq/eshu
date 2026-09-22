@@ -106,9 +106,14 @@ _cassette_probe_token() {
 	local probe_dir rc=0 _cpd_probe_match=''
 	probe_dir="$(mktemp -d -t cassette-private-data-probe.XXXXXX)"
 	printf '%s\n' "${value}" >"${probe_dir}/sample.txt"
-	_cpd_probe_match="$(rg --pcre2 --only-matching -- "${pattern}" "${probe_dir}/sample.txt" | head -n 1)" || rc=$?
+	# NO pipe. `rg ... | head -n 1` hands back head's status unless the caller
+	# happens to run with pipefail, so an uncompilable pattern (rg exit 2)
+	# read as a match and the positive control was vacuous in any caller
+	# without it. rg's whole output is captured with rg's own status, and the
+	# first line is taken afterwards.
+	_cpd_probe_match="$(rg --pcre2 --only-matching -- "${pattern}" "${probe_dir}/sample.txt")" || rc=$?
 	rm -rf "${probe_dir}"
-	_cpd_probe_out="${_cpd_probe_match}"
+	_cpd_probe_out="${_cpd_probe_match%%$'\n'*}"
 	return "${rc}"
 }
 
