@@ -66,7 +66,7 @@ No-Regression Evidence: the files the perf-evidence gate names as hot
 (`backendconformance/differential_kinds.go`, `capture/allowlist.go`,
 `capture/diff.go`) run only inside the gate's offline backend-diff phase,
 never on a service path. Baseline main binary (44e5607db) vs branch binary
-on the run 35756330320 capture (1,541/1,484 statement groups, 57 advisory),
+on the run 35756330128 capture (1,541/1,484 statement groups, 57 advisory),
 four interleaved runs each on the same host: branch 412/413/418/428 ms,
 main 420/421/425/401 ms — indistinguishable (±2%, alternating first-mover).
 Both runs load and compare every recording; the branch adds one kind
