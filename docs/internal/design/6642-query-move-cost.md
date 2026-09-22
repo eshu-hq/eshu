@@ -156,10 +156,10 @@ UNDECIDED. Counting who actually consumes each file's symbols settles all three:
 | file | symbols | consuming destinations | goes to |
 | --- | ---: | ---: | --- |
 | `repository_authz.go` | 4 (2 retire in PR 1) | **18** | `contract/` — shared vocabulary by any measure |
-| `repository_compat.go` | 7 | 3 | `contract/` |
+| `repository_compat.go` | 7 | **5** — `content/read`, `content/relationship`, `entity/`, `contract/*`, `repository/` | `contract/` |
 | `repository_selector.go` | 1 | 1 (`cicd`) | `cicd/` |
-| `code_seam.go` | 33 | 3, all code-domain | `contract/code` |
-| `family_codeowners_shim.go` | 1 | 1 (root) | `code/owners`, and it deletes with its root caller |
+| `code_seam.go` | 33 | **8** — `code/`, `content/read`, `impact/trace`, `language/`, `entity/`, `contract/*`, `auth/route`, `infra/summary` | `contract/code` |
+| `family_codeowners_shim.go` | 1 | 1 root + 2 external | `code/owners`; deletes in the alias sweep once `handler.go`'s field and the `cmd/api` and `cmd/mcp-server` call sites migrate to `codeowners.Handler` |
 | `family_impact_*.go`, `deployment_trace_support_helpers.go` | 31 | **0** for four of the five files | `impact/trace` |
 
 The impact files are the interesting case: four of the five have no consumer
@@ -170,6 +170,17 @@ which is the definition of shared vocabulary.
 
 No file needs a `seam` directory. The word was doing work the measurement does
 better.
+
+Two corrections a reviewer caught in the fan-out column, both worth stating
+because they change the price rather than the placement. The consumer counts
+above were first computed over `go/internal/query` **root files only**, which
+undercounts any symbol used from a subpackage: `code_seam.go` reaches 8
+destinations, not 3, and `repository_compat.go` 5, not 3. Broader sharing
+strengthens the case for putting both in `contract/`, but it widens the PR 31
+and contract-hoist fan-out, so the corrected lists are above. `CodeownersOwnershipHandler`
+is likewise referenced from `go/cmd/api/wiring_router.go` and
+`go/cmd/mcp-server/wiring_router.go`, which sit outside the 1,420-reference alias
+sweep entirely.
 
 ## The alias ledger
 
@@ -263,7 +274,7 @@ files import `querycontract`, and no `querycontract` file imports `contract`.
 
 **But the collision dissolves on its own, and that changes the order.** Of
 `contract/`'s 40 files, **37 are a single `init()` registering one capability
-row** — `contract/kubernetes.go` is nine lines registering
+row** — `contract/kubernetes.go` is nine lines of code registering
 `kubernetesCorrelationsCapability`, and its 36 siblings have the same shape.
 Only `capability_matrix.go`, `registry.go` and `doc.go` are shared.
 
@@ -274,10 +285,17 @@ the families that have moved, `playbook`, `secrets`, `incident`,
 `impact` holds three, `service` two, `semanticsearch` two. A family's capability
 row travels with the family; that is established practice here, not a proposal.
 
-So today's `contract/` empties itself as the family moves land, from 40 to 3.
-`capability_matrix.go` and `registry.go` join the root capability handler at
-`capability/`, and the name `contract/` is free by the time `querycontract`
-needs it — no `capability/matrix/` package, and no separate displacement PR.
+So today's `contract/` empties itself completely as the family moves land: 34 of
+its rows go to the families listed in the arithmetic table, 3 more
+(`capabilities.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go`)
+go to `capability/`, and `capability_matrix.go` and `registry.go` follow them
+there as `capability/matrix.go` and `capability/registry.go`. Its `doc.go` is
+deleted with the directory. 34 + 5 + 1 = 40, the whole package.
+
+To keep `capability/registry.go` unambiguous, root's `capability_registry.go`
+lands as `capability/lookup.go` rather than `capability/registry.go` — the
+mapping is updated to match, and the collision a reviewer caught here does not
+arise. `capability/` totals 4 root files + 5 from `contract/` = 9.
 The consequence for sequencing is that the `querycontract` rename goes **late**,
 after the families have drained the name, rather than second.
 
@@ -315,7 +333,7 @@ files, zero references in either direction.
 
 `contract/rowvalue` (2 files) already exists nested and is unchanged.
 
-## The other three over-cap directories
+## The three over-cap directories, all resolved
 
 Each proposed split was tested, not assumed. The test: build the file-level
 reference graph inside the package, assign files to the proposed leaf, and check
@@ -383,25 +401,43 @@ inside the package — mechanical, but the widest edit in that PR. 41 − 2 = 39
 This plan does not propose a divergence subpackage; `codequery/doc.go:39`
 explicitly refuses one, and the tested candidates above are the alternatives.
 
-**`repository` has no relocation-only split, and this plan does not invent
-one.** Fourteen of its 45 files declare methods on `Handler` and pin together.
-Of the remaining 31, exactly **one** — `capability.go`, a file of two
-constants — has no inbound reference from the rest of the package. Three
-cohesive groups were proposed and all three failed the cycle test:
+**`repository` splits by direction, not by topic.** My first three attempts —
+`story` (5 files), `semantics` (4), `deployment` (4) — were grouped by subject
+matter, and all three failed the two-direction test; the compiler confirmed it
+in both directions. That is recorded above because the failure is instructive,
+not because the package is unsplittable.
 
-| proposed leaf | files | stay → leaf | leaf → stay | verdict |
-| --- | ---: | ---: | ---: | --- |
-| `repository/story` | 5 | 8 | 13 | **cycle** |
-| `repository/semantics` | 4 | 1 | 2 | **cycle** |
-| `repository/deployment` | 4 | 3 | 1 | **cycle** |
+Grouping by dependency direction instead finds the answer immediately. Of the 31
+non-`Handler` files, **12 have zero outbound references into `repository`** —
+they pull nothing back, so each can move *down* into a child with the import
+running one way only:
 
-`story` and `deployment` also cross each other in both directions. The existing
-`//nolint:dirgate` on `repository/doc.go:16` reaches the same conclusion from a
-different angle, citing the queryplan file pins. Getting `repository` under 40
-needs a real seam — hoisting shared row helpers into `contract/`, or splitting
-`Handler` — which is a design change, not a move. It is recorded as UNDECIDED
-rather than guessed at, and `repository` is the one directory this plan does
-not bring under the cap.
+```
+capability.go              context_counts.go        families.go
+api_surface.go             context_degrade.go       groups.go
+dependency_edge_cap.go     infrastructure.go        relationship_overview.go
+javascript_semantics.go    infrastructure_degrade.go
+python_semantics_promotion.go
+```
+
+Compiler-proven in a throwaway worktree off `origin/main`: moving all twelve
+into the existing `repository/readmodel/` as `package readmodel` gives
+
+```
+go build ./internal/query/repository/readmodel/   exit 0          # the moved package is clean
+go build ./internal/query/repository/             34 undefined symbols, ALL in the parent
+```
+
+Every error is on one side. Compare the `story` attempt, where they appeared on
+both — that is the whole difference between a split and a cycle. The 34 are
+unexported names the parent still calls, so the cost is 34 exports in the child,
+not a 73-symbol hoist into `contract/`.
+
+**`repository` 45 → 33, `readmodel` 5 → 17, both under the cap, no
+`//nolint:dirgate` left, no widened Scope, no separate seam issue.** The marker's
+own justification — "splitting a subpackage rechurns the queryplan file pins" —
+still applies as a regeneration obligation on that PR, and `repository` has 15
+`file:` keys in `query-source-coverage.yaml` to re-key.
 
 ## What stays at root
 
@@ -460,20 +496,3 @@ is needed, and no test is stranded.
 Twenty-four root test files are behind `//go:build` tags and need the
 constraint-name check described under [Build-tagged files](6642-query-target-tree.md#build-tagged-files)
 before their move is trusted.
-
-## Two open questions the issue asked about, now answered
-
-The issue's 2026-09-18 update flagged `security` and `replatforming` as
-families with "no distinct file cluster found under those names — verify
-whether they landed under a different name or were folded into another family
-before treating them as done". Both are done:
-
-- **`replatforming`** has no non-test root file left. Its types live in
-  `iac_alias.go`'s 36 unexported forwarders (which delete with `iac/`), its
-  capability rows in `contract/replatforming*.go` (three files, travelling to `iac/`), and its
-OpenAPI fragment in
-  `openapi/components_replatforming.go`. Only tests remain at root.
-- **`security`** was never a family. Its one root non-test file,
-  `content_reader_security_secrets.go`, is a `ContentReader` method and goes to
-  `content/read/`. The rest of the name is spread across `supply/chain/`
-  (security-alert reconciliation) and `codequery/security_secrets.go`.

@@ -5,6 +5,23 @@
 [The file mapping](6642-query-file-mapping.md) ·
 [Sequencing and open questions](6642-query-move-sequence.md)
 
+## Two open questions the issue asked about, now answered
+
+The issue's 2026-09-18 update flagged `security` and `replatforming` as
+families with "no distinct file cluster found under those names — verify
+whether they landed under a different name or were folded into another family
+before treating them as done". Both are done:
+
+- **`replatforming`** has no non-test root file left. Its types live in
+  `iac_alias.go`'s 36 unexported forwarders (which delete with `iac/`), its
+  capability rows in `contract/replatforming*.go` (three files, travelling to `iac/`), and its
+OpenAPI fragment in
+  `openapi/components_replatforming.go`. Only tests remain at root.
+- **`security`** was never a family. Its one root non-test file,
+  `content_reader_security_secrets.go`, is a `ContentReader` method and goes to
+  `content/read/`. The rest of the name is spread across `supply/chain/`
+  (security-alert reconciliation) and `codequery/security_secrets.go`.
+
 ## Sequencing
 
 One destination directory per PR, in this order. The dependency that fixes the
@@ -19,7 +36,7 @@ order is the shared spine: nothing moves before PR 1.
 | 6 | the 52 root auth files, nested five ways under whatever `queryauth` is called by then | 52 | the largest root family; `auth/route/` alone is 24 files |
 | 7–30 | **one parent per PR, smallest first. Each is a hoist-then-move**, not a move — see [the cycle analysis](6642-query-move-cost.md#the-tree-is-not-reachable-by-moving-files-alone) for the symbols each owes.** 24 PRs covering 33 leaves and 145 files: `decode` (1), `workload` (1), `dependency` (2), `observability/coverage` (2), `terraform/drift` (2), `kubernetes` (3), `metrics` (3), `compare` (4), `cicd` (5), `ask` (6), `collector` (8), `documentation` (8), `evidence` (10), `status` (14), the three seam leaves `code/seam` (2), `repository/seam` (3) and `impact/seam` (5), and the parent-grouped `semantic` (3), `graph` (5), `image` (8), `investigation` (11), `supply/chain` (7), `cloud` (11), `infra` (21) | 145 | order within the block is free; each PR carries its own hoist |
 | 31 | `code/` ← `codequery` + the four `code*` siblings | 102 | large but mechanical; `CodeHandler` is **not** renamed here |
-| 32 | `repository/artifacts` ← `repositoryartifacts` (rename only); `repository/` itself stays at 45 pending the UNDECIDED below | 20 | queryplan pins regenerate |
+| 32 | `repository/`: move the 12 zero-outbound files into `repository/readmodel`, export the 34 names the parent calls; plus `repository/artifacts` ← `repositoryartifacts` | 65 | 15 queryplan `file:` keys re-key |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
 | 35 | hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
@@ -130,7 +147,7 @@ two files. Neither lane touches the other's row, but both touch both files.
 
 ## UNDECIDED
 
-This list started at seven. Five were settled by evidence rather than left to
+This list started at seven. Six were settled by evidence rather than left to
 you:
 
 - **The root-test rule** — a measured partition rather than a proposal: 560 of
@@ -151,36 +168,14 @@ you:
   `contract/`; four of the five `impact/seam` files have no consumer outside
   the leaf and belong with `impact/trace`. No `seam` directory survives.
 
-What remains are genuine owner calls.
+- **`repository`** — the split failed when grouped by topic and succeeds when
+  grouped by dependency direction. Twelve files have zero outbound references
+  and move down into `repository/readmodel` one-way, compiler-proven; 45 → 33,
+  17 in the child, marker retired.
 
-1. **`repository` does not reach the cap and this plan will not guess how.**
-   Fourteen of its 45 files pin to `Handler`, and of the other 31 exactly one
-   has no inbound reference. Three cohesive leaves — `story` (5),
-   `semantics` (4), `deployment` (4) — were each tested and each crosses the
-   boundary in both directions, so each would be an import cycle; `story` and
-   `deployment` also cross each other both ways. Getting under 40 needs a real
-   seam: hoist the shared helpers into `contract/`, or split the `Handler`
-   type. Both are design changes rather than moves, and both are outside what
-   this issue's Scope section authorizes ("Move and rename").
+What remains is one item, and the issue itself defers it.
 
-   The hoist is priced, and the price is higher than the first look suggests.
-   **32 unexported symbols cross the three proposed boundaries** — that is the
-   first layer, and an earlier revision of this page stopped there and called
-   it a tractable single issue. Following what those symbols themselves need
-   adds five more rounds: +9, +9, +16, +4, +3, settling at **73 symbols across
-   30 of the package's 45 files**.
-
-   The closure is computed at file granularity — a symbol drags what its
-   declaring file references, not strictly what the symbol itself references —
-   so 73 is an upper bound and 32 a lower one. The honest statement is that the
-   hoist is somewhere between a third and two thirds of `repository`, not a
-   handful of helpers. That makes option (a) a real refactor and is worth
-   knowing before choosing it over (b) or (c). The options are
-   (a) do that design work as its own issue, (b) accept `repository` keeping
-   its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
-   one place the definition of done is not met by the plan as written.
-
-2. **`CodeHandler`.** Not renamed by this plan, per the issue's own
+1. **`CodeHandler`.** Not renamed by this plan, per the issue's own
    precondition and #6649. Whether it is renamed at all is still open.
 
 ## Checklist

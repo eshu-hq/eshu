@@ -319,12 +319,10 @@ this rule comes from is recorded in
 
 ## Per-directory arithmetic
 
-Every directory after the plan, with its non-test file count. Three land at
-exactly 40 and have zero headroom — the next file added to any of them fails
-CI. `repository` is the one directory this plan does not bring under the cap;
-the measurement and the reason are in
-[what the moves cost](6642-query-move-cost.md#the-other-three-over-cap-directories),
-and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
+Every directory after the plan, with its non-test file count. **Nothing is over
+the cap.** Three land at exactly 40 and have zero headroom — they are at 40 on
+`origin/main` today and this plan adds nothing to them, but the next file added
+to any of them fails CI.
 
 | directory | non-test files |
 | --- | ---: |
@@ -341,7 +339,7 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/auth/session` | 4 |
 | `query/auth/setup` | 5 |
 | `query/auth/signin` | 9 |
-| `query/capability` | 10 |
+| `query/capability` | 9 |
 | `query/cicd` | 7 |
 | `query/cloud` | 6 |
 | `query/cloud/drift` | 7 |
@@ -425,9 +423,9 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/openapi/schema` | 3 |
 | `query/package/registry` | 19 |
 | `query/playbook` | 9 |
-| `query/repository` | 45 **← OVER, see UNDECIDED** |
+| `query/repository` | 33 |
 | `query/repository/artifacts` | 20 |
-| `query/repository/readmodel` | 5 |
+| `query/repository/readmodel` | 17 |
 | `query/secrets` | 11 |
 | `query/selector` | 3 |
 | `query/semantic` | 2 |
@@ -451,6 +449,6 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/workitem` | 13 |
 | `query/workload` | 1 |
 
-122 directories, 1183 non-test files.
+122 directories, 1182 non-test files.
 At the cap with zero headroom: `query/code`, `query/code/model`, `query/impact`.
-Over the cap: `query/repository` (45).
+Over the cap: **none**.

@@ -114,7 +114,7 @@ appears twice and none is unaccounted for.
 | --- | --- | --- |
 | `capabilities.go` | `capability/handler.go` | `capabilities_test.go` |
 | `capability_keys.go` | `capability/keys.go` | — |
-| `capability_registry.go` | `capability/registry.go` | — |
+| `capability_registry.go` | `capability/lookup.go` | — |
 | `permission_catalog.go` | `capability/permission_catalog.go` | — |
 
 #### `query/cicd/` — 5 non-test, 8 test files
