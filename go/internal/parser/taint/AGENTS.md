@@ -8,7 +8,7 @@
 4. `propagate.go` - the value-flow graph, the monotone fixpoint, sink evaluation
 5. `taint_test.go` - source->sink, correct/wrong-kind sanitizer, intersection,
    determinism, and overflow proofs
-6. The Go lowering that supplies facts: `../golang/cfg_taint_facts.go`
+6. The Go lowering that supplies facts: `../golang/dataflow/taint_facts.go`
 
 ## Invariants this package enforces
 

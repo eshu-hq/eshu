@@ -51,17 +51,17 @@
 //
 // When Options.EmitDataflow is set, Parse also emits a "dataflow_functions"
 // bucket (per-function control-flow graphs and reaching-definition def->use
-// edges built by cfg_lower.go over the internal/parser/cfg engine; selector
+// edges built by golang/dataflow over the internal/parser/cfg engine; selector
 // reads and writes keep field-sensitive access paths, and straight-line pointer
 // aliases to local structs are normalized before the edge is emitted; deep
 // access paths are capped and counted in the row overflow; indexed container
 // elements use an explicit [*] whole-container approximation, and invoked
 // function literals contribute captured-variable uses) and a
 // "taint_findings" bucket (intraprocedural source-to-sink taint findings with
-// confidence and provenance, built by cfg_taint_facts.go over the
+// confidence and provenance, built by golang/dataflow over the
 // internal/parser/taint engine), an "interproc_findings" bucket
-// (cross-function taint findings within the file, built by cfg_effects.go and
-// cfg_interproc.go: each function's value-flow summary is derived over
+// (cross-function taint findings within the file, also built by
+// golang/dataflow: each function's value-flow summary is derived over
 // internal/parser/valueflow and composed into an interprocedural port graph
 // solved by internal/parser/interproc), and, when RepositoryID and
 // GoPackageImportPath are present, a "dataflow_summaries" bucket of durable
@@ -70,6 +70,17 @@
 // untouched unless a caller opts in. Embedded shell-command evidence records
 // only structural os/exec call metadata; command text, arguments, and
 // environment values are intentionally omitted.
+//
+// The package is split into four leaves, layered so nothing imports back into
+// this package (issue #6774). golang/symbols is the bottom layer: it resolves
+// tree-sitter nodes into receiver types, variable types, struct field types,
+// interface targets, import aliases and lexical-scope bindings, and imports
+// only internal/parser/shared and tree-sitter. golang/dataflow lowers
+// control-flow graphs and derives taint and interprocedural summaries;
+// golang/deadcode and its semantic subpackage collect dead-code roots and
+// registration evidence; golang/prescan builds the package-level pre-scan
+// indexes. Each imports golang/symbols; none imports golang. Adding such an
+// import re-creates the cycle the split removed.
 //
 // The payload contract is pinned by the go_*_test.go files and
 // engine_go_rich_semantics_test.go in this directory, which compile as the

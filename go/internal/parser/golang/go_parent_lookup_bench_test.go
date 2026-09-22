@@ -16,7 +16,7 @@ import (
 // BenchmarkParsePathGoIdentifierHeavy parses a synthetic Go file with many
 // identifiers in value positions (function arguments, struct literals) and
 // deeply nested call expressions. The Go dead-code helpers walk node.Parent()
-// per identifier; before the per-parse goParentLookup landed, that pattern
+// per identifier; before the per-parse symbols.ParentLookup landed, that pattern
 // scaled as O(n_identifiers * depth^2) per file and saturated CPU on
 // repo-scale corpora without committing facts (see #161). This benchmark is
 // the focused regression gate that proves the parse path stays bounded.
@@ -40,8 +40,8 @@ func BenchmarkParsePathGoIdentifierHeavy(b *testing.B) {
 // generateIdentifierHeavyGoSource produces Go source with functions that each
 // contain a nested chain of call expressions and a composite-literal payload
 // referencing many identifiers. The shape exercises the helpers that walked
-// node.Parent() per identifier (function_value_references,
-// function_literal_reachability, dead_code_semantic_helpers).
+// node.Parent() per identifier (function_value_references.go at the root,
+// symbols/identifiers.go, and deadcode/semantic/helpers.go).
 func generateIdentifierHeavyGoSource(functionCount, chainDepth int) string {
 	var b strings.Builder
 	b.WriteString("package heavy\n\n")

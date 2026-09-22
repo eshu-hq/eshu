@@ -16,7 +16,7 @@
    intra-file `InterprocFindings` composition
 8. `lower_test.go` / `taintfacts_test.go` / `interproc_test.go` - reaching-def,
    taint-catalog, and cross-function proofs
-9. The counterparts this mirrors: `../../golang/cfg_lower.go`,
+9. The counterparts this mirrors: `../../golang/dataflow/lower.go`,
    `../../javascript/jsdataflow/lower.go`, `taintfacts.go`, `effects.go`,
    `interproc.go`, and the shared engine `../../cfg`
 

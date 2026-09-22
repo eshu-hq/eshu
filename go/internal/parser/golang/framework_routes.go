@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -46,8 +48,8 @@ func goHTTPFrameworkSemantics(
 	if root == nil {
 		return nil, false
 	}
-	serveMuxVars := goHTTPServeMuxVars(root, source, importAliases)
-	lookup := goBuildParentLookup(root)
+	serveMuxVars := deadcode.HTTPServeMuxVars(root, source, importAliases)
+	lookup := symbols.BuildParentLookup(root)
 	routeReceivers := goThirdPartyRouteReceiverBindings(root, source, importAliases, lookup)
 	frameworks := make([]string, 0)
 	entriesByFramework := make(map[string][]map[string]string)
@@ -67,10 +69,10 @@ func goHTTPFrameworkSemantics(
 		}
 		framework := entry["framework"]
 		delete(entry, "framework")
-		frameworks = appendUniqueImportAlias(frameworks, framework)
+		frameworks = symbols.AppendUniqueImportAlias(frameworks, framework)
 		entriesByFramework[framework] = append(entriesByFramework[framework], entry)
-		methodsByFramework[framework] = appendUniqueImportAlias(methodsByFramework[framework], entry["method"])
-		pathsByFramework[framework] = appendUniqueImportAlias(pathsByFramework[framework], entry["path"])
+		methodsByFramework[framework] = symbols.AppendUniqueImportAlias(methodsByFramework[framework], entry["method"])
+		pathsByFramework[framework] = symbols.AppendUniqueImportAlias(pathsByFramework[framework], entry["path"])
 	})
 	if len(frameworks) == 0 {
 		return nil, false
@@ -94,7 +96,7 @@ func goHTTPRouteEntry(
 	serveMuxVars map[string]struct{},
 ) (map[string]string, bool) {
 	functionNode := node.ChildByFieldName("function")
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return nil, false
 	}
@@ -134,7 +136,7 @@ func goHTTPRouteEntry(
 			handlerName = strings.TrimSpace(nodeText(&args[1], source))
 		}
 	case "handle":
-		handlerName = goHTTPHandlerWrapperTarget(&args[1], source, importAliases)
+		handlerName = deadcode.HTTPHandlerWrapperTarget(&args[1], source, importAliases)
 	}
 	if handlerName == "" {
 		return nil, false
@@ -152,7 +154,7 @@ func goThirdPartyRouteReceiverBindings(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	lookup *goParentLookup,
+	lookup *symbols.ParentLookup,
 ) []goRouteReceiverBinding {
 	bindings := make([]goRouteReceiverBinding, 0)
 	if root == nil {
@@ -174,12 +176,12 @@ func goThirdPartyRouteReceiverBindings(
 		default:
 			return
 		}
-		rightNode = goUnwrapSingleExpression(rightNode)
+		rightNode = symbols.UnwrapSingleExpression(rightNode)
 		if leftNode == nil || rightNode == nil {
 			return
 		}
 		receiver, known := goRouteReceiverFromExpression(rightNode, source, importAliases, bindings, nodeLine(node))
-		for _, nameNode := range goIdentifierNodes(leftNode, source) {
+		for _, nameNode := range symbols.IdentifierNodes(leftNode, source) {
 			bindings = append(bindings, goRouteReceiverBindingForName(root, node, nameNode, receiver, known, source, lookup))
 		}
 	})
@@ -198,7 +200,7 @@ func goRouteReceiverFromExpression(
 		return goRouteReceiver{}, false
 	}
 	functionNode := node.ChildByFieldName("function")
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return goRouteReceiver{}, false
 	}
@@ -238,11 +240,11 @@ func goUnknownRouteReceiverParameterBindings(node *tree_sitter.Node, source []by
 		return nil
 	}
 	bindings := make([]goRouteReceiverBinding, 0)
-	walkDirectNamed(parameters, func(child *tree_sitter.Node) {
+	symbols.WalkDirectNamed(parameters, func(child *tree_sitter.Node) {
 		if child.Kind() != "parameter_declaration" {
 			return
 		}
-		for _, nameNode := range goIdentifierNodes(child.ChildByFieldName("name"), source) {
+		for _, nameNode := range symbols.IdentifierNodes(child.ChildByFieldName("name"), source) {
 			variable := strings.ToLower(strings.TrimSpace(nodeText(nameNode, source)))
 			if variable == "" {
 				continue
@@ -265,9 +267,9 @@ func goRouteReceiverBindingForName(
 	receiver goRouteReceiver,
 	known bool,
 	source []byte,
-	lookup *goParentLookup,
+	lookup *symbols.ParentLookup,
 ) goRouteReceiverBinding {
-	scope := goNearestLexicalScope(node, lookup)
+	scope := symbols.NearestLexicalScope(node, lookup)
 	if scope == nil {
 		scope = root
 	}
@@ -323,7 +325,7 @@ func goRouteFrameworkConstructor(
 		if !goRouteConstructorField(spec.fields, field) {
 			continue
 		}
-		for _, alias := range goAliasesForImportPath(importAliases, spec.importPath) {
+		for _, alias := range symbols.AliasesForImportPath(importAliases, spec.importPath) {
 			if strings.EqualFold(alias, base) {
 				return spec.framework, true
 			}
@@ -347,7 +349,7 @@ func goThirdPartyRouteEntry(
 	receivers []goRouteReceiverBinding,
 ) (map[string]string, bool) {
 	functionNode := node.ChildByFieldName("function")
-	base, field, ok := goSelectorBaseAndField(functionNode, source)
+	base, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 	if !ok {
 		return nil, false
 	}
@@ -434,7 +436,7 @@ func goHTTPRegistrationBaseKnown(
 	importAliases map[string][]string,
 	serveMuxVars map[string]struct{},
 ) bool {
-	for _, alias := range goAliasesForImportPath(importAliases, "net/http") {
+	for _, alias := range symbols.AliasesForImportPath(importAliases, "net/http") {
 		if strings.ToLower(alias) == base {
 			return true
 		}

@@ -6,6 +6,7 @@ package golang
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -14,13 +15,13 @@ func goAnnotateCallChainMetadata(
 	callNode *tree_sitter.Node,
 	functionNode *tree_sitter.Node,
 	source []byte,
-	localReceiverBindings []goLocalReceiverBinding,
+	localReceiverBindings []symbols.LocalReceiverBinding,
 ) {
 	receiverIdentifier, receiverMethod := goMethodReturnChainReceiver(functionNode, source)
 	if receiverIdentifier == "" || receiverMethod == "" {
 		return
 	}
-	receiverType := goConcreteInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings)
+	receiverType := symbols.ConcreteInferredReceiverType(receiverIdentifier, nodeLine(callNode), localReceiverBindings)
 	if receiverType == "" {
 		return
 	}
@@ -33,7 +34,7 @@ func goMethodReturnChainReceiver(functionNode *tree_sitter.Node, source []byte) 
 	if functionNode == nil || functionNode.Kind() != "selector_expression" {
 		return "", ""
 	}
-	receiverCall := goUnwrapSingleExpression(functionNode.ChildByFieldName("operand"))
+	receiverCall := symbols.UnwrapSingleExpression(functionNode.ChildByFieldName("operand"))
 	if receiverCall == nil || receiverCall.Kind() != "call_expression" {
 		return "", ""
 	}

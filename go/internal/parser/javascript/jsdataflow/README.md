@@ -89,7 +89,7 @@ and `eshu_dp_file_parse_duration_seconds`.
 
 ## Field-sensitive precision (`accesspaths.go`)
 
-Mirrors the Go template (`internal/parser/golang/cfg_access_paths.go`, issues
+Mirrors the Go template (`internal/parser/golang/dataflow/access_paths.go`, issues
 #2999/#3000) so taint that flows through a field, container element, or reference
 alias is no longer a whole-binding false negative (#3252):
 

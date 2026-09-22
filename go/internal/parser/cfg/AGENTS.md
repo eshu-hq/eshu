@@ -11,8 +11,8 @@
 5. `limits.go` - the caps and their normalization
 6. `reaching_test.go` - the straight-line, branch-merge, loop back-edge,
    determinism, and overflow proofs
-7. The Go lowering that feeds this package: `../golang/cfg_lower.go`,
-   `../golang/cfg_bindings.go`, `../golang/cfg_emit.go`
+7. The Go lowering that feeds this package: `../golang/dataflow/lower.go`,
+   `../golang/dataflow/bindings.go`, `../golang/dataflow/emit.go`
 
 ## Invariants this package enforces
 

@@ -4,53 +4,80 @@
 
 1. `README.md` - package boundary, exported surface, and invariants
 2. `doc.go` - godoc contract for the Go adapter package
-3. `language.go` and `call_chain_metadata.go` - `Parse`, payload assembly,
-   call metadata, receiver handling, and chained receiver proof
-4. `prescan.go` - `PreScan`, the cheap name-only walk used by the collector
-   import-map prescan
-5. `dead_code_roots.go` - signature roots, import aliases, and root-kind
-   helpers
-6. `dead_code_registrations.go` - net/http and Cobra registration evidence
-7. `dead_code_semantic_roots.go` - top-level semantic root collection
-8. `dead_code_semantic_helpers.go` and `dead_code_semantic_flows.go` -
-   interface, callback, field, and argument flow helpers
-9. `function_literal_reachability.go` - callback and registry literal root
-   boundaries
-10. `package_interface_prescan.go` - imported-interface parameter extraction
-11. `parent_lookup.go` - per-file child-to-parent index used by every helper
-    that walks ancestors; required to keep ancestor traversal amortized O(1)
-12. `variable_type_index.go` and `imported_variable_type_index.go` -
-    per-file, per-scope variable-type lookup indices that replace the
-    per-call full-tree walks the dead-code and package-prescan helpers used
-    to do
-13. `embedded_sql.go` - SQL literal extraction and line-number accounting
-13a. `cfg_lower.go`, `cfg_bindings.go`, `cfg_emit.go` - opt-in dataflow pass:
-    lowers each function to a control-flow graph over `internal/parser/cfg`,
-    extracts per-statement defs/uses, and emits the `dataflow_functions` and
-    `taint_findings` buckets (gated by `Options.EmitDataflow`, byte-identical
-    when off)
-13b. `cfg_taint_facts.go` - the Go source/sink/sanitizer catalog and the mapping
-    from parsed statements to `internal/parser/taint` facts
-13c. `cfg_effects.go`, `cfg_interproc.go` - the Go-AST-to-EffectsSpec extraction
-    (params, returns, intra-file call-arg sites) and the per-file composition
-    into interprocedural findings over `internal/parser/valueflow` and
-    `internal/parser/interproc` (the `interproc_findings` bucket)
-14. `helpers.go` and `types.go` - local helper and shared contract aliases
-15. The `go_*_test.go` and `engine_go_rich_semantics_test.go` external-package
-    engine tests in this directory (25 files, package `golang_test`; 23 of
-    them relocated from the parent by #6062), plus the parent's
-    `TestDefaultEngineParsePathGo` in `engine_test.go` and
-    `go_package_interface_prescan_test.go`, before changing emitted payload
-    shape
-16. `go_test_helpers_test.go` - `writeGoFixture`, the shared nested-directory
-    fixture writer. Cross-file assertions come from `../parsertest`; helpers
-    that stay file-local (taint and dataflow row lookups, dogfood corpus
-    pickers, the `*testing.B` writer) live beside the tests that use them
-17. `engine_data_carriage_return_test.go` - one of the two single-language
-    relocations closing out #6062, external package `golang_test`. Pins the Go
-    raw-string carriage-return case (issue #6306) via
-    `parsertest.MustParsePath`/`parsertest.WriteFile`, since it needs only the
-    parent's exported `DefaultEngine`/`Options`/`Engine.ParsePath` surface
+3. Pick the leaf for the change first, then the file inside it. This package
+   is a root plus four one-way-layered leaves (see README.md's Ownership
+   boundary): `symbols/` is the bottom layer and never imports a sibling leaf
+   or the root; `dataflow/`, `deadcode/` (+ `deadcode/semantic/`), and
+   `prescan/` may import `symbols/` but not each other or the root; the root
+   imports all four.
+   - **Root (`golang/`)** - payload assembly and composition:
+     - `language.go`, `call_chain_metadata.go` - `Parse`, payload assembly,
+       call metadata, receiver handling, and chained receiver proof
+     - `function_value_references.go` - the function-value root boundary
+       (the identifier and scope logic it leans on now lives in `symbols/`)
+     - `embedded_sql.go`, `embedded_shell.go` - SQL and shell call-site
+       extraction and line-number accounting
+     - `helpers.go`, `types.go` - local forwarders to `parser/shared` and
+       shared contract type aliases
+     - `aws_sdk_receiver_service.go`, `file_level_indexes.go`,
+       `framework_routes.go`, `framework_semantics_gate.go`,
+       `parameter_count.go`, `scip_symbols.go` - remaining root-owned payload
+       pieces; read each file's own doc comment before changing it
+   - **`symbols/`** - identifier, scope, receiver, and variable-type
+     resolution; the bottom layer every other leaf depends on:
+     - `parent_lookup.go` - `BuildParentLookup`, the per-file child-to-parent
+       index used by every helper that walks ancestors; required to keep
+       ancestor traversal amortized O(1)
+     - `variable_index.go`, `imported_variable_index.go` - per-file,
+       per-scope variable-type lookup indices that replace the per-call
+       full-tree walks the dead-code and package-prescan helpers used to do
+     - `receiver.go`, `receiver_concrete.go`, `variable_scope.go`,
+       `variable_types.go`, `map_receiver.go`, `struct_fields.go` - receiver
+       and variable typing
+     - `exported.go` - `IdentifierIsExported`
+     - `helpers.go` - identifier/scope walk helpers relocated from the root
+   - **`dataflow/`** - the opt-in control-flow/taint pass
+     (`Options.EmitDataflow`, byte-identical when off):
+     - `lower.go`, `bindings.go`, `access_paths.go`, `emit.go` - lowers each
+       function to a control-flow graph over `internal/parser/cfg`, extracts
+       per-statement defs/uses, and emits the `dataflow_functions` bucket
+     - `taint_facts.go` - the Go source/sink/sanitizer catalog feeding
+       `taint_findings`
+     - `effects.go`, `interproc.go` - the Go-AST-to-EffectsSpec extraction
+       (params, returns, intra-file call-arg sites) and the per-file
+       composition into interprocedural findings over
+       `internal/parser/valueflow` and `internal/parser/interproc` (the
+       `interproc_findings` bucket)
+   - **`deadcode/` and `deadcode/semantic/`** - dead-code root evidence:
+     - `deadcode/roots.go` - signature roots, import aliases, and root-kind
+       helpers
+     - `deadcode/registrations.go` - net/http and Cobra registration evidence
+     - `deadcode/semantic/roots.go` - top-level semantic root collection
+     - `deadcode/semantic/helpers.go`, `deadcode/semantic/flows.go` -
+       interface, callback, field, and argument flow helpers
+   - **`prescan/`** - file-local and package-level pre-scan:
+     - `prescan.go` - `PreScan`, the cheap name-only walk used by the
+       collector import-map prescan
+     - `package_interface.go` (formerly `package_interface_prescan.go`) -
+       imported-interface parameter extraction; also now owns
+       `MethodDeclarationKeys`
+     - `package_evidence.go` - package-level interface, method, and generic
+       evidence
+4. The `go_*_test.go` and `engine_go_rich_semantics_test.go` external-package
+   engine tests at the package root (package `golang_test`; see README.md for
+   the current file/function counts -- they shifted with the leaf split,
+   issue #6774), plus the parent's `TestDefaultEngineParsePathGo` in
+   `engine_test.go` and `go_package_interface_prescan_test.go` (which lives in
+   the parent directory, not here), before changing emitted payload shape
+5. `go_test_helpers_test.go` - `writeGoFixture`, the shared nested-directory
+   fixture writer. Cross-file assertions come from `../parsertest`; helpers
+   that stay file-local (taint and dataflow row lookups, dogfood corpus
+   pickers, the `*testing.B` writer) live beside the tests that use them
+6. `engine_data_carriage_return_test.go` - one of the two single-language
+   relocations closing out #6062, external package `golang_test`. Pins the Go
+   raw-string carriage-return case (issue #6306) via
+   `parsertest.MustParsePath`/`parsertest.WriteFile`, since it needs only the
+   parent's exported `DefaultEngine`/`Options`/`Engine.ParsePath` surface
 
 ## Invariants this package enforces
 
@@ -71,6 +98,12 @@
   keeps its own `*testing.B` writer because parsertest has none. Do not add
   local copies of parsertest helpers back, and do not export a parent-private
   helper to reach it.
+- Internal layering is one-way: `symbols/` imports only `internal/parser/shared`
+  and tree-sitter (never a sibling leaf or this root); `dataflow/`,
+  `deadcode/` (+ `deadcode/semantic/`), and `prescan/` may import `symbols/`
+  but not each other or the root; the root imports all four leaves. A change
+  that needs a leaf to import a sibling leaf means the shared piece belongs in
+  `symbols/` instead -- see README.md's Ownership boundary.
 - `Parse` returns the same bucket names and map fields the parent Go adapter
   returned before the language-owned move.
 - Bucket ordering is deterministic. Sort output before returning any payload or
@@ -87,9 +120,10 @@
 - Add a new Go payload field by writing or updating a focused external-package
   engine test here, then changing `language.go` or the helper that owns the
   evidence.
-- Add a new dead-code root by adding a focused `go_dead_code_*_test.go` case in
-  this directory first, then editing the narrow helper that owns that evidence
-  family. Prove a run pin with `../scripts/go-test-run-guard.sh 56 TestDefaultEngineParsePathGo -- ./internal/parser/golang -count=1`
+- Add a new dead-code root by adding a focused test case in `deadcode/` (or
+  `deadcode/semantic/` for semantic-root evidence) first, then editing the
+  narrow helper that owns that evidence family. Prove a run pin with
+  `../scripts/go-test-run-guard.sh 56 TestDefaultEngineParsePathGo -- ./internal/parser/golang -count=1`
   from the `go/` module root; a bare `go test -run` exits 0 on a partial match.
 - Add SQL API support by writing a focused `embedded_sql_test.go` case first.
 - Change same-package interface evidence by testing both
@@ -110,8 +144,8 @@
   `ImportedInterfaceParamMethods` was not passed back through `Options`, or a
   type-flow helper lost local concrete-type evidence.
 - Missing handler or Cobra roots usually means import alias evidence changed in
-  `dead_code_roots.go` or registration evidence changed in
-  `dead_code_registrations.go`.
+  `deadcode/roots.go` or registration evidence changed in
+  `deadcode/registrations.go`.
 - Wrong embedded SQL rows usually mean the call-site matcher or SQL table
   matcher in `embedded_sql.go` became too broad or too narrow.
 - Non-deterministic import-map output usually means a helper returned unsorted
@@ -133,9 +167,10 @@
 - Adding telemetry from this package; parse timing belongs to the runtime path
   that invokes the adapter.
 - Re-adding per-call full-tree walks for variable-type or ancestor lookups in
-  `dead_code_semantic_roots.go`, `package_interface_prescan.go`, or any other
-  helper. Use `goBuildParentLookup`, `goBuildVariableTypeIndex`, or
-  `goBuildImportedVariableTypeIndex` so per-file cost stays linear.
+  `deadcode/semantic/roots.go`, `prescan/package_interface.go`, or any other
+  helper. Use `symbols.BuildParentLookup` and the variable-type index builders
+  in `symbols/variable_index.go` / `symbols/imported_variable_index.go` so
+  per-file cost stays linear.
 - Re-adding a per-call `regexp.MustCompile` in `goIdentifierShadowedBeforeOffset`
   (`embedded_shell.go`). Use `identifierShadowPatternsFor`, which caches the
   compiled shadow-detection regexes per identifier.

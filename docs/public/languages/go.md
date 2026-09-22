@@ -83,7 +83,7 @@ output:
   pre-passes, the former `goLocalMapValueTypes` and `goLocalInterfaceNames`,
   walked the file separately before its own main walk. They are now built
   together by `goCollectLocalMapValueTypesAndInterfaceNames`
-  (`go/internal/parser/golang/map_receiver_types.go`) in one pass, since the
+  (`go/internal/parser/golang/symbols/map_receiver.go`) in one pass, since the
   two node-kind sets are disjoint; `goLocalReceiverBindings`'s own main walk is
   unchanged.
 
@@ -120,7 +120,7 @@ timing is already covered by the existing parser/pre-scan parse-stage
 telemetry; no new operator signals are warranted.
 
 - **Dead-code resolution re-walk elimination (#4920):** `goCollectSemanticDeadCodeRoots`
-  (`go/internal/parser/golang/dead_code_semantic_roots.go`) was running two
+  (`go/internal/parser/golang/deadcode/semantic/roots.go`) was running two
   independent full-tree `walkNamed` traversals for each file — one to resolve
   every `var_spec`, `short_var_declaration`, `assignment_statement`,
   `composite_literal`, `parameter_declaration`, `field_declaration`,
@@ -192,7 +192,7 @@ metric, span, log, or runtime-behavior surface. Per-file Go parse timing stays
 covered by the existing parse-stage telemetry.
 
 - **Scoped variable-type delta memoization (#5219):** `goVariableTypeIndex.ForNode`
-  (`go/internal/parser/golang/variable_type_index.go`) reconstructs the
+  (`go/internal/parser/golang/symbols/variable_index.go`) reconstructs the
   variable-type map visible at a call site by replaying the enclosing scope's
   declarations that precede it. `goCollectSemanticDeadCodeRoots` calls it once
   per gathered node, so a scope with many call sites re-ran the same

@@ -82,7 +82,7 @@ func makeRunner() Runner {
 // generic_constraint_method), the emitted dead_code_root_kinds slice
 // order is deterministic. This test locks in the exact order
 // origin/main produces so a future reorder of the gather loops in
-// dead_code_semantic_roots.go cannot silently reorder the output.
+// deadcode/semantic/roots.go cannot silently reorder the output.
 func TestDeadCodeCrossKindSameKeyOrdering(t *testing.T) {
 	tests := []struct {
 		name          string

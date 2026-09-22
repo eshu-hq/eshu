@@ -133,7 +133,7 @@ language_features:
     supported_features: [functions, structs, interfaces, imports, function-calls, variables, methods-receivers, generics, embedded-sql-queries, net-http-route-truth, third-party-router-route-truth]
     partial_features: [outbound-contracts]
     derived_features: []
-    source_files: [go/internal/parser/go_language.go, go/internal/parser/golang/language.go, go/internal/parser/golang/dead_code_registrations.go, go/internal/parser/golang/framework_routes.go]
+    source_files: [go/internal/parser/go_language.go, go/internal/parser/golang/language.go, go/internal/parser/golang/deadcode/registrations.go, go/internal/parser/golang/framework_routes.go]
     test_files: [go/internal/parser/engine_test.go, go/internal/parser/golang/go_embedded_sql_test.go, go/internal/parser/golang/go_dead_code_registrations_test.go, go/internal/reducer/code/call/materialization/routes_test.go, go/internal/query/codequery/route_query_proof_helpers_test.go, go/internal/query/codequery/route_query_proof_matrix_test.go]
     docs: [docs/public/languages/go.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, trace_route_callers]

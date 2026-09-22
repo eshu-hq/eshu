@@ -3,7 +3,11 @@
 
 package golang
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+)
 
 // goHTTPFrameworkSemanticsInvocationCount counts calls into
 // goHTTPFrameworkSemantics. Test-only: production code never reads it. It
@@ -43,11 +47,11 @@ func GoHTTPFrameworkSemanticsInvocationCountForTest() int64 {
 // source of truth also used by goRouteFrameworkConstructor, so the two lists
 // cannot drift apart.
 func goFileImportsRouteFramework(importAliases map[string][]string) bool {
-	if len(goAliasesForImportPath(importAliases, "net/http")) > 0 {
+	if len(symbols.AliasesForImportPath(importAliases, "net/http")) > 0 {
 		return true
 	}
 	for _, spec := range goRouteFrameworkConstructors {
-		if len(goAliasesForImportPath(importAliases, spec.importPath)) > 0 {
+		if len(symbols.AliasesForImportPath(importAliases, spec.importPath)) > 0 {
 			return true
 		}
 	}
