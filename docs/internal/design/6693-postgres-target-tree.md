@@ -55,7 +55,13 @@ steps:
    every file that declares a method on a type moves with that type. This
    decides more than any name does: `FactStore` has methods in 30 files,
    `IdentitySubjectStore` in 24, `IngestionStore` in 17, and `StatusStore` in 6.
-   Most of the "prefix lied" corrections below come from this rule.
+   Most of the "prefix lied" corrections below come from this rule. A
+   separate check confirms it over the final mapping: of the 251 files that
+   declare methods on a root type (285 file/type pairs), every one lands with its type except the 23
+   `IdentitySubjectStore` files that wait for D1. That check caught one mapping
+   the package-graph check could not: `eshu_search_vector_documents.go`
+   declares methods on `EshuSearchDocumentStore`, so it lives in
+   `search/document/`, not `search/vector/`.
 3. **Package-graph check.** For a candidate mapping, every cross-file
    reference became a package edge and a cycle search ran over the result. A
    directory can leave root only if nothing it uses is still in root, so the
@@ -144,6 +150,7 @@ package.
 | `scopeSourceKey` | `ingestion_queries.go` | `scope/` | scope source-key helper shared by ingestion and the deferred-maintenance lock |
 | `BootstrapDefinitions`, `Definition` (fields `Name`, `Path`, `SQL`) | `schema.go` | `migrations/` | the migrations leaf owns the `//go:embed` (decision D2) |
 | `migrationChecksum` | `schema_bootstrap_lock.go` | `migrations/` | migration content checksum, shared by the bootstrap tracker and status |
+| `eshuSearchVectorPendingMaxLimit` | `eshu_search_vector_pending.go` | `search/document/` | pending-read limit shared by the vector sidecar and the pending-document read |
 
 Identity needs its own set, listed under D1.
 
@@ -216,7 +223,7 @@ issue's "root holds only what cannot move" bar by 17 files.
 
 **D6. Shared test fakes become a real package, `fake/`.** Test files cannot be
 imported across packages. `work_queue_lifecycle_test.go` holds the fake
-database that tests headed for 42 different destinations use. In total, 62
+database that tests headed for 40 different destinations use. In total, 70
 helper test files are used by tests that land in two or more destinations.
 Recommended: move the shared fakes (`fakeExecQueryer`, `fakeRows`,
 `fakeTransaction` and their kin) into a non-test package `fake/` before the
@@ -272,9 +279,9 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 381 | it only needs its own package and packages below it (2 of these follow the UNDECIDED file) |
+| in-package test | 382 | it only needs its own package and packages below it (2 of these follow the UNDECIDED file) |
 | external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
-| external test package plus `export_test.go` shim | 86 | as above, and it also reads its subject's private symbols |
+| external test package plus `export_test.go` shim | 85 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 35 | it reads private symbols of two or more future packages |
 | stays in root | 69 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
@@ -332,8 +339,8 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 22. [ ] `freshness/incident/` (3 files)
 23. [ ] `lock/` (3 files; after `scope/`)
 24. [ ] `scope/completion/` (4 files)
-25. [ ] `search/document/` (4 files)
-26. [ ] `crossplane/` (5 files)
+25. [ ] `crossplane/` (5 files)
+26. [ ] `search/document/` (6 files)
 27. [ ] `container/image/` (7 files)
 28. [ ] `facts/schema/` (7 files; after `container/image/`)
 29. [ ] `queue/projector/` (7 files; after `crossplane/`, `facts/payload/`, `queue/`)
@@ -354,8 +361,8 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 44. [ ] `supply/chain/impact/` (2 files; after `facts/`, `queue/projector/`)
 45. [ ] `code/divergence/` (3 files; after `facts/`)
 46. [ ] `terraform/state/backend/` (5 files; after `facts/`)
-47. [ ] `cloud/inventory/` (12 files; after `facts/`, `terraform/state/drift/`)
-48. [ ] `search/vector/` (12 files; after `facts/`, `search/document/`)
+47. [ ] `search/vector/` (10 files; after `facts/`, `search/document/`)
+48. [ ] `cloud/inventory/` (12 files; after `facts/`, `terraform/state/drift/`)
 49. [ ] `ingestion/` (31 files; after `facts/`, `facts/payload/`, `generation/`, `iac/`, `lock/`, `queue/projector/`, `queue/reducer/`, `relationship/`, `scope/`, `workflow/`)
 50. [ ] `collector/` (4 files; after `facts/payload/`, `ingestion/`)
 51. [ ] `recovery/` (1 file; after `collector/`)
@@ -445,9 +452,9 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `recovery/` | 1 | 7 | ok |
 | `relationship/` | 6 | 9 | ok |
 | `scope/completion/` | 4 | 6 | ok |
-| `search/document/` | 4 | 5 | ok |
+| `search/document/` | 6 | 7 | ok |
 | `search/index/` | 1 | 4 | ok |
-| `search/vector/` | 12 | 21 | ok |
+| `search/vector/` | 10 | 19 | ok |
 | `service/catalog/` | 1 | 1 | ok |
 | `service/evidence/` | 2 | 2 | ok |
 | `service/materialization/` | 1 | 0 | ok |

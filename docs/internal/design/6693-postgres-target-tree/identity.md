@@ -40,10 +40,10 @@ identity_subjects_test.go -> identity/subjects_test.go   # external test package
 ### `identity/admin/` (4 non-test, 4 test)
 
 ```text
-identity_admin_mutations.go -> identity/admin/mutations.go
+identity_admin_mutations.go -> identity/admin/mutations.go   # IdentitySubjectStore method: moves only after D1
 identity_admin_mutations_sql.go -> identity/admin/mutations_sql.go
-identity_admin_reads.go -> identity/admin/reads.go
-identity_admin_reads_providers.go -> identity/admin/reads_providers.go
+identity_admin_reads.go -> identity/admin/reads.go   # IdentitySubjectStore method: moves only after D1
+identity_admin_reads_providers.go -> identity/admin/reads_providers.go   # IdentitySubjectStore method: moves only after D1
 ```
 
 <details><summary>Tests</summary>
@@ -60,10 +60,10 @@ identity_mapping_pagination_live_test.go -> identity/admin/mapping_pagination_li
 ### `identity/api/` (7 non-test, 4 test)
 
 ```text
-identity_api_token_lifecycle.go -> identity/api/token_lifecycle.go
+identity_api_token_lifecycle.go -> identity/api/token_lifecycle.go   # IdentitySubjectStore method: moves only after D1
 identity_api_token_lifecycle_sql.go -> identity/api/token_lifecycle_sql.go
 identity_api_tokens.go -> identity/api/scoped_resolution.go
-identity_api_tokens_list.go -> identity/api/token_list.go
+identity_api_tokens_list.go -> identity/api/token_list.go   # IdentitySubjectStore method: moves only after D1
 identity_api_tokens_sql.go -> identity/api/scoped_resolution_sql.go
 scoped_api_tokens.go -> identity/api/scoped_token.go
 scoped_api_tokens_schema.go -> identity/api/scoped_token_schema.go
@@ -83,12 +83,12 @@ scoped_api_tokens_test.go -> identity/api/scoped_token_test.go   # external test
 ### `identity/bootstrap/` (6 non-test, 8 test)
 
 ```text
-identity_bootstrap_credential.go -> identity/bootstrap/credential.go
+identity_bootstrap_credential.go -> identity/bootstrap/credential.go   # IdentitySubjectStore method: moves only after D1
 identity_bootstrap_credential_mfa.go -> identity/bootstrap/credential_mfa.go
-identity_bootstrap_credential_owner.go -> identity/bootstrap/credential_owner.go
+identity_bootstrap_credential_owner.go -> identity/bootstrap/credential_owner.go   # IdentitySubjectStore method: moves only after D1
 identity_bootstrap_credential_sql.go -> identity/bootstrap/credential_sql.go
 identity_bootstrap_credential_validate.go -> identity/bootstrap/credential_validate.go
-identity_setup_completion.go -> identity/bootstrap/setup_completion.go
+identity_setup_completion.go -> identity/bootstrap/setup_completion.go   # IdentitySubjectStore method: moves only after D1
 ```
 
 <details><summary>Tests</summary>
@@ -124,15 +124,15 @@ github_login_test.go -> identity/github/login_test.go   # external test package:
 ### `identity/local/` (12 non-test, 14 test)
 
 ```text
-identity_local.go -> identity/local/local.go
-identity_local_helpers.go -> identity/local/helpers.go
-identity_local_lifecycle.go -> identity/local/lifecycle.go
+identity_local.go -> identity/local/local.go   # IdentitySubjectStore method: moves only after D1
+identity_local_helpers.go -> identity/local/helpers.go   # IdentitySubjectStore method: moves only after D1
+identity_local_lifecycle.go -> identity/local/lifecycle.go   # IdentitySubjectStore method: moves only after D1
 identity_local_mfa_reset_lock.go -> identity/local/mfa_reset_lock.go
-identity_local_mfa_status.go -> identity/local/mfa_status.go
-identity_local_rotate.go -> identity/local/rotate.go
+identity_local_mfa_status.go -> identity/local/mfa_status.go   # IdentitySubjectStore method: moves only after D1
+identity_local_rotate.go -> identity/local/rotate.go   # IdentitySubjectStore method: moves only after D1
 identity_local_schema.go -> identity/local/schema.go
 identity_local_sql.go -> identity/local/sql.go
-identity_local_totp.go -> identity/local/totp.go
+identity_local_totp.go -> identity/local/totp.go   # IdentitySubjectStore method: moves only after D1
 identity_local_totp_sql.go -> identity/local/totp_sql.go
 identity_local_types.go -> identity/local/types.go
 identity_local_validate.go -> identity/local/validate.go
@@ -179,13 +179,13 @@ oidc_session_refresh_test.go -> identity/oidc/refresh_test.go
 ### `identity/provider/` (8 non-test, 6 test)
 
 ```text
-identity_provider_config_login_reads.go -> identity/provider/login_reads.go
-identity_provider_config_oidc_bearer_reads.go -> identity/provider/oidc_bearer_reads.go
-identity_provider_config_reads.go -> identity/provider/reads.go
-identity_provider_config_status_writes.go -> identity/provider/status_writes.go
+identity_provider_config_login_reads.go -> identity/provider/login_reads.go   # IdentitySubjectStore method: moves only after D1
+identity_provider_config_oidc_bearer_reads.go -> identity/provider/oidc_bearer_reads.go   # IdentitySubjectStore method: moves only after D1
+identity_provider_config_reads.go -> identity/provider/reads.go   # IdentitySubjectStore method: moves only after D1
+identity_provider_config_status_writes.go -> identity/provider/status_writes.go   # IdentitySubjectStore method: moves only after D1
 identity_provider_config_types.go -> identity/provider/types.go
-identity_provider_config_writes.go -> identity/provider/writes.go
-identity_provider_config_writes_helpers.go -> identity/provider/writes_helpers.go
+identity_provider_config_writes.go -> identity/provider/writes.go   # IdentitySubjectStore method: moves only after D1
+identity_provider_config_writes_helpers.go -> identity/provider/writes_helpers.go   # IdentitySubjectStore method: moves only after D1
 identity_provider_config_writes_sql.go -> identity/provider/writes_sql.go
 ```
 
@@ -205,8 +205,8 @@ identity_saml_provider_secret_roundtrip_test.go -> identity/provider/saml_secret
 ### `identity/saml/` (5 non-test, 3 test)
 
 ```text
-identity_saml.go -> identity/saml/saml.go
-identity_saml_login_reads.go -> identity/saml/login_reads.go
+identity_saml.go -> identity/saml/saml.go   # IdentitySubjectStore method: moves only after D1
+identity_saml_login_reads.go -> identity/saml/login_reads.go   # IdentitySubjectStore method: moves only after D1
 identity_saml_sql.go -> identity/saml/sql.go
 identity_saml_types.go -> identity/saml/types.go
 saml_sso.go -> identity/saml/sso.go
@@ -246,7 +246,7 @@ browser_sessions_test.go -> identity/session/session_test.go   # external test p
 ### `identity/sign/` (3 non-test, 4 test)
 
 ```text
-identity_sign_in_policy.go -> identity/sign/policy.go
+identity_sign_in_policy.go -> identity/sign/policy.go   # IdentitySubjectStore method: moves only after D1
 identity_sign_in_policy_sql.go -> identity/sign/sql.go
 identity_sign_in_policy_types.go -> identity/sign/types.go
 ```

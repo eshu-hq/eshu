@@ -172,13 +172,15 @@ iac_reachability_test.go -> iac/reachability_test.go   # external test package: 
 
 </details>
 
-### `search/document/` (4 non-test, 5 test)
+### `search/document/` (6 non-test, 7 test)
 
 ```text
 eshu_search_document.go -> search/document/store.go
 eshu_search_document_pending.go -> search/document/pending.go
 eshu_search_document_projection_state.go -> search/document/projection_state.go
 eshu_search_document_source_loader.go -> search/document/source_loader.go
+eshu_search_vector_documents.go -> search/document/pending_vector.go   # methods on EshuSearchDocumentStore
+eshu_search_vector_query_tuning.go -> search/document/vector_query_tuning.go   # used by the pending-document read and the vector scope state
 ```
 
 <details><summary>Tests</summary>
@@ -188,7 +190,9 @@ eshu_search_document_pending_test.go -> search/document/pending_test.go
 eshu_search_document_projection_state_test.go -> search/document/projection_state_test.go
 eshu_search_document_source_loader_integration_test.go -> search/document/source_loader_integration_test.go   # external test package: imports root
 eshu_search_document_source_loader_streaming_test.go -> search/document/source_loader_streaming_test.go
-eshu_search_document_test.go -> search/document/store_test.go   # external test package + export_test.go shim: imports search/vector
+eshu_search_document_test.go -> search/document/store_test.go
+eshu_search_vector_documents_batch_test.go -> search/document/pending_vector_batch_test.go
+eshu_search_vector_query_tuning_test.go -> search/document/vector_query_tuning_test.go
 ```
 
 </details>
@@ -210,17 +214,15 @@ eshu_search_index_test.go -> search/index/store_test.go
 
 </details>
 
-### `search/vector/` (12 non-test, 21 test)
+### `search/vector/` (10 non-test, 19 test)
 
 ```text
 eshu_search_vector_build_ready.go -> search/vector/build_ready.go
-eshu_search_vector_documents.go -> search/vector/documents.go
 eshu_search_vector_fenced_batch.go -> search/vector/fenced_batch.go
 eshu_search_vector_metadata.go -> search/vector/metadata.go
 eshu_search_vector_metadata_batch.go -> search/vector/metadata_batch.go
 eshu_search_vector_metadata_validate.go -> search/vector/metadata_validate.go
 eshu_search_vector_pending.go -> search/vector/pending.go
-eshu_search_vector_query_tuning.go -> search/vector/query_tuning.go
 eshu_search_vector_scope_cursor.go -> search/vector/scope_cursor.go
 eshu_search_vector_scope_state.go -> search/vector/scope_state.go
 eshu_search_vector_scope_state_seed.go -> search/vector/scope_state_seed.go
@@ -231,13 +233,11 @@ eshu_search_vector_values.go -> search/vector/values.go
 
 ```text
 eshu_search_vector_build_ready_test.go -> search/vector/build_ready_test.go   # external test package + export_test.go shim: imports root
-eshu_search_vector_documents_batch_test.go -> search/vector/documents_batch_test.go
 eshu_search_vector_fenced_batch_live_test.go -> search/vector/fenced_batch_live_test.go   # external test package: imports root
 eshu_search_vector_fenced_batch_test.go -> search/vector/fenced_batch_test.go
 eshu_search_vector_metadata_test.go -> search/vector/metadata_test.go   # external test package: imports root
 eshu_search_vector_pending_live_test.go -> search/vector/pending_live_test.go   # external test package + export_test.go shim: imports root
 eshu_search_vector_pending_test.go -> search/vector/pending_test.go
-eshu_search_vector_query_tuning_test.go -> search/vector/query_tuning_test.go
 eshu_search_vector_scope_state_cas_contention_live_test.go -> search/vector/scope_state_cas_contention_live_test.go   # external test package: imports root
 eshu_search_vector_scope_state_cas_interleave_live_test.go -> search/vector/scope_state_cas_interleave_live_test.go
 eshu_search_vector_scope_state_count_gate_live_test.go -> search/vector/scope_state_count_gate_live_test.go   # external test package + export_test.go shim: imports root
