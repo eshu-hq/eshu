@@ -105,5 +105,8 @@ func parseFlags(args []string) (options, error) {
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
+	if o.diffExecutionsAdvisoryMax < 0 {
+		return options{}, fmt.Errorf("-diff-executions-advisory-max must be >= 0 (0 disables the ceiling), got %d", o.diffExecutionsAdvisoryMax)
+	}
 	return o, nil
 }

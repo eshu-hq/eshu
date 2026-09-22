@@ -147,3 +147,19 @@ func TestRunBackendDiffQuorumAdvisoryDetailNamesTopStatements(t *testing.T) {
 		t.Fatalf("advisory line = %q, want only the top 3 statements named, not s3", advisoryLine)
 	}
 }
+
+// A negative ceiling is refused at flag parsing instead of silently
+// disabling the tripwire the way 0 does (#6941 review thread): a safety
+// ceiling fails closed on invalid input.
+func TestParseFlagsRejectsNegativeExecutionsAdvisoryMax(t *testing.T) {
+	_, err := parseFlags([]string{"-phase=backend-diff", "-diff-executions-advisory-max=-1"})
+	if err == nil {
+		t.Fatal("parseFlags accepted -diff-executions-advisory-max=-1, want an error")
+	}
+	if !strings.Contains(err.Error(), "must be >= 0") {
+		t.Fatalf("error = %q, want it to say the flag must be >= 0", err)
+	}
+	if _, err := parseFlags([]string{"-phase=backend-diff", "-diff-executions-advisory-max=0"}); err != nil {
+		t.Fatalf("parseFlags rejected the documented disable value 0: %v", err)
+	}
+}
