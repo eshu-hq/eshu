@@ -109,6 +109,34 @@ real code. That is a separate change on top of PR 31.
   still names `go/internal/query/service_story_seam.go`, which has lived at
   `go/internal/query/entity/service_story_seam.go` since an earlier move. It
   sits inside a YAML comment, which is how it evaded the citation gate.
+- **Symbol reference sweep, for every deleted or renamed name.** The citation
+  sweep above covers file *paths*. Symbol names are a separate and larger
+  surface, and no compiler sees any of it: `go build` and `go vet` were green
+  through every instance below. After deleting a symbol, `rg` its bare name
+  across `go/` and `docs/` and read each hit. PRs 1a and 1b between them left
+  **fourteen stale references across eleven files** — counted from the two
+  repair commits, which touched 7 and 6 files with `README.md` and `AGENTS.md`
+  in both. They include the package's own `README.md` and `AGENTS.md`, one
+  *public* doc (`docs/public/reference/local-lightweight-capability-audit.md`),
+  a comment in another package's test, and a `t.Fatalf` message that named a
+  symbol a future failure could no longer point at. The independent review
+  caught four of the fourteen; the rest came from sweeping for the bare names.
+  Two hits also carried a stale `file.go:NN` citation, because deleting code
+  moves every line number below it: `README.md` cited `handler.go:125` for
+  `APIRouter.Mount` after it had moved to line 140, and `handler.go:105` for a
+  call site no longer in that file at all. The doc-citations gate does not
+  catch a citation that still resolves — only one that resolves to nothing —
+  so verify the target by reading it.
+- **Comment prose survives a mechanical rename badly.** A regex or `gopls`
+  rename rewrites comments as well as code, which both leaves bare names behind
+  *and* wedges qualified names mid-sentence (`the correct
+  querycontract.RequiredProfile() answer for ...`). Budget a hand pass over
+  every comment in the diff that contains the renamed symbol.
+- Grandfathered Markdown may shrink but MUST NOT grow. `go/internal/query/README.md`
+  is pinned at 1418 lines and `AGENTS.md` at 500, so a one-line correction to
+  either has to be **reflowed** into the same line count. Two PRs reflowing the
+  same grandfathered file rebase cleanly and can still break the count between
+  them; re-measure after every rebase, never infer it from a clean merge.
 - Only the orchestrator runs the promotion gate: `make pre-push` once, and
   `make pre-pr-full` for a package move (build tags can hide files from
   `./...`, and only the whole-module race lane exercises them).
