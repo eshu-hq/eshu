@@ -199,6 +199,26 @@ func TestAllowlistRejectsExecutionsTier(t *testing.T) {
 	}
 }
 
+// TestAllowlistRejectsRowcountTier pins the #6782 option-2 disposition:
+// row-total noise with agreeing results is advisory at the gate, so it
+// needs no excuse and a rowcount-tier entry is a parse error rather than
+// a silent no-op that would accumulate as dead weight in the spec.
+func TestAllowlistRejectsRowcountTier(t *testing.T) {
+	_, err := ParseAllowlist([]byte(`entries:
+- statement: "MATCH (n:Repository) RETURN n"
+  tier: rowcount
+  reason: row totals vary run to run with agreeing results
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want rowcount-tier rejection")
+	}
+	if !strings.Contains(err.Error(), "rowcount") {
+		t.Fatalf("ParseAllowlist() error = %v, want it to name the retired rowcount tier", err)
+	}
+}
+
 // TestAllowlistStatementTierMatchesAdvisoryKind keeps a statement-tier entry
 // honest under the advisory disposition: an executions-only divergence still
 // counts as a match, so the entry is neither stale nor silently widened.

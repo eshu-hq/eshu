@@ -41,7 +41,7 @@ it; small totals stay advisory by design.
 ## End-to-end proof on the failing capture
 
 Binaries built from main 44e5607db and this branch, `-phase=backend-diff`
-in quorum mode over the exact failing capture (run 35756330320 pairings,
+in quorum mode over the exact failing capture (run 35756330128 pairings,
 committed allowlist each side):
 
 - main: exit 1, `1 pass, 1 required-fail` (the rowcount quorum failure).
