@@ -1,6 +1,6 @@
 # #6693 mapping: cloud, terraform state, freshness and supply chain
 
-Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Destinations covered: `cloud`, `terraform`, `freshness`, `container`, `crossplane`, `supply`, `service`, `incident`.
+Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Destinations covered: `cloud`, `terraform`, `freshness`, `vulnerability`, `container`, `crossplane`, `supply`, `service`, `incident`.
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
@@ -231,20 +231,6 @@ incident_freshness_store_test.go -> freshness/incident/store_test.go
 
 </details>
 
-### `freshness/vulnerability/` (1 non-test, 1 test)
-
-```text
-vulnerability_source_state.go -> freshness/vulnerability/source_state.go
-```
-
-<details><summary>Tests</summary>
-
-```text
-vulnerability_source_state_test.go -> freshness/vulnerability/source_state_test.go   # spans freshness/vulnerability=57% root=43%
-```
-
-</details>
-
 ### `incident/` (1 non-test, 1 test)
 
 ```text
@@ -259,41 +245,24 @@ incident_repository_correlation_loader_test.go -> incident/repository_correlatio
 
 </details>
 
-### `service/catalog/` (1 non-test, 1 test)
+### `service/` (4 non-test, 3 test)
 
 ```text
-service_catalog_id_resolver.go -> service/catalog/id_resolver.go
+service_catalog_id_resolver.go -> service/catalog_id_resolver.go
+service_documentation_evidence.go -> service/documentation_evidence.go
+service_incident_evidence_loader.go -> service/incident_evidence_loader.go
+service_materialization_beginner.go -> service/materialization_beginner.go
 ```
 
 <details><summary>Tests</summary>
 
 ```text
-service_catalog_id_resolver_test.go -> service/catalog/id_resolver_test.go
+service_catalog_id_resolver_test.go -> service/catalog_id_resolver_test.go
+service_documentation_evidence_test.go -> service/documentation_evidence_test.go
+service_incident_evidence_loader_test.go -> service/incident_evidence_loader_test.go
 ```
 
 </details>
-
-### `service/evidence/` (2 non-test, 2 test)
-
-```text
-service_documentation_evidence.go -> service/evidence/documentation.go
-service_incident_evidence_loader.go -> service/evidence/incident_loader.go
-```
-
-<details><summary>Tests</summary>
-
-```text
-service_documentation_evidence_test.go -> service/evidence/documentation_test.go
-service_incident_evidence_loader_test.go -> service/evidence/incident_loader_test.go
-```
-
-</details>
-
-### `service/materialization/` (1 non-test, 0 test)
-
-```text
-service_materialization_beginner.go -> service/materialization/beginner.go
-```
 
 ### `supply/chain/impact/` (2 non-test, 4 test)
 
@@ -382,6 +351,20 @@ tfstate_drift_evidence_prior_config_ordering_test.go -> terraform/state/drift/pr
 tfstate_drift_evidence_prior_config_test.go -> terraform/state/drift/prior_config_test.go
 tfstate_drift_evidence_state_row_test.go -> terraform/state/drift/collector_row_test.go
 tfstate_drift_evidence_test.go -> terraform/state/drift/evidence_test.go
+```
+
+</details>
+
+### `vulnerability/` (1 non-test, 1 test)
+
+```text
+vulnerability_source_state.go -> vulnerability/source_state.go   # N4: collector source state, not a freshness trigger store
+```
+
+<details><summary>Tests</summary>
+
+```text
+vulnerability_source_state_test.go -> vulnerability/source_state_test.go   # spans vulnerability=57% root=43%
 ```
 
 </details>

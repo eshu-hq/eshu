@@ -1,20 +1,17 @@
 # storage/postgres target tree (#6693)
 
-**Status: proposed, waiting for owner approval on #6693.** Nothing below has
-moved yet. After approval, each destination directory lands in its own PR, in
-the order under [Move order](#move-order-and-checklist), and ticks its box
-there.
+**Status: approved on #6693 (2026-09-22).** The owner answered every open
+decision; the answers are under [Owner decisions](#owner-decisions-answered-2026-09-22).
+Each destination directory lands in its own PR, in the order under
+[Move order](#move-order-and-checklist), and ticks its box there.
 
-Baseline: `origin/main` `97a9cbcf1` (2026-09-22). The root package
-`go/internal/storage/postgres` holds **368 non-test files** and **711 test
-files** (26 of them behind the `integration`, `perf5854_ack`,
+Baseline: `origin/main` `958e833e9` (2026-09-22). The root package
+`go/internal/storage/postgres` holds **368 non-test files** and **713 test
+files** (27 of them behind the `integration`, `perf5854_ack`,
 `perf5740_completion` or `perf6785_wait` build tags). The dirgate ledger pins
 the row at 368 (`scripts/lib/dirgate-grandfather.tsv`).
 
-```bash
-git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg '\.go$' | rg -vc '_test\.go$'   # 368
-git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg -c '_test\.go$'                  # 711
-```
+Both counts come from `git ls-tree --name-only <commit> go/internal/storage/postgres/`.
 
 The binding shape is the #6692 epic's
 [storage-collector-tree.md](storage-collector-tree.md#target-tree-internalstoragepostgres)
@@ -28,17 +25,17 @@ not list has its reason in
 | | today | after this plan |
 | --- | ---: | ---: |
 | root non-test files | 368 | 4 |
-| largest directory (non-test) | 368 (root) | 35 (`facts/`) |
+| largest directory (non-test) | 368 (root) | 36 (`facts/`) |
 | directories over the 40 cap | 1 | 0 |
-| files deleted (empty) | | 9 |
-| files with no decided home | | 1 |
+| files deleted | | 9 (six empty; three after their notes move, see D5) |
+| files with no decided home | | 0 |
 
 Root keeps only the composition core that cannot move: `adapters.go`
 (`SQLDB`, `SQLTx`), `schema.go` (bootstrap apply), `schema_bootstrap_lock.go`
 and `doc.go`. They stay together because of the lock trap the epic records:
 `SQLDB.withSchemaBootstrapLock` satisfies the package-private
 `schemaBootstrapLocker` interface that `applyBootstrapDefinitions` checks with
-a type assertion (`schema.go:218`). An unexported interface method can only be
+a type assertion (`schema.go:277`). An unexported interface method can only be
 satisfied inside its own package. If `SQLDB` moved alone, the assertion would
 quietly return false and bootstrap would run DDL without the advisory lock,
 with no compile or runtime error.
@@ -58,7 +55,7 @@ steps:
    `IdentitySubjectStore` in 24, `IngestionStore` in 17, and `StatusStore` in 6.
    Most of the "prefix lied" corrections below come from this rule. A
    separate check confirms it over the final mapping: of the 236 files that
-   declare methods on a root type (267 file/type pairs), every one lands with its type except the 23
+   declare methods on a root type (269 file/type pairs), every one lands with its type except the 23
    `IdentitySubjectStore` files that wait for D1. That check caught one mapping
    the package-graph check could not: `eshu_search_vector_documents.go`
    declares methods on `EshuSearchDocumentStore`, so it lives in
@@ -85,7 +82,7 @@ from a file name.
   `identity_saml_sql.go` -> `identity/saml/sql.go`.
 - No file name repeats a word of its path. A file named exactly for its own
   directory is allowed (`queue/reducer/reducer.go`, `identity/local/local.go`).
-  The stutter check in the census reports zero hits across all 1,079 names.
+  The stutter check in the census reports zero hits across all 1,081 names.
 - A `_store` suffix goes when it adds nothing
   (`function_source_store.go` -> `code/flow/function_source.go`) and stays
   where the directory also holds non-store files.
@@ -98,10 +95,10 @@ from a file name.
   importing both `internal/reducer/semantic` and this package does not need an
   alias. Where two new leaves share a last word and meet in one caller, the
   clause adds the parent: `cloud/aws/drift` is `awsdriftstore` and
-  `terraform/state/drift` is `statedriftstore`. The four `freshness/`
+  `terraform/state/drift` is `statedriftstore`. The three `freshness/`
   children do the same (`awsfreshnessstore`, `gcpfreshnessstore`,
-  `incidentfreshnessstore`, `vulnerabilityfreshnessstore`), so they do not
-  collide with `cloud/aws` (`awsstore`) or `incident/` (`incidentstore`).
+  `incidentfreshnessstore`), so they do not collide with `cloud/aws`
+  (`awsstore`) or `incident/` (`incidentstore`).
   `cloud/inventory` is `inventorystore`, because `infra/inventory` already uses
   `package inventory`. Deriving every clause this way gives no collision with
   an existing package name under `go/`.
@@ -129,7 +126,7 @@ from a file name.
 | `identity_api_tokens*.go` | API token lifecycle | `identity/api/scoped_resolution*.go` | methods on `ScopedAPITokenStore`, not `IdentitySubjectStore` |
 | `status_requests.go` | `status/` | `maintenance/requests.go` | `StatusRequestStore` is an operator scan-request queue with no `StatusStore` coupling |
 | `terraform_config_state_drift_findings.go` | `terraform/` | `terraform/state/drift/` | findings layer for the same config-vs-state drift evidence |
-| `vulnerability_source_state.go` | vulnerability | `freshness/vulnerability/` | same schema/claim shape as the AWS, GCP and incident freshness stores |
+| `vulnerability_source_state.go` | freshness | `vulnerability/` | collector source state with none of the freshness trigger methods (N4) |
 | `factschema_decode_cloud_tag_evidence.go` | `facts/` | `cloud/inventory/` | decodes payloads for `cloud_tag_evidence.go`, its only reader |
 
 ## Prerequisite hoists
@@ -158,109 +155,126 @@ package.
 | `migrationChecksum` | `schema_bootstrap_lock.go` | `migrations/` | migration content checksum, shared by the bootstrap tracker and status |
 | `eshuSearchVectorPendingMaxLimit` | `eshu_search_vector_pending.go` | `search/document/` | pending-read limit shared by the vector sidecar and the pending-document read |
 
-Identity needs its own set, listed under D1.
+## Owner decisions (answered 2026-09-22)
 
-## Owner decisions
+The owner accepted these answers on #6693. Each one names the evidence it
+rests on; the move that depends on it re-checks that evidence first.
 
-The owner answers these before the move that depends on them. Each has a
-recommendation, and none blocks an earlier step.
-
-**D1. Decompose `IdentitySubjectStore` before the identity split.** 24 files
-declare methods on this one type (`identity_subjects.go:364`). Go cannot spread
-one method set across the eight `identity/` children, so the split needs a code
-change first, not only moves. Recommended: each child declares its own store
-struct (`localstore.Store`, `samlstore.Store` and so on) holding only the
-handle and keyring it uses, and `IdentitySubjectStore`, which stays in
-`identity/` under its current name, embeds them. Every existing
-`store.Method(...)` call site keeps compiling through promoted methods. With
-that change plus these hoists, the census reduces identity to a single cycle:
+**D1. Identity splits after `IdentitySubjectStore` is decomposed.** 24 files
+declare methods on this one type (`identity_subjects.go:364`), and Go keeps a
+type's methods in its own package. Each child declares its own store struct
+(`localstore.Store`, `samlstore.Store` and so on) holding only the handle and
+keyring it uses. `IdentitySubjectStore` keeps its name in `identity/` and
+embeds them, so every `store.Method(...)` call site keeps compiling through
+promoted methods. The hoists:
 
 - `beginLocalIdentityTx` -> a `db.BeginTx` helper. Its body is a nil check,
   a `db.Beginner` assertion and `Begin`; the helper must keep returning the
-  exported `ErrLocalIdentityTransactionRequired` when the handle cannot begin
-  a transaction (`identity_local.go:366`).
+  exported `ErrLocalIdentityTransactionRequired` (`identity_local.go:366`).
 - `resolvePermissionGrantsForRoles`, `resolveLocalIdentityRolesQuery` and the
-  OIDC role-target queries -> a new `identity/permission/` leaf. API tokens,
-  OIDC, SAML and local login all resolve roles to grants the same way.
+  OIDC role-target queries -> a new `identity/permission/` leaf.
 - `cleanBrowserSessionStrings`, `timeFromNull` -> `scalars/`.
+- `ConsumeBootstrapCredential` and `consumeBootstrapCredentialQuery` move into
+  `identity/local`. Local calls it once (`identity_local_rotate.go:186`), and
+  its body needs only the handle and that query. A method move has no unwired
+  path; an injected interface would, and a forgotten wiring would leave the
+  bootstrap credential retrievable after rotation.
 
-The remaining cycle is real domain coupling: `identity/local` calls
-`ConsumeBootstrapCredential` during password rotation, while `identity/bootstrap`
-uses 22 local-identity symbols to create the first admin. Recommended: pass a
-small `BootstrapCredentialConsumer` interface into the rotate path instead of
-importing `identity/bootstrap`.
+With those, the package graph has no cycle. The cost is 12 private `identity/local`
+symbols that bootstrap uses becoming exported: `consumeBootstrapCredentialQuery`
+(setup completion runs it directly, `identity_setup_completion.go:105`),
+`countExistingLocalIdentityUsers`, `insertBootstrapLocalIdentity`, `insertLocalIdentityMFA`,
+`localIdentityBootstrapLockQuery`, `lockLocalIdentityMFAReset`, `normalizeBootstrapRecord`,
+`normalizeMFAReset`, `revokeLocalIdentityMFAFactorsQuery`, `revokeLocalIdentityRecoveryCodesQuery`,
+`validateBootstrapRecord` and `validateMFAReset`. The rejected alternative was folding
+`bootstrap/` into `local/`. A same-named promoted method in two children would be a
+compile error, so the D1 PR's build catches it.
 
-**D2. Give `migrations/` a Go file that owns the embed.** Today `schema.go`
-holds `//go:embed migrations/*.sql`, and two stores read migration DDL back
-through root's `BootstrapDefinitions()`: `graph_node_owner_store.go:110`
-(`graphNodeOwnerSchemaSQL`) and `status_queries.go`. A child cannot import
-root, so as things stand both are pinned there. Recommended: add
-`migrations/embed.go` (`package migrations`, `//go:embed *.sql`) exporting
-`Definition`, `BootstrapDefinitions` and `Checksum`. No `.sql` file moves or
-changes, so migration names and checksums stay identical. `BootstrapDefinitions`
-already skips names without the `NNN_` prefix, and the embed pattern only
-matches `*.sql`.
+**D2. `migrations/embed.go` owns the embed.** Only three non-test files read
+`BootstrapDefinitions()`: `schema.go`, `status_queries.go` and
+`graph_node_owner_store.go:110`. The new `package migrations` exports
+`Definition`, `BootstrapDefinitions` and `Checksum`, and carries its own
+`doc.go`, `README.md` and `AGENTS.md`. `Definition` also has two unexported
+fields, `variant` and `fullChecksum` (`schema.go:27-28`), which root's
+`BootstrapDefinitionsWithoutContentSearchIndexes` sets. That function stays in
+root, because it needs the content store's deferred DDL, so the two fields
+become exported. No `.sql` file moves or changes, so names and checksums stay
+the same; the embed pattern `*.sql` cannot pick up the new Go file.
 
-**D3. All `FactStore` methods live in `facts/`.** 30 files declare methods on
-`FactStore`, including 7 domain loaders (incident routing, advisory targets,
-IAM trust chains). Recommended: they move into `facts/` as they are, which
-gives 35 files (under the cap) and needs no code change. The alternative is
-to turn each loader into a free function in its domain directory, taking a
-`db.Queryer`, with a one-line `FactStore` wrapper left in `facts/`. That
-alternative keeps domain code together, but it is a behavior-preserving rewrite
-of seven readers rather than a move.
+**D3. All 30 `FactStore` method files go to `facts/`.** The domain loaders call
+`FactStore`'s private paging helpers, so turning them into free functions in
+their domain directories would export more, not less. `facts/` ends at 36
+files with U1, leaving four files of room; dirgate catches it if feature work
+fills that.
 
-**D4. The status read surface leaves root.** `status.go` dispatches to readers
-in about 11 families. Once those families live in children, `status/` (17
-files) imports them the same way root does today, and root drops to the 4-file
-core. The alternative is to keep the 17 status files in root, which misses the
-issue's "root holds only what cannot move" bar by 17 files.
+**D4. The status read surface moves to `status/`.** `StatusStore` is a read
+dispatcher over a `db.Queryer` (`status.go:39-42`). Moving its 17 files leaves
+root with the 4-file core.
 
-**D5. Delete 9 empty files.** Each holds only the license header and
-`package postgres`. They are leftovers from DDL that moved into
-`migrations/*.sql`: `admin_replay_request_schema.go`,
-`collector_evidence_summary_schema.go`,
+**D5. Delete 9 files, after saving the notes three of them carry.** Six hold
+only the license header and `package postgres`, and go in one PR:
+`admin_replay_request_schema.go`, `collector_evidence_summary_schema.go`,
 `collector_generation_dead_letter_schema.go`, `graph_schema_applications.go`,
-`schema_fact_records_sbom.go`,
-`schema_fact_records_service_catalog_indexes.go`,
-`service_materialization_schema.go`,
+`schema_fact_records_sbom.go` and
+`schema_fact_records_service_catalog_indexes.go`. The other three hold design
+notes (#1943, #3389) that exist nowhere else. They go in the move that creates
+their owner's package, with the notes folded into that package's `README.md`:
+`service_materialization_schema.go` in the `service/` move, and
 `supply_chain_impact_canonical_winners_schema.go` and
-`supply_chain_impact_winners_materialization_schema.go`.
+`supply_chain_impact_winners_materialization_schema.go` in the
+`supply/chain/impact/` move. The notes do not go into the migration files: the
+tracker checksums each migration's full text, comments included
+(`migrationChecksum`, `schema_bootstrap_lock.go:143`), and refuses to start
+when an applied migration's checksum changes (`schema_bootstrap_lock.go:302`),
+so a comment edit would stop bootstrap on every existing database.
 
-**D6. Shared test fakes become a real package, `fake/`.** Test files cannot be
-imported across packages. `work_queue_lifecycle_test.go` holds the fake
-database that tests headed for 40 different destinations use. In total, 71
-helper test files are used by tests that land in two or more destinations.
-Recommended: move the shared fakes (`fakeExecQueryer`, `fakeRows`,
-`fakeTransaction` and their kin) into a non-test package `fake/` before the
+**D6. Shared test fakes become a real package, `fake/`, and that is a code
+change.** Test files cannot be imported across packages. In total, 71 helper
+test files are used by tests that land in two or more destinations, and
+`work_queue_lifecycle_test.go` alone serves 38. Its fake database decides what to
+return by matching root's private query constants (`activeScopeGenerationQuery`
+and `listDeferredScopedRelationshipFactRecordsQuery`,
+`work_queue_lifecycle_test.go:205,239`), which another package cannot see. So
+the routing becomes injectable (query prefix to rows), the ingestion-specific
+cases stay in the ingestion tests, and the change gets its own tests before the
 first domain move. The name avoids `testing/`, which would shadow the standard
 library.
 
-**U1. `reducer_input_invalid_facts.go` (UNDECIDED).**
-`ReducerInputInvalidFactStore` quarantines fact payloads the reducer rejects.
-Nothing in the package uses it, and its only caller is `cmd/reducer`. The
-subject says `facts/` and the caller says `queue/reducer/`, and the census
-cannot choose between them.
+**U1. `reducer_input_invalid_facts.go` goes to `facts/`** as
+`reducer_input_invalid.go`. It is a per-fact ledger keyed by scope,
+generation, fact id, missing field and domain, with no claim or lease. The
+reducer writes it (`cmd/reducer`) and `internal/query/admin/store` reads it;
+`queue/reducer/` holds only work-queue state. Its Go copy of migration 060's
+DDL and its `EnsureSchema` are a drift risk to note, not part of the move.
 
-### Naming questions
+### Naming answers
 
-- **N1. `identity/sign`.** The issue lists `sign`, but it holds the tenant
-  sign-in policy (require SSO, require MFA, session timeouts), and a reader
-  could take `sign` to mean signatures. Candidates: keep `sign`, use
-  `identity/signin` (a one-word compound), or `identity/policy`.
-- **N2. `iamcantargets/`** (existing, glued) resolves exact ARNs for
-  CAN_PERFORM catalog targets across sibling scopes. Candidate:
-  `iam/target/`. It is outside the 368 but inside this lane.
-- **N3. One-file directories.** `cicd/`, `decisions/`, `iac/`, `incident/`,
-  `maintenance/`, `recovery/`, `search/index/`, `service/catalog/`,
-  `service/materialization/`, `terraform/state/` and `freshness/vulnerability/`
-  each start with one file. Each is its own table or store with its own
-  caller, so none fits in a sibling without a naming lie. Confirm that one-file
-  packages are acceptable, or name a sibling to merge into.
-- **N4. `freshness/{aws,gcp,incident,vulnerability}`.** The four collector
-  freshness-trigger stores share one schema/claim/reap shape, so they sit
-  together rather than under `cloud/aws/freshness` and `cloud/gcp/freshness`.
-  `freshness/` itself holds repository freshness (`repository.go`).
+- **N1. `identity/signin/`** (package `signinstore`). "Policy" already names
+  permission-policy revisions (`PolicyRevisionHash`) and would sit beside
+  `identity/permission/`; bare "sign" reads as signatures. "Sign-in" is one
+  noun and matches the exported `SignInPolicy`.
+- **N2. `iamcantargets/` becomes `cloud/aws/iam/target/`.** Its package doc
+  describes resolving AWS ARNs across sibling scopes of one AWS account, and
+  the projector already spells this family `cloud/aws/iam/...`. The "can" is
+  the reducer's shorthand; the types (`CrossScopeTarget`) do not carry it.
+- **N3. One-file directories are accepted, except `service/`.** The three
+  `service/*` leaves share one owner word, so they merge into one `service/`
+  of 4 files and save six package-doc files. `cicd/`, `decisions/`, `iac/`,
+  `incident/`, `maintenance/`, `recovery/`, `search/index/`,
+  `terraform/state/` and `vulnerability/` stay: each has its own table or
+  runtime owner, or is a parent the epic lists.
+- **N4. `freshness/{aws,gcp,incident}/` stay together; the vulnerability store
+  moves to `vulnerability/source_state.go`.** The three freshness stores share
+  one trigger shape (`StoreTrigger`, `ClaimQueuedTriggers`,
+  `ReapExpiredTriggerClaims`, `MarkTriggersHandedOff`, `MarkTriggersFailed`),
+  and the coordinator and webhook listener build them, not the collectors
+  (`cmd/workflow-coordinator/main.go:148,158,168`,
+  `cmd/webhook-listener/main.go:98,111,125`). `vulnerability_source_state.go`
+  has none of those methods; it upserts and reads collector source state, and
+  `cmd/collector-vulnerability-intelligence` builds it.
+
+The epic tree lists `cloud/gcp/`, but this mapping sends no file there: the
+only GCP files are the freshness triggers, which follow their runtime owner.
 
 ## Existing subdirectories
 
@@ -271,7 +285,7 @@ cannot choose between them.
 | `migrations/` | `migrations/` | no `.sql` file moves or changes; D2 adds `embed.go` |
 | `pgarray/` | `array/` | `pg` repeats its parent (issue) |
 | `rebuildreset/` | `rebuild/reset/` | glued compound (issue) |
-| `iamcantargets/` | see N2 | glued compound |
+| `iamcantargets/` | `cloud/aws/iam/target/` | glued compound; AWS-only ARN resolution (N2) |
 | `semantic/`, `tenant/`, `webhook/` | unchanged | landed in #6856, #6847, #6844 |
 | `coordination/` | unchanged | added by #6970 after the baseline; migrator wait/retry loops that leave root's locker contract in root |
 | `readiness/wait/`, `infra/inventory/` | unchanged | already nested |
@@ -286,11 +300,11 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 384 | it only needs its own package and packages below it (2 of these follow the UNDECIDED file) |
-| external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
-| external test package plus `export_test.go` shim | 85 | as above, and it also reads its subject's private symbols |
-| stays in root, split at move time (`SPLIT`) | 35 | it reads private symbols of two or more future packages |
-| stays in root | 69 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| in-package test | 378 | it only needs its own package and packages below it |
+| external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
+| external test package plus `export_test.go` shim | 87 | as above, and it also reads its subject's private symbols |
+| stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
+| stays in root | 70 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -313,7 +327,7 @@ Landed:
 
 Prerequisites:
 
-- [ ] This target-tree doc (docs only)
+- [x] This target-tree doc: #6973; owner answers and corrections: this PR
 - [ ] D5: delete the 9 empty files (368 -> 359)
 - [ ] D6: shared test fakes into `fake/`
 - [ ] Hoists into `db/` and `scalars/` (table above)
@@ -326,69 +340,67 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 2. [ ] `cicd/` (1 file)
 3. [ ] `decisions/` (1 file)
 4. [ ] `facts/payload/` (1 file)
-5. [ ] `freshness/vulnerability/` (1 file)
-6. [ ] `iac/` (1 file)
-7. [ ] `incident/` (1 file)
-8. [ ] `maintenance/` (1 file)
-9. [ ] `search/index/` (1 file)
-10. [ ] `service/catalog/` (1 file)
-11. [ ] `service/materialization/` (1 file)
-12. [ ] `terraform/state/` (1 file)
-13. [ ] `cloud/aws/` (2 files)
-14. [ ] `code/taint/` (2 files)
-15. [ ] `governance/audit/` (2 files)
-16. [ ] `graph/owner/` (2 files)
-17. [ ] `queue/` (2 files)
-18. [ ] `admission/` (3 files)
-19. [ ] `code/reachability/` (3 files)
-20. [ ] `freshness/aws/` (3 files)
-21. [ ] `freshness/gcp/` (3 files)
-22. [ ] `freshness/incident/` (3 files)
-23. [ ] `lock/` (3 files; after `scope/`)
-24. [ ] `scope/completion/` (4 files)
-25. [ ] `crossplane/` (5 files)
-26. [ ] `search/document/` (6 files)
-27. [ ] `container/image/` (7 files)
-28. [ ] `facts/schema/` (7 files; after `container/image/`)
-29. [ ] `queue/projector/` (7 files; after `crossplane/`, `facts/payload/`, `queue/`)
-30. [ ] `code/flow/` (8 files; after `queue/`)
-31. [ ] `terraform/state/drift/` (10 files)
-32. [ ] `cloud/aws/drift/` (9 files; after `terraform/state/drift/`)
-33. [ ] `cloud/multi/` (5 files; after `cloud/aws/drift/`, `terraform/state/drift/`)
-34. [ ] `workflow/` (10 files)
-35. [ ] `generation/` (11 files)
-36. [ ] `freshness/` (2 files; after `generation/`)
-37. [ ] `intent/` (11 files; after `lock/`)
-38. [ ] `relationship/` (6 files; after `facts/payload/`, `intent/`, `scope/`)
-39. [ ] `content/` (13 files)
-40. [ ] `queue/reducer/` (13 files; after `code/flow/`, `facts/payload/`, `queue/`)
-41. [ ] `facts/` (35 files; after `facts/payload/`, `generation/`, `queue/projector/`)
-42. [ ] `graph/` (1 file; after `facts/`)
-43. [ ] `service/evidence/` (2 files; after `facts/`)
-44. [ ] `supply/chain/impact/` (2 files; after `facts/`, `queue/projector/`)
-45. [ ] `code/divergence/` (3 files; after `facts/`)
-46. [ ] `terraform/state/backend/` (5 files; after `facts/`)
-47. [ ] `search/vector/` (10 files; after `facts/`, `search/document/`)
-48. [ ] `cloud/inventory/` (12 files; after `facts/`, `terraform/state/drift/`)
-49. [ ] `ingestion/` (31 files; after `facts/`, `facts/payload/`, `generation/`, `iac/`, `lock/`, `queue/projector/`, `queue/reducer/`, `relationship/`, `scope/`, `workflow/`)
-50. [ ] `collector/` (4 files; after `facts/payload/`, `ingestion/`)
-51. [ ] `recovery/` (1 file; after `collector/`)
-52. [ ] `status/` (17 files; after `collector/`, `freshness/vulnerability/`, `generation/`, `queue/reducer/`, `terraform/state/`, `workflow/`)
+5. [ ] `iac/` (1 file)
+6. [ ] `incident/` (1 file)
+7. [ ] `maintenance/` (1 file)
+8. [ ] `search/index/` (1 file)
+9. [ ] `terraform/state/` (1 file)
+10. [ ] `vulnerability/` (1 file)
+11. [ ] `cloud/aws/` (2 files)
+12. [ ] `code/taint/` (2 files)
+13. [ ] `governance/audit/` (2 files)
+14. [ ] `graph/owner/` (2 files)
+15. [ ] `queue/` (2 files)
+16. [ ] `admission/` (3 files)
+17. [ ] `code/reachability/` (3 files)
+18. [ ] `freshness/aws/` (3 files)
+19. [ ] `freshness/gcp/` (3 files)
+20. [ ] `freshness/incident/` (3 files)
+21. [ ] `lock/` (3 files; after `scope/`)
+22. [ ] `scope/completion/` (4 files)
+23. [ ] `crossplane/` (5 files)
+24. [ ] `search/document/` (6 files)
+25. [ ] `container/image/` (7 files)
+26. [ ] `facts/schema/` (7 files; after `container/image/`)
+27. [ ] `queue/projector/` (7 files; after `crossplane/`, `facts/payload/`, `queue/`)
+28. [ ] `code/flow/` (8 files; after `queue/`)
+29. [ ] `terraform/state/drift/` (10 files)
+30. [ ] `cloud/aws/drift/` (9 files; after `terraform/state/drift/`)
+31. [ ] `cloud/multi/` (5 files; after `cloud/aws/drift/`, `terraform/state/drift/`)
+32. [ ] `workflow/` (10 files)
+33. [ ] `generation/` (11 files)
+34. [ ] `freshness/` (2 files; after `generation/`)
+35. [ ] `intent/` (11 files; after `lock/`)
+36. [ ] `relationship/` (6 files; after `facts/payload/`, `intent/`, `scope/`)
+37. [ ] `content/` (13 files)
+38. [ ] `queue/reducer/` (13 files; after `code/flow/`, `facts/payload/`, `queue/`)
+39. [ ] `facts/` (36 files; after `facts/payload/`, `generation/`, `queue/projector/`)
+40. [ ] `graph/` (1 file; after `facts/`)
+41. [ ] `supply/chain/impact/` (2 files; after `facts/`, `queue/projector/`)
+42. [ ] `code/divergence/` (3 files; after `facts/`)
+43. [ ] `service/` (4 files; after `facts/`)
+44. [ ] `terraform/state/backend/` (5 files; after `facts/`)
+45. [ ] `search/vector/` (10 files; after `facts/`, `search/document/`)
+46. [ ] `cloud/inventory/` (12 files; after `facts/`, `terraform/state/drift/`)
+47. [ ] `ingestion/` (31 files; after `facts/`, `facts/payload/`, `generation/`, `iac/`, `lock/`, `queue/projector/`, `queue/reducer/`, `relationship/`, `scope/`, `workflow/`)
+48. [ ] `collector/` (4 files; after `facts/payload/`, `ingestion/`)
+49. [ ] `recovery/` (1 file; after `collector/`)
+50. [ ] `status/` (17 files; after `collector/`, `generation/`, `queue/reducer/`, `terraform/state/`, `vulnerability/`, `workflow/`)
 
 Identity, last:
 
-53. [ ] D1: decompose `IdentitySubjectStore`; add `identity/permission/`; invert the rotate -> bootstrap call
-54. [ ] `identity/github/` (2 files)
-55. [ ] `identity/oidc/` (3 files)
-56. [ ] `identity/admin/` (4 files)
-57. [ ] `identity/session/` (4 files)
-58. [ ] `identity/sign/` (3 files; after `identity/session/`)
-59. [ ] `identity/provider/` (8 files)
-60. [ ] `identity/saml/` (5 files; after `identity/provider/`)
-61. [ ] `identity/local/` (12 files; after `identity/sign/`)
-62. [ ] `identity/bootstrap/` (6 files; after `identity/local/`)
-63. [ ] `identity/api/` (7 files; after `identity/local/`, `identity/oidc/`)
-64. [ ] `identity/` (1 file: `subjects.go`, the store that embeds the children; after every `identity/*` child)
+51. [ ] D1: decompose `IdentitySubjectStore` into embedded per-child stores; add `identity/permission/`; move `ConsumeBootstrapCredential` into `identity/local`
+52. [ ] `identity/github/` (2 files)
+53. [ ] `identity/oidc/` (3 files)
+54. [ ] `identity/admin/` (4 files)
+55. [ ] `identity/session/` (4 files)
+56. [ ] `identity/signin/` (3 files; after `identity/session/`)
+57. [ ] `identity/provider/` (8 files)
+58. [ ] `identity/saml/` (5 files; after `identity/provider/`)
+59. [ ] `identity/local/` (12 files; after `identity/signin/`)
+60. [ ] `identity/bootstrap/` (6 files; after `identity/local/`)
+61. [ ] `identity/api/` (7 files; after `identity/local/`, `identity/oidc/`)
+62. [ ] `identity/` (1 file: `subjects.go`, the store that embeds the children; after every `identity/*` child)
 
 Close-out:
 
@@ -399,7 +411,7 @@ Close-out:
 
 `storage/postgres` root holds the 4-file core; every directory under it has at
 most 40 non-test files; no file repeats its directory name; the dirgate row is
-removed or re-pinned at 4; D1-D6, U1 and N1-N4 are answered on #6693.
+removed or re-pinned at 4.
 
 ## Per-directory counts
 
@@ -407,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 104 | ok |
+| `storage/postgres` (root) | 4 | 109 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 2 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -424,30 +436,29 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `crossplane/` | 5 | 5 | ok |
 | `db/` | 3 | 2 | ok |
 | `decisions/` | 1 | 1 | ok |
-| `facts/` | 35 | 67 | ok |
+| `facts/` | 36 | 69 | ok |
 | `facts/payload/` | 1 | 2 | ok |
 | `facts/schema/` | 7 | 8 | ok |
 | `freshness/` | 2 | 4 | ok |
 | `freshness/aws/` | 3 | 2 | ok |
 | `freshness/gcp/` | 3 | 2 | ok |
 | `freshness/incident/` | 3 | 1 | ok |
-| `freshness/vulnerability/` | 1 | 1 | ok |
 | `generation/` | 11 | 21 | ok |
 | `governance/audit/` | 2 | 5 | ok |
 | `graph/` | 1 | 1 | ok |
 | `graph/owner/` | 2 | 3 | ok |
 | `iac/` | 1 | 1 | ok |
 | `identity/` | 1 | 1 | ok |
-| `identity/admin/` | 4 | 4 | ok |
-| `identity/api/` | 7 | 4 | ok |
+| `identity/admin/` | 4 | 3 | ok |
+| `identity/api/` | 7 | 3 | ok |
 | `identity/bootstrap/` | 6 | 8 | ok |
 | `identity/github/` | 2 | 1 | ok |
-| `identity/local/` | 12 | 14 | ok |
+| `identity/local/` | 12 | 13 | ok |
 | `identity/oidc/` | 3 | 2 | ok |
 | `identity/provider/` | 8 | 6 | ok |
 | `identity/saml/` | 5 | 3 | ok |
 | `identity/session/` | 4 | 5 | ok |
-| `identity/sign/` | 3 | 4 | ok |
+| `identity/signin/` | 3 | 4 | ok |
 | `incident/` | 1 | 1 | ok |
 | `ingestion/` | 31 | 78 | ok |
 | `intent/` | 11 | 20 | ok |
@@ -462,18 +473,16 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `search/document/` | 6 | 7 | ok |
 | `search/index/` | 1 | 4 | ok |
 | `search/vector/` | 10 | 19 | ok |
-| `service/catalog/` | 1 | 1 | ok |
-| `service/evidence/` | 2 | 2 | ok |
-| `service/materialization/` | 1 | 0 | ok |
+| `service/` | 4 | 3 | ok |
 | `status/` | 17 | 20 | ok |
 | `supply/chain/impact/` | 2 | 4 | ok |
 | `terraform/state/` | 1 | 1 | ok |
 | `terraform/state/backend/` | 5 | 7 | ok |
 | `terraform/state/drift/` | 10 | 13 | ok |
+| `vulnerability/` | 1 | 1 | ok |
 | `workflow/` | 10 | 20 | ok |
-| UNDECIDED | 1 | 2 | n/a |
 | DELETE | 9 | 0 | n/a |
-| **total** | **368** | **711** | |
+| **total** | **368** | **713** | |
 
 ## File-by-file mapping
 
