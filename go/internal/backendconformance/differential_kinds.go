@@ -4,10 +4,18 @@
 package backendconformance
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"strings"
 )
+
+// AdvisoryStatementMaxLen is the default per-statement truncation bound for
+// [TopAdvisoryStatementReports]: long enough to identify a Cypher statement,
+// short enough that a report line stays readable in a CI log (#6941). A cut
+// label carries the elision marker and an 8-hex digest on top of the bound.
+const AdvisoryStatementMaxLen = 120
 
 // Divergence kinds name the check that caught a difference, so the
 // divergence allowlist can excuse a named dialect divergence without ever
@@ -199,6 +207,84 @@ func SplitAdvisory(diffs []DifferentialDifference) (required, advisory []Differe
 		required = append(required, diff)
 	}
 	return required, advisory
+}
+
+// TopAdvisoryStatementReports groups diffs by Fingerprint.Statement, counts
+// how many divergences each statement contributed, and formats the top n
+// groups as "<statement> (<count>)" — descending by count, tied broken by
+// statement text ascending so the order is deterministic across runs instead
+// of depending on map iteration. A statement longer than maxLen runes is
+// elided in the middle and suffixed with the first 8 hex characters of its
+// SHA-256 (maxLen <= 0 disables truncation), so one long Cypher statement
+// cannot dominate a one-line gate report and statements that differ only
+// inside the elided span still print as distinct labels. n <= 0 returns
+// every ranked group. Nil or empty diffs return nil (#6941: the advisory
+// ceiling finding names its top offenders instead of only the first).
+func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) []string {
+	if len(diffs) == 0 {
+		return nil
+	}
+	counts := make(map[string]int, len(diffs))
+	for _, d := range diffs {
+		counts[d.Fingerprint.Statement]++
+	}
+	type statementCount struct {
+		statement string
+		count     int
+	}
+	ranked := make([]statementCount, 0, len(counts))
+	for stmt, count := range counts {
+		ranked = append(ranked, statementCount{statement: stmt, count: count})
+	}
+	slices.SortFunc(ranked, func(x, y statementCount) int {
+		if x.count != y.count {
+			return y.count - x.count
+		}
+		return strings.Compare(x.statement, y.statement)
+	})
+	if n > 0 && len(ranked) > n {
+		ranked = ranked[:n]
+	}
+	out := make([]string, 0, len(ranked))
+	for _, sc := range ranked {
+		out = append(out, fmt.Sprintf("%s (%d)", statementLabel(sc.statement, maxLen), sc.count))
+	}
+	return out
+}
+
+// statementLabel is the statement text an advisory or ceiling finding
+// prints for one ranked group: the statement itself when it fits in
+// maxLen runes, otherwise the middle-elided text followed by an 8-hex
+// SHA-256 digest of the full statement. Any fixed cut can land on the one
+// span two statements differ in (the corpus has a 116-statement UNWIND
+// family that shares head and tail and diverges at rune 142), so the
+// digest, not the cut position, is what keeps elided labels distinct.
+func statementLabel(s string, maxLen int) string {
+	cut := truncateStatement(s, maxLen)
+	if cut == s {
+		return s
+	}
+	sum := sha256.Sum256([]byte(s))
+	return cut + " [" + hex.EncodeToString(sum[:4]) + "]"
+}
+
+// truncateStatement bounds s to maxLen runes by eliding the middle
+// ("head...tail"); below 8 runes there is no room for a tail and the head
+// is kept with a "..." suffix. maxLen <= 0 disables truncation.
+func truncateStatement(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	if maxLen < 8 {
+		return string(r[:maxLen]) + "..."
+	}
+	head := maxLen * 2 / 3
+	tail := maxLen - head
+	return string(r[:head]) + "..." + string(r[len(r)-tail:])
 }
 
 // quorumKey identifies one divergence across leg pairings: the same

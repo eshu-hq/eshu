@@ -4,7 +4,10 @@
 package backendconformance
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -170,5 +173,123 @@ func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
 	}
 	if r, a := SplitAdvisory(nil); r != nil || a != nil {
 		t.Fatalf("SplitAdvisory(nil) = %v, %v; want nil, nil", r, a)
+	}
+}
+
+// TestTopAdvisoryStatementReportsOrdersByCountDescending pins the ranking
+// order for #6941: the advisory ceiling names its top offenders, so a
+// statement reproducing more often must sort first.
+func TestTopAdvisoryStatementReportsOrdersByCountDescending(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (a) RETURN a")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (c) RETURN c")},
+		{Fingerprint: fp("MATCH (c) RETURN c")},
+	}
+	got := TopAdvisoryStatementReports(diffs, 3, 120)
+	want := []string{
+		"MATCH (b) RETURN b (3)",
+		"MATCH (c) RETURN c (2)",
+		"MATCH (a) RETURN a (1)",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+}
+
+// TestTopAdvisoryStatementReportsTieBreaksByStatementText pins the
+// determinism requirement: equal counts must not depend on map iteration
+// order, so the tie breaks on the statement text ascending.
+func TestTopAdvisoryStatementReportsTieBreaksByStatementText(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (z) RETURN z")},
+		{Fingerprint: fp("MATCH (a) RETURN a")},
+		{Fingerprint: fp("MATCH (m) RETURN m")},
+	}
+	got := TopAdvisoryStatementReports(diffs, 10, 120)
+	want := []string{
+		"MATCH (a) RETURN a (1)",
+		"MATCH (m) RETURN m (1)",
+		"MATCH (z) RETURN z (1)",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+}
+
+// TestTopAdvisoryStatementReportsTruncatesLongStatements pins the rune
+// bound (#6941): a long Cypher statement must not dominate the one-line gate
+// report, so it is cut while the count stays intact. Below 8 runes only a
+// head fits; at or under the bound nothing is cut, including exactly at it.
+func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("x", 10)
+	fp := DifferentialFingerprint{Statement: long, Parameters: `{}`}
+	diffs := []DifferentialDifference{{Fingerprint: fp}}
+	got := TopAdvisoryStatementReports(diffs, 3, 4)
+	sum := sha256.Sum256([]byte(long))
+	want := []string{"xxxx... [" + hex.EncodeToString(sum[:4]) + "] (1)"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+	// A statement at or under the bound is never marked truncated.
+	short := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
+	for _, maxLen := range []int{120, len([]rune(short.Statement))} {
+		got = TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, maxLen)
+		want = []string{"MATCH (n) RETURN n (1)"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("TopAdvisoryStatementReports(maxLen=%d) = %v, want %v", maxLen, got, want)
+		}
+	}
+}
+
+// TestTopAdvisoryStatementReportsKeepsElidedStatementsDistinct pins the
+// digest suffix (#6941): the corpus has a family of UNWIND statements that
+// share their head and their tail and differ only in the relationship type
+// past rune 140, inside any middle elision, so the elided text alone is one
+// label for all of them. The digest must keep them apart, and a statement
+// that fits carries no digest.
+func TestTopAdvisoryStatementReportsKeepsElidedStatementsDistinct(t *testing.T) {
+	t.Parallel()
+	head := "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:"
+	tail := "]->(target) ON CREATE SET rel.first_seen = row.observed_at SET rel.last_seen = row.observed_at, rel.evidence_kind = row.evidence_kind RETURN count(rel)"
+	a := DifferentialFingerprint{Statement: head + "AWS_ec2_instance_uses_ami" + tail, Parameters: `{}`}
+	b := DifferentialFingerprint{Statement: head + "GCP_address_in_network" + tail, Parameters: `{}`}
+	if truncateStatement(a.Statement, AdvisoryStatementMaxLen) != truncateStatement(b.Statement, AdvisoryStatementMaxLen) {
+		t.Fatal("fixture drift: the two statements must collide on the elided text for this test to prove anything")
+	}
+	got := TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: a}, {Fingerprint: b}}, 3, AdvisoryStatementMaxLen)
+	if len(got) != 2 || got[0] == got[1] {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want two distinct labels", got)
+	}
+	for _, label := range got {
+		if n := len([]rune(label)); n > AdvisoryStatementMaxLen+len("... [01234567] (1)") {
+			t.Fatalf("label %q is %d runes, want at most %d plus marker, digest and count", label, n, AdvisoryStatementMaxLen)
+		}
+		if !strings.Contains(label, "...") || !strings.Contains(label, " [") || !strings.HasSuffix(label, "] (1)") {
+			t.Fatalf("label %q lacks the elision marker or the digest", label)
+		}
+	}
+	short := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
+	if got := TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, AdvisoryStatementMaxLen); !slices.Equal(got, []string{"MATCH (n) RETURN n (1)"}) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want no digest on a statement that fits", got)
+	}
+}
+
+// TestTopAdvisoryStatementReportsEmptyInput pins nil-in/nil-out: an empty
+// advisory slice must not synthesize a phantom report line.
+func TestTopAdvisoryStatementReportsEmptyInput(t *testing.T) {
+	t.Parallel()
+	if got := TopAdvisoryStatementReports(nil, 3, 120); got != nil {
+		t.Fatalf("TopAdvisoryStatementReports(nil) = %v, want nil", got)
+	}
+	if got := TopAdvisoryStatementReports([]DifferentialDifference{}, 3, 120); got != nil {
+		t.Fatalf("TopAdvisoryStatementReports(empty) = %v, want nil", got)
 	}
 }

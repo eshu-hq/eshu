@@ -91,7 +91,12 @@ the allowlist excuses a named dialect divergence without ever excusing a
 result disagreement. `AdvisoryKind`/`SplitAdvisory` hold the `executions`
 kind advisory at the gate (#6782 permanent disposition): agreeing result
 sets with different execution counts are drain-pass noise that reproduces
-across quorum pairings because the backends drain at different speeds. UNWIND batches and single-use IN-list filters explode into
+across quorum pairings because the backends drain at different speeds;
+`TopAdvisoryStatementReports` ranks those advisory divergences by statement
+(count descending, text ascending; a statement over
+`AdvisoryStatementMaxLen` runes is middle-elided and suffixed with an 8-hex
+SHA-256 digest so elided labels stay distinct) for the gate's advisory and
+ceiling findings (#6941). UNWIND batches and single-use IN-list filters explode into
 per-element groups (batch regrouping across runs pairs element-wise);
 fingerprints normalize the run generation stamp wherever it propagates
 (`generation_id` keys, `resolved_id` middles, `artifact_id` cells); digest

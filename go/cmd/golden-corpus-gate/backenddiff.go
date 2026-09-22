@@ -125,15 +125,33 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 	// Reproduced execution-count noise is reported, never failed: the two
 	// backends drain at systematically different speeds, so pass counts
 	// reproduce across pairings and quorum cannot filter them (#6782
-	// permanent disposition; see backendconformance.AdvisoryKind).
+	// permanent disposition; see backendconformance.AdvisoryKind). The detail
+	// names the top statements by reproduced-divergence count, not only the
+	// first recorded, so a systemic regression concentrated on a handful of
+	// statements is visible without reading the full pairing dump (#6941).
 	advisoryDetail := "no reproduced execution-count divergences"
 	if len(advisory) != 0 {
-		first := advisory[0]
-		advisoryDetail = fmt.Sprintf("%d reproduced execution-count divergence(s) with agreeing results held advisory (scheduling noise), first: %s: %s", len(advisory), first.Fingerprint.Statement, first.Detail)
+		top := backendconformance.TopAdvisoryStatementReports(advisory, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+		advisoryDetail = fmt.Sprintf("%d reproduced execution-count divergence(s) with agreeing results held advisory (scheduling noise), top: %s", len(advisory), strings.Join(top, "; "))
 	}
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions", len(advisory) == 0, false, advisoryDetail)
+	// The advisory total is otherwise unbounded (#6941): a backend regression
+	// that triples drain passes would still report as an advisory WARN and
+	// pass the gate. -diff-executions-advisory-max is a systemic-regression
+	// tripwire, not a tuning target — see the golden-corpus-gate README for
+	// the observed-count calibration.
+	if o.diffExecutionsAdvisoryMax > 0 && len(advisory) > o.diffExecutionsAdvisoryMax {
+		top := backendconformance.TopAdvisoryStatementReports(advisory, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+		ceilingDetail := fmt.Sprintf("%d reproduced execution-count divergence(s) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", len(advisory), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions_ceiling", false, true, ceilingDetail)
+	}
 	dropped := len(unexcused[0]) + len(unexcused[1]) - 2*len(reproduced)
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_nonreproducing", true, false,
 		fmt.Sprintf("%d pairing-local divergence(s) did not reproduce across pairings (quorum dropped, see pairing reports above)", dropped))
 	return nil
 }
+
+// topAdvisoryStatementCount bounds how many statements the advisory and
+// ceiling findings name in their detail (#6941): enough to identify a
+// concentrated regression, short enough to stay a one-line report.
+const topAdvisoryStatementCount = 3
