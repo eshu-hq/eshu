@@ -138,8 +138,11 @@ The README cross-references this section from its tree-sitter support table.
      position (same file).
   3. Verify the external binary name matches what `scip.Indexer.LookPath`
      would find.
-  4. Add a test in `go/internal/parser/scip/parser_test.go` with a known SCIP
-     index fixture.
+  4. Add a test in `go/internal/parser/scip/indexer_test.go`, alongside the
+     existing `TestDetectSCIPProjectLanguage*` and `TestBuildSCIPCommand*`
+     cases -- that file covers detection and CLI invocation, which is what
+     steps 1-3 change. `parser_test.go` is protobuf-decode coverage for
+     `IndexParser.Parse` and is not where a new language's test belongs.
   5. `scip.Indexer`, `scip.IndexParser`, `scip.ParseResult`, and
      `scip.LanguageFileGroup` are consumed outside this package by
      `go/internal/collector/repo/git` (`snapshot_scip.go`,
