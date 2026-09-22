@@ -57,7 +57,7 @@ work_queue_test.go -> queue/projector/work_test.go
 
 </details>
 
-### `queue/reducer/` (13 non-test, 98 test)
+### `queue/reducer/` (13 non-test, 99 test)
 
 ```text
 queue_observer.go -> queue/reducer/observer.go
@@ -171,6 +171,7 @@ reducer_queue_semantic_claim_limit_test.go -> queue/reducer/semantic_claim_limit
 reducer_queue_supersession_test.go -> queue/reducer/supersession_test.go
 reducer_queue_test.go -> queue/reducer/reducer_test.go
 reducer_queue_test_helpers_test.go -> queue/reducer/test_helpers_test.go
+reducer_queue_value_flow_inputs_readiness_test.go -> queue/reducer/value_flow_inputs_readiness_test.go
 reducer_queue_workload_cloud_relationship_readiness_test.go -> queue/reducer/workload_cloud_relationship_readiness_test.go
 reducer_queue_workload_replay_live_test.go -> queue/reducer/workload_replay_live_test.go   # external test package: imports root
 reducer_queue_workload_replay_schedule_test.go -> queue/reducer/workload_replay_schedule_test.go

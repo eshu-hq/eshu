@@ -5,15 +5,15 @@ moved yet. After approval, each destination directory lands in its own PR, in
 the order under [Move order](#move-order-and-checklist), and ticks its box
 there.
 
-Baseline: `origin/main` `44e5607db` (2026-09-22). The root package
-`go/internal/storage/postgres` holds **368 non-test files** and **709 test
+Baseline: `origin/main` `97a9cbcf1` (2026-09-22). The root package
+`go/internal/storage/postgres` holds **368 non-test files** and **711 test
 files** (26 of them behind the `integration`, `perf5854_ack`,
 `perf5740_completion` or `perf6785_wait` build tags). The dirgate ledger pins
 the row at 368 (`scripts/lib/dirgate-grandfather.tsv`).
 
 ```bash
 git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg '\.go$' | rg -vc '_test\.go$'   # 368
-git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg -c '_test\.go$'                  # 709
+git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg -c '_test\.go$'                  # 711
 ```
 
 The binding shape is the #6692 epic's
@@ -48,7 +48,7 @@ Membership is by symbol, never by file-name prefix (epic ground rule). The
 steps:
 
 1. **A `go/types` census** (`golang.org/x/tools/go/packages`, `Tests: true`,
-   all four build tags) of the root package plus its 58 importers. For each
+   all four build tags) of the root package plus its 59 importers. For each
    file it recorded the declarations, every cross-file reference inside root,
    and every outside package that uses its symbols.
 2. **Method-set closure.** Go keeps a type's methods in the type's package, so
@@ -56,8 +56,8 @@ steps:
    decides more than any name does: `FactStore` has methods in 30 files,
    `IdentitySubjectStore` in 24, `IngestionStore` in 17, and `StatusStore` in 6.
    Most of the "prefix lied" corrections below come from this rule. A
-   separate check confirms it over the final mapping: of the 235 files that
-   declare methods on a root type (266 file/type pairs), every one lands with its type except the 23
+   separate check confirms it over the final mapping: of the 236 files that
+   declare methods on a root type (267 file/type pairs), every one lands with its type except the 23
    `IdentitySubjectStore` files that wait for D1. That check caught one mapping
    the package-graph check could not: `eshu_search_vector_documents.go`
    declares methods on `EshuSearchDocumentStore`, so it lives in
@@ -84,7 +84,7 @@ from a file name.
   `identity_saml_sql.go` -> `identity/saml/sql.go`.
 - No file name repeats a word of its path. A file named exactly for its own
   directory is allowed (`queue/reducer/reducer.go`, `identity/local/local.go`).
-  The stutter check in the census reports zero hits across all 1,077 names.
+  The stutter check in the census reports zero hits across all 1,079 names.
 - A `_store` suffix goes when it adds nothing
   (`function_source_store.go` -> `code/flow/function_source.go`) and stays
   where the directory also holds non-store files.
@@ -223,7 +223,7 @@ issue's "root holds only what cannot move" bar by 17 files.
 
 **D6. Shared test fakes become a real package, `fake/`.** Test files cannot be
 imported across packages. `work_queue_lifecycle_test.go` holds the fake
-database that tests headed for 40 different destinations use. In total, 70
+database that tests headed for 40 different destinations use. In total, 71
 helper test files are used by tests that land in two or more destinations.
 Recommended: move the shared fakes (`fakeExecQueryer`, `fakeRows`,
 `fakeTransaction` and their kin) into a non-test package `fake/` before the
@@ -279,7 +279,7 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 382 | it only needs its own package and packages below it (2 of these follow the UNDECIDED file) |
+| in-package test | 384 | it only needs its own package and packages below it (2 of these follow the UNDECIDED file) |
 | external test package (`package x_test`) | 138 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 85 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 35 | it reads private symbols of two or more future packages |
@@ -408,7 +408,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `cloud/inventory/` | 12 | 12 | ok |
 | `cloud/multi/` | 5 | 5 | ok |
 | `code/divergence/` | 3 | 3 | ok |
-| `code/flow/` | 8 | 10 | ok |
+| `code/flow/` | 8 | 11 | ok |
 | `code/reachability/` | 3 | 4 | ok |
 | `code/taint/` | 2 | 2 | ok |
 | `collector/` | 4 | 2 | ok |
@@ -448,7 +448,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `maintenance/` | 1 | 1 | ok |
 | `queue/` | 2 | 1 | ok |
 | `queue/projector/` | 7 | 19 | ok |
-| `queue/reducer/` | 13 | 98 | ok |
+| `queue/reducer/` | 13 | 99 | ok |
 | `recovery/` | 1 | 7 | ok |
 | `relationship/` | 6 | 9 | ok |
 | `scope/completion/` | 4 | 6 | ok |
@@ -466,7 +466,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `workflow/` | 10 | 20 | ok |
 | UNDECIDED | 1 | 2 | n/a |
 | DELETE | 9 | 0 | n/a |
-| **total** | **368** | **709** | |
+| **total** | **368** | **711** | |
 
 ## File-by-file mapping
 

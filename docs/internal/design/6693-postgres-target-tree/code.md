@@ -22,7 +22,7 @@ code_drifted_findings_test.go -> code/divergence/findings_test.go
 
 </details>
 
-### `code/flow/` (8 non-test, 10 test)
+### `code/flow/` (8 non-test, 11 test)
 
 ```text
 code_value_flow_backfill_state_store.go -> code/flow/backfill_state.go
@@ -45,6 +45,7 @@ function_source_store_test.go -> code/flow/function_source_test.go
 summary_store_replace_test.go -> code/flow/function_summary_replace_test.go
 summary_store_test.go -> code/flow/function_summary_test.go   # external test package: imports root
 value_flow_fixpoint_component_store_test.go -> code/flow/fixpoint_component_test.go   # external test package: imports root
+value_flow_inputs_liveness_live_test.go -> code/flow/inputs_liveness_live_test.go
 value_flow_program_loader_test.go -> code/flow/program_loader_test.go
 value_flow_refresh_ack_live_test.go -> code/flow/refresh_ack_live_test.go   # external test package: imports queue/reducer, root
 value_flow_refresh_ack_test.go -> code/flow/refresh_ack_test.go
