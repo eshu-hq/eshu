@@ -9,7 +9,7 @@ stage** (`Engine.ParsePath` → `javascript.Parse` / `php.Parse`) on
 JavaScript/TypeScript/TSX and PHP, the same defect class as the SQL segment
 byte cap (`go/internal/parser/sql/segments.go`, #4422). This change adds a
 1 MiB per-file parse byte cap to the javascript-family parser
-(`go/internal/parser/javascript/javascript_language.go`) and the PHP parser
+(`go/internal/parser/javascript/language.go`) and the PHP parser
 (`go/internal/parser/php/parser.go`). A file over the cap has its tree-sitter
 parse skipped entirely in this stage; the bound is recorded in
 `payload["js_parse_bounded"]` / `payload["php_parse_bounded"]` and logged.

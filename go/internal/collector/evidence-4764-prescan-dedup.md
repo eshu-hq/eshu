@@ -35,7 +35,7 @@ difference across php/js/ts/tsx on 7,321 files spanning 6 real repositories
      `javascript/prescan.go` walk, because the parse-stage main walk already
      visits and buckets all of the same nodes (`php/declarations.go`'s
      `collectPHPFunction`/`collectPHPAnonymousClass`,
-     `javascript/javascript_language.go`'s `appendFunctionDeclaration` call
+     `javascript/language.go`'s `appendFunctionDeclaration` call
      sites), verified equivalent by the shim.
    - Test-only dispatch counter (`ResetDerivedLanguagePreScanDispatchCountForTest`
      / `DerivedLanguagePreScanDispatchCountForTest`) incremented in

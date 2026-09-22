@@ -25,9 +25,19 @@
 // Resolvers accept JSONC TypeScript config files, keep resolution inside the
 // repository root, and return repository-relative source paths for
 // resolved_source metadata. Parsed tsconfig.json and package.json content is
-// memoized per resolved config file path (config_scope_cache.go) so every
+// memoized per resolved config file path (project/scope_cache.go) so every
 // source file sharing the same nearest config reuses one read and one parse
 // instead of repeating both per file.
+//
+// Three leaf subpackages carry work that does not need the parse lifecycle,
+// and none of them may import this package back (issue #6771):
+// project resolves a file's tsconfig.json/package.json context from the
+// repository layout and owns the stat-keyed config cache; syntax holds the
+// AST-level extraction primitives (declared names, docstrings and method
+// kinds, type parameters and references, implemented interfaces,
+// member-expression decomposition, parameter counts, and the per-parse
+// ParentLookup index); jsdataflow owns the CFG and reaching-definitions
+// lowering behind Options.EmitDataflow.
 //
 // When Options.EmitDataflow is set, Parse also emits the opt-in value-flow
 // buckets "dataflow_functions", "taint_findings", and "interproc_findings"
@@ -39,7 +49,7 @@
 // omitted.
 //
 // The Engine-level black-box regressions that used to live in
-// internal/parser as engine_javascript_*_test.go now live here as external
+// internal/parser as engine_*_test.go now live here as external
 // package javascript_test, matching the earlier Elixir relocation (#6335).
 // They drive extraction through parser.DefaultEngine().ParsePath, which Go
 // compiles separately from this package's own tests, so exercising the

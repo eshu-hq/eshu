@@ -1,0 +1,213 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package javascript
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
+func javaScriptFunctionValueReferenceCalls(
+	node *tree_sitter.Node,
+	source []byte,
+	lang string,
+	commonJSModuleAliases map[string]struct{},
+	fastifyBases map[string]struct{},
+	parents *syntax.ParentLookup,
+) []map[string]any {
+	if node == nil || node.Kind() != "call_expression" {
+		return nil
+	}
+	argumentsNode := node.ChildByFieldName("arguments")
+	return javaScriptFunctionValueReferenceCallsFromArguments(
+		argumentsNode,
+		source,
+		lang,
+		commonJSModuleAliases,
+		javaScriptFunctionValueReferenceIsFastifyRouteCall(node, source, fastifyBases),
+		parents,
+	)
+}
+
+func javaScriptFunctionValueReferenceCallsFromArguments(
+	argumentsNode *tree_sitter.Node,
+	source []byte,
+	lang string,
+	commonJSModuleAliases map[string]struct{},
+	allowDirectHandlerValues bool,
+	parents *syntax.ParentLookup,
+) []map[string]any {
+	if argumentsNode == nil {
+		return nil
+	}
+	items := make([]map[string]any, 0, 2)
+	seen := make(map[string]struct{})
+	walkNamed(argumentsNode, func(child *tree_sitter.Node) {
+		if !javaScriptFunctionValueReferenceNode(child) ||
+			javaScriptFunctionValueReferenceIsCallCallee(child, parents) ||
+			javaScriptFunctionValueReferenceShouldSkipHandlerValue(
+				child,
+				argumentsNode,
+				source,
+				allowDirectHandlerValues,
+				parents,
+			) {
+			return
+		}
+		if parent := parents.Parent(child); parent != nil && parent.Kind() == "member_expression" {
+			return
+		}
+		item := javaScriptFunctionValueReferenceCall(child, source, lang, commonJSModuleAliases)
+		if item == nil {
+			return
+		}
+		fullName, _ := item["full_name"].(string)
+		key := fmt.Sprintf("%s|%d", fullName, nodeLine(child))
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		items = append(items, item)
+	})
+	return items
+}
+
+func javaScriptFunctionValueReferenceCall(
+	node *tree_sitter.Node,
+	source []byte,
+	lang string,
+	commonJSModuleAliases map[string]struct{},
+) map[string]any {
+	if !javaScriptFunctionValueReferenceNode(node) {
+		return nil
+	}
+	fullName := deadcode.RewriteCommonJSModuleExportAliasFullName(nodeText(node, source), commonJSModuleAliases)
+	name := syntax.CallName(node, source)
+	if name == "" || fullName == "" {
+		return nil
+	}
+	return map[string]any{
+		"name":        name,
+		"full_name":   fullName,
+		"call_kind":   "javascript.function_value_reference",
+		"line_number": nodeLine(node),
+		"lang":        lang,
+	}
+}
+
+func javaScriptReturnValueNode(node *tree_sitter.Node) *tree_sitter.Node {
+	if node == nil || node.Kind() != "return_statement" {
+		return nil
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		switch child.Kind() {
+		case "identifier", "member_expression":
+			return &child
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func javaScriptFunctionValueReferenceShouldSkipHandlerValue(
+	node *tree_sitter.Node,
+	argumentsNode *tree_sitter.Node,
+	source []byte,
+	allowDirectHandlerValues bool,
+	parents *syntax.ParentLookup,
+) bool {
+	if !javaScriptFunctionValueReferenceIsHandlerValue(node, source, parents) {
+		return false
+	}
+	return !allowDirectHandlerValues ||
+		!javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(node, argumentsNode, parents)
+}
+
+func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
+	if node == nil {
+		return false
+	}
+	parent := parents.Parent(node)
+	if parent == nil || parent.Kind() != "pair" {
+		return false
+	}
+	if !syntax.NodeSameRange(parent.ChildByFieldName("value"), node) {
+		return false
+	}
+	if strings.Trim(strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)), `"'`) != "handler" {
+		return false
+	}
+	return true
+}
+
+func javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(
+	node *tree_sitter.Node,
+	argumentsNode *tree_sitter.Node,
+	parents *syntax.ParentLookup,
+) bool {
+	parent := parents.Parent(node)
+	if parent == nil {
+		return false
+	}
+	objectNode := parents.Parent(parent)
+	if objectNode == nil || objectNode.Kind() != "object" || argumentsNode == nil {
+		return false
+	}
+	cursor := argumentsNode.Walk()
+	defer cursor.Close()
+	for _, child := range argumentsNode.NamedChildren(cursor) {
+		child := child
+		if syntax.NodeSameRange(&child, objectNode) {
+			return true
+		}
+	}
+	return false
+}
+
+func javaScriptFunctionValueReferenceIsFastifyRouteCall(
+	node *tree_sitter.Node,
+	source []byte,
+	fastifyBases map[string]struct{},
+) bool {
+	if len(fastifyBases) == 0 || node == nil || node.Kind() != "call_expression" {
+		return false
+	}
+	base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
+	if !ok || strings.ToLower(property) != "route" {
+		return false
+	}
+	return javaScriptNameSetContains(fastifyBases, base)
+}
+
+func javaScriptFunctionValueReferenceNode(node *tree_sitter.Node) bool {
+	if node == nil {
+		return false
+	}
+	switch node.Kind() {
+	case "identifier", "member_expression":
+		return true
+	default:
+		return false
+	}
+}
+
+func javaScriptFunctionValueReferenceIsCallCallee(node *tree_sitter.Node, parents *syntax.ParentLookup) bool {
+	if node == nil {
+		return false
+	}
+	parent := parents.Parent(node)
+	if parent == nil || parent.Kind() != "call_expression" {
+		return false
+	}
+	functionNode := parent.ChildByFieldName("function")
+	return syntax.NodeSameRange(functionNode, node)
+}

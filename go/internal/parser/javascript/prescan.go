@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -66,25 +68,25 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 				names = appendPreScanName(names, node.ChildByFieldName("name"), source)
 			}
 		case "variable_declarator":
-			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			if syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 				names = appendPreScanName(names, node.ChildByFieldName("name"), source)
 			}
 		case "pair":
-			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			if syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 				names = appendPreScanName(names, node.ChildByFieldName("key"), source)
 			}
 		case "assignment_expression":
-			if !isJavaScriptFunctionValue(node.ChildByFieldName("right")) {
+			if !syntax.IsFunctionValue(node.ChildByFieldName("right")) {
 				return
 			}
-			names = appendPreScanName(names, javaScriptExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)
+			names = appendPreScanName(names, deadcode.ExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)
 		}
 	})
 	return names
 }
 
 func appendPreScanName(names []string, node *tree_sitter.Node, source []byte) []string {
-	name := strings.TrimSpace(javaScriptFunctionName(node, source))
+	name := strings.TrimSpace(syntax.FunctionName(node, source))
 	if name == "" {
 		return names
 	}

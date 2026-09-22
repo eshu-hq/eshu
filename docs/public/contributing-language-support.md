@@ -40,7 +40,7 @@ Repository-wide config that many files share (a language's project manifest,
 not a single source file) should be memoized per resolved config path, not
 recomputed per file and not collapsed to one value per repository root. The
 JavaScript-family parser's `tsconfig.json`/`package.json` resolution
-(`go/internal/parser/javascript/config_scope_cache.go`) is the reference
+(`go/internal/parser/javascript/project/scope_cache.go`) is the reference
 pattern: it caches parsed config content keyed by the resolved absolute config
 file path, invalidates the entry on `(mtime, size)` change so a re-scanned
 repository never serves a stale generation, and coalesces concurrent same-path
@@ -290,7 +290,7 @@ To avoid re-parsing that identical closure once per file (issue #4765), the
 per-node facts the walk needs from each file it visits -- its static re-export
 edges, its named-import bindings, and which imported names each of its public
 declarations mentions -- are memoized in a package-root-scoped cache
-(`go/internal/parser/javascript/typescript_public_surface_cache.go`). The
+(`go/internal/parser/javascript/deadcode/public_surface_cache.go`). The
 cache key is `(package root, file path, mtime, size)`, so:
 
 - Two different packages in a monorepo never share cache entries, even if a
@@ -323,7 +323,7 @@ repositories (#4766). Normal hand-written source is tens of KB, so 1 MiB is
 generous headroom above any legitimate single file.
 
 The cap lives in each language family's `Parse` entry point
-(`go/internal/parser/javascript/javascript_language.go`'s `jsParseByteCap`,
+(`go/internal/parser/javascript/language.go`'s `jsParseByteCap`,
 `go/internal/parser/php/parser.go`'s `phpParseByteCap`), covering TypeScript
 and TSX through the shared javascript-family parser. A bounded file returns an
 otherwise-empty payload with no extracted entities; the bound is recorded in

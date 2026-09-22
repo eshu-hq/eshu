@@ -4,21 +4,22 @@
 
 1. README.md - package boundary, parser ownership, and invariants
 2. doc.go - godoc contract for the JavaScript parser package
-3. javascript_language.go - `Parse`, `PreScan`, payload construction, and
+3. language.go - `Parse`, `PreScan`, payload construction, and
    tree-sitter traversal
 4. cfg_emit.go - opt-in value-flow buckets (EmitDataflow) over jsdataflow and the
    shared internal/parser/dataflowemit renderer
-5. javascript_imports.go and javascript_exports.go - import, require, and
+5. imports.go and exports.go - import, require, and
    re-export rows
-5. javascript_dead_code_roots.go and related `javascript_dead_code_*` files -
-   parser-proven dead-code root evidence
-6. javascript_semantics.go and javascript_semantics_helpers.go - framework and
+5. deadcode/ - parser-proven dead-code root evidence, extracted as its own
+   leaf package (see deadcode/README.md); the parent supplies route and
+   sibling-file evidence through the two interfaces it declares
+6. semantics.go and semantics_helpers.go - framework and
    component semantics
-7. tsconfig.go - JSONC parsing, path alias resolution, and repository bounds
-8. package_json.go - nearest package.json roots and public source targets
-9. tsconfig_test.go - behavior coverage for JSONC, path aliases, and candidate
+7. project/tsconfig.go - JSONC parsing, path alias resolution, and repository bounds
+8. project/package_json.go - nearest package.json roots and public source targets
+9. project/tsconfig_test.go - behavior coverage for JSONC, path aliases, and candidate
    ordering
-10. package_json_test.go - behavior coverage for nearest package ownership and
+10. project/package_json_test.go - behavior coverage for nearest package ownership and
    package public source mapping
 11. fastify_threading_bench_test.go - external-package benchmark of the public
     parent Engine.ParsePath path
@@ -26,15 +27,15 @@
     tests for package-local Fastify computations; it does not import the parent
 13. engine_typescript_implements_test.go - external-package regression for
     implemented-interface metadata through the public parent engine
-14. engine_javascript_test_helpers_test.go - shared helpers for the relocated
-    `engine_javascript_*_test.go`, `javascript_dead_code_*_test.go`,
-    `javascript_cfg_dataflow_test.go`, `js_parent_lookup_bench_test.go`,
+14. engine_test_helpers_test.go - shared helpers for the relocated
+    `engine_*_test.go`, `dead_code_*_test.go`,
+    `cfg_dataflow_test.go`, `js_parent_lookup_bench_test.go`,
     `engine_typescript_advanced_semantics_test.go`, and `engine_tsx_*_test.go`
     external-package suites (issue #6062). It owns `assertBoolFieldValue`
     because `parsertest` has no bool variant; take `assertIntFieldValue` and
     the other shared assertions from `parsertest` instead of adding copies
-15. javascript_dead_code_roots_test.go and
-    javascript_dead_code_roots_nextjs_migration_test.go - the latter split out
+15. dead_code_roots_test.go and
+    dead_code_roots_nextjs_migration_test.go - the latter split out
     at the 500-line cap and carries the Next.js app-router and TypeScript
     migration/module-contract dead-code root cases
 16. equivalence_dump_test.go - relocated here by #6062, external-package
@@ -56,7 +57,7 @@
   its public engine contract. The Fastify characterization test stays in
   `package javascript` and must not import the parent; the external Fastify
   benchmark, TypeScript implemented-interface regression, and the relocated
-  `engine_javascript_*_test.go` Engine-level suites (issue #6062, following the
+  `engine_*_test.go` Engine-level suites (issue #6062, following the
   Elixir precedent in #6335) are the black-box exceptions. Add new
   Engine-level JavaScript/TypeScript/TSX regressions to `package
   javascript_test`, not to `internal/parser`.
@@ -80,13 +81,13 @@
   per `Parse` call and only parses non-empty existing files.
 - Only three within-string-content regexes are allowed, each running solely
   against a string-literal value already isolated by the AST, never as a source
-  scanner: `javaScriptStaticComputedMemberNameRe`
-  (`javascript_names.go`, unquoted computed-property validation);
+  scanner: `staticComputedMemberNameRe`
+  (`syntax/names.go`, unquoted computed-property validation);
   `javaScriptAWSClientServiceRe` / `javaScriptGCPServiceRe`
-  (`javascript_semantics_ast.go`, slug extraction from an AST-isolated import
+  (`semantics_ast.go`, slug extraction from an AST-isolated import
   specifier). Client-symbol and hook-call extraction uses AST node walks
   (`javaScriptClientSymbolNames`, `javaScriptHookCallNames` in
-  `javascript_semantics_ast.go`). Adding any other regex for extraction
+  `semantics_ast.go`). Adding any other regex for extraction
   requires an ADR.
 
 ## No-Regression / No-Observability-Change
@@ -94,7 +95,7 @@
 - No-Regression Evidence: the AST conversion replaces multi-pass regex scans
   with single-pass walks over an already-built tree; sibling files are parsed
   once and cached. Output is identical for valid code, proven by the unchanged
-  `engine_javascript_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
+  `engine_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
   js/ts/tsx comprehensive golden fixtures. Two framework-semantics buckets are
   intentionally narrowed because the prior raw-source regexes matched code-shaped
   tokens inside comments, strings, imports, and type annotations: `react.hooks_used`
@@ -103,7 +104,7 @@
   `XxxClient` names. Dynamic `import("@aws-sdk/client-*")` is now covered for the
   service buckets alongside static import and require. These narrowings drop prior
   false positives and have regression tests in
-  `engine_javascript_ast_conversion_test.go`.
+  `engine_ast_conversion_test.go`.
 - No-Observability-Change: this package emits no telemetry by design; the
   conversion neither adds nor removes spans, metrics, or logs.
 
@@ -111,8 +112,8 @@
 
 - Add JavaScript-family behavior by writing a focused external-package test
   here when the public Engine.ParsePath contract is under test.
-- Add tsconfig behavior by writing a focused test in tsconfig_test.go first.
-- Add package.json behavior by writing a focused test in package_json_test.go
+- Add tsconfig behavior by writing a focused test in project/tsconfig_test.go first.
+- Add package.json behavior by writing a focused test in project/package_json_test.go
   first.
 - Keep parent wrapper edits limited to signature preservation and shared option
   conversion.
@@ -130,7 +131,7 @@
 - Incorrect resolution in workspaces usually points at nearest-config lookup.
   Add a fixture with nested tsconfig.json files before changing lookup order.
 - Package roots leaking from a workspace root into a nested package usually
-  means nearest package lookup changed. Reproduce it in package_json_test.go.
+  means nearest package lookup changed. Reproduce it in project/package_json_test.go.
 - Nondeterministic imports usually mean a map was iterated directly. Collect
   candidates, deduplicate explicitly, and preserve a stable order.
 
@@ -147,11 +148,31 @@
   per declaration node. Tree-sitter's `Parent()` crosses cgo into
   `ts_node_parent` and re-walks from the root, so per-node Parent loops scale as
   O(n_declarations * depth) cgo crossings and dominated parse CPU in #3586. Use
-  the per-parse `javaScriptParentLookup` (`parent_lookup.go`): `Parse` builds it
+  the per-parse `syntax.ParentLookup` (`syntax/parent_lookup.go`): `Parse` builds it
   once, threads it through `javaScriptDeadCodeEvidence.parents` and the helper
-  signatures, and helpers walk ancestors via `parents.parent(node)`. Keep the
+  signatures, and helpers walk ancestors via `parents.Parent(node)`. Keep the
   cgo-crossing regression gate
   `TestJavaScriptParentLookupEliminatesCgoCrossings` green.
+
+
+## Subpackages and the leaf rule
+
+`project/`, `syntax/` and `jsdataflow/` are leaves of this package. None of
+them may import it back. Each carries its own `AGENTS.md`; read that one before
+changing anything inside it.
+
+- Deciding where a change goes: if it reads a node and reports what the grammar
+  says, it belongs in `syntax/`. If it walks the repository to find a config
+  file and answer what governs a source file, it belongs in `project/`. If it
+  decides what a framework means -- an Express route, a NestJS controller, a
+  Hapi handler, a CommonJS export shape -- it belongs here.
+- Do not restore a moved helper to this package to avoid an import. The
+  directory sat at 48 non-test files against the 40-file `dirgate` cap before
+  issue #6771 and is now at 36; its grandfather row has been retired, so
+  regrowth past 40 fails immediately with no ledger to absorb it.
+- Do not add a `compat_*.go` forwarder for a moved symbol. Callers import the
+  subpackage directly, on purpose: a forwarder would add root files, which is
+  what this split exists to prevent.
 
 ## What NOT to change without an ADR
 
@@ -161,19 +182,20 @@
 
 ## Residual-regex audit — permanent exceptions (issue #3590, epic #3531)
 
-Three regex patterns remain in this package after the JS/TS/TSX regex-to-AST
-migration (#3539/#3563). Each was audited and confirmed as a justified permanent
+Three regex patterns remain in this package family after the JS/TS/TSX
+regex-to-AST migration (#3539/#3563) -- two here and, since #6771, one in the
+`syntax` subpackage. Each was audited and confirmed as a justified permanent
 exception: none performs primary symbol or entity extraction over raw source. All
 three operate only on a string value already isolated by the AST. Adding any
 additional within-string regex requires an ADR.
 
-### `javaScriptStaticComputedMemberNameRe` — `javascript_names.go`
+### `staticComputedMemberNameRe` — `syntax/names.go`
 
 **Category:** content-classification over AST node text (computed-property
 shape validator).
 
 **Justification:** This regex validates the shape of an unquoted string that
-`javaScriptComputedPropertyName` has already extracted from a
+`computedPropertyName` has already extracted from a
 `computed_property_name` AST node. It accepts simple identifiers, dotted member
 chains (`foo.bar.baz`), and decimal integer literals; it rejects anything that
 cannot be a static property name (binary expressions, template substitutions,
@@ -181,8 +203,8 @@ calls, etc.). It is a post-AST filter on already-isolated node text — not a
 source scanner — so it cannot produce false positives from tokens inside
 comments, string literals, or type annotations.
 
-**Call site:** `javaScriptComputedPropertyName` in `javascript_names.go`, called
-only after `javaScriptStaticComputedPropertyName` has returned `false` and the
+**Call site:** `computedPropertyName` in `syntax/names.go`, called
+only after `staticComputedPropertyName` has returned `false` and the
 bracket-expression inner text has been unquoted from an AST node.
 
 **Migration verdict:** No migration needed. The grammar does not model the
@@ -190,7 +212,7 @@ distinction between a static and a dynamic computed property as separate node
 types; the validator must run over the extracted string value, which is already
 AST-isolated.
 
-### `javaScriptAWSClientServiceRe` — `javascript_semantics_ast.go`
+### `javaScriptAWSClientServiceRe` — `semantics_ast.go`
 
 **Category:** content-classification over AST-isolated package-specifier string
 (slug extraction from an import module-specifier).
@@ -204,15 +226,15 @@ single `string` node; there is no tree-sitter node type that corresponds to the
 slug suffix of a scoped npm package name, so string content matching is
 structurally required.
 
-**Call site:** `javaScriptImportServiceSlugs` in `javascript_semantics_ast.go`,
-called from `detectAWSSemantics` in `javascript_semantics_helpers.go`, which
+**Call site:** `javaScriptImportServiceSlugs` in `semantics_ast.go`,
+called from `detectAWSSemantics` in `semantics_helpers.go`, which
 feeds the `aws.services` payload bucket.
 
 **Migration verdict:** No migration needed. The target is the textual content of
 a string literal whose structure the grammar cannot further decompose into
 provider/slug sub-nodes. The extraction already runs on the AST boundary.
 
-### `javaScriptGCPServiceRe` — `javascript_semantics_ast.go`
+### `javaScriptGCPServiceRe` — `semantics_ast.go`
 
 **Category:** content-classification over AST-isolated package-specifier string
 (slug extraction from an import module-specifier).
@@ -222,8 +244,8 @@ This regex extracts the service slug from `@google-cloud/<slug>` specifiers. It
 receives its input from `javaScriptImportModuleSpecifiers`, which has already
 walked the AST to isolate each import/require string node value.
 
-**Call site:** `javaScriptImportServiceSlugs` in `javascript_semantics_ast.go`,
-called from `detectGCPSemantics` in `javascript_semantics_helpers.go`, which
+**Call site:** `javaScriptImportServiceSlugs` in `semantics_ast.go`,
+called from `detectGCPSemantics` in `semantics_helpers.go`, which
 feeds the `gcp.services` payload bucket.
 
 **Migration verdict:** No migration needed. Same structural argument as the AWS
@@ -232,14 +254,19 @@ name.
 
 ### Characterization tests
 
-All three exceptions are pinned by
-`javascript_residual_regex_characterization_test.go` (package `javascript`).
-Coverage includes:
+All three exceptions stay pinned, but they no longer live in one file. The
+`#6771` split moved `names.go` into the `syntax` subpackage, and its
+characterization tests followed it to `syntax/names_test.go` (package
+`syntax`), where the regex and the wrapper both stay unexported. The two
+import-specifier regexes stayed with `semantics_ast.go` and remain in
+`residual_regex_characterization_test.go` (package `javascript`). The rule for
+the moved one is restated in `syntax/AGENTS.md`; keep the two copies in
+agreement. Coverage includes:
 
-- `javaScriptStaticComputedMemberNameRe`: acceptance of identifiers, dotted
+- `staticComputedMemberNameRe` (now in `syntax/names_test.go`): acceptance of identifiers, dotted
   chains, and decimal integers; rejection of binary expressions, calls, template
   substitutions, leading zeros, hyphens, and empty strings; plus a wrapper-path
-  test that drives the production helper `javaScriptComputedPropertyName` over
+  test that drives the production helper `computedPropertyName` over
   real `computed_property_name` nodes (class-method and object-literal keys),
   covering the static string/number/concat cases, the dotted-member-chain case
   that exercises the residual regex (`[Symbol.iterator]` → `Symbol.iterator`),
@@ -269,8 +296,11 @@ documentation; no spans, metrics, or logs are added or removed.
 
 ### #6062 residual
 
-One single-language test remains at the `internal/parser` root:
-`engine_swift_symbol_gate_test.go`, destined for `swift/`. The three
-`engine_typescript_*` / `engine_tsx_*` files that were listed here moved into
-this package under #6062.
+No single-language test remains at the `internal/parser` root. The one this
+note used to track, `engine_swift_symbol_gate_test.go`, has since landed in
+`go/internal/parser/swift/`; only cross-language engine suites
+(`engine_test.go`, `engine_long_tail_test.go`, the shared
+`engine_framework_test_helpers_test.go`, and their siblings) are left there.
+The three `engine_typescript_*` / `engine_tsx_*` files that were listed here
+moved into this package under #6062.
 The 27 `<lang>_language.go` Engine-method glue files stay at root by design.

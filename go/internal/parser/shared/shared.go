@@ -414,6 +414,20 @@ func LastPathSegment(name string, separator string) string {
 	return strings.TrimSpace(name)
 }
 
+// AppendUniqueString appends value to values unless it is already present,
+// preserving insertion order (unlike DedupeNonEmptyStrings, which sorts and
+// drops blanks). It is the shared building block for every parser helper
+// that accumulates deduplicated, order-sensitive string slices such as
+// dead-code root kinds and resolved import candidates.
+func AppendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
 // DedupeNonEmptyStrings returns sorted unique non-empty strings.
 func DedupeNonEmptyStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
