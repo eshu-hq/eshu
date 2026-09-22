@@ -13,6 +13,47 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
+func TestAllBlockingGates_CoversEveryPathSelectedGate(t *testing.T) {
+	t.Parallel()
+
+	registryPath := filepath.Join("..", "..", "..", "specs", "ci-gates.v1.yaml")
+	reg, err := cigates.Load(registryPath)
+	if err != nil {
+		t.Fatalf("Load(%q): %v", registryPath, err)
+	}
+	all, err := reg.AllBlockingGates()
+	if err != nil {
+		t.Fatalf("AllBlockingGates returned error: %v", err)
+	}
+	if len(all) == 0 {
+		t.Fatal("AllBlockingGates must not be empty for the shipped registry")
+	}
+	covered := make(map[string]bool)
+	for _, gate := range all {
+		for _, id := range gate.GateIDs {
+			covered[id] = true
+		}
+	}
+	// A sample of path-selected subsets must each be fully covered.
+	for _, changed := range [][]string{
+		{"go/cmd/ci-gates/await.go"},
+		{"docs/public/guides/collector-authoring.md"},
+		{"scripts/verify-performance-evidence.sh"},
+	} {
+		subset, err := reg.RequiredGates(changed)
+		if err != nil {
+			t.Fatalf("RequiredGates(%v) returned error: %v", changed, err)
+		}
+		for _, gate := range subset {
+			for _, id := range gate.GateIDs {
+				if !covered[id] {
+					t.Fatalf("AllBlockingGates omits path-selected gate %q", id)
+				}
+			}
+		}
+	}
+}
+
 func TestRequiredGates_SelectsPRAttributionGateForAnyChangedPath(t *testing.T) {
 	t.Parallel()
 

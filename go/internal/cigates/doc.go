@@ -31,9 +31,12 @@
 // # Required checks
 //
 // (*Registry).RequiredGates(changed []string) selects every matching blocking
-// CI job regardless of local tier or availability. The top-level required
-// status manifest names the GitHub ruleset contexts and exactly one trusted
-// aggregate publisher. Matrix jobs use explicit concrete check names.
+// CI job regardless of local tier or availability. (*Registry).AllBlockingGates
+// selects every blocking CI job without path filtering, for callers whose
+// changed-path listing was truncated (giant PRs past the pull-files endpoint
+// cap): over-selection fails closed in the safe direction. The top-level
+// required status manifest names the GitHub ruleset contexts and exactly one
+// trusted aggregate publisher. Matrix jobs use explicit concrete check names.
 //
 // # Validation
 //

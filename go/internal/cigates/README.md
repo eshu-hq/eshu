@@ -62,6 +62,9 @@ verifier without rerunning the verifier's own fixture suite.
 matching `blocking: true` row regardless of tier or local availability,
 deduplicates rows that share one workflow/job, and fails if a blocker has no CI
 workflow/job mapping or shared rows disagree on concrete check names.
+`AllBlockingGates()` selects every blocking row without path filtering, for
+callers whose changed-path listing was truncated (giant PRs past the
+pull-files endpoint cap).
 
 The required-status workflow runs from default-branch code after its declared
 source workflow. Per-head concurrency keeps one aggregate running and retains

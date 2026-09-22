@@ -53,11 +53,20 @@ func runAwait(args []string) error {
 	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
 		return err
 	}
-	paths, err := changedPathsForPR(ctx, runner, *repo, *pr)
+	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
 	if err != nil {
 		return err
 	}
-	required, err := reg.RequiredGates(paths)
+	var required []cigates.RequiredGate
+	if truncated {
+		// The pull-files endpoint caps at 3000 entries, so the path list
+		// is partial. Select every blocking gate: over-selection fails
+		// closed in the safe direction (extra gates run) while a partial
+		// path list would silently under-select.
+		required, err = reg.AllBlockingGates()
+	} else {
+		required, err = reg.RequiredGates(paths)
+	}
 	if err != nil {
 		return err
 	}
@@ -65,7 +74,7 @@ func runAwait(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d blocking workflow job(s) for %d changed path(s)\n", len(resolved), len(paths))
+	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d blocking workflow job(s) for %d changed path(s) (truncated=%v)\n", len(resolved), len(paths), truncated)
 	if err := awaitPRRequiredChecks(ctx, runner, *repo, *pr, *headSHA, resolved, *pollInterval, os.Stdout); err != nil {
 		return err
 	}
@@ -274,21 +283,24 @@ func findingFor(gate resolvedRequiredGate, state string) requiredCheckFinding {
 	}
 }
 
-func changedPathsForPR(ctx context.Context, runner ghRunner, repo string, pr int) ([]string, error) {
+// changedPathsForPR returns the PR's changed paths and whether the listing
+// was truncated. The pull-files endpoint caps at 3000 entries: when the
+// returned count differs from changedFiles the path list is partial, so the
+// caller must select every blocking gate instead of path-matching.
+func changedPathsForPR(ctx context.Context, runner ghRunner, repo string, pr int) (paths []string, truncated bool, err error) {
 	endpoint := "repos/" + repo + "/pulls/" + strconv.Itoa(pr) + "/files"
 	output, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("list changed files for PR #%d: %w", pr, err)
+		return nil, false, fmt.Errorf("list changed files for PR #%d: %w", pr, err)
 	}
 	var pages [][]struct {
 		Filename         string `json:"filename"`
 		PreviousFilename string `json:"previous_filename"`
 	}
 	if err := json.Unmarshal(output, &pages); err != nil {
-		return nil, fmt.Errorf("decode changed files for PR #%d: %w", pr, err)
+		return nil, false, fmt.Errorf("decode changed files for PR #%d: %w", pr, err)
 	}
 	seen := make(map[string]struct{})
-	var paths []string
 	fileCount := 0
 	appendPath := func(path string) {
 		path = strings.TrimSpace(path)
@@ -316,26 +328,25 @@ func changedPathsForPR(ctx context.Context, runner ghRunner, repo string, pr int
 		"--jq", ".changedFiles",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("read changed-file count for PR #%d: %w", pr, err)
+		return nil, false, fmt.Errorf("read changed-file count for PR #%d: %w", pr, err)
 	}
 	expectedCount, err := strconv.Atoi(strings.TrimSpace(string(countOutput)))
 	if err != nil {
-		return nil, fmt.Errorf("decode changed-file count for PR #%d: %w", pr, err)
+		return nil, false, fmt.Errorf("decode changed-file count for PR #%d: %w", pr, err)
 	}
 	if fileCount != expectedCount {
-		return nil, fmt.Errorf(
-			"pull-files response for PR #%d returned %d of %d changed files; refusing partial gate selection",
-			pr,
-			fileCount,
-			expectedCount,
-		)
+		// Truncated listing: the partial path list is still returned
+		// for logging, but truncated=true tells the caller to select
+		// every blocking gate instead of path-matching.
+		return paths, true, nil
 	}
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("PR #%d has no changed file paths", pr)
+		return nil, false, fmt.Errorf("PR #%d has no changed file paths", pr)
 	}
-	return paths, nil
+	return paths, false, nil
 }
 
+// changedPathsViaCommits unions the file lists of every commit on the PR.
 func verifyPRHead(ctx context.Context, runner ghRunner, repo string, pr int, expected string) error {
 	output, err := runner.Run(
 		ctx,

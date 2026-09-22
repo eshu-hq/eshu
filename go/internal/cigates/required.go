@@ -25,15 +25,32 @@ type RequiredGate struct {
 // includes CI-only, ci-heavy, and manual-tier entries: Blocking describes merge
 // enforcement, not whether a gate can run in a local preflight.
 func (r *Registry) RequiredGates(changed []string) ([]RequiredGate, error) {
+	return r.requiredGates(changed, false)
+}
+
+// AllBlockingGates returns every blocking CI gate, deduplicated by workflow
+// and job in registry order. Used when the changed-path listing is truncated
+// (giant PRs past the pull-files endpoint cap): selecting the full blocking
+// set fails closed in the safe direction (extra gates run) instead of
+// silently under-selecting from a partial path list. Boundary: a selected
+// gate whose workflow is path-filtered out of the PR never produces a check
+// and stays pending like any other missing gate, so a giant PR confined to
+// filtered-out paths still strands on the await timeout; tree-wide giant PRs
+// (the observed truncation class) trigger every workflow and are unaffected.
+func (r *Registry) AllBlockingGates() ([]RequiredGate, error) {
+	return r.requiredGates(nil, true)
+}
+
+func (r *Registry) requiredGates(changed []string, matchAll bool) ([]RequiredGate, error) {
 	required := make([]RequiredGate, 0)
 	indexes := make(map[string]int)
 	for _, gate := range r.Gates {
-		if !gate.Blocking || !gateMatchesAnyPath(gate, changed) {
+		if !gate.Blocking || (!matchAll && !gateMatchesAnyPath(gate, changed)) {
 			continue
 		}
 		if gate.CI.Workflow == "" || gate.CI.Job == "" {
 			return nil, fmt.Errorf(
-				"blocking gate %q matches the changed paths but has no ci.workflow/ci.job reachability",
+				"blocking gate %q has no ci.workflow/ci.job reachability",
 				gate.ID,
 			)
 		}
