@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -212,4 +213,128 @@ func packageDirsUnder(root string) ([]string, error) {
 		dirs = append(dirs, nested...)
 	}
 	return dirs, nil
+}
+
+// factsPackageConstDir is the go/internal/facts package directory, whose files
+// declare the package's own FactKind-suffixed wire-string constants (e.g.
+// AWSResourceFactKind = "aws_resource").
+//
+// It names a package TREE, not one directory. Issue #6776 nested the cloud,
+// code, documentation and supply-chain fact families into subpackages, so
+// AzureResourceChangeFactKind's string literal now lives in
+// go/internal/facts/cloud/azure.go and DocumentationLinkFactKind's in
+// go/internal/facts/docs/documentation.go. The root still spells both names,
+// but only as compat aliases (`AzureResourceChangeFactKind =
+// cloud.AzureResourceChangeFactKind`), and an alias is a selector expression
+// rather than a string literal, so factKindConstantValues cannot read a wire
+// string out of it. Globbing only the root therefore resolves the identifier
+// to nothing and every kind it names reports as having no consumer anywhere
+// in the repository — the same shape of failure #6061 caused for the reducer,
+// recorded at reducerSeamDir.
+const factsPackageConstDir = "go/internal/facts"
+
+// factsPackageConstGlobs returns a *.go glob for the facts package directory
+// and one for each package directory beneath it.
+func factsPackageConstGlobs(repoRoot string) ([]string, error) {
+	root := filepath.Join(repoRoot, factsPackageConstDir)
+	subs, err := packageDirsUnder(root)
+	if err != nil {
+		return nil, err
+	}
+	globs := make([]string, 0, len(subs)+1)
+	globs = append(globs, filepath.Join(root, "*.go"))
+	for _, dir := range subs {
+		globs = append(globs, filepath.Join(dir, "*.go"))
+	}
+	return globs, nil
+}
+
+// factsPackageConstantValues merges factKindConstantValues across the facts
+// package tree. A subdirectory that declares no fact-kind constant at all
+// contributes nothing rather than failing: factKindConstantValues treats an
+// empty glob match as an error, which is the right signal for the root but
+// not for a leaf that only holds helpers.
+func factsPackageConstantValues(repoRoot string) (map[string]string, error) {
+	globs, err := factsPackageConstGlobs(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	merged := map[string]string{}
+	for _, glob := range globs {
+		values, err := factKindConstantValues(glob)
+		if err != nil {
+			if matches, globErr := filepath.Glob(glob); globErr == nil && len(matches) == 0 {
+				continue
+			}
+			return nil, err
+		}
+		for ident, wire := range values {
+			merged[ident] = wire
+		}
+	}
+	if len(merged) == 0 {
+		return nil, fmt.Errorf("kind_real_consumer: no fact-kind constants found under %s", factsPackageConstDir)
+	}
+	if err := resolveFactsCompatAliases(filepath.Join(repoRoot, factsPackageConstDir), merged); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
+
+// resolveFactsCompatAliases teaches the derivation to read the facts root's
+// compat surface. When a family moved to a subpackage its exported names were
+// destuttered (docs/internal/naming.md rule 4), so the root spells
+// DocumentationLinkFactKind while the docs package declares LinkFactKind. The
+// root keeps the pre-move spelling alive as `DocumentationLinkFactKind =
+// docs.LinkFactKind`, and every caller outside the facts tree still writes
+// facts.DocumentationLinkFactKind.
+//
+// Without this pass the root spelling resolves to no wire string, so a query
+// layer that references it reads as having no consumer. Each alias is mapped
+// to the wire string its target already resolved to, which leaves the literals
+// authoritative: an alias can only ever echo a value some leaf declared.
+func resolveFactsCompatAliases(rootDir string, values map[string]string) error {
+	matches, err := filepath.Glob(filepath.Join(rootDir, "*.go"))
+	if err != nil {
+		return fmt.Errorf("kind_real_consumer: glob facts compat files %s: %w", rootDir, err)
+	}
+	sort.Strings(matches)
+	fset := token.NewFileSet()
+	for _, path := range matches {
+		if isGoTestFile(path) {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return fmt.Errorf("kind_real_consumer: parse %s: %w", path, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				vspec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range vspec.Names {
+					if i >= len(vspec.Values) {
+						continue
+					}
+					sel, ok := vspec.Values[i].(*ast.SelectorExpr)
+					if !ok {
+						continue
+					}
+					if _, already := values[name.Name]; already {
+						continue
+					}
+					if wire, ok := values[sel.Sel.Name]; ok {
+						values[name.Name] = wire
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

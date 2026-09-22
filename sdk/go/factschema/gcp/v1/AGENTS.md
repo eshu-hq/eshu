@@ -64,7 +64,7 @@ internals.
   `gcp_image_reference`). Adding an eighth kind or a `v2` major is follow-on
   epic work, not a casual edit.
 - `Resource`'s schema version is pinned at 1.1.0
-  (`facts.GCPCloudResourceSchemaVersion` in `go/internal/facts/gcp.go`), one
+  (`facts.GCPCloudResourceSchemaVersion` in `go/internal/facts/cloud/gcp.go`), one
   minor ahead of the rest of this family. Generate its schema artifact at
   1.1.0; the decode seam still dispatches on schema-version MAJOR only, so no
   separate decode path is needed for the minor difference.

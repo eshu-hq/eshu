@@ -60,7 +60,11 @@ consume these types as their input or storage shape.
   state.
 - `StableID(factType, identity)` — deterministic SHA-256 hex ID derived from
   `factType` and the normalized `identity` map; used to assign a stable fact
-  key that survives re-ingestion of the same source record.
+  key that survives re-ingestion of the same source record. The
+  implementation moved to `internal/facts/encode` (issue #6776) so a nested
+  family can derive its own ids without importing this package; `StableID`
+  forwards to it and the ids are byte-identical, pinned by
+  `encode.TestStableIDPinsDerivationBytes`.
 - `CoreFactKinds()` and `IsCoreFactKind(kind)` — the generated aggregate
   registry of core-owned fact kinds used by optional component validation to
   reject extension namespace collisions.
@@ -83,7 +87,10 @@ consume these types as their input or storage shape.
 - Documentation fact payloads — source-neutral payload structs and stable-ID
   helpers for documentation sources, documents, sections, links, entity
   mentions, non-authoritative claim candidates, owner references, ACL
-  summaries, and evidence references.
+  summaries, and evidence references. These now live in
+  [`internal/facts/docs`](docs/README.md) as `docs.SourcePayload` and
+  friends; `compat_docs.go` keeps every `facts.Documentation*` spelling
+  working for callers that have not moved.
 - Semantic evidence payloads — provenance-rich documentation observations and
   code hints emitted by optional semantic extraction. These facts carry source,
   chunk, provider-profile, prompt-version, redaction, policy, confidence,
@@ -95,7 +102,9 @@ consume these types as their input or storage shape.
   output.
 - Fact-family registries — each source family exposes `<Family>FactKinds()` and
   `<Family>SchemaVersion(kind)` helpers. Use them instead of copying literals
-  when constructing envelopes or validating component ownership.
+  when constructing envelopes or validating component ownership. A nested
+  family's pair is declared in its own package and re-exported here by the
+  matching `compat_*.go`.
 - Central schema-version registry — `SchemaVersion(kind)`,
   `SupportedSchemaVersions()`, `ClassifySchemaVersion(kind, candidate)`, and
   `ValidateSchemaVersion(kind, candidate)` dispatch over every per-family schema
@@ -116,10 +125,50 @@ descriptions live in
 `docs/public/reference/fact-envelope-reference.md`. See `doc.go` for the full
 godoc contract.
 
+## Nested fact families
+
+Issue #6776 nested four family groups into their own packages so this
+directory drops back under the 40-non-test-`.go`-file cap the `dirgate`
+linter enforces (45 before, 27 after). Each nested package owns its family's
+contract, including its private-data boundary; read its `doc.go` and
+`README.md` rather than this one for the detail.
+
+| Package | Owns |
+| --- | --- |
+| [`cloud/`](cloud/README.md) | AWS, Azure, GCP, Kubernetes live-cluster, and Terraform state evidence, plus the derived EC2 instance, RDS instance, S3 bucket, and S3 external-principal-grant posture facts |
+| [`code/`](code/README.md) | Parser-emitted code-intelligence evidence: dataflow scan markers and per-function records, function taint sources and summaries, resolved intraprocedural and interprocedural taint findings |
+| [`docs/`](docs/README.md) | The documentation fact family: sources, documents, sections, links, entity mentions, claim candidates, findings, evidence packets, and the bounded source-ACL vocabulary |
+| [`supply/chain/`](supply/chain/README.md) | OCI registry, language package registry, SBOM and attestation, vulnerability intelligence, and vulnerability suppression evidence |
+| [`encode/`](encode/README.md) | Shared payload substrate: `StableID` and the pointer/JSON-shape helpers a family's encoders use |
+
+The `docs/` package is named `docs`, not `documentation`, because `go/build`
+excludes every `.go` file in a package named `documentation`; see
+`docs/doc.go`. `supply/chain/` is nested rather than glued as `supplychain`
+per `docs/internal/naming.md` rule 3, matching `internal/query/supply/chain`.
+
+`compat_cloud.go`, `compat_cloud_posture.go`, `compat_code.go`,
+`compat_docs.go`, and `compat_supply_chain.go` are this package's
+transitional compatibility surface for those moves: every entry is an alias
+or a thin forwarder, so a caller that spells a moved name `facts.X` gets the
+same type and the same value it did before. Each entry is deleted once its
+last caller has moved to the nested package directly — that migration is
+issue #6950. Nesting the `security_alert.go` / `secrets_iam.go` /
+`incident_*.go` groups and the remaining single-file families is issue
+#6951; the cap is already satisfied without them.
+
 ## Dependencies
 
-No internal package imports. `internal/facts` is a leaf contract package. It
-depends only on the Go standard library.
+- `internal/facts/cloud`, `internal/facts/code`, `internal/facts/docs`,
+  `internal/facts/supply/chain` — the nested fact families (issue #6776).
+  This package imports them to build `schemaVersionFamilies` and to re-export
+  their pre-move spellings from its `compat_*.go` files, so the dependency
+  runs root → family and never the other way.
+- `internal/facts/encode` — `StableID` and the payload pointer/JSON-shape
+  helpers shared with the nested families.
+
+Nothing else. `internal/facts` and everything under it depend only on the Go
+standard library, `internal/semanticpolicy`, and the `sdk/go/factschema`
+contracts module.
 
 ## Telemetry
 

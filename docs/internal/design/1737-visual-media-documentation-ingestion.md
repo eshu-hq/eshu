@@ -327,7 +327,7 @@ and status fields before claiming readiness.
 - `docs/public/deployment/service-runtimes.md`
 - `docs/public/reference/local-testing.md`
 - `docs/public/reference/telemetry/index.md`
-- `go/internal/facts/documentation.go`
+- `go/internal/facts/docs/documentation.go`
 - `go/internal/doctruth/README.md`
 - Poppler project: https://poppler.freedesktop.org/
 - Poppler `pdftotext` manual:

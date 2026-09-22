@@ -18,7 +18,7 @@ The first fixture-testable slice is implemented: the `gcp_cloud_resource`,
 `gcp_cloud_relationship`, label-backed `gcp_tag_observation`,
 `gcp_iam_policy_observation`, `gcp_dns_record`, `gcp_image_reference`, and
 `gcp_collection_warning` source fact kinds
-(`go/internal/facts/gcp.go`), the Cloud Asset Inventory parser, identity
+(`go/internal/facts/cloud/gcp.go`), the Cloud Asset Inventory parser, identity
 normalizer, redaction policy, envelope builders, generation accumulator with
 fencing, and scoped telemetry instruments (`go/internal/collector/gcpcloud`).
 This slice is fixture-driven and makes no live Google Cloud calls.
@@ -92,7 +92,7 @@ drain to zero, and graph/read-model/API/MCP agreement. It can build on the
 completed security smoke; this contract does not imply that a second security
 smoke is required. The
 relationship, tag, IAM, DNS, and image-reference fact kinds and schema versions
-are registered in `go/internal/facts/gcp.go`, and **all five
+are registered in `go/internal/facts/cloud/gcp.go`, and **all five
 envelope builders are implemented and unit-proven**:
 `NewCloudRelationshipEnvelope` (provenance-only: both endpoint full resource
 names, asset types, relationship type, bounded support state; resolves no

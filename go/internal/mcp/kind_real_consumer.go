@@ -160,12 +160,6 @@ var quotedLiteralPattern = regexp.MustCompile(`'([A-Za-z0-9_.]+)'`)
 // fail to compile a reference to an unused import.
 var factsPackageIdentRefPattern = regexp.MustCompile(`facts\.(\w*FactKind\w*)\b`)
 
-// factsPackageConstFileGlob is the go/internal/facts glob covering every
-// top-level file declaring the package's own FactKind-suffixed wire-string
-// constants (e.g. AWSResourceFactKind = "aws_resource"). Non-recursive:
-// go/internal/facts has no subpackages carrying these constants.
-const factsPackageConstFileGlob = "go/internal/facts/*.go"
-
 // realConsumerEvidence is the computed set of fact kinds with a detectable
 // real consumer, derived from source rather than from registry metadata.
 type realConsumerEvidence struct {
@@ -265,7 +259,7 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		}
 	}
 
-	factsConstValues, err := factKindConstantValues(filepath.Join(repoRoot, factsPackageConstFileGlob))
+	factsConstValues, err := factsPackageConstantValues(repoRoot)
 	if err != nil {
 		return realConsumerEvidence{}, err
 	}
@@ -433,7 +427,7 @@ func rawSQLFactKindReaders(dir string) (map[string]bool, error) {
 // for references to go/internal/facts' own FactKind-suffixed constants
 // (facts.<Ident>FactKind) and returns the set of wire fact-kind strings
 // referenced, resolved through factsConstValues (from factKindConstantValues
-// run against factsPackageConstFileGlob). This is the identifier-reference
+// run against the facts package tree). This is the identifier-reference
 // sibling of rawSQLFactKindReaders: some query-layer SQL is built by
 // string-concatenating the Go constant rather than writing the fact-kind
 // literal inline, which the literal-only regexes in rawSQLFactKindReaders

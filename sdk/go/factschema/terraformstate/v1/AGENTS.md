@@ -76,6 +76,6 @@ internals.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major is
   follow-on epic work, not a casual edit. The kinds and their wire strings are
   the `facts.TerraformState*FactKind` constants in
-  `go/internal/facts/tfstate.go`; the parent package's `FactKind*` constants
+  `go/internal/facts/cloud/terraform_state.go`; the parent package's `FactKind*` constants
   MUST stay byte-equal to them (the reducer-side drift lock
   `TestFactSchemaKindsMatchWireFactKinds` asserts it).

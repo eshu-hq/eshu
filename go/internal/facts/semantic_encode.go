@@ -4,6 +4,8 @@
 package facts
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/facts/encode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	semanticv1 "github.com/eshu-hq/eshu/sdk/go/factschema/semantic/v1"
 )
@@ -15,23 +17,23 @@ func EncodeSemanticDocumentationObservation(payload SemanticDocumentationObserva
 	encoded, err := factschema.EncodeSemanticDocumentationObservation(semanticv1.DocumentationObservation{
 		ObservationID:       payload.ObservationID,
 		ObservationType:     payload.ObservationType,
-		ObservationText:     stringPtr(payload.ObservationText),
+		ObservationText:     encode.StringPtr(payload.ObservationText),
 		ObservationHash:     payload.ObservationHash,
 		Source:              encodeSemanticSourceRef(payload.Source),
 		Chunk:               encodeSemanticChunkRef(payload.Chunk),
 		Provider:            encodeSemanticProviderRef(payload.Provider),
-		Confidence:          stringPtr(payload.Confidence),
-		ConfidenceRationale: stringPtr(payload.ConfidenceRationale),
+		Confidence:          encode.StringPtr(payload.Confidence),
+		ConfidenceRationale: encode.StringPtr(payload.ConfidenceRationale),
 		MissingEvidence:     payload.MissingEvidence,
-		UnsupportedReason:   stringPtr(payload.UnsupportedReason),
+		UnsupportedReason:   encode.StringPtr(payload.UnsupportedReason),
 		FreshnessState:      payload.FreshnessState,
 		PolicyState:         payload.PolicyState,
 		RedactionState:      payload.RedactionState,
-		RedactionSummary:    stringPtr(payload.RedactionSummary),
+		RedactionSummary:    encode.StringPtr(payload.RedactionSummary),
 		AdmissionState:      payload.AdmissionState,
-		EvidenceRefs:        encodeDocumentationEvidenceRefs(payload.EvidenceRefs),
-		ACLSummary:          encodeDocumentationACLSummary(payload.ACLSummary),
-		ObservedAt:          stringPtr(payload.ObservedAt),
+		EvidenceRefs:        docs.EncodeEvidenceRefs(payload.EvidenceRefs),
+		ACLSummary:          docs.EncodeACLSummary(payload.ACLSummary),
+		ObservedAt:          encode.StringPtr(payload.ObservedAt),
 	})
 	return jsonShapePayload(encoded, err)
 }
@@ -42,24 +44,24 @@ func EncodeSemanticCodeHint(payload SemanticCodeHintPayload) (map[string]any, er
 	encoded, err := factschema.EncodeSemanticCodeHint(semanticv1.CodeHint{
 		HintID:              payload.HintID,
 		HintType:            payload.HintType,
-		RelationshipKind:    stringPtr(payload.RelationshipKind),
-		HintText:            stringPtr(payload.HintText),
+		RelationshipKind:    encode.StringPtr(payload.RelationshipKind),
+		HintText:            encode.StringPtr(payload.HintText),
 		HintHash:            payload.HintHash,
 		Source:              encodeSemanticSourceRef(payload.Source),
 		Chunk:               encodeSemanticChunkRef(payload.Chunk),
 		Provider:            encodeSemanticProviderRef(payload.Provider),
 		Subject:             encodeSemanticCodeEntityRef(payload.Subject),
 		ObjectRefs:          encodeSemanticCodeEntityRefs(payload.ObjectRefs),
-		Confidence:          stringPtr(payload.Confidence),
-		ConfidenceRationale: stringPtr(payload.ConfidenceRationale),
+		Confidence:          encode.StringPtr(payload.Confidence),
+		ConfidenceRationale: encode.StringPtr(payload.ConfidenceRationale),
 		MissingEvidence:     payload.MissingEvidence,
-		UnsupportedReason:   stringPtr(payload.UnsupportedReason),
+		UnsupportedReason:   encode.StringPtr(payload.UnsupportedReason),
 		CorroborationState:  payload.CorroborationState,
 		PromotionPolicy:     payload.PromotionPolicy,
 		PolicyState:         payload.PolicyState,
 		RedactionState:      payload.RedactionState,
 		FreshnessState:      payload.FreshnessState,
-		ObservedAt:          stringPtr(payload.ObservedAt),
+		ObservedAt:          encode.StringPtr(payload.ObservedAt),
 	})
 	return jsonShapePayload(encoded, err)
 }
@@ -68,16 +70,16 @@ func encodeSemanticSourceRef(value SemanticSourceRef) semanticv1.SourceRef {
 	return semanticv1.SourceRef{
 		SourceID:       value.SourceID,
 		SourceClass:    value.SourceClass,
-		SourceHandle:   stringPtr(value.SourceHandle),
-		RepositoryID:   stringPtr(value.RepositoryID),
-		DocumentID:     stringPtr(value.DocumentID),
-		RelativePath:   stringPtr(value.RelativePath),
-		ExternalAnchor: stringPtr(value.ExternalAnchor),
-		SectionID:      stringPtr(value.SectionID),
-		LineStart:      intPtr(value.LineStart),
-		LineEnd:        intPtr(value.LineEnd),
-		PageStart:      intPtr(value.PageStart),
-		PageEnd:        intPtr(value.PageEnd),
+		SourceHandle:   encode.StringPtr(value.SourceHandle),
+		RepositoryID:   encode.StringPtr(value.RepositoryID),
+		DocumentID:     encode.StringPtr(value.DocumentID),
+		RelativePath:   encode.StringPtr(value.RelativePath),
+		ExternalAnchor: encode.StringPtr(value.ExternalAnchor),
+		SectionID:      encode.StringPtr(value.SectionID),
+		LineStart:      encode.IntPtr(value.LineStart),
+		LineEnd:        encode.IntPtr(value.LineEnd),
+		PageStart:      encode.IntPtr(value.PageStart),
+		PageEnd:        encode.IntPtr(value.PageEnd),
 	}
 }
 
@@ -97,8 +99,8 @@ func encodeSemanticProviderRef(value SemanticProviderRef) semanticv1.ProviderRef
 	return semanticv1.ProviderRef{
 		ProviderProfileID: value.ProviderProfileID,
 		ProviderKind:      value.ProviderKind,
-		ModelID:           stringPtr(value.ModelID),
-		EndpointProfileID: stringPtr(value.EndpointProfileID),
+		ModelID:           encode.StringPtr(value.ModelID),
+		EndpointProfileID: encode.StringPtr(value.EndpointProfileID),
 	}
 }
 
@@ -116,17 +118,21 @@ func encodeSemanticCodeEntityRefs(values []SemanticCodeEntityRef) []semanticv1.C
 func encodeSemanticCodeEntityRef(value SemanticCodeEntityRef) semanticv1.CodeEntityRef {
 	return semanticv1.CodeEntityRef{
 		EntityID:     value.EntityID,
-		RepositoryID: stringPtr(value.RepositoryID),
-		RelativePath: stringPtr(value.RelativePath),
-		EntityKind:   stringPtr(value.EntityKind),
-		LineStart:    intPtr(value.LineStart),
-		LineEnd:      intPtr(value.LineEnd),
+		RepositoryID: encode.StringPtr(value.RepositoryID),
+		RelativePath: encode.StringPtr(value.RelativePath),
+		EntityKind:   encode.StringPtr(value.EntityKind),
+		LineStart:    encode.IntPtr(value.LineStart),
+		LineEnd:      encode.IntPtr(value.LineEnd),
 	}
 }
 
-func intPtr(value int) *int {
-	if value == 0 {
-		return nil
+// jsonShapePayload returns the JSON-shaped form of an encoder's payload, or
+// the encoder's own error unchanged. It stays here rather than in
+// [encode] so the error a caller sees is returned by same-package code and
+// keeps its original text; [encode.JSONShapeMap] owns the normalization.
+func jsonShapePayload(payload map[string]any, err error) (map[string]any, error) {
+	if err != nil {
+		return nil, err
 	}
-	return &value
+	return encode.JSONShapeMap(payload), nil
 }
