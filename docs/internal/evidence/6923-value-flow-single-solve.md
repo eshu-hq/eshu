@@ -282,8 +282,13 @@ copy the compare reports: `summary: 2 pass, 0 required-fail, 1
 advisory-warn` — `nornicdb_vs_neo4j_quorum: PASS (recordings agree across
 both pairings)`, `nonreproducing: 82 pairing-local divergences dropped`,
 `executions: 9 execution-count divergences with agreeing results held
-advisory (scheduling noise)`. The CAN_PERFORM sink probe appears in no
-divergence list.
+advisory (scheduling noise)`. Neither loader statement has a results-kind or
+missing divergence in either pairing; pairing 1 records a pairing-local
+execution-count divergence on both of them (5 vs 4 executions, identical
+digests), dropped by quorum as non-reproducing because pairing 2 is 4 vs 4 —
+the redundant converged re-solve the design doc describes. (The compare log
+prints only the first 20 divergences per pairing; this statement rests on
+the per-leg recount above, not on the printed list.)
 
 ### Four-leg capture, run B (final runtime tree)
 
@@ -294,7 +299,7 @@ accounting). Round 2 changed only tests, docs and a contract comment, and
 the final rebase onto 4a04039dbb touched no file this branch touches, so
 run B covers the runtime code that ships.
 
-| leg | gate | seconds | capture records |
+| leg | gate | driver wall seconds (incl. build and teardown; gate `elapsed` 288/336/316/323) | capture records |
 | --- | --- | --- | --- |
 | pair 1 nornicdb | PASS | 438 | 2622 |
 | pair 1 neo4j | PASS | 486 | 2589 |
@@ -331,9 +336,15 @@ carries #6941's comparison changes) and CI's
 required-fail, 1 advisory-warn`, `nornicdb_vs_neo4j_quorum: PASS`,
 `nonreproducing: 87 pairing-local divergences dropped`, `executions: 5
 execution-count divergences with agreeing results held advisory`, no stale
-entry (entry 44 did not flap in this run), no `TAINT_FLOWS_TO` `missing`
-divergence now that entry 36 is unexcused, and the CAN_PERFORM sink probe
-in no divergence list. Logs: `/tmp/6923-legs-runB/compare.log`,
+entry (entry 44 did not flap in this run), and no `TAINT_FLOWS_TO` `missing`
+divergence now that entry 36 is unexcused. Neither loader statement has a
+results-kind or missing divergence in either pairing; pairing 1 records a
+pairing-local execution-count divergence on both (4 vs 5 executions,
+identical digests, printed at `compare-final.log:7` for the workload-rows
+statement), dropped by quorum as non-reproducing because pairing 2 is 4 vs
+4. The advisory-max flag was passed on the command line; the tool does not
+echo its argv and emits a finding only when the ceiling is exceeded, so the
+log carries no trace of it. Logs: `/tmp/6923-legs-runB/compare.log`,
 `/tmp/6923-legs-runB/compare-final.log`; captures
 `/tmp/diff-capture-6923-runB/pair{1,2}/{nornicdb,neo4j}`.
 
