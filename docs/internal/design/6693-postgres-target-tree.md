@@ -156,13 +156,16 @@ recommendation, and none blocks an earlier step.
 declare methods on this one type (`identity_subjects.go:364`). Go cannot spread
 one method set across the eight `identity/` children, so the split needs a code
 change first, not only moves. Recommended: each child declares its own store
-struct (`local.Store`, `saml.Store` and so on) holding only the handle and
-keyring it uses, and `identity.SubjectStore` embeds them, so every existing
+struct (`localstore.Store`, `samlstore.Store` and so on) holding only the
+handle and keyring it uses, and `IdentitySubjectStore`, which stays in
+`identity/` under its current name, embeds them. Every existing
 `store.Method(...)` call site keeps compiling through promoted methods. With
 that change plus these hoists, the census reduces identity to a single cycle:
 
-- `beginLocalIdentityTx` -> `db.BeginTx` (its body only calls
-  `database.(db.Beginner).Begin`).
+- `beginLocalIdentityTx` -> a `db.BeginTx` helper. Its body is a nil check,
+  a `db.Beginner` assertion and `Begin`; the helper must keep returning the
+  exported `ErrLocalIdentityTransactionRequired` when the handle cannot begin
+  a transaction (`identity_local.go:366`).
 - `resolvePermissionGrantsForRoles`, `resolveLocalIdentityRolesQuery` and the
   OIDC role-target queries -> a new `identity/permission/` leaf. API tokens,
   OIDC, SAML and local login all resolve roles to grants the same way.
