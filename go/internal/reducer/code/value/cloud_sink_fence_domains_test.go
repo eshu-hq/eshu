@@ -27,6 +27,39 @@ var cloudSinkChainRelationshipPattern = regexp.MustCompile(`\[[A-Za-z0-9_]*:([A-
 // instead of silently dropping the hop from the derived writer set.
 var cloudSinkChainBracketPattern = regexp.MustCompile(`\[[^\]]*\]`)
 
+// cloudSinkChainNodeLabelPattern extracts a node pattern's label, e.g.
+// `(fn:Function` or `(:CloudAction`. The fence must also cover the writers of
+// these NODES, not only of the relationships between them: a Function that
+// does not exist yet or a CloudResource still materializing makes the probe
+// read a partial chain exactly as a missing edge does.
+var cloudSinkChainNodeLabelPattern = regexp.MustCompile(`\(\w*:([A-Z][A-Za-z]+)`)
+
+// cloudSinkChainNodeLabelOwners maps every node label the probe statements
+// traverse to the fenced domain that writes it. An unmapped label fails the
+// guard so a new hop cannot go unfenced silently.
+var cloudSinkChainNodeLabelOwners = map[string]reducer.Domain{
+	"Function":         reducer.DomainCodeFunctionSummary,
+	"CloudAction":      reducer.DomainCodeCallMaterialization,
+	"Workload":         reducer.DomainWorkloadMaterialization,
+	"WorkloadInstance": reducer.DomainWorkloadMaterialization,
+	"CloudResource":    reducer.DomainAWSResourceMaterialization,
+}
+
+// cloudSinkChainNodeLabels extracts every node label from the statements,
+// refusing statements with no label at all (a broken regex, not a clean chain).
+func cloudSinkChainNodeLabels(statements ...string) (map[string]struct{}, error) {
+	labels := make(map[string]struct{})
+	for _, cypher := range statements {
+		for _, m := range cloudSinkChainNodeLabelPattern.FindAllStringSubmatch(cypher, -1) {
+			labels[m[1]] = struct{}{}
+		}
+	}
+	if len(labels) == 0 {
+		return nil, fmt.Errorf("extracted zero node labels from the cloud-sink probe statements")
+	}
+	return labels, nil
+}
+
 // cloudSinkChainRelationshipTypes extracts every relationship type the two
 // #6923 probe statements traverse, directly from the production consts (not
 // a hand-copied list), so a future edit to either statement's chain is what
@@ -57,6 +90,38 @@ func relationshipTypesFromStatements(statements ...string) (map[string]struct{},
 		}
 	}
 	return types, nil
+}
+
+// TestCloudSinkChainNodeLabelsRejectsUnmappedLabel is the seeded violation
+// for the node-label half of the guard: a label the owner map does not know
+// must fail, and the production statements must extract the expected labels.
+func TestCloudSinkChainNodeLabelsRejectsUnmappedLabel(t *testing.T) {
+	t.Parallel()
+
+	labels, err := cloudSinkChainNodeLabels(value.CloudSinkWorkloadRowsCypher, value.CloudSinkTargetsByPairCypher)
+	if err != nil {
+		t.Fatalf("production statements must yield labels: %v", err)
+	}
+	for _, want := range []string{"Function", "CloudAction", "Workload", "WorkloadInstance", "CloudResource"} {
+		if _, ok := labels[want]; !ok {
+			t.Fatalf("label %s missing from the extracted set %v", want, labels)
+		}
+	}
+	for label := range labels {
+		if _, ok := cloudSinkChainNodeLabelOwners[label]; !ok {
+			t.Fatalf("label %s has no owner mapping", label)
+		}
+	}
+	synthetic, err := cloudSinkChainNodeLabels("MATCH (x:Mystery)-[:RUNS_IN]->(w:Workload) RETURN 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cloudSinkChainNodeLabelOwners["Mystery"]; ok {
+		t.Fatal("test premise broken: Mystery must be unmapped")
+	}
+	if _, ok := synthetic["Mystery"]; !ok {
+		t.Fatalf("synthetic label not extracted: %v", synthetic)
+	}
 }
 
 // TestRelationshipTypesFromStatementsRejectsUnparsedHop is the seeded
@@ -144,6 +209,26 @@ func TestValueFlowInputsFenceDomainsCoverCloudSinkChain(t *testing.T) {
 	relTypes := cloudSinkChainRelationshipTypes(t)
 	if len(relTypes) == 0 {
 		t.Fatal("extracted zero relationship types from the cloud-sink probe statements; the regex is broken, not the fence")
+	}
+
+	labels, err := cloudSinkChainNodeLabels(value.CloudSinkWorkloadRowsCypher, value.CloudSinkTargetsByPairCypher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for label := range labels {
+		owner, ok := cloudSinkChainNodeLabelOwners[label]
+		if !ok {
+			t.Fatalf("node label %s has no entry in cloudSinkChainNodeLabelOwners; add one before trusting the fence", label)
+		}
+		if _, covered := fenced[owner]; !covered {
+			t.Errorf("node label %s writer domain %q is not in the fence's declared domain set", label, owner)
+		}
+	}
+	// code_call_materialization enqueues the runs_in/invokes_cloud_action
+	// shared intents the fence's second half watches; it must stay fenced so
+	// the reducer half refuses while those intents are still being produced.
+	if _, covered := fenced[reducer.DomainCodeCallMaterialization]; !covered {
+		t.Errorf("domain %q (shared-intent enqueuer) is not in the fence's declared domain set", reducer.DomainCodeCallMaterialization)
 	}
 
 	for relType := range relTypes {

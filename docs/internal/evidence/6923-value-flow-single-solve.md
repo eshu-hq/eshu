@@ -138,6 +138,34 @@ Plans: `fact_work_items_status_idx` and `shared_projection_intents_acceptance_pa
 range scans joined to `ingestion_scopes_active_generation_idx`; no Seq Scan
 on either large table.
 
+### Replacement review fixes: guard covers node writers; migration 120 converging branch executed
+
+The independent replacement review found the fence-domain guard only derived
+relationship-type writers, so dropping `aws_resource_materialization` (the
+`CloudResource` node writer) or `code_function_summary` (the `Function` node
+writer) from the fence list left it green. The guard now also extracts every
+node label the two probe statements traverse (`Function`, `CloudAction`,
+`Workload`, `WorkloadInstance`, `CloudResource`), maps each to its writer
+domain, fails on an unmapped label, and asserts `code_call_materialization`
+(the shared-intent enqueuer) stays fenced. Seeded violation, orchestrator-run
+with the mutation asserted unique: replacing `reducer.DomainAWSResourceMaterialization,`
+in the fence list with a comment ->
+`--- FAIL: TestValueFlowInputsFenceDomainsCoverCloudSinkChain` /
+`node label CloudResource writer domain "aws_resource_materialization" is not
+in the fence's declared domain set`; restored -> `ok`.
+`TestCloudSinkChainNodeLabelsRejectsUnmappedLabel` pins the label extraction
+and an unmapped synthetic label.
+
+Migration 120's converging branch (the `NOT LIKE '%code_function_summary%'`
+true path) executed on the scratch database, which held the 093/112
+six-domain CHECK and trigger and 108,001 `fact_work_items` rows: before,
+`pg_get_constraintdef` listed six domains and the trigger definition did not
+contain `code_function_summary`; after applying 119 then 120 (both exit 0)
+the CHECK lists seven domains and the trigger contains it, with the row count
+unchanged; applying 120 a second time exited 0 and left the constraint and
+trigger OIDs unchanged (no-op); an insert into `cross_scope_completion_events`
+with `producer_domain = 'code_function_summary'` was accepted.
+
 ### Live fence proof (implementation-time, this branch)
 
 `TestValueFlowInputsLivenessFenceSharesSnapshot`

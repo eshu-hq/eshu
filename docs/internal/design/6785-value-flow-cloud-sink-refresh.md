@@ -95,9 +95,12 @@ one writer, not several racing ones. #6880 stays open for the owner to
 resolve after a multi-leg capture re-proof; this change does not resolve it
 directly.
 
-No change to the differential oracle, capture, or allowlist (`backendconformance`,
+No change to the differential oracle or capture semantics (`backendconformance`,
 `graph/capture`): the oracle was always correct, the wobble was a timing
-defect in when the solve ran. See
+defect in when the solve ran. Allowlist entry 36 (the `TAINT_FLOWS_TO`
+fixpoint writer excused for timing-dependent scope sets) is retired because
+this change removes the mechanism it excused and the stale-entry guard fails
+a run on an unmatched entry See
 `docs/internal/evidence/6923-value-flow-single-solve.md` for the
 prove-the-theory-first shims (capture analysis, fence EXPLAIN) and the
 performance/observability evidence.

@@ -228,10 +228,10 @@ func splitValueFlowRefreshAckIntents(
 // iam_can_perform_materialization (CAN_PERFORM), and aws_resource
 // materialization (the CloudResource node writer). Exported so
 // TestValueFlowInputsFenceDomainsCoverCloudSinkChain
-// (go/internal/reducer/code/value) can assert this set, derived from the
-// probe statements themselves, covers every writer — the guard against this
-// list drifting from go/internal/reducer/code/value/cloud_sink_loader.go's
-// two statements.
+// (go/internal/reducer/code/value) can assert this set covers every
+// relationship type and every node label the two probe statements in
+// go/internal/reducer/code/value/cloud_sink_loader.go traverse, plus the
+// shared-intent enqueuer, so this list cannot drift from those statements.
 var ValueFlowInputsFenceReducerDomains = []reducer.Domain{
 	reducer.DomainCodeFunctionSummary,
 	reducer.DomainCodeCallMaterialization,
@@ -274,8 +274,9 @@ const valueFlowInputsFenceStatusList = `('pending', 'claimed', 'running', 'retry
 // nonterminal rows and orphaned open intents never hold the fence; the
 // reducer half additionally restricts to valueFlowInputsFenceStatusList.
 // Each pending description carries scope/generation so the deferral log
-// names what holds the singleton.
-// and the exported, test-covered domain lists cannot drift apart. See
+// names what holds the singleton. Built from the exported domain lists, not
+// a hand-copied literal, so the SQL and the test-covered lists cannot drift
+// apart. See
 // docs/internal/evidence/6923-value-flow-single-solve.md for the EXPLAIN
 // (ANALYZE, BUFFERS) proof (index range scans only, sub-millisecond at B-7
 // scale) and docs/internal/design/6785-value-flow-cloud-sink-refresh.md for
