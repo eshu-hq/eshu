@@ -9,7 +9,7 @@ Guidance for LLM assistants editing this package.
 3. `classify.go` — `Classify` dispatcher and the five helper functions.
 4. `candidate.go` — `BuildCandidates` cross-scope candidate constructor.
 5. `attribute_allowlist.go` — per-resource-type attribute policy.
-6. `../../rules/terraform_config_state_drift_rules.go` — the rule-pack
+6. `../../rules/terraform_config_state_drift.go` — the rule-pack
    declaration this package supports (do not edit it from here).
 7. `docs/public/reference/relationship-mapping.md` — current relationship and
    drift-correlation contract.

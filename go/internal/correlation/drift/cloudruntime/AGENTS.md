@@ -11,7 +11,7 @@
    extraction; read this before touching anything ECS-shaped.
 5. `candidate.go` — ARN-keyed candidate and evidence construction.
 6. `telemetry.go` — bounded metric emission.
-7. `../../rules/aws_cloud_runtime_drift_rules.go` — rule-pack declaration.
+7. `../../rules/aws_cloud_runtime_drift.go` — rule-pack declaration.
 8. `docs/public/reference/relationship-mapping.md`
    — cloud observation joins phase.
 

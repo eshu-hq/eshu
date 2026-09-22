@@ -9,7 +9,7 @@
    `Validate` methods
 3. `go/internal/correlation/rules/container_rulepacks.go` — `ContainerRulePacks`
    and `FirstPartyRulePacks`; understand the split before adding a new pack
-4. Any one existing pack file (e.g. `dockerfile_rules.go`) as a structural
+4. Any one existing pack file (e.g. `dockerfile.go`) as a structural
    template
 5. `CLAUDE.md` "Correlation Truth Gates" — mandatory before touching any pack
    that affects correlation admission
@@ -37,9 +37,9 @@
 
 ## Common changes and how to scope them
 
-- **Add a new first-party rule pack** → create a new `*_rules.go` file with
+- **Add a new first-party rule pack** → create a new `<family>.go` file with
   one exported constructor function following the pattern in
-  `dockerfile_rules.go`. Add it to `FirstPartyRulePacks()` in
+  `dockerfile.go`. Add it to `FirstPartyRulePacks()` in
   `container_rulepacks.go`. Add to `ContainerRulePacks()` only if the pack
   belongs to the container correlation family. Run
   `go test ./internal/correlation/rules -count=1`. The `schema_test.go`

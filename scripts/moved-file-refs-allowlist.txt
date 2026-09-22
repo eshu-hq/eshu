@@ -237,3 +237,12 @@ go/internal/storage/cypher/AGENTS-evidence-history.md:go/internal/projector/tfst
 # go/internal/storage/cypher/edge/writer/derived_from.go.
 docs/internal/evidence/5457-provenance-edges.md:go/internal/storage/cypher/provenance_edge_writer.go
 docs/internal/evidence/6564-tag-history-grant-binding.md:go/internal/storage/cypher/provenance_edge_writer.go
+
+# #6778 filename destutter: dated evidence notes that record
+# cmd/reducer/reducer_executor_adapters.go under the name it carried when each
+# note was written. evidence-5048 describes that file as the NEW file its own
+# change introduced, so repointing it would record #5048 as having created a
+# name it did not. The live pointer is go/cmd/reducer/executor_adapters.go.
+go/cmd/reducer/evidence-5048-executor-retry-seam.md:go/cmd/reducer/reducer_executor_adapters.go
+go/internal/storage/cypher/evidence-4367-cloud-edge-retract.md:go/cmd/reducer/reducer_executor_adapters.go
+go/internal/storage/cypher/evidence-4367-iam-variable-retract.md:go/cmd/reducer/reducer_executor_adapters.go

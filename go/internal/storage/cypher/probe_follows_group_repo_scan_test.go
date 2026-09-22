@@ -122,7 +122,7 @@ func scanExecuteGroupAndProbeReceivers(t *testing.T) (groupReceivers []receiverT
 // #5998 review F1 fix. TestWrapperProbeFollowsGroupTableCoversEveryExecuteGroupReceiver
 // (probe_follows_group_test.go) only scans this package's own directory --
 // accurate for the in-package behavioral table, but blind to the seam the F1
-// review found unforwarded: go/cmd/reducer/reducer_executor_adapters.go,
+// review found unforwarded: go/cmd/reducer/executor_adapters.go,
 // outside this package, where cmd-package types are unexported and cannot be
 // constructed from here to run the build-and-assert check
 // TestWrapperProbeFollowsGroup uses (that would require importing an
