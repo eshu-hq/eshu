@@ -73,7 +73,13 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(r.Context(), h.Neo4j, ctx); len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
+	langBreakdown, toolBreakdown, fingerprintDegraded := repository.QueryServiceTechFingerprint(r.Context(), h.Neo4j, ctx)
+	if len(fingerprintDegraded) > 0 {
+		// A failed language or source-tool read degrades to a named limitation
+		// (#6810) instead of an empty breakdown that reads as "none".
+		ctx["limitations"] = append(querycontract.StringSliceVal(ctx, "limitations"), fingerprintDegraded...)
+	}
+	if len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
 		if len(langBreakdown) > 0 {
 			ctx["language_breakdown"] = langBreakdown
 		}

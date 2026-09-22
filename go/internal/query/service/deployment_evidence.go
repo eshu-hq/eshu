@@ -73,9 +73,12 @@ func queryServiceGraphDeploymentEvidence(ctx context.Context, graph querycontrac
 	return repository.QueryRepoDeploymentEvidence(ctx, graph, content, map[string]any{"repo_id": repoID})
 }
 
-func queryServiceGraphAPISurface(ctx context.Context, graph querycontract.GraphQuery, repoID string) map[string]any {
+// queryServiceGraphAPISurface reads the repository API surface for a service
+// and reports whether the graph read failed (#6810), so the caller can name
+// the degradation instead of rendering an absent surface as "none".
+func queryServiceGraphAPISurface(ctx context.Context, graph querycontract.GraphQuery, repoID string) (map[string]any, bool) {
 	if graph == nil || strings.TrimSpace(repoID) == "" {
-		return nil
+		return nil, false
 	}
 	return repository.QueryRepoAPISurface(ctx, graph, map[string]any{"repo_id": repoID})
 }

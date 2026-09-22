@@ -69,7 +69,14 @@ failed, or `infrastructure_truncated` when a healthy read landed past its own
 Terragrunt, ArgoCD, Helm, Kustomize, Crossplane, and CloudFormation, never the
 repository's total entity count of any type) while `story` folds the same
 reasons into its existing
-`limitations` array. This mirrors the `partial_reasons` shape the inventory
+`limitations` array. The context route's other auxiliary graph reads degrade
+the same way (#6810), each with its own reason so an operator can tell which
+panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
+`relationship_overview_read_degraded`,
+`deployable_unit_relationships_read_degraded`, `consumers_read_degraded`,
+`api_surface_read_degraded`, `languages_read_degraded` and
+`source_tool_breakdown_read_degraded`; `story` carries
+`relationships_read_degraded` in `limitations`. This mirrors the `partial_reasons` shape the inventory
 route already uses (below) rather than inventing a new one. `entry_points`,
 `languages` (context route), `relationships`, `relationship_overview`,
 `source_tool_breakdown`, `consumers`, `api_surface`, the deployable-unit

@@ -14,8 +14,8 @@ func queryRepoDeployableUnitRelationshipOverview(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	params map[string]any,
-) []map[string]any {
-	outgoing := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
+) ([]map[string]any, bool) {
+	outgoing, outgoingDegraded := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)
 		RETURN 'outgoing' AS direction,
 		       type(rel) AS type,
@@ -33,7 +33,7 @@ func queryRepoDeployableUnitRelationshipOverview(
 		       rel.rationale AS rationale
 		ORDER BY target_name
 	`)
-	incoming := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
+	incoming, incomingDegraded := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})<-[rel:CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)
 		RETURN 'incoming' AS direction,
 		       type(rel) AS type,
@@ -51,10 +51,11 @@ func queryRepoDeployableUnitRelationshipOverview(
 		       rel.rationale AS rationale
 		ORDER BY source_name
 	`)
+	degraded := outgoingDegraded || incomingDegraded
 	if len(outgoing) == 0 {
-		return incoming
+		return incoming, degraded
 	}
-	return append(outgoing, incoming...)
+	return append(outgoing, incoming...), degraded
 }
 
 func mergeRepositoryDeployableUnitRelationships(

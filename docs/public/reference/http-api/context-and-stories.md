@@ -61,7 +61,13 @@ repository is resolved, an auxiliary infrastructure read that fails degrades
 the response to a 200 with an empty `infrastructure` list and appends
 `infrastructure_read_degraded`, and a healthy infrastructure read that lands
 past its bound appends `infrastructure_truncated`. `partial_reasons` promotes
-these same reasons into its sorted, de-duplicated array.
+these same reasons into its sorted, de-duplicated array. The other auxiliary
+graph reads degrade the same way (#6810): a failed read of the outgoing
+dependencies appends `relationships_read_degraded`, a failed API surface read
+`api_surface_read_degraded`, and a failed language or source-tool read
+`languages_read_degraded` or `source_tool_breakdown_read_degraded`; each
+renders its panel empty beside the reason rather than as an authoritative
+empty list.
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.

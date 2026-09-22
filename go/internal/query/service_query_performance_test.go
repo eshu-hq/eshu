@@ -76,7 +76,7 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	t.Parallel()
 
 	graph := &recordingAPISurfaceGraph{t: t}
-	got := repository.QueryRepoAPISurface(context.Background(), graph, map[string]any{"repo_id": "repo-service"})
+	got, _ := repository.QueryRepoAPISurface(context.Background(), graph, map[string]any{"repo_id": "repo-service"})
 	if got == nil {
 		t.Fatal("repository.QueryRepoAPISurface() = nil, want API surface")
 	}

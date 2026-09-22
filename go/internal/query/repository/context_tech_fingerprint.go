@@ -60,16 +60,24 @@ func QueryServiceTechFingerprint(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	workloadContext map[string]any,
-) (languageBreakdown map[string]int, sourceToolBreakdown map[string]int) {
+) (languageBreakdown map[string]int, sourceToolBreakdown map[string]int, degradedReasons []string) {
 	repoID := querycontract.SafeStr(workloadContext, "repo_id")
 	if repoID == "" || reader == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	params := map[string]any{"repo_id": repoID}
 
-	languageBreakdown = buildLanguageBreakdownFromRows(queryRepoLanguageDistribution(ctx, reader, params))
-	sourceToolBreakdown = buildSourceToolBreakdownFromRows(queryRepoSourceToolBreakdown(ctx, reader, params))
-	return languageBreakdown, sourceToolBreakdown
+	languageRows, languagesDegraded := queryRepoLanguageDistribution(ctx, reader, params)
+	sourceToolRows, sourceToolDegraded := queryRepoSourceToolBreakdown(ctx, reader, params)
+	if languagesDegraded {
+		degradedReasons = append(degradedReasons, languagesReadDegradedReason)
+	}
+	if sourceToolDegraded {
+		degradedReasons = append(degradedReasons, sourceToolBreakdownReadDegradedReason)
+	}
+	languageBreakdown = buildLanguageBreakdownFromRows(languageRows)
+	sourceToolBreakdown = buildSourceToolBreakdownFromRows(sourceToolRows)
+	return languageBreakdown, sourceToolBreakdown, degradedReasons
 }
 
 // buildLanguageBreakdownFromRows and buildSourceToolBreakdownFromRows keep the

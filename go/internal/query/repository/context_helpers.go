@@ -10,10 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) []map[string]any {
+func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) ([]map[string]any, bool) {
 	repoID := querycontract.StringVal(params, "repo_id")
 	if entryPoints := querycontract.LoadRepositoryEntryPoints(ctx, content, repoID); entryPoints != nil {
-		return entryPoints
+		return entryPoints, false
 	}
 
 	rows, err := reader.Run(ctx, `
@@ -23,8 +23,11 @@ func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, 
 		RETURN fn.name AS name, f.relative_path AS relative_path, fn.language AS language
 		ORDER BY fn.name
 	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -38,7 +41,7 @@ func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, 
 			"language":      querycontract.StringVal(row, "language"),
 		})
 	}
-	return result
+	return result, false
 }
 
 // queryRepoInfrastructure returns the repository infrastructure rows,
@@ -61,15 +64,18 @@ func QueryRepoInfrastructure(ctx context.Context, reader querycontract.GraphQuer
 	return rows, false, truncated
 }
 
-func queryRepoLanguageDistribution(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func queryRepoLanguageDistribution(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 		WHERE f.language IS NOT NULL
 		RETURN f.language AS language, count(f) AS file_count
 		ORDER BY file_count DESC
 	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -79,10 +85,10 @@ func queryRepoLanguageDistribution(ctx context.Context, reader querycontract.Gra
 			"file_count": querycontract.IntVal(row, "file_count"),
 		})
 	}
-	return result
+	return result, false
 }
 
-func QueryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func QueryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)
 		RETURN type(rel) AS type, target.name AS target_name,
@@ -96,8 +102,11 @@ func QueryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery,
 		       rel.rationale AS rationale
 		ORDER BY type, target_name
 	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -113,11 +122,11 @@ func QueryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery,
 		copyRelationshipEvidenceMetadata(entry, row)
 		result = append(result, entry)
 	}
-	return filterRepoRelationshipTargetRowsForAccess(result, "target_id", querycontract.RepositoryAccessFilterFromContext(ctx))
+	return filterRepoRelationshipTargetRowsForAccess(result, "target_id", querycontract.RepositoryAccessFilterFromContext(ctx)), false
 }
 
-func queryRepoRelationshipOverview(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
-	outgoing := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
+func queryRepoRelationshipOverview(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
+	outgoing, outgoingDegraded := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)
 		RETURN 'outgoing' AS direction,
 		       type(rel) AS type,
@@ -135,7 +144,7 @@ func queryRepoRelationshipOverview(ctx context.Context, reader querycontract.Gra
 		       rel.rationale AS rationale
 		ORDER BY type, target_name
 	`)
-	incoming := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
+	incoming, incomingDegraded := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)
 		RETURN 'incoming' AS direction,
 		       type(rel) AS type,
@@ -159,13 +168,16 @@ func queryRepoRelationshipOverview(ctx context.Context, reader querycontract.Gra
 	} else {
 		combined = append(outgoing, incoming...)
 	}
-	return filterRepoRelationshipOverviewRowsForAccess(combined, querycontract.StringVal(params, "repo_id"), querycontract.RepositoryAccessFilterFromContext(ctx))
+	return filterRepoRelationshipOverviewRowsForAccess(combined, querycontract.StringVal(params, "repo_id"), querycontract.RepositoryAccessFilterFromContext(ctx)), outgoingDegraded || incomingDegraded
 }
 
-func queryRepoRelationshipOverviewDirection(ctx context.Context, reader querycontract.GraphQuery, params map[string]any, cypher string) []map[string]any {
+func queryRepoRelationshipOverviewDirection(ctx context.Context, reader querycontract.GraphQuery, params map[string]any, cypher string) ([]map[string]any, bool) {
 	rows, err := reader.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -184,7 +196,7 @@ func queryRepoRelationshipOverviewDirection(ctx context.Context, reader querycon
 		copyRelationshipEvidenceMetadata(entry, row)
 		result = append(result, entry)
 	}
-	return result
+	return result, false
 }
 
 // queryRepoSourceToolBreakdown returns a per-source_tool edge count for the
@@ -197,15 +209,18 @@ func queryRepoRelationshipOverviewDirection(ctx context.Context, reader querycon
 // `-[rel]->()` would also traverse REPO_CONTAINS to every File node in the
 // repository (a large fanout) only to discard them on the source_tool IS NOT
 // NULL filter; the type list keeps the expand to the stamped edges.
-func QueryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func QueryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|DEPLOYS_FROM|USES_MODULE|READS_CONFIG_FROM|PROVISIONS_DEPENDENCY_FOR|DISCOVERS_CONFIG_IN]->()
 		WHERE rel.source_tool IS NOT NULL
 		RETURN rel.source_tool AS source_tool, count(rel) AS edge_count
 		ORDER BY edge_count DESC, source_tool
 	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -215,17 +230,20 @@ func QueryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.Grap
 			"edge_count":  querycontract.IntVal(row, "edge_count"),
 		})
 	}
-	return result
+	return result, false
 }
 
-func queryRepoConsumers(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func queryRepoConsumers(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(consumer:Repository)
 		RETURN consumer.name AS consumer_name, consumer.id AS consumer_id
 		ORDER BY consumer_name
 	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+	if err != nil {
+		return make([]map[string]any, 0), true
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), false
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -235,7 +253,7 @@ func queryRepoConsumers(ctx context.Context, reader querycontract.GraphQuery, pa
 			"id":   querycontract.StringVal(row, "consumer_id"),
 		})
 	}
-	return filterRepoRelationshipTargetRowsForAccess(result, "id", querycontract.RepositoryAccessFilterFromContext(ctx))
+	return filterRepoRelationshipTargetRowsForAccess(result, "id", querycontract.RepositoryAccessFilterFromContext(ctx)), false
 }
 
 // filterRepoRelationshipTargetRowsForAccess drops repository-relationship rows
@@ -360,7 +378,7 @@ func repositoryReadModelDependencies(readModel *querycontract.RepositoryRelation
 // the #6060 export; root stayers outside the repository family name the
 // exported spelling above.
 
-func queryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func queryRepoDependencies(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	return QueryRepoDependencies(ctx, reader, params)
 }
 
@@ -370,13 +388,13 @@ func queryRepoInfrastructure(ctx context.Context, reader querycontract.GraphQuer
 
 // queryRepoSourceToolBreakdown keeps the in-package spelling after the #6060
 // export; root tests name QueryRepoSourceToolBreakdown.
-func queryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
+func queryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool) {
 	return QueryRepoSourceToolBreakdown(ctx, reader, params)
 }
 
 // queryRepoEntryPoints keeps the in-package spelling after the #6060 export;
 // root tests name QueryRepoEntryPoints.
-func queryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) []map[string]any {
+func queryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) ([]map[string]any, bool) {
 	return QueryRepoEntryPoints(ctx, reader, content, params)
 }
 

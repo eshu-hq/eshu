@@ -114,7 +114,7 @@ func TestLiveRepoDependencyWithoutSourceToolStaysUnstamped(t *testing.T) {
 			edge["source_tool"], live.backend)
 	}
 
-	breakdown := repository.QueryRepoSourceToolBreakdown(ctx, live, map[string]any{"repo_id": liveSourceToolRepo})
+	breakdown, _ := repository.QueryRepoSourceToolBreakdown(ctx, live, map[string]any{"repo_id": liveSourceToolRepo})
 	t.Logf("%s source_tool breakdown: %v", live.backend, breakdown)
 	if len(breakdown) != 1 || breakdown[0]["source_tool"] != "helm" || breakdown[0]["edge_count"] != 1 {
 		t.Fatalf("breakdown = %v on %s, want exactly [{source_tool: helm, edge_count: 1}]", breakdown, live.backend)

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // QueryEnrichmentOptions controls how much graph-derived enrichment
@@ -60,10 +61,18 @@ func EnrichServiceQueryContextWithOptions(
 		operation = "service_context"
 	}
 	timer := StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_api_surface")
-	if graphAPISurface := queryServiceGraphAPISurface(ctx, graph, repoID); len(graphAPISurface) > 0 {
+	graphAPISurface, apiSurfaceDegraded := queryServiceGraphAPISurface(ctx, graph, repoID)
+	if len(graphAPISurface) > 0 {
 		workloadContext["api_surface"] = graphAPISurface
 	}
-	timer.Done(ctx, slog.Bool("has_result", len(querycontract.MapValue(workloadContext, "api_surface")) > 0))
+	apiSurfaceAttrs := []slog.Attr{slog.Bool("has_result", len(querycontract.MapValue(workloadContext, "api_surface")) > 0)}
+	if apiSurfaceDegraded {
+		// A failed API surface read is a named limitation (#6810), promoted
+		// into partial_reasons by the context and story handlers.
+		apiSurfaceAttrs = append(apiSurfaceAttrs, slog.String("failure_class", repository.APISurfaceReadDegradedReason))
+		workloadContext["limitations"] = append(querycontract.StringSliceVal(workloadContext, "limitations"), repository.APISurfaceReadDegradedReason)
+	}
+	timer.Done(ctx, apiSurfaceAttrs...)
 	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_deployment_evidence")
 	graphEvidence, err := queryServiceGraphDeploymentEvidence(ctx, graph, content, repoID)
 	if err != nil {

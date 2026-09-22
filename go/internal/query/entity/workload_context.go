@@ -152,8 +152,16 @@ func (h *Handler) fetchWorkloadContextDecision(ctx context.Context, whereClause 
 	if repoID != "" {
 		repoParams := map[string]any{"repo_id": repoID}
 		timer = service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(row, "name"), repoID, "repo_dependencies")
-		result["dependencies"] = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
-		timer.Done(ctx, slog.Int("row_count", len(querycontract.MapSliceValue(result, "dependencies"))))
+		dependencies, dependenciesDegraded := repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
+		result["dependencies"] = dependencies
+		dependencyAttrs := []slog.Attr{slog.Int("row_count", len(dependencies))}
+		if dependenciesDegraded {
+			dependencyAttrs = append(dependencyAttrs, slog.String("failure_class", repository.RelationshipsReadDegradedReason))
+			// Same discipline as the infrastructure read below (#6810): a failed
+			// dependencies read is a named limitation, not an empty list.
+			result["limitations"] = append(querycontract.StringSliceVal(result, "limitations"), repository.RelationshipsReadDegradedReason)
+		}
+		timer.Done(ctx, dependencyAttrs...)
 		timer = service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(row, "name"), repoID, "repo_infrastructure")
 		infrastructure, infrastructureDegraded, infrastructureTruncated := repository.QueryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
 		result["infrastructure"] = infrastructure
@@ -270,7 +278,11 @@ func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serv
 	}
 	dependencies := []map[string]any{}
 	if h.Neo4j != nil {
-		dependencies = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
+		var dependenciesDegraded bool
+		dependencies, dependenciesDegraded = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
+		if dependenciesDegraded {
+			limitations = append(limitations, repository.RelationshipsReadDegradedReason)
+		}
 	}
 	return map[string]any{
 		"id":                     "workload:" + workloadName,
