@@ -146,8 +146,11 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 	}
 }
 
-// TestCardinalityAudit_NoBannedKeysInContractFiles scans all contract_*.go
-// files for newly defined dimension key constants whose wire value is a
+// TestCardinalityAudit_NoBannedKeysInContractFiles scans every source file in
+// the telemetry package and its contract, contract/observability, and
+// contract/thirdparty subpackages (issue #6777 nested the frozen contract
+// declarations out of the flat contract_*.go layout this test originally
+// assumed) for newly defined dimension key constants whose wire value is a
 // hard-banned key.  The metricDimensionKeys registry in registry.go should
 // already catch these, but this test provides defense-in-depth.
 func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
@@ -156,32 +159,32 @@ func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
 		hardBanned[k] = true
 	}
 
-	telemetryDir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(telemetryDir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
-
-	var violations []string
 	// Match Go string constants of the form: MetricDimensionXxx = "key"
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(telemetryDir, e.Name()))
+	var violations []string
+	for _, dir := range telemetryContractDirs(t) {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
+			t.Fatalf("read %s: %v", dir, err)
 		}
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			if err != nil {
+				t.Fatalf("read %s: %v", e.Name(), err)
+			}
 
-		matches := re.FindAllStringSubmatch(string(content), -1)
-		for _, m := range matches {
-			wireKey := m[1]
-			if hardBanned[wireKey] {
-				violations = append(violations, fmt.Sprintf(
-					"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name(),
-				))
+			matches := re.FindAllStringSubmatch(string(content), -1)
+			for _, m := range matches {
+				wireKey := m[1]
+				if hardBanned[wireKey] {
+					violations = append(violations, fmt.Sprintf(
+						"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name(),
+					))
+				}
 			}
 		}
 	}
@@ -315,29 +318,52 @@ func telemetrySourceDir(t *testing.T) string {
 
 func collectWireKeysFromContracts(t *testing.T) map[string]bool {
 	t.Helper()
-	dir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
 
 	wireKeys := make(map[string]bool)
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+	for _, dir := range telemetryContractDirs(t) {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
+			t.Fatalf("read %s: %v", dir, err)
 		}
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			if err != nil {
+				t.Fatalf("read %s: %v", e.Name(), err)
+			}
 
-		matches := re.FindAllStringSubmatch(string(content), -1)
-		for _, m := range matches {
-			wireKeys[m[1]] = true
+			matches := re.FindAllStringSubmatch(string(content), -1)
+			for _, m := range matches {
+				wireKeys[m[1]] = true
+			}
 		}
 	}
 
 	return wireKeys
+}
+
+// telemetryContractDirs returns every directory whose Go source may declare a
+// MetricDimensionXxx = "wire_key" constant: the root telemetry package (for
+// contract.go, registry.go, and any remaining flat contract file) plus the
+// nested contract, contract/observability, and contract/thirdparty
+// subpackages the frozen per-family declarations moved into (issue #6777).
+func telemetryContractDirs(t *testing.T) []string {
+	t.Helper()
+	root := telemetrySourceDir(t)
+	dirs := []string{
+		root,
+		filepath.Join(root, "contract"),
+		filepath.Join(root, "contract", "observability"),
+		filepath.Join(root, "contract", "thirdparty"),
+	}
+	for _, d := range dirs {
+		if fi, err := os.Stat(d); err != nil || !fi.IsDir() {
+			t.Fatalf("expected telemetry contract directory %s to exist: %v", d, err)
+		}
+	}
+	return dirs
 }

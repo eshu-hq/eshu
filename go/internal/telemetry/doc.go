@@ -5,10 +5,20 @@
 // metric instruments, span names, structured log keys, and shared runtime
 // attributes.
 //
-// The frozen contract lives in contract.go (metric, span, scope, phase,
-// and failure-class names) and the metric instruments themselves live in
-// instruments.go. Metric names use the eshu_dp_ prefix; new dimensions and
-// span names must be registered in contract.go before use, including
+// The majority-share frozen contract lives in contract.go (metric, span,
+// scope, phase, and failure-class names); the metric instruments themselves
+// live in instruments.go. Per-family span, dimension, and log-key
+// declarations that would otherwise grow contract.go unboundedly live one
+// file per family under the leaf subpackages contract, contract/observability,
+// and contract/thirdparty (issue #6777) instead of as flat contract_*.go
+// files. registration.go and registration_steps.go hold the single explicit,
+// ordered registrationSteps list that splices every subpackage family into
+// the frozen spanNames, metricDimensionKeys, and logKeys slices — see that
+// file's own comment before reordering it. Every subpackage identifier is
+// still available as a root telemetry.* name via compat_contract.go,
+// compat_observability.go, and compat_thirdparty.go. Metric names use the
+// eshu_dp_ prefix; new dimensions and span names must be registered before
+// use, including
 // documentation extraction counters, Terraform-state collector spans, webhook
 // listener spans, OCI registry collector spans, and the safe_locator_hash and
 // warning_kind dimensions used by the tfstate output, module, warning emission,
@@ -25,7 +35,7 @@
 // route that combines target resolution, content handles, and bounded graph
 // traversal. SpanQueryHardcodedSecretInvestigation names the prompt-facing
 // security route that returns redacted hardcoded-secret candidates from indexed
-// content and keeps that span name in contract_query_spans.go.
+// content and keeps that span name in contract/query_spans.go.
 // SpanQueryEvidenceCitationPacket names the prompt-facing citation
 // hydration route that turns explicit content handles into bounded source and
 // documentation proof. SpanQuerySemanticEvidence names the opt-in semantic
