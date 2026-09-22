@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// AdvisoryStatementMaxLen is the default per-statement truncation bound for
+// [TopAdvisoryStatementReports]: long enough to identify a Cypher statement,
+// short enough that a report line stays readable in a CI log (#6941).
+const AdvisoryStatementMaxLen = 120
+
 // Divergence kinds name the check that caught a difference, so the
 // divergence allowlist can excuse a named dialect divergence without ever
 // excusing a result disagreement, and the gate can hold execution-count
@@ -199,6 +204,60 @@ func SplitAdvisory(diffs []DifferentialDifference) (required, advisory []Differe
 		required = append(required, diff)
 	}
 	return required, advisory
+}
+
+// TopAdvisoryStatementReports groups diffs by Fingerprint.Statement, counts
+// how many divergences each statement contributed, and formats the top n
+// groups as "<statement> (<count>)" — descending by count, tied broken by
+// statement text ascending so the order is deterministic across runs instead
+// of depending on map iteration. Each statement is truncated to maxLen runes
+// with a "..." suffix when cut (maxLen <= 0 disables truncation), so one long
+// Cypher statement cannot dominate a one-line gate report. n <= 0 returns
+// every ranked group. Nil or empty diffs return nil (#6941: the advisory
+// ceiling finding names its top offenders instead of only the first).
+func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) []string {
+	if len(diffs) == 0 {
+		return nil
+	}
+	counts := make(map[string]int, len(diffs))
+	for _, d := range diffs {
+		counts[d.Fingerprint.Statement]++
+	}
+	type statementCount struct {
+		statement string
+		count     int
+	}
+	ranked := make([]statementCount, 0, len(counts))
+	for stmt, count := range counts {
+		ranked = append(ranked, statementCount{statement: stmt, count: count})
+	}
+	slices.SortFunc(ranked, func(x, y statementCount) int {
+		if x.count != y.count {
+			return y.count - x.count
+		}
+		return strings.Compare(x.statement, y.statement)
+	})
+	if n > 0 && len(ranked) > n {
+		ranked = ranked[:n]
+	}
+	out := make([]string, 0, len(ranked))
+	for _, sc := range ranked {
+		out = append(out, fmt.Sprintf("%s (%d)", truncateStatement(sc.statement, maxLen), sc.count))
+	}
+	return out
+}
+
+// truncateStatement bounds s to maxLen runes, appending "..." when cut.
+// maxLen <= 0 disables truncation.
+func truncateStatement(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen]) + "..."
 }
 
 // quorumKey identifies one divergence across leg pairings: the same

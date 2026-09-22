@@ -2621,6 +2621,18 @@ gates:
     # kind) are advisory even when reproduced (#6782 permanent disposition,
     # 2026-09-21): the backends drain at different speeds, so per-statement
     # allowlist excuses were open-ended; results/missing still fail on reads.
+    # #6941: that advisory total was unbounded, so a backend regression that
+    # tripled drain passes would still pass green. CI's quorum invocation
+    # (.github/workflows/golden-corpus-gate.yml, "Compare backend
+    # recordings") now passes -diff-executions-advisory-max=200 -- observed
+    # totals on this corpus were 12-70 across nine CI runs and four replayed
+    # capture artifacts (run IDs in docs/internal/evidence/
+    # 6782-executions-advisory.md, "Calibration"), so 200 is a
+    # systemic-regression tripwire (~2.9x observed max), not a tuning target.
+    # local.command above stays single-pair (-diff-left/-diff-right only, no
+    # -diff-left2/-diff-right2): single-pair mode has no quorum and never
+    # reaches runBackendDiffQuorum, so the ceiling flag has nothing to bound
+    # there and is intentionally not added to this command.
 
   # #5538 task 4 root-cause fix: three review rounds each found more packages
   # missing from golden-corpus-gate's own path filter because completeness was

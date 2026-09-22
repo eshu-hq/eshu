@@ -123,3 +123,64 @@ advisory report lines bounded by `capture.MaxReportedDiffs`.
 
 No-Observability-Change: no new metrics, spans, or log keys. The gate report
 gains one finding line per quorum run.
+
+## Advisory ceiling (#6941)
+
+The executions-kind advisory finding above has no upper bound: a backend
+regression that tripled drain passes would still report as an advisory `WARN`
+and the gate would still pass green. #6941 adds a ceiling,
+`-diff-executions-advisory-max` (quorum mode only), that fails the gate with a
+required `nornicdb_vs_neo4j_executions_ceiling` finding when the reproduced
+advisory total exceeds it; 0 (the default) disables the check, and within the
+ceiling the existing advisory finding is unchanged.
+
+### Calibration
+
+Observed reproduced advisory execution-count totals, same quorum invocation
+and committed allowlist, read from the `[WARN] nornicdb_vs_neo4j_executions`
+line of each run's "Compare backend recordings" step. Every completed
+`golden-corpus-gate.yml` run since #6942 merged (2026-09-22, oldest first):
+57 (35711167105, main d4b50d1348), 54 (35711318028, main 1f777b5e48),
+55 (35715309080), 63 (35715863614), 58 (35715941325), 12 (35720266323),
+64 (35720279505, main 9208c2f575), 58 (35723358515), 14 (35723589651).
+Four earlier capture artifacts replayed locally with this branch's binary
+(`-diff-executions-advisory-max=200`, no ceiling finding on any): 56
+(run 35664395755, main), 70 (run 35661933201, PR #6932), 56 (PR #6931),
+21 (run 35695605570, PR #6892). Observed range 12-70. CI now passes
+`-diff-executions-advisory-max=200` (`.github/workflows/golden-corpus-gate.yml`,
+"Compare backend recordings" step): about 2.9x the observed max. This is a
+systemic-regression tripwire, not a tuning target -- it exists to catch a
+gross behavioral change (e.g. drain passes tripling), not to track the
+corpus's normal scheduling-noise band. Narrowing it toward the observed
+band would turn ordinary run-to-run variance into gate flakes; the point is a
+wide backstop, not a calibrated alarm.
+
+The advisory finding's own detail was also widened (#6941): it previously
+named only the first recorded divergence, which does not identify whether a
+count is spread across many statements (scheduling noise, the expected shape)
+or concentrated on one or two (a possible regression). It now names the top 3
+statements by reproduced-divergence count
+(`backendconformance.TopAdvisoryStatementReports`), truncated to 120
+characters each; the ceiling finding names the same top statements.
+
+### RED/GREEN proof commands run
+
+Unit level (`go/internal/backendconformance`, pure ranking/truncation helper):
+
+```bash
+cd go && go test ./internal/backendconformance -run TestTopAdvisoryStatementReports -count=1 -v
+```
+
+Gate level (`go/cmd/golden-corpus-gate`, real sink files through the quorum
+phase, `-diff-executions-advisory-max` under test):
+
+```bash
+cd go && go test ./cmd/golden-corpus-gate -run \
+  'TestRunBackendDiffQuorumExecutionsWithinCeilingPasses|TestRunBackendDiffQuorumExecutionsAboveCeilingFails|TestRunBackendDiffQuorumExecutionsCeilingDisabledNeverFails|TestRunBackendDiffQuorumAdvisoryDetailNamesTopStatements' \
+  -count=1 -v
+```
+
+Both RED (flag/finding undefined, `TopAdvisoryStatementReports` undefined)
+before the implementation and GREEN after; full package runs
+(`go test ./internal/backendconformance ./cmd/golden-corpus-gate -count=1`)
+stayed green with no regressions in the existing #6782 quorum/advisory tests.

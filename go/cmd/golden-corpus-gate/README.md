@@ -76,7 +76,25 @@ divergences with agreeing results (`executions` kind) are also advisory
 (`nornicdb_vs_neo4j_executions`, #6782 permanent disposition): the two
 backends drain at systematically different speeds, so pass counts reproduce
 across pairings and quorum cannot filter them, while row truth is still
-compared through the `results` and `missing` kinds on every read.
+compared through the `results` and `missing` kinds on every read. The
+advisory finding's detail names the top 3 statements by reproduced-divergence
+count (`backendconformance.TopAdvisoryStatementReports`), not only the first
+recorded, so a regression concentrated on a handful of statements is visible
+without reading the full pairing dump.
+
+That advisory total is otherwise unbounded (#6941): a backend regression that
+triples drain passes would still report as an advisory `WARN` and pass the
+gate. `-diff-executions-advisory-max` (quorum mode only; 0 disables it, the
+default) puts a ceiling on the reproduced advisory total — above it the phase
+adds a required, failing `nornicdb_vs_neo4j_executions_ceiling` finding naming
+the observed count, the ceiling, and the top statements, instead of leaving
+the total to grow silently. CI passes `-diff-executions-advisory-max=200`:
+observed advisory totals on this corpus were 12-70 across nine CI runs and
+four replayed capture artifacts (run IDs in
+`docs/internal/evidence/6782-executions-advisory.md`, "Calibration"), so 200
+is a systemic-regression tripwire (~2.9x the observed max), not a tuning
+target. Within the ceiling (or with it disabled) the existing advisory
+finding behaves exactly as before — no ceiling finding is added.
 
 Environment variables match the services under test: `ESHU_POSTGRES_DSN`,
 `ESHU_GRAPH_BACKEND`, `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` /
@@ -203,7 +221,9 @@ scans an entire response.
 - `report.go` — finding aggregation, severity, and rendering.
 - `backenddiff.go` — the backend-diff phase: compare two backends'
   differential capture directories against the divergence allowlist (#6782),
-  with multi-leg quorum across two pairings via `-diff-left2`/`-diff-right2`.
+  with multi-leg quorum across two pairings via `-diff-left2`/`-diff-right2`,
+  and a `-diff-executions-advisory-max` ceiling on the reproduced advisory
+  execution-count total in quorum mode (#6941).
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
 ## SQL relationship and CODEOWNERS query coverage (#5410)

@@ -5,6 +5,7 @@ package backendconformance
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -170,5 +171,86 @@ func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
 	}
 	if r, a := SplitAdvisory(nil); r != nil || a != nil {
 		t.Fatalf("SplitAdvisory(nil) = %v, %v; want nil, nil", r, a)
+	}
+}
+
+// TestTopAdvisoryStatementReportsOrdersByCountDescending pins the ranking
+// order for #6941: the advisory ceiling names its top offenders, so a
+// statement reproducing more often must sort first.
+func TestTopAdvisoryStatementReportsOrdersByCountDescending(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (a) RETURN a")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (b) RETURN b")},
+		{Fingerprint: fp("MATCH (c) RETURN c")},
+		{Fingerprint: fp("MATCH (c) RETURN c")},
+	}
+	got := TopAdvisoryStatementReports(diffs, 3, 120)
+	want := []string{
+		"MATCH (b) RETURN b (3)",
+		"MATCH (c) RETURN c (2)",
+		"MATCH (a) RETURN a (1)",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+}
+
+// TestTopAdvisoryStatementReportsTieBreaksByStatementText pins the
+// determinism requirement: equal counts must not depend on map iteration
+// order, so the tie breaks on the statement text ascending.
+func TestTopAdvisoryStatementReportsTieBreaksByStatementText(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (z) RETURN z")},
+		{Fingerprint: fp("MATCH (a) RETURN a")},
+		{Fingerprint: fp("MATCH (m) RETURN m")},
+	}
+	got := TopAdvisoryStatementReports(diffs, 10, 120)
+	want := []string{
+		"MATCH (a) RETURN a (1)",
+		"MATCH (m) RETURN m (1)",
+		"MATCH (z) RETURN z (1)",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+}
+
+// TestTopAdvisoryStatementReportsTruncatesLongStatements pins the 120-rune
+// bound (#6941): a long Cypher statement must not dominate the one-line gate
+// report, so it is cut with a "..." suffix while the count stays intact.
+func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("x", 10)
+	fp := DifferentialFingerprint{Statement: long, Parameters: `{}`}
+	diffs := []DifferentialDifference{{Fingerprint: fp}}
+	got := TopAdvisoryStatementReports(diffs, 3, 4)
+	want := []string{"xxxx... (1)"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+	// A statement at or under the bound is never marked truncated.
+	short := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
+	got = TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, 120)
+	want = []string{"MATCH (n) RETURN n (1)"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	}
+}
+
+// TestTopAdvisoryStatementReportsEmptyInput pins nil-in/nil-out: an empty
+// advisory slice must not synthesize a phantom report line.
+func TestTopAdvisoryStatementReportsEmptyInput(t *testing.T) {
+	t.Parallel()
+	if got := TopAdvisoryStatementReports(nil, 3, 120); got != nil {
+		t.Fatalf("TopAdvisoryStatementReports(nil) = %v, want nil", got)
+	}
+	if got := TopAdvisoryStatementReports([]DifferentialDifference{}, 3, 120); got != nil {
+		t.Fatalf("TopAdvisoryStatementReports(empty) = %v, want nil", got)
 	}
 }

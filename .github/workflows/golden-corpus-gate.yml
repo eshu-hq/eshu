@@ -346,6 +346,7 @@ jobs:
           "-diff-left2=${{ runner.temp }}/diff-capture/pair2/nornicdb"
           "-diff-right2=${{ runner.temp }}/diff-capture/pair2/neo4j"
           -diff-allowlist=specs/backend-divergence-allowlist.v1.yaml
+          -diff-executions-advisory-max=200
 
       - name: Upload capture recordings on failure
         if: failure()

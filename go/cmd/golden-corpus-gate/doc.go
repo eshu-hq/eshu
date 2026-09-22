@@ -46,7 +46,10 @@
 //     that recorded only one backend fails closed. With -diff-left2 and
 //     -diff-right2 the phase runs multi-leg quorum: only divergences
 //     reproducing across both pairings fail the gate. Execution-count
-//     divergences with agreeing results are advisory in both modes.
+//     divergences with agreeing results are advisory in both modes; in quorum
+//     mode, -diff-executions-advisory-max (#6941) caps the reproduced
+//     advisory total — above it, a required nornicdb_vs_neo4j_executions_ceiling
+//     finding fails the gate instead of the total growing unbounded.
 //
 // The command connects to a Postgres DSN, a graph backend, and a running
 // eshu-api using the same environment variables the services under test use
