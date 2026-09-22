@@ -51,6 +51,18 @@ type nodeDeleteFunc func(ctx context.Context, uids []string, evidenceSource stri
 // which uids die. The input slice is never mutated: the gate sorts a copy so
 // retries and replays converge on the same statement sequence.
 //
+// Residual TOCTOU the per-uid lock does not fence: the live-check reads
+// ingestion_scopes.active_generation_id, which a scope-level ingest upsert
+// advances without taking any per-uid lock. If another scope flips its
+// active pointer onto a generation that admits a candidate strictly between
+// this chunk's check and its graph delete, the delete removes a node that
+// just became live. The "either order converges" argument above covers a
+// concurrent re-admit's graph write (it blocks on the same lock), not that
+// pointer flip. Impact is bounded: Postgres facts are intact and the
+// admitting scope's own materialization recreates the node on its next
+// generation, so the graph heals; closing it would need a cross-system
+// global lock the design deliberately avoids.
+//
 // A nil Gate (or one with no ledger wired) SKIPS the retract, deliberately
 // unlike Gate.write's pass-through: without the ledger there is no per-uid
 // lock and no in-transaction live-check, so a delete cannot prove global

@@ -80,8 +80,8 @@ uid, never a bare-label scan (#6822: bare-label `DETACH DELETE` costs
   deleted; all-alive commits without writes; empty input opens no
   transaction; deletes run in sorted uid order without mutating the input;
   liveness errors and delete errors both roll back (release never commits
-  without its delete); nil-ledger pass-through deletes unwrapped; chunk
-  bound holds.
+  without its delete); nil-ledger skips the retract (fail-closed, never an
+  over-delete); chunk bound holds.
 - `TestLiveCloudRetractEndToEnd` (live PG + live graph): multi-scope
   adversarial layout — node live in scope B survives, history-only node is
   deleted and ledger-released, replay reconverges deterministically.
