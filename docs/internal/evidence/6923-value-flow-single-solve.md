@@ -142,8 +142,8 @@ on either large table.
 
 The independent replacement review found the fence-domain guard only derived
 relationship-type writers, so dropping `aws_resource_materialization` (the
-`CloudResource` node writer) or `code_function_summary` (the `Function` node
-writer) from the fence list left it green. The guard now also extracts every
+`CloudResource` node writer) or `code_function_summary` (the fixpoint input
+producer) from the fence list left it green. The guard now also extracts every
 node label the two probe statements traverse (`Function`, `CloudAction`,
 `Workload`, `WorkloadInstance`, `CloudResource`), maps each to the fenced
 domain whose completion guarantees the node is present (Function is covered

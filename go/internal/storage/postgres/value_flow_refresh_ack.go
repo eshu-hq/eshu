@@ -220,13 +220,18 @@ func splitValueFlowRefreshAckIntents(
 }
 
 // ValueFlowInputsFenceReducerDomains is the six fact_work_items queue
-// domains that still write a link in the cloud-sink chain the #6785/#6923
-// global value-flow solve reads: code_function_summary (Function nodes and
-// INVOKES_CLOUD_ACTION), code_call_materialization (the RUNS_IN/
-// INVOKES_CLOUD_ACTION writer pair for the call-site chain), the workload and
-// workload-cloud-relationship materializers (INSTANCE_OF, USES),
-// iam_can_perform_materialization (CAN_PERFORM), and aws_resource
-// materialization (the CloudResource node writer). Exported so
+// domains whose completion the #6785/#6923 global value-flow solve's
+// cloud-sink chain read depends on: code_function_summary (the fixpoint's
+// summary, source, and graph-id inputs; it writes no graph node),
+// code_call_materialization (enqueues the runs_in/invokes_cloud_action
+// shared intents whose projections write RUNS_IN and INVOKES_CLOUD_ACTION
+// and MERGE the CloudAction nodes), the workload and
+// workload-cloud-relationship materializers (Workload/WorkloadInstance
+// nodes, INSTANCE_OF, USES), iam_can_perform_materialization (CAN_PERFORM),
+// and aws_resource materialization (the CloudResource node writer). The
+// Function node itself is written by code/semantic materialization, which
+// is not fenced: the edge writers anchor on it and their intents stay open
+// until it has published. Exported so
 // TestValueFlowInputsFenceDomainsCoverCloudSinkChain
 // (go/internal/reducer/code/value) can assert this set covers every
 // relationship type the two probe statements in
