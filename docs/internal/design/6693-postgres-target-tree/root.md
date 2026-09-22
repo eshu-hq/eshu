@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 104 test)
+### `root (stays)` (4 non-test, 106 test)
 
 ```text
 adapters.go -> adapters.go
@@ -91,7 +91,9 @@ reducer_queue_ack_fanout_plan_test.go -> reducer_queue_ack_fanout_plan_test.go  
 reducer_queue_batch_ack_reclaim_live_test.go -> reducer_queue_batch_ack_reclaim_live_test.go   # follows its private symbols, not its name
 reducer_queue_claim_bench_test.go -> reducer_queue_claim_bench_test.go   # SPLIT: reads private symbols of generation, queue/reducer
 reducer_queue_domain_fairness_test.go -> reducer_queue_domain_fairness_test.go   # SPLIT: reads private symbols of generation, queue/reducer
+schema_bootstrap_env_test.go -> schema_bootstrap_env_test.go
 schema_bootstrap_files_test.go -> schema_bootstrap_files_test.go
+schema_bootstrap_wait_live_test.go -> schema_bootstrap_wait_live_test.go   # SPLIT: reads private symbols of queue/projector, root
 schema_documentation_target_test.go -> schema_documentation_target_test.go
 schema_fact_records_sbom_test.go -> schema_fact_records_sbom_test.go
 schema_index_replay_test.go -> schema_index_replay_test.go

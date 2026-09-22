@@ -5,9 +5,9 @@ decision; the answers are under [Owner decisions](#owner-decisions-answered-2026
 Each destination directory lands in its own PR, in the order under
 [Move order](#move-order-and-checklist), and ticks its box there.
 
-Baseline: `origin/main` `97a9cbcf1` (2026-09-22). The root package
-`go/internal/storage/postgres` holds **368 non-test files** and **711 test
-files** (26 of them behind the `integration`, `perf5854_ack`,
+Baseline: `origin/main` `958e833e9` (2026-09-22). The root package
+`go/internal/storage/postgres` holds **368 non-test files** and **713 test
+files** (27 of them behind the `integration`, `perf5854_ack`,
 `perf5740_completion` or `perf6785_wait` build tags). The dirgate ledger pins
 the row at 368 (`scripts/lib/dirgate-grandfather.tsv`).
 
@@ -35,7 +35,7 @@ Root keeps only the composition core that cannot move: `adapters.go`
 and `doc.go`. They stay together because of the lock trap the epic records:
 `SQLDB.withSchemaBootstrapLock` satisfies the package-private
 `schemaBootstrapLocker` interface that `applyBootstrapDefinitions` checks with
-a type assertion (`schema.go:218`). An unexported interface method can only be
+a type assertion (`schema.go:277`). An unexported interface method can only be
 satisfied inside its own package. If `SQLDB` moved alone, the assertion would
 quietly return false and bootstrap would run DDL without the advisory lock,
 with no compile or runtime error.
@@ -55,7 +55,7 @@ steps:
    `IdentitySubjectStore` in 24, `IngestionStore` in 17, and `StatusStore` in 6.
    Most of the "prefix lied" corrections below come from this rule. A
    separate check confirms it over the final mapping: of the 236 files that
-   declare methods on a root type (267 file/type pairs), every one lands with its type except the 23
+   declare methods on a root type (269 file/type pairs), every one lands with its type except the 23
    `IdentitySubjectStore` files that wait for D1. That check caught one mapping
    the package-graph check could not: `eshu_search_vector_documents.go`
    declares methods on `EshuSearchDocumentStore`, so it lives in
@@ -82,7 +82,7 @@ from a file name.
   `identity_saml_sql.go` -> `identity/saml/sql.go`.
 - No file name repeats a word of its path. A file named exactly for its own
   directory is allowed (`queue/reducer/reducer.go`, `identity/local/local.go`).
-  The stutter check in the census reports zero hits across all 1,079 names.
+  The stutter check in the census reports zero hits across all 1,081 names.
 - A `_store` suffix goes when it adds nothing
   (`function_source_store.go` -> `code/flow/function_source.go`) and stays
   where the directory also holds non-store files.
@@ -226,13 +226,13 @@ their owner's package, with the notes folded into that package's `README.md`:
 `supply/chain/impact/` move. The notes do not go into the migration files: the
 tracker checksums each migration's full text, comments included
 (`migrationChecksum`, `schema_bootstrap_lock.go:143`), and refuses to start
-when an applied migration's checksum changes (`schema_bootstrap_lock.go:301`),
+when an applied migration's checksum changes (`schema_bootstrap_lock.go:302`),
 so a comment edit would stop bootstrap on every existing database.
 
 **D6. Shared test fakes become a real package, `fake/`, and that is a code
 change.** Test files cannot be imported across packages. In total, 71 helper
 test files are used by tests that land in two or more destinations, and
-`work_queue_lifecycle_test.go` alone serves 40. Its fake database decides what to
+`work_queue_lifecycle_test.go` alone serves 39. Its fake database decides what to
 return by matching root's private query constants (`activeScopeGenerationQuery`
 and `listDeferredScopedRelationshipFactRecordsQuery`,
 `work_queue_lifecycle_test.go:205,239`), which another package cannot see. So
@@ -304,8 +304,8 @@ its name says. Then Go's package rules decide the form:
 | in-package test | 387 | it only needs its own package and packages below it |
 | external test package (`package x_test`) | 135 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 85 | as above, and it also reads its subject's private symbols |
-| stays in root, split at move time (`SPLIT`) | 35 | it reads private symbols of two or more future packages |
-| stays in root | 69 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root, split at move time (`SPLIT`) | 36 | it reads private symbols of two or more future packages |
+| stays in root | 70 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -420,7 +420,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 104 | ok |
+| `storage/postgres` (root) | 4 | 106 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 2 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -483,7 +483,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `vulnerability/` | 1 | 1 | ok |
 | `workflow/` | 10 | 20 | ok |
 | DELETE | 9 | 0 | n/a |
-| **total** | **368** | **711** | |
+| **total** | **368** | **713** | |
 
 ## File-by-file mapping
 
