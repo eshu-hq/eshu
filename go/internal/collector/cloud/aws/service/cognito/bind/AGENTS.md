@@ -1,9 +1,9 @@
-# AGENTS.md - services/cognito/bind guidance
+# AGENTS.md - service/cognito/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
-2. `bind.go` - the actual registration and redaction-key guard.
+2. `register.go` - the actual registration and redaction-key guard.
 3. `../README.md` - Cognito scanner contract.
 4. `../../../runtime/README.md` - runtime registry and runtime surface.
 

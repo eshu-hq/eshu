@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - binding purpose and ownership boundary.
-2. `bind.go` - the single `runtime.Register` call.
+2. `register.go` - the single `runtime.Register` call.
 3. `../README.md` - Identity Center scanner contract.
 4. `../../../runtime/README.md` - registry and runtime surface.
 
@@ -15,7 +15,7 @@
 - Do not load AWS config, acquire credentials, or build clients at init time.
   Construct clients inside the builder per claim from `ScannerDeps`.
 - This binding is reached only through
-  `internal/collector/cloud/aws/runtime/bindings/bindings.go`. The one blank
+  `internal/collector/cloud/aws/runtime/bindings/all.go`. The one blank
   import there is the only shared-file change a new scanner makes.
 
 ## Common Changes

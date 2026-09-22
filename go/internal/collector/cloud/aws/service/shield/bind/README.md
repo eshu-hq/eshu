@@ -43,7 +43,7 @@ and the runtime README.
   construction at init time. Builders construct clients per claim, using the
   runtime-provided `ScannerDeps`.
 - The matching blank import lives in
-  `internal/collector/cloud/aws/runtime/bindings/bindings.go`. The derived
+  `internal/collector/cloud/aws/runtime/bindings/all.go`. The derived
   supported-service guard fails if this directory exists without that import.
 
 ## Related docs

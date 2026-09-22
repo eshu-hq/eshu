@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - what this binding registers and why.
-2. `bind.go` - the single `runtime.Register` call.
+2. `register.go` - the single `runtime.Register` call.
 3. `../README.md` - the scanner contract being registered.
 
 ## Invariants
@@ -16,7 +16,7 @@
   unset. If a future change adds a redacted field, set it here and add the
   `d.RedactionKey.IsZero()` guard, per the collector-authoring guide.
 - The matching blank import in
-  `internal/collector/cloud/aws/runtime/bindings/bindings.go` must stay in
+  `internal/collector/cloud/aws/runtime/bindings/all.go` must stay in
   alphabetical order; the derived supported-service guard in
   `cmd/collector-aws-cloud` fails if the bind directory and the import
   set disagree.

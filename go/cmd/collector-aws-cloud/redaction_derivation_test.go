@@ -22,7 +22,7 @@ import (
 // TestRedactionKeySetDerivesFromRuntimebindRegistrations proves the command
 // derives the redaction-key requirement from the registry rather than a
 // hand-maintained switch. The expected set is computed from the
-// services/<svc>/bind/bind.go files that set RequiresRedactionKey:
+// service/<svc>/bind/register.go files that set RequiresRedactionKey:
 // true, so adding a redaction scanner needs no change here or in config.go.
 // A scanner that declares the flag in its binding but is missing from the
 // registry-derived set (or vice versa) fails this test.
@@ -107,7 +107,7 @@ func expectedRedactionPhrase(kinds []string) string {
 }
 
 // redactionRequiringServiceDirs returns the sorted set of service tokens whose
-// services/<svc>/bind/bind.go declares RequiresRedactionKey: true. It
+// service/<svc>/bind/register.go declares RequiresRedactionKey: true. It
 // reads the source on disk so the expected set is not a hand-maintained list:
 // the registry-derived set must match what the bindings actually register.
 func redactionRequiringServiceDirs(t *testing.T) []string {
@@ -115,7 +115,7 @@ func redactionRequiringServiceDirs(t *testing.T) []string {
 	serviceDir := awsServiceDir(t)
 	entries, err := os.ReadDir(serviceDir)
 	if err != nil {
-		t.Fatalf("read services dir %q: %v", serviceDir, err)
+		t.Fatalf("read service dir %q: %v", serviceDir, err)
 	}
 	var services []string
 	for _, entry := range entries {

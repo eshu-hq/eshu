@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - binding purpose and ownership boundary.
-2. `bind.go` - the `runtime.Register` call.
+2. `register.go` - the `runtime.Register` call.
 3. `../README.md` - parent scanner contract.
 
 ## Invariants

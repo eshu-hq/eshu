@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - package purpose and invariants.
-2. `bind.go` - the `runtime.Register` call.
+2. `register.go` - the `runtime.Register` call.
 3. `bind_test.go` - the registration-resolves proof.
 4. `../README.md` - Amplify scanner contract.
 5. `../../../runtime/README.md` - registry and runtime surface.

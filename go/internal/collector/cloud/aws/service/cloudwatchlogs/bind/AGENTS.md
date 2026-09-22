@@ -1,9 +1,9 @@
-# AGENTS.md - services/cloudwatchlogs/bind guidance
+# AGENTS.md - service/cloudwatchlogs/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
-2. `bind.go` - the actual registration.
+2. `register.go` - the actual registration.
 3. `../README.md` - CloudWatch Logs scanner contract.
 4. `../../../runtime/README.md` - runtime registry and runtime surface.
 

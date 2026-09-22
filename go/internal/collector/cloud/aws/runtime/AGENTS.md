@@ -134,23 +134,23 @@
   runtime package has zero compile-time dependency on individual service
   packages. The new-scanner workflow is:
   1. Add the service constant in `aws` (e.g. `ServiceFoo = "foo"`).
-  2. Build the scanner package under `services/<svc>/` (scanner.go, tests,
+  2. Build the scanner package under `service/<svc>/` (scanner.go, tests,
      `sdk/` adapter, doc.go, README.md, AGENTS.md).
-  3. Add `services/<svc>/bind/` containing `bind.go`, `doc.go`,
-     `README.md`, `AGENTS.md`, and `bind_test.go`. The `bind.go` calls
+  3. Add `service/<svc>/bind/` containing `register.go`, `doc.go`,
+     `README.md`, `AGENTS.md`, and `register_test.go`. The `register.go` calls
      `runtime.Register` from `init()`; the test asserts the binding
      resolves via `runtime.LookupBuilder`.
   4. Append one underscore-import line to
-     `runtime/bindings/bindings.go`. That file is marked `merge=union` in
+     `runtime/bindings/all.go`. That file is marked `merge=union` in
      `.gitattributes` so parallel scanner PRs do not conflict.
   5. Do NOT edit any want-list — there is none. The supported-service guard is
      DERIVED: the guard tests in
      `runtime/registry_supported_services_test.go` and
-     `runtime/bindings/bindings_test.go` enumerate the
-     `services/<svc>/bind/` directories on disk and the bind
-     blank imports parsed from `bindings.go`, then assert the two sets and the
+     `runtime/bindings/all_test.go` enumerate the
+     `service/<svc>/bind/` directories on disk and the bind
+     blank imports parsed from `all.go`, then assert the two sets and the
      registry count agree (see `runtime/internal/guardset`). A new
-     `services/<svc>/bind/` directory without a matching `bindings.go`
+     `service/<svc>/bind/` directory without a matching `all.go`
      import fails the guard automatically, so adding a scanner touches zero
      want-lists.
 

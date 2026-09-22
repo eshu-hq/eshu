@@ -1,9 +1,9 @@
-# AGENTS.md - services/shield/bind guidance
+# AGENTS.md - service/shield/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
-2. `bind.go` - the actual registration.
+2. `register.go` - the actual registration.
 3. `../README.md` - Shield Advanced scanner contract.
 4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
@@ -17,7 +17,7 @@
 - Do not import anything else from `internal/collector/cloud/aws/service`.
   Cross-service knowledge belongs upstream.
 - Keep the matching blank import in
-  `internal/collector/cloud/aws/runtime/bindings/bindings.go` alphabetically
+  `internal/collector/cloud/aws/runtime/bindings/all.go` alphabetically
   sorted. The derived supported-service guard fails if it is missing.
 
 ## Common Changes

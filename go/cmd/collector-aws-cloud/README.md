@@ -12,7 +12,7 @@ modes selected by `-mode` (default `claimed-live`):
   commits reported facts through the shared ingestion store. A commit wrapper
   records whether the fenced fact transaction reached durable storage.
 - **`fixture`** runs a fully offline replay. It loads a declarative fixture
-  estate from `-config` and constructs an `awsruntime.FixtureSource` that emits
+  estate from `-config` and constructs an `runtime.FixtureSource` that emits
   the same `aws_resource` / `aws_relationship` facts as the live scanners, with
   **no AWS credentials and no network calls**, committed through the shared
   ingestion store. Used for demos and CI (see
@@ -76,11 +76,11 @@ persistence, graph writes, reducer admission, or workload ownership inference.
 flowchart LR
   A["ESHU_COLLECTOR_INSTANCES_JSON"] --> B["loadRuntimeConfig"]
   B --> C["collector.ClaimedService"]
-  C --> D["awsruntime.ClaimedSource"]
-  D --> E["awsruntime.SDKCredentialProvider"]
-  D --> F["awsruntime.DefaultScannerFactory"]
+  C --> D["runtime.ClaimedSource"]
+  D --> E["runtime.SDKCredentialProvider"]
+  D --> F["runtime.DefaultScannerFactory"]
   E --> F
-  F --> H["service awssdk adapters"]
+  F --> H["service sdk adapters"]
   H --> G["Postgres ingestion store"]
 ```
 
@@ -104,8 +104,8 @@ the environment/configuration it accepts:
   with the corpus's other secrets, never committed. Read once; only its
   8-hex fingerprint is written to the cassette and logged.
 - `ESHU_AWS_REDACTION_KEY` - required when any target scope enables a scanner
-  that declared `RequiresRedactionKey: true` in its `runtimebind` registration.
-  The command derives this set from `awsruntime.ServiceKindsRequiringRedactionKey()`
+  that declared `RequiresRedactionKey: true` in its `bind` registration.
+  The command derives this set from `runtime.ServiceKindsRequiringRedactionKey()`
   rather than a hardcoded list, and the missing-key error names the current
   set. Those scanners use the key to produce deterministic HMAC-SHA256 markers
   for sensitive-derived fields before persistence (for example, CloudWatch alarm
@@ -141,7 +141,7 @@ match the target `account_id`. `local_workload_identity` must not set
 ## Dependencies
 
 - `internal/collector` for the claim-aware collector runner.
-- `internal/collector/awscloud/awsruntime` for claim parsing, credentials,
+- `internal/collector/cloud/aws/runtime` for claim parsing, credentials,
   scanner registry, and collected generation construction.
 - `internal/storage/postgres` for workflow claims, ingestion commits, AWS scan
   status rows, and status reports.
@@ -178,13 +178,13 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   central credential routing cannot be mixed.
 - Wildcard regions or services are rejected; `allowed_services` must name a
   shipped AWS scanner family.
-- AWS SDK configuration and service pagination live under `awsruntime` and
-  service `awssdk` adapters; command tests should not mock the full AWS SDK
+- AWS SDK configuration and service pagination live under `runtime` and
+  service `sdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
 - A target requires `ESHU_AWS_REDACTION_KEY` when any of its allowed scanners
-  declared `RequiresRedactionKey: true` in its `runtimebind` registration; the
-  command derives the set from `awsruntime.ServiceKindsRequiringRedactionKey()`.
+  declared `RequiresRedactionKey: true` in its `bind` registration; the
+  command derives the set from `runtime.ServiceKindsRequiringRedactionKey()`.
   Metadata-only targets such as IAM and ECR leave the flag unset and do not need
   the key. CloudWatch, for example, needs it because alarm metric dimension
   values can be customer-tag-named and are redacted before persistence.
@@ -334,7 +334,7 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 ## No-Regression Evidence:
 
 No-Regression Evidence: the only change to this package in this PR is an
-import-order reordering (cassette import moved after awscloud import to
+import-order reordering (cassette import moved after the runtime import to
 satisfy gofumpt alphabetical order). No runtime logic, no new code paths,
 no query or concurrency changes. The import order does not affect binary
 behaviour.

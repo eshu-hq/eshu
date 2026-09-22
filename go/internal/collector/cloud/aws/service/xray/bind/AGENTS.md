@@ -1,4 +1,4 @@
-# AGENTS — services/xray/bind
+# AGENTS — service/xray/bind
 
 This package wires the X-Ray scanner into the `runtime` registry through
 `init()`. Agents editing this package MUST:
@@ -12,8 +12,8 @@ This package wires the X-Ray scanner into the `runtime` registry through
 - NEVER modify `go/internal/collector/cloud/aws/runtime/registry.go`. The
   registry is intentionally service-package-agnostic; adding a `case` or an
   `import` there is the pre-#764 pattern.
-- Update `runtime/bindings/bindings.go` with one alphabetical blank import
+- Update `runtime/bindings/all.go` with one alphabetical blank import
   line only. There is no want-list to edit: the supported-service guard is
-  derived from the `services/<svc>/bind/` directories plus the
-  `bindings.go` imports. Do not gofmt-reorder that file; it carries pre-existing
+  derived from the `service/<svc>/bind/` directories plus the
+  `all.go` imports. Do not gofmt-reorder that file; it carries pre-existing
   `merge=union` disorder and append-only is the rule.

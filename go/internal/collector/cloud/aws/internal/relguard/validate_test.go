@@ -373,7 +373,7 @@ func TestLiveScannerTreeHasNoGraphJoinDefects(t *testing.T) {
 }
 
 // liveAWSDir resolves go/internal/collector/cloud/aws from this test file:
-// relguard_test.go -> relguard -> internal -> aws.
+// validate_test.go -> relguard -> internal -> aws.
 func liveAWSDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)

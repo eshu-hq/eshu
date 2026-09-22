@@ -18,7 +18,7 @@
   Deriving it from the runtime would make the guard tautological.
 - Keep the static layer source-based (`go/parser`, no type checking). It must
   stay fast and free of a `golang.org/x/tools/go/packages` dependency.
-- Keep the negative proofs in `relguard_test.go`:
+- Keep the negative proofs in `validate_test.go`:
   `TestValidateFlagsEmptyAndUnknown` (static) and
   `TestRuntimeCheckCatchesDataDependentDefects` (runtime). They are the proof the
   guard catches the #804 defect class; do not delete them.

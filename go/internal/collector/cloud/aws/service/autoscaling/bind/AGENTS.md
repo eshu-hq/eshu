@@ -1,9 +1,9 @@
-# AGENTS.md - services/autoscaling/bind guidance
+# AGENTS.md - service/autoscaling/bind guidance
 
 ## Read First
 
 1. `README.md` - binding purpose and invariants.
-2. `bind.go` - the `runtime.Register` call.
+2. `register.go` - the `runtime.Register` call.
 3. `../README.md` - Auto Scaling scanner contract.
 4. `../../../runtime/README.md` - registry and runtime surface.
 

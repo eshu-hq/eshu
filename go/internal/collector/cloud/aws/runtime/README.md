@@ -223,11 +223,11 @@ new blank import in each binary that calls `runtime.SupportsServiceKind`
 
 The supported-service guard refactor (#785) replaces the two hardcoded
 want-lists in `registry_supported_services_test.go` and
-`bindings/bindings_test.go` with a derived check. The expected scanner set is
-computed at test time from the `services/<svc>/bind/` directories on
-disk and the bind blank imports parsed from `bindings.go` (see
+`bindings/all_test.go` with a derived check. The expected scanner set is
+computed at test time from the `service/<svc>/bind/` directories on
+disk and the bind blank imports parsed from `all.go` (see
 `internal/guardset`). Adding a scanner now touches zero want-lists; it appends
-one `merge=union` line to `bindings.go` and adds its own files.
+one `merge=union` line to `all.go` and adds its own files.
 
 No-Regression Evidence: this is a test-only and docs-only change. No
 non-test runtime file changed. The production scanner registry, the
@@ -236,9 +236,9 @@ are byte-for-byte unchanged from the #762 self-registration refactor. The
 guard's value is preserved and proven: `go test
 ./internal/collector/cloud/aws/runtime/... -count=1 -race` passes, and the
 `Diff` helper has a unit-tested negative case ("dir present but not imported")
-in `internal/guardset/guardset_test.go`. Manually removing one blank import
-from `bindings.go` makes both guard tests fail with
-`services/<svc>/bind/ exists but bindings.go does not blank-import it`
+in `internal/guardset/set_test.go`. Manually removing one blank import
+from `all.go` makes both guard tests fail with
+`service/<svc>/bind/ exists but all.go does not blank-import it`
 and `len(SupportedServiceKinds()) = N-1, want N`, then passes again once the
 import is restored.
 

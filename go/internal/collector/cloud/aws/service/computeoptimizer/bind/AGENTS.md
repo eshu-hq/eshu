@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - registration purpose and wiring.
-2. `bind.go` - the `runtime.Register` call.
+2. `register.go` - the `runtime.Register` call.
 3. `../README.md` - scanner contract.
 
 ## Invariants
@@ -13,7 +13,7 @@
   and identity keying.
 - The `ServiceKind` registered must be `aws.ServiceComputeOptimizer`.
 - The single blank-import line for this package in
-  `runtime/bindings/bindings.go` is append-only and alphabetical. Never
+  `runtime/bindings/all.go` is append-only and alphabetical. Never
   reorder, dedupe, or reformat the other lines in that file.
 
 ## What Not To Change Without An ADR

@@ -102,38 +102,38 @@ API fixes in collector code. Those belong downstream.
 
 ## AWS Scanner Registration
 
-AWS service scanners under `go/internal/collector/awscloud/service/<svc>/`
-self-register with the runtime through a sibling `runtimebind/` sub-package.
+AWS service scanners under `go/internal/collector/cloud/aws/service/<svc>/`
+self-register with the runtime through a sibling `bind/` sub-package.
 A new scanner adds:
 
-- `services/<svc>/runtimebind/bind.go` calling `awsruntime.Register` from
+- `service/<svc>/bind/register.go` calling `runtime.Register` from
   `init()`.
-- `services/<svc>/runtimebind/` package docs (`doc.go`, `README.md`,
-  `AGENTS.md`) and a `bind_test.go` that asserts the binding resolves via
-  `awsruntime.LookupBuilder`.
+- `service/<svc>/bind/` package docs (`doc.go`, `README.md`,
+  `AGENTS.md`) and a `register_test.go` that asserts the binding resolves via
+  `runtime.LookupBuilder`.
 - One underscore-import line appended to
   `go/internal/collector/cloud/aws/runtime/bindings/all.go`. That file
   is marked `merge=union` in `.gitattributes` so parallel scanner PRs do not
   collide.
 
 There is no want-list to edit. The supported-service guard is derived: the
-guard tests enumerate the `services/<svc>/runtimebind/` directories on disk and
-the runtimebind blank imports parsed from `bindings.go`, then assert the two
+guard tests enumerate the `service/<svc>/bind/` directories on disk and
+the bind blank imports parsed from `all.go`, then assert the two
 sets and the registered scanner count agree. A new
-`services/<svc>/runtimebind/` directory without a matching `bindings.go` import
+`service/<svc>/bind/` directory without a matching `all.go` import
 fails the guard automatically, so adding a scanner touches zero want-lists.
 
-No file in `awsruntime/` itself changes for a new scanner. The runtime
+No file in `runtime/` itself changes for a new scanner. The runtime
 already has zero compile-time dependency on individual service packages.
 
 ### Redaction-key requirement
 
 A scanner that redacts sensitive metadata declares the requirement in its own
-`runtimebind/bind.go`, not in the command. Set `RequiresRedactionKey: true` in
-the `awsruntime.Register` call and keep the builder's `d.RedactionKey.IsZero()`
+`bind/register.go`, not in the command. Set `RequiresRedactionKey: true` in
+the `runtime.Register` call and keep the builder's `d.RedactionKey.IsZero()`
 guard. The command derives the `ESHU_AWS_REDACTION_KEY` pre-flight requirement
 and the missing-key error message from
-`awsruntime.ServiceKindsRequiringRedactionKey()`, so adding a redaction scanner
+`runtime.ServiceKindsRequiringRedactionKey()`, so adding a redaction scanner
 touches zero shared lines in `go/cmd/collector-aws-cloud/config.go`. Scanners
 that need no key leave the flag unset.
 

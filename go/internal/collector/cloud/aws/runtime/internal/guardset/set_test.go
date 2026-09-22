@@ -181,7 +181,7 @@ func liveServiceDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// guardset_test.go -> guardset -> internal -> runtime -> aws
+	// set_test.go -> guardset -> internal -> runtime -> aws
 	awsDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
 	return filepath.Join(awsDir, "service")
 }
@@ -194,7 +194,7 @@ func liveBindingsFile(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// guardset_test.go -> guardset -> internal -> runtime
+	// set_test.go -> guardset -> internal -> runtime
 	runtimeDir := filepath.Join(filepath.Dir(currentFile), "..", "..")
 	return filepath.Join(runtimeDir, "bindings", "all.go")
 }

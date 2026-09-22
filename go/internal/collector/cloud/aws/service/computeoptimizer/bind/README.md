@@ -24,7 +24,7 @@ None. The package is imported for its `init` side effect.
 `ServiceKind` is `aws.ServiceComputeOptimizer` and whose `Build` constructs
 the scanner with an SDK-backed client from the provided `ScannerDeps`. The one
 blank-import line for this package lives in
-`runtime/bindings/bindings.go` (append-only, alphabetical).
+`runtime/bindings/all.go` (append-only, alphabetical).
 
 ## Evidence
 

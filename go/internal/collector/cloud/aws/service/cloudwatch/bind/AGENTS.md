@@ -1,4 +1,4 @@
-# AGENTS — services/cloudwatch/bind
+# AGENTS — service/cloudwatch/bind
 
 This package wires the CloudWatch scanner into the `runtime` registry
 through `init()`. Agents editing this package MUST:
@@ -11,7 +11,7 @@ through `init()`. Agents editing this package MUST:
 - NEVER modify `go/internal/collector/cloud/aws/runtime/registry.go`. The
   registry is intentionally service-package-agnostic; adding a `case` or an
   `import` there is the pre-#764 pattern.
-- Update `runtime/bindings/bindings.go` with one alphabetical blank import
+- Update `runtime/bindings/all.go` with one alphabetical blank import
   line. There is no want-list to edit: the supported-service guard is derived
-  from the `services/<svc>/bind/` directories plus the `bindings.go`
+  from the `service/<svc>/bind/` directories plus the `all.go`
   imports (see `runtime/internal/guardset`).

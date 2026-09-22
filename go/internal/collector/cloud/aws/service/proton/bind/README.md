@@ -2,7 +2,7 @@
 
 `package bind` self-registers the AWS Proton scanner with the
 `runtime` registry. Importing it for its side effect (the blank import in
-`runtime/bindings/bindings.go`) makes the `proton` service_kind available
+`runtime/bindings/all.go`) makes the `proton` service_kind available
 through `runtime.DefaultScannerFactory`.
 
 ## Contract

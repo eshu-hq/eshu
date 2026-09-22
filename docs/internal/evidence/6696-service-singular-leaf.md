@@ -1,4 +1,13 @@
-# #6696 AWS services-to-service rename: no-regression evidence
+# #6696 AWS services-to-service rename: Phase-1 no-regression evidence
+
+Phase-1 record: this note captures the `services/` to `service/`
+singular rename as it stood when that phase landed. Later phases in
+this PR moved the tree again (`go/internal/collector/awscloud` to
+`go/internal/collector/cloud/aws`, with de-stuttered identifiers and
+filenames), so translate the `awscloud/...` paths below to their
+`cloud/aws/...` successors when re-running anything here. The PR
+body carries the current end-state proof; this file is the
+phase-1 receipt, not a re-runnable guide at this head.
 
 In-tree prep only: `go/internal/collector/awscloud/services/*` (134
 service packages) moves to `go/internal/collector/awscloud/service/*`

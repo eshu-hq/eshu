@@ -1,9 +1,9 @@
-# AGENTS.md - services/auditmanager/bind guidance
+# AGENTS.md - service/auditmanager/bind guidance
 
 ## Read First
 
 1. `README.md` - one-binding contract and ownership boundary.
-2. `bind.go` - the actual registration.
+2. `register.go` - the actual registration.
 3. `../README.md` - Audit Manager scanner contract.
 4. `../../../runtime/README.md` - runtime registry and runtime surface.
 
