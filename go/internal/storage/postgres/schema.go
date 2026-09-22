@@ -197,7 +197,7 @@ func ApplyDefinitionsWithLockTimeout(
 const (
 	// OwnershipWaitEnv bounds how long a bootstrapper waits for another one
 	// that owns the schema advisory lock.
-	OwnershipWaitEnv = "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT"
+	OwnershipWaitEnv = "ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT" // #nosec G101 -- environment variable name, not a credential value
 	// LockRetryBudgetEnv bounds the total backoff one migration statement may
 	// spend retrying after lock_timeout.
 	LockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET" // #nosec G101 -- environment variable name, not a credential value
