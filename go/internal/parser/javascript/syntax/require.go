@@ -11,6 +11,10 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// RequireImportEntries returns one import record per binding a require declarator
+// introduces, covering the plain, destructured, and property-of-module forms. It
+// returns nil for a node that is not a variable_declarator, and for one whose value
+// is not a statically resolvable require call.
 func RequireImportEntries(
 	node *tree_sitter.Node,
 	source []byte,
@@ -88,6 +92,10 @@ func requireMemberModuleSource(node *tree_sitter.Node, source []byte) (string, s
 	return moduleSource, propertyName, true
 }
 
+// RequireModuleSource returns the module specifier of a literal require call and
+// whether one was found. It reports false for a computed, interpolated, or
+// multi-argument call, none of which can be resolved without evaluating the
+// program.
 func RequireModuleSource(node *tree_sitter.Node, source []byte) (string, bool) {
 	if node == nil || node.Kind() != "call_expression" {
 		return "", false

@@ -235,8 +235,10 @@ engine_tsx_component_wrapper_test.go)**:
   `package_json_test.go`
 - Parent lookup cgo regression:
   `deadcode/parent_lookup_regression_test.go:TestJavaScriptParentLookupEliminatesCgoCrossings`
-- Residual regex characterization (17 tests for 3 permanent regex exceptions):
-  `residual_regex_characterization_test.go`
+- Residual regex characterization (14 tests for 3 permanent regex exceptions,
+  each test living beside the regex it characterizes):
+  `residual_regex_characterization_test.go` (10 tests, the AWS and GCP client
+  specifiers) and `syntax/names_test.go` (4 tests, static computed member names)
 - TS import/export re-exports from root:
   `deadcode/typescript_import_exports_test.go` (4 tests)
 - TS surface re-export:
@@ -280,7 +282,7 @@ engine_tsx_component_wrapper_test.go)**:
 - **Nested Hapi handler roots**: `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptNestedHapiHandlerRoots`
 - **Hapi plugin register roots via init pattern**: `dead_code_node_roots_test.go:TestDefaultEngineParsePathJavaScriptHapiPluginRegisterRoots`
 - **CommonJS mixin export roots method**: `dead_code_commonjs_class_test.go:TestDefaultEngineParsePathJavaScriptCommonJSMixinExportRootsMethod`
-- **All 3 residual regexes with + and - cases**: `residual_regex_characterization_test.go` (17 tests)
+- **All 3 residual regexes with + and - cases**: `residual_regex_characterization_test.go` (10 tests, AWS and GCP client specifiers) and `syntax/names_test.go` (4 tests, static computed member names)
 - **Parent lookup cgo elimination**: `deadcode/parent_lookup_regression_test.go` (line 106)
 - **AST narrowing intentionally drops regex false positives** (hooks in comments, client symbols in imports): documented and tested in `engine_ast_conversion_test.go`
 - **Comprehensive golden fixtures**: js/ts/tsx comprehensive golden fixtures in `engine_long_tail_test.go`

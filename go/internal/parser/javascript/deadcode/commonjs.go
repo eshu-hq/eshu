@@ -11,6 +11,9 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// MergeRegisteredRootKinds folds src into dst in place, keying each entry by its
+// trimmed lower-cased name and appending only root kinds dst does not already
+// carry. Blank names are dropped, so dst never grows an empty key.
 func MergeRegisteredRootKinds(dst map[string][]string, src map[string][]string) {
 	for name, rootKinds := range src {
 		key := strings.ToLower(strings.TrimSpace(name))
@@ -145,6 +148,11 @@ func javaScriptAssignmentRightChainContains(valueNode *tree_sitter.Node, target 
 	return javaScriptAssignmentRightChainContains(valueNode.ChildByFieldName("right"), target)
 }
 
+// RewriteCommonJSModuleExportAliasFullName normalises a dotted reference that
+// reaches an export through a module.exports alias, rewriting the matching alias
+// prefix to "module.exports." so aliased and direct references resolve to one
+// full name. It returns fullName unchanged when no alias prefixes it; when more
+// than one does, which alias wins follows Go map iteration order.
 func RewriteCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
 	fullName = strings.TrimSpace(fullName)
 	if fullName == "" || len(aliases) == 0 {
@@ -193,6 +201,9 @@ func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source
 	return false
 }
 
+// CommonJSExportName returns the exported symbol name for an assignment target
+// of the form module.exports.X or exports.X, in either member or subscript form.
+// It returns an empty string for any other node, including a nil one.
 func CommonJSExportName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -241,6 +252,9 @@ func javaScriptCommonJSAliasTargetName(node *tree_sitter.Node, source []byte) st
 	return syntax.FunctionName(propertyNode, source)
 }
 
+// ExportAssignmentNameNode returns the node naming the export in a CommonJS
+// assignment target, or nil when node is not one. The result is a clone, so it
+// stays valid after the caller's cursor has moved on.
 func ExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {
 	if node == nil {
 		return nil

@@ -41,3 +41,47 @@ type FrameworkEvidence interface {
 	// ok false when the file declares no Express usage.
 	ExpressSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool)
 }
+
+// frameworkRootKinds, expressSemantics and isControllerMethod consult f,
+// treating a nil FrameworkEvidence as absence of framework evidence rather
+// than as a programming error.
+//
+// They exist for the same reason rootForFile does, and were added by the same
+// oversight being corrected twice: issue #6771 replaced direct calls to the
+// parent package's helpers with this interface, and a nil interface panics
+// where the direct call could not. SiblingSource got its wrapper in the first
+// pass; this seam did not, even though RegisteredDeadCodeRootKinds is exported
+// and already called from outside this package, which makes a nil reachable by
+// any caller. Callers inside this package must go through these rather than
+// dispatching on the interface directly.
+func frameworkRootKinds(
+	f FrameworkEvidence,
+	root *tree_sitter.Node,
+	source []byte,
+	fastifyBases map[string]struct{},
+	expressBases map[string]struct{},
+	koaBases map[string]struct{},
+) map[string][]string {
+	if f == nil {
+		return nil
+	}
+	return f.RegisteredRootKinds(root, source, fastifyBases, expressBases, koaBases)
+}
+
+// expressSemantics returns the Express route semantics for a parsed file, or ok
+// false when f is nil or the file declares no Express usage.
+func expressSemantics(f FrameworkEvidence, root *tree_sitter.Node, source []byte) (map[string]any, bool) {
+	if f == nil {
+		return nil, false
+	}
+	return f.ExpressSemantics(root, source)
+}
+
+// isControllerMethod reports whether node is a NestJS controller method,
+// answering false when f is nil.
+func isControllerMethod(f FrameworkEvidence, node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
+	if f == nil {
+		return false
+	}
+	return f.IsControllerMethod(node, source, parents)
+}

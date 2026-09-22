@@ -10,6 +10,10 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// ImportEntries returns one record per symbol an import statement binds,
+// collapsing a side-effect-only import to a single record naming the module.
+// node must be a non-nil import_statement; the result is nil when the statement
+// carries no module specifier.
 func ImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
 	sourceNode := node.ChildByFieldName("source")
 	moduleSource := strings.Trim(shared.NodeText(sourceNode, source), `"'`)
@@ -126,6 +130,9 @@ func importEntriesFromClause(
 	}
 }
 
+// NamespaceImportAlias returns the local binding of a "* as name" namespace
+// import, reading the grammar's name field and falling back to the statement
+// text. It returns an empty string for any other import form.
 func NamespaceImportAlias(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""

@@ -10,6 +10,8 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
+// IsFunctionValue reports whether node is an expression that evaluates to a
+// function: a function expression, arrow function, or either generator form.
 func IsFunctionValue(node *tree_sitter.Node) bool {
 	if node == nil {
 		return false
@@ -22,6 +24,8 @@ func IsFunctionValue(node *tree_sitter.Node) bool {
 	}
 }
 
+// InsideFunction reports whether node has a function, method or arrow-function
+// ancestor, walking parents through the supplied lookup.
 func InsideFunction(node *tree_sitter.Node, parents *ParentLookup) bool {
 	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
@@ -32,6 +36,9 @@ func InsideFunction(node *tree_sitter.Node, parents *ParentLookup) bool {
 	return false
 }
 
+// Decorators returns the decorator source text attached to node or to the
+// decorated_definition wrapping it, in source order. An empty slice, never nil,
+// is returned when node carries none.
 func Decorators(node *tree_sitter.Node, source []byte, parents *ParentLookup) []string {
 	decorators := make([]string, 0)
 	for current := node; current != nil; current = parents.Parent(current) {
@@ -58,6 +65,9 @@ func Decorators(node *tree_sitter.Node, source []byte, parents *ParentLookup) []
 	return decorators
 }
 
+// CallName returns the bare callee name of a call target: the identifier
+// itself, or the property of a member expression, unwrapping parentheses. It
+// returns "" when node names no callee.
 func CallName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -83,6 +93,8 @@ func CallName(node *tree_sitter.Node, source []byte) string {
 	return ""
 }
 
+// CallFullName returns the whole callee expression text, trimmed, preserving
+// any member chain. It returns "" for a nil node.
 func CallFullName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -90,6 +102,8 @@ func CallFullName(node *tree_sitter.Node, source []byte) string {
 	return strings.TrimSpace(shared.NodeText(node, source))
 }
 
+// JSXComponentName returns the component name of a JSX element, taking the
+// final segment of a member or nested identifier so <A.B/> reports "B".
 func JSXComponentName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
@@ -118,6 +132,8 @@ func JSXComponentName(node *tree_sitter.Node, source []byte) string {
 	}
 }
 
+// NodeContainsKind reports whether node or any named descendant has the given
+// tree-sitter kind.
 func NodeContainsKind(node *tree_sitter.Node, kind string) bool {
 	if node == nil {
 		return false
@@ -137,10 +153,17 @@ func NodeContainsKind(node *tree_sitter.Node, kind string) bool {
 	return false
 }
 
+// NodeSameRange reports whether two nodes cover exactly the same byte range,
+// which identifies a node across two walks of the same tree.
 func NodeSameRange(left *tree_sitter.Node, right *tree_sitter.Node) bool {
 	return left != nil && right != nil && left.StartByte() == right.StartByte() && left.EndByte() == right.EndByte()
 }
 
+// HasExpressImport reports whether source declares an Express import, by either
+// an ES import or a require call.
+//
+// This is framework-aware in a package that is otherwise not; see the package
+// documentation for why that exception is documented rather than hidden.
 func HasExpressImport(source string) bool {
 	return strings.Contains(source, `require("express")`) ||
 		strings.Contains(source, `require('express')`) ||

@@ -27,6 +27,12 @@ func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, sou
 		javaScriptObjectIsInCommonJSExportedHapiRouteCollection(routeConfigObject, source, parents)
 }
 
+// HapiRouteHandlerReferenceCall returns the call record for a Hapi route handler
+// property that names an existing function instead of defining one inline, so the
+// referenced handler is not reported as dead. It returns nil unless node is a pair
+// keyed "handler" whose value is a bare reference and whose enclosing route-config
+// object is reachable from a CommonJS export, a server.route call, or an exported
+// route collection.
 func HapiRouteHandlerReferenceCall(
 	node *tree_sitter.Node,
 	nameNode *tree_sitter.Node,

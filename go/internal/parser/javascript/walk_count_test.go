@@ -14,17 +14,17 @@ import (
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 )
 
-// TestWalkCount_FrameworkRouteEntries asserts that a Parse on a framework-
-// heavy fixture makes fewer walkNamed calls after the gather-resolve
-// optimization. The test parses a fixture with Express, Koa, Fastify, and
-// NestJS routes and counts how many times walkNamed is invoked inside Parse
-// (excluding prescan, test helpers, and sibling parsers).
+// TestWalkCount_FrameworkRouteEntries asserts that a Parse on a framework-heavy
+// fixture makes fewer walkNamed calls after the gather-resolve optimization. The
+// test parses a fixture carrying Express, Koa, and Fastify routes and counts every
+// WalkNamed call the Parse-reachable call tree makes.
 //
-// The pre-optimization baseline (merge-base 8085fd1b8) for this fixture
-// produces at least 30 walkNamed calls (including the per-framework
-// route-entry re-walks: Express x1, Koa x2, Fastify x1, NestJS x1), while
-// the post-optimization count is strictly lower because those five
-// re-walks plus two base-building walks are eliminated.
+// Measured on this fixture: before=11, after=10, so the gather pass eliminates one
+// walk. The assertion is the direction, not the absolute count -- both numbers move
+// whenever a detector is added or a walk is folded into a gather. An earlier
+// version of this comment claimed "at least 30" calls and named five re-walks plus
+// two base-building walks; those figures came from the alias-swap instrument
+// described below, which saw only the walks this package made directly.
 func TestWalkCount_FrameworkRouteEntries(t *testing.T) {
 	fixture := `import express from "express";
 import fastify from "fastify";
