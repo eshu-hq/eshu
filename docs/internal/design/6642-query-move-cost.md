@@ -44,7 +44,7 @@ querycontract/repository_authz_context.go:24  func RepositoryAccessFilterFromCon
 unexported alias and forwarder names are used across root call sites while the
 type lives in querycontract".
 
-The fifth already has a home too. `startQueryHandlerSpan` is a nine-line wrapper
+The fifth already has a home too. `startQueryHandlerSpan` is a three-line wrapper
 over `tracing.StartHandlerSpanWith` (`tracing/handler.go:48`), and `tracing/` is
 what the issue's Part D calls `queryspan`. So **PR 1 adds no new API** — it
 repoints call sites at five functions that already exist and deletes the
@@ -126,7 +126,7 @@ caller, behind a `//go:build` tag, so a default `go test ./...` will not notice
 if it breaks.
 
 Three more files carry `alias`-adjacent names without being aliases:
-`repository_compat.go`, `compat_supply_chain.go` (495 lines of real logic) and
+`repository_compat.go`, `compat_supply_chain.go` (494 lines of real logic) and
 `cloud_resource_forwarders.go`. They are mapped as ordinary family files, not
 as deletions.
 

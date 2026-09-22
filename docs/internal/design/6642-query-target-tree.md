@@ -170,10 +170,10 @@ take the leaf to 37 with real headroom, and every result stays well inside the
 
 | merge | lines | result |
 | --- | ---: | --- |
-| `entities_by_ids.go` + `entities_by_paths.go` | 65 + 90 = 155 | `content/read/entities.go` |
-| `entity_search.go` + `entity_search_page.go` | 174 + 109 = 283 | `content/read/entity_search.go` |
-| `repository_refs.go` + `repository_catalog.go` | 60 + 201 = 261 | `content/read/repository_catalog.go` |
-| `index_readiness.go` + `coverage.go` | 27 + 118 = 145 | `content/read/coverage.go` |
+| `entities_by_ids.go` + `entities_by_paths.go` | 64 + 89 = 153 | `content/read/entities.go` |
+| `entity_search.go` + `entity_search_page.go` | 173 + 108 = 281 | `content/read/entity_search.go` |
+| `repository_refs.go` + `repository_catalog.go` | 59 + 200 = 259 | `content/read/repository_catalog.go` |
+| `index_readiness.go` + `coverage.go` | 26 + 117 = 143 | `content/read/coverage.go` |
 
 The minimum to clear the cap is one merge; four is the recommendation, because
 landing a leaf at exactly 40 means the next file added to it fails CI. None of
@@ -184,7 +184,7 @@ in review.
 
 ### The one file that must be split before it moves
 
-`semantic_evidence.go` (364 lines) declares methods on three receivers:
+`semantic_evidence.go` (363 lines) declares methods on three receivers:
 `ContentReader`, `SemanticEvidenceHandler`, and `semanticEvidenceFilter`. The
 first belongs to `content/read/`, the other two to `semantic/evidence/`. It is
 the only root file that straddles two destinations, and it is split in place —
