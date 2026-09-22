@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
+
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.
@@ -29,8 +31,8 @@ type RawSnapshot struct {
 	LatestQueueFailure    *QueueFailureSnapshot
 	Coordinator           *CoordinatorSnapshot
 	RegistryCollectors    []RegistryCollectorSnapshot
-	AWSCloudScans         []AWSCloudScanStatus
-	AWSFreshness          AWSFreshnessSnapshot
+	AWSCloudScans         []cloud.AWSScanStatus
+	AWSFreshness          cloud.AWSFreshnessSnapshot
 	InfraInventory        InfraInventorySnapshot
 	VulnerabilitySources  []VulnerabilitySourceState
 	SemanticExtraction    SemanticExtractionStatus
@@ -144,8 +146,8 @@ type Report struct {
 	LatestQueueFailure             *QueueFailureSnapshot
 	Coordinator                    *CoordinatorSnapshot
 	RegistryCollectors             []RegistryCollectorSnapshot
-	AWSCloudScans                  []AWSCloudScanStatus
-	AWSFreshness                   AWSFreshnessSnapshot
+	AWSCloudScans                  []cloud.AWSScanStatus
+	AWSFreshness                   cloud.AWSFreshnessSnapshot
 	InfraInventory                 InfraInventorySnapshot
 	VulnerabilitySources           []VulnerabilitySourceState
 	SemanticExtraction             SemanticExtractionStatus

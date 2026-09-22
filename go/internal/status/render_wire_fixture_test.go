@@ -3,7 +3,11 @@
 
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+)
 
 // fixtureBase anchors every deterministic timestamp used by maxRawSnapshot.
 // Every fixture timestamp is fixtureBase plus a fixed, distinct offset so
@@ -140,7 +144,7 @@ func maxRawSnapshot() RawSnapshot {
 		},
 		Coordinator:        fixtureCoordinatorSnapshot(),
 		RegistryCollectors: fixtureRegistryCollectors(),
-		AWSCloudScans: []AWSCloudScanStatus{
+		AWSCloudScans: []cloud.AWSScanStatus{
 			{
 				CollectorInstanceID: "aws-collector-1",
 				AccountID:           "111111111111",
@@ -188,7 +192,7 @@ func maxRawSnapshot() RawSnapshot {
 				UpdatedAt:           fixtureTime(44),
 			},
 		},
-		AWSFreshness: AWSFreshnessSnapshot{
+		AWSFreshness: cloud.AWSFreshnessSnapshot{
 			StatusCounts: []NamedCount{
 				{Name: "queued", Count: 6},
 				{Name: "claimed", Count: 3},

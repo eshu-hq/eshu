@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
+
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 const (
@@ -152,8 +154,8 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		LatestQueueFailure:             cloneQueueFailure(raw.LatestQueueFailure),
 		Coordinator:                    coordinator,
 		RegistryCollectors:             cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
-		AWSCloudScans:                  cloneAWSCloudScanStatuses(raw.AWSCloudScans),
-		AWSFreshness:                   cloneAWSFreshnessSnapshot(raw.AWSFreshness),
+		AWSCloudScans:                  cloud.CloneAWSScanStatuses(raw.AWSCloudScans),
+		AWSFreshness:                   cloud.CloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
 		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
@@ -230,8 +232,8 @@ func RenderText(report Report) string {
 		StaleAfter: DefaultCollectorPromotionStaleAfter,
 	}))...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
-	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
-	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
+	lines = append(lines, cloud.RenderAWSScanLines(report.AWSCloudScans)...)
+	lines = append(lines, cloud.RenderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderInfraInventoryLines(report.InfraInventory)...)
 	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))

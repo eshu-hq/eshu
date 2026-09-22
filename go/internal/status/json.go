@@ -11,6 +11,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
+
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 // RenderJSON returns a stable machine-readable projection of the report.
@@ -27,8 +29,8 @@ func RenderJSON(report Report) ([]byte, error) {
 		LatestFailure                  *queueFailureJSON                 `json:"latest_failure,omitempty"`
 		RetryPolicies                  []retryPolicyJSON                 `json:"retry_policies"`
 		RegistryCollectors             []registryCollectorJSON           `json:"registry_collectors,omitempty"`
-		AWSCloudScans                  []awsCloudScanJSON                `json:"aws_cloud_scans,omitempty"`
-		AWSFreshness                   *awsFreshnessJSON                 `json:"aws_freshness,omitempty"`
+		AWSCloudScans                  []cloud.AWSScanJSON               `json:"aws_cloud_scans,omitempty"`
+		AWSFreshness                   *cloud.AWSFreshnessJSON           `json:"aws_freshness,omitempty"`
 		InfraInventory                 *infraInventoryJSON               `json:"infra_inventory,omitempty"`
 		VulnerabilitySources           []vulnerabilitySourceJSON         `json:"vulnerability_sources,omitempty"`
 		SemanticExtraction             semanticExtractionJSON            `json:"semantic_extraction"`
@@ -63,8 +65,8 @@ func RenderJSON(report Report) ([]byte, error) {
 		LatestFailure:                  queueFailureJSONFromReport(report.LatestQueueFailure),
 		RetryPolicies:                  retryPoliciesJSON(report.RetryPolicies),
 		RegistryCollectors:             registryCollectorsJSON(report.RegistryCollectors),
-		AWSCloudScans:                  awsCloudScansJSON(report.AWSCloudScans),
-		AWSFreshness:                   awsFreshnessJSONFromReport(report.AWSFreshness),
+		AWSCloudScans:                  cloud.AWSScansJSON(report.AWSCloudScans),
+		AWSFreshness:                   cloud.AWSFreshnessJSONFrom(report.AWSFreshness),
 		InfraInventory:                 infraInventoryJSONFromReport(report.InfraInventory),
 		VulnerabilitySources:           vulnerabilitySourcesJSON(report.VulnerabilitySources),
 		SemanticExtraction:             semanticExtractionStatusJSON(report.SemanticExtraction),
@@ -186,30 +188,6 @@ type metadataTargetJSON struct {
 	Stale       int    `json:"stale"`
 	Failed      int    `json:"failed"`
 	RateLimited int    `json:"rate_limited"`
-}
-
-type awsCloudScanJSON struct {
-	CollectorInstanceID string `json:"collector_instance_id"`
-	AccountID           string `json:"account_id"`
-	Region              string `json:"region"`
-	ServiceKind         string `json:"service_kind"`
-	Status              string `json:"status"`
-	CommitStatus        string `json:"commit_status"`
-	FailureClass        string `json:"failure_class,omitempty"`
-	FailureMessage      string `json:"failure_message,omitempty"`
-	APICallCount        int    `json:"api_call_count"`
-	ThrottleCount       int    `json:"throttle_count"`
-	WarningCount        int    `json:"warning_count"`
-	ResourceCount       int    `json:"resource_count"`
-	RelationshipCount   int    `json:"relationship_count"`
-	TagObservationCount int    `json:"tag_observation_count"`
-	BudgetExhausted     bool   `json:"budget_exhausted"`
-	CredentialFailed    bool   `json:"credential_failed"`
-	LastStartedAt       string `json:"last_started_at,omitempty"`
-	LastObservedAt      string `json:"last_observed_at,omitempty"`
-	LastCompletedAt     string `json:"last_completed_at,omitempty"`
-	LastSuccessfulAt    string `json:"last_successful_at,omitempty"`
-	UpdatedAt           string `json:"updated_at,omitempty"`
 }
 
 type vulnerabilitySourceJSON struct {

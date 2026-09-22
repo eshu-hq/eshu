@@ -7,38 +7,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// awsCloudScansJSON projects AWS cloud scan status rows into the stable status
-// JSON shape without exposing raw provider payloads.
-func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
-	projected := make([]awsCloudScanJSON, 0, len(rows))
-	for _, row := range rows {
-		projected = append(projected, awsCloudScanJSON{
-			CollectorInstanceID: row.CollectorInstanceID,
-			AccountID:           row.AccountID,
-			Region:              row.Region,
-			ServiceKind:         row.ServiceKind,
-			Status:              row.Status,
-			CommitStatus:        row.CommitStatus,
-			FailureClass:        row.FailureClass,
-			FailureMessage:      row.FailureMessage,
-			APICallCount:        row.APICallCount,
-			ThrottleCount:       row.ThrottleCount,
-			WarningCount:        row.WarningCount,
-			ResourceCount:       row.ResourceCount,
-			RelationshipCount:   row.RelationshipCount,
-			TagObservationCount: row.TagObservationCount,
-			BudgetExhausted:     row.BudgetExhausted,
-			CredentialFailed:    row.CredentialFailed,
-			LastStartedAt:       shared.NullableRFC3339Value(row.LastStartedAt),
-			LastObservedAt:      shared.NullableRFC3339Value(row.LastObservedAt),
-			LastCompletedAt:     shared.NullableRFC3339Value(row.LastCompletedAt),
-			LastSuccessfulAt:    shared.NullableRFC3339Value(row.LastSuccessfulAt),
-			UpdatedAt:           shared.NullableRFC3339Value(row.UpdatedAt),
-		})
-	}
-	return projected
-}
-
 // vulnerabilitySourcesJSON projects vulnerability source state rows into the
 // stable status JSON shape.
 func vulnerabilitySourcesJSON(rows []VulnerabilitySourceState) []vulnerabilitySourceJSON {

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 const (
@@ -107,7 +109,7 @@ func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntime
 	}
 }
 
-func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []AWSCloudScanStatus) {
+func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []cloud.AWSScanStatus) {
 	type aggregate struct {
 		count          int
 		health         string
@@ -306,7 +308,7 @@ func directEvidenceRuntimeStatus(
 	}
 }
 
-func awsCloudScanHealth(row AWSCloudScanStatus) string {
+func awsCloudScanHealth(row cloud.AWSScanStatus) string {
 	status := strings.TrimSpace(row.Status)
 	if awsCloudScanSucceeded(status) && strings.TrimSpace(row.CommitStatus) == "committed" {
 		return "observed"
@@ -335,7 +337,7 @@ func awsCloudScanSucceeded(status string) bool {
 	}
 }
 
-func awsCloudScanDetail(row AWSCloudScanStatus) string {
+func awsCloudScanDetail(row cloud.AWSScanStatus) string {
 	parts := []string{"aws_cloud_scan_status"}
 	if status := strings.TrimSpace(row.Status); status != "" {
 		parts = append(parts, "status="+status)

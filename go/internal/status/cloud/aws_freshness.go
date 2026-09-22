@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package cloud
 
 import (
 	"fmt"
@@ -14,24 +14,24 @@ import (
 // AWSFreshnessSnapshot captures aggregate EventBridge/AWS Config freshness
 // trigger backlog state for the admin status surface.
 type AWSFreshnessSnapshot struct {
-	StatusCounts    []NamedCount
+	StatusCounts    []shared.NamedCount
 	OldestQueuedAge time.Duration
 }
 
-type awsFreshnessJSON struct {
+type AWSFreshnessJSON struct {
 	StatusCounts           []shared.NamedCountJSON `json:"status_counts"`
 	OldestQueuedAge        string                  `json:"oldest_queued_age"`
 	OldestQueuedAgeSeconds float64                 `json:"oldest_queued_age_seconds"`
 }
 
-func cloneAWSFreshnessSnapshot(snapshot AWSFreshnessSnapshot) AWSFreshnessSnapshot {
+func CloneAWSFreshnessSnapshot(snapshot AWSFreshnessSnapshot) AWSFreshnessSnapshot {
 	return AWSFreshnessSnapshot{
 		StatusCounts:    slices.Clone(snapshot.StatusCounts),
 		OldestQueuedAge: shared.NonNegativeDuration(snapshot.OldestQueuedAge),
 	}
 }
 
-func renderAWSFreshnessLines(snapshot AWSFreshnessSnapshot) []string {
+func RenderAWSFreshnessLines(snapshot AWSFreshnessSnapshot) []string {
 	if len(snapshot.StatusCounts) == 0 && snapshot.OldestQueuedAge == 0 {
 		return nil
 	}
@@ -45,7 +45,7 @@ func renderAWSFreshnessLines(snapshot AWSFreshnessSnapshot) []string {
 	)}
 }
 
-func awsFreshnessJSONFromReport(snapshot AWSFreshnessSnapshot) *awsFreshnessJSON {
+func AWSFreshnessJSONFrom(snapshot AWSFreshnessSnapshot) *AWSFreshnessJSON {
 	if len(snapshot.StatusCounts) == 0 && snapshot.OldestQueuedAge == 0 {
 		return nil
 	}
@@ -53,14 +53,14 @@ func awsFreshnessJSONFromReport(snapshot AWSFreshnessSnapshot) *awsFreshnessJSON
 	for _, count := range snapshot.StatusCounts {
 		counts = append(counts, shared.NamedCountJSON(count))
 	}
-	return &awsFreshnessJSON{
+	return &AWSFreshnessJSON{
 		StatusCounts:           counts,
 		OldestQueuedAge:        snapshot.OldestQueuedAge.String(),
 		OldestQueuedAgeSeconds: snapshot.OldestQueuedAge.Seconds(),
 	}
 }
 
-func awsFreshnessCount(counts []NamedCount, name string) int {
+func awsFreshnessCount(counts []shared.NamedCount, name string) int {
 	for _, count := range counts {
 		if count.Name == name {
 			return count.Count

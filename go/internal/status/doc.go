@@ -40,7 +40,7 @@
 // readback evidence and a fixture-only lane is never promoted to implemented.
 // The global status surface reports only collectors that are present, while the
 // full-fleet enumeration is available to the dedicated readiness read model.
-// AWSCloudScanStatus rows expose per-account, per-region, per-service AWS
+// cloud.AWSScanStatus rows expose per-account, per-region, per-service AWS
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and
 // commit failures without scanning logs.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package cloud
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// AWSCloudScanStatus captures one AWS collector tuple status row for
+// AWSScanStatus captures one AWS collector tuple status row for
 // `(collector_instance_id, account_id, region, service_kind)`.
-type AWSCloudScanStatus struct {
+type AWSScanStatus struct {
 	CollectorInstanceID string
 	AccountID           string
 	Region              string
@@ -35,11 +35,11 @@ type AWSCloudScanStatus struct {
 	UpdatedAt           time.Time
 }
 
-func cloneAWSCloudScanStatuses(rows []AWSCloudScanStatus) []AWSCloudScanStatus {
+func CloneAWSScanStatuses(rows []AWSScanStatus) []AWSScanStatus {
 	return slices.Clone(rows)
 }
 
-func renderAWSCloudScanLines(rows []AWSCloudScanStatus) []string {
+func RenderAWSScanLines(rows []AWSScanStatus) []string {
 	if len(rows) == 0 {
 		return nil
 	}
