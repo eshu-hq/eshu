@@ -147,10 +147,12 @@ only; the story's languages are part of the propagating narrative rows above),
 the deployable-unit relationship supplement
 (`queryRepoDeployableUnitRelationshipOverview`) disclose a failed read the same
 way: the response carries `<read>_read_degraded` in `partial_reasons` (story:
-`limitations`) and the stage log carries `failure_class=<that reason>`. They
-are still not bounded (no `_truncated` reason). The deployment/infrastructure
-overview builder (`loadDeploymentArtifactOverview`, whose error both routes
-discard) is neither bounded nor disclosed, and neither route's full call graph
+`limitations`) and the stage log carries `failure_class=<that reason>`. None
+of them adds a `_truncated` reason to `partial_reasons`; only `api_surface` is
+bounded, and it discloses its bound as `detail_truncated` on its own panel. The
+deployment/infrastructure overview builder
+(`artifacts.LoadDeploymentArtifactOverview`, whose error both routes discard)
+is neither bounded nor disclosed, and neither route's full call graph
 has an exhaustive audit yet: a graph-read failure there still folds into the
 "no rows" path with no `failure_class` signal. See
 `go/internal/query/AGENTS-evidence-history-3.md` (part 3, linked from

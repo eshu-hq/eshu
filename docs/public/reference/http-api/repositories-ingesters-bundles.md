@@ -77,8 +77,9 @@ panel failed: `entry_points_read_degraded`, `relationships_read_degraded`,
 `api_surface_read_degraded`, `languages_read_degraded` and
 `source_tool_breakdown_read_degraded`; `story` carries
 `relationships_read_degraded` in `limitations`. This mirrors the `partial_reasons` shape the inventory
-route already uses (below) rather than inventing a new one. Those reads are
-still not bounded the way `infrastructure` is (no `_truncated` reason), and
+route already uses (below) rather than inventing a new one. None of those
+reads adds a `_truncated` reason (`api_surface` alone is bounded and discloses
+it as `detail_truncated` on its own panel), and
 the deployment/infrastructure overview builder (whose error both routes
 discard) is neither bounded nor disclosed: its graph-read failure still
 returns an empty panel indistinguishable from "no data".
