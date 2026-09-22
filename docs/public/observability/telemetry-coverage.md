@@ -993,7 +993,7 @@ the right name when adding a new stage.
 | reducer.code_import_repo_edge | go/internal/telemetry/contract.go:386 | `eshu_dp_code_import_repo_edges_total` | span reducer |
 | shared_acceptance.lookup | go/internal/telemetry/contract.go:387 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | span shared acceptance |
 | shared_acceptance.upsert | go/internal/telemetry/contract.go:388 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | span shared acceptance |
-| query.* (handler spans) | go/internal/telemetry/contract.go (`SpanQuery*` block), contract/z_observability_coverage.go | `eshu_dp_api_request_duration_seconds` | span query |
+| query.* (handler spans) | go/internal/telemetry/contract.go (`SpanQuery*` block), go/internal/telemetry/contract/z_observability_coverage.go | `eshu_dp_api_request_duration_seconds` | span query |
 | tfstate.collector.* (claim/parse/emit) | go/internal/telemetry/contract.go:491-496 | `eshu_dp_tfstate_snapshots_observed_total`, `eshu_dp_tfstate_resources_emitted_total`, `eshu_dp_tfstate_outputs_emitted_total`, `eshu_dp_tfstate_modules_emitted_total`, `eshu_dp_tfstate_warnings_emitted_total`, `eshu_dp_tfstate_redactions_applied_total`, `eshu_dp_tfstate_s3_conditional_get_not_modified_total`, `eshu_dp_tfstate_parse_duration_seconds` | span tfstate |
 | webhook.handle / webhook.store | go/internal/telemetry/contract.go:497-498 | `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | span webhook |
 | oci_registry.scan / oci_registry.api_call | go/internal/telemetry/contract.go:499-500 | `eshu_dp_oci_registry_scan_duration_seconds` | span OCI |
