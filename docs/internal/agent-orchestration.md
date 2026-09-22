@@ -35,7 +35,7 @@ the codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md` (≡ `CLAUDE.md`), `.agents/skills/` | One canon. Each harness points at it; rules are never re-stated per harness. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`) | Thin `(role + permissions + prompt)` bundles. No rulebook copies. They also carry the model binding, because a skill cannot. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude reads `CLAUDE.md`; Codex and opencode read `AGENTS.md` (plus opencode's
@@ -108,39 +108,43 @@ downgrades its own model.
 ### Where the model binds
 
 A tier is repo policy; the binding is per-harness and lives on the **role**, not
-on the skill. Only Claude Code can bind a model to a skill (`model:` in `SKILL.md`
-frontmatter, which every other harness ignores or reads as inert text). Every
-harness can bind one to a role, so the role is the portable seam: a skill states
-its tier and names no model.
+on the skill. Only Claude Code binds a model to a *skill* (`model:` in `SKILL.md`
+frontmatter; Codex parses only `name`, `description`, and
+`metadata.short-description`, so the key is inert there, and the shared skill is
+one byte-identical file behind the `.claude/skills` and `.codex/skills` symlinks
+anyway). All three harnesses bind a model to a *role*, so the role is the
+portable seam: a skill states its tier and names no model.
 
-| Harness | Role artifact | Model binding | Runtime override |
+| Harness | Role artifact | Model binding | Read-only boxing |
 | --- | --- | --- | --- |
-| Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | the orchestrator picks a model when it dispatches |
-| opencode | `.opencode/agent/*.md` | deliberately unpinned in the tracked file | `OPENCODE_CONFIG_CONTENT`, `opencode run --model`, `/models` |
-| Codex | none — Codex has no per-skill or per-role model key | `[profiles.<name>]` in the user's `~/.codex/config.toml` | `codex --profile <name>` |
+| Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
+| opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write: deny` plus per-command bash denies |
+| Codex | `.codex/agents/*.toml` | `model` and `model_reasoning_effort` in the role file | `sandbox_mode = "read-only"` |
 
-The reviewer is the role bound on every harness:
-[`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md) and
-[`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md) are
-tracked twins running the same `eshu-code-review` skill under the same read-only
-boxing. Codex has no tracked equivalent; add a profile to `~/.codex/config.toml`
-with the Workhorse id from the tier table above:
+The reviewer is the role bound on all three:
+[`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
+[`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md), and
+[`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml) —
+tracked twins running the same `eshu-code-review` skill.
 
-```toml
-[profiles.review]
-model = "<workhorse-tier-id>"
-model_reasoning_effort = "high"
-```
+Codex discovers a role file from each config layer's `<config_folder>/agents/`
+directory. The repo's own layer is the `.codex/` folder at the checkout root
+(the same layer `.codex/config.toml` already uses), so a role committed there is
+project-scoped and tracked. That layer is **disabled while the checkout is
+untrusted**: add the worktree path under `[projects."<path>"] trust_level =
+"trusted"` in `~/.codex/config.toml`, and note that trust is keyed by absolute
+path, so a second checkout of the same repo needs its own entry. A
+`[profiles.<name>]` in `~/.codex/config.toml` remains the way to run a whole
+Codex *session* at a chosen tier; the role file is what binds a spawned
+reviewer.
 
-and invoke it as `codex --profile review`.
-
-The Claude role pins `model: sonnet` while the opencode role stays unpinned.
+The Claude and Codex roles pin a model while the opencode role stays unpinned.
 That is not an inconsistency: Workhorse is the tier this repo already declares
-for review in the table above, so the Claude role transcribes repo policy rather
-than one contributor's economics. opencode stays unpinned because its
-per-session override path is the documented one and costs nothing to use;
-Claude Code has no equivalent per-session role override, so an unpinned role
-there would silently review on whatever the orchestrator happens to be.
+for review in the table above, so those roles transcribe repo policy rather than
+one contributor's economics. opencode stays unpinned because its per-session
+override path is the documented one and costs nothing to use; the other two have
+no equivalent per-session role override, so an unpinned role there would
+silently review on whatever the caller happens to be.
 
 ## The handoff contract
 

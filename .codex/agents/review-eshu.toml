@@ -1,0 +1,19 @@
+# Eshu reviewer role for Codex, discovered from this repo's project config
+# layer (`<repo>/.codex/agents/*.toml`, loaded when the checkout is trusted).
+# The twins are .claude/agents/review-eshu.md and .opencode/agent/review-eshu.md.
+#
+# Workhorse tier per docs/internal/agent-orchestration.md. The eshu-code-review
+# skill declares the tier and names no model, so the binding lives here.
+name = "review-eshu"
+description = """
+Eshu reviewer. Loads the eshu-code-review skill and judges a final diff, PR \
+update, or merge-readiness claim. Read/run only: it never edits the tree it \
+is reviewing.
+"""
+
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+
+# Review stays separate from authorship: read-only is the sandbox equivalent of
+# the withheld write tools in the Claude and opencode twins.
+sandbox_mode = "read-only"
