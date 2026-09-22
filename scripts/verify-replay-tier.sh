@@ -21,7 +21,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 # Pinned NornicDB image (digest-locked for reproducibility).
-NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"
 CONTAINER_NAME="eshu-replay-tier-nornicdb-$$"
 HTTP_PORT="${ESHU_REPLAY_TIER_HTTP_PORT:-7474}"
 BOLT_PORT="${ESHU_REPLAY_TIER_BOLT_PORT:-7687}"

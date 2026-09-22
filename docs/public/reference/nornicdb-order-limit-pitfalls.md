@@ -18,8 +18,8 @@ NornicDB source before patching.
 
 ### Observed shape
 
-Measured on the `fix-490-a427a468@sha256:eb69530f…` image (the current
-compose default; the same shape was also timed on `v1.3.3@sha256:efcb65ae…`)
+Measured on the `fix-490-a427a468@sha256:eb69530f…` image (the compose
+default at the time; the same shape was also timed on `v1.3.3@sha256:efcb65ae…`)
 with 150,000 `CloudResource` nodes, Eshu's full NornicDB schema applied before
 seeding (uid uniqueness constraint plus the separate
 `nornicdb_cloud_resource_uid_lookup` index), one shape per fresh container, a

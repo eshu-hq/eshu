@@ -172,9 +172,9 @@ or document id to logs or metric labels.
 ### Immutable NornicDB default
 
 The default Compose NornicDB service uses the eshu-hq self-built multi-architecture image
-`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555`.
-That exact artifact passes Eshu's restart fault cell without the cross-scope
-relationship corruption observed on the previous source-built backend. The
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26`.
+That exact artifact is built from upstream main at the Close-versus-commit fix (orneryd/NornicDB#501) and carries
+the numID counter floor (orneryd/NornicDB#498), the upstream fixes for the restart cell's cross-tenant aliasing (#6162). The
 default pull policy `missing` downloads the immutable artifact once and reuses
 it without requiring registry access on every start.
 
@@ -200,11 +200,11 @@ Confirm the configured digest and the backend's reported version before treating
 the stack as evidence:
 
 ```bash
-docker compose config --images | rg 'nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530f'
+docker compose config --images | rg 'nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3'
 docker compose exec nornicdb /app/nornicdb version
 ```
 
-The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the fix-490-a427a468 tag and immutable
+The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the fix-499-6ac958a9 tag and immutable
 digest above; the binary string alone cannot identify this release. The pinned image likewise carries no OCI source-revision label, so the tag plus digest,
 selected platform child, and honest binary self-report form the provenance contract.
 

@@ -78,8 +78,8 @@ schemaBootstrap:
   useHelmHooks: false
 ```
 
-The chart's default bundled image (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468`, pinned
-by digest, self-built from upstream main at the conjunct index-seek fix) is the verified default. The capability acknowledgement still stays
+The chart's default bundled image (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9`, pinned
+by digest, self-built from upstream main at the Close-versus-commit fix, which carries the numID counter floor and the conjunct index-seek fix) is the verified default. The capability acknowledgement still stays
 explicit because it also covers operator-selected external endpoints the chart
 cannot identify. Confirm the selected endpoint uses the verified digest, or
 independently prove an override, before setting it to `true`.

@@ -18,7 +18,7 @@ test_ifa_fault_backend_accepts_index_repository_digest() (
 	test_ifa_fault_prepare_provenance_case "${case_dir}"
 	source "${diagnostics_lib}"
 	PATH="${fake_bin}:${PATH}" \
-		IFA_TEST_RUNTIME_REPO_DIGEST=ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555 \
+		IFA_TEST_RUNTIME_REPO_DIGEST=ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26 \
 		ifa_fault_capture_failure_diagnostics \
 		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn
 	[[ -s "${case_dir}/diagnostics-complete" ]] \
@@ -42,7 +42,7 @@ test_ifa_fault_backend_digest_mismatch_retains_evidence() (
 	set -e
 	[[ "${rc}" -ne 0 ]] || fail "backend digest mismatch did not fail closed"
 	jq -e '
-		.expected_index_digest == "sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+		.expected_index_digest == "sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"
 		and .runtime_repo_digests == ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:2222222222222222222222222222222222222222222222222222222222222222"]
 		and .provenance_match == false
 	' "${case_dir}/backend-provenance.json" >/dev/null \
@@ -175,8 +175,8 @@ test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity() (
 			jq -e '
 				.rendered_platform == "linux/amd64"
 				and .runtime_platform == "linux/arm64"
-				and .expected_platform_digest == "sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"
-				and .runtime_repo_digests == ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"]
+				and .expected_platform_digest == "sha256:a1fc8d7256d78a5cbe512f2bfaa2da607e0a453a555d3c0e14bb7bd546c20c9d"
+				and .runtime_repo_digests == ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:a1fc8d7256d78a5cbe512f2bfaa2da607e0a453a555d3c0e14bb7bd546c20c9d"]
 				and .provenance_match == false
 			' "${case_dir}/backend-provenance.json" >/dev/null \
 				|| fail "wrong-platform case did not isolate the platform mismatch"

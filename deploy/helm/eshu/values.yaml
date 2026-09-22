@@ -1106,10 +1106,11 @@ nornicdb:
   image:
     repository: ghcr.io/eshu-hq/nornicdb-amd64-cpu
     # Immutable eshu-hq self-built multi-architecture index (linux/amd64,
-    # linux/arm64) from upstream main at the conjunct index-seek fix
-    # (orneryd/NornicDB#491, merge a427a468); self-reports 1.3.3.
+    # linux/arm64) from upstream main at the Close-versus-commit fix
+    # (orneryd/NornicDB#501, merge 6ac958a9), which carries the numID counter
+    # floor (#498) and the conjunct index-seek fix (#491); self-reports 1.3.3.
     # Aligned with Compose and the R-5 live replay gate.
-    tag: "fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+    tag: "fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
