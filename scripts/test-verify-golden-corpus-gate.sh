@@ -498,4 +498,38 @@ done
 [[ "${lock_race_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-lock-race-cases.sh did not run to completion (gutted, or returned early)"
 
+# #6782: the two differential pairings must be independent samples. Both
+# pairings of a backend shared one GATE_COMPOSE_PROJECT with no teardown between
+# them, so pairing 2 ran against pairing 1's still-running containers and
+# volumes. The quorum rule fails a divergence only when it reproduces across
+# pairings, which assumes independence -- so anything scoped to the container
+# reproduced in both by construction and was promoted from noise to a reproduced
+# divergence, the exact class the quorum exists to suppress.
+#
+# Asserted by LINE ORDER and by the step's own body, not by presence: `require`
+# is a whole-file fixed-string search, so a comment naming this step would
+# satisfy it while the step itself was gone.
+workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
+[[ -f "${workflow}" ]] || fail "missing ${workflow}"
+# The trailing `|| true` is load-bearing. Under `set -e` a command substitution
+# whose command exits non-zero aborts the script immediately, so a deleted step
+# would kill this test silently with no diagnostic instead of reaching the
+# explicit fail below. Measured: without it, deleting the recreate step exits 1
+# printing nothing at all -- the least useful failure for whoever broke it.
+workflow_line_of() { rg -n --fixed-strings -- "$1" "${workflow}" | head -1 | cut -d: -f1 || true; }
+pairing1_last="$(workflow_line_of 'Run B-7 with differential capture (pairing 1, neo4j)')"
+pairing2_first="$(workflow_line_of 'Run B-7 with differential capture (pairing 2, nornicdb)')"
+recreate_at="$(workflow_line_of 'Recreate backends between pairings')"
+[[ -n "${pairing1_last}" && -n "${pairing2_first}" && -n "${recreate_at}" ]] ||
+	fail "golden-corpus-gate.yml: missing a pairing leg or the between-pairings recreate step"
+[[ "${pairing1_last}" -lt "${recreate_at}" && "${recreate_at}" -lt "${pairing2_first}" ]] ||
+	fail "between-pairings recreate must sit between pairing 1's last leg and pairing 2's first (pairing1_last=${pairing1_last} recreate=${recreate_at} pairing2_first=${pairing2_first})"
+recreate_body="$(sed -n "${recreate_at},$((recreate_at + 5))p" "${workflow}")"
+for differential_project in eshu-differential-nornicdb eshu-differential-neo4j; do
+	printf '%s\n' "${recreate_body}" | rg --fixed-strings --quiet -- "-p ${differential_project}" ||
+		fail "between-pairings recreate must tear down ${differential_project}"
+done
+printf '%s\n' "${recreate_body}" | rg --fixed-strings --quiet -- 'down -v' ||
+	fail "between-pairings recreate must remove volumes (down -v), not just stop containers"
+
 printf 'test-verify-golden-corpus-gate: pass\n'
