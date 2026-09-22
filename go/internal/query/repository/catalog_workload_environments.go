@@ -4,10 +4,10 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
-
-import "context"
 
 // Catalog workload assembly resolves bounded workload handles from the graph
 // using backend-portable scalar queries. The canonical graph backend

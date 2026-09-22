@@ -108,14 +108,24 @@ appears twice and none is unaccounted for.
 | `sign_in_policy_types.go` | `auth/signin/policy_types.go` | — |
 | `sso_login_audit.go` | `auth/signin/audit.go` | — |
 
-#### `query/capability/` — 3 non-test, 1 test files
+#### `query/capability/` — 2 non-test files
 
 | current | new | test files carried |
 | --- | --- | --- |
 | `capabilities.go` | `capability/handler.go` | `capabilities_test.go` |
 | `capability_keys.go` | **stays at root** | — |
 | `capability_registry.go` | `capability/lookup.go` | — |
-| `permission_catalog.go` | `capability/permission_catalog.go` | — |
+| `permission_catalog.go` | **deleted** | — |
+
+`permission_catalog.go` does not move; it **dissolves**. Every symbol in it
+was a forwarder onto `queryauth` or `querycontract`, so once root's call
+sites name those directly the file is a header and a package clause. An
+extraction is a good way to find these: a forwarder is invisible while it
+shares a package with its callers, because it is used. Move the callers
+across the boundary and its usage drops to zero, where `unused` sees it.
+
+`capabilities_test.go` stays at root too — it drives the handler through
+root's `APIRouter`, so it cannot follow without an import cycle.
 
 `capability_keys.go` does **not** move, though its name says it should. It
 holds the six capability-id constants root's own handlers name, and its doc

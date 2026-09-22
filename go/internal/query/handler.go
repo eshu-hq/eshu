@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -112,7 +113,7 @@ type APIRouter struct {
 	Playbooks                    *QueryPlaybookHandler
 	InvestigationWorkflows       *InvestigationWorkflowHandler
 	Metrics                      *MetricsHandler
-	Capabilities                 *CapabilitiesHandler
+	Capabilities                 *capability.Handler
 	SurfaceInventory             *SurfaceInventoryHandler
 	Compare                      *CompareHandler
 	AdminDeadLetters             *AdminDeadLetterListHandler

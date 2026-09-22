@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package capability
 
 import (
 	"net/http"
@@ -14,17 +14,17 @@ import (
 )
 
 const (
-	capabilitiesDefaultLimit = 12
-	capabilitiesMaxLimit     = 500
+	DefaultLimit         = 12
+	capabilitiesMaxLimit = 500
 )
 
-// capabilityCompactEntry is the default (compact) view's per-entry shape. It
+// CompactEntry is the default (compact) view's per-entry shape. It
 // hand-picks a subset of capabilitycatalog.Entry's fields, omitting Profiles
 // and ProofSignals, which are the bulk of an entry's serialized size (#6795).
 // view=full instead serializes capabilitycatalog.Entry directly (see list),
 // so the full-view shape is guaranteed byte-identical to the pre-#6795
 // response and cannot silently drop a field added to Entry later.
-type capabilityCompactEntry struct {
+type CompactEntry struct {
 	Capability      string                                    `json:"capability"`
 	DisplayName     string                                    `json:"display_name"`
 	OwnerPackage    string                                    `json:"owner_package,omitempty"`
@@ -40,8 +40,8 @@ type capabilityCompactEntry struct {
 }
 
 // toCapabilityCompactEntry projects entry into its compact wire shape.
-func toCapabilityCompactEntry(entry capabilitycatalog.Entry) capabilityCompactEntry {
-	return capabilityCompactEntry{
+func toCapabilityCompactEntry(entry capabilitycatalog.Entry) CompactEntry {
+	return CompactEntry{
 		Capability:      entry.Capability,
 		DisplayName:     entry.DisplayName,
 		OwnerPackage:    entry.OwnerPackage,
@@ -57,28 +57,28 @@ func toCapabilityCompactEntry(entry capabilitycatalog.Entry) capabilityCompactEn
 	}
 }
 
-// CapabilitiesHandler serves the reconciled capability catalog at
+// Handler serves the reconciled capability catalog at
 // GET /api/v0/capabilities. The catalog is the embedded, generated artifact from
 // the capabilitycatalog package, so the read is static, bounded, and exact in
 // every profile. The same artifact backs the MCP get_capability_catalog tool and
 // the console capability matrix, which keeps the three surfaces in parity.
-type CapabilitiesHandler struct {
-	Profile QueryProfile
+type Handler struct {
+	Profile querycontract.QueryProfile
 
 	once    sync.Once
 	catalog capabilitycatalog.Catalog
 	loadErr error
 }
 
-func (h *CapabilitiesHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
-	return NormalizeQueryProfile(string(h.Profile))
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
 // load reads and caches the embedded catalog once for the handler's lifetime.
-func (h *CapabilitiesHandler) load() (capabilitycatalog.Catalog, error) {
+func (h *Handler) load() (capabilitycatalog.Catalog, error) {
 	h.once.Do(func() {
 		h.catalog, h.loadErr = capabilitycatalog.Load()
 	})
@@ -86,7 +86,7 @@ func (h *CapabilitiesHandler) load() (capabilitycatalog.Catalog, error) {
 }
 
 // Mount registers the capability catalog route.
-func (h *CapabilitiesHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/capabilities", h.list)
 }
 
@@ -97,14 +97,14 @@ func (h *CapabilitiesHandler) Mount(mux *http.ServeMux) {
 // and include_authorization=true for the full role/grant/data-class catalog
 // (#6795 -- these are the two largest contributors to default payload size).
 // GET /api/v0/capabilities?maturity=&owner=&limit=&offset=&view=&include_authorization=
-func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	catalog, err := h.load()
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "capability catalog unavailable")
+		querycontract.WriteError(w, http.StatusInternalServerError, "capability catalog unavailable")
 		return
 	}
 
-	limit, ok := parseBoundedLimit(w, r, capabilitiesDefaultLimit, capabilitiesMaxLimit)
+	limit, ok := parseBoundedLimit(w, r, DefaultLimit, capabilitiesMaxLimit)
 	if !ok {
 		return
 	}
@@ -121,8 +121,8 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	maturity := QueryParam(r, "maturity")
-	owner := QueryParam(r, "owner")
+	maturity := querycontract.QueryParam(r, "maturity")
+	owner := querycontract.QueryParam(r, "owner")
 	filtered := filterCatalogEntries(catalog.Entries, maturity, owner)
 
 	total := len(filtered)
@@ -136,7 +136,7 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 	if full {
 		wirePage = page
 	} else {
-		compact := make([]capabilityCompactEntry, len(page))
+		compact := make([]CompactEntry, len(page))
 		for i, entry := range page {
 			compact[i] = toCapabilityCompactEntry(entry)
 		}
@@ -148,11 +148,11 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 		authorization = catalog.Authorization
 	}
 
-	truth := BuildTruthEnvelope(h.profile(), capabilityCatalogCapability, TruthBasisRuntimeState,
+	truth := querycontract.BuildTruthEnvelope(h.profile(), CatalogKey, querycontract.TruthBasisRuntimeState,
 		"embedded, generated capability catalog; no live backend read")
-	truth.Freshness = TruthFreshness{State: FreshnessFresh}
+	truth.Freshness = querycontract.TruthFreshness{State: querycontract.FreshnessFresh}
 
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"version":       catalog.Version,
 		"authorization": authorization,
 		"capabilities":  wirePage,
@@ -178,13 +178,13 @@ func nextOffset(offset, limit int, truncated bool) any {
 // parseCatalogView reads the view query param, defaulting to the compact view
 // (full=false). An unrecognized value is a bounded 400, not a silent default.
 func parseCatalogView(w http.ResponseWriter, r *http.Request) (full bool, ok bool) {
-	switch raw := QueryParam(r, "view"); raw {
+	switch raw := querycontract.QueryParam(r, "view"); raw {
 	case "", "compact":
 		return false, true
 	case "full":
 		return true, true
 	default:
-		WriteError(w, http.StatusBadRequest, "view must be compact or full")
+		querycontract.WriteError(w, http.StatusBadRequest, "view must be compact or full")
 		return false, false
 	}
 }
@@ -192,13 +192,13 @@ func parseCatalogView(w http.ResponseWriter, r *http.Request) (full bool, ok boo
 // parseIncludeAuthorization reads the include_authorization query param,
 // defaulting to false. An unrecognized value is a bounded 400.
 func parseIncludeAuthorization(w http.ResponseWriter, r *http.Request) (bool, bool) {
-	switch raw := QueryParam(r, "include_authorization"); raw {
+	switch raw := querycontract.QueryParam(r, "include_authorization"); raw {
 	case "", "false":
 		return false, true
 	case "true":
 		return true, true
 	default:
-		WriteError(w, http.StatusBadRequest, "include_authorization must be true or false")
+		querycontract.WriteError(w, http.StatusBadRequest, "include_authorization must be true or false")
 		return false, false
 	}
 }
@@ -288,13 +288,13 @@ func nilSlicesToEmpty(v reflect.Value) {
 // parseOffset reads the offset query param, defaulting to 0 and rejecting
 // negative values.
 func parseOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "offset")
+	raw := querycontract.QueryParam(r, "offset")
 	if raw == "" {
 		return 0, true
 	}
 	offset, err := strconv.Atoi(raw)
 	if err != nil || offset < 0 {
-		WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+		querycontract.WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
 		return 0, false
 	}
 	return offset, true

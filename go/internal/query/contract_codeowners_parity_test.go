@@ -23,9 +23,9 @@ import (
 func TestCodeownersOwnershipCapabilityMatchesFamilyConstructor(t *testing.T) {
 	t.Parallel()
 
-	row, ok := capabilityMatrix["codeowners.ownership.list"]
+	row, ok := querycontract.CompatibilityCapabilityMatrix()["codeowners.ownership.list"]
 	if !ok {
-		t.Fatal("capabilityMatrix missing codeowners.ownership.list")
+		t.Fatal("querycontract.CompatibilityCapabilityMatrix() missing codeowners.ownership.list")
 	}
 	want := codeowners.OwnershipSupport()
 

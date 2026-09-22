@@ -16,6 +16,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	adminaudit "github.com/eshu-hq/eshu/go/internal/query/admin/audit"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -76,11 +78,11 @@ func (h *SignInPolicyMutationHandler) adminScope(w http.ResponseWriter, r *http.
 }
 
 func (h *SignInPolicyMutationHandler) requirePermission(w http.ResponseWriter, r *http.Request) bool {
-	if authContextAllowsPermissionFeature(r.Context(), permissionFeatureIdentityAdmin) {
+	if queryauth.AllowsPermissionFeature(r.Context(), queryauth.PermissionFeatureIdentityAdmin) {
 		return true
 	}
 	h.audit(r, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
-	writePermissionDeniedEnvelope(w, "identity_admin.sign_in_policy_update")
+	querycontract.WritePermissionDenied(w, "identity_admin.sign_in_policy_update")
 	return false
 }
 

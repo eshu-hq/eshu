@@ -141,3 +141,44 @@ func RequiredProfile(capability string) QueryProfile {
 	}
 	return support.RequiredProfile
 }
+
+// ParseOffset reads the offset query param, defaulting to 0 and rejecting a
+// negative or non-numeric value with 400. It is the pagination twin of
+// ParseBoundedLimit and lives here for the same reason: every handler family
+// that paginates needs it, so it cannot belong to any one of them (#6642).
+func ParseOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := QueryParam(r, "offset")
+	if raw == "" {
+		return 0, true
+	}
+	offset, err := strconv.Atoi(raw)
+	if err != nil || offset < 0 {
+		WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+		return 0, false
+	}
+	return offset, true
+}
+
+// NextOffset returns the offset a caller should request next, or nil when the
+// page was not truncated. Returning any rather than *int keeps it directly
+// assignable to a JSON response field that must serialize as null.
+func NextOffset(offset, limit int, truncated bool) any {
+	if !truncated {
+		return nil
+	}
+	return offset + limit
+}
+
+// ParseCatalogView reads the view query param, which selects between the
+// compact and full projection of a catalog response. Blank means compact.
+func ParseCatalogView(w http.ResponseWriter, r *http.Request) (full bool, ok bool) {
+	switch raw := QueryParam(r, "view"); raw {
+	case "", "compact":
+		return false, true
+	case "full":
+		return true, true
+	default:
+		WriteError(w, http.StatusBadRequest, "view must be compact or full")
+		return false, false
+	}
+}

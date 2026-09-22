@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -60,11 +61,11 @@ func (h *SurfaceInventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit, ok := parseBoundedLimit(w, r, surfaceInventoryDefaultLimit, surfaceInventoryMaxLimit)
+	limit, ok := querycontract.ParseBoundedLimit(w, r, surfaceInventoryDefaultLimit, surfaceInventoryMaxLimit)
 	if !ok {
 		return
 	}
-	offset, ok := parseOffset(w, r)
+	offset, ok := querycontract.ParseOffset(w, r)
 	if !ok {
 		return
 	}

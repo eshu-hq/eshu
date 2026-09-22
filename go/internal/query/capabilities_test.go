@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/query/capability"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // capabilitiesRawBody performs the request and returns the raw response body,
@@ -22,7 +24,7 @@ import (
 func capabilitiesRawBody(t *testing.T, target string) []byte {
 	t.Helper()
 	mux := http.NewServeMux()
-	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router := &APIRouter{Capabilities: &capability.Handler{Profile: querycontract.ProfileProduction}}
 	router.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -34,10 +36,10 @@ func capabilitiesRawBody(t *testing.T, target string) []byte {
 	return rec.Body.Bytes()
 }
 
-func capabilitiesRequest(t *testing.T, target string) ResponseEnvelope {
+func capabilitiesRequest(t *testing.T, target string) querycontract.ResponseEnvelope {
 	t.Helper()
 	mux := http.NewServeMux()
-	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router := &APIRouter{Capabilities: &capability.Handler{Profile: querycontract.ProfileProduction}}
 	router.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, target, nil)
@@ -48,7 +50,7 @@ func capabilitiesRequest(t *testing.T, target string) ResponseEnvelope {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -65,13 +67,13 @@ func TestCapabilitiesHandlerListsCatalogWithExactTruth(t *testing.T) {
 	if envelope.Truth == nil {
 		t.Fatal("truth envelope is nil")
 	}
-	if got, want := envelope.Truth.Capability, capabilityCatalogCapability; got != want {
+	if got, want := envelope.Truth.Capability, capability.CatalogKey; got != want {
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Level, TruthLevelExact; got != want {
+	if got, want := envelope.Truth.Level, querycontract.TruthLevelExact; got != want {
 		t.Fatalf("truth level = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Freshness.State, FreshnessFresh; got != want {
+	if got, want := envelope.Truth.Freshness.State, querycontract.FreshnessFresh; got != want {
 		t.Fatalf("freshness = %q, want %q", got, want)
 	}
 
@@ -225,7 +227,7 @@ func TestCapabilitiesHandlerRejectsBadLimit(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router := &APIRouter{Capabilities: &capability.Handler{Profile: querycontract.ProfileProduction}}
 	router.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/capabilities?limit=9999", nil)
 	rec := httptest.NewRecorder()
@@ -241,7 +243,7 @@ func TestCapabilitiesHandlerRejectsBadView(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router := &APIRouter{Capabilities: &capability.Handler{Profile: querycontract.ProfileProduction}}
 	router.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/capabilities?view=verbose", nil)
 	rec := httptest.NewRecorder()
@@ -300,7 +302,7 @@ func TestCapabilitiesHandlerDefaultPageFitsResponseBudget(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router := &APIRouter{Capabilities: &capability.Handler{Profile: querycontract.ProfileProduction}}
 	router.Mount(mux)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/capabilities", nil)
 	req.Header.Set("Accept", EnvelopeMIMEType)
@@ -309,7 +311,7 @@ func TestCapabilitiesHandlerDefaultPageFitsResponseBudget(t *testing.T) {
 
 	const budget = 8 * 1024
 	got := rec.Body.Len()
-	t.Logf("default GET /api/v0/capabilities (limit=%d, compact, no authorization) body = %d bytes", capabilitiesDefaultLimit, got)
+	t.Logf("default GET /api/v0/capabilities (limit=%d, compact, no authorization) body = %d bytes", capability.DefaultLimit, got)
 	if got >= budget {
 		t.Fatalf("default /api/v0/capabilities body = %d bytes, want < %d", got, budget)
 	}
@@ -325,7 +327,7 @@ func TestCapabilitiesHandlerBeforeAfterPayloadSize(t *testing.T) {
 	before := capabilitiesRawBody(t, "/api/v0/capabilities?view=full&include_authorization=true&limit=200")
 	after := capabilitiesRawBody(t, "/api/v0/capabilities")
 	t.Logf("get_capability_catalog default payload: before(#6795 shape, limit=200,view=full,include_authorization=true)=%d bytes, after(compact default, limit=%d)=%d bytes",
-		len(before), capabilitiesDefaultLimit, len(after))
+		len(before), capability.DefaultLimit, len(after))
 	if len(after) >= len(before) {
 		t.Fatalf("after size %d bytes not smaller than before size %d bytes", len(after), len(before))
 	}
@@ -384,7 +386,7 @@ func TestCapabilitiesHandlerFullViewIsByteIdenticalToEntry(t *testing.T) {
 // (capabilitycatalog.Entry) field, for every catalog entry -- the compact
 // projection must be a value-preserving subset, not a lossy rename (#6795
 // review finding). The field set to compare is derived from
-// capabilityCompactEntry's own json tags via reflection, so a field added to
+// capability.CompactEntry's own json tags via reflection, so a field added to
 // the compact projection later is covered automatically instead of going
 // unchecked.
 func TestCapabilitiesHandlerCompactFieldsMatchFullEntry(t *testing.T) {
@@ -403,9 +405,9 @@ func TestCapabilitiesHandlerCompactFieldsMatchFullEntry(t *testing.T) {
 		t.Fatalf("compact page = %d entries, want %d", len(compactEntries), len(catalog.Entries))
 	}
 
-	fields := jsonFieldNames(reflect.TypeOf(capabilityCompactEntry{}))
+	fields := jsonFieldNames(reflect.TypeOf(capability.CompactEntry{}))
 	if len(fields) == 0 {
-		t.Fatal("no json fields discovered on capabilityCompactEntry; reflection helper is broken")
+		t.Fatal("no json fields discovered on capability.CompactEntry; reflection helper is broken")
 	}
 
 	fullJSON, err := json.Marshal(catalog.Entries)

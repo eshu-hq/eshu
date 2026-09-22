@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ask/facet"
 	"github.com/eshu-hq/eshu/go/internal/ask/render"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // AskAnswer is the handler-layer representation of an engine answer. It
@@ -196,12 +198,12 @@ func (h *AskHandler) Mount(mux *http.ServeMux) {
 }
 
 func (h *AskHandler) handleAsk(w http.ResponseWriter, r *http.Request) {
-	if !authContextAllowsPermissionFeature(r.Context(), permissionFeatureAskSearch) {
-		writePermissionDeniedEnvelope(w, "ask_search.ask")
+	if !queryauth.AllowsPermissionFeature(r.Context(), queryauth.PermissionFeatureAskSearch) {
+		querycontract.WritePermissionDenied(w, "ask_search.ask")
 		return
 	}
-	if !authContextAllowsPermissionDataClasses(r.Context(), permissionDataClassesAskSearch...) {
-		writePermissionDeniedEnvelope(w, "ask_search.ask")
+	if !queryauth.AllowsPermissionDataClasses(r.Context(), queryauth.PermissionDataClassesAskSearch()...) {
+		querycontract.WritePermissionDenied(w, "ask_search.ask")
 		return
 	}
 

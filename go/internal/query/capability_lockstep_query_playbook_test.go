@@ -22,9 +22,9 @@ import (
 // drifting apart, so this test asserts they agree field by field: mutate any
 // ceiling in either declaration and this test fails.
 func TestQueryPlaybookCapabilityLockstep(t *testing.T) {
-	root, ok := capabilityMatrix[CapabilityQueryPlaybooks]
+	root, ok := querycontract.CompatibilityCapabilityMatrix()[CapabilityQueryPlaybooks]
 	if !ok {
-		t.Fatalf("capabilityMatrix has no entry for CapabilityQueryPlaybooks %q", CapabilityQueryPlaybooks)
+		t.Fatalf("querycontract.CompatibilityCapabilityMatrix() has no entry for CapabilityQueryPlaybooks %q", CapabilityQueryPlaybooks)
 	}
 	leaf := playbook.Support()
 

@@ -31,7 +31,7 @@ order is the shared spine: nothing moves before PR 1.
 | ---: | --- | ---: | --- |
 | 1a | **Envelope spine repoint** ([#6977](https://github.com/eshu-hq/eshu/pull/6977)). Delete `requiredProfile` and `acceptsEnvelope`; repoint 31 files. | 0 moved | clears 1 of the 5 dominant spine symbols |
 | 1b | **Authz/capability spine repoint.** Delete `capabilityUnsupported`, `repositoryAccessFilterFromContext` and the `repositoryAccessFilter` type; repoint 83 files. | 0 moved | clears 3 more. `startQueryHandlerSpan` is the 5th and belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818), not here — so this series clears 4 of 5, and the spine is clear for every move that follows |
-| 2 | `capability/` — 3 root files, plus `capabilities.go`, `capability_matrix.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go` and `registry.go` from today's `contract/` | 8 | starts draining the `contract/` name. **Not small**: see the note below |
+| 2 | `capability/` — `capabilities.go` and `capability_registry.go` only. Nothing comes from `contract/`; `permission_catalog.go` dissolves | 2 | does **not** drain the `contract/` name — see the note below |
 | 3 | `querycontract`'s seven leaf extractions, in place, without the rename | 19 | closes the #6597 split; the rename waits for the name |
 | 4 | `testutil/` nesting — the `content` and `graph` leaves only. The `querytestutil` → `testutil` **rename itself belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818)** | 42 | test helpers, no production risk |
 | 6 | the 52 root auth files, nested five ways under whatever `queryauth` is called by then | 52 | the largest root family; `auth/route/` alone is 24 files |

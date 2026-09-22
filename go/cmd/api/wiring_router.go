@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -268,7 +269,7 @@ func newRouterWithSemanticEmbedding(
 			Source:  metricsSource,
 			Profile: queryProfile,
 		},
-		Capabilities:     &query.CapabilitiesHandler{Profile: queryProfile},
+		Capabilities:     &capability.Handler{Profile: queryProfile},
 		SurfaceInventory: &query.SurfaceInventoryHandler{Profile: queryProfile},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,

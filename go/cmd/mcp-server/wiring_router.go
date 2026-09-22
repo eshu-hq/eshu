@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
@@ -306,7 +307,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		FactSchemaVersions:     &query.FactSchemaVersionHandler{Profile: queryProfile},
 		Playbooks:              &query.QueryPlaybookHandler{Profile: queryProfile},
 		InvestigationWorkflows: &query.InvestigationWorkflowHandler{Profile: queryProfile},
-		Capabilities:           &query.CapabilitiesHandler{Profile: queryProfile},
+		Capabilities:           &capability.Handler{Profile: queryProfile},
 		SurfaceInventory:       &query.SurfaceInventoryHandler{Profile: queryProfile},
 		Compare: &query.CompareHandler{
 			Neo4j:   neo4jReader,
