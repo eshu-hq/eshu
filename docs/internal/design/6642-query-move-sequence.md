@@ -57,10 +57,13 @@ real code. That is a separate change on top of PR 31.
   `query/graph/` and `query/package/` today.
 - Dirgate row re-pinned DOWN in the same PR, `grandfather.go` regenerated —
   see [Restack rule](#restack-rule-the-dirgate-ledger-trap).
-- Citation sweep. **216 path citations across `docs/`, `specs/`, `.agents/` and
-  `.github/` name 86 of the 277 moving files** (`envelope_aliases.go` 12 times,
+- Citation sweep. **222 path citations across 101 tracked `.md`/`.yaml`/`.yml`
+  files name 87 of the 277 moving files** (`envelope_aliases.go` 12 times,
   `relationships_catalog_cypher.go` and `content_reader_repository_catalog.go`
-  9 each). Thirty-one query `.go` paths are pinned in `specs/`, one of them —
+  9 each). Reproduce with `git ls-files '*.md' '*.yaml' '*.yml'` and the pattern
+  `go/internal/query/<basename>.go`, excluding these four pages; a bare
+  directory walk gives a different answer because it picks up the untracked
+  `docs/site/` build output. Thirty-one query `.go` paths are pinned in `specs/`, one of them —
   `relationships_catalog_cypher.go` — a non-test root file that moves. Prior
   moves have already left stale citations behind: `specs/capability-matrix.v1.yaml:312`
   still names `go/internal/query/service_story_seam.go`, which has lived at
