@@ -116,7 +116,7 @@ compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")
 # shellcheck source=scripts/lib/golden-corpus-fixtures.sh
 source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # The credentialed collectors and their B-10 cassette directories. Do not restate
-# the count here: GATE_MIN_COLLECTOR_SOURCES derives it from this array, and a
+# a count here: the settle poll waits for the pairs these cassettes launch, and a
 # hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
@@ -279,20 +279,17 @@ log "replay B-10 cassette collectors (credential-free)"
 # shellcheck source=scripts/lib/golden-corpus-cassette-replay.sh
 . "${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
 golden_corpus_start_cassette_replays
-printf 'launched %d collectors; polling for full cassette replay (%d scope generations, interval %ss, deadline %ss)\n' \
-	"${#collector_pids[@]}" "${GATE_EXPECTED_TOTAL_SCOPES}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
+printf 'launched %d collectors; polling for full cassette replay (%d launched scope generations, interval %ss, deadline %ss)\n' \
+	"${#collector_pids[@]}" "${#GATE_EXPECTED_SCOPE_PAIRS[@]}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 
-# Prove the cassette facts actually landed: each credentialed collector must have
-# produced at least one ingestion scope, AND every scope of every cassette must
-# have landed -- not just the first one per collector. A distinct-source-count
-# threshold alone is satisfied the moment each collector commits its FIRST
-# scope; killing the collectors right there truncates every scope after that
-# for any collector whose cassette carries more than one (1-6 per cassette
-# here), which would silently feed the rest of the pipeline an incomplete
-# corpus while the gate reports success. wait_for_collector_settle (extracted
+# Prove the cassette facts actually landed: every (scope_id, generation_id)
+# pair the replay launched must be committed before the collectors are killed.
+# A count threshold was satisfiable with a collector still mid-commit, because
+# the population also carries bootstrap-seeded scopes (#6965), and the kill
+# then rolled that commit back, silently. wait_for_collector_settle (extracted
 # to scripts/lib/golden-corpus-collector-settle.sh to keep this orchestrator
-# under the 500-line cap and independently testable) polls for both counts
-# instead of sleeping a fixed duration — see the lib's header for why.
+# under the 500-line cap and independently testable) polls for the launched
+# set instead of sleeping a fixed duration; see the lib's header.
 # shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
 . "${repo_root}/scripts/lib/golden-corpus-collector-settle.sh"
 wait_for_collector_settle

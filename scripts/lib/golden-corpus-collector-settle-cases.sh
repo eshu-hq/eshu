@@ -12,102 +12,71 @@
 # A collector that no-ops must not let the gate pass: liveness + facts-landed.
 # Both checks live in the collector settle lib chunk, not the orchestrator body.
 require_in "collector liveness check" "${collector_settle_lib}" "exited during settle"
-# The stop condition must require BOTH every credentialed collector having
-# landed at least one scope AND every scope of every cassette having landed --
-# anchored as one ANDed condition, not two independent checks that could each
-# `break` on their own. A cassette.Source.Next call emits one scope per call
-# and a cassette carries 1-6 scopes; the distinct-source count alone is
-# satisfied the moment every collector has committed its FIRST scope, well
-# before any of them may have committed the rest. Breaking there and killing
-# every collector pid would truncate the corpus for whichever collectors were
-# still mid-replay, silently, since the gate would still report success -- a
-# worse failure than the fixed sleep this lib replaced (that one at least
-# failed loudly).
-require_in "settle break condition requires BOTH source breadth AND full scope replay" \
+# The stop condition is a subset assertion over the launched (scope_id,
+# generation_id) pairs, not a count. Two count thresholds (distinct sources >=
+# N, generations >= M) were each satisfiable with a collector still mid-commit:
+# migration 115 seeds an eshu:global scope and generation on every bootstrap,
+# so the population always carried one more of each than the launched set, and
+# the kill after the break rolled back the in-flight commit (#6965). Case G
+# below plants exactly that population.
+require_in "settle break requires every launched pair, echoed back by the probe" \
 	"${collector_settle_lib}" \
-	"if (( collector_sources >= GATE_MIN_COLLECTOR_SOURCES && landed_generations >= GATE_EXPECTED_TOTAL_SCOPES )); then"
-# Repeated scope IDs are valid cassette input when two observations represent
-# successive generations of one scope. Counting ingestion_scopes can never
-# distinguish whether the second generation committed, so the proof must count
-# successful scope_generations while still excluding bootstrap git scopes.
-require_in "settle probe counts every committed cassette generation" \
+	"if (( probed_total == launched_total && present_pairs == launched_total )); then"
+if rg --quiet --fixed-strings -- 'GATE_MIN_COLLECTOR_SOURCES' "${collector_settle_lib}"; then
+	fail "collector settle must not break on a distinct-source count threshold (#6965)"
+fi
+require_in "settle probe joins launched pairs to scope_generations" \
 	"${collector_settle_lib}" \
-	"FROM scope_generations AS generation"
-require_in "settle generation count excludes bootstrap git scopes" \
+	"LEFT JOIN scope_generations AS landed"
+require_in "settle probe matches on generation_id, not just scope" \
 	"${collector_settle_lib}" \
-	"JOIN ingestion_scopes AS scope"
-require_in "settle generation count includes collector-committed pending rows" \
+	"AND landed.generation_id = launched.generation_id"
+require_in "settle probe counts collector-committed pending rows" \
 	"${collector_settle_lib}" \
-	"generation.status IN ('pending', 'active', 'completed', 'superseded')"
+	"AND landed.status IN ('pending', 'active', 'completed', 'superseded');"
 # The settle window must be POLLED, not slept for a fixed duration: a fixed
 # `sleep "${GATE_COLLECTOR_SETTLE_SECONDS}"` has zero margin once host load or
-# Docker I/O contention slows down fact commit (the exact regression this
-# lib fixed -- see the lib's own header). GATE_COLLECTOR_SETTLE_POLL_SECONDS is
-# a real, separate interval var, so this guard is anchored on the deadline var
-# specifically, not on the word "sleep" in general (the poll's own interval
-# sleep must stay).
+# Docker I/O contention slows down fact commit. GATE_COLLECTOR_SETTLE_POLL_SECONDS
+# is a real, separate interval var, so this guard is anchored on the deadline
+# var specifically, not on the word "sleep" in general.
 if rg --quiet --pcre2 'sleep\s+"?\$\{GATE_COLLECTOR_SETTLE_SECONDS\}"?\s*$' "${script}" "${collector_settle_lib}"; then
 	fail "collector settle must be polled, not slept for a fixed duration"
 fi
 require_in "settle poll interval is a distinct var" "${collector_settle_lib}" \
 	'sleep_seconds="${GATE_COLLECTOR_SETTLE_POLL_SECONDS}"'
-# The poll sleep must be clamped to the remaining deadline, not the full poll
-# interval unconditionally: an earlier version slept
-# GATE_COLLECTOR_SETTLE_POLL_SECONDS regardless of how much deadline was left,
-# so the loop could overshoot GATE_COLLECTOR_SETTLE_SECONDS by up to one whole
-# interval -- e.g. a 3s deadline with a 10s poll interval reported "timed out
-# after 10s (deadline 3s)", a message that lied about its own deadline in
-# exactly the way the fixed sleep this lib replaced lied about settle time.
+# The poll sleep must be clamped to the remaining deadline, or the loop can
+# overshoot GATE_COLLECTOR_SETTLE_SECONDS by a whole interval and report a
+# deadline it did not honour.
 if rg --quiet --pcre2 '^\s*sleep\s+"\$\{GATE_COLLECTOR_SETTLE_POLL_SECONDS\}"\s*$' "${collector_settle_lib}"; then
 	fail "collector settle poll sleep must be clamped to the remaining deadline (min(poll_interval, remaining)), not the full poll interval unconditionally"
 fi
 require_in "settle sleep clamped to remaining deadline" "${collector_settle_lib}" \
 	"if (( remaining_seconds < sleep_seconds )); then"
-# On timeout the failure must report what actually happened: both counts
-# reached, both thresholds wanted, and how long it waited -- not just "failed".
 require_in "settle timeout reports elapsed duration" "${collector_settle_lib}" \
 	"collector settle poll timed out after \${settle_elapsed}s (deadline \${GATE_COLLECTOR_SETTLE_SECONDS}s)"
-# On success the observed settle duration must be logged: this is the margin
-# data that was invisible under the old fixed sleep (nobody could tell whether a
-# "green" run settled in 3s or 19s against the old 20s window).
 require_in "settle success reports observed duration" "${collector_settle_lib}" \
 	"cassette facts settled in %ss"
 # A bare `settle_probe_line="$(pg ...)"` assignment aborts the whole gate under
 # set -e the instant a transient docker-exec/psql hiccup makes pg() exit
-# non-zero -- before the non-numeric fallback or the deadline ever run. Case F
-# below exercises this at runtime; this pins the source-level guard too, since
-# a text-only assertion cannot tell a working guard from one a later edit
-# silently dropped from the same-line `||` back onto its own line (which would
-# reopen the gap while still parsing).
+# non-zero. Case F exercises this at runtime; this pins the same-line guard.
 require_in "pg() probe failure is guarded on the same line (set -e safety)" \
 	"${collector_settle_lib}" \
 	'")" || settle_probe_line=""'
 
-# Genuinely exercises wait_for_collector_settle (scripts/lib/golden-corpus-
-# collector-settle.sh) against a mocked pg()/die(), mirroring the executable-
-# test bar test-verify-golden-corpus-gate.sh already sets for
-# host_tcp_port_open and the vulnerability-suppression lib: a text-only
-# assertion cannot tell a working poll from a broken one (e.g. an inverted
-# threshold comparison, or a deadline that never fires). Each case runs in a
-# subshell under `if`, not a bare statement -- the mirror test's own
-# `set -euo pipefail` would otherwise abort the whole test the moment Case A's
-# deliberately-failing subshell returns non-zero, the same reason the
-# host_tcp_port_open closed-port case is wrapped in `if`. A caller-side trap
-# kills the fake collector background pid on every subshell exit path,
-# including die()'s, so it never leaks. Every case sets both
-# GATE_MIN_COLLECTOR_SOURCES=2 and GATE_EXPECTED_TOTAL_SCOPES=5 unless the case
-# is specifically testing one of those thresholds, so pg()'s two-field mock
-# output ("<distinct sources> <total scopes>") stays consistent and readable
-# across cases.
+# Genuinely exercises wait_for_collector_settle against a mocked pg()/die(): a
+# text-only assertion cannot tell a working poll from a broken one. Each case
+# runs in a subshell under `if`, because the mirror test's own `set -euo
+# pipefail` would otherwise abort on a deliberately failing case. The case sets
+# pg(), GATE_EXPECTED_SCOPE_PAIRS and the two timing vars, then calls
+# collector_settle_run_case, whose EXIT trap kills the fake collector on every
+# path including die()'s. Mocked probe answers use the lib's one-row shape:
+# "<present> <launched> <missing,...>".
 collector_settle_case_log_dir="$(mktemp -d -t golden-corpus-collector-settle-case.XXXXXX)"
 die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
+collector_settle_two_pairs=("scope-1"$'\t'"gen-1" "scope-2"$'\t'"gen-2")
 
-# Case A: neither count ever reaches its threshold. The poll must fail loudly
-# (non-zero exit), bounded by the deadline, reporting both counts actually
-# reached and both thresholds wanted -- not raise a threshold, soften the
-# assertion, or retry past the deadline quietly.
-collector_settle_case_a_err="${collector_settle_case_log_dir}/case-a.err"
-if (
+collector_settle_run_case() {
+	local name="$1"
 	log_dir="${collector_settle_case_log_dir}"
 	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
 	. "${collector_settle_lib}"
@@ -116,122 +85,86 @@ if (
 	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
 	sleep 20 &
 	collector_pids+=("$!")
-	collector_names+=("mirror-fake-a")
-	: >"${collector_settle_case_log_dir}/mirror-fake-a.log"
-	pg() { printf '0 0'; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
+	collector_names+=("mirror-fake-${name}")
+	: >"${collector_settle_case_log_dir}/mirror-fake-${name}.log"
+	wait_for_collector_settle
+}
+
+# Case A: no launched pair ever lands. The poll must fail loudly, bounded by
+# the deadline, naming every missing pair.
+collector_settle_case_a_err="${collector_settle_case_log_dir}/case-a.err"
+if (
+	pg() { printf '0 2 scope-1/gen-1,scope-2/gen-2'; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
 	GATE_COLLECTOR_SETTLE_SECONDS=3
 	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
-	wait_for_collector_settle
+	collector_settle_run_case a
 ) >/dev/null 2>"${collector_settle_case_a_err}"; then
-	fail "wait_for_collector_settle must exit non-zero when neither threshold is ever reached"
+	fail "wait_for_collector_settle must exit non-zero when no launched pair ever lands"
 fi
 rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_a_err}" ||
 	fail "wait_for_collector_settle timeout message must report the timeout"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
+rg --fixed-strings --quiet -- '0 of 2 launched scope generations landed; missing: scope-1/gen-1,scope-2/gen-2' \
 	"${collector_settle_case_a_err}" ||
-	fail "wait_for_collector_settle timeout message must report both counts reached (0, 0) and both thresholds (2, 5)"
+	fail "wait_for_collector_settle timeout message must report the landed count and name every missing pair"
 
-# Case B: both thresholds are met on the very first poll. The function must
-# return success EARLY -- well under a deadline it was given plenty of room
-# to hit -- proving the fix actually gets faster in the common case rather
-# than only failing correctly in the broken case.
+# Case B: every launched pair is present on the first poll. The function must
+# return success EARLY, well under a deadline it had plenty of room to hit.
 collector_settle_case_b_out="${collector_settle_case_log_dir}/case-b.out"
 if ! (
-	log_dir="${collector_settle_case_log_dir}"
-	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
-	. "${collector_settle_lib}"
-	collector_pids=()
-	collector_names=()
-	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
-	sleep 20 &
-	collector_pids+=("$!")
-	collector_names+=("mirror-fake-b")
-	: >"${collector_settle_case_log_dir}/mirror-fake-b.log"
-	pg() { printf '2 5'; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
+	pg() { printf '2 2 '; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
 	GATE_COLLECTOR_SETTLE_SECONDS=30
 	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
 	case_b_start="$(date +%s)"
-	wait_for_collector_settle
+	collector_settle_run_case b
 	printf 'elapsed=%s\n' "$(( $(date +%s) - case_b_start ))"
 ) >"${collector_settle_case_b_out}" 2>&1; then
-	fail "wait_for_collector_settle must exit zero when both thresholds are met"
+	fail "wait_for_collector_settle must exit zero when every launched pair has landed"
 fi
 rg --fixed-strings --quiet -- 'cassette facts settled in' "${collector_settle_case_b_out}" ||
 	fail "wait_for_collector_settle must log the observed settle duration on success"
+rg --fixed-strings --quiet -- 'all 2 launched scope generations landed' "${collector_settle_case_b_out}" ||
+	fail "wait_for_collector_settle must report the launched-pair count on success"
 collector_settle_case_b_elapsed="$(sed -n 's/^elapsed=//p' "${collector_settle_case_b_out}")"
 [[ -n "${collector_settle_case_b_elapsed}" ]] ||
 	fail "test harness: case B did not report its own elapsed time"
 [[ "${collector_settle_case_b_elapsed}" -lt 30 ]] ||
 	fail "wait_for_collector_settle must return early on the normal path, not wait out a 30s deadline it never needed (took ${collector_settle_case_b_elapsed}s)"
 
-# Case C: pg() returns a transient hiccup as text (empty string / error line)
-# while still exiting zero. Polling queries Postgres far more often than the
-# old one-shot check did, so a non-numeric response must be treated as
-# "not yet landed" for BOTH fields, not corrupt the arithmetic comparison and
-# abort the whole gate on a bash syntax error instead of the intended timeout
-# message.
+# Case C: pg() returns a transient error as text while exiting zero. A
+# non-numeric answer must read as "nothing landed", never as "nothing missing",
+# and must not corrupt the arithmetic into a bash syntax error.
 collector_settle_case_c_err="${collector_settle_case_log_dir}/case-c.err"
 if (
-	log_dir="${collector_settle_case_log_dir}"
-	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
-	. "${collector_settle_lib}"
-	collector_pids=()
-	collector_names=()
-	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
-	sleep 20 &
-	collector_pids+=("$!")
-	collector_names+=("mirror-fake-c")
-	: >"${collector_settle_case_log_dir}/mirror-fake-c.log"
-	pg() { printf 'ERROR:  relation "ingestion_scopes" does not exist'; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
+	pg() { printf 'ERROR:  relation "scope_generations" does not exist'; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
 	GATE_COLLECTOR_SETTLE_SECONDS=2
 	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
-	wait_for_collector_settle
+	collector_settle_run_case c
 ) >/dev/null 2>"${collector_settle_case_c_err}"; then
-	fail "wait_for_collector_settle must exit non-zero when pg() never returns a usable pair of counts"
+	fail "wait_for_collector_settle must exit non-zero when pg() never returns a usable answer"
 fi
-rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_c_err}" ||
-	fail "a non-numeric pg() response must still produce the deadline-timeout message, not a bash arithmetic syntax error"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
+rg --fixed-strings --quiet -- '0 of 2 launched scope generations landed; missing: (probe returned no usable answer)' \
 	"${collector_settle_case_c_err}" ||
-	fail "a non-numeric pg() response must be treated as 0 for both counts, not corrupt the arithmetic comparison"
+	fail "a non-numeric pg() response must be treated as nothing landed and say so: $(cat "${collector_settle_case_c_err}")"
 if rg --fixed-strings --quiet -- 'syntax error' "${collector_settle_case_c_err}"; then
 	fail "a non-numeric pg() response corrupted the arithmetic comparison"
 fi
 
-# Case D: the poll interval is deliberately larger than the deadline (10s
-# poll, 3s deadline). Proves the sleep is clamped to the remaining deadline
-# rather than slept unconditionally: the pre-fix version would sleep the full
-# 10s before its next deadline check and report "timed out after ~10-13s
-# (deadline 3s)" -- a message that lies about its own deadline. Timed from
-# OUTSIDE the subshell: wait_for_collector_settle's die() calls exit and never
-# returns control to a caller-side timer placed after the call.
+# Case D: the poll interval (10s) is larger than the deadline (3s). The sleep
+# must be clamped to the remaining deadline. Timed from OUTSIDE the subshell:
+# die() calls exit and never returns control to a timer after the call.
 collector_settle_case_d_err="${collector_settle_case_log_dir}/case-d.err"
 collector_settle_case_d_start="$(date +%s)"
 if (
-	log_dir="${collector_settle_case_log_dir}"
-	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
-	. "${collector_settle_lib}"
-	collector_pids=()
-	collector_names=()
-	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
-	sleep 20 &
-	collector_pids+=("$!")
-	collector_names+=("mirror-fake-d")
-	: >"${collector_settle_case_log_dir}/mirror-fake-d.log"
-	pg() { printf '0 0'; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
+	pg() { printf '0 2 scope-1/gen-1,scope-2/gen-2'; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
 	GATE_COLLECTOR_SETTLE_SECONDS=3
 	GATE_COLLECTOR_SETTLE_POLL_SECONDS=10
-	wait_for_collector_settle
+	collector_settle_run_case d
 ) >/dev/null 2>"${collector_settle_case_d_err}"; then
-	fail "wait_for_collector_settle must exit non-zero when neither threshold is reached (case D)"
+	fail "wait_for_collector_settle must exit non-zero when no launched pair lands (case D)"
 fi
 collector_settle_case_d_elapsed=$(( $(date +%s) - collector_settle_case_d_start ))
 rg --pcre2 --quiet -- 'collector settle poll timed out after [3-5]s \(deadline 3s\)' \
@@ -240,85 +173,72 @@ rg --pcre2 --quiet -- 'collector settle poll timed out after [3-5]s \(deadline 3
 [[ "${collector_settle_case_d_elapsed}" -le 5 ]] ||
 	fail "wait_for_collector_settle must honor the 3s deadline despite a 10s poll interval, not wait out the full interval (measured ${collector_settle_case_d_elapsed}s wall-clock)"
 
-# Case E (P1 regression, codex review on #5909): the distinct-source-count
-# threshold is met immediately, but total landed generations stay short of the
-# expected total forever -- simulating a collector that committed its FIRST
-# scope (satisfying GATE_MIN_COLLECTOR_SOURCES) while cassette.Source.Next
-# still has more scopes queued for that same collector. The function must NOT
-# declare success here: breaking on the distinct-source count alone and
-# killing every collector pid would truncate the corpus for whichever
-# collector was still mid-replay. Reproduced against the pre-fix HEAD (single-
-# value pg() query, source-count-only break condition) before this case was
-# written: that version returned exit 0 immediately, declaring settle complete
-# while only 2 of 5 total scopes had landed.
+# Case E: one collector committed and the other has not. The poll must keep
+# waiting and name exactly the pair still in flight.
 collector_settle_case_e_err="${collector_settle_case_log_dir}/case-e.err"
 if (
-	log_dir="${collector_settle_case_log_dir}"
-	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
-	. "${collector_settle_lib}"
-	collector_pids=()
-	collector_names=()
-	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
-	sleep 20 &
-	collector_pids+=("$!")
-	collector_names+=("mirror-fake-e")
-	: >"${collector_settle_case_log_dir}/mirror-fake-e.log"
-	# 2 distinct sources meets GATE_MIN_COLLECTOR_SOURCES=2, but total landed
-	# scopes is stuck at 2 -- short of GATE_EXPECTED_TOTAL_SCOPES=5 -- on every
-	# poll, simulating a collector still mid-replay of its remaining scopes.
-	pg() { printf '2 2'; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
-	GATE_COLLECTOR_SETTLE_SECONDS=3
-	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
-	wait_for_collector_settle
-) >/dev/null 2>"${collector_settle_case_e_err}"; then
-	fail "wait_for_collector_settle must NOT declare success while total scopes (2) is short of the expected total (5), even though the distinct-source threshold (2) is already met -- this is the #5909 P1 truncation regression"
-fi
-rg --fixed-strings --quiet -- '2 credentialed collector source(s) landed facts (want >= 2), 2 scope generations landed (want >= 5)' \
-	"${collector_settle_case_e_err}" ||
-	fail "case E timeout message must show the source threshold met (2/2) alongside the scope total still short (2/5)"
-
-# Case F (P2, codex review on #5909): pg() itself fails (non-zero exit), the
-# probe-connection-drop case rather than case C's garbled-but-successful text.
-# Polling queries Postgres far more often than a one-shot check would, so a
-# transient docker-exec/psql failure is a real possibility mid-poll. The
-# assertion below is deliberately NOT just "exit code is non-zero": under
-# set -e (inherited from test-verify-golden-corpus-gate.sh, which this cases
-# file is sourced into), an unguarded `settle_probe_line="$(pg ...)"`
-# assignment would abort the subshell immediately on pg()'s failure too --
-# also non-zero, but silently, with none of wait_for_collector_settle's own
-# reporting. Requiring the specific timeout message on stderr is what proves
-# execution survived the failing probe and reached the deadline logic, rather
-# than merely proving something, anything, made the subshell exit non-zero.
-collector_settle_case_f_err="${collector_settle_case_log_dir}/case-f.err"
-if (
-	log_dir="${collector_settle_case_log_dir}"
-	# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
-	. "${collector_settle_lib}"
-	collector_pids=()
-	collector_names=()
-	trap 'for p in "${collector_pids[@]:-}"; do kill "$p" >/dev/null 2>&1 || true; done' EXIT
-	sleep 20 &
-	collector_pids+=("$!")
-	collector_names+=("mirror-fake-f")
-	: >"${collector_settle_case_log_dir}/mirror-fake-f.log"
-	pg() { return 1; }
-	GATE_MIN_COLLECTOR_SOURCES=2
-	GATE_EXPECTED_TOTAL_SCOPES=5
+	pg() { printf '1 2 scope-2/gen-2'; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
 	GATE_COLLECTOR_SETTLE_SECONDS=2
 	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
-	wait_for_collector_settle
+	collector_settle_run_case e
+) >/dev/null 2>"${collector_settle_case_e_err}"; then
+	fail "wait_for_collector_settle must NOT settle while one launched pair is still missing"
+fi
+rg --fixed-strings --quiet -- '1 of 2 launched scope generations landed; missing: scope-2/gen-2' \
+	"${collector_settle_case_e_err}" ||
+	fail "case E timeout message must name the one pair still in flight: $(cat "${collector_settle_case_e_err}")"
+
+# Case E2: every launched pair reads as present, but the probe joined a
+# different row set (three rows for two launched pairs: a duplicated VALUES row
+# can cover for a missing one). present == launched holds, so only the echoed
+# launched count stops this from reading as settled. A short answer such as
+# "1 1" would not test that guard: present != launched already refuses it.
+if (
+	pg() { printf '2 3 '; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
+	GATE_COLLECTOR_SETTLE_SECONDS=2
+	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
+	collector_settle_run_case e2
+) >/dev/null 2>&1; then
+	fail "wait_for_collector_settle must NOT settle when the probe's echoed launched count (3) differs from the launched set (2), even with present == launched"
+fi
+
+# Case F: pg() itself fails (non-zero exit). Requiring the timeout message
+# proves execution survived the failing probe under set -e and reached the
+# deadline logic, rather than merely proving something made the subshell exit.
+collector_settle_case_f_err="${collector_settle_case_log_dir}/case-f.err"
+if (
+	pg() { return 1; }
+	GATE_EXPECTED_SCOPE_PAIRS=("${collector_settle_two_pairs[@]}")
+	GATE_COLLECTOR_SETTLE_SECONDS=2
+	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
+	collector_settle_run_case f
 ) >/dev/null 2>"${collector_settle_case_f_err}"; then
 	fail "wait_for_collector_settle must exit non-zero when pg() itself fails"
 fi
 rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_f_err}" ||
-	fail "a failing pg() probe must survive to wait_for_collector_settle's own timeout message under set -e, not abort the subshell silently on the first failed probe: $(cat "${collector_settle_case_f_err}")"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
-	"${collector_settle_case_f_err}" ||
-	fail "a failing pg() probe must be treated as 0 for both counts and keep polling until the deadline, not corrupt state"
+	fail "a failing pg() probe must survive to wait_for_collector_settle's own timeout message under set -e: $(cat "${collector_settle_case_f_err}")"
+
+# shellcheck source=scripts/lib/golden-corpus-collector-settle-population-case.sh disable=SC2154  # repo_root is parent-owned.
+. "${repo_root}/scripts/lib/golden-corpus-collector-settle-population-case.sh"
+
+# Case H: an empty launched set would make the subset assertion vacuously
+# true. It must die before polling.
+collector_settle_case_h_err="${collector_settle_case_log_dir}/case-h.err"
+if (
+	pg() { printf '0 0 '; }
+	GATE_EXPECTED_SCOPE_PAIRS=()
+	GATE_COLLECTOR_SETTLE_SECONDS=2
+	GATE_COLLECTOR_SETTLE_POLL_SECONDS=1
+	collector_settle_run_case h
+) >/dev/null 2>"${collector_settle_case_h_err}"; then
+	fail "wait_for_collector_settle must refuse an empty launched set, not pass vacuously"
+fi
+rg --fixed-strings --quiet -- 'no launched (scope_id, generation_id) pairs' "${collector_settle_case_h_err}" ||
+	fail "case H must die with the empty-launched-set message: $(cat "${collector_settle_case_h_err}")"
 
 rm -rf "${collector_settle_case_log_dir}"
-unset -f die
+unset -f die collector_settle_run_case
 
 collector_settle_cases_completed=1
