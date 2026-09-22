@@ -147,6 +147,30 @@ first draft of this page and is retracted here. What PR 1 buys is the removal
 of the root and alias edges, which is what takes the component from 38 nodes to
 23.
 
+## The three seam leaves dissolve
+
+An earlier draft invented `repository/seam`, `code/seam` and `impact/seam` for
+root files that adapt one family to another, and left their placement
+UNDECIDED. Counting who actually consumes each file's symbols settles all three:
+
+| file | symbols | consuming destinations | goes to |
+| --- | ---: | ---: | --- |
+| `repository_authz.go` | 4 (2 retire in PR 1) | **18** | `contract/` — shared vocabulary by any measure |
+| `repository_compat.go` | 7 | 3 | `contract/` |
+| `repository_selector.go` | 1 | 1 (`cicd`) | `cicd/` |
+| `code_seam.go` | 33 | 3, all code-domain | `contract/code` |
+| `family_codeowners_shim.go` | 1 | 1 (root) | `code/owners`, and it deletes with its root caller |
+| `family_impact_*.go`, `deployment_trace_support_helpers.go` | 31 | **0** for four of the five files | `impact/trace` |
+
+The impact files are the interesting case: four of the five have no consumer
+outside the leaf at all, which means they were never a seam — they are impact's
+own backends, and they belong with `impact/trace` (28 files, 33 after). The
+`repository_authz.go` row is the opposite extreme at 18 consuming destinations,
+which is the definition of shared vocabulary.
+
+No file needs a `seam` directory. The word was doing work the measurement does
+better.
+
 ## The alias ledger
 
 Twenty-one `*_alias.go` files sit at root. The issue forbids retaining them.

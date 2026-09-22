@@ -88,7 +88,7 @@ two files. Neither lane touches the other's row, but both touch both files.
 
 ## UNDECIDED
 
-This list started at seven. Four were settled by evidence rather than left to
+This list started at seven. Five were settled by evidence rather than left to
 you:
 
 - **The root-test rule** — a measured partition rather than a proposal: 560 of
@@ -104,6 +104,10 @@ you:
 - **The `contract/` displacement** — 37 of its 40 files are per-family
   capability rows that travel with their families, as seven already-moved
   families demonstrate. No displacement PR is needed.
+- **The three `seam` leaves** — counting consumers dissolves all three.
+  `repository_authz.go` is consumed by 18 destinations and is plainly
+  `contract/`; four of the five `impact/seam` files have no consumer outside
+  the leaf and belong with `impact/trace`. No `seam` directory survives.
 
 What remains are genuine owner calls.
 
@@ -128,13 +132,7 @@ What remains are genuine owner calls.
    its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
    one place the definition of done is not met by the plan as written.
 
-2. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
-   invented here for root files that adapt one family to another
-   (`repository_authz.go`, `code_seam.go`, `family_impact_*.go`). After PR 1
-   deletes the `repositoryAccessFilter` forwarders, `repository/seam` may
-   collapse to two files and be worth folding into `contract/` instead. Left
-   as leaves here so the mapping is complete; revisit at PR 32.
-3. **`CodeHandler`.** Not renamed by this plan, per the issue's own
+2. **`CodeHandler`.** Not renamed by this plan, per the issue's own
    precondition and #6649. Whether it is renamed at all is still open.
 
 ## Checklist

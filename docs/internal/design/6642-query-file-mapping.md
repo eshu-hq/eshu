@@ -148,12 +148,12 @@ appears twice and none is unaccounted for.
 | `drifted_attributes.go` | `cloud/drift/attributes.go` | `drifted_attributes_test.go` |
 | `investigation_packet_api_drift.go` | `cloud/drift/investigation_packet.go` | `investigation_packet_api_drift_scope_test.go` |
 
-#### `query/code/seam/` — 2 non-test, 0 test files
+#### `query/contract/code/` and `query/code/owners/` — the former `code/seam`, 2 files
 
 | current | new | test files carried |
 | --- | --- | --- |
-| `code_seam.go` | `code/seam/ports.go` | — |
-| `family_codeowners_shim.go` | `code/seam/owners.go` | — |
+| `code_seam.go` | `contract/code/seam.go` | — |
+| `family_codeowners_shim.go` | `code/owners/shim.go`, deleted with its root caller | — |
 
 #### `query/collector/` — 8 non-test, 10 test files
 
@@ -310,15 +310,18 @@ appears twice and none is unaccounted for.
 | `tag_history.go` | `image/tag/handler.go` | `tag_history_cursor_seal_test.go` +7 more |
 | `tag_history_telemetry.go` | `image/tag/telemetry.go` | `tag_history_telemetry_test.go` |
 
-#### `query/impact/seam/` — 5 non-test, 1 test files
+#### `query/impact/trace/` — the former `impact/seam`, 5 files
+
+Four of these five have no consumer outside the leaf, so they were never a seam;
+they are impact's own backends.
 
 | current | new | test files carried |
 | --- | --- | --- |
-| `deployment_trace_support_helpers.go` | `impact/seam/trace_support_helpers.go` | `deployment_trace_support_helpers_test.go` |
-| `family_impact_change_surface_code.go` | `impact/seam/change_surface_code.go` | — |
-| `family_impact_path_probe_adapter.go` | `impact/seam/path_probe_adapter.go` | — |
-| `family_impact_shim.go` | `impact/seam/ports.go` | — |
-| `family_impact_trace_deployment.go` | `impact/seam/trace_deployment.go` | — |
+| `deployment_trace_support_helpers.go` | `impact/trace/support_helpers.go` | `deployment_trace_support_helpers_test.go` |
+| `family_impact_change_surface_code.go` | `impact/trace/change_surface_code.go` | — |
+| `family_impact_path_probe_adapter.go` | `impact/trace/path_probe_adapter.go` | — |
+| `family_impact_shim.go` | `impact/trace/ports.go` | — |
+| `family_impact_trace_deployment.go` | `impact/trace/deployment.go` | — |
 
 #### `query/infra/` — 10 non-test, 20 test files
 
@@ -405,13 +408,13 @@ appears twice and none is unaccounted for.
 | `observability_coverage.go` | `observability/coverage/handler.go` | — |
 | `observability_coverage_correlations.go` | `observability/coverage/correlations.go` | `observability_coverage_correlations_test.go` |
 
-#### `query/repository/seam/` — 3 non-test, 1 test files
+#### `query/contract/` and `query/cicd/` — the former `repository/seam`, 3 files
 
 | current | new | test files carried |
 | --- | --- | --- |
-| `repository_authz.go` | `repository/seam/authz.go` | — |
-| `repository_compat.go` | `repository/seam/compat.go` | — |
-| `repository_selector.go` | `repository/seam/selector.go` | `repository_selector_read_model_routes_test.go` |
+| `repository_authz.go` | `contract/repository_access.go` (18 consuming destinations) | — |
+| `repository_compat.go` | `contract/repository_helpers.go` | — |
+| `repository_selector.go` | `cicd/repository_selector.go` (its only consumer) | — |
 
 #### `query/semantic/` — 2 non-test, 0 test files
 

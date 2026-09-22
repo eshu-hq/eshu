@@ -342,7 +342,7 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/auth/setup` | 5 |
 | `query/auth/signin` | 9 |
 | `query/capability` | 10 |
-| `query/cicd` | 6 |
+| `query/cicd` | 7 |
 | `query/cloud` | 6 |
 | `query/cloud/drift` | 7 |
 | `query/code` | 40 **← at cap** |
@@ -352,12 +352,11 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/code/imports` | 4 |
 | `query/code/metrics` | 3 |
 | `query/code/model` | 40 **← at cap** |
-| `query/code/owners` | 7 |
+| `query/code/owners` | 8 |
 | `query/code/quality` | 4 |
 | `query/code/relationships` | 5 |
 | `query/code/relationships/story` | 6 |
 | `query/code/routes` | 4 |
-| `query/code/seam` | 2 |
 | `query/code/search` | 3 |
 | `query/code/shaping` | 4 |
 | `query/code/visualization` | 2 |
@@ -366,9 +365,9 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/content` | 6 |
 | `query/content/read` | 37 |
 | `query/content/relationship` | 9 |
-| `query/contract` | 37 |
+| `query/contract` | 39 |
 | `query/contract/answer` | 3 |
-| `query/contract/code` | 2 |
+| `query/contract/code` | 3 |
 | `query/contract/entity` | 3 |
 | `query/contract/evidence` | 3 |
 | `query/contract/kubernetes` | 2 |
@@ -389,8 +388,7 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/image` | 6 |
 | `query/image/tag` | 7 |
 | `query/impact` | 40 **← at cap** |
-| `query/impact/seam` | 5 |
-| `query/impact/trace` | 28 |
+| `query/impact/trace` | 33 |
 | `query/incident` | 5 |
 | `query/incident/model` | 3 |
 | `query/incident/sql` | 5 |
@@ -430,7 +428,6 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/repository` | 45 **← OVER, see UNDECIDED** |
 | `query/repository/artifacts` | 20 |
 | `query/repository/readmodel` | 5 |
-| `query/repository/seam` | 3 |
 | `query/secrets` | 11 |
 | `query/selector` | 3 |
 | `query/semantic` | 2 |
@@ -438,7 +435,6 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/semantic/search` | 17 |
 | `query/service` | 27 |
 | `query/service/evidence` | 2 |
-| `query/tracing` | 3 |
 | `query/status` | 18 |
 | `query/supply` | 1 |
 | `query/supply/chain` | 38 |
@@ -450,10 +446,11 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/testutil` | 24 |
 | `query/testutil/content` | 10 |
 | `query/testutil/graph` | 8 |
+| `query/tracing` | 2 |
 | `query/visualization` | 7 |
 | `query/workitem` | 13 |
 | `query/workload` | 1 |
 
-125 directories, 1184 non-test files.
+122 directories, 1183 non-test files.
 At the cap with zero headroom: `query/code`, `query/code/model`, `query/impact`.
 Over the cap: `query/repository` (45).
