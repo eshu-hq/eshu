@@ -28,9 +28,9 @@ changed.
 Not converted, with the reason: `QueryRepoInfrastructureFromContent`
 (`infrastructure.go`) turns a content-store error into an empty result, but
 both of its callers (`repository/infrastructure.go`,
-`entity/workload_context.go`) then fall through to
-`queryRepoInfrastructureFromGraph`, the authoritative read, whose own failure already degrades to
-`infrastructure_read_degraded`; a content error followed by an empty graph
+`entity/workload_context.go`, the latter when a graph reader is wired) then
+fall through to `queryRepoInfrastructureFromGraph`, the authoritative read,
+whose own failure already degrades to `infrastructure_read_degraded`; a content error followed by an empty graph
 answer is a true empty panel, not a hidden failure. It stays as the #5764
 P2-3 follow-up recorded in that file.
 
@@ -45,7 +45,7 @@ No-Regression Evidence: no query text, anchor, projection, ordering, limit or pa
 Observability Evidence: each repository context stage log (`repository query stage completed`, stages `entry_points`, `relationships`, `relationship_overview`, `consumers`, `api_surface`, `languages`, `tech_fingerprint`) and the story `relationships` stage now carry `failure_class=<reason>` when the read failed, the same key the infrastructure stage already uses; the service `graph_api_surface` and `repo_dependencies` stage logs carry it too. The response-level signal is the new `partial_reasons` / `limitations` values above. No metric or span is added.
 
 Regression: `TestRepositoryContextReportsDegradedGraphReads` (fake reader
-returning a deadline error for each of the seven context reads) failed on
-origin/main with `partial_reasons = []` lacking every reason and passes with
-the fix; `TestRepositoryContextEmptyReadsAreNotDegraded` (healthy empty reads)
+returning a deadline error for each of the seven context reads) failed with
+the production change reverted (the reason constants kept so it compiles),
+reporting `partial_reasons = []`, and passes with the fix; `TestRepositoryContextEmptyReadsAreNotDegraded` (healthy empty reads)
 passes on both, so a true empty answer still carries no reason.
