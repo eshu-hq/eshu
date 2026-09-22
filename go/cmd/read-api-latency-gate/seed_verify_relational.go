@@ -59,10 +59,11 @@ func verifyRelationalCounts(ctx context.Context, count rowCounter, expected map[
 // seededRelationalTables is the closed set of tables VerifyRelationalCounts may
 // count; a table name is interpolated into SQL, so anything else is refused.
 var seededRelationalTables = map[string]bool{
-	"ingestion_scopes":  true,
-	"scope_generations": true,
-	"fact_work_items":   true,
-	"fact_records":      true,
+	"ingestion_scopes":          true,
+	"scope_generations":         true,
+	"fact_work_items":           true,
+	"fact_records":              true,
+	"shared_projection_intents": true,
 }
 
 // VerifyRelationalCounts reads back the row counts of the seeded Postgres tables

@@ -59,6 +59,7 @@ cd "${repo_root}"
 : "${GATE_TOTAL_SCOPES:=800}"
 : "${GATE_NODES_PER_LABEL:=150000}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
+: "${GATE_SHARED_INTENT_COUNT:=2500000}"
 : "${GATE_ITERATIONS:=20}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
@@ -272,10 +273,11 @@ gate_common_args=(
 	-total-scopes "${GATE_TOTAL_SCOPES}"
 	-nodes-per-label "${GATE_NODES_PER_LABEL}"
 	-iac-fact-count "${GATE_IAC_FACT_COUNT}"
+	-shared-intent-count "${GATE_SHARED_INTENT_COUNT}"
 	-iterations "${GATE_ITERATIONS}"
 )
 
-log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts)"
+log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts, ${GATE_SHARED_INTENT_COUNT} shared projection intents)"
 "${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -seed-only \
 	|| die "seed failed (see the reason printed above)"
 

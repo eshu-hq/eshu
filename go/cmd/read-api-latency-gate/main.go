@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -28,6 +29,7 @@ func main() {
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
+	sharedIntentCount := flag.Int("shared-intent-count", defaultSharedIntentCount, "shared_projection_intents rows to seed, newest 1% pending (issue #6820: the status routes' domain backlog aggregate must read pending intents by index, not scan the table)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
 	budgetsPath := flag.String("budgets", "testdata/benchmarks/read-api-route-budgets.txt", "route latency budget table path")
 	workBudgetsPath := flag.String("work-budgets", "testdata/benchmarks/read-api-route-work-budgets.txt", "route Postgres work budget table path")
@@ -49,6 +51,7 @@ func main() {
 		totalScopes:     *totalScopes,
 		nodesPerLabel:   *nodesPerLabel,
 		iacFactCount:    *iacFactCount,
+		sharedIntents:   *sharedIntentCount,
 		iterations:      *iterations,
 		budgetsPath:     *budgetsPath,
 		workBudgetsPath: *workBudgetsPath,
@@ -74,6 +77,7 @@ type runOptions struct {
 	totalScopes     int
 	nodesPerLabel   int
 	iacFactCount    int
+	sharedIntents   int
 	iterations      int
 	budgetsPath     string
 	workBudgetsPath string
@@ -241,6 +245,19 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed postgres: %w", err)
 	}
 
+	intents, err := BuildSharedIntentPlan(plan, SharedIntentPlanOptions{
+		Total:   opts.sharedIntents,
+		Pending: sharedIntentPending(opts.sharedIntents, defaultSharedIntentPendingPercent),
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d shared projection intents across %d domains (newest %d pending; the corpus the status routes' domain backlog aggregate reads)\n",
+		intents.Len(), len(contract.ProjectionDomains()), sharedIntentPending(opts.sharedIntents, defaultSharedIntentPendingPercent))
+	if err := SeedSharedIntents(ctx, pool, intents); err != nil {
+		return err
+	}
+
 	iacScope, ok := firstScopeOfKind(plan, scope.CollectorTerraformState)
 	if !ok {
 		return fmt.Errorf("seed plan has no %s-kind scope to anchor IaC facts on", scope.CollectorTerraformState)
@@ -259,6 +276,7 @@ func seed(ctx context.Context, opts runOptions) error {
 
 	expectedCounts := expectedRelationalCounts(plan, iacFacts)
 	expectedCounts["fact_records"] += len(cloudStateFacts)
+	addSharedIntentCounts(expectedCounts, intents)
 	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
@@ -312,8 +330,20 @@ func seed(ctx context.Context, opts runOptions) error {
 // run-to-run plan and latency variance a COPY-then-immediately-sweep gate
 // would otherwise carry silently.
 func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, "ANALYZE ingestion_scopes, scope_generations, fact_work_items, fact_records, content_entities")
+	_, err := pool.Exec(ctx, "ANALYZE "+strings.Join(analyzedSeededTables(), ", "))
 	return err
+}
+
+// analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
+// table in the exact-count read-back plus content_entities, which is seeded
+// and verified through its own count path. A test pins the list to the
+// read-back set so a newly seeded table cannot be left unanalyzed once it is in
+// the read-back set.
+func analyzedSeededTables() []string {
+	return []string{
+		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
+		"shared_projection_intents", "content_entities",
+	}
 }
 
 // firstScopeOfKind returns the first scope in plan.Scopes with the given

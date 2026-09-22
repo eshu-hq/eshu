@@ -41,12 +41,22 @@ lanes never exercise.
    a matching row for every candidate instead of failing its own
    consistency check ("current inventory and graph projection disagree").
    The bulk `SeedGraph` nodes carry no `uid` on purpose: they exist only to
-   give the per-label scan cost realistic volume. Runs `ANALYZE` on the
-   seeded Postgres tables afterward so the sweep plans against fresh
-   statistics.
+   give the per-label scan cost realistic volume. It also seeds
+   `shared_projection_intents` (`BuildSharedIntentPlan`/`SeedSharedIntents`,
+   `GATE_SHARED_INTENT_COUNT`, default 2.5M rows): completed intents across
+   every reducer projection domain with the newest 1% left pending, streamed
+   through `pgx.CopyFrom` without materializing the corpus. The status routes'
+   domain backlog aggregate reads that table, and the size is chosen so one
+   full scan of its heap (~51k blocks) exceeds the 3x work budget of those
+   routes while the shipped pending-only aggregate reads a few hundred blocks
+   by index (issue #6820); the seed costs about 54 s and 1.1 GB of Postgres
+   storage in the CI job. Runs `ANALYZE` on the seeded Postgres tables
+   afterward (every table in the exact-count read-back plus
+   `content_entities`, pinned by `TestAnalyzeSeededTablesCoversEverySeededTable`)
+   so the sweep plans against fresh statistics.
    Right after the Postgres seeds it reads the row counts of
-   `ingestion_scopes`, `scope_generations`, `fact_work_items` and `fact_records`
-   back (`VerifyRelationalCounts`), and after the graph seeds it reads the
+   `ingestion_scopes`, `scope_generations`, `fact_work_items`, `fact_records`
+   and `shared_projection_intents` back (`VerifyRelationalCounts`), and after the graph seeds it reads the
    per-label node counts back (`VerifyGraphNodeCounts`) and fails the run if any label is short: a bulk
    `UNWIND range(0, $count - 1)` once seeded a single node per label on
    NornicDB without an error (see
