@@ -152,3 +152,21 @@ func TestExpectedRelationalCountsIncludeSharedIntents(t *testing.T) {
 		t.Fatalf("expected shared_projection_intents = %d, want 120", got)
 	}
 }
+
+// TestSeededRelationalTablesAllowSharedIntents guards the read-back allowlist:
+// VerifyRelationalCounts refuses any table name it does not seed, so the new
+// table has to be listed or the live gate fails right after a correct seed
+// (the first #6820 gate run did exactly that).
+func TestSeededRelationalTablesAllowSharedIntents(t *testing.T) {
+	t.Parallel()
+
+	plan := BuildSeedPlan(SeedPlanOptions{TotalScopes: 8})
+	intents := testSharedIntentPlan(t, 120, 2)
+	expected := expectedRelationalCounts(plan, nil)
+	addSharedIntentCounts(expected, intents)
+	for table := range expected {
+		if !seededRelationalTables[table] {
+			t.Errorf("expected count table %q is not in seededRelationalTables; VerifyRelationalCounts would refuse it", table)
+		}
+	}
+}
