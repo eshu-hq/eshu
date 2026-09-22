@@ -151,8 +151,8 @@ func javaScriptAssignmentRightChainContains(valueNode *tree_sitter.Node, target 
 // RewriteCommonJSModuleExportAliasFullName normalises a dotted reference that
 // reaches an export through a module.exports alias, rewriting the matching alias
 // prefix to "module.exports." so aliased and direct references resolve to one
-// full name. It returns fullName unchanged when no alias prefixes it; when more
-// than one does, which alias wins follows Go map iteration order.
+// full name. It returns the trimmed input unchanged when no alias prefixes it;
+// when more than one does, which alias wins follows Go map iteration order.
 func RewriteCommonJSModuleExportAliasFullName(fullName string, aliases map[string]struct{}) string {
 	fullName = strings.TrimSpace(fullName)
 	if fullName == "" || len(aliases) == 0 {

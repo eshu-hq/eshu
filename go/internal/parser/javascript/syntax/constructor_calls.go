@@ -121,10 +121,11 @@ func FunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]strin
 }
 
 // CallInferredObjectType returns the recorded type of a member call's receiver,
-// carrying a constructor binding's type through to its later method calls. It
+// carrying a constructor binding's type through to its later method calls. The
+// receiver text is matched whole, so a compound receiver resolves only when it
+// was recorded under exactly that text and is never matched by its base. It
 // returns an empty string when functionNode is not a member expression, when
-// typesByVariable is empty, or when the receiver is an expression rather than a
-// plain binding.
+// typesByVariable is empty, and when the receiver has no recorded type.
 func CallInferredObjectType(
 	functionNode *tree_sitter.Node,
 	source []byte,

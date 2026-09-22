@@ -159,11 +159,18 @@ func NodeSameRange(left *tree_sitter.Node, right *tree_sitter.Node) bool {
 	return left != nil && right != nil && left.StartByte() == right.StartByte() && left.EndByte() == right.EndByte()
 }
 
-// HasExpressImport reports whether source declares an Express import, by either
-// an ES import or a require call.
+// HasExpressImport reports whether source appears to import Express, matching
+// four literal spellings of the ES and require forms against the raw text.
 //
-// This is framework-aware in a package that is otherwise not; see the package
-// documentation for why that exception is documented rather than hidden.
+// It is a text match, not an analysis: it does not see an unusual spacing or
+// quoting of those forms, and it does not know that a match inside a comment or
+// a string literal is not an import. It guards the Express route scan, where a
+// false positive costs one wasted walk and a false negative only leaves a
+// handler looking uncalled, so the cheap check is the deliberate trade.
+//
+// This is also framework-aware in a package that is otherwise not; see the
+// package documentation for why that exception is documented rather than
+// hidden.
 func HasExpressImport(source string) bool {
 	return strings.Contains(source, `require("express")`) ||
 		strings.Contains(source, `require('express')`) ||

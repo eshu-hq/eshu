@@ -107,12 +107,13 @@ var javaScriptRouteExportNames = map[string]struct{}{
 }
 
 // ExpressRouteMethods is the set of Express router method names that register a
-// route, in both lower and upper case as they appear in source. Membership is
-// what makes a call like app.get(path, handler) a route registration and so its
-// handler a dead-code root.
+// route. Membership is what makes a call like app.get(path, handler) a route
+// registration, and so makes its handler a dead-code root.
 //
-// It is exported because the parent package's route-entry detection matches
-// against the same set; keep the two readings in agreement.
+// The keys are lower case; every lookup lowers the method name first. It is
+// exported because the parent package's route-entry detection and its Express
+// semantics match against this same set, and a route the three read differently
+// would be a root to one and dead to another.
 var ExpressRouteMethods = map[string]struct{}{
 	"get":     {},
 	"post":    {},
