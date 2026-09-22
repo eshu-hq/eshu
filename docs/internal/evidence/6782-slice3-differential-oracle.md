@@ -209,3 +209,44 @@ Quorum proof with the branch binary (no new legs run):
   0 advisory-warn"). Each single pairing stays red on its own; a systematic
   divergence (same fingerprint both pairings) still fails by construction,
   pinned at unit level by `TestQuorumIntersectionKeepsReproducedDivergences`.
+
+## Follow-up: deterministic ORDER BY for the workload-cloud statement
+
+The retired entry-57 statement
+(`LoadMaterializedServiceCloudResourceDependencies`,
+`go/internal/query/impacttrace/cloud_resource_dependencies.go`) keeps a real
+production defect: `ORDER BY name, id` over non-unique keys plus `LIMIT`
+picks arbitrary rows at page boundaries, so page contents flip between runs
+and backends. The fix extends the sort key to every projected alias (total
+key), keeping `name, id` first so existing leading order is unchanged.
+
+No-Regression Evidence: scratch probe on the pinned CI backends
+(NornicDB `fix-490-a427a468@eb69530f`, Neo4j `2026-community@eabfbb04`),
+isolated Compose stack, hand-seeded tied `(name, id)` rows plus 5000-row bulk
+corpus (100x the production `ServiceStoryItemLimit = 50` shape). Extended
+ORDER BY delivered identical row order on both backends, stable across 12/12
+runs and a 5005-row rerun, with the same row multiset as the original on each
+backend; NULL names sort last on both. Timings at 5005 rows: NornicDB 443.5ms
+→ 453.5ms (+2.3%, inside the 431–449 vs 433–515 noise band), Neo4j 32.3ms →
+32.7ms (+1%). Baseline: original `ORDER BY name, id` on the same corpus;
+backend/version, input shape, and row counts as above. Probe source:
+`/tmp/6782-flap/probe/main.go` (throwaway, not committed).
+
+No-Observability-Change: no new spans, metrics, or logs; the caller keeps
+logging `row_count`, and the statement keeps its `Repository`/`Workload` id
+anchors and `$limit` (QP-SVC-CLOUD-DEPS plan operators unchanged:
+NodeIndexSeek, Expand, Distinct; no AllNodesScan or CartesianProduct).
+In-repo guard:
+`TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey`
+fails if any projected alias leaves the sort key, and pins the `name, id`
+lead.
+
+NULL-placement follow-up (review threads on #6932): no single explicit
+NULL form works on both backends. Per-key `NULLS LAST` parses on NornicDB
+but Neo4j 2026-community rejects it with a syntax error; `ORDER BY
+coalesce(name, '')` instead diverges (Neo4j sorts the NULL rows first,
+NornicDB still last on the same 3-row seed — NornicDB ORDER BY expression
+semantics differ, treat as observed behavior pending a dedicated probe).
+Bare keys stay; both pinned backends place NULL names last (probed), and a
+backend or version change that moves NULLs surfaces as an unexcused
+differential-oracle divergence since entry 57 is retired.
