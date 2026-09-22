@@ -56,8 +56,8 @@ steps:
    decides more than any name does: `FactStore` has methods in 30 files,
    `IdentitySubjectStore` in 24, `IngestionStore` in 17, and `StatusStore` in 6.
    Most of the "prefix lied" corrections below come from this rule. A
-   separate check confirms it over the final mapping: of the 251 files that
-   declare methods on a root type (285 file/type pairs), every one lands with its type except the 23
+   separate check confirms it over the final mapping: of the 235 files that
+   declare methods on a root type (266 file/type pairs), every one lands with its type except the 23
    `IdentitySubjectStore` files that wait for D1. That check caught one mapping
    the package-graph check could not: `eshu_search_vector_documents.go`
    declares methods on `EshuSearchDocumentStore`, so it lives in
