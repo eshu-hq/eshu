@@ -158,10 +158,12 @@ created first, so the window contains none of `repo-a`'s rows.
 - B5 (same pattern, both sort expressions projected) matches.
 - B3 (`OPTIONAL MATCH` without `WHERE`, `ORDER BY e.name, e.id`) is in storage
   order. After `OPTIONAL MATCH`, even a projected expression (`e.id`) is
-  ignored. Only aliases work there, which F1 against F2 also shows.
+  ignored. Only aliases work there (and `var.prop` on a returned node, which
+  no shim statement tests), which F1 against F2 also shows.
 - B8 (`RETURN e ORDER BY e.name, e.id`) sorts by `e.name`. The order inside
   the `Error` tie (`fn-06`/`fn-07`) changes from run to run (3 of 9 runs
-  match), so the `e.id` tiebreak is not applied.
+  match). The `e.id` tiebreak reads the internal node ID, not the `id`
+  property (see below).
 - B9 (`WITH e ORDER BY e.name, e.id RETURN e.id AS id`) comes back in storage
   order. It is recorded here but left out of the upstream claim, because
   row order carried across a `WITH` into a later `RETURN` is a weaker
