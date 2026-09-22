@@ -183,16 +183,21 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 }
 
 // AdvisoryKind reports whether a divergence kind is advisory at the gate.
-// Only executions is: agreeing result sets with different execution counts
-// are scheduling noise by this package's own definition (drain passes,
-// retries, regrouped batches), and the two backends drain at systematically
-// different speeds, so the difference reproduces across leg pairings and
-// quorum cannot filter it. Excusing it statement by statement in the
+// Executions and rowcount are: both share the property that the two
+// backends returned the same digest sets, so the answers agree and only the
+// observation counts differ. Execution counts differ when the backends drain
+// at systematically different speeds (#6942); row totals with agreeing
+// results differ when one leg observes a converged row in one more poll
+// iteration than the other (the cloud-sink value-flow loader polls in the
+// reducer, #6782 slice 4). Either difference reproduces across leg pairings,
+// so quorum cannot filter it, and excusing it statement by statement in the
 // allowlist was open-ended whack-a-mole (#6782 permanent disposition,
 // 2026-09-21). Row truth stays covered: results and missing on the reads
-// compare final state, and failures still catches a one-sided error.
+// compare final state, failures still catches a one-sided error, and a
+// systematic duplicate-row regression would inflate the advisory total and
+// trip the #6941 advisory ceiling instead of passing silently.
 func AdvisoryKind(kind string) bool {
-	return kind == DivergenceExecutions
+	return kind == DivergenceExecutions || kind == DivergenceRowCount
 }
 
 // SplitAdvisory partitions diffs into the gate-failing divergences and the

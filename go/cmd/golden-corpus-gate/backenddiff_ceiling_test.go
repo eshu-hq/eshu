@@ -10,6 +10,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/backendconformance"
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 )
 
 // writeExecutionsAdvisoryDirs builds two leg pairings with n distinct
@@ -53,9 +56,9 @@ func runBackendDiffQuorumPhaseWithCeiling(t *testing.T, left, right, left2, righ
 	return stdout.String(), err
 }
 
-// A reproduced advisory execution-count total within the ceiling passes: the
-// existing advisory finding still prints, and no ceiling finding is added
-// (#6941 scenario a).
+// A reproduced advisory scheduling-noise total within the ceiling passes:
+// the existing advisory finding still prints, and no ceiling finding is
+// added (#6941 scenario a).
 func TestRunBackendDiffQuorumExecutionsWithinCeilingPasses(t *testing.T) {
 	left, right, left2, right2 := writeExecutionsAdvisoryDirs(t, 3)
 	out, err := runBackendDiffQuorumPhaseWithCeiling(t, left, right, left2, right2, writeEmptyBackendDiffAllowlist(t), 5)
@@ -84,7 +87,7 @@ func TestRunBackendDiffQuorumExecutionsAtCeilingPasses(t *testing.T) {
 	}
 }
 
-// A reproduced advisory execution-count total above the ceiling is a
+// A reproduced advisory scheduling-noise total above the ceiling is a
 // required, failing finding naming the observed count and the ceiling
 // (#6941 scenario b).
 func TestRunBackendDiffQuorumExecutionsAboveCeilingFails(t *testing.T) {
@@ -96,7 +99,7 @@ func TestRunBackendDiffQuorumExecutionsAboveCeilingFails(t *testing.T) {
 	if !strings.Contains(out, "[FAIL] nornicdb_vs_neo4j_executions_ceiling") {
 		t.Fatalf("stdout = %q, want the required ceiling finding", out)
 	}
-	if !strings.Contains(out, "3 reproduced execution-count divergence") {
+	if !strings.Contains(out, "3 reproduced scheduling-noise divergence") {
 		t.Fatalf("stdout = %q, want the observed count named", out)
 	}
 	if !strings.Contains(out, "ceiling of 2") {
@@ -161,5 +164,62 @@ func TestParseFlagsRejectsNegativeExecutionsAdvisoryMax(t *testing.T) {
 	}
 	if _, err := parseFlags([]string{"-phase=backend-diff", "-diff-executions-advisory-max=0"}); err != nil {
 		t.Fatalf("parseFlags rejected the documented disable value 0: %v", err)
+	}
+}
+
+// appendStmtRows writes one record per row count, sharing one digest for
+// executions that returned rows and using the empty digest for zero-row
+// executions, mirroring how the capture sink records poll iterations that
+// observe a converged row one more time on one leg.
+func appendStmtRows(t *testing.T, dir, backend, statement string, rows ...int) {
+	t.Helper()
+	sink, err := capture.OpenDir(dir, backend, "testbin-rowcount")
+	if err != nil {
+		t.Fatalf("OpenDir: %v", err)
+	}
+	for _, n := range rows {
+		digest := "d1"
+		if n == 0 {
+			digest = ""
+		}
+		if err := sink.Append(backendconformance.DifferentialRecord{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: statement, Parameters: "{}"},
+			Backend:     backend,
+			RowCount:    n,
+			Digest:      digest,
+		}); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+	if err := sink.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+// A row-total divergence with agreeing results that reproduces across both
+// pairings is advisory like execution counts (#6782 option-2 slice): one leg
+// observed the converged row in one more poll iteration, so the totals
+// differ while the digest sets and execution counts agree. Nornicdb records
+// two one-row plus two zero-row executions per pairing (total 2); neo4j
+// records one one-row plus three zero-row executions (total 1).
+func TestRunBackendDiffQuorumReproducedRowcountIsAdvisory(t *testing.T) {
+	writePair := func() (string, string) {
+		nornic := t.TempDir()
+		neo := t.TempDir()
+		appendStmtRows(t, nornic, "nornicdb", "MATCH (p) RETURN p", 1, 1, 0, 0)
+		appendStmtRows(t, neo, "neo4j", "MATCH (p) RETURN p", 1, 0, 0, 0)
+		return nornic, neo
+	}
+	left, right := writePair()
+	left2, right2 := writePair()
+	out, err := runBackendDiffQuorumPhaseOutput(t, left, right, left2, right2, writeEmptyBackendDiffAllowlist(t))
+	if err != nil {
+		t.Fatalf("reproduced rowcount divergence failed quorum: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_executions") {
+		t.Fatalf("stdout = %q, want an advisory finding", out)
+	}
+	if !strings.Contains(out, "MATCH (p) RETURN p") {
+		t.Fatalf("stdout = %q, want the advisory finding to name the statement", out)
 	}
 }

@@ -18,8 +18,9 @@ const MaxReportedDiffs = 20
 
 // Compare diffs the NornicDB and Neo4j recordings in left and right and
 // reports the divergences the allowlist does not excuse to w. It returns
-// nil when the two sides agree; execution-count divergences with agreeing
-// results are printed as advisory and do not fail the comparison. Either directory may hold either backend:
+// nil when the two sides agree; execution-count and row-total divergences
+// with agreeing results are printed as advisory and do not fail the
+// comparison. Either directory may hold either backend:
 // sides are identified by the backend labels inside the recordings, not by
 // argument order. A side with no recordings fails the comparison instead
 // of passing vacuously, so a half-finished run can never look green.
@@ -75,15 +76,15 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	return fmt.Errorf("%d unexcused backend divergence(s), first: %s", len(remaining), summarizeDiff(remaining[0]))
 }
 
-// reportAdvisory prints the execution-count divergences the gate holds
-// advisory (see [backendconformance.AdvisoryKind]): named so a doubled
-// write stays visible in the CI log, bounded like the failure report, never
-// an error. Nothing prints when there are none.
+// reportAdvisory prints the execution-count and row-total divergences the
+// gate holds advisory (see [backendconformance.AdvisoryKind]): named so a
+// doubled write stays visible in the CI log, bounded like the failure
+// report, never an error. Nothing prints when there are none.
 func reportAdvisory(w io.Writer, advisory []backendconformance.DifferentialDifference) error {
 	if len(advisory) == 0 {
 		return nil
 	}
-	if err := report(w, "differential comparison: %d advisory execution-count divergence(s) with agreeing results (scheduling noise, not gate-failing):\n", len(advisory)); err != nil {
+	if err := report(w, "differential comparison: %d advisory scheduling-noise divergence(s) with agreeing results (execution counts or row totals, not gate-failing):\n", len(advisory)); err != nil {
 		return err
 	}
 	for i, diff := range advisory {

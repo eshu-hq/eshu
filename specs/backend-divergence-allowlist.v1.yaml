@@ -17,14 +17,16 @@ design: >
   Every divergence fails the gate until an entry names it with a reason, a
   tier, and an upstream issue link (enforced by ParseAllowlist — a missing
   reason, tier, or non-issue upstream link fails the parse). The tier scopes
-  the excuse to one divergence kind (missing, results, failures, rowcount)
-  or to the whole statement. There is no executions tier: execution-count
-  differences with agreeing result sets are scheduling noise by the
+  the excuse to one divergence kind (missing, results, failures)
+  or to the whole statement. There is no executions or rowcount tier:
+  execution-count and row-total differences with agreeing result sets are
+  scheduling noise by the
   classifier's own definition (drain passes, retries, regrouped batches),
   the two backends drain at systematically different speeds so they
   reproduce across quorum pairings, and the gate holds them advisory
   (backendconformance.AdvisoryKind, #6782 permanent disposition
-  2026-09-21) instead of excusing them one statement at a time. An entry
+  2026-09-21, extended to row totals by the option-2 slice) instead of
+  excusing them one statement at a time. An entry
   must match at least one divergence in the run, so a fixed bug cannot
   linger as a permanent exemption (enforced by Excuse — a stale entry fails
   even a green run). Excuse narrowly: name the exact

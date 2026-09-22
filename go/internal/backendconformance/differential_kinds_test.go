@@ -132,10 +132,11 @@ func TestQuorumIntersectionDropsDisjointPairings(t *testing.T) {
 }
 
 // TestSplitAdvisorySeparatesExecutions pins the permanent disposition of the
-// executions kind (#6782): agreeing result sets with different execution
-// counts are scheduling noise by the classifier's own definition, so they
-// partition into the advisory slice and never into the gate-failing one.
-// Every other kind stays required, and both slices keep input order.
+// executions kind (#6782) as extended by the option-2 slice: agreeing result
+// sets with different execution counts or row totals are scheduling noise by
+// the classifier's own definition, so they partition into the advisory slice
+// and never into the gate-failing one. Every other kind stays required, and
+// both slices keep input order.
 func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
 	t.Parallel()
 	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
@@ -148,8 +149,8 @@ func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
 		{Fingerprint: fp("MATCH (f) RETURN f"), Kind: DivergenceRowCount},
 	}
 	required, advisory := SplitAdvisory(diffs)
-	wantRequired := []string{"MATCH (a) RETURN a", "MATCH (c) RETURN c", "MATCH (e) RETURN e", "MATCH (f) RETURN f"}
-	wantAdvisory := []string{"MATCH (b) RETURN b", "MATCH (d) RETURN d"}
+	wantRequired := []string{"MATCH (a) RETURN a", "MATCH (c) RETURN c", "MATCH (e) RETURN e"}
+	wantAdvisory := []string{"MATCH (b) RETURN b", "MATCH (d) RETURN d", "MATCH (f) RETURN f"}
 	got := func(ds []DifferentialDifference) []string {
 		out := make([]string, 0, len(ds))
 		for _, d := range ds {
@@ -163,16 +164,43 @@ func TestSplitAdvisorySeparatesExecutions(t *testing.T) {
 	if g := got(advisory); !slices.Equal(g, wantAdvisory) {
 		t.Fatalf("advisory = %v, want %v", g, wantAdvisory)
 	}
-	for _, kind := range []string{DivergenceMissing, DivergenceResults, DivergenceFailures, DivergenceRowCount} {
+	for _, kind := range []string{DivergenceMissing, DivergenceResults, DivergenceFailures} {
 		if AdvisoryKind(kind) {
-			t.Fatalf("AdvisoryKind(%q) = true, want false: only executions is advisory", kind)
+			t.Fatalf("AdvisoryKind(%q) = true, want false: only executions and rowcount are advisory", kind)
 		}
 	}
-	if !AdvisoryKind(DivergenceExecutions) {
-		t.Fatal("AdvisoryKind(executions) = false, want true")
+	for _, kind := range []string{DivergenceExecutions, DivergenceRowCount} {
+		if !AdvisoryKind(kind) {
+			t.Fatalf("AdvisoryKind(%q) = false, want true", kind)
+		}
 	}
 	if r, a := SplitAdvisory(nil); r != nil || a != nil {
 		t.Fatalf("SplitAdvisory(nil) = %v, %v; want nil, nil", r, a)
+	}
+}
+
+// TestSplitAdvisoryTreatsRowCountAsAdvisory pins the #6782 option-2
+// disposition: a rowcount divergence (equal digest sets, same failure and
+// execution counts, different row totals) is one more poll iteration
+// observing the same rows, so it partitions into the advisory slice with
+// executions and never into the gate-failing one.
+func TestSplitAdvisoryTreatsRowCountAsAdvisory(t *testing.T) {
+	t.Parallel()
+	fp := func(s string) DifferentialFingerprint { return DifferentialFingerprint{Statement: s, Parameters: `{}`} }
+	diffs := []DifferentialDifference{
+		{Fingerprint: fp("MATCH (a) RETURN a"), Kind: DivergenceRowCount},
+		{Fingerprint: fp("MATCH (b) RETURN b"), Kind: DivergenceResults},
+		{Fingerprint: fp("MATCH (c) RETURN c"), Kind: DivergenceRowCount},
+	}
+	required, advisory := SplitAdvisory(diffs)
+	if len(required) != 1 || required[0].Fingerprint.Statement != "MATCH (b) RETURN b" {
+		t.Fatalf("required = %v, want only the results divergence", required)
+	}
+	if len(advisory) != 2 {
+		t.Fatalf("advisory = %v, want both rowcount divergences", advisory)
+	}
+	if !AdvisoryKind(DivergenceRowCount) {
+		t.Fatal("AdvisoryKind(rowcount) = false, want true")
 	}
 }
 

@@ -36,17 +36,17 @@ type AllowlistEntry struct {
 // for scheduling noise can never cover a result disagreement on the same
 // statement. "statement" excuses any kind on the named statement (a genuine
 // whole-statement dialect divergence); any other tier excuses only its named
-// kind (see backendconformance.Divergence*). There is no executions tier:
-// execution-count noise with agreeing results is advisory at the gate
-// (backendconformance.AdvisoryKind, #6782 permanent disposition), so it
-// needs no excuse, and every remaining tier must match at least one
-// divergence per run or the entry is stale.
+// kind (see backendconformance.Divergence*). There is no executions or
+// rowcount tier: execution-count and row-total noise with agreeing results
+// is advisory at the gate (backendconformance.AdvisoryKind, #6782 permanent
+// disposition as extended by the option-2 slice), so neither needs an
+// excuse, and every remaining tier must match at least one divergence per
+// run or the entry is stale.
 var allowlistTiers = map[string]string{
 	"statement": "",
 	"missing":   backendconformance.DivergenceMissing,
 	"results":   backendconformance.DivergenceResults,
 	"failures":  backendconformance.DivergenceFailures,
-	"rowcount":  backendconformance.DivergenceRowCount,
 }
 
 // Allowlist is the parsed divergence allowlist. It is empty by default:
@@ -71,7 +71,7 @@ func ParseAllowlist(raw []byte) (*Allowlist, error) {
 			return nil, fmt.Errorf("divergence allowlist entry %d: statement is required", i)
 		}
 		if _, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]; !ok {
-			return nil, fmt.Errorf("divergence allowlist entry %d (%q): tier must be one of statement, missing, results, failures, rowcount (executions is advisory at the gate since #6782 and needs no entry)", i, entry.Statement)
+			return nil, fmt.Errorf("divergence allowlist entry %d (%q): tier must be one of statement, missing, results, failures (executions and rowcount are advisory at the gate since #6782 and need no entry)", i, entry.Statement)
 		}
 		if strings.TrimSpace(entry.Reason) == "" {
 			return nil, fmt.Errorf("divergence allowlist entry %d (%q): reason is required", i, entry.Statement)

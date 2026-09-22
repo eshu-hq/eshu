@@ -294,7 +294,7 @@ func TestRunBackendDiffQuorumResultsBesideExecutionsFails(t *testing.T) {
 		t.Fatalf("stdout = %q, want the required finding to count only the results divergence", out)
 	}
 	// The executions divergence was routed to advisory, not dropped.
-	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_executions: 1 reproduced execution-count divergence(s)") {
+	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_executions: 1 reproduced scheduling-noise divergence(s)") {
 		t.Fatalf("stdout = %q, want the executions divergence routed to the advisory finding", out)
 	}
 	// Both divergences reproduced in both pairings, so nothing was
