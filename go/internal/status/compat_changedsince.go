@@ -11,7 +11,11 @@ package status
 // issue. A later changedsince move adds a stanza here and never creates a second
 // compat file for this family.
 
-import "github.com/eshu-hq/eshu/go/internal/status/changedsince"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
+)
 
 // Changed-since delta sections.
 //
@@ -54,3 +58,19 @@ const (
 	MaxChangedSinceSampleLimit     = changedsince.MaxSampleLimit
 	DefaultChangedSinceSampleLimit = changedsince.DefaultSampleLimit
 )
+
+// Changed-since enumerations and timestamp formatting.
+//
+// Deprecated: use the [changedsince] names. These are vars, not consts: each
+// shares the leaf's backing array rather than copying it, so behavior matches
+// the single package-level var these replaced.
+var (
+	ChangedSinceClassifications   = changedsince.Classifications
+	ChangedSinceCategories        = changedsince.Categories
+	ServiceChangedSinceCategories = changedsince.ServiceCategories
+)
+
+// ChangedSinceTimestamp renders a changed-since timestamp.
+//
+// Deprecated: use [changedsince.Timestamp].
+func ChangedSinceTimestamp(value time.Time) string { return changedsince.Timestamp(value) }

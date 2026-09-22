@@ -11,7 +11,11 @@ package status
 // issue. A later generation move adds a stanza here and never creates a second
 // compat file for this family.
 
-import "github.com/eshu-hq/eshu/go/internal/status/generation"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/generation"
+)
 
 // Generation lifecycle and transition sections.
 //
@@ -32,3 +36,10 @@ const (
 	MaxGenerationLifecycleLimit     = generation.MaxLifecycleLimit
 	DefaultGenerationLifecycleLimit = generation.DefaultLifecycleLimit
 )
+
+// GenerationLifecycleTimestamp renders a generation lifecycle timestamp.
+//
+// Deprecated: use [generation.LifecycleTimestamp].
+func GenerationLifecycleTimestamp(value time.Time) string {
+	return generation.LifecycleTimestamp(value)
+}

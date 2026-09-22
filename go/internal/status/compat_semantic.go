@@ -61,3 +61,10 @@ func SemanticExtractionSupportedStates() []string { return semantic.ExtractionSu
 func SemanticProviderProfileSupportedStates() []string {
 	return semantic.ProviderProfileSupportedStates()
 }
+
+// DefaultSemanticExtractionStatus returns the baseline extraction status.
+//
+// Deprecated: use [semantic.DefaultExtractionStatus].
+func DefaultSemanticExtractionStatus() semantic.ExtractionStatus {
+	return semantic.DefaultExtractionStatus()
+}
