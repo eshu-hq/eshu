@@ -15,7 +15,7 @@ func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, sou
 	if node == nil || node.Kind() != "pair" || strings.TrimSpace(name) != "handler" {
 		return false
 	}
-	if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+	if !syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 		return false
 	}
 	routeConfigObject := parents.Parent(node)
@@ -54,7 +54,7 @@ func javaScriptHapiRouteHandlerReferenceCall(
 		return nil
 	}
 	fullName := strings.TrimSpace(nodeText(valueNode, source))
-	name := javaScriptCallName(valueNode, source)
+	name := syntax.CallName(valueNode, source)
 	if name == "" {
 		name = syntax.IdentifierName(valueNode, source)
 	}
@@ -125,7 +125,7 @@ func javaScriptNodeIsCommonJSExportedValue(valueNode *tree_sitter.Node, source [
 	if parent == nil || parent.Kind() != "assignment_expression" {
 		return false
 	}
-	if !javaScriptNodeSameRange(parent.ChildByFieldName("right"), valueNode) {
+	if !syntax.NodeSameRange(parent.ChildByFieldName("right"), valueNode) {
 		return false
 	}
 	return javaScriptCommonJSAssignmentTarget(parent.ChildByFieldName("left"), source)
@@ -139,7 +139,7 @@ func javaScriptVariableNameForValue(valueNode *tree_sitter.Node, source []byte, 
 	if parent == nil || parent.Kind() != "variable_declarator" {
 		return ""
 	}
-	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), valueNode) {
+	if !syntax.NodeSameRange(parent.ChildByFieldName("value"), valueNode) {
 		return ""
 	}
 	return syntax.IdentifierName(parent.ChildByFieldName("name"), source)
@@ -225,7 +225,7 @@ func javaScriptObjectIsCommonJSExported(objectNode *tree_sitter.Node, source []b
 		}
 		switch parent.Kind() {
 		case "assignment_expression":
-			if !javaScriptNodeSameRange(parent.ChildByFieldName("right"), current) {
+			if !syntax.NodeSameRange(parent.ChildByFieldName("right"), current) {
 				continue
 			}
 			return javaScriptCommonJSAssignmentTarget(parent.ChildByFieldName("left"), source)
@@ -393,7 +393,7 @@ func javaScriptPairInsideCommonJSPluginObject(node *tree_sitter.Node, source []b
 	}
 	parent := parents.Parent(objectNode)
 	if parent == nil || parent.Kind() != "assignment_expression" ||
-		!javaScriptNodeSameRange(parent.ChildByFieldName("right"), objectNode) {
+		!syntax.NodeSameRange(parent.ChildByFieldName("right"), objectNode) {
 		return false
 	}
 	return javaScriptCommonJSExportName(parent.ChildByFieldName("left"), source) == "plugin"

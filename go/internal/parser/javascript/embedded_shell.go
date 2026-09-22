@@ -221,7 +221,7 @@ func jsCollectShellImportStatement(node *tree_sitter.Node, source []byte, import
 	walkNamed(node, func(child *tree_sitter.Node) {
 		switch child.Kind() {
 		case "namespace_import":
-			if alias := javaScriptNamespaceImportAlias(child, source); alias != "" {
+			if alias := syntax.NamespaceImportAlias(child, source); alias != "" {
 				imports.moduleAliases[alias] = struct{}{}
 			}
 		case "import_clause":
@@ -334,29 +334,8 @@ func jsIsChildProcessSpecifier(node *tree_sitter.Node, source []byte) bool {
 	if node == nil || node.Kind() != "string" {
 		return false
 	}
-	value := strings.TrimSpace(jsStringLiteralValue(node, source))
+	value := strings.TrimSpace(syntax.StringLiteralValue(node, source))
 	return value == "child_process" || value == "node:child_process"
-}
-
-// jsStringLiteralValue returns the unquoted content of a string node by reading
-// its string_fragment child, falling back to trimming the quote bytes.
-func jsStringLiteralValue(node *tree_sitter.Node, source []byte) string {
-	if node == nil {
-		return ""
-	}
-	cursor := node.Walk()
-	defer cursor.Close()
-	for _, child := range node.NamedChildren(cursor) {
-		child := child
-		if child.Kind() == "string_fragment" {
-			return nodeText(&child, source)
-		}
-	}
-	text := strings.TrimSpace(nodeText(node, source))
-	if unquoted, ok := syntax.TrimQuotes(text); ok {
-		return unquoted
-	}
-	return text
 }
 
 // jsIdentifierShadowedBeforeNode reports whether identifier is re-bound inside

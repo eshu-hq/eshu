@@ -101,7 +101,7 @@ func javaScriptRegisteredDeadCodeRootKinds(
 	source []byte,
 ) map[string][]string {
 	registered := make(map[string][]string)
-	if root == nil || !javaScriptHasExpressImport(string(source)) {
+	if root == nil || !syntax.HasExpressImport(string(source)) {
 		return registered
 	}
 
@@ -311,7 +311,7 @@ func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source 
 	switch node.Kind() {
 	case "method_definition":
 	case "pair":
-		if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+		if !syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 			return false
 		}
 	default:
@@ -355,7 +355,7 @@ func javaScriptIsRouteHandlerDeclaration(node *tree_sitter.Node) bool {
 	case "function_declaration", "generator_function_declaration":
 		return true
 	case "variable_declarator":
-		return isJavaScriptFunctionValue(node.ChildByFieldName("value"))
+		return syntax.IsFunctionValue(node.ChildByFieldName("value"))
 	default:
 		return false
 	}

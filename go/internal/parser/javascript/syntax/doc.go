@@ -22,8 +22,19 @@
 // (golangci-lint's 40-file dirgate cap): it must not import the parent
 // javascript package.
 //
-// member_expression.go is the only file in this package with framework
-// awareness baked in (the Express `app.route(path).get(...)` chain unwrap in
-// MemberBaseAndProperty/IsExpressRouteChain/ExpressHandlerNames); everything
-// else here is framework-agnostic AST shape extraction.
+// It also owns the binding shapes the grammar settles on its own: import,
+// require and re-export entry rows (ImportEntries, RequireImportEntries,
+// ReExportEntries and their helpers) and `new`-expression receiver typing
+// (CollectNewExpressionVariableType, FunctionReturnTypes,
+// CallInferredObjectType). Those moved here for issue #6771 so the
+// dead-code analysis could become its own package: they were the edges that
+// made dead-code detection and the parse root mutually recursive.
+//
+// Two files carry framework awareness, and it is called out rather than
+// hidden: member_expression.go unwraps the Express
+// `app.route(path).get(...)` chain (IsExpressRouteChain, ExpressHandlerNames)
+// and nodes.go detects an Express import specifier (HasExpressImport).
+// Everything else here is framework-agnostic AST shape extraction. Prefer the
+// parent javascript package for new framework knowledge; these two are
+// documented exceptions carried over by a move, not a precedent.
 package syntax

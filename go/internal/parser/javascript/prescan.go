@@ -67,15 +67,15 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 				names = appendPreScanName(names, node.ChildByFieldName("name"), source)
 			}
 		case "variable_declarator":
-			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			if syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 				names = appendPreScanName(names, node.ChildByFieldName("name"), source)
 			}
 		case "pair":
-			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			if syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 				names = appendPreScanName(names, node.ChildByFieldName("key"), source)
 			}
 		case "assignment_expression":
-			if !isJavaScriptFunctionValue(node.ChildByFieldName("right")) {
+			if !syntax.IsFunctionValue(node.ChildByFieldName("right")) {
 				return
 			}
 			names = appendPreScanName(names, javaScriptExportAssignmentNameNode(node.ChildByFieldName("left"), source), source)

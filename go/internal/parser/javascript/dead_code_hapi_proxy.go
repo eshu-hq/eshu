@@ -14,7 +14,7 @@ func javaScriptIsHapiProxyCallback(node *tree_sitter.Node, name string, source [
 	if node == nil || node.Kind() != "pair" || !javaScriptIsHapiProxyCallbackName(name) {
 		return false
 	}
-	if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+	if !syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 		return false
 	}
 	objectNode := parents.Parent(node)

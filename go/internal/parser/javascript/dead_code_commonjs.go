@@ -136,7 +136,7 @@ func javaScriptNearestClassNode(node *tree_sitter.Node, parents *syntax.ParentLo
 }
 
 func javaScriptAssignmentRightChainContains(valueNode *tree_sitter.Node, target *tree_sitter.Node) bool {
-	if javaScriptNodeSameRange(valueNode, target) {
+	if syntax.NodeSameRange(valueNode, target) {
 		return true
 	}
 	if valueNode == nil || valueNode.Kind() != "assignment_expression" {

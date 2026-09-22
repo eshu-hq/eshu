@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -33,13 +34,13 @@ func javaScriptTypeScriptImportedExportClauseReexportsFromRoot(root *tree_sitter
 		if node.ChildByFieldName("source") != nil {
 			return
 		}
-		for _, specifier := range javaScriptReExportSpecifiers(node, source) {
-			binding, ok := importsByLocalName[specifier.originalName]
+		for _, specifier := range syntax.ReExportSpecifiers(node, source) {
+			binding, ok := importsByLocalName[specifier.OriginalName]
 			if !ok || binding.importedName == "" || binding.source == "" {
 				continue
 			}
 			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
-				exportedName: specifier.exportedName,
+				exportedName: specifier.ExportedName,
 				originalName: binding.importedName,
 				source:       binding.source,
 			})
@@ -61,7 +62,7 @@ func javaScriptTypeScriptNamedImportsByLocalName(root *tree_sitter.Node, source 
 		if node.Kind() != "import_statement" {
 			return
 		}
-		for _, item := range javaScriptImportEntries(node, source, "") {
+		for _, item := range syntax.ImportEntries(node, source, "") {
 			importedName, _ := item["name"].(string)
 			importedName = strings.TrimSpace(importedName)
 			if importedName == "" || importedName == "default" || importedName == "*" {

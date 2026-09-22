@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -175,7 +176,7 @@ func javaScriptHTTPHandlerNamesFromVariableDeclaration(node *tree_sitter.Node, s
 	handlers := make([]string, 0, len(children))
 	for i := range children {
 		child := children[i]
-		if child.Kind() != "variable_declarator" || !isJavaScriptFunctionValue(child.ChildByFieldName("value")) {
+		if child.Kind() != "variable_declarator" || !syntax.IsFunctionValue(child.ChildByFieldName("value")) {
 			continue
 		}
 		handlers = append(handlers, javaScriptHTTPHandlerName(child.ChildByFieldName("name"), source)...)
@@ -225,7 +226,7 @@ func javaScriptLocalFunctionBindings(root *tree_sitter.Node, source []byte) map[
 				bindings[name] = true
 			}
 		case "variable_declarator":
-			if isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
+			if syntax.IsFunctionValue(node.ChildByFieldName("value")) {
 				name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
 				if name != "" {
 					bindings[name] = true

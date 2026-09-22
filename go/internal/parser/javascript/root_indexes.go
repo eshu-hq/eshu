@@ -4,6 +4,7 @@
 package javascript
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -39,8 +40,8 @@ type javaScriptRootIndexes struct {
 // a fastify import. The per-node cost is cheap (a type-leaf-name lookup) and
 // the import gate must not block the autoload/plugin pattern.
 //
-// javaScriptFunctionReturnTypes still runs as its own preliminary full-tree
-// walk: javaScriptCollectNewExpressionVariableType requires it fully computed
+// syntax.FunctionReturnTypes still runs as its own preliminary full-tree
+// walk: syntax.CollectNewExpressionVariableType requires it fully computed
 // before any node is visited, since a variable's call_expression value may
 // reference a function declared later in the file.
 func buildJavaScriptRootIndexes(
@@ -51,12 +52,12 @@ func buildJavaScriptRootIndexes(
 ) javaScriptRootIndexes {
 	wantReactAliases := outputLanguage == "tsx"
 	wantFastifyBases := javaScriptHasFastifyImport(sourceText)
-	wantExpressBases := javaScriptHasExpressImport(sourceText)
+	wantExpressBases := syntax.HasExpressImport(sourceText)
 	wantKoaBases := javaScriptHasKoaRouterImport(sourceText)
 
 	reactAliases := map[string]string{}
 	commonJSModuleAliases := make(map[string]struct{})
-	returnTypesByFunction := javaScriptFunctionReturnTypes(root, source)
+	returnTypesByFunction := syntax.FunctionReturnTypes(root, source)
 	newExpressionTypes := make(map[string]string)
 	fastifyBases := make(map[string]struct{})
 	expressBases := make(map[string]struct{})
@@ -67,7 +68,7 @@ func buildJavaScriptRootIndexes(
 			javaScriptCollectReactAliasFromImportStatement(node, source, outputLanguage, reactAliases)
 		}
 		javaScriptCollectCommonJSModuleExportAlias(node, source, commonJSModuleAliases)
-		javaScriptCollectNewExpressionVariableType(node, source, returnTypesByFunction, newExpressionTypes)
+		syntax.CollectNewExpressionVariableType(node, source, returnTypesByFunction, newExpressionTypes)
 		// Typed-parameter Fastify bases: no import gate — types come from
 		// @fastify/type-provider-typebox, not from the "fastify" package.
 		javaScriptCollectFastifyTypedParameterBase(node, source, fastifyBases)

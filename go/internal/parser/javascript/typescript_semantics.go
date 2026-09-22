@@ -23,7 +23,7 @@ func javaScriptTypeAliasItem(
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(node),
 		"lang":            lang,
-		"type_parameters": javaScriptTypeParameters(node, source),
+		"type_parameters": syntax.TypeParameters(node, source),
 	}
 	if aliasKind := javaScriptTypeAliasKind(node); aliasKind != "" {
 		item["type_alias_kind"] = aliasKind
@@ -60,7 +60,7 @@ func javaScriptEnclosingFunctionName(node *tree_sitter.Node, source []byte, pare
 	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "generator_function_declaration", "method_definition", "variable_declarator":
-			if current.Kind() == "variable_declarator" && javaScriptNodeSameRange(current.ChildByFieldName("value"), original) {
+			if current.Kind() == "variable_declarator" && syntax.NodeSameRange(current.ChildByFieldName("value"), original) {
 				continue
 			}
 			name := strings.TrimSpace(syntax.FunctionName(current.ChildByFieldName("name"), source))
@@ -72,10 +72,6 @@ func javaScriptEnclosingFunctionName(node *tree_sitter.Node, source []byte, pare
 		}
 	}
 	return ""
-}
-
-func javaScriptNodeSameRange(left *tree_sitter.Node, right *tree_sitter.Node) bool {
-	return left != nil && right != nil && left.StartByte() == right.StartByte() && left.EndByte() == right.EndByte()
 }
 
 func javaScriptEnclosingClassName(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) string {
@@ -128,10 +124,10 @@ func javaScriptTypeAliasKind(node *tree_sitter.Node) string {
 	if valueNode == nil {
 		return ""
 	}
-	if javaScriptNodeContainsKind(valueNode, "conditional_type") {
+	if syntax.NodeContainsKind(valueNode, "conditional_type") {
 		return "conditional_type"
 	}
-	if javaScriptNodeContainsKind(valueNode, "mapped_type_clause") {
+	if syntax.NodeContainsKind(valueNode, "mapped_type_clause") {
 		return "mapped_type"
 	}
 	return ""
@@ -157,23 +153,4 @@ func javaScriptNamespaceModuleItem(
 		"lang":        lang,
 		"module_kind": "namespace",
 	}
-}
-
-func javaScriptNodeContainsKind(node *tree_sitter.Node, kind string) bool {
-	if node == nil {
-		return false
-	}
-	if node.Kind() == kind {
-		return true
-	}
-	cursor := node.Walk()
-	children := node.NamedChildren(cursor)
-	cursor.Close()
-	for i := range children {
-		child := children[i]
-		if javaScriptNodeContainsKind(&child, kind) {
-			return true
-		}
-	}
-	return false
 }

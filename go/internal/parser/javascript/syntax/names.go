@@ -148,3 +148,24 @@ func TrimQuotes(text string) (string, bool) {
 		return text, false
 	}
 }
+
+// StringLiteralValue returns the unquoted content of a string node by reading
+// its string_fragment child, falling back to trimming the quote bytes.
+func StringLiteralValue(node *tree_sitter.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	cursor := node.Walk()
+	defer cursor.Close()
+	for _, child := range node.NamedChildren(cursor) {
+		child := child
+		if child.Kind() == "string_fragment" {
+			return shared.NodeText(&child, source)
+		}
+	}
+	text := strings.TrimSpace(shared.NodeText(node, source))
+	if unquoted, ok := TrimQuotes(text); ok {
+		return unquoted
+	}
+	return text
+}

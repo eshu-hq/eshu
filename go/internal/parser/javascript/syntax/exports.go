@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptReExportEntries(
+func ReExportEntries(
 	node *tree_sitter.Node,
 	source []byte,
 	lang string,
@@ -19,29 +20,29 @@ func javaScriptReExportEntries(
 	}
 
 	sourceNode := node.ChildByFieldName("source")
-	moduleSource := javaScriptReExportSource(node, source)
+	moduleSource := ReExportSource(node, source)
 	if !strings.HasPrefix(strings.TrimSpace(moduleSource), ".") {
 		return nil
 	}
 
-	fullImportName := strings.TrimSpace(nodeText(node, source))
-	if javaScriptIsStarReExport(node, source) {
-		return []map[string]any{javaScriptReExportEntry(
+	fullImportName := strings.TrimSpace(shared.NodeText(node, source))
+	if IsStarReExport(node, source) {
+		return []map[string]any{reExportEntry(
 			"*",
 			"*",
 			moduleSource,
 			fullImportName,
-			nodeLine(sourceNode),
+			shared.NodeLine(sourceNode),
 			lang,
 		)}
 	}
 
-	specifiers := javaScriptReExportSpecifiers(node, source)
+	specifiers := ReExportSpecifiers(node, source)
 	items := make([]map[string]any, 0, len(specifiers))
 	for _, specifier := range specifiers {
-		items = append(items, javaScriptReExportEntry(
-			specifier.exportedName,
-			specifier.originalName,
+		items = append(items, reExportEntry(
+			specifier.ExportedName,
+			specifier.OriginalName,
 			moduleSource,
 			fullImportName,
 			specifier.lineNumber,
@@ -51,17 +52,17 @@ func javaScriptReExportEntries(
 	return items
 }
 
-func javaScriptReExportSource(node *tree_sitter.Node, source []byte) string {
+func ReExportSource(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
 	if sourceNode := node.ChildByFieldName("source"); sourceNode != nil {
-		if moduleSource := strings.Trim(strings.TrimSpace(nodeText(sourceNode, source)), `"'`); moduleSource != "" {
+		if moduleSource := strings.Trim(strings.TrimSpace(shared.NodeText(sourceNode, source)), `"'`); moduleSource != "" {
 			return moduleSource
 		}
 	}
 
-	text := strings.TrimSpace(nodeText(node, source))
+	text := strings.TrimSpace(shared.NodeText(node, source))
 	before, rawSource, ok := strings.Cut(text, " from ")
 	if !ok || !strings.HasPrefix(strings.TrimSpace(before), "export") {
 		return ""
@@ -70,15 +71,15 @@ func javaScriptReExportSource(node *tree_sitter.Node, source []byte) string {
 	return strings.Trim(rawSource, `"'`)
 }
 
-// javaScriptReExportSpecifier records one static export-clause mapping from a
+// ReExportSpecifier records one static export-clause mapping from a
 // barrel's public name to the original symbol name in the target module.
-type javaScriptReExportSpecifier struct {
-	exportedName string
-	originalName string
+type ReExportSpecifier struct {
+	ExportedName string
+	OriginalName string
 	lineNumber   int
 }
 
-func javaScriptReExportEntry(
+func reExportEntry(
 	exportedName string,
 	originalName string,
 	moduleSource string,
@@ -100,7 +101,7 @@ func javaScriptReExportEntry(
 	return item
 }
 
-// javaScriptIsStarReExport reports whether an export_statement re-exports a whole
+// IsStarReExport reports whether an export_statement re-exports a whole
 // module via the star form rather than a named export clause. It is decided
 // structurally: a re-export node (one that has a module source) is a star
 // re-export when it carries no export_clause child. This covers
@@ -115,7 +116,7 @@ func javaScriptReExportEntry(
 // text for a leading "*" therefore misses the type-only forms. Named re-exports
 // (export { A } from "...", export type { A } from "...") carry an export_clause
 // and are not treated as star re-exports here so their per-name edges are kept.
-func javaScriptIsStarReExport(node *tree_sitter.Node, source []byte) bool {
+func IsStarReExport(node *tree_sitter.Node, source []byte) bool {
 	if node == nil {
 		return false
 	}
@@ -135,39 +136,39 @@ func javaScriptIsStarReExport(node *tree_sitter.Node, source []byte) bool {
 	return true
 }
 
-func javaScriptReExportSpecifiers(node *tree_sitter.Node, source []byte) []javaScriptReExportSpecifier {
-	specifiers := make([]javaScriptReExportSpecifier, 0)
-	walkNamed(node, func(candidate *tree_sitter.Node) {
+func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifier {
+	specifiers := make([]ReExportSpecifier, 0)
+	shared.WalkNamed(node, func(candidate *tree_sitter.Node) {
 		if candidate.Kind() != "export_specifier" {
 			return
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		originalName := strings.TrimSpace(nodeText(nameNode, source))
-		exportedName := strings.TrimSpace(nodeText(aliasNode, source))
-		if exportedName == "" {
-			exportedName = originalName
+		OriginalName := strings.TrimSpace(shared.NodeText(nameNode, source))
+		ExportedName := strings.TrimSpace(shared.NodeText(aliasNode, source))
+		if ExportedName == "" {
+			ExportedName = OriginalName
 		}
-		if exportedName == "" || originalName == "" {
+		if ExportedName == "" || OriginalName == "" {
 			return
 		}
-		specifiers = append(specifiers, javaScriptReExportSpecifier{
-			exportedName: exportedName,
-			originalName: originalName,
-			lineNumber:   nodeLine(candidate),
+		specifiers = append(specifiers, ReExportSpecifier{
+			ExportedName: ExportedName,
+			OriginalName: OriginalName,
+			lineNumber:   shared.NodeLine(candidate),
 		})
 	})
 	if len(specifiers) > 0 {
 		return specifiers
 	}
-	return javaScriptReExportSpecifiersFromText(node, source)
+	return reExportSpecifiersFromText(node, source)
 }
 
-func javaScriptReExportSpecifiersFromText(
+func reExportSpecifiersFromText(
 	node *tree_sitter.Node,
 	source []byte,
-) []javaScriptReExportSpecifier {
-	text := strings.TrimSpace(nodeText(node, source))
+) []ReExportSpecifier {
+	text := strings.TrimSpace(shared.NodeText(node, source))
 	start := strings.Index(text, "{")
 	end := strings.Index(text, "}")
 	if start < 0 || end <= start {
@@ -175,23 +176,23 @@ func javaScriptReExportSpecifiersFromText(
 	}
 
 	parts := strings.Split(text[start+1:end], ",")
-	specifiers := make([]javaScriptReExportSpecifier, 0, len(parts))
+	specifiers := make([]ReExportSpecifier, 0, len(parts))
 	for _, part := range parts {
-		originalName, exportedName := javaScriptReExportSpecifierNames(part)
-		if originalName == "" || exportedName == "" {
+		OriginalName, ExportedName := reExportSpecifierNames(part)
+		if OriginalName == "" || ExportedName == "" {
 			continue
 		}
-		specifiers = append(specifiers, javaScriptReExportSpecifier{
-			exportedName: exportedName,
-			originalName: originalName,
-			lineNumber:   nodeLine(node),
+		specifiers = append(specifiers, ReExportSpecifier{
+			ExportedName: ExportedName,
+			OriginalName: OriginalName,
+			lineNumber:   shared.NodeLine(node),
 		})
 	}
 	return specifiers
 }
 
-func javaScriptReExportSpecifierNames(raw string) (string, string) {
-	part := strings.TrimSpace(strings.TrimPrefix(javaScriptExportSpecifierWithoutLineComments(raw), "type "))
+func reExportSpecifierNames(raw string) (string, string) {
+	part := strings.TrimSpace(strings.TrimPrefix(exportSpecifierWithoutLineComments(raw), "type "))
 	if part == "" || strings.Contains(part, "...") {
 		return "", ""
 	}
@@ -218,9 +219,9 @@ func javaScriptReExportSpecifierNames(raw string) (string, string) {
 	return left, right
 }
 
-func javaScriptExportSpecifierWithoutLineComments(raw string) string {
+func exportSpecifierWithoutLineComments(raw string) string {
 	segments := make([]string, 0, 1)
-	for _, line := range strings.Split(javaScriptExportSpecifierWithoutBlockComments(raw), "\n") {
+	for _, line := range strings.Split(exportSpecifierWithoutBlockComments(raw), "\n") {
 		beforeComment, _, _ := strings.Cut(line, "//")
 		if trimmed := strings.TrimSpace(beforeComment); trimmed != "" {
 			segments = append(segments, trimmed)
@@ -229,7 +230,7 @@ func javaScriptExportSpecifierWithoutLineComments(raw string) string {
 	return strings.TrimSpace(strings.Join(segments, " "))
 }
 
-func javaScriptExportSpecifierWithoutBlockComments(raw string) string {
+func exportSpecifierWithoutBlockComments(raw string) string {
 	var cleaned strings.Builder
 	cleaned.Grow(len(raw))
 	for i := 0; i < len(raw); {

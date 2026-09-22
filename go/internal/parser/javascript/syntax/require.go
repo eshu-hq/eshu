@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptRequireImportEntries(
+func RequireImportEntries(
 	node *tree_sitter.Node,
 	source []byte,
 	lang string,
@@ -22,22 +22,22 @@ func javaScriptRequireImportEntries(
 
 	nameNode := node.ChildByFieldName("name")
 	valueNode := node.ChildByFieldName("value")
-	moduleSource, ok := javaScriptRequireModuleSource(valueNode, source)
+	moduleSource, ok := RequireModuleSource(valueNode, source)
 	requirePropertyName := ""
 	if !ok {
 		var propertyOK bool
-		moduleSource, requirePropertyName, propertyOK = javaScriptRequireMemberModuleSource(valueNode, source)
+		moduleSource, requirePropertyName, propertyOK = requireMemberModuleSource(valueNode, source)
 		if !propertyOK {
 			return nil
 		}
 	}
 
-	fullImportName := fmt.Sprintf("const %s = require(%q)", strings.TrimSpace(nodeText(nameNode, source)), moduleSource)
-	lineNumber := nodeLine(nameNode)
+	fullImportName := fmt.Sprintf("const %s = require(%q)", strings.TrimSpace(shared.NodeText(nameNode, source)), moduleSource)
+	lineNumber := shared.NodeLine(nameNode)
 
 	switch nameNode.Kind() {
 	case "identifier", "property_identifier", "private_property_identifier":
-		localName := strings.TrimSpace(nodeText(nameNode, source))
+		localName := strings.TrimSpace(shared.NodeText(nameNode, source))
 		if localName == "" {
 			return nil
 		}
@@ -65,41 +65,41 @@ func javaScriptRequireImportEntries(
 			"lang":             lang,
 		}}
 	case "object_pattern":
-		return javaScriptRequireObjectPatternEntries(nameNode, moduleSource, fullImportName, lineNumber, lang, source)
+		return requireObjectPatternEntries(nameNode, moduleSource, fullImportName, lineNumber, lang, source)
 	default:
 		return nil
 	}
 }
 
-func javaScriptRequireMemberModuleSource(node *tree_sitter.Node, source []byte) (string, string, bool) {
+func requireMemberModuleSource(node *tree_sitter.Node, source []byte) (string, string, bool) {
 	if node == nil || node.Kind() != "member_expression" {
 		return "", "", false
 	}
 	objectNode := node.ChildByFieldName("object")
 	propertyNode := node.ChildByFieldName("property")
-	moduleSource, ok := javaScriptRequireModuleSource(objectNode, source)
+	moduleSource, ok := RequireModuleSource(objectNode, source)
 	if !ok {
 		return "", "", false
 	}
-	propertyName := syntax.IdentifierName(propertyNode, source)
+	propertyName := IdentifierName(propertyNode, source)
 	if propertyName == "" {
 		return "", "", false
 	}
 	return moduleSource, propertyName, true
 }
 
-func javaScriptRequireModuleSource(node *tree_sitter.Node, source []byte) (string, bool) {
+func RequireModuleSource(node *tree_sitter.Node, source []byte) (string, bool) {
 	if node == nil || node.Kind() != "call_expression" {
 		return "", false
 	}
 
 	functionNode := node.ChildByFieldName("function")
-	if strings.TrimSpace(nodeText(functionNode, source)) != "require" {
+	if strings.TrimSpace(shared.NodeText(functionNode, source)) != "require" {
 		return "", false
 	}
 
 	argumentsNode := node.ChildByFieldName("arguments")
-	argumentsText := strings.TrimSpace(nodeText(argumentsNode, source))
+	argumentsText := strings.TrimSpace(shared.NodeText(argumentsNode, source))
 	if len(argumentsText) < 2 || argumentsText[0] != '(' || argumentsText[len(argumentsText)-1] != ')' {
 		return "", false
 	}
@@ -112,13 +112,13 @@ func javaScriptRequireModuleSource(node *tree_sitter.Node, source []byte) (strin
 		return "", false
 	}
 
-	if unquoted, ok := syntax.TrimQuotes(argument); ok {
+	if unquoted, ok := TrimQuotes(argument); ok {
 		return unquoted, true
 	}
 	return "", false
 }
 
-func javaScriptRequireObjectPatternEntries(
+func requireObjectPatternEntries(
 	nameNode *tree_sitter.Node,
 	moduleSource string,
 	fullImportName string,
@@ -130,7 +130,7 @@ func javaScriptRequireObjectPatternEntries(
 		return nil
 	}
 
-	rawPattern := strings.TrimSpace(nodeText(nameNode, source))
+	rawPattern := strings.TrimSpace(shared.NodeText(nameNode, source))
 	if len(rawPattern) < 2 || rawPattern[0] != '{' || rawPattern[len(rawPattern)-1] != '}' {
 		return nil
 	}
@@ -143,26 +143,26 @@ func javaScriptRequireObjectPatternEntries(
 			continue
 		}
 
-		exportedName := part
+		ExportedName := part
 		alias := ""
 		if left, right, ok := strings.Cut(part, ":"); ok {
-			exportedName = strings.TrimSpace(left)
+			ExportedName = strings.TrimSpace(left)
 			alias = strings.TrimSpace(right)
 		}
-		exportedName = strings.TrimSpace(exportedName)
-		if exportedName == "" {
+		ExportedName = strings.TrimSpace(ExportedName)
+		if ExportedName == "" {
 			continue
 		}
 
 		item := map[string]any{
-			"name":             exportedName,
+			"name":             ExportedName,
 			"source":           moduleSource,
 			"import_type":      "require",
 			"full_import_name": fullImportName,
 			"line_number":      lineNumber,
 			"lang":             lang,
 		}
-		if alias != "" && alias != exportedName {
+		if alias != "" && alias != ExportedName {
 			item["alias"] = alias
 		}
 		items = append(items, item)

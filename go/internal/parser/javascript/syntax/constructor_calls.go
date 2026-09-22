@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 // javaScriptNewExpressionVariableTypes tracks local variables initialized from
 // constructors so later member calls can carry bounded receiver type metadata.
-// javaScriptCollectNewExpressionVariableType records dst's inferred type for
+// CollectNewExpressionVariableType records dst's inferred type for
 // one variable_declarator, public_field_definition, field_definition, or
 // parameter node, given the already-fully-computed returnTypesByFunction
-// lookup (see javaScriptFunctionReturnTypes). It is a no-op for any other
+// lookup (see FunctionReturnTypes). It is a no-op for any other
 // node kind, so callers may invoke it on every visited node in a shared
 // traversal without pre-filtering. returnTypesByFunction must already be
 // complete before this is called for any node: a variable_declarator's
 // call_expression value may reference a function declared later in the file.
-func javaScriptCollectNewExpressionVariableType(
+func CollectNewExpressionVariableType(
 	node *tree_sitter.Node,
 	source []byte,
 	returnTypesByFunction map[string]string,
@@ -33,27 +33,27 @@ func javaScriptCollectNewExpressionVariableType(
 		if nameNode == nil {
 			return
 		}
-		variableName := strings.TrimSpace(nodeText(nameNode, source))
-		if typeName := javaScriptDeclaredTypeName(node, source); variableName != "" && typeName != "" {
+		variableName := strings.TrimSpace(shared.NodeText(nameNode, source))
+		if typeName := DeclaredTypeName(node, source); variableName != "" && typeName != "" {
 			dst[variableName] = typeName
 		}
 		if valueNode == nil || valueNode.Kind() != "new_expression" {
 			if valueNode != nil && valueNode.Kind() == "call_expression" {
 				functionNode := valueNode.ChildByFieldName("function")
-				if returnType := returnTypesByFunction[javaScriptCallName(functionNode, source)]; variableName != "" && returnType != "" {
+				if returnType := returnTypesByFunction[CallName(functionNode, source)]; variableName != "" && returnType != "" {
 					dst[variableName] = returnType
 				}
 			}
 			return
 		}
-		constructorName, _ := javaScriptNewExpressionConstructorName(valueNode, source)
+		constructorName, _ := NewExpressionConstructorName(valueNode, source)
 		if variableName == "" || constructorName == "" {
 			return
 		}
 		dst[variableName] = constructorName
 	case "public_field_definition", "field_definition", "required_parameter", "optional_parameter", "formal_parameter":
-		variableName := javaScriptTypedBindingName(node, source)
-		typeName := javaScriptDeclaredTypeName(node, source)
+		variableName := TypedBindingName(node, source)
+		typeName := DeclaredTypeName(node, source)
 		if variableName == "" || typeName == "" {
 			return
 		}
@@ -62,14 +62,14 @@ func javaScriptCollectNewExpressionVariableType(
 	}
 }
 
-func javaScriptTypedBindingName(node *tree_sitter.Node, source []byte) string {
+func TypedBindingName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
 	if nameNode := node.ChildByFieldName("name"); nameNode != nil {
-		return strings.TrimSpace(nodeText(nameNode, source))
+		return strings.TrimSpace(shared.NodeText(nameNode, source))
 	}
-	raw := strings.TrimSpace(nodeText(node, source))
+	raw := strings.TrimSpace(shared.NodeText(node, source))
 	if raw == "" || !strings.Contains(raw, ":") {
 		return ""
 	}
@@ -86,23 +86,23 @@ func javaScriptTypedBindingName(node *tree_sitter.Node, source []byte) string {
 	return fields[len(fields)-1]
 }
 
-func javaScriptFunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
+func FunctionReturnTypes(root *tree_sitter.Node, source []byte) map[string]string {
 	returnTypes := make(map[string]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "generator_function_declaration", "method_definition":
-			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-			returnType := javaScriptDeclaredTypeName(node, source)
+			name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+			returnType := DeclaredTypeName(node, source)
 			if name != "" && returnType != "" {
 				returnTypes[name] = returnType
 			}
 		case "variable_declarator":
 			valueNode := node.ChildByFieldName("value")
-			if !isJavaScriptFunctionValue(valueNode) {
+			if !IsFunctionValue(valueNode) {
 				return
 			}
-			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-			returnType := javaScriptDeclaredTypeName(valueNode, source)
+			name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
+			returnType := DeclaredTypeName(valueNode, source)
 			if name != "" && returnType != "" {
 				returnTypes[name] = returnType
 			}
@@ -111,7 +111,7 @@ func javaScriptFunctionReturnTypes(root *tree_sitter.Node, source []byte) map[st
 	return returnTypes
 }
 
-func javaScriptCallInferredObjectType(
+func CallInferredObjectType(
 	functionNode *tree_sitter.Node,
 	source []byte,
 	typesByVariable map[string]string,
@@ -123,7 +123,7 @@ func javaScriptCallInferredObjectType(
 	if objectNode == nil {
 		return ""
 	}
-	receiver := strings.TrimSpace(nodeText(objectNode, source))
+	receiver := strings.TrimSpace(shared.NodeText(objectNode, source))
 	if receiver == "" {
 		return ""
 	}
@@ -136,13 +136,13 @@ func javaScriptCallInferredObjectType(
 	return typesByVariable[receiver]
 }
 
-func javaScriptDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
+func DeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
 	typeNode := node.ChildByFieldName("type")
 	if typeNode != nil {
-		return syntax.TypeReferenceLeafName(nodeText(typeNode, source))
+		return TypeReferenceLeafName(shared.NodeText(typeNode, source))
 	}
 	cursor := node.Walk()
 	children := node.NamedChildren(cursor)
@@ -150,29 +150,29 @@ func javaScriptDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	for i := range children {
 		child := children[i]
 		if child.Kind() == "type_annotation" {
-			return syntax.TypeReferenceLeafName(nodeText(&child, source))
+			return TypeReferenceLeafName(shared.NodeText(&child, source))
 		}
 	}
 	return ""
 }
 
-func javaScriptNewExpressionConstructorName(node *tree_sitter.Node, source []byte) (string, string) {
+func NewExpressionConstructorName(node *tree_sitter.Node, source []byte) (string, string) {
 	if node == nil || node.Kind() != "new_expression" {
 		return "", ""
 	}
 	constructorNode := node.ChildByFieldName("constructor")
-	constructor := strings.TrimSpace(nodeText(constructorNode, source))
+	constructor := strings.TrimSpace(shared.NodeText(constructorNode, source))
 	if constructor == "" {
-		constructor = javaScriptNewExpressionConstructorFromText(nodeText(node, source))
+		constructor = newExpressionConstructorFromText(shared.NodeText(node, source))
 	}
 	constructor = strings.TrimSpace(constructor)
 	if constructor == "" {
 		return "", ""
 	}
-	return javaScriptTrailingConstructorName(constructor), constructor
+	return trailingConstructorName(constructor), constructor
 }
 
-func javaScriptNewExpressionConstructorFromText(text string) string {
+func newExpressionConstructorFromText(text string) string {
 	text = strings.TrimSpace(text)
 	text = strings.TrimPrefix(text, "new ")
 	text = strings.TrimSpace(text)
@@ -188,7 +188,7 @@ func javaScriptNewExpressionConstructorFromText(text string) string {
 	return strings.TrimSpace(text[:cutAt])
 }
 
-func javaScriptTrailingConstructorName(value string) string {
+func trailingConstructorName(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""

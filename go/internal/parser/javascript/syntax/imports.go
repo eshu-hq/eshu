@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
+func ImportEntries(node *tree_sitter.Node, source []byte, lang string) []map[string]any {
 	sourceNode := node.ChildByFieldName("source")
-	moduleSource := strings.Trim(nodeText(sourceNode, source), `"'`)
+	moduleSource := strings.Trim(shared.NodeText(sourceNode, source), `"'`)
 	if strings.TrimSpace(moduleSource) == "" {
 		return nil
 	}
@@ -33,7 +34,7 @@ func javaScriptImportEntries(node *tree_sitter.Node, source []byte, lang string)
 		return []map[string]any{{
 			"name":        moduleSource,
 			"source":      moduleSource,
-			"line_number": nodeLine(sourceNode),
+			"line_number": shared.NodeLine(sourceNode),
 			"lang":        lang,
 		}}
 	}
@@ -53,26 +54,26 @@ func javaScriptImportEntries(node *tree_sitter.Node, source []byte, lang string)
 			defer clauseCursor.Close()
 			for _, clauseChild := range child.NamedChildren(clauseCursor) {
 				clauseChild := clauseChild
-				items = append(items, javaScriptImportEntriesFromClause(&clauseChild, moduleSource, source, lang)...)
+				items = append(items, importEntriesFromClause(&clauseChild, moduleSource, source, lang)...)
 			}
 		case "identifier":
-			items = append(items, javaScriptImportEntriesFromClause(&child, moduleSource, source, lang)...)
+			items = append(items, importEntriesFromClause(&child, moduleSource, source, lang)...)
 		case "namespace_import", "named_imports":
-			items = append(items, javaScriptImportEntriesFromClause(&child, moduleSource, source, lang)...)
+			items = append(items, importEntriesFromClause(&child, moduleSource, source, lang)...)
 		}
 	}
 	if len(items) == 0 {
 		items = append(items, map[string]any{
 			"name":        moduleSource,
 			"source":      moduleSource,
-			"line_number": nodeLine(sourceNode),
+			"line_number": shared.NodeLine(sourceNode),
 			"lang":        lang,
 		})
 	}
 	return items
 }
 
-func javaScriptImportEntriesFromClause(
+func importEntriesFromClause(
 	node *tree_sitter.Node,
 	moduleSource string,
 	source []byte,
@@ -87,17 +88,17 @@ func javaScriptImportEntriesFromClause(
 		return []map[string]any{{
 			"name":        "default",
 			"source":      moduleSource,
-			"alias":       nodeText(node, source),
-			"line_number": nodeLine(node),
+			"alias":       shared.NodeText(node, source),
+			"line_number": shared.NodeLine(node),
 			"lang":        lang,
 		}}
 	case "namespace_import":
-		alias := javaScriptNamespaceImportAlias(node, source)
+		alias := NamespaceImportAlias(node, source)
 		return []map[string]any{{
 			"name":        "*",
 			"source":      moduleSource,
 			"alias":       alias,
-			"line_number": nodeLine(node),
+			"line_number": shared.NodeLine(node),
 			"lang":        lang,
 		}}
 	case "named_imports":
@@ -112,10 +113,10 @@ func javaScriptImportEntriesFromClause(
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
 			items = append(items, map[string]any{
-				"name":        nodeText(nameNode, source),
+				"name":        shared.NodeText(nameNode, source),
 				"source":      moduleSource,
-				"alias":       nodeText(aliasNode, source),
-				"line_number": nodeLine(&specifier),
+				"alias":       shared.NodeText(aliasNode, source),
+				"line_number": shared.NodeLine(&specifier),
 				"lang":        lang,
 			})
 		}
@@ -125,16 +126,16 @@ func javaScriptImportEntriesFromClause(
 	}
 }
 
-func javaScriptNamespaceImportAlias(node *tree_sitter.Node, source []byte) string {
+func NamespaceImportAlias(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
 	if aliasNode := node.ChildByFieldName("name"); aliasNode != nil {
-		if alias := strings.TrimSpace(nodeText(aliasNode, source)); alias != "" {
+		if alias := strings.TrimSpace(shared.NodeText(aliasNode, source)); alias != "" {
 			return alias
 		}
 	}
-	text := strings.TrimSpace(nodeText(node, source))
+	text := strings.TrimSpace(shared.NodeText(node, source))
 	parts := strings.Fields(text)
 	if len(parts) >= 3 && parts[0] == "*" && parts[1] == "as" {
 		return parts[2]

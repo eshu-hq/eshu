@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -78,7 +79,7 @@ func javaScriptHapiHandlerSpecDirs(root *tree_sitter.Node, source []byte) []stri
 		if node.Kind() != "pair" {
 			return
 		}
-		if javaScriptHapiPairKey(node, source) != "handlers" {
+		if syntax.ObjectPairKey(node, source) != "handlers" {
 			return
 		}
 		valueNode := node.ChildByFieldName("value")
@@ -125,7 +126,7 @@ func javaScriptDirnamePathArgument(node *tree_sitter.Node, source []byte) (strin
 	if args[1].Kind() != "string" {
 		return "", false
 	}
-	value := jsStringLiteralValue(&args[1], source)
+	value := syntax.StringLiteralValue(&args[1], source)
 	if strings.TrimSpace(value) == "" {
 		return "", false
 	}

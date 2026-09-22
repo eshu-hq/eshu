@@ -130,8 +130,8 @@ func Parse(
 				"lang":        outputLanguage,
 			}
 			if outputLanguage != "javascript" {
-				classItem["decorators"] = javaScriptDecorators(node, source, parents)
-				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
+				classItem["decorators"] = syntax.Decorators(node, source, parents)
+				classItem["type_parameters"] = syntax.TypeParameters(node, source)
 				if interfaces := syntax.ImplementedInterfaces(node, source); len(interfaces) > 0 {
 					classItem["implemented_interfaces"] = interfaces
 				}
@@ -157,7 +157,7 @@ func Parse(
 				"lang":        outputLanguage,
 			}
 			if outputLanguage != "javascript" {
-				item["type_parameters"] = javaScriptTypeParameters(node, source)
+				item["type_parameters"] = syntax.TypeParameters(node, source)
 			}
 			if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
@@ -199,7 +199,7 @@ func Parse(
 				return
 			}
 			valueNode := node.ChildByFieldName("value")
-			if isJavaScriptFunctionValue(valueNode) {
+			if syntax.IsFunctionValue(valueNode) {
 				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 				return
@@ -207,10 +207,10 @@ func Parse(
 			if outputLanguage == "tsx" && javaScriptComponentWrapperKind(valueNode, source, reactAliases) != "" {
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 			}
-			if scope == "module" && javaScriptInsideFunction(node, parents) {
+			if scope == "module" && syntax.InsideFunction(node, parents) {
 				return
 			}
-			if requireItems := javaScriptRequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
+			if requireItems := syntax.RequireImportEntries(node, source, outputLanguage); len(requireItems) > 0 {
 				for _, item := range requireItems {
 					annotateJavaScriptResolvedImport(item, tsConfigImports)
 					appendBucket(payload, "imports", item)
@@ -237,7 +237,7 @@ func Parse(
 		case "pair":
 			nameNode := node.ChildByFieldName("key")
 			valueNode := node.ChildByFieldName("value")
-			if !isJavaScriptFunctionValue(valueNode) {
+			if !syntax.IsFunctionValue(valueNode) {
 				if item := javaScriptHapiRouteHandlerReferenceCall(node, nameNode, valueNode, source, outputLanguage, deadCodeRoots); item != nil {
 					appendBucket(payload, "function_calls", item)
 				}
@@ -245,18 +245,18 @@ func Parse(
 			}
 			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 		case "import_statement":
-			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
+			for _, item := range syntax.ImportEntries(node, source, outputLanguage) {
 				annotateJavaScriptResolvedImport(item, tsConfigImports)
 				appendBucket(payload, "imports", item)
 			}
 		case "export_statement":
-			for _, item := range javaScriptReExportEntries(node, source, outputLanguage) {
+			for _, item := range syntax.ReExportEntries(node, source, outputLanguage) {
 				annotateJavaScriptResolvedImport(item, tsConfigImports)
 				appendBucket(payload, "imports", item)
 			}
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
-			name := javaScriptCallName(functionNode, source)
+			name := syntax.CallName(functionNode, source)
 			if strings.TrimSpace(name) == "" {
 				return
 			}
@@ -264,7 +264,7 @@ func Parse(
 				gatheredCallExpressions = append(gatheredCallExpressions, cloneNode(node))
 			}
 			fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(
-				javaScriptCallFullName(functionNode, source),
+				syntax.CallFullName(functionNode, source),
 				commonJSModuleAliases,
 			)
 			item := map[string]any{
@@ -274,7 +274,7 @@ func Parse(
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
 			}
-			if inferredType := javaScriptCallInferredObjectType(functionNode, source, newExpressionTypes); inferredType != "" {
+			if inferredType := syntax.CallInferredObjectType(functionNode, source, newExpressionTypes); inferredType != "" {
 				item["inferred_obj_type"] = inferredType
 			}
 			if strings.HasPrefix(fullName, "this.") {
@@ -294,7 +294,7 @@ func Parse(
 				appendBucket(payload, "function_calls", reference)
 			}
 		case "new_expression":
-			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(node, source)
+			constructorName, constructorFullName := syntax.NewExpressionConstructorName(node, source)
 			if constructorName == "" {
 				return
 			}
@@ -323,7 +323,7 @@ func Parse(
 		case "assignment_expression":
 			leftNode := node.ChildByFieldName("left")
 			rightNode := node.ChildByFieldName("right")
-			if !isJavaScriptFunctionValue(rightNode) {
+			if !syntax.IsFunctionValue(rightNode) {
 				return
 			}
 			nameNode := javaScriptExportAssignmentNameNode(leftNode, source)
@@ -336,13 +336,13 @@ func Parse(
 				return
 			}
 			nameNode := node.ChildByFieldName("name")
-			name := javaScriptJSXComponentName(node, source)
+			name := syntax.JSXComponentName(node, source)
 			if !isPascalIdentifier(name) {
 				return
 			}
 			appendBucket(payload, "function_calls", map[string]any{
 				"name":        name,
-				"full_name":   javaScriptCallFullName(nameNode, source),
+				"full_name":   syntax.CallFullName(nameNode, source),
 				"call_kind":   "jsx_component",
 				"line_number": nodeLine(node),
 				"lang":        outputLanguage,
@@ -415,12 +415,12 @@ func appendFunctionDeclaration(
 
 	declarationNode := node
 	if node != nil && node.Kind() == "variable_declarator" {
-		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
+		if valueNode := node.ChildByFieldName("value"); syntax.IsFunctionValue(valueNode) {
 			declarationNode = valueNode
 		}
 	}
 	if node != nil && node.Kind() == "pair" {
-		if valueNode := node.ChildByFieldName("value"); isJavaScriptFunctionValue(valueNode) {
+		if valueNode := node.ChildByFieldName("value"); syntax.IsFunctionValue(valueNode) {
 			declarationNode = valueNode
 		}
 	}
@@ -430,7 +430,7 @@ func appendFunctionDeclaration(
 	// assignment node itself and records no_body for every exported
 	// function.
 	if node != nil && node.Kind() == "assignment_expression" {
-		if valueNode := node.ChildByFieldName("right"); isJavaScriptFunctionValue(valueNode) {
+		if valueNode := node.ChildByFieldName("right"); syntax.IsFunctionValue(valueNode) {
 			declarationNode = valueNode
 		}
 	}
@@ -439,8 +439,8 @@ func appendFunctionDeclaration(
 		"name":            name,
 		"line_number":     nodeLine(nameNode),
 		"end_line":        nodeEndLine(declarationNode),
-		"decorators":      javaScriptDecorators(declarationNode, source, deadCodeRoots.parents),
-		"type_parameters": javaScriptTypeParameters(declarationNode, source),
+		"decorators":      syntax.Decorators(declarationNode, source, deadCodeRoots.parents),
+		"type_parameters": syntax.TypeParameters(declarationNode, source),
 		"parameter_count": syntax.ParameterCount(declarationNode.ChildByFieldName("parameters"), source),
 		"lang":            lang,
 	}

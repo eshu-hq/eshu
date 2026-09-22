@@ -195,16 +195,16 @@ func javaScriptFastifyRouteObjectEntry(
 		if child.Kind() != "pair" {
 			continue
 		}
-		key := javaScriptHapiPairKey(&child, source)
+		key := syntax.ObjectPairKey(&child, source)
 		valueNode := child.ChildByFieldName("value")
 		switch key {
 		case "method":
 			if valueNode != nil && valueNode.Kind() == "string" {
-				method = jsStringLiteralValue(valueNode, source)
+				method = syntax.StringLiteralValue(valueNode, source)
 			}
 		case "url", "path":
 			if valueNode != nil && valueNode.Kind() == "string" {
-				path = jsStringLiteralValue(valueNode, source)
+				path = syntax.StringLiteralValue(valueNode, source)
 			}
 		case "handler":
 			handler = syntax.IdentifierName(valueNode, source)
@@ -313,7 +313,7 @@ func javaScriptRoutePathArg(args []tree_sitter.Node, index int, source []byte) (
 	if len(args) <= index || args[index].Kind() != "string" {
 		return "", false
 	}
-	path := strings.TrimSpace(jsStringLiteralValue(&args[index], source))
+	path := strings.TrimSpace(syntax.StringLiteralValue(&args[index], source))
 	return path, path != ""
 }
 

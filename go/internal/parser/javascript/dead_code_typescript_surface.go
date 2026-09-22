@@ -232,7 +232,7 @@ func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
 	if node == nil {
 		return false
 	}
-	return javaScriptNodeContainsKind(node, "implements_clause")
+	return syntax.NodeContainsKind(node, "implements_clause")
 }
 
 func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) map[string]struct{} {
@@ -281,11 +281,11 @@ func javaScriptTypeScriptStaticReexportsFromRoot(root *tree_sitter.Node, source 
 		if node.Kind() != "export_statement" {
 			return
 		}
-		moduleSource := strings.TrimSpace(javaScriptReExportSource(node, source))
+		moduleSource := strings.TrimSpace(syntax.ReExportSource(node, source))
 		if moduleSource == "" {
 			return
 		}
-		if javaScriptIsStarReExport(node, source) {
+		if syntax.IsStarReExport(node, source) {
 			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
 				exportedName: "*",
 				originalName: "*",
@@ -293,10 +293,10 @@ func javaScriptTypeScriptStaticReexportsFromRoot(root *tree_sitter.Node, source 
 			})
 			return
 		}
-		for _, specifier := range javaScriptReExportSpecifiers(node, source) {
+		for _, specifier := range syntax.ReExportSpecifiers(node, source) {
 			reexports = append(reexports, javaScriptTypeScriptSurfaceReexport{
-				exportedName: specifier.exportedName,
-				originalName: specifier.originalName,
+				exportedName: specifier.ExportedName,
+				originalName: specifier.OriginalName,
 				source:       moduleSource,
 			})
 		}
@@ -436,7 +436,7 @@ func javaScriptObjectLiteralIsExportedRegistry(objectNode *tree_sitter.Node, sou
 	if parent == nil || parent.Kind() != "variable_declarator" {
 		return false
 	}
-	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), objectNode) || !javaScriptIsExported(parent, parents) {
+	if !syntax.NodeSameRange(parent.ChildByFieldName("value"), objectNode) || !javaScriptIsExported(parent, parents) {
 		return false
 	}
 	return strings.TrimSpace(javaScriptTypeScriptDeclarationName(parent, source)) != ""

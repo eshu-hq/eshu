@@ -3,6 +3,11 @@
 
 package syntax
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
+
 import "strings"
 
 // TypeParameterNames returns the declared type-parameter names from a
@@ -109,4 +114,15 @@ func splitTopLevelSections(text string) []string {
 
 	sections = append(sections, text[start:])
 	return sections
+}
+
+func TypeParameters(node *tree_sitter.Node, source []byte) []string {
+	if node == nil {
+		return []string{}
+	}
+	typeParametersNode := node.ChildByFieldName("type_parameters")
+	if typeParametersNode == nil {
+		return []string{}
+	}
+	return TypeParameterNames(shared.NodeText(typeParametersNode, source))
 }

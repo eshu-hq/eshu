@@ -86,7 +86,7 @@ func javaScriptFunctionValueReferenceCall(
 		return nil
 	}
 	fullName := rewriteJavaScriptCommonJSModuleExportAliasFullName(nodeText(node, source), commonJSModuleAliases)
-	name := javaScriptCallName(node, source)
+	name := syntax.CallName(node, source)
 	if name == "" || fullName == "" {
 		return nil
 	}
@@ -139,7 +139,7 @@ func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, sour
 	if parent == nil || parent.Kind() != "pair" {
 		return false
 	}
-	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), node) {
+	if !syntax.NodeSameRange(parent.ChildByFieldName("value"), node) {
 		return false
 	}
 	if strings.Trim(strings.TrimSpace(nodeText(parent.ChildByFieldName("key"), source)), `"'`) != "handler" {
@@ -165,7 +165,7 @@ func javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(
 	defer cursor.Close()
 	for _, child := range argumentsNode.NamedChildren(cursor) {
 		child := child
-		if javaScriptNodeSameRange(&child, objectNode) {
+		if syntax.NodeSameRange(&child, objectNode) {
 			return true
 		}
 	}
@@ -208,5 +208,5 @@ func javaScriptFunctionValueReferenceIsCallCallee(node *tree_sitter.Node, parent
 		return false
 	}
 	functionNode := parent.ChildByFieldName("function")
-	return javaScriptNodeSameRange(functionNode, node)
+	return syntax.NodeSameRange(functionNode, node)
 }

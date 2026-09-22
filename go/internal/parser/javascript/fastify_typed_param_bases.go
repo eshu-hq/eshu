@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -38,8 +39,8 @@ import (
 func javaScriptCollectFastifyTypedParameterBase(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
 	switch node.Kind() {
 	case "required_parameter", "optional_parameter", "formal_parameter":
-		paramName := javaScriptTypedBindingName(node, source)
-		typeName := javaScriptDeclaredTypeName(node, source)
+		paramName := syntax.TypedBindingName(node, source)
+		typeName := syntax.DeclaredTypeName(node, source)
 		if paramName == "" || typeName == "" {
 			return
 		}
@@ -47,7 +48,7 @@ func javaScriptCollectFastifyTypedParameterBase(node *tree_sitter.Node, source [
 			javaScriptAddName(dst, paramName)
 		}
 	case "variable_declarator":
-		typeName := javaScriptDeclaredTypeName(node, source)
+		typeName := syntax.DeclaredTypeName(node, source)
 		if typeName == "" {
 			return
 		}
@@ -91,7 +92,7 @@ func javaScriptCollectFunctionParameterNames(node *tree_sitter.Node, source []by
 // bogus route_entries / HANDLES_ROUTE truth (#4940 review). Name extraction
 // works for both typed parameters (fastify: FastifyInstance) and
 // untyped/inferred parameters (fastify) by trying ChildByFieldName("pattern")
-// first, then falling back to javaScriptTypedBindingName.
+// first, then falling back to syntax.TypedBindingName.
 func javaScriptCollectFormalParameterNames(node *tree_sitter.Node, source []byte, dst map[string]struct{}) {
 	cursor := node.Walk()
 	children := node.NamedChildren(cursor)
@@ -113,7 +114,7 @@ func javaScriptCollectFormalParameterNames(node *tree_sitter.Node, source []byte
 // javaScriptFormalParameterName returns the parameter name for a
 // required_parameter or optional_parameter node. It tries the pattern
 // field first (which works for both typed and untyped parameters),
-// then falls back to javaScriptTypedBindingName for edge cases.
+// then falls back to syntax.TypedBindingName for edge cases.
 func javaScriptFormalParameterName(node *tree_sitter.Node, source []byte) string {
 	// Tree-sitter uses field "pattern" for parameter names.
 	if patternNode := node.ChildByFieldName("pattern"); patternNode != nil {
@@ -122,5 +123,5 @@ func javaScriptFormalParameterName(node *tree_sitter.Node, source []byte) string
 		}
 	}
 	// Fall back to typed-binding name extraction (handles ": Type" notation).
-	return javaScriptTypedBindingName(node, source)
+	return syntax.TypedBindingName(node, source)
 }

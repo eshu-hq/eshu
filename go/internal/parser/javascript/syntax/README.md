@@ -21,12 +21,12 @@ this framework mean". Recognizing an Express route, a NestJS controller, a
 Hapi handler or a CommonJS export shape is the parent `javascript` package's
 job, and it builds those judgements on the primitives here.
 
-One wart is documented rather than hidden: `member_expression.go` carries
+Two warts are documented rather than hidden. `member_expression.go` carries
 Express awareness (`IsExpressRouteChain` and `ExpressHandlerNames` unwrap the
-`app.route(path).get(handler)` chain). That is framework knowledge sitting in
-a syntax package. It moved as-is because splitting it would have meant
-inventing a new seam during a rename pass; see the invariants below before
-adding a second one.
+`app.route(path).get(handler)` chain), and `nodes.go` carries
+`HasExpressImport`. Both are framework knowledge sitting in a syntax package.
+They moved as-is because splitting them would have meant inventing a new seam
+mid-move; see the invariants below before adding a third.
 
 `syntax` is a leaf. It must not import the parent `javascript` package, and it
 does not import its sibling `project` either — the two are independent.
@@ -46,6 +46,17 @@ does not import its sibling `project` either — the two are independent.
 - `MemberBaseAndProperty`, `IsExpressRouteChain`, `ExpressHandlerNames`,
   `IdentifierName` — member-expression decomposition
 - `ParameterCount` — declared parameter count for a signature
+- `ImportEntries`, `NamespaceImportAlias`, `RequireImportEntries`,
+  `RequireModuleSource` — import and `require` entry rows
+- `ReExportEntries`, `ReExportSource`, `ReExportSpecifiers`, `IsStarReExport`,
+  `ReExportSpecifier` — re-export rows and their specifier pairs
+- `CollectNewExpressionVariableType`, `FunctionReturnTypes`,
+  `CallInferredObjectType`, `NewExpressionConstructorName`,
+  `TypedBindingName`, `DeclaredTypeName` — receiver typing from local syntax
+- `IsFunctionValue`, `InsideFunction`, `Decorators`, `CallName`,
+  `CallFullName`, `JSXComponentName`, `NodeContainsKind`, `NodeSameRange`,
+  `StringLiteralValue`, `ObjectPairKey`, `HasExpressImport`, `TypeParameters` —
+  node predicates and readers hoisted out of the parent for #6771
 
 See `doc.go` for the full godoc contract.
 

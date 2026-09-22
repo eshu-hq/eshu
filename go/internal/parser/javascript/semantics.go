@@ -59,7 +59,7 @@ func javaScriptComponentWrapperKind(node *tree_sitter.Node, source []byte, react
 		}
 	case "call_expression":
 		functionNode := node.ChildByFieldName("function")
-		name := javaScriptNormalizeReactAlias(strings.TrimSpace(javaScriptCallName(functionNode, source)), reactAliases)
+		name := javaScriptNormalizeReactAlias(strings.TrimSpace(syntax.CallName(functionNode, source)), reactAliases)
 		switch name {
 		case "memo", "forwardRef", "lazy":
 			return name
@@ -137,7 +137,7 @@ func javaScriptCollectReactAliasFromImportStatement(
 	if node.Kind() != "import_statement" {
 		return
 	}
-	for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
+	for _, item := range syntax.ImportEntries(node, source, outputLanguage) {
 		sourceName, _ := item["source"].(string)
 		if sourceName != "react" {
 			continue
@@ -283,15 +283,8 @@ func detectNextJSSemantics(path string, root *tree_sitter.Node, source []byte) (
 	return nextjs, true
 }
 
-func javaScriptHasExpressImport(source string) bool {
-	return strings.Contains(source, `require("express")`) ||
-		strings.Contains(source, `require('express')`) ||
-		strings.Contains(source, `from "express"`) ||
-		strings.Contains(source, `from 'express'`)
-}
-
 func detectExpressSemantics(root *tree_sitter.Node, source []byte) (map[string]any, bool) {
-	if !javaScriptHasExpressImport(string(source)) {
+	if !syntax.HasExpressImport(string(source)) {
 		return nil, false
 	}
 	routes := javaScriptExpressRouteCalls(root, source)

@@ -137,7 +137,7 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 
 func javaScriptExpressRegistrationBases(root *tree_sitter.Node, source []byte, text string) map[string]struct{} {
 	bases := make(map[string]struct{})
-	if !javaScriptHasExpressImport(text) {
+	if !syntax.HasExpressImport(text) {
 		return bases
 	}
 	walkNamed(root, func(node *tree_sitter.Node) {
@@ -145,7 +145,7 @@ func javaScriptExpressRegistrationBases(root *tree_sitter.Node, source []byte, t
 		if name == "" || value == nil {
 			return
 		}
-		callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
+		callName := strings.ToLower(syntax.CallFullName(value.ChildByFieldName("function"), source))
 		if callName == "express" || callName == "express.router" {
 			javaScriptAddName(bases, name)
 		}
@@ -165,7 +165,7 @@ func javaScriptKoaRegistrationBases(root *tree_sitter.Node, source []byte, text 
 		}
 		// Form 1: const router = new Router()
 		if value.Kind() == "new_expression" {
-			constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
+			constructorName, constructorFullName := syntax.NewExpressionConstructorName(value, source)
 			if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
 				javaScriptAddName(bases, name)
 			}
@@ -175,7 +175,7 @@ func javaScriptKoaRegistrationBases(root *tree_sitter.Node, source []byte, text 
 		if value.Kind() == "call_expression" {
 			functionNode := value.ChildByFieldName("function")
 			if functionNode != nil && functionNode.Kind() == "call_expression" {
-				moduleSource, ok := javaScriptRequireModuleSource(functionNode, source)
+				moduleSource, ok := syntax.RequireModuleSource(functionNode, source)
 				if ok && (moduleSource == "@koa/router" || moduleSource == "koa-router") {
 					javaScriptAddName(bases, name)
 				}
@@ -208,7 +208,7 @@ func javaScriptCollectFastifyRegistrationBase(node *tree_sitter.Node, source []b
 	if name == "" || value == nil || value.Kind() != "call_expression" {
 		return
 	}
-	callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
+	callName := strings.ToLower(syntax.CallFullName(value.ChildByFieldName("function"), source))
 	if callName == "fastify" {
 		javaScriptAddName(dst, name)
 	}
@@ -224,7 +224,7 @@ func javaScriptCollectExpressRegistrationBase(node *tree_sitter.Node, source []b
 	if name == "" || value == nil {
 		return
 	}
-	callName := strings.ToLower(javaScriptCallFullName(value.ChildByFieldName("function"), source))
+	callName := strings.ToLower(syntax.CallFullName(value.ChildByFieldName("function"), source))
 	if callName == "express" || callName == "express.router" {
 		javaScriptAddName(dst, name)
 	}
@@ -252,7 +252,7 @@ func javaScriptCollectKoaRegistrationBase(node *tree_sitter.Node, source []byte,
 
 	// Form 1: const router = new Router() / new KoaRouter()
 	if value.Kind() == "new_expression" {
-		constructorName, constructorFullName := javaScriptNewExpressionConstructorName(value, source)
+		constructorName, constructorFullName := syntax.NewExpressionConstructorName(value, source)
 		if constructorName == "Router" || strings.Contains(strings.ToLower(constructorFullName), "router") {
 			javaScriptAddName(dst, name)
 		}
@@ -263,7 +263,7 @@ func javaScriptCollectKoaRegistrationBase(node *tree_sitter.Node, source []byte,
 	if value.Kind() == "call_expression" {
 		functionNode := value.ChildByFieldName("function")
 		if functionNode != nil && functionNode.Kind() == "call_expression" {
-			moduleSource, ok := javaScriptRequireModuleSource(functionNode, source)
+			moduleSource, ok := syntax.RequireModuleSource(functionNode, source)
 			if ok && (moduleSource == "@koa/router" || moduleSource == "koa-router") {
 				javaScriptAddName(dst, name)
 			}
@@ -442,12 +442,12 @@ func javaScriptDecoratorsInclude(decorators []string, allowed map[string]struct{
 }
 
 func javaScriptNestJSRouteDecorators(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) []string {
-	decorators := javaScriptDecorators(node, source, parents)
+	decorators := syntax.Decorators(node, source, parents)
 	if len(decorators) > 0 || node == nil {
 		return decorators
 	}
 	if parent := parents.Parent(node); parent != nil && parent.Kind() == "decorated_definition" {
-		decorators = javaScriptDecorators(parent, source, parents)
+		decorators = syntax.Decorators(parent, source, parents)
 	}
 	if len(decorators) > 0 {
 		return decorators

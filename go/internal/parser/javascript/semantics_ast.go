@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -55,7 +56,7 @@ func javaScriptRuntimeDirective(root *tree_sitter.Node, source []byte) string {
 		if stringNode == nil {
 			return ""
 		}
-		switch javaScriptNormalizeDirective(jsStringLiteralValue(stringNode, source)) {
+		switch javaScriptNormalizeDirective(syntax.StringLiteralValue(stringNode, source)) {
 		case "use client":
 			return "client"
 		case "use server":
@@ -164,7 +165,7 @@ func javaScriptExpressRouteCalls(root *tree_sitter.Node, source []byte) []javaSc
 		if len(args) == 0 || args[0].Kind() != "string" {
 			return
 		}
-		path := jsStringLiteralValue(&args[0], source)
+		path := syntax.StringLiteralValue(&args[0], source)
 		if strings.TrimSpace(path) == "" {
 			return
 		}
@@ -256,7 +257,7 @@ func javaScriptImportModuleSpecifiers(root *tree_sitter.Node, source []byte) []s
 		switch node.Kind() {
 		case "import_statement":
 			if sourceNode := node.ChildByFieldName("source"); sourceNode != nil && sourceNode.Kind() == "string" {
-				specifiers = append(specifiers, jsStringLiteralValue(sourceNode, source))
+				specifiers = append(specifiers, syntax.StringLiteralValue(sourceNode, source))
 			}
 		case "call_expression":
 			functionNode := node.ChildByFieldName("function")
@@ -278,7 +279,7 @@ func javaScriptImportModuleSpecifiers(root *tree_sitter.Node, source []byte) []s
 			args := argsNode.NamedChildren(cursor)
 			cursor.Close()
 			if len(args) == 1 && args[0].Kind() == "string" {
-				specifiers = append(specifiers, jsStringLiteralValue(&args[0], source))
+				specifiers = append(specifiers, syntax.StringLiteralValue(&args[0], source))
 			}
 		}
 	})

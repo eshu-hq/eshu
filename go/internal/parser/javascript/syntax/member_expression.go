@@ -110,3 +110,20 @@ func IdentifierName(node *tree_sitter.Node, source []byte) string {
 		return ""
 	}
 }
+
+// ObjectPairKey returns the property name of a pair node, reading the
+// key from an identifier, property_identifier, or string literal.
+func ObjectPairKey(pair *tree_sitter.Node, source []byte) string {
+	keyNode := pair.ChildByFieldName("key")
+	if keyNode == nil {
+		return ""
+	}
+	switch keyNode.Kind() {
+	case "property_identifier", "identifier", "private_property_identifier":
+		return strings.TrimSpace(shared.NodeText(keyNode, source))
+	case "string":
+		return strings.TrimSpace(StringLiteralValue(keyNode, source))
+	default:
+		return strings.TrimSpace(shared.NodeText(keyNode, source))
+	}
+}

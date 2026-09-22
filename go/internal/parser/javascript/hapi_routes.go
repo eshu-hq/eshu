@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -96,7 +97,7 @@ func javaScriptHapiObjectMethodPath(object *tree_sitter.Node, source []byte) (st
 		if child.Kind() != "pair" {
 			continue
 		}
-		key := javaScriptHapiPairKey(&child, source)
+		key := syntax.ObjectPairKey(&child, source)
 		value, ok := javaScriptHapiPairStringValue(&child, source)
 		if !ok {
 			continue
@@ -134,7 +135,7 @@ func javaScriptHapiObjectHandler(object *tree_sitter.Node, source []byte) string
 		if child.Kind() != "pair" {
 			continue
 		}
-		key := javaScriptHapiPairKey(&child, source)
+		key := syntax.ObjectPairKey(&child, source)
 		valueNode := child.ChildByFieldName("value")
 		if valueNode == nil {
 			continue
@@ -156,23 +157,6 @@ func javaScriptHapiObjectHandler(object *tree_sitter.Node, source []byte) string
 	return ""
 }
 
-// javaScriptHapiPairKey returns the property name of a pair node, reading the
-// key from an identifier, property_identifier, or string literal.
-func javaScriptHapiPairKey(pair *tree_sitter.Node, source []byte) string {
-	keyNode := pair.ChildByFieldName("key")
-	if keyNode == nil {
-		return ""
-	}
-	switch keyNode.Kind() {
-	case "property_identifier", "identifier", "private_property_identifier":
-		return strings.TrimSpace(nodeText(keyNode, source))
-	case "string":
-		return strings.TrimSpace(jsStringLiteralValue(keyNode, source))
-	default:
-		return strings.TrimSpace(nodeText(keyNode, source))
-	}
-}
-
 // javaScriptHapiPairStringValue returns the string-literal value of a pair, with
 // ok=false when the value is not a plain string literal.
 func javaScriptHapiPairStringValue(pair *tree_sitter.Node, source []byte) (string, bool) {
@@ -180,5 +164,5 @@ func javaScriptHapiPairStringValue(pair *tree_sitter.Node, source []byte) (strin
 	if valueNode == nil || valueNode.Kind() != "string" {
 		return "", false
 	}
-	return jsStringLiteralValue(valueNode, source), true
+	return syntax.StringLiteralValue(valueNode, source), true
 }

@@ -24,7 +24,7 @@ func detectExpressSemanticsFromGathered(
 	source []byte,
 	gatheredCallExpressions []*tree_sitter.Node,
 ) (map[string]any, bool) {
-	if !javaScriptHasExpressImport(string(source)) {
+	if !syntax.HasExpressImport(string(source)) {
 		return nil, false
 	}
 	routes := javaScriptExpressRouteEntriesFromGathered(gatheredCallExpressions, source)
@@ -107,7 +107,7 @@ func javaScriptExpressRouteEntriesFromGathered(
 		if len(args) == 0 || args[0].Kind() != "string" {
 			continue
 		}
-		path := jsStringLiteralValue(&args[0], source)
+		path := syntax.StringLiteralValue(&args[0], source)
 		if strings.TrimSpace(path) == "" {
 			continue
 		}
