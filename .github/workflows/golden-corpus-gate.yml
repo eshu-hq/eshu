@@ -310,6 +310,22 @@ jobs:
       - name: Wipe shared corpus dir between legs
         run: rm -rf "${{ runner.temp }}/eshu-diff-corpus"
 
+      # #6782: pairing 2 must not inherit pairing 1's backend containers. Both
+      # pairings previously shared GATE_COMPOSE_PROJECT, so `up -d` on the
+      # second pairing was a no-op against still-running containers and the two
+      # pairings were not independent samples. The quorum rule -- a divergence
+      # counts only if it reproduces across pairings -- assumes independence,
+      # so anything scoped to the container (residual state, warmup, per-boot
+      # timing) reproduced in both pairings by construction and was promoted
+      # from noise to a reproduced divergence. Evidence on the issue: the
+      # IMPORTS row digest is identical across both legs of a backend within a
+      # run and differs between runs, which is the signature of a per-container
+      # condition rather than a backend semantic difference.
+      - name: "Recreate backends between pairings (pairing independence, #6782)"
+        run: |
+          docker compose -p eshu-differential-nornicdb -f docker-compose.yaml down -v || true
+          docker compose -p eshu-differential-neo4j -f docker-compose.neo4j.yml down -v || true
+
       - name: Run B-7 with differential capture (pairing 2, nornicdb)
         env:
           ESHU_GRAPH_BACKEND: nornicdb
