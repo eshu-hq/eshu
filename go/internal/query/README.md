@@ -95,9 +95,9 @@ flowchart TB
 ## Lifecycle / workflow
 
 An HTTP request hits one of the routes registered by `APIRouter.Mount`
-(`handler.go:125`). The handler method first checks whether the requested
-capability is allowed for the current `QueryProfile` using `capabilityUnsupported`
-(`handler.go:105`), which consults `capabilityMatrix` in `capability_registry.go`. If
+(`handler.go:140`). The handler method first checks whether the requested
+capability is allowed for the current `QueryProfile` using
+`querycontract.CapabilityUnsupported` (`querycontract/http.go:132`), which
 the profile does not support the capability, `WriteContractError` returns HTTP
 501 with a structured `ErrorEnvelope` carrying `ErrorCodeUnsupportedCapability`,
 the capability ID, and the `RequiredProfile`.
@@ -1295,7 +1295,7 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
   (`capability_registry.go`). All capability strings used in handlers must be
   registered from `go/internal/query/contract/` before the handler runs.
-- The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
+- `querycontract.CapabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
   explicitly unsupported at that profile level. `APIRouter` and every handler that
   gates on capability call this helper (`handler.go:105`, `capability_registry.go`).

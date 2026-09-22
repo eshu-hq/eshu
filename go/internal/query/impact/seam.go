@@ -122,8 +122,8 @@ func PreChangeSummary(data map[string]any) string {
 // RepoIDAllowed is the exported seam for impacttrace.ImpactRepoIDAllowed,
 // which the compare and contract families call from outside the impact move
 // set. The querycontract.RepositoryAccessFilter parameter names the
-// already-exported querycontract type (root's repositoryAccessFilter is an
-// alias for it). See #6060.
+// already-exported querycontract type, which root now names directly
+// (#6642 deleted root's unexported alias). See #6060.
 func RepoIDAllowed(repoID string, access querycontract.RepositoryAccessFilter) bool {
 	return impacttrace.ImpactRepoIDAllowed(repoID, access)
 }

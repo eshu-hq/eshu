@@ -20,10 +20,10 @@
 
 ## Invariants this package enforces
 
-- **Capability gate before any read** — handlers call the unexported
-  `capabilityUnsupported` helper before touching `GraphQuery` or
+- **Capability gate before any read** — handlers call
+  `querycontract.CapabilityUnsupported` before touching `GraphQuery` or
   `ContentStore`. A nil max-truth means the capability is blocked at the
-  current profile. The helper delegates to querycontract's registry, whose live
+  current profile. It reads querycontract's registry, whose live
   compatibility view remains `capabilityMatrix`. On failure, handlers call
   `WriteContractError`.
 

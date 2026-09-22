@@ -14,10 +14,10 @@ import (
 // granted repository and ingestion-scope ids (empty/unscoped for shared,
 // admin, and local callers, which set AllScopes) and the deduplicated
 // Allowed lookup set built from both id lists. Family packages construct one
-// directly with these exported fields; the moved-out root package builds it
-// from the request's AuthContext (repositoryAccessFilterFromContext) and
-// forwards call sites through the type alias so a caller can keep naming it
-// without importing this package.
+// directly with these exported fields; the root package builds it from the
+// request's AuthContext through RepositoryAccessFilterFromContext below,
+// which its call sites now name directly (#6642 deleted the unexported
+// root forwarder and type alias that used to hide this package).
 type RepositoryAccessFilter struct {
 	AllScopes            bool
 	AllowedScopeIDs      []string
