@@ -181,7 +181,11 @@ cassette_private_data_patterns() {
 	# service label under googleapis.com, ECR under a documentation account,
 	# and the corpus's own synthetic zones.
 	_cpd_allow[ipv4]='^(?:192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
-	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1)$'
+	# The ipv6 detector also sees six-group MAC addresses. A real MAC is a
+	# hardware identifier and stays a finding; the RFC 7042 documentation block
+	# (00:00:5e:00:53:xx) and the all-zero MAC are what a redacted recording
+	# writes, so they pass.
+	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$'
 	_cpd_allow[account12]="^${doc_account}\$"
 	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
 	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
@@ -215,6 +219,8 @@ cassette_private_data_patterns() {
 		'ipv6 2001:db8::1'
 		'ipv6 2001:db8:85a3::8a2e:370:7334'
 		'ipv6 ::1'
+		'ipv6 00:00:5e:00:53:0a'
+		'ipv6 00:00:00:00:00:00'
 		'account12 1234''56789012'
 		'account12 0000''00000001'
 		'account12 5555''55555555'
@@ -238,14 +244,14 @@ cassette_private_data_patterns() {
 	# patterns: 7 alternatives, 12 planted samples (hostname carries five: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host and a Consul name; ipv4 carries two: a bare address and one ending
-	# a sentence), 26 allowed samples. Adding an alternative or an allowed form means adding
+	# a sentence), 28 allowed samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
 	[[ "${#planted[@]}" -eq 12 ]] \
 		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 12 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 26 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 26 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#allowed[@]}" -eq 28 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 28 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

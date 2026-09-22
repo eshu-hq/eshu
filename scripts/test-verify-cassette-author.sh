@@ -120,6 +120,9 @@ plant_red hostname 'vault.acme-internal.corp' hostname-corp
 plant_red hostname 'vault.service.consul' hostname-consul
 plant_red ipv4 'reachable at 10.20.30.40.' ipv4-sentence
 plant_red nodeip 'ip-10-20-30-40'
+# A real MAC is a hardware identifier; only the RFC 7042 documentation block
+# and the all-zero MAC are allowed.
+plant_red ipv6 '3c:22:fb:12:34:56' ipv6-mac
 plant_red identifier 'eshu-canary-org'
 
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
