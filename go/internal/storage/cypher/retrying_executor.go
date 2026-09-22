@@ -429,9 +429,11 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 			// occurred at commit. Keep this exception narrower than the code:
 			// require both the commit-failure prefix observed on the wire and
 			// the exact UNIQUE-conflict body before the caller's MERGE guard may
-			// replay the statement.
+			// replay the statement. The #6922 short-form Platform exception
+			// lives beside isNornicDBUniqueConflictBody in retryable_error.go.
 			return strings.Contains(neo4jErr.Msg, "commit failed: constraint violation") &&
-				isNornicDBUniqueConflictBody(neo4jErr.Msg)
+				(isNornicDBUniqueConflictBody(neo4jErr.Msg) ||
+					isNornicDBShortFormPlatformIDUniqueConflict(neo4jErr.Msg))
 		default:
 			return false
 		}

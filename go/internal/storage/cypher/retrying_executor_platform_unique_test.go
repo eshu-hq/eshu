@@ -149,12 +149,44 @@ func TestNornicDBPlatformCommitUniqueConflictRetryStaysNarrow(t *testing.T) {
 			cypher: "MERGE (p:Platform {id: $id})",
 		},
 		{
-			name: "commit unique constraint without existing node",
+			// #6922: the short Platform.[id] commit-failure form IS the
+			// retryable race; it moved to the RED/GREEN regression
+			// TestRetryingExecutorRetriesShortFormPlatformCommitUniqueConflict.
+			// The guard stays narrow via these non-Platform short forms.
+			name: "short form on another label stays terminal",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg:  "commit failed: constraint violation: UNIQUE on Workload.[id]",
+			},
+			cypher: "MERGE (w:Workload {id: $id})",
+		},
+		{
+			name: "short form on another property stays terminal",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg:  "commit failed: constraint violation: UNIQUE on Platform.[uid]",
+			},
+			cypher: "MERGE (p:Platform {id: $id})",
+		},
+		{
+			name: "unique mention without commit failure stays terminal",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBStatementSyntaxErrorCode,
+				Msg:  "constraint violation: UNIQUE on Platform.[id]",
+			},
+			cypher: "MERGE (p:Platform {id: $id})",
+		},
+		{
+			// Review pin (#6936): the short-form OR-branch must never
+			// retry a non-idempotent write. The MERGE guard is shared and
+			// unchanged, but this row fails first if a future refactor
+			// moves or weakens it.
+			name: "short form without merge stays terminal",
 			err: &neo4jdriver.Neo4jError{
 				Code: nornicDBStatementSyntaxErrorCode,
 				Msg:  "commit failed: constraint violation: UNIQUE on Platform.[id]",
 			},
-			cypher: "MERGE (p:Platform {id: $id})",
+			cypher: "CREATE (p:Platform {id: $id})",
 		},
 	}
 
