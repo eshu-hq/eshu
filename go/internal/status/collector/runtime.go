@@ -61,7 +61,7 @@ func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
 	for _, instance := range evidence.Instances {
 		builder.add(coordinatorRuntimeStatus(instance))
 	}
-	builder.addAWSCloudScans(evidence.AWSScans)
+	builder.addAWSScans(evidence.AWSScans)
 	builder.addVulnerabilitySources(evidence.VulnerabilitySources)
 	builder.addFactEvidence(evidence.FactEvidence)
 	return builder.rows()
@@ -107,7 +107,7 @@ func (b *runtimeStatusBuilder) merge(index int, status RuntimeStatus) {
 	}
 }
 
-func (b *runtimeStatusBuilder) addAWSCloudScans(rows []cloud.AWSScanStatus) {
+func (b *runtimeStatusBuilder) addAWSScans(rows []cloud.AWSScanStatus) {
 	type aggregate struct {
 		count          int
 		health         string

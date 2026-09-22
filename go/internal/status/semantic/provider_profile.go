@@ -63,7 +63,7 @@ func CloneProviderProfiles(rows []ProviderProfileStatus) []ProviderProfileStatus
 	}
 	cloned := make([]ProviderProfileStatus, 0, len(rows))
 	for _, row := range rows {
-		normalized := normalizeSemanticProviderProfile(row)
+		normalized := normalizeProviderProfile(row)
 		if normalized.ProfileID == "" {
 			continue
 		}
@@ -75,9 +75,9 @@ func CloneProviderProfiles(rows []ProviderProfileStatus) []ProviderProfileStatus
 	return cloned
 }
 
-func normalizeSemanticProviderProfile(row ProviderProfileStatus) ProviderProfileStatus {
+func normalizeProviderProfile(row ProviderProfileStatus) ProviderProfileStatus {
 	state := strings.TrimSpace(row.State)
-	if !isSemanticProviderProfileState(state) {
+	if !isProviderProfileState(state) {
 		if row.CredentialConfigured {
 			state = ProviderProfileConfigured
 		} else {
@@ -85,7 +85,7 @@ func normalizeSemanticProviderProfile(row ProviderProfileStatus) ProviderProfile
 		}
 	}
 
-	sourceClasses := normalizeSemanticSourceClasses(row.SourceClasses)
+	sourceClasses := normalizeSourceClasses(row.SourceClasses)
 	out := ProviderProfileStatus{
 		ProfileID:              strings.TrimSpace(row.ProfileID),
 		DisplayName:            strings.TrimSpace(row.DisplayName),
@@ -103,12 +103,12 @@ func normalizeSemanticProviderProfile(row ProviderProfileStatus) ProviderProfile
 		UpdatedAt:              row.UpdatedAt,
 	}
 	if out.Reason == "" {
-		out.Reason = defaultSemanticProviderProfileReason(out)
+		out.Reason = defaultProviderProfileReason(out)
 	}
 	return out
 }
 
-func normalizeSemanticSourceClasses(sourceClasses []string) []string {
+func normalizeSourceClasses(sourceClasses []string) []string {
 	if len(sourceClasses) == 0 {
 		return nil
 	}
@@ -129,11 +129,11 @@ func normalizeSemanticSourceClasses(sourceClasses []string) []string {
 	return normalized
 }
 
-func isSemanticProviderProfileState(state string) bool {
+func isProviderProfileState(state string) bool {
 	return slices.Contains(providerProfileStates, state)
 }
 
-func defaultSemanticProviderProfileReason(row ProviderProfileStatus) string {
+func defaultProviderProfileReason(row ProviderProfileStatus) string {
 	switch row.State {
 	case ProviderProfileHealthy:
 		return "provider_profile_healthy"

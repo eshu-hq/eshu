@@ -84,7 +84,7 @@ type ExtractionAuditSnapshot struct {
 	LastProcessedAt  time.Time
 }
 
-func normalizeSemanticExtractionQueueSnapshot(snapshot ExtractionQueueSnapshot) ExtractionQueueSnapshot {
+func normalizeExtractionQueueSnapshot(snapshot ExtractionQueueSnapshot) ExtractionQueueSnapshot {
 	out := snapshot
 	out.StatusCounts = normalizeNamedCounts(snapshot.StatusCounts)
 	out.SourceClassCounts = normalizeNamedCounts(snapshot.SourceClassCounts)
@@ -110,7 +110,7 @@ func normalizeSemanticExtractionQueueSnapshot(snapshot ExtractionQueueSnapshot) 
 	return out
 }
 
-func normalizeSemanticExtractionBudgetSnapshot(snapshot ExtractionBudgetSnapshot) ExtractionBudgetSnapshot {
+func normalizeExtractionBudgetSnapshot(snapshot ExtractionBudgetSnapshot) ExtractionBudgetSnapshot {
 	out := snapshot
 	out.DecisionCounts = normalizeBudgetDecisionCounts(snapshot.DecisionCounts)
 	out.EstimatedInputTokens = nonNegativeInt64(out.EstimatedInputTokens)
@@ -125,7 +125,7 @@ func normalizeSemanticExtractionBudgetSnapshot(snapshot ExtractionBudgetSnapshot
 	return out
 }
 
-func normalizeSemanticExtractionAuditSnapshot(snapshot ExtractionAuditSnapshot) ExtractionAuditSnapshot {
+func normalizeExtractionAuditSnapshot(snapshot ExtractionAuditSnapshot) ExtractionAuditSnapshot {
 	return ExtractionAuditSnapshot{
 		ActorClassCounts: normalizeNamedCounts(snapshot.ActorClassCounts),
 		ACLStateCounts:   normalizeNamedCounts(snapshot.ACLStateCounts),

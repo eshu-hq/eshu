@@ -90,10 +90,10 @@ func NormalizeExtractionStatus(snapshot ExtractionStatus) ExtractionStatus {
 		if len(profiles) > 0 {
 			return extractionStatusFromProviderProfiles(snapshot, profiles)
 		}
-		return defaultSemanticExtractionStatusWithObservability(snapshot, profiles)
+		return defaultExtractionStatusWithObservability(snapshot, profiles)
 	}
-	if !isSemanticExtractionState(state) {
-		out := defaultSemanticExtractionStatusWithObservability(snapshot, profiles)
+	if !isExtractionState(state) {
+		out := defaultExtractionStatusWithObservability(snapshot, profiles)
 		out.Reason = ExtractionReasonInvalidState
 		out.Detail = fmt.Sprintf("semantic extraction status %q is unsupported; treating semantic extraction as unavailable", state)
 		out.UpdatedAt = snapshot.UpdatedAt
@@ -103,16 +103,16 @@ func NormalizeExtractionStatus(snapshot ExtractionStatus) ExtractionStatus {
 	out := ExtractionStatus{
 		State:                            state,
 		Reason:                           strings.TrimSpace(snapshot.Reason),
-		Detail:                           safeSemanticExtractionDetail(snapshot.Detail),
+		Detail:                           safeExtractionDetail(snapshot.Detail),
 		ProviderConfigured:               snapshot.ProviderConfigured,
 		DocumentationObservationsEnabled: snapshot.DocumentationObservationsEnabled,
 		CodeHintsEnabled:                 snapshot.CodeHintsEnabled,
 		DeterministicPathsAffected:       false,
 		UpdatedAt:                        snapshot.UpdatedAt,
 		ProviderProfiles:                 profiles,
-		Queue:                            normalizeSemanticExtractionQueueSnapshot(snapshot.Queue),
-		Budget:                           normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget),
-		Audit:                            normalizeSemanticExtractionAuditSnapshot(snapshot.Audit),
+		Queue:                            normalizeExtractionQueueSnapshot(snapshot.Queue),
+		Budget:                           normalizeExtractionBudgetSnapshot(snapshot.Budget),
+		Audit:                            normalizeExtractionAuditSnapshot(snapshot.Audit),
 	}
 	if len(profiles) > 0 {
 		out.ProviderConfigured = out.ProviderConfigured || profilesConfigured(profiles)
@@ -121,10 +121,10 @@ func NormalizeExtractionStatus(snapshot ExtractionStatus) ExtractionStatus {
 		out.CodeHintsEnabled = out.CodeHintsEnabled || profilesAllowSource(profiles, "code_hints")
 	}
 	if out.Reason == "" {
-		out.Reason = defaultSemanticExtractionReason(out.State)
+		out.Reason = defaultExtractionReason(out.State)
 	}
 	if out.Detail == "" {
-		out.Detail = defaultSemanticExtractionDetail(out.State)
+		out.Detail = defaultExtractionDetail(out.State)
 	}
 	switch out.State {
 	case ExtractionAvailable, ExtractionAvailableButDisabledForScope, ExtractionProviderUnhealthy:
@@ -139,16 +139,16 @@ func NormalizeExtractionStatus(snapshot ExtractionStatus) ExtractionStatus {
 	return out
 }
 
-func defaultSemanticExtractionStatusWithObservability(
+func defaultExtractionStatusWithObservability(
 	snapshot ExtractionStatus,
 	profiles []ProviderProfileStatus,
 ) ExtractionStatus {
 	out := DefaultExtractionStatus()
 	out.UpdatedAt = snapshot.UpdatedAt
 	out.ProviderProfiles = profiles
-	out.Queue = normalizeSemanticExtractionQueueSnapshot(snapshot.Queue)
-	out.Budget = normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget)
-	out.Audit = normalizeSemanticExtractionAuditSnapshot(snapshot.Audit)
+	out.Queue = normalizeExtractionQueueSnapshot(snapshot.Queue)
+	out.Budget = normalizeExtractionBudgetSnapshot(snapshot.Budget)
+	out.Audit = normalizeExtractionAuditSnapshot(snapshot.Audit)
 	return out
 }
 
@@ -159,9 +159,9 @@ func extractionStatusFromProviderProfiles(
 	out := ExtractionStatus{
 		UpdatedAt:        snapshot.UpdatedAt,
 		ProviderProfiles: profiles,
-		Queue:            normalizeSemanticExtractionQueueSnapshot(snapshot.Queue),
-		Budget:           normalizeSemanticExtractionBudgetSnapshot(snapshot.Budget),
-		Audit:            normalizeSemanticExtractionAuditSnapshot(snapshot.Audit),
+		Queue:            normalizeExtractionQueueSnapshot(snapshot.Queue),
+		Budget:           normalizeExtractionBudgetSnapshot(snapshot.Budget),
+		Audit:            normalizeExtractionAuditSnapshot(snapshot.Audit),
 	}
 	out.ProviderConfigured = profilesConfigured(profiles)
 	out.DocumentationObservationsEnabled = profilesAllowSource(profiles, "documentation")
@@ -184,7 +184,7 @@ func extractionStatusFromProviderProfiles(
 		out.State = ExtractionAvailableButDisabledForScope
 		out.Reason = ExtractionReasonScopeDisabled
 	}
-	out.Detail = defaultSemanticExtractionDetail(out.State)
+	out.Detail = defaultExtractionDetail(out.State)
 	if out.State != ExtractionAvailable {
 		out.DocumentationObservationsEnabled = false
 		out.CodeHintsEnabled = false
@@ -228,11 +228,11 @@ func profilesAllowSource(profiles []ProviderProfileStatus, sourceClass string) b
 	return false
 }
 
-func isSemanticExtractionState(state string) bool {
+func isExtractionState(state string) bool {
 	return slices.Contains(extractionStates, state)
 }
 
-func defaultSemanticExtractionReason(state string) string {
+func defaultExtractionReason(state string) string {
 	switch state {
 	case ExtractionAvailable:
 		return ExtractionReasonProviderConfigured
@@ -247,7 +247,7 @@ func defaultSemanticExtractionReason(state string) string {
 	}
 }
 
-func defaultSemanticExtractionDetail(state string) string {
+func defaultExtractionDetail(state string) string {
 	switch state {
 	case ExtractionAvailable:
 		return "semantic extraction provider is configured; deterministic evidence remains the admission gate for code hints"
@@ -262,7 +262,7 @@ func defaultSemanticExtractionDetail(state string) string {
 	}
 }
 
-func safeSemanticExtractionDetail(detail string) string {
+func safeExtractionDetail(detail string) string {
 	detail = strings.TrimSpace(detail)
 	if detail == "" {
 		return ""
