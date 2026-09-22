@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -28,7 +29,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 			ErrorCodeUnsupportedCapability,
 			admissionDecisionCapability,
 			h.profile(),
-			requiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(admissionDecisionCapability),
 		)
 		return
 	}
@@ -51,7 +52,7 @@ func (h *EvidenceHandler) getDeployableUnitPacket(w http.ResponseWriter, r *http
 			ErrorCodeBackendUnavailable,
 			admissionDecisionCapability,
 			h.profile(),
-			requiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(admissionDecisionCapability),
 		)
 		return
 	}

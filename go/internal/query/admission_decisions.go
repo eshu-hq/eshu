@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -35,7 +36,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 			ErrorCodeUnsupportedCapability,
 			admissionDecisionCapability,
 			h.profile(),
-			requiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(admissionDecisionCapability),
 		)
 		return
 	}
@@ -59,7 +60,7 @@ func (h *EvidenceHandler) listAdmissionDecisions(w http.ResponseWriter, r *http.
 			ErrorCodeBackendUnavailable,
 			admissionDecisionCapability,
 			h.profile(),
-			requiredProfile(admissionDecisionCapability),
+			querycontract.RequiredProfile(admissionDecisionCapability),
 		)
 		return
 	}

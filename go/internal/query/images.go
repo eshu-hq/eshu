@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -107,7 +108,7 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 			ErrorCodeUnsupportedCapability,
 			imageListCapability,
 			h.profile(),
-			requiredProfile(imageListCapability),
+			querycontract.RequiredProfile(imageListCapability),
 		)
 		return
 	}
@@ -130,7 +131,7 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 			ErrorCodeBackendUnavailable,
 			imageListCapability,
 			h.profile(),
-			requiredProfile(imageListCapability),
+			querycontract.RequiredProfile(imageListCapability),
 		)
 		return
 	}

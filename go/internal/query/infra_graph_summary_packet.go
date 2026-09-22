@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -90,7 +91,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 			ErrorCodeUnsupportedCapability,
 			graphSummaryPacketCapability,
 			h.profile(),
-			requiredProfile(graphSummaryPacketCapability),
+			querycontract.RequiredProfile(graphSummaryPacketCapability),
 		)
 		return
 	}

@@ -81,7 +81,7 @@ func init() {
 		ProductionMax:         &truthExact,
 		// #5761 F1: local_authoritative is the first tier with a graph
 		// sidecar (required_runtime: local_host_plus_graph), so it is the
-		// correct requiredProfile() answer for the graph-only-entity-kind
+		// correct querycontract.RequiredProfile() answer for the graph-only-entity-kind
 		// 501 residue at language_queries.go. Without this, requiredProfile
 		// falls through to its ProfileLocalFullStack default, which
 		// overstates the tier an operator needs and contradicts this row's

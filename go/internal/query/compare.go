@@ -53,7 +53,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 			"unsupported_capability",
 			"platform_impact.environment_compare",
 			h.profile(),
-			requiredProfile("platform_impact.environment_compare"),
+			querycontract.RequiredProfile("platform_impact.environment_compare"),
 		)
 		return
 	}

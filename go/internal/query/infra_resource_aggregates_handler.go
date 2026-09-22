@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -41,7 +42,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 			ErrorCodeUnsupportedCapability,
 			infraResourceAggregateCapability,
 			h.profile(),
-			requiredProfile(infraResourceAggregateCapability),
+			querycontract.RequiredProfile(infraResourceAggregateCapability),
 		)
 		return
 	}
@@ -54,7 +55,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 			ErrorCodeBackendUnavailable,
 			infraResourceAggregateCapability,
 			h.profile(),
-			requiredProfile(infraResourceAggregateCapability),
+			querycontract.RequiredProfile(infraResourceAggregateCapability),
 		)
 		return
 	}
@@ -106,7 +107,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeUnsupportedCapability,
 			infraResourceAggregateCapability,
 			h.profile(),
-			requiredProfile(infraResourceAggregateCapability),
+			querycontract.RequiredProfile(infraResourceAggregateCapability),
 		)
 		return
 	}
@@ -119,7 +120,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 			ErrorCodeBackendUnavailable,
 			infraResourceAggregateCapability,
 			h.profile(),
-			requiredProfile(infraResourceAggregateCapability),
+			querycontract.RequiredProfile(infraResourceAggregateCapability),
 		)
 		return
 	}

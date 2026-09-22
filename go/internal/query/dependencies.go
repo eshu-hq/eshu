@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -86,7 +87,7 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 			ErrorCodeUnsupportedCapability,
 			dependenciesCapability,
 			h.profile(),
-			requiredProfile(dependenciesCapability),
+			querycontract.RequiredProfile(dependenciesCapability),
 		)
 		return
 	}
@@ -122,7 +123,7 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 			ErrorCodeBackendUnavailable,
 			dependenciesCapability,
 			h.profile(),
-			requiredProfile(dependenciesCapability),
+			querycontract.RequiredProfile(dependenciesCapability),
 		)
 		return
 	}

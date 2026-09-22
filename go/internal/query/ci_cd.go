@@ -67,7 +67,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 			ErrorCodeUnsupportedCapability,
 			cicdRunCorrelationsCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationsCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationsCapability),
 		)
 		return
 	}
@@ -124,7 +124,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 			ErrorCodeBackendUnavailable,
 			cicdRunCorrelationsCapability,
 			h.profile(),
-			requiredProfile(cicdRunCorrelationsCapability),
+			querycontract.RequiredProfile(cicdRunCorrelationsCapability),
 		)
 		return
 	}

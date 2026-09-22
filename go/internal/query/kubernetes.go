@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -81,7 +82,7 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 			ErrorCodeUnsupportedCapability,
 			kubernetesCorrelationsCapability,
 			h.profile(),
-			requiredProfile(kubernetesCorrelationsCapability),
+			querycontract.RequiredProfile(kubernetesCorrelationsCapability),
 		)
 		return
 	}
@@ -129,7 +130,7 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 			ErrorCodeBackendUnavailable,
 			kubernetesCorrelationsCapability,
 			h.profile(),
-			requiredProfile(kubernetesCorrelationsCapability),
+			querycontract.RequiredProfile(kubernetesCorrelationsCapability),
 		)
 		return
 	}

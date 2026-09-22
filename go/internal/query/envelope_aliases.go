@@ -4,8 +4,6 @@
 package query
 
 import (
-	"net/http"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -107,12 +105,6 @@ func NormalizeQueryProfile(raw string) QueryProfile { return querycontract.Norma
 
 // ParseQueryProfile validates raw against the supported query profiles.
 func ParseQueryProfile(raw string) (QueryProfile, error) { return querycontract.ParseQueryProfile(raw) }
-
-func acceptsEnvelope(r *http.Request) bool { return querycontract.AcceptsEnvelope(r) }
-
-func requiredProfile(capability string) QueryProfile {
-	return querycontract.RequiredProfile(capability)
-}
 
 func minTruthLevel(a, b TruthLevel) TruthLevel {
 	return querycontract.MinTruthLevel(a, b)

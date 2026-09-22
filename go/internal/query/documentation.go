@@ -378,7 +378,7 @@ func writeDocumentationError(
 	capability string,
 ) {
 	correlationID := documentationCorrelationID(r)
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          code,
 			Message:       message,
@@ -408,7 +408,7 @@ func writeDocumentationCapabilityError(
 	currentProfile QueryProfile,
 ) {
 	correlationID := documentationCorrelationID(r)
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: &ErrorEnvelope{
 			Code:          code,
 			Message:       message,
@@ -416,7 +416,7 @@ func writeDocumentationCapabilityError(
 			CorrelationID: correlationID,
 			Profiles: &ErrorProfiles{
 				Current:  currentProfile,
-				Required: requiredProfile(capability),
+				Required: querycontract.RequiredProfile(capability),
 			},
 		}})
 		return

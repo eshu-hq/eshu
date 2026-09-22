@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -246,7 +247,7 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 			ErrorCodeUnsupportedCapability,
 			terraformConfigStateDriftFindingsCapability,
 			h.profile(),
-			requiredProfile(terraformConfigStateDriftFindingsCapability),
+			querycontract.RequiredProfile(terraformConfigStateDriftFindingsCapability),
 		)
 		return
 	}

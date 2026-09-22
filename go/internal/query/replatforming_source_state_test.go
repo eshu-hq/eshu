@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 func TestReplatformingSourceStateForManagementStatusIsDeterministic(t *testing.T) {
 	cases := []struct {
@@ -134,7 +138,7 @@ func TestReplatformingPlanReadinessCapabilityProfileGate(t *testing.T) {
 			t.Fatalf("profile %q must support replatforming plan readiness", profile)
 		}
 	}
-	if got := requiredProfile(replatformingPlanReadinessCapability); got != ProfileLocalAuthoritative {
+	if got := querycontract.RequiredProfile(replatformingPlanReadinessCapability); got != ProfileLocalAuthoritative {
 		t.Fatalf("requiredProfile = %q, want local_authoritative", got)
 	}
 }

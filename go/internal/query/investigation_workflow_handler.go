@@ -6,6 +6,8 @@ package query
 import (
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -147,7 +149,7 @@ func (h *InvestigationWorkflowHandler) truth(reason string) *TruthEnvelope {
 }
 
 func (h *InvestigationWorkflowHandler) writeError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{
 			Data: nil,
 			Error: &ErrorEnvelope{
