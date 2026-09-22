@@ -47,6 +47,34 @@ size, worker count, lease, or timeout changed.
 No-Observability-Change: no span, metric, log key, or status field is added,
 removed, or renamed. `handler_tracing.go` is untouched.
 
+## Tests still run, and the build-tagged files do compile
+
+The repoint touched 40 test files, so "it compiles" is not enough — a test can
+survive compilation and stop being discovered. Test discovery is byte-identical
+across the change: `go test ./internal/query/... -list '.*' -count=1` returns
+the same **5181** names before and after, and `diff` of the two sorted lists is
+empty.
+
+Seven of the touched files sit behind `//go:build` tags, and **none of those
+four tag names appears in any file under `.github/workflows`, `Makefile`, or
+`scripts/`**. A default `go build/vet/test ./...` never compiles them, so the
+green runs above did not cover these seven files. Verified separately:
+
+| tag | `go vet -tags` | tests discovered (untagged baseline 2689) |
+| --- | --- | ---: |
+| `live_global_name_comparison` | clean | 2691 |
+| `live_infra_scope_shape` | clean | 2693 |
+| `live_nornicdb_answer_truth` | clean | 2690 |
+| `live_nornicdb_language_imports_grant` | clean | 2696 |
+
+Each tag raises the count above the baseline, so the tagged files are genuinely
+compiled and their tests registered, not silently skipped.
+
+That no workflow references these tags is a pre-existing gap, not one this
+change introduces: those live tests run nowhere. Wiring four CI lanes is well
+outside a spine repoint and needs an owner decision about the backends they
+require, so it is recorded here rather than acted on.
+
 ## Queryplan digests re-pinned
 
 Ten digests moved across eleven pinned lines — `(*InfraHandler).searchResources`
