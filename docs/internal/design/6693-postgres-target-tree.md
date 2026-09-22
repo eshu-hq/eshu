@@ -19,8 +19,9 @@ git ls-tree --name-only origin/main go/internal/storage/postgres/ | rg -c '_test
 The binding shape is the #6692 epic's
 [storage-collector-tree.md](storage-collector-tree.md#target-tree-internalstoragepostgres)
 and the naming rules in [naming.md](../naming.md). This page is the
-file-by-file version of that tree. Where it adds a directory the epic did not
-list, the reason is given next to it.
+file-by-file version of that tree. Every directory it adds that the epic did
+not list has its reason in
+[directories the epic tree does not list](6693-postgres-target-tree/new-directories.md).
 
 ## What the result looks like
 
@@ -272,6 +273,7 @@ cannot choose between them.
 | `rebuildreset/` | `rebuild/reset/` | glued compound (issue) |
 | `iamcantargets/` | see N2 | glued compound |
 | `semantic/`, `tenant/`, `webhook/` | unchanged | landed in #6856, #6847, #6844 |
+| `coordination/` | unchanged | added by #6970 after the baseline; migrator wait/retry loops that leave root's locker contract in root |
 | `readiness/wait/`, `infra/inventory/` | unchanged | already nested |
 
 ## Test placement
@@ -477,6 +479,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 Every root file, test or not, appears exactly once, grouped by destination. Each line reads `current -> new`; a trailing `#` note gives the reason for anything unusual.
 
+- [Directories the epic tree does not list](6693-postgres-target-tree/new-directories.md)
 - [Root, deletions and the undecided file](6693-postgres-target-tree/root.md)
 - [Work queues](6693-postgres-target-tree/queue.md)
 - [Facts](6693-postgres-target-tree/facts.md)
