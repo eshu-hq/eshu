@@ -19,25 +19,37 @@ import (
 // at a lock-chunk-sized candidate array the live probe must plan on the
 // migration-118 partial index, not walk ingestion_scopes. It seeds 2,000
 // active scopes x 100 admitted uids (plus a superseded generation each, so
-// the join is not trivially selective), VACUUM (ANALYZE)s, and explains the
-// alive branch of the production probe for 500 candidates in BOTH plan
-// modes: the custom plan (what the first executions of a prepared statement
-// use) and the generic plan (what pgx's default statement cache settles on
-// after five executions per connection, so the mode the retracter runs in
-// steady state). Each arm must name the partial index, must not walk
-// ingestion_scopes into fact_records_scope_generation_idx, and must stay
-// under a buffer budget far below the scope-walk plan. Without migration
-// 119's extended statistics the planner estimates ~2,000 rows per candidate
-// and chooses the walk in both modes, which is the RED this test was written
-// against (custom ~14,000 buffers; generic ~14,700 buffers / 800 ms).
+// the join is not trivially selective) and explains the alive branch of the
+// production probe for 500 candidates under four conditions:
+//
+//   - statistics state: "stale-scopes" (fact_records analyzed, but
+//     ingestion_scopes still carries the pre-seed cardinality, as after an
+//     onboarding burst before autoanalyze runs) and "fresh" (every touched
+//     table VACUUM (ANALYZE)d);
+//   - plan mode: force_custom_plan (what the first executions of a prepared
+//     statement use) and force_generic_plan (what pgx's default statement
+//     cache settles on after five executions per connection, so the mode
+//     the retracter runs in steady state).
+//
+// Each arm must name the partial index, must not walk ingestion_scopes
+// into fact_records_scope_generation_idx, and must stay under a buffer
+// budget far below the scope-walk plan. Two separate causes are pinned:
+// without migration 119's extended statistics the planner estimates
+// ~2,000 rows per candidate and chooses the walk in every arm; without the
+// MATERIALIZED candidate CTE the stale-scopes arms walk even with the
+// statistics present, because a stale scope cardinality makes the
+// scope-first join look cheap.
 //
 // The explained statement is derived from the production fenced probe by
 // cutting at the UNION ALL boundary (TestCloudRetractLivenessSQLGuards pins
 // that boundary and the alive branch's predicates), never hand-copied.
 //
 // Skipped by default; set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN.
-// Seeds under a unique prefix and deletes them at the end. VACUUM (ANALYZE)
-// is table-wide, so run this suite alone (-p 1) against a private stack.
+// Seeds under a unique prefix and deletes them at the end. It disables
+// autovacuum on ingestion_scopes for its duration (restored on exit) so the
+// stale-scopes condition cannot be lost to an autoanalyze race, and its
+// VACUUM (ANALYZE)s are table-wide, so run this suite alone (-p 1) against
+// a private stack.
 func TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_CLOUD_RETRACT_LIVE")) == "" {
 		t.Skip("set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN to run the cloud retract probe-plan proof")
@@ -54,15 +66,21 @@ func TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive(t *testing.T)
 	defer func() { _ = database.Close() }()
 	prefix := fmt.Sprintf("plan-%d", time.Now().UnixNano())
 	const scopes, uidsPerScope, candidates = 2000, 100, 500
+	// Pin the pre-seed scope cardinality and keep autoanalyze from
+	// refreshing it while the seed runs.
+	if _, err := database.ExecContext(ctx, `ALTER TABLE ingestion_scopes SET (autovacuum_enabled = false)`); err != nil {
+		t.Fatalf("disable autovacuum on ingestion_scopes: %v", err)
+	}
+	defer func() {
+		_, _ = database.ExecContext(ctx, `ALTER TABLE ingestion_scopes RESET (autovacuum_enabled)`)
+	}()
+	if _, err := database.ExecContext(ctx, `ANALYZE ingestion_scopes`); err != nil {
+		t.Fatalf("analyze ingestion_scopes before seeding: %v", err)
+	}
 	seedCloudRetractPlanCorpus(ctx, t, database, prefix, scopes, uidsPerScope)
 	defer func() {
 		_, _ = database.ExecContext(ctx, `DELETE FROM ingestion_scopes WHERE scope_id LIKE $1||'-s-%'`, prefix)
 	}()
-	// VACUUM (ANALYZE): the statistics migration 119 depends on are refreshed
-	// and dead tuples from earlier seeds do not skew the planner's costs.
-	if _, err := database.ExecContext(ctx, `VACUUM (ANALYZE) fact_records`); err != nil {
-		t.Fatalf("vacuum analyze: %v", err)
-	}
 	uids := make([]string, 0, candidates)
 	for i := 1; i <= candidates; i++ {
 		if i%2 == 0 {
@@ -72,47 +90,81 @@ func TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive(t *testing.T)
 		}
 	}
 	aliveSQL := cloudRetractAliveBranchSQL(t)
-	// plan_cache_mode only governs plans that go through the plan cache, so
-	// each arm PREPAREs the probe on a dedicated session and explains an
-	// EXECUTE of it; an EXPLAIN of the bare parameterized text is planned
-	// once with the values in hand and would show the custom plan in both
-	// arms. The session is closed after the arm, which drops the prepared
-	// statement.
-	for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
-		t.Run(mode, func(t *testing.T) {
-			conn, err := database.Conn(ctx)
-			if err != nil {
-				t.Fatalf("dedicated session: %v", err)
+	for _, stats := range []struct {
+		name    string
+		prepare []string
+	}{
+		{"stale-scopes", []string{`VACUUM (ANALYZE) fact_records`}},
+		{"fresh", []string{`VACUUM (ANALYZE) ingestion_scopes`, `VACUUM (ANALYZE) scope_generations`, `VACUUM (ANALYZE) fact_records`}},
+	} {
+		for _, stmt := range stats.prepare {
+			if _, err := database.ExecContext(ctx, stmt); err != nil {
+				t.Fatalf("%s: %s: %v", stats.name, stmt, err)
 			}
-			// Conn.Close returns the session to the pool, so the prepared
-			// statement and the plan-cache setting are undone explicitly (only the
-			// named statement: DEALLOCATE ALL would also drop pgx's own cache).
-			defer func() {
-				_, _ = conn.ExecContext(ctx, "DEALLOCATE cloud_retract_probe")
-				_, _ = conn.ExecContext(ctx, "RESET plan_cache_mode")
-				_ = conn.Close()
-			}()
-			if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = "+mode); err != nil {
-				t.Fatalf("set plan_cache_mode: %v", err)
-			}
-			if _, err := conn.ExecContext(ctx, "PREPARE cloud_retract_probe(text[]) AS "+aliveSQL); err != nil {
-				t.Fatalf("prepare probe: %v", err)
-			}
-			text := explainPlanText(ctx, t, conn, "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) EXECUTE cloud_retract_probe("+textArrayLiteral(uids)+")")
-			if !strings.Contains(text, "fact_records_cloud_retract_admission_uid_idx") {
-				t.Fatalf("500-candidate probe (%s) did not use the partial uid index:\n%s", mode, text)
-			}
-			if strings.Contains(text, "Index Scan using fact_records_scope_generation_idx") {
-				t.Fatalf("500-candidate probe (%s) walked ingestion_scopes into fact_records_scope_generation_idx (the #6946 plan flip):\n%s", mode, text)
-			}
-			buffers := topLevelSharedBuffers(t, text)
-			const budget = 5000
-			if buffers > budget {
-				t.Fatalf("500-candidate probe (%s) touched %d shared buffers, budget %d (scope walk is ~14,000):\n%s", mode, buffers, budget, text)
-			}
-			t.Logf("500-candidate probe (%s): %s, %d shared buffers", mode, joinNode(text), buffers)
-		})
+		}
+		if stats.name == "stale-scopes" {
+			requireScopeStatisticsStale(ctx, t, database, scopes)
+		}
+		for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
+			t.Run(stats.name+"/"+mode, func(t *testing.T) {
+				explainProbeArm(ctx, t, database, aliveSQL, mode, uids)
+			})
+		}
 	}
+}
+
+// requireScopeStatisticsStale fails when ingestion_scopes' planner
+// cardinality already reflects the seed, which would make the stale-scopes
+// arms prove nothing.
+func requireScopeStatisticsStale(ctx context.Context, t *testing.T, database *sql.DB, seeded int) {
+	t.Helper()
+	var reltuples float64
+	if err := database.QueryRowContext(ctx, `SELECT reltuples FROM pg_class WHERE relname = 'ingestion_scopes'`).Scan(&reltuples); err != nil {
+		t.Fatalf("read ingestion_scopes reltuples: %v", err)
+	}
+	if reltuples >= float64(seeded)/2 {
+		t.Fatalf("ingestion_scopes reltuples = %.0f after seeding %d scopes; the stale-scopes precondition was lost", reltuples, seeded)
+	}
+}
+
+// explainProbeArm PREPAREs the alive branch on a dedicated session under
+// the given plan_cache_mode and explains an EXECUTE of it. plan_cache_mode
+// only governs plans that go through the plan cache: an EXPLAIN of the bare
+// parameterized text is planned once with the values in hand and shows the
+// custom plan whatever the setting.
+func explainProbeArm(ctx context.Context, t *testing.T, database *sql.DB, aliveSQL, mode string, uids []string) {
+	t.Helper()
+	conn, err := database.Conn(ctx)
+	if err != nil {
+		t.Fatalf("dedicated session: %v", err)
+	}
+	// Conn.Close returns the session to the pool, so the prepared statement
+	// and the plan-cache setting are undone explicitly (only the named
+	// statement: DEALLOCATE ALL would also drop pgx's own cache).
+	defer func() {
+		_, _ = conn.ExecContext(ctx, "DEALLOCATE cloud_retract_probe")
+		_, _ = conn.ExecContext(ctx, "RESET plan_cache_mode")
+		_ = conn.Close()
+	}()
+	if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = "+mode); err != nil {
+		t.Fatalf("set plan_cache_mode: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, "PREPARE cloud_retract_probe(text[]) AS "+aliveSQL); err != nil {
+		t.Fatalf("prepare probe: %v", err)
+	}
+	text := explainPlanText(ctx, t, conn, "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) EXECUTE cloud_retract_probe("+textArrayLiteral(uids)+")")
+	if !strings.Contains(text, "fact_records_cloud_retract_admission_uid_idx") {
+		t.Fatalf("500-candidate probe (%s) did not use the partial uid index:\n%s", mode, text)
+	}
+	if strings.Contains(text, "Index Scan using fact_records_scope_generation_idx") {
+		t.Fatalf("500-candidate probe (%s) walked ingestion_scopes into fact_records_scope_generation_idx (the #6946 plan flip):\n%s", mode, text)
+	}
+	buffers := topLevelSharedBuffers(t, text)
+	const budget = 5000
+	if buffers > budget {
+		t.Fatalf("500-candidate probe (%s) touched %d shared buffers, budget %d (scope walk is ~14,000):\n%s", mode, buffers, budget, text)
+	}
+	t.Logf("500-candidate probe (%s): %s, %d shared buffers", mode, joinNode(text), buffers)
 }
 
 // textArrayLiteral renders uids as a text[] literal for EXECUTE, which
