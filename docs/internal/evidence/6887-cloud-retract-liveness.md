@@ -257,7 +257,7 @@ unparseable root `Buffers:` line fails the arm).
 | main's SQL, no statistics (before) | walk, 37.7 ms | walk, 733 ms | walk (shim: 14,115-14,619 buffers, 39.6 ms) | walk (shim: 14,142-14,752 buffers, 580-822 ms) |
 | main's SQL + migration 119 | walk, 123.7 ms (RED for the CTE) | Nested Loop, 2,499 | Hash Join, 1,346 | Nested Loop, 2,499 |
 | CTE, no statistics | walk (RED for 119) | Hash Join, 1,346 | walk (RED for 119) | Hash Join, 1,346 |
-| CTE + migration 119 (shipped) | Hash Join, 1,346 | Nested Loop, 2,499-2,877 | Hash Join, 1,346-1,700 | Nested Loop, 2,499 |
+| CTE + migration 119 (shipped) | Hash Join, 1,346-1,700 | Nested Loop, 2,499-2,877 | Hash Join, 1,346 | Nested Loop, 2,499 |
 
 Buffer figures are root-node shared buffers from the committed test's
 EXPLAIN on a stack recreated from scratch (`docker compose down -v`, then

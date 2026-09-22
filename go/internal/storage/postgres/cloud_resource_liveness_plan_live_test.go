@@ -67,7 +67,11 @@ func TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive(t *testing.T)
 	prefix := fmt.Sprintf("plan-%d", time.Now().UnixNano())
 	const scopes, uidsPerScope, candidates = 2000, 100, 500
 	// Pin the pre-seed scope cardinality and keep autoanalyze from
-	// refreshing it while the seed runs.
+	// refreshing it while the seed runs. The RESET first self-heals a stack
+	// where an earlier run was killed before its deferred RESET.
+	if _, err := database.ExecContext(ctx, `ALTER TABLE ingestion_scopes RESET (autovacuum_enabled)`); err != nil {
+		t.Fatalf("reset autovacuum on ingestion_scopes: %v", err)
+	}
 	if _, err := database.ExecContext(ctx, `ALTER TABLE ingestion_scopes SET (autovacuum_enabled = false)`); err != nil {
 		t.Fatalf("disable autovacuum on ingestion_scopes: %v", err)
 	}
@@ -102,20 +106,23 @@ func TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive(t *testing.T)
 				t.Fatalf("%s: %s: %v", stats.name, stmt, err)
 			}
 		}
-		if stats.name == "stale-scopes" {
-			requireScopeStatisticsStale(ctx, t, database, scopes)
-		}
 		for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
 			t.Run(stats.name+"/"+mode, func(t *testing.T) {
+				if stats.name == "stale-scopes" {
+					requireScopeStatisticsStale(ctx, t, database, scopes)
+				}
 				explainProbeArm(ctx, t, database, aliveSQL, mode, uids)
 			})
 		}
 	}
 }
 
-// requireScopeStatisticsStale fails when ingestion_scopes' planner
-// cardinality already reflects the seed, which would make the stale-scopes
-// arms prove nothing.
+// requireScopeStatisticsStale skips the calling stale-scopes arm when
+// ingestion_scopes' planner cardinality already reads seed-sized, which
+// would make the arm prove nothing: on a stack that already holds
+// thousands of scopes the condition cannot be staged. It is called inside
+// the arm's subtest so the skip never reaches the fresh arms, which prove
+// migration 119 on any stack.
 func requireScopeStatisticsStale(ctx context.Context, t *testing.T, database *sql.DB, seeded int) {
 	t.Helper()
 	var reltuples float64
@@ -123,7 +130,7 @@ func requireScopeStatisticsStale(ctx context.Context, t *testing.T, database *sq
 		t.Fatalf("read ingestion_scopes reltuples: %v", err)
 	}
 	if reltuples >= float64(seeded)/2 {
-		t.Fatalf("ingestion_scopes reltuples = %.0f after seeding %d scopes; the stale-scopes precondition was lost", reltuples, seeded)
+		t.Skipf("ingestion_scopes reltuples = %.0f after seeding %d scopes; the stale-scopes precondition cannot be staged on this stack", reltuples, seeded)
 	}
 }
 
