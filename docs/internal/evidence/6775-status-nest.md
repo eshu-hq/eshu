@@ -39,8 +39,11 @@ before this change, plus the empty-snapshot lock added here), proving the
 repointed tests still run rather than merely compile.
 
 No-Regression Evidence: `cd go && go build ./... && go vet ./...` — both exit 0
-across the module, covering the **170 packages that import `internal/status`**
-and the **167** distinct symbols they reference through the compat surface.
+across the module, covering the **149 files outside this package that import
+`internal/status`** and the **154** distinct symbols they reference through the
+compat surface. (A first census said 170/167 — it counted this package's own
+`status_test` files, which import it under the external-test-package pattern.
+The module build proves the surface holds regardless of the count.)
 
 No-Regression Evidence: byte-for-byte wire comparison against `origin/main` for
 both input shapes. `RenderJSON` and `RenderText` output is identical, asserted
