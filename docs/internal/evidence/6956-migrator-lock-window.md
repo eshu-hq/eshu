@@ -55,9 +55,12 @@ migration wants a conflicting lock (migration 118's index build and 119's
   contended statements (118 and 119 both touch `fact_records`) cannot
   multiply it: the run's waiting is bounded by 3 m + 3 m = 6 m, leaving 4 m
   of the chart's `schemaBootstrap.activeDeadlineSeconds: 600` for pod start,
-  the migrations' own work and the graph schema. The bounds cover waiting,
-  not work: a long index build is still bounded only by the Job deadline, as
-  before. `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads
+  the migrations' own work and the graph schema. The retry deadline is wall
+  clock from the moment the run starts applying, so a long legitimate
+  statement (a `CREATE INDEX CONCURRENTLY` on a large table) consumes it
+  too and can leave a later contended statement no retries at all; that is
+  the intended shape, because the Job deadline it protects is wall clock as
+  well, and the ownership wait is separate and runs before any statement. `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads
   the chart value and fails if the defaults plus a 4 m work floor exceed it
   (proven RED with 5 m + 5 m defaults through a `go test -overlay` mutant);
   `TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses` proves attempt time
@@ -103,6 +106,18 @@ is named.
   `cmd/bootstrap-index` each prove the hop from the environment to the
   migrator on a fake executor: a refused knob stops before any statement,
   an accepted one executes every bootstrap definition.
+- Live-test hardening (round 3 of the review saw one 45 s FAIL of the wait
+  test with no captured message): the tests cancelled their context with a
+  `defer`, which fires before `t.Cleanup` functions run, so a
+  second-database holder still in its sleep at the end of the test body
+  released on a dead context. Seeded reproduction on the pre-hardening
+  test with that holder outliving the body by 3 s: FAIL,
+  `other-database holder: holder release "SELECT pg_advisory_unlock(5318,
+  0)": driver: bad connection` (log `scratchpad/mut6956b/A.log`); the
+  hardened test (context cancelled by the first-registered cleanup, second
+  holder held for half the main hold, per-run database name dropped before
+  it is created, skip only on SQLSTATE 42501) passes the same seed. Six
+  consecutive unseeded runs pass (15.7-16.7 s).
 - Live (same tests as the RED table, after the change; each run uses
   unique object and receipt names and cleans up, and asserts on the
   captured log that the wait or the retry actually happened, so a rerun
@@ -118,4 +133,4 @@ is named.
 
 No-Regression Evidence: the happy path executes the same statements on the same session as before with one `pg_try_advisory_lock` round trip replacing the blocking `pg_advisory_lock` (both return immediately when the lock is free); no migration statement, ledger query, or lock timeout changed. Measured on the same disposable database: `TestBootstrapRetryAfterRecordedIndexRecoveryFailsLive` (bootstrap of a two-definition layout, twice, plus the recovery path) takes 0.03-0.05 s on origin/main 4a04039dbb (three runs) and 0.03 s on this branch. The new behavior only runs while another session is in the way, where the alternative was a failed bootstrap.
 
-Observability Evidence: `bootstrap.postgres.ownership.waiting` (holder from `pg_locks` joined to `pg_stat_activity`, current database only: pid, application_name when the client set one, state, connected_for; waited_ms, wait_ms) on the first failed try and then every 15 s while blocked, `bootstrap.postgres.ownership.acquired` (waited_ms, polls) once the wait ends, `bootstrap.postgres.migration.lock_wait` (path, attempt, backoff_ms, slept_ms, budget_ms, error) per retry, `bootstrap.postgres.migration.lock_recovered` (path, attempts, slept_ms) on success; the terminal errors name the holder or the spent budget. The events are documented in `docs/public/deployment/service-runtimes-bootstrap.md` and `docs/public/reference/environment-runtime-storage.md`; `scripts/verify-telemetry-coverage.sh` reports no new untracked stage for the leaf (it is a helper of the existing schema bootstrap, not a pipeline stage), and the grandfathered coverage table cannot grow.
+Observability Evidence: `bootstrap.postgres.ownership.waiting` (holder from `pg_locks` joined to `pg_stat_activity`, current database only: pid, application_name when the client set one, state, connected_for; waited_ms, wait_ms) on the first failed try and then every 15 s while blocked, `bootstrap.postgres.ownership.acquired` (waited_ms, polls) once the wait ends, `bootstrap.postgres.migration.lock_wait` (path, attempt, backoff_ms, waited_ms, budget_left_ms, error) per retry, `bootstrap.postgres.migration.lock_recovered` (path, attempts, waited_ms) on success; the terminal errors name the holder or the spent budget. The events are documented in `docs/public/deployment/service-runtimes-bootstrap.md` and `docs/public/reference/environment-runtime-storage.md`; `scripts/verify-telemetry-coverage.sh` reports no new untracked stage for the leaf (it is a helper of the existing schema bootstrap, not a pipeline stage), and the grandfathered coverage table cannot grow.

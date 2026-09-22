@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -16,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // openBootstrapWaitTestDB returns a handle on the empty disposable database
@@ -115,8 +118,11 @@ func capturedLogger() (*slog.Logger, *bytes.Buffer) {
 // must not be named (advisory locks are per database).
 func TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive(t *testing.T) {
 	database := openBootstrapWaitTestDB(t)
+	// The context must outlive the cleanups that release the holders and
+	// drop the second database, so it is cancelled by the first-registered
+	// cleanup (which runs last), not by a defer that fires before cleanups.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	t.Cleanup(cancel)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	table := "eshu_6956_wait_" + suffix
 	path := "test/6956_wait_" + suffix + ".sql"
@@ -128,8 +134,11 @@ func TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive(t *testing.T) {
 	holderPid, holder := holdFor(ctx, database, hold, []string{lockSQL}, []string{unlockSQL})
 	pid := <-holderPid
 
-	// A same-key holder in another database: must not block, must not be named.
-	otherPid := holdAdvisoryKeyInAnotherDatabase(ctx, t, database, hold, lockSQL, unlockSQL)
+	// A same-key holder in another database: must not block, must not be
+	// named. It holds for half the main hold: it starts after CREATE
+	// DATABASE and only needs to cover the first waiting log, and it must
+	// release before the test body ends.
+	otherPid := holdAdvisoryKeyInAnotherDatabase(ctx, t, database, hold/2, lockSQL, unlockSQL, suffix)
 
 	logger, logs := capturedLogger()
 	definitions := []Definition{{Name: "table", Path: path, SQL: "CREATE TABLE " + table + " (id INT)"}}
@@ -164,19 +173,33 @@ func TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive(t *testing.T) {
 }
 
 // holdAdvisoryKeyInAnotherDatabase takes the same advisory key on a second
-// database of the instance for hold and returns that holder's pid, or 0
-// when the test role cannot create a database (the cross-database assertion
-// is then skipped, the rest of the test still runs).
-func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, database *sql.DB, hold time.Duration, lockSQL, unlockSQL string) int {
+// database of the instance for hold and returns that holder's pid. The
+// second database is named per run and dropped before it is created, so a
+// leftover from a killed run cannot turn the cross-database assertion off;
+// only an insufficient-privilege refusal (SQLSTATE 42501: the test role may
+// not create databases) skips that assertion, and every other error fails.
+func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, database *sql.DB, hold time.Duration, lockSQL, unlockSQL string, suffix string) int {
 	t.Helper()
 	var dsnDatabase string
 	if err := database.QueryRowContext(ctx, "SELECT current_database()").Scan(&dsnDatabase); err != nil {
 		t.Fatalf("current database: %v", err)
 	}
-	other := dsnDatabase + "_other"
+	other := dsnDatabase + "_other_" + suffix
+	if _, err := database.ExecContext(ctx, "DROP DATABASE IF EXISTS "+other+" WITH (FORCE)"); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "42501" {
+			t.Logf("test role may not manage databases (%v); skipping the cross-database holder assertion", err)
+			return 0
+		}
+		t.Fatalf("drop stale %s: %v", other, err)
+	}
 	if _, err := database.ExecContext(ctx, "CREATE DATABASE "+other); err != nil {
-		t.Logf("cannot create a second database (%v); skipping the cross-database holder assertion", err)
-		return 0
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "42501" {
+			t.Logf("test role may not create databases (%v); skipping the cross-database holder assertion", err)
+			return 0
+		}
+		t.Fatalf("create %s: %v", other, err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -216,7 +239,7 @@ func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, databas
 func TestBootstrapRetriesStatementLockTimeoutLive(t *testing.T) {
 	database := openBootstrapWaitTestDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	t.Cleanup(cancel)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	table := "eshu_6956_locked_" + suffix
 	index := table + "_idx"
