@@ -330,8 +330,19 @@ func seed(ctx context.Context, opts runOptions) error {
 // run-to-run plan and latency variance a COPY-then-immediately-sweep gate
 // would otherwise carry silently.
 func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, "ANALYZE ingestion_scopes, scope_generations, fact_work_items, fact_records, content_entities")
+	_, err := pool.Exec(ctx, "ANALYZE "+strings.Join(analyzedSeededTables(), ", "))
 	return err
+}
+
+// analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
+// table in the exact-count read-back plus content_entities, which is seeded
+// and verified through its own count path. A test pins the list to the
+// read-back set so a newly seeded table cannot be left unanalyzed.
+func analyzedSeededTables() []string {
+	return []string{
+		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
+		"shared_projection_intents", "content_entities",
+	}
 }
 
 // firstScopeOfKind returns the first scope in plan.Scopes with the given

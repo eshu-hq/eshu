@@ -170,3 +170,22 @@ func TestSeededRelationalTablesAllowSharedIntents(t *testing.T) {
 		}
 	}
 }
+
+// TestAnalyzeSeededTablesCoversEverySeededTable pins the post-seed ANALYZE to
+// the exact-count read-back set: a table the gate bulk-writes but never
+// analyzes leaves reltuples = -1 after COPY, so the sweep's plan depends on
+// whether autovacuum ran first (the first #6820 review found
+// shared_projection_intents in that state).
+func TestAnalyzeSeededTablesCoversEverySeededTable(t *testing.T) {
+	t.Parallel()
+
+	analyzed := map[string]bool{}
+	for _, table := range analyzedSeededTables() {
+		analyzed[table] = true
+	}
+	for table := range seededRelationalTables {
+		if !analyzed[table] {
+			t.Errorf("seeded table %q is missing from the post-seed ANALYZE statement", table)
+		}
+	}
+}
