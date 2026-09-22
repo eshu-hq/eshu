@@ -55,7 +55,7 @@ func crossTenantEvidenceGraph() querytestutil.FakeGraphReaderWithSingle {
 			}
 			// Incoming deployment-evidence traversal: anchor repo-a is the target,
 			// the cross-tenant repo-b is the source (non-anchor) endpoint.
-			if strings.Contains(cypher, "(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})") {
+			if strings.Contains(cypher, "(r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)") {
 				return []map[string]any{{
 					"direction":         "incoming",
 					"artifact_id":       "artifact-xtenant",

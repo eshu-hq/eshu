@@ -38,7 +38,7 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 				},
 			},
 			runByMatch: map[string][]map[string]any{
-				"EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository": {
+				"(r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)": {
 					{
 						"direction":             "incoming",
 						"artifact_id":           "evidence-artifact:helm:1",
@@ -441,7 +441,7 @@ func TestContentReaderRepositoryDeploymentEvidenceHydratesPreviewArtifacts(t *te
 	}
 }
 
-func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing.T) {
+func TestQueryRepoDeploymentEvidenceIncomingAnchorsOnTheBoundRepository(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingDeploymentEvidenceGraphReader{}
@@ -454,17 +454,19 @@ func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing
 	}
 	incoming := reader.cypherCalls[1]
 	for _, want := range []string{
-		"MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})",
-		"WITH artifact, r",
-		"MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact)",
+		"MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)<-[:HAS_DEPLOYMENT_EVIDENCE]-(source:Repository)",
 	} {
 		if !strings.Contains(incoming, want) {
 			t.Fatalf("incoming query missing %q:\n%s", want, incoming)
 		}
 	}
-	oldShape := "MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})"
-	if strings.Contains(incoming, oldShape) {
-		t.Fatalf("incoming query still uses source-first NornicDB-slow shape:\n%s", incoming)
+	for _, oldShape := range []string{
+		"MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})",
+		"MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})",
+	} {
+		if strings.Contains(incoming, oldShape) {
+			t.Fatalf("incoming query still anchors away from the bound repository (#6794, #6811):\n%s", incoming)
+		}
 	}
 }
 

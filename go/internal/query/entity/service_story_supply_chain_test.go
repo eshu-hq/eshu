@@ -146,7 +146,7 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 				case strings.Contains(cypher, "w.name = $service_name"):
 					return []map[string]any{{"id": "workload:api", "name": "api", "kind": "service", "repo_id": "repo://example/api"}}, nil
 				case strings.Contains(cypher, "HAS_DEPLOYMENT_EVIDENCE") &&
-					strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository"):
+					strings.Contains(cypher, "(r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)"):
 					return []map[string]any{serviceStoryDeploymentImageArtifact(serviceStoryTestImageRef)}, nil
 				default:
 					_ = params
