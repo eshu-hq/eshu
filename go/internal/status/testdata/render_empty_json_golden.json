@@ -1,0 +1,132 @@
+{
+  "version": "dev",
+  "as_of": "0001-01-01T00:00:00Z",
+  "health": {
+    "state": "healthy",
+    "reasons": [
+      "no outstanding queue backlog"
+    ]
+  },
+  "flow": [
+    {
+      "lane": "collector",
+      "source": "live",
+      "progress": "scopes none",
+      "backlog": "generations none"
+    },
+    {
+      "lane": "projector",
+      "source": "live",
+      "progress": "stage none",
+      "backlog": "queue outstanding=0 in_flight=0 retrying=0 dead_letter=0 failed=0 oldest=0s overdue_claims=0"
+    },
+    {
+      "lane": "reducer",
+      "source": "live",
+      "progress": "stage none",
+      "backlog": "top domain none"
+    }
+  ],
+  "queue": {
+    "total": 0,
+    "outstanding": 0,
+    "pending": 0,
+    "in_flight": 0,
+    "retrying": 0,
+    "succeeded": 0,
+    "failed": 0,
+    "dead_letter": 0,
+    "provenance_edge_identity_upgrade_applied": false,
+    "provenance_edge_identity_upgrade_required": 0,
+    "overdue_claims": 0,
+    "oldest_outstanding_age": "0s",
+    "oldest_outstanding_age_seconds": 0
+  },
+  "retry_policies": null,
+  "semantic_extraction": {
+    "state": "unavailable",
+    "reason": "provider_not_configured",
+    "detail": "no semantic extraction provider is configured; deterministic indexing, reducer projection, API reads, MCP tools, and documentation fact verification are unaffected",
+    "provider_configured": false,
+    "documentation_observations_enabled": false,
+    "code_hints_enabled": false,
+    "deterministic_paths_affected": false,
+    "supported_states": [
+      "unavailable",
+      "available",
+      "available_but_disabled_for_scope",
+      "disabled_by_policy",
+      "provider_unhealthy"
+    ],
+    "supported_provider_profile_states": [
+      "configured",
+      "unconfigured",
+      "healthy",
+      "unhealthy"
+    ]
+  },
+  "answer_narration": {
+    "state": "unavailable",
+    "reason": "disabled_by_default",
+    "detail": "answer narration is disabled by default; deterministic answer packets remain the canonical fallback",
+    "provider_configured": false,
+    "provider_traffic_enabled": false,
+    "policy_allowed": false,
+    "budget_available": false,
+    "publish_safety_enabled": false,
+    "deterministic_fallback_available": true,
+    "canonical_truth_affected": false,
+    "retention_posture": "metadata_only",
+    "supported_states": [
+      "unavailable",
+      "disabled",
+      "available",
+      "provider_unavailable"
+    ],
+    "supported_reasons": [
+      "disabled_by_default",
+      "policy_denied",
+      "budget_exhausted",
+      "unsafe_output",
+      "timeout",
+      "provider_unavailable",
+      "available",
+      "invalid_answer_narration_state"
+    ],
+    "validator_reason_codes": [
+      "uncited_factual_sentence",
+      "unsupported_confidence_drift",
+      "partial_signal_hidden",
+      "truth_class_promotion",
+      "unsafe_output",
+      "unknown_provenance",
+      "over_limit"
+    ]
+  },
+  "collector_generation_dead_letters": {
+    "dead_letter": 0,
+    "replay_requested": 0,
+    "replay_attempts": 0,
+    "oldest_dead_letter_age": "0s",
+    "oldest_dead_letter_age_seconds": 0
+  },
+  "scope_activity": {
+    "active": 0,
+    "changed": 0,
+    "unchanged": 0
+  },
+  "generation_history": {
+    "active": 0,
+    "pending": 0,
+    "completed": 0,
+    "superseded": 0,
+    "failed": 0,
+    "other": 0
+  },
+  "generation_transitions": null,
+  "scopes": {},
+  "generations": {},
+  "stages": [],
+  "domains": [],
+  "queue_blockages": []
+}
