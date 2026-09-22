@@ -63,7 +63,12 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
   `authContextAllowsPermissionFeature` and `permissionFeatureIdentityAdmin` onto
   `queryauth`, and `parseOffset` and `parseBoundedLimit` onto `querycontract`.
 
-So PR 2 is a spine repoint of those 5 in the shape of PR 1a/1b, then the move.
+So PR 2 is a spine repoint in the shape of PR 1a/1b, then the move — but a far
+smaller one. Measured on the post-1b tree, those helpers plus their two
+siblings `requirePermissionFeature` and `authContextAllowsPermissionDataClasses`
+are named by only 2-3 root files each, 2-5 occurrences each. The hoist is a
+handful of files, not the 83 that PR 1b touched; the 9-file move is the bulk
+of the work.
 
 `CodeHandler` is deliberately not renamed anywhere in this plan. The issue
 requires inspecting the current query-plan entries and recording affected
