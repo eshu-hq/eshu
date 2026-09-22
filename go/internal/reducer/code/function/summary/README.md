@@ -107,7 +107,11 @@ the graph gate; this handler never emits it.
   only written ones.** A replace that empties a repo (`persistedFunctionCount
   == 0`) still changed that repo's fixpoint inputs and must still trigger the
   refresh singleton; `removedFunctionCount` is `previousRepoFunctionCount -
-  persistedFunctionCount`, floored at 0.
+  persistedFunctionCount`, floored at 0. When both counts are 0 on a
+  full-snapshot replace (the ACK-failure retry of a replace that already
+  emptied the repo, or a zero-function repo generation), the replace itself
+  still counts as one canonical write so the refresh is emitted; the fence
+  keeps that extra global solve converged and the singleton coalesces it.
 - **`refresh_affected_repos` is always explicit 1, never gated.** Unlike the
   four graph-gate producers (`affected.BeginRefreshGateEvaluation`), this
   handler runs no graph read of its own — summaries are fixpoint inputs by

@@ -9,9 +9,13 @@ import (
 	"testing"
 	"time"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // fakeFixpointProjector records the scope/generation each fixpoint run sees.
@@ -177,5 +181,68 @@ func TestHandlerSolvesWhenBoundExpired(t *testing.T) {
 	}
 	if result.CanonicalWrites != 2 {
 		t.Fatalf("canonical writes = %d, want 2", result.CanonicalWrites)
+	}
+}
+
+// TestHandlerFenceSpanCarriesOutcome proves the fence span contract
+// (telemetry.SpanReducerValueFlowInputsFence): the span ends after the
+// decision and carries the outcome and the pending row count on every path.
+func TestHandlerFenceSpanCarriesOutcome(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 22, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name        string
+		liveness    *fakeInputsLiveness
+		cycleStart  time.Time
+		wantOutcome string
+		wantPending int64
+		wantErr     bool
+	}{
+		{name: "proceed", liveness: &fakeInputsLiveness{}, cycleStart: now.Add(-time.Minute), wantOutcome: "proceed"},
+		{name: "deferred", liveness: &fakeInputsLiveness{pending: []string{"a", "b"}}, cycleStart: now.Add(-time.Minute), wantOutcome: crossscope.ReadinessWaitDeferred, wantPending: 2, wantErr: true},
+		{name: "abandoned", liveness: &fakeInputsLiveness{pending: []string{"a"}}, cycleStart: now.Add(-31 * time.Minute), wantOutcome: crossscope.ReadinessWaitAbandoned, wantPending: 1},
+		{name: "error", liveness: &fakeInputsLiveness{err: errors.New("fence read failed")}, cycleStart: now.Add(-time.Minute), wantOutcome: "error", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := tracetest.NewSpanRecorder()
+			tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+			h := Handler{
+				Fixpoint:       &fakeFixpointProjector{},
+				InputsLiveness: tc.liveness,
+				Now:            func() time.Time { return now },
+				Tracer:         tracer,
+			}
+			intent := refreshIntent()
+			intent.CycleStartedAt = tc.cycleStart
+			_, err := h.Handle(context.Background(), intent)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("Handle() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			ended := recorder.Ended()
+			if len(ended) != 1 || ended[0].Name() != telemetry.SpanReducerValueFlowInputsFence {
+				t.Fatalf("ended spans = %d (%v), want one %q", len(ended), ended, telemetry.SpanReducerValueFlowInputsFence)
+			}
+			var gotOutcome string
+			var gotPending int64
+			var sawPending bool
+			for _, attr := range ended[0].Attributes() {
+				switch attr.Key {
+				case telemetry.AttrOutcome("").Key:
+					gotOutcome = attr.Value.AsString()
+				case "pending_input_count":
+					gotPending = attr.Value.AsInt64()
+					sawPending = true
+				}
+			}
+			if gotOutcome != tc.wantOutcome {
+				t.Fatalf("span outcome = %q, want %q", gotOutcome, tc.wantOutcome)
+			}
+			if !sawPending || gotPending != tc.wantPending {
+				t.Fatalf("span pending_input_count = %d (present=%v), want %d", gotPending, sawPending, tc.wantPending)
+			}
+		})
 	}
 }

@@ -165,6 +165,18 @@ ran and compiled.
   `--- FAIL: TestReducerQueueFailDefersValueFlowInputsReadinessPastAttemptBudget`;
   restored -> `ok`.
 
+### Bracket-count guard (review round 2)
+
+The guard added in round 1 for unparsed relationship hops is now a plain
+regression test rather than a manual mutation:
+`TestRelationshipTypesFromStatementsRejectsUnparsedHop` feeds the extraction
+helper a statement with a `[:RUNS_IN|INSTANCE_OF]` hop and asserts the
+"2 bracketed relationship patterns but the extraction regex understood 1"
+error, while the production statements parse cleanly. The fence span
+contract is likewise pinned by `TestHandlerFenceSpanCarriesOutcome`
+(proceed / deferred / abandoned / error outcomes and `pending_input_count`
+on an in-memory span recorder).
+
 ## TDD RED/GREEN pairs
 
 - `refresh.TestHandlerRefusesWhileInputsUndrained` /

@@ -652,9 +652,9 @@ const (
 	// iam_can_perform_materialization, aws_resource_materialization) and the
 	// runs_in/invokes_cloud_action shared-projection intents have drained,
 	// run before the fixpoint solve so a refusal costs one index probe and no
-	// graph read. The span carries the refusal outcome so a trace shows
-	// whether the singleton deferred, was abandoned past the bound, or
-	// proceeded straight to the solve.
+	// graph read. The span carries the fence outcome so a trace shows
+	// whether the singleton deferred, was abandoned past the bound,
+	// proceeded straight to the solve, or hit a fence read error.
 	SpanReducerValueFlowInputsFence = "reducer.value_flow_inputs_fence"
 
 	// Dependency service spans — track external call performance.

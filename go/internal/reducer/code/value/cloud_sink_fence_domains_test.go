@@ -4,7 +4,9 @@
 package value_test
 
 import (
+	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -31,18 +33,48 @@ var cloudSinkChainBracketPattern = regexp.MustCompile(`\[[^\]]*\]`)
 // this guard actually tracks.
 func cloudSinkChainRelationshipTypes(t *testing.T) map[string]struct{} {
 	t.Helper()
+	types, err := relationshipTypesFromStatements(value.CloudSinkWorkloadRowsCypher, value.CloudSinkTargetsByPairCypher)
+	if err != nil {
+		t.Fatalf("%v; widen the regex before trusting the fence", err)
+	}
+	return types
+}
+
+// relationshipTypesFromStatements extracts the single-type relationship
+// patterns of every statement and refuses (returns an error) when a
+// statement contains a bracketed pattern the extraction regex did not
+// understand, so an unparsed hop can never silently vanish from the set.
+func relationshipTypesFromStatements(statements ...string) (map[string]struct{}, error) {
 	types := make(map[string]struct{})
-	for _, cypher := range []string{value.CloudSinkWorkloadRowsCypher, value.CloudSinkTargetsByPairCypher} {
+	for _, cypher := range statements {
 		matched := cloudSinkChainRelationshipPattern.FindAllStringSubmatch(cypher, -1)
 		if brackets := cloudSinkChainBracketPattern.FindAllString(cypher, -1); len(brackets) != len(matched) {
-			t.Fatalf("statement has %d bracketed relationship patterns but the extraction regex understood %d (%q); widen the regex before trusting the fence",
+			return nil, fmt.Errorf("statement has %d bracketed relationship patterns but the extraction regex understood %d (%q)",
 				len(brackets), len(matched), brackets)
 		}
 		for _, m := range matched {
 			types[m[1]] = struct{}{}
 		}
 	}
-	return types
+	return types, nil
+}
+
+// TestRelationshipTypesFromStatementsRejectsUnparsedHop is the seeded
+// violation for the bracket-count guard: a multi-type hop the extraction
+// regex does not understand must be reported, not dropped.
+func TestRelationshipTypesFromStatementsRejectsUnparsedHop(t *testing.T) {
+	t.Parallel()
+
+	if _, err := relationshipTypesFromStatements(value.CloudSinkWorkloadRowsCypher); err != nil {
+		t.Fatalf("production statement must parse cleanly: %v", err)
+	}
+	_, err := relationshipTypesFromStatements("MATCH (fn:Function)-[:RUNS_IN|INSTANCE_OF]->(w:Workload) MATCH (w)<-[:USES]-(p) RETURN 1")
+	if err == nil {
+		t.Fatal("a [:A|B] hop must be rejected, not silently dropped")
+	}
+	if !strings.Contains(err.Error(), "2 bracketed relationship patterns but the extraction regex understood 1") {
+		t.Fatalf("error = %v, want the bracket/extracted count mismatch", err)
+	}
 }
 
 // relationshipFamilyOwner resolves a relationship type to the

@@ -42,7 +42,9 @@ Ownership boundary sections for exactly what this package owns versus what
 - **`CanonicalWrites` must include removed rows on a full-snapshot replace.**
   A replace that empties a repo still changed that repo's fixpoint inputs and
   must still trigger the refresh singleton even though
-  `persistedFunctionCount == 0`.
+  `persistedFunctionCount == 0`. A full-snapshot replace whose counts net to
+  0 (a retried empty replace, a zero-function repo) still reports 1, so the
+  refresh is never lost to a retry.
 
 ## Common changes
 
