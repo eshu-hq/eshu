@@ -11,40 +11,27 @@ import "log/slog"
 // backend) still answers 200 because each panel is auxiliary, but the failure
 // must stay visible through a stable reason instead of rendering as an
 // authoritative empty list. They follow InfrastructureReadDegradedReason
-// (#5764), one per read so an operator can tell which panel degraded.
-// Exported so root stayers and the entity package can name them.
+// (#5764), one per read so an operator can tell which panel degraded. Only
+// the two reasons another package names are exported, matching the
+// infrastructure pair.
 const (
-	// ConsumersReadDegradedReason marks a failed incoming-consumers read.
-	ConsumersReadDegradedReason = "consumers_read_degraded"
-	// RelationshipOverviewReadDegradedReason marks a failed relationship
-	// overview read in either direction.
-	RelationshipOverviewReadDegradedReason = "relationship_overview_read_degraded"
-	// RelationshipsReadDegradedReason marks a failed outgoing dependencies read.
+	// RelationshipsReadDegradedReason marks a failed outgoing dependencies
+	// read; the entity package names it for workload and service context.
 	RelationshipsReadDegradedReason = "relationships_read_degraded"
-	// LanguagesReadDegradedReason marks a failed language distribution read.
-	LanguagesReadDegradedReason = "languages_read_degraded"
-	// SourceToolBreakdownReadDegradedReason marks a failed source-tool
-	// breakdown read.
-	SourceToolBreakdownReadDegradedReason = "source_tool_breakdown_read_degraded"
-	// EntryPointsReadDegradedReason marks a failed entry-point read.
-	EntryPointsReadDegradedReason = "entry_points_read_degraded"
-	// APISurfaceReadDegradedReason marks a failed API surface read.
+	// APISurfaceReadDegradedReason marks a failed API surface read; the
+	// service package names it for service enrichment.
 	APISurfaceReadDegradedReason = "api_surface_read_degraded"
-	// DeployableUnitRelationshipsReadDegradedReason marks a failed
-	// deployable-unit relationship read.
-	DeployableUnitRelationshipsReadDegradedReason = "deployable_unit_relationships_read_degraded"
 )
 
-// In-package spellings, matching the infrastructure pair above.
 const (
-	consumersReadDegradedReason                   = ConsumersReadDegradedReason
-	relationshipOverviewReadDegradedReason        = RelationshipOverviewReadDegradedReason
+	consumersReadDegradedReason                   = "consumers_read_degraded"
+	relationshipOverviewReadDegradedReason        = "relationship_overview_read_degraded"
 	relationshipsReadDegradedReason               = RelationshipsReadDegradedReason
-	languagesReadDegradedReason                   = LanguagesReadDegradedReason
-	sourceToolBreakdownReadDegradedReason         = SourceToolBreakdownReadDegradedReason
-	entryPointsReadDegradedReason                 = EntryPointsReadDegradedReason
+	languagesReadDegradedReason                   = "languages_read_degraded"
+	sourceToolBreakdownReadDegradedReason         = "source_tool_breakdown_read_degraded"
+	entryPointsReadDegradedReason                 = "entry_points_read_degraded"
 	apiSurfaceReadDegradedReason                  = APISurfaceReadDegradedReason
-	deployableUnitRelationshipsReadDegradedReason = DeployableUnitRelationshipsReadDegradedReason
+	deployableUnitRelationshipsReadDegradedReason = "deployable_unit_relationships_read_degraded"
 )
 
 // degradedReadLogAttrs builds the stage-log attributes a query stage timer

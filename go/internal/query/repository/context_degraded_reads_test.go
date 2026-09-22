@@ -29,7 +29,7 @@ var contextDegradedReadMarkers = []struct {
 	{"languages", "AS language", languagesReadDegradedReason},
 	{"source_tool_breakdown", "AS source_tool", sourceToolBreakdownReadDegradedReason},
 	{"entry_points", "(fn:Function)", entryPointsReadDegradedReason},
-	{"api_surface", "(endpoint:Endpoint)", apiSurfaceReadDegradedReason},
+	{"api_surface", "endpoint.path AS path", apiSurfaceReadDegradedReason},
 }
 
 // TestRepositoryContextReportsDegradedGraphReads is the #6810 regression: a
@@ -53,6 +53,11 @@ func TestRepositoryContextReportsDegradedGraphReads(t *testing.T) {
 				if strings.Contains(cypher, read.marker) {
 					return nil, readErr
 				}
+			}
+			if strings.Contains(cypher, "AS endpoint_count") {
+				// A real endpoint count makes the handler issue the detail read,
+				// which is the read that fails above.
+				return []map[string]any{{"endpoint_count": int64(3)}}, nil
 			}
 			if strings.Contains(cypher, "RETURN count(") {
 				return []map[string]any{{"count": int64(0)}}, nil
@@ -116,5 +121,64 @@ func TestRepositoryContextEmptyReadsAreNotDegraded(t *testing.T) {
 			t.Errorf("healthy empty %s read reported %q in partial_reasons = %#v", read.name, read.reason, reasons)
 		}
 	}
-	_ = querycontract.StringVal
+}
+
+// TestRepositoryContextReportsDegradedDeployableUnitRead covers the read that
+// only runs on the read-model-primary path: with a relationship read model
+// available from the content store, a failed CORRELATES_DEPLOYABLE_UNIT graph
+// supplement must surface as deployable_unit_relationships_read_degraded
+// while the read-model relationships and consumers still render.
+func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("graph query exceeded its deadline")
+	reader := querytestutil.FakeGraphReader{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+			if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
+				return map[string]any{"id": "repository:repo-a", "name": "repo-a"}, nil
+			}
+			return nil, nil
+		},
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)") || strings.Contains(cypher, "CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)") {
+				return nil, readErr
+			}
+			if strings.Contains(cypher, "RETURN count(") {
+				return []map[string]any{{"count": int64(0)}}, nil
+			}
+			return []map[string]any{}, nil
+		},
+	}
+	content := querytestutil.FakePortContentStore{
+		RelationshipReadModel: querycontract.RepositoryRelationshipReadModel{
+			Available: true,
+			Relationships: []map[string]any{{
+				"direction": "outgoing", "type": "DEPENDS_ON",
+				"source_id": "repository:repo-a", "source_name": "repo-a",
+				"target_id": "repository:repo-b", "target_name": "repo-b",
+			}},
+			Consumers: []map[string]any{{"id": "repository:repo-c", "name": "repo-c"}},
+		},
+	}
+	handler := &Handler{Neo4j: reader, Content: content}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repository:repo-a/context", nil)
+	req.SetPathValue("repo_id", "repository:repo-a")
+	rec := httptest.NewRecorder()
+	handler.getRepositoryContext(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	body := decodeRepositoryAuthzBody(t, rec)
+	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
+	if !querytestutil.AnySliceContains(reasons, deployableUnitRelationshipsReadDegradedReason) {
+		t.Fatalf("partial_reasons = %#v, want %q", reasons, deployableUnitRelationshipsReadDegradedReason)
+	}
+	for _, reason := range []string{relationshipsReadDegradedReason, relationshipOverviewReadDegradedReason, consumersReadDegradedReason} {
+		if querytestutil.AnySliceContains(reasons, reason) {
+			t.Errorf("read-model-served panel reported %q; partial_reasons = %#v", reason, reasons)
+		}
+	}
+	if consumers, ok := body["consumers"].([]any); !ok || len(consumers) != 1 {
+		t.Fatalf("consumers = %#v, want the one read-model consumer", body["consumers"])
+	}
 }

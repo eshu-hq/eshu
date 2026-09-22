@@ -25,13 +25,21 @@ service context handler to record. The Cypher text of every read is
 unchanged; only the error branch of each helper and the callers' bookkeeping
 changed.
 
+Not converted, with the reason: `QueryRepoInfrastructureFromContent`
+(`infrastructure.go`) turns a content-store error into an empty result, but
+its only caller then falls through to `queryRepoInfrastructureFromGraph`, the
+authoritative read, whose own failure already degrades to
+`infrastructure_read_degraded`; a content error followed by an empty graph
+answer is a true empty panel, not a hidden failure. It stays as the #5764
+P2-3 follow-up recorded in that file.
+
 Callers that read the empty list: the context handler's overview fallback
 (`if len(relationshipRows) == 0 { relationshipRows = result["relationships"] }`)
 and the fingerprint builders still receive the same empty slices on a failed
 read and behave as before; they now do so beside a named reason. No caller
 distinguished a failed read from an empty one, because none could.
 
-No-Regression Evidence: no query text, anchor, projection, ordering, limit or parameter changed in any helper; the diff on each Cypher constant is empty (`git diff origin/main..HEAD -- go/internal/query/repository | rg '^[-+].*(MATCH|RETURN|ORDER BY|LIMIT)'` prints nothing), so the graph work per request is byte-identical and the only added work is appending a string to a slice on the failure path.
+No-Regression Evidence: no query text, anchor, projection, ordering, limit or parameter changed in any helper; the diff on each Cypher constant is empty (`git diff origin/main..HEAD -- go/internal/query/repository ':!*_test.go' | rg '^[-+].*(MATCH|RETURN|ORDER BY|LIMIT)'` prints nothing; the only such lines in the whole diff are the test's marker literals), so the graph work per request is byte-identical and the only added work is appending a string to a slice on the failure path.
 
 Observability Evidence: each repository context stage log (`repository query stage completed`, stages `entry_points`, `relationships`, `relationship_overview`, `consumers`, `api_surface`, `languages`, `tech_fingerprint`) and the story `relationships` stage now carry `failure_class=<reason>` when the read failed, the same key the infrastructure stage already uses; the service `graph_api_surface` and `repo_dependencies` stage logs carry it too. The response-level signal is the new `partial_reasons` / `limitations` values above. No metric or span is added.
 
