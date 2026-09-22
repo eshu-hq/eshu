@@ -40,8 +40,11 @@ func TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository(t *testing.T) 
 	queryRepoRelationshipOverview(ctx, reader, params)
 	queryRepoConsumers(ctx, reader, params)
 	queryRepoDeployableUnitRelationshipOverview(ctx, reader, params)
+	if _, err := QueryRepoDeploymentEvidence(ctx, reader, nil, params); err != nil {
+		t.Fatalf("QueryRepoDeploymentEvidence: %v", err)
+	}
 
-	if got, want := len(cyphers), 5; got != want {
+	if got, want := len(cyphers), 7; got != want {
 		t.Fatalf("graph reads = %d, want %d", got, want)
 	}
 	incoming := 0
@@ -56,7 +59,7 @@ func TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository(t *testing.T) 
 			incoming++
 		}
 	}
-	if got, want := incoming, 3; got != want {
+	if got, want := incoming, 4; got != want {
 		t.Fatalf("left-anchored incoming reads = %d, want %d", got, want)
 	}
 }

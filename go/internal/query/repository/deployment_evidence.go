@@ -172,9 +172,7 @@ func QueryRepoDeploymentEvidence(ctx context.Context, reader querycontract.Graph
 		return nil, err
 	}
 	incoming, incomingTruncated, err := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
-		MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})
-		WITH artifact, r
-		MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
+		MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)<-[:HAS_DEPLOYMENT_EVIDENCE]-(source:Repository)
 		RETURN 'incoming' AS direction,
 		       artifact.id AS artifact_id,
 		       artifact.name AS name,

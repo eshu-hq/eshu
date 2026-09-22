@@ -366,7 +366,7 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: 216f4cf94b082753ed5c6f832a6cae1950cd485f9cb6c11e73e2a62360bdb938, key_bound: single_key, max_results: 2}
   - file: impacttrace/impact_trace_deployment_flux_bindings.go
     calls:
-      - {symbol: "FetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
+      - {symbol: "FetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 789926e38615c14f304a0b117ebabd2bd2750f15a0884ccf3a11498086e0e5e3, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
   - file: impact/trace_deployment_sources.go
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"
