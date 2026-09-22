@@ -25,21 +25,14 @@ func TestCloudRetractLivenessSQLGuards(t *testing.T) {
 		name string
 		sql  string
 	}{
-		{"admission_alive", liveAdmissionCloudUIDsAliveSQL},
 		{"admission_fenced", liveAdmissionCloudUIDsFencedSQL},
 		{"ec2_posture", liveEC2PostureUIDsSQL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			generationJoin := "scope.active_generation_id = fact.generation_id"
-			if strings.HasPrefix(tc.name, "admission") {
-				// #6946: the admission read joins the materialized candidate
-				// slice, so the generation fence is spelled on the CTE.
-				generationJoin = "scope.active_generation_id = cand.generation_id"
-			}
 			for _, want := range []string{
 				"fact.is_tombstone = FALSE",
-				generationJoin,
+				"scope.active_generation_id = fact.generation_id",
 				"ingestion_scopes AS scope",
 				"fact_records AS fact",
 			} {
@@ -87,11 +80,6 @@ func TestCloudRetractLivenessSQLGuards(t *testing.T) {
 		if !strings.Contains(cloudAdmissionNonterminalStatusList, status) {
 			t.Errorf("nonterminal status list missing %s", status)
 		}
-	}
-	// #6946: the alive branch must pin the partial-index scan first.
-	if !strings.Contains(liveAdmissionCloudUIDsAliveSQL, "WITH cand AS MATERIALIZED") ||
-		!strings.Contains(liveAdmissionCloudUIDsFencedSQL, liveAdmissionCloudUIDsAliveSQL) {
-		t.Error("admission read must materialize the candidate slice first and the fenced probe must embed that exact read")
 	}
 	if !strings.Contains(liveAdmissionCloudUIDsFencedSQL, "UNION ALL") ||
 		!strings.Contains(liveAdmissionCloudUIDsFencedSQL, "'undrained' AS kind") ||

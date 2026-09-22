@@ -13,6 +13,9 @@
 -- used: with them the 500-candidate probe estimates 516 rows and plans an
 -- Index Scan on fact_records_cloud_retract_admission_uid_idx, 1,346 buffers
 -- and 1.7 ms; 50 candidates 253 buffers / 0.23 ms; 2 candidates 13 buffers.
+-- The same holds for the generic plan pgx's statement cache settles on
+-- after five executions, where the walk is far worse (~14,700 buffers,
+-- 580-820 ms) and the index plan costs ~2,500 buffers / 1 ms.
 -- Measured in a rolled-back transaction on PostgreSQL 18 (three candidate
 -- counts, before/after, same seed), recorded in
 -- docs/internal/evidence/6887-cloud-retract-liveness.md under "#6946".

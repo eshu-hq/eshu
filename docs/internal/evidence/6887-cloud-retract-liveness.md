@@ -124,138 +124,88 @@ deferred retract.
 
 ### #6946: keep the live probe on the partial index at chunk size
 
-The boundary recorded above (the alive probe abandoning the migration-118
-partial index once the candidate array reaches lock-chunk size) has two
-causes, both proven on the private Postgres 18 stack with the same seed as
-the shim table (2,000 active scopes, each with a superseded generation, 100
-admitted uids per generation; 400,000 `reducer_cloud_resource_identity`
-rows; `ANALYZE` after seeding; every measurement a rolled-back transaction
-unless stated):
+Cause. Postgres does not use a partial index's expression statistics for
+planning, so `payload->>'cloud_resource_uid' = ANY($1)` gets the default
+selectivity per array element: 2,000 rows per candidate on this seed, so a
+500-candidate lock chunk looks like most of the table and the planner walks
+`ingestion_scopes` into `fact_records_scope_generation_idx` instead of
+probing the migration-118 partial index. It holds in both plan modes. The
+retracter calls the probe through pgx's default
+`QueryExecModeCacheStatement` (no override in-tree), so after five
+executions per pooled connection PostgreSQL compares the generic plan's cost
+(53.79) with the custom plan's (1,350.58) and settles on the generic plan;
+the generic walk is the worse one, because it probes the index once per
+scope with the array unknown.
 
-1. Estimate. Postgres does not use a partial index's expression statistics
-   for planning, so `payload->>'cloud_resource_uid' = ANY($1)` gets the
-   default 0.5% selectivity per element: 2,000 rows per candidate, so 500
-   candidates look like most of the table and the planner walks
-   `ingestion_scopes` into `fact_records_scope_generation_idx` (14,115
-   shared buffers, 39.6 ms). An `unnest`-driven join does not change that
-   (14,060 buffers); a MATERIALIZED CTE alone flips to a `Seq Scan` inside
-   the CTE at 500 candidates (12,078 buffers). Extended statistics on the
-   expression (`CREATE STATISTICS ... ON ((payload->>'cloud_resource_uid'))`)
-   are used: the estimate becomes 516 rows and the plan an `Index Scan
-   using fact_records_cloud_retract_admission_uid_idx` at 2 / 50 / 500
-   candidates (13 / 253 / 1,346 buffers; 0.04 / 0.23 / 1.7 ms).
-2. Join order. With the estimate right but dead tuples in the table (the
-   plan live test's earlier seeds), the planner twice chose a Merge Join
-   that scans `fact_records_scope_generation_idx` expecting early
-   termination (60-93 ms). A MATERIALIZED CTE that fetches the candidate
-   slice first removes that choice: with the statistics present the CTE
-   plans on the partial index and the outer join sees 516 rows, bloated or
-   vacuumed (1,369-1,372 buffers, 1.4-1.9 ms at 500; 328 at 50).
+Change: migration `119_cloud_resource_retract_liveness_stats.sql` only,
+`CREATE STATISTICS ... ON ((payload->>'cloud_resource_uid'))` plus
+`ANALYZE fact_records`. The probe SQL is unchanged.
 
-Change: migration `119_cloud_resource_retract_liveness_stats.sql` (extended
-statistics plus `ANALYZE`) and `liveAdmissionCloudUIDsAliveSQL`, the
-admission read as a MATERIALIZED CTE, embedded verbatim in the fenced
-probe. The shape guard asserts both. Migration 103's note that
-`CREATE STATISTICS` did not move a multi-column join estimate is a different
-case: this is a single-expression equality whose only missing input is the
-expression's own ndistinct/MCV.
+Rejected hypotheses, each measured in a rolled-back transaction on the
+private PostgreSQL 18 stack (2,000 scopes, a superseded and an active
+generation each, 100 admitted uids per generation, 400,000
+`reducer_cloud_resource_identity` rows): an `unnest`-driven join instead of
+`= ANY` (14,060 buffers, no change); a MATERIALIZED CTE fetching the
+candidate slice first without statistics (`Seq Scan` inside the CTE,
+12,078 buffers); the same CTE with the statistics present (planned
+identically to the inline read in both modes: 1,279 / 1,279 buffers
+custom, 2,467 / 2,467 generic, shim `6946-shim5`), so it was dropped from
+the change rather than shipped on a self-restating text guard. Migration
+103's note that `CREATE STATISTICS` did not move a multi-column join
+estimate is a different case: this is a single-expression equality whose
+only missing input is the expression's own ndistinct/MCV.
 
 Proof: `TestCloudResourceLivenessProbePlanStaysOnIndexAtChunkSizeLive`
-seeds the shape above, `VACUUM (ANALYZE)`s, explains the production read
-for 500 candidates and requires the partial index, no
-`fact_records_scope_generation_idx` scan, and at most 5,000 shared buffers.
-RED against the old probe without statistics ("did not use the partial uid
-index"), RED against the old probe with statistics on a bloated table (the
-Merge Join, twice), RED against the new probe with the statistics object
-dropped, GREEN after applying the migration file (three consecutive runs:
-1,700 / 1,393 / 1,393 buffers). The liveness live tests and the graph-side
-live battery pass on the new shape. The real migrator applies it: with the
-ledger row cleared and the object dropped, `docker compose run db-migrate`
-on the private stack recorded migration 119 and left
-`fact_records_cloud_retract_admission_uid_stats` analyzed
-(`pg_stats_ext_exprs` n_distinct -0.38, MCV present); the plan test then
-passed a fourth time on the migrator-applied statistics (1,693 buffers).
-Editing an already-applied migration file is not an option for the
-boundary note: the ledger checksums the whole file, comments included, and
-every existing database would refuse bootstrap.
+seeds the shape above, `VACUUM (ANALYZE)`s, derives the alive branch from
+the shipped fenced probe at its `UNION ALL` boundary, and for each of
+`force_custom_plan` and `force_generic_plan` PREPAREs it on a dedicated
+session and explains an `EXECUTE` of it (an EXPLAIN of the bare
+parameterized text is planned with the values in hand and never shows the
+generic plan). Each arm requires the partial index, no
+`fact_records_scope_generation_idx` scan, and at most 5,000 shared buffers
+on the root node (hit + read + dirtied + written; an unparseable root
+`Buffers:` line fails the arm instead of grading a child node).
 
-Performance Evidence: before/after on the same seed and host, 500-candidate
-probe: 14,115 shared buffers and 39.6 ms (scope walk) -> 1,346-1,700
-buffers and 1.4-1.9 ms (partial index); 50 candidates 253-328 buffers /
-0.2-0.4 ms; 2 candidates 13 buffers. Row multiset identical (250 alive of
-500). ANALYZE cost is paid once at migration and by autovacuum afterwards.
+| plan mode | before (no statistics) | after (migration 119) |
+| --- | --- | --- |
+| custom | scope walk, 37.7 ms in the RED run; 14,115-14,619 buffers / 39.6 ms on the shim seed | Hash Join or Merge Join over the partial index, 1,423-1,682 buffers, ~1.5 ms |
+| generic | scope walk, 733 ms in the RED run; 14,142 buffers / 580 ms on the shim seed with 800k dead tuples (a separate review measured 14,752 / 822 ms) | Nested Loop over the partial index and `ingestion_scopes_active_generation_idx`, 2,479-3,021 buffers, ~1 ms |
+
+RED: with the statistics object dropped both arms fail with "did not use
+the partial uid index". GREEN after applying the migration file: two
+two-arm runs (custom / generic) at 1,682 / 3,021 and 1,423 / 2,479
+buffers; five earlier custom-only runs at 1,700 / 1,393 / 1,393 / 1,693 /
+1,680. Buffer counts move with heap state (the test's `VACUUM (ANALYZE)`
+is table-wide and the private stack is not hermetic), which is why the
+budget sits far above the observed band and far below the walk. The
+liveness live tests and the postgres unit suite pass on the branch.
+
+The real migrator applies it: with the ledger row cleared and the object
+dropped, `docker compose run db-migrate` on the private stack recorded
+migration 119 and left `fact_records_cloud_retract_admission_uid_stats`
+analyzed (`pg_stats_ext_exprs` n_distinct -0.38, MCV present). Editing an
+already-applied migration file is not an option for a boundary note: the
+ledger checksums the whole file, comments included, and every existing
+database would refuse bootstrap.
+
+Migration 118's header records the same walk at "~204k buffers per chunk".
+That figure is the #6892 shim row above (2,000 scopes x 10 generations,
+200,000 admission facts, the since-destroyed `wt6887` stack); on this seed
+the same plan shape costs 14,115-14,619 buffers on a vacuumed heap. The
+walk fetches one heap page per matching fact per scope, so its cost tracks
+heap layout and size; the index path's does not, which is the point of the
+fix. 118's text stays as written because of the ledger.
+
+`ANALYZE fact_records` samples 30,000 rows regardless of table size
+(`default_statistics_target` 100 x 300) and took 326-328 ms on the
+400,000-row seed with 800,000 dead tuples, so the migration's duration is
+bounded by the sample, not the heap. It runs inside the migrator's 5 s
+bootstrap ownership window, whose `lock_timeout` bounds lock acquisition
+only and whose 55P03 handling hard-fails; that is a pre-existing migrator
+property that migration 118's index build already sat inside, filed as
+#6956.
+
+Performance Evidence: before/after on the same seed and host, 500-candidate probe, custom plan 14,115-14,619 buffers / 37.7-39.6 ms -> 1,423-1,682 buffers / ~1.5 ms; generic plan (production steady state) 14,142-14,752 buffers / 580-822 ms -> 2,479-3,021 buffers / ~1 ms. Alive row set unchanged (250 of 500), SQL unchanged. ANALYZE cost 326-328 ms once at migration, then autovacuum.
 
 No-Observability-Change: no new metrics, spans, or log keys; the probe's
 row counts and the per-chunk retract log are unchanged.
-
-## Performance Evidence: battery EXPLAIN, live shape, and live end-to-end (NornicDB + Postgres)
-
-- Live end-to-end (`TestLiveCloudRetractEndToEnd`, private Postgres 18 +
-  pinned NornicDB, compose project `wt6887` on ports 15532/7788): 2
-  candidates → locks + admission-drain fence + global live-check + 1 ledger
-  release + 1 uid-anchored graph delete + commit. The figure is the chunk
-  critical-section duration from the retract log (`graph node owner retract
-  chunk completed ... candidate_uids=2 retracted_uids=1 duration=...`), not
-  the whole-test wall: 6.9 ms and 32.7 ms on the two runs after the final
-  code edit (2026-09-22; the second run followed a fresh migration, cold
-  caches), 79 ms and 67 ms (replay) on the earlier host run this section
-  first recorded. Same data shape every time; the spread is host and cache
-  state, and every run is far below the 500-lock chunk's transaction budget.
-- Unit-bounded: every chunk holds at most `lockChunkSize` (500) advisory
-  locks per transaction (`TestGateRetractDeadUIDsChunksAtLockChunkSize`:
-  501 candidates open exactly 2 transactions), so no transaction can exhaust
-  the advisory-lock table (#5007 P2-1).
-- Cypher batching: deletes batch at the writer batch size through sequential
-  `Execute` only, never `ExecuteGroup` (#4367 under-apply precedent), and are
-  NOT marked for the bounded-drain rewrite — `UNWIND` batching already bounds
-  each execution to point lookups, and the drain rewrite's `ORDER BY
-  elementId` would add a sort over them.
-- No-regression on existing paths: the retract is additive and nil-safe —
-  handlers without `NodeRetracter`/`PriorGeneration` wired execute zero new
-  statements (proven by every pre-existing materialization test passing
-  unchanged); the read path is untouched. The EC2 tuple live-check has no new
-  index: it runs only when EC2 delete candidates exist and filters the
-  posture-kind slice (same access shape as the pre-index admission probe);
-  a dedicated tuple index ships only if the gate shows pain.
-
-## Observability Evidence: per-chunk retract log plus handler completion counts
-
-- New per-chunk `graph node owner retract chunk completed` INFO log
-  (`family`, `candidate_uids`, `retracted_uids`, `duration`,
-  `component=graphowner`): shows the conflict domain, diff pressure, delete
-  yield, and critical-section hold time. Emitted only when candidates exist;
-  the empty-diff case opens no transaction and logs nothing new.
-- Handler completion logs (`aws/azure/gcp resource materialization
-  completed`, `ec2 instance node materialization completed`) gain
-  `retracted_node_count` and `retract_duration_seconds`; `EvidenceSummary`
-  gains the `N dead node(s) retracted` clause. No new metric instruments:
-  the counts ride the existing completion-log and contention-counter
-  (`eshu_dp_cross_scope_ownership_contended_rows_total`) signals.
-
-## Correctness proof matrix
-
-- `TestCloudResourceLivenessLive` (live PG): cross-scope shared uid stays
-  live; superseded-only, tombstoned, pending-generation, and never-existed
-  uids read dead; EC2 arn-fallback and blank-type normalization read live;
-  identity-free candidates read dead; ledger release deletes the row and is
-  idempotent.
-- `TestGateRetractDeadUIDs*` (unit): live candidates never released or
-  deleted; all-alive commits without writes; empty input opens no
-  transaction; deletes run in sorted uid order without mutating the input;
-  liveness errors and delete errors both roll back (release never commits
-  without its delete); a failed delete logs the family and sorted uid set of
-  the ledger-vs-graph ghost and returns an error naming the delete step
-  (`TestGateRetractDeadUIDsLogsGhostOnDeleteError`); nil-ledger skips the
-  retract (fail-closed, never an over-delete); chunk bound holds.
-- `TestCloudResourceLivenessRefusesUndrainedAdmissionLive` (live PG): the
-  admission-drain fence above — undrained active admission refuses, drained
-  answers, non-active nonterminal items are ignored.
-- `TestLiveCloudRetractEndToEnd` (live PG + live graph): multi-scope
-  adversarial layout — node live in scope B survives, history-only node is
-  deleted and ledger-released, replay reconverges deterministically.
-- Handler tests (AWS/Azure-shaped + EC2): predecessor-only uids become
-  candidates; first generation, unwired seams, and empty diffs stay silent;
-  retract failure fails the intent for durable retry.
-- Writer tests: uid-anchored `MATCH` + `DETACH DELETE`, no `MERGE`, no
-  `evidence_source` predicate, UNWIND batching, sequential dispatch,
-  fail-closed nil executor.
