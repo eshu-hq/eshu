@@ -89,8 +89,14 @@ type, changes a signature, or renames an exported identifier.
 
 ## The tree
 
-Parents carry only a doc trio (`doc.go`, `README.md`, `AGENTS.md`); the files
-live in the leaves.
+Files live in the leaves. A parent that holds no package of its own holds
+nothing at all: `query/graph/` and `query/package/` are already empty
+directories containing only their children, and `scripts/verify-package-docs.sh`
+agrees — it requires the `doc.go`/`README.md`/`AGENTS.md` trio only of
+directories that contain package source. The issue's definition of done says
+"every new directory carries `doc.go`/`README.md`/`AGENTS.md`"; read against
+the gate and the existing tree, that means every new directory **with Go code
+in it**.
 
 | parent | leaves (← current name) |
 | --- | --- |
@@ -251,7 +257,14 @@ this rule comes from is recorded in
 
 ## Per-directory arithmetic
 
-Every directory after the plan, with the file counts that prove the cap holds.
+Every directory after the plan, with its non-test file count.
+The three at 40 are at 40 on `origin/main` today and this plan adds nothing to
+them, but they have zero headroom and the next file added to any of them fails
+CI. `repository` is the one directory this plan does not bring under the cap —
+the measurement and the reason are in
+[what the moves cost](6642-query-move-cost.md#the-other-three-over-cap-directories),
+and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
+
 | directory | non-test files |
 | --- | ---: |
 | `query/ (root)` | 5 |
@@ -272,7 +285,7 @@ Every directory after the plan, with the file counts that prove the cap holds.
 | `query/cicd` | 5 |
 | `query/cloud` | 5 |
 | `query/cloud/drift` | 6 |
-| `query/code` | 38 |
+| `query/code` | 39 |
 | `query/code/chain` | 5 |
 | `query/code/deadcode` | 13 |
 | `query/code/divergence` | 10 |
@@ -286,7 +299,7 @@ Every directory after the plan, with the file counts that prove the cap holds.
 | `query/code/routes` | 4 |
 | `query/code/seam` | 2 |
 | `query/code/search` | 3 |
-| `query/code/shaping` | 5 |
+| `query/code/shaping` | 4 |
 | `query/code/visualization` | 2 |
 | `query/collector` | 8 |
 | `query/compare` | 4 |
@@ -354,13 +367,10 @@ Every directory after the plan, with the file counts that prove the cap holds.
 | `query/openapi/schema` | 3 |
 | `query/package/registry` | 18 |
 | `query/playbook` | 9 |
-| `query/repository` | 32 |
+| `query/repository` | 45 **← OVER, see UNDECIDED** |
 | `query/repository/artifacts` | 20 |
-| `query/repository/deployment` | 4 |
 | `query/repository/readmodel` | 5 |
 | `query/repository/seam` | 3 |
-| `query/repository/semantics` | 4 |
-| `query/repository/story` | 5 |
 | `query/secrets` | 9 |
 | `query/selector` | 3 |
 | `query/semantic` | 2 |
@@ -384,10 +394,6 @@ Every directory after the plan, with the file counts that prove the cap holds.
 | `query/workitem` | 12 |
 | `query/workload` | 1 |
 
-Directories: 129. Total non-test files: 1184. Maximum: 40.
-Over cap: none.
-
-Three directories land at exactly 40 — `capability/matrix`, `code/model` and
-`impact`. All three are at 40 on `origin/main` today and this plan adds nothing
-to them, but they have zero headroom and the next file added to any of them
-fails CI.
+126 directories, 1184 non-test files.
+At the cap with zero headroom: `query/capability/matrix`, `query/code/model`, `query/impact`.
+Over the cap: `query/repository` (45).

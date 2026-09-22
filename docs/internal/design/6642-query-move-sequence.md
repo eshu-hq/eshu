@@ -20,7 +20,7 @@ order is the shared spine: nothing moves before PR 1.
 | 6 | `auth/` ← `queryauth` + the 52 root auth files, nested five ways | 60 | the largest root family; `auth/route/` alone is 24 files |
 | 7–30 | **one parent per PR, smallest first.** 24 PRs covering 33 leaves and 145 files: `decode` (1), `workload` (1), `dependency` (2), `observability/coverage` (2), `terraform/drift` (2), `kubernetes` (3), `metrics` (3), `compare` (4), `cicd` (5), `ask` (6), `collector` (8), `documentation` (8), `evidence` (10), `status` (14), the three seam leaves `code/seam` (2), `repository/seam` (3) and `impact/seam` (5), and the parent-grouped `semantic` (3), `graph` (5), `image` (8), `investigation` (11), `supply/chain` (7), `cloud` (11), `infra` (21) | 145 | independent of each other once PR 1 lands |
 | 31 | `code/` ← `codequery` + the four `code*` siblings | 102 | large but mechanical; `CodeHandler` is **not** renamed here |
-| 32 | `repository/` nesting + `repository/artifacts` ← `repositoryartifacts` | 65 | queryplan pins regenerate |
+| 32 | `repository/artifacts` ← `repositoryartifacts` (rename only); `repository/` itself stays at 45 pending the UNDECIDED below | 20 | queryplan pins regenerate |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,509 external references | −21 | each family's aliases can only die after that family has moved |
 | 35 | Root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row entirely | — | definition of done |
@@ -45,8 +45,10 @@ real code. That is a separate change on top of PR 31.
   `.github/workflows`, `Makefile` and `scripts/` before trusting a green
   default run.
 - Golden corpus (B-7) and e2e snapshot (B-12) byte-identical, or stop.
-- Every new directory carries `doc.go`, `README.md` and `AGENTS.md` with real
-  content; `scripts/verify-package-docs.sh` passes.
+- Every new directory that contains Go code carries `doc.go`, `README.md` and
+  `AGENTS.md` with real content; `scripts/verify-package-docs.sh` passes. A
+  namespace parent with no package of its own carries nothing, matching
+  `query/graph/` and `query/package/` today.
 - Dirgate row re-pinned DOWN in the same PR, `grandfather.go` regenerated —
   see [Restack rule](#restack-rule-the-dirgate-ledger-trap).
 - Citation sweep. **216 path citations across `docs/`, `specs/`, `.agents/` and
@@ -98,13 +100,26 @@ Owner calls this plan does not make.
    router-level tests stay and convert to `package query_test` — changes how
    about 400 files are treated and should be agreed before PR 6, not argued
    per PR.
-5. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
+5. **`repository` does not reach the cap and this plan will not guess how.**
+   Fourteen of its 45 files pin to `Handler`, and of the other 31 exactly one
+   has no inbound reference. Three cohesive leaves — `story` (5),
+   `semantics` (4), `deployment` (4) — were each tested and each crosses the
+   boundary in both directions, so each would be an import cycle; `story` and
+   `deployment` also cross each other both ways. Getting under 40 needs a real
+   seam: hoist the shared row helpers into `contract/`, or split the `Handler`
+   type. Both are design changes rather than moves, and both are outside what
+   this issue's Scope section authorizes ("Move and rename"). The options are
+   (a) do that design work as its own issue, (b) accept `repository` keeping
+   its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
+   one place the definition of done is not met by the plan as written.
+
+6. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
    invented here for root files that adapt one family to another
    (`repository_authz.go`, `code_seam.go`, `family_impact_*.go`). After PR 1
    deletes the `repositoryAccessFilter` forwarders, `repository/seam` may
    collapse to two files and be worth folding into `contract/` instead. Left
    as leaves here so the mapping is complete; revisit at PR 32.
-6. **`CodeHandler`.** Not renamed by this plan, per the issue's own
+7. **`CodeHandler`.** Not renamed by this plan, per the issue's own
    precondition and #6649. Whether it is renamed at all is still open.
 
 ## Checklist
@@ -119,7 +134,7 @@ Updated as each PR lands.
 - [ ] PR 6 — `auth/`
 - [ ] PR 7–30 — 24 leaf PRs, smallest first
 - [ ] PR 31 — `code/`
-- [ ] PR 32 — `repository/`
+- [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 5)
 - [ ] PR 33 — Part B, `content/`
 - [ ] PR 34 — alias sweep
 - [ ] PR 35 — root at 5 files; dirgate row retired

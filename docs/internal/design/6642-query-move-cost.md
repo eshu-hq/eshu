@@ -187,34 +187,66 @@ files, zero references in either direction.
 
 ## The other three over-cap directories
 
+Each proposed split was tested, not assumed. The test: build the file-level
+reference graph inside the package, assign files to the proposed leaf, and check
+whether references cross the boundary in **both** directions. A two-way crossing
+is an import cycle once the leaf becomes its own package, and no amount of
+exporting fixes it.
+
+Two of the three hold. One does not.
+
 | directory | now | action | after |
 | --- | ---: | --- | ---: |
-| `repository` | 45 | nest `story` (5), `semantics` (4), `deployment` (4) | 32 |
-| `testutil` ← `querytestutil` | 42 | nest `content` (10), `graph` (8) | 24 |
-| `code` ← `codequery` | 41 | delete `aliases.go`; `responses.go` → `code/shaping`; `handler_tracing.go` → `span` | 38 |
+| `testutil` ← `querytestutil` | 42 | nest `content` (10) and `graph` (8) | 24 |
+| `code` ← `codequery` | 41 | delete `aliases.go`; `handler_tracing.go` → `span` | 39 |
+| `repository` | 45 | **no relocation-only split exists** — see below | 45 |
 
-`repository`: 14 of its 45 files declare methods on `Handler` and pin
-together; the three proposed leaves are drawn only from the other 31.
-`story.go`, `story_counts.go`, `story_deployment_evidence.go`,
-`deployment_overview_story.go` and `narrative_enrichment.go` are free;
-`story_coverage.go` declares `Handler` methods and stays. The existing
-`//nolint:dirgate` warns that "splitting a subpackage rechurns the queryplan
-file pins" — that is a regeneration obligation on the move PR, not a reason
-not to split.
-
-`testutil`: the de-stutter pass forces this one on its own. Nineteen of its
-files are glued compounds that naming.md rule 3 rejects —
-`contentreaderargs.go`, `deadcodecontentstore.go`,
+**`testutil` is clean.** Both proposed leaves are fully isolated: zero
+references cross the boundary in either direction. The de-stutter pass forces
+this split on its own anyway — nineteen of its files are glued compounds that
+naming.md rule 3 rejects (`contentreaderargs.go`, `deadcodecontentstore.go`,
 `patternconsumersearchcontentstore.go`, `evaluatingrepositorygraph.go`,
-`fakegraphreaderwithsingle.go` and their siblings. Nesting them as
-`testutil/content/reader_args.go`, `testutil/content/dead_code_store.go`,
-`testutil/graph/reader.go` and so on both fixes the names and clears the cap.
+`fakegraphreaderwithsingle.go` and siblings). Nesting them as
+`testutil/content/reader_args.go`, `testutil/content/dead_code_store.go` and
+`testutil/graph/reader.go` fixes the names and clears the cap in one move.
 
-`code`: 33 of 41 files declare `CodeHandler` methods and cannot separate.
-The three changes above come from the eight that do not, and none of them
-touches the `divergenceStore` seam that `codequery/doc.go:39` protects — that
-marker explicitly refuses a divergence subpackage, so this plan does not
-propose one.
+**`code` clears by two files, and only two.** Thirty-three of its 41 files
+declare `CodeHandler` methods and cannot separate. Of the eight that remain,
+three candidates were tested and two failed:
+
+| candidate | references out | references back | verdict |
+| --- | ---: | ---: | --- |
+| `handler_tracing.go` → `span/` | 1 | 0 | one-way, safe |
+| `responses.go` → `code/shaping/` | 4 | 9 | **cycle** |
+| `wrapper_bypass.go` + `_cypher.go` → `code/bypass/` | 12 | 2 | **cycle** |
+
+So the action is `handler_tracing.go` to `span/` plus deleting
+`codequery/aliases.go`, which the no-alias rule condemns anyway: it is a file of
+"plain type alias or thin forwarder onto querycontract", by its own header
+comment. Deleting it means qualifying its call sites with `querycontract.`
+inside the package — mechanical, but the widest edit in that PR. 41 − 2 = 39.
+This plan does not propose a divergence subpackage; `codequery/doc.go:39`
+explicitly refuses one, and the tested candidates above are the alternatives.
+
+**`repository` has no relocation-only split, and this plan does not invent
+one.** Fourteen of its 45 files declare methods on `Handler` and pin together.
+Of the remaining 31, exactly **one** — `capability.go`, a file of two
+constants — has no inbound reference from the rest of the package. Three
+cohesive groups were proposed and all three failed the cycle test:
+
+| proposed leaf | files | stay → leaf | leaf → stay | verdict |
+| --- | ---: | ---: | ---: | --- |
+| `repository/story` | 5 | 8 | 13 | **cycle** |
+| `repository/semantics` | 4 | 1 | 2 | **cycle** |
+| `repository/deployment` | 4 | 3 | 1 | **cycle** |
+
+`story` and `deployment` also cross each other in both directions. The existing
+`//nolint:dirgate` on `repository/doc.go:16` reaches the same conclusion from a
+different angle, citing the queryplan file pins. Getting `repository` under 40
+needs a real seam — hoisting shared row helpers into `contract/`, or splitting
+`Handler` — which is a design change, not a move. It is recorded as UNDECIDED
+rather than guessed at, and `repository` is the one directory this plan does
+not bring under the cap.
 
 ## What stays at root
 
