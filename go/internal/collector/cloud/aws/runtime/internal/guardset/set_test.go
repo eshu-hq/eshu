@@ -73,7 +73,7 @@ func TestServiceFromImportPath(t *testing.T) {
 // TestDiff is the core guard proof. It must report a difference whenever the
 // directory set and the import set disagree, and report none when they match.
 // The "dir present but not imported" case is the real failure mode the guard
-// protects against: a scanner author adds services/<x>/bind/ but forgets
+// protects against: a scanner author adds service/<x>/bind/ but forgets
 // the all.go blank import.
 func TestDiff(t *testing.T) {
 	cases := []struct {

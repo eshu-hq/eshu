@@ -118,11 +118,11 @@ estate and its drift intent live in
 - `internal/workflow` for durable work item claims.
 - AWS SDK for Go v2 `config`, `sts`, and credential cache support.
 
-This package no longer imports individual `services/<svc>` or `sdk`
+This package no longer imports individual `service/<svc>` or `sdk`
 packages directly. Each scanner registers itself from
-`services/<svc>/bind/init()`, and the command pulls every binding
-through `runtime/bindings`. That keeps adding a new AWS scanner additive:
-no file in this package changes.
+`service/<svc>/bind/register.go` (`init()`), and the command pulls every
+binding through `runtime/bindings`. That keeps adding a new AWS scanner
+additive: no file in this package changes.
 
 ## Telemetry
 
