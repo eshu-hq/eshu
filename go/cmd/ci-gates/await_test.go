@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -194,9 +193,12 @@ func TestChangedPathsForPR_UsesPaginatedFilesAPI(t *testing.T) {
 		{output: `[[{"filename":"go/new.go","previous_filename":"go/old.go"},{"filename":"docs/index.md"}]]`},
 		{output: "2\n"},
 	}}
-	got, err := changedPathsForPR(context.Background(), runner, "eshu-hq/eshu", 42)
+	got, truncated, err := changedPathsForPR(context.Background(), runner, "eshu-hq/eshu", 42)
 	if err != nil {
 		t.Fatalf("changedPathsForPR returned error: %v", err)
+	}
+	if truncated {
+		t.Fatal("complete pull-files response must not report truncation")
 	}
 	want := []string{"go/new.go", "go/old.go", "docs/index.md"}
 	if !reflect.DeepEqual(got, want) {
@@ -214,19 +216,41 @@ func TestChangedPathsForPR_UsesPaginatedFilesAPI(t *testing.T) {
 	}
 }
 
-func TestChangedPathsForPR_FailsClosedOnTruncatedFilesResponse(t *testing.T) {
+func TestChangedPathsForPR_ReportsTruncationOnCappedFilesResponse(t *testing.T) {
 	t.Parallel()
 
+	// The pull-files endpoint caps at 3000 entries, so a giant PR reports
+	// fewer files than changedFiles. The response flags truncation so the
+	// caller selects every blocking gate (fail closed in the safe
+	// direction) instead of silently under-selecting from a partial list.
+	// Per-commit union is not a fallback: single-commit file lists cap at
+	// 300 entries, so the union is partial too.
 	runner := &scriptedGHRunner{results: []scriptedGHResult{
 		{output: `[[{"filename":"go/a.go"}]]`},
 		{output: "3001\n"},
 	}}
-	_, err := changedPathsForPR(context.Background(), runner, "eshu-hq/eshu", 42)
-	if err == nil {
-		t.Fatal("truncated pull-files response must fail closed")
+	_, truncated, err := changedPathsForPR(context.Background(), runner, "eshu-hq/eshu", 42)
+	if err != nil {
+		t.Fatalf("truncated pull-files response must report truncation, not error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "1 of 3001") {
-		t.Fatalf("truncation error should report returned and expected counts: %v", err)
+	if !truncated {
+		t.Fatal("capped pull-files response must report truncated=true")
+	}
+	if len(runner.calls) != 2 {
+		t.Fatalf("truncation must not trigger further listing calls; calls = %v", runner.calls)
+	}
+}
+
+func TestChangedPathsForPR_FailsClosedWhenCountUnreadable(t *testing.T) {
+	t.Parallel()
+
+	runner := &scriptedGHRunner{results: []scriptedGHResult{
+		{output: `[[{"filename":"go/a.go"}]]`},
+		{err: errors.New("exit status 1")},
+	}}
+	_, _, err := changedPathsForPR(context.Background(), runner, "eshu-hq/eshu", 42)
+	if err == nil {
+		t.Fatal("unreadable changed-file count must fail closed")
 	}
 }
 

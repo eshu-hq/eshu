@@ -173,59 +173,64 @@ fi
 # non-comment, non-whitespace added/removed line. Files absent from the map had
 # no diff at all; files mapped to 0 had only comments/blanks; files mapped to 1
 # had real code changes. Keep this Bash-3 compatible for macOS hook runners.
+#
+# Built with a single awk pass, not a bash while-read loop: the loop version
+# is O(n^2) (string-append per diff line) and takes ~6 minutes on a 108k-line
+# diff, which trips the 20-minute CI step timeout on large rename PRs. The awk
+# pass handles the same diff in under a second with output identical to the
+# old loop (proven by diffing the byte-verbatim old loop against this pass on
+# a real 108k-line PR diff plus a crafted six-class diff; the only
+# differences are the stripped trailing newline, which the awk-based lookup
+# in is_comment_only_change below does not read, and /* openers, which the
+# old misquoted middle arms misread as code -- see the +/- arm comment).
+# Do not revert to a per-line shell loop; see
+# scripts/test-verify-performance-evidence.sh (large-diff case) and
+# scripts/test-verify-performance-evidence-large-marker.sh.
 _perf_code_change_map=""
 if [ -n "${_perf_diff_cache}" ]; then
-  _perf_cur=""
-  while IFS= read -r line; do
-    case "${line}" in
-      "+++ b/"*)
-        _perf_cur="${line#+++ b/}"
-        # Deleted files show /dev/null; rename targets show new path.
-        if [ "${_perf_cur}" != "/dev/null" ] && [ "${_perf_cur}" != "b/dev/null" ]; then
-          _perf_code_change_map="${_perf_code_change_map}${_perf_cur}"$'\t'"0"$'\n'
-        else
-          _perf_cur=""
-        fi
-        ;;
-      "+++ /dev/null")
-        # Deleted-file new-path header (git writes "+++ /dev/null", no b/
-        # prefix, so the "+++ b/"* arm above does not catch it). Reset the
-        # current file: otherwise this header matches the "+"* arm below and,
-        # together with the deleted file's removed lines (now matched by "-"*),
-        # would be attributed to the PREVIOUS file's map entry and wrongly flip
-        # a comment-only prior change to a code change.
-        _perf_cur=""
-        ;;
-      "--- a/"*|"--- /dev/null")
-        # Old-path diff header (--- a/foo, or --- /dev/null for a new file).
-        # It starts with "-", so it must be excluded before the removed-line
-        # arm below (which now matches "-"*), or it would be misread as removed
-        # content and wrongly flip the current file to a code change.
-        continue
-        ;;
-      "+"*|"-"*)
-        [ -z "${_perf_cur}" ] && continue
-        _perf_payload="${line:1}"
-        # Comment or blank: Go line (//), block markers (/* * */), shell/
-        # YAML (#), or empty. Anything else flips the file to code-change.
-        case "${_perf_payload}" in
-          "//"*|"/"*"|"*"*"|"#"*|"") continue ;;
-        esac
-        _perf_code_change_map="${_perf_code_change_map}${_perf_cur}"$'\t'"1"$'\n'
-        ;;
-    esac
-  # Feed the loop via process substitution rather than a `<<<` here-string:
-  # bash 5.3.x hangs indefinitely on a here-string that feeds a while-read loop
-  # once the diff crosses a byte threshold (reproduced on Homebrew bash 5.3.15,
-  # Apple Silicon; 0% CPU, never returns). printf restores the trailing newline
-  # that `<<<` would have added, so the final diff line is still read — using
-  # `printf '%s'` (no newline) would drop it because _perf_diff_cache is captured
-  # via command substitution, which strips the trailing newline, and a
-  # last-line-only hot change would then be misread as comment-only. Do not
-  # revert to `<<<` or to `printf '%s'`; see
-  # scripts/test-verify-performance-evidence.sh (large-diff and last-line cases).
-  done < <(printf '%s\n' "${_perf_diff_cache}")
-  unset _perf_cur _perf_payload
+  _perf_code_change_map="$(printf '%s\n' "${_perf_diff_cache}" | awk '
+    substr($0, 1, 6) == "+++ b/" {
+      cur = substr($0, 7)
+      # Deleted files show /dev/null; rename targets show new path.
+      if (cur != "/dev/null" && cur != "b/dev/null") {
+        print cur "\t0"
+      } else {
+        cur = ""
+      }
+      next
+    }
+    $0 == "+++ /dev/null" {
+      # Deleted-file new-path header (git writes "+++ /dev/null", no b/
+      # prefix). Reset the current file: otherwise this header matches the
+      # +/- arm below and, together with the deleted file'"'"'s removed lines,
+      # would be attributed to the PREVIOUS file'"'"'s map entry and wrongly
+      # flip a comment-only prior change to a code change.
+      cur = ""
+      next
+    }
+    substr($0, 1, 6) == "--- a/" || $0 == "--- /dev/null" {
+      # Old-path diff header (--- a/foo, or --- /dev/null for a new file).
+      # It starts with "-", so it must be excluded before the removed-line
+      # arm below, or it would be misread as removed content and wrongly
+      # flip the current file to a code change.
+      next
+    }
+    substr($0, 1, 1) == "+" || substr($0, 1, 1) == "-" {
+      if (cur == "") next
+      payload = substr($0, 2)
+      # Comment or blank: Go line (//), block-open (/*), shell/YAML (#),
+      # or empty. Anything else flips the file to code-change. This
+      # matches the old bash classifier byte-for-byte except for /*
+      # (the old misquoted middle arms were dead, so /* used to read as
+      # code; treating the opener as a comment honors the documented
+      # block-marker intent). Single-/-led lines (/usr/bin/foo), */
+      # closers, and bare-*-led lines stay code: fail-safe, matching old
+      # behavior (eshu-hq/eshu#6969 review).
+      first = substr(payload, 1, 1)
+      if (payload == "" || substr(payload, 1, 2) == "//" || substr(payload, 1, 2) == "/*" || first == "#") next
+      print cur "\t1"
+    }
+  ')"
 fi
 
 # True when every added/removed line in the diff for `path` is a comment
