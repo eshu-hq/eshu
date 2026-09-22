@@ -298,7 +298,7 @@ const Routes = `
                     },
                     "partial_reasons": {
                       "type": "array",
-                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, or infrastructure_truncated when a healthy infrastructure read landed past its bound; always present so the envelope shape is stable.",
+                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, relationships_read_degraded or consumers_read_degraded when one of the other auxiliary graph reads failed (each read has its own <read>_read_degraded value), or infrastructure_truncated when a healthy infrastructure read landed past its bound; always present so the envelope shape is stable.",
                       "items": {"type": "string"}
                     }
                   }
@@ -345,7 +345,7 @@ const Routes = `
                     "coverage_summary": {"type": "object"},
                     "limitations": {
                       "type": "array",
-                      "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, or story_rows_truncated when the workload/platform/language narrative rows landed past their bound; always present so the envelope shape is stable.",
+                      "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, relationships_read_degraded when the outgoing dependencies read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, or story_rows_truncated when the workload/platform/language narrative rows landed past their bound; always present so the envelope shape is stable.",
                       "items": {"type": "string"}
                     },
                     "truncated": {"type": "boolean", "description": "True when the workload/platform/language narrative rows landed past repositoryStoryStringRowLimit and were capped, OR the auxiliary infrastructure read landed past its own bound; always present so the envelope shape is stable."},

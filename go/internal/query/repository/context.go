@@ -50,7 +50,9 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	relationshipReadModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
 	partialReasons := make([]string, 0)
 	if relationshipReadModel != nil {
+		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployable_unit_relationships")
 		deployableUnitRows, deployableUnitDegraded := queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params)
+		timer.Done(ctx, degradedReadLogAttrs(len(deployableUnitRows), deployableUnitDegraded, deployableUnitRelationshipsReadDegradedReason)...)
 		if deployableUnitDegraded {
 			partialReasons = append(partialReasons, deployableUnitRelationshipsReadDegradedReason)
 		}
