@@ -1,0 +1,14 @@
+docs/internal/evidence/6786-nornicdb-400-409-exposure.md
+  h_78a442cba0b3e6 1,4,69,96-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3a6a9b4f679cc6c970a165722aebb6e9d3ad31c5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
