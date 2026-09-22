@@ -277,6 +277,31 @@ exporting fixes it.
 
 Two of the three hold. One does not.
 
+The test itself was checked against the compiler before being trusted, on both
+polarities, in a throwaway worktree off `origin/main` `44e5607db`:
+
+```
+# GREEN: a leaf the test calls acyclic
+  querycontract/{cross_repo_dead_code_reads,dead_code_incoming_edge}.go
+  -> querycontract/code/, package code
+  go build ./internal/query/querycontract/...        exit 0
+
+# RED: a leaf the test calls cyclic
+  repository/{story,story_counts,story_deployment_evidence,
+              deployment_overview_story,narrative_enrichment}.go
+  -> repository/story/, package story
+  go build ./internal/query/repository/...           fails BOTH ways:
+    story/core.go:76     undefined: buildRepositorySemanticStory
+    story/counts.go:73   undefined: queryRepositoryFileCount
+    story/deployment_overview.go:160  undefined: intValue
+    repository/deployment_overview.go:54  undefined: buildOverviewDeliveryFamilyStory
+    repository/deployment_overview.go:59  undefined: buildOverviewTopologyStory
+```
+
+The `repository` failure is the two-way crossing made concrete: the leaf cannot
+see what stays, and what stays cannot see the leaf. The probe worktree was
+removed; nothing of it is in this branch.
+
 | directory | now | action | after |
 | --- | ---: | --- | ---: |
 | `testutil` ← `querytestutil` | 42 | nest `content` (10) and `graph` (8) | 24 |
