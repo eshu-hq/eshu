@@ -75,11 +75,12 @@ package, and the count is the honest size of that PR.
 
 This is the finding that changes the plan, and it was missed on the first pass.
 
-Build the destination graph — one node per destination in
-[the mapping](6642-query-file-mapping.md), one edge wherever a file references a
-symbol declared in a file bound for a different destination — and run a
-strongly-connected-component pass over it. **Thirty-eight of the 45
-destinations fall into a single component.** Every one of them mutually
+Build the destination graph — 45 nodes, being the 42 destinations in
+[the mapping](6642-query-file-mapping.md) plus the root spine, the alias files,
+and `semantic_evidence.go` which splits across two; one edge wherever a file
+references a symbol declared in a file bound for a different node — and run a
+strongly-connected-component pass over it. **Thirty-eight of the 45 nodes fall
+into a single component.** Every one of them mutually
 depends on another, so none of them can become a Go package while the others
 stand still.
 
