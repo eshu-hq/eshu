@@ -141,6 +141,7 @@ _perf_build_content_hot_set() {
       chunk_status=$?
       if [ "$chunk_status" -gt 1 ]; then
         printf 'verify-performance-evidence: hot-content scan failed\n' >&2
+        _perf_drop_content_hot_set
         return 1
       fi
       chunk=()
@@ -156,10 +157,19 @@ _perf_build_content_hot_set() {
     chunk_status=$?
     if [ "$chunk_status" -gt 1 ]; then
       printf 'verify-performance-evidence: hot-content scan failed\n' >&2
+      _perf_drop_content_hot_set
       return 1
     fi
   fi
   return 0
+}
+# Drops a partially-filled content-hot set so the next query rebuilds it
+# from scratch instead of grepping partial data. Without this, one bad chunk
+# would poison every later lookup: the set variable stays set, the rebuild
+# is skipped, and files missing from the partial set read as pattern-free.
+_perf_drop_content_hot_set() {
+  rm -f "$_perf_content_hot_file"
+  _perf_content_hot_file=""
 }
 is_hot_path_by_content() {
   local path="$1"
@@ -176,11 +186,10 @@ is_hot_path_by_content() {
       esac
       [ -f "$repo_root/$changed_path" ] && printf '%s\n' "$repo_root/$changed_path" >>"$scan_list"
     done
-    # No scannable Go files: every query misses, same as an empty rg result.
-    if [ ! -s "$scan_list" ]; then
-      rm -f "$scan_list"
-      return 1
-    fi
+    # The caller guarantees this file exists on disk and is a changed *.go,
+    # so it is always added above: the list cannot be empty here. An empty
+    # rg result still builds an empty set file, and the grep below misses,
+    # exactly like a per-file `rg -q` miss.
     _perf_build_content_hot_set "$scan_list" || { rm -f "$scan_list"; return 1; }
     rm -f "$scan_list"
   fi
