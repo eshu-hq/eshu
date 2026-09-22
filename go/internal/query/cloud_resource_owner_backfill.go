@@ -63,13 +63,22 @@ const cloudResourceOwnerBackfillProjection = `
        n.collector_kind AS collector_kind,
        n.evidence_source AS evidence_source`
 
-const cloudResourceOwnerBackfillFirstPageQuery = `
-MATCH (n:CloudResource)
-RETURN ` + cloudResourceOwnerBackfillProjection + `
-ORDER BY n.uid
-LIMIT $limit`
-
-const cloudResourceOwnerBackfillNextPageQuery = `
+// cloudResourceOwnerBackfillPageQuery serves every backfill page, including
+// the first, with the same keyset predicate on n.uid. The first page passes
+// an empty $after_uid so the predicate is always present: on NornicDB,
+// `ORDER BY n.uid LIMIT $limit` with no uid range predicate scans the label
+// and runs a top-k whose cost grows with LIMIT (29.5s to 45.9s for 500 rows
+// over 150k nodes against the 10s graph-read deadline, #6842), while the
+// fenced page is served from Eshu's nornicdb_cloud_resource_uid_lookup index
+// (graph.nornicDBUIDLookupIndexes; the uid uniqueness constraint itself
+// creates no index on NornicDB) in well under a second. The fence excludes a
+// node whose uid is not a non-empty string (null, empty, or a non-string
+// value compares as null); the ledger cannot key such a node and it used to
+// abort startup as an unattributable row, and every production CloudResource
+// node is MERGEd on a non-empty composed uid. See
+// docs/public/reference/nornicdb-order-limit-pitfalls.md, "ORDER BY Plus LIMIT
+// Without A Range Predicate On The Sort Key".
+const cloudResourceOwnerBackfillPageQuery = `
 MATCH (n:CloudResource)
 WHERE n.uid > $after_uid
 RETURN ` + cloudResourceOwnerBackfillProjection + `
@@ -137,11 +146,7 @@ func (b CloudResourceOwnerBackfiller) Backfill(ctx context.Context) error {
 	pagesSeeded := 0
 	rowsSeeded := 0
 	for {
-		query := cloudResourceOwnerBackfillFirstPageQuery
-		if afterUID != "" {
-			query = cloudResourceOwnerBackfillNextPageQuery
-		}
-		rows, err := b.Graph.Run(ctx, query, map[string]any{
+		rows, err := b.Graph.Run(ctx, cloudResourceOwnerBackfillPageQuery, map[string]any{
 			"after_uid": afterUID,
 			"limit":     pageSize,
 		})

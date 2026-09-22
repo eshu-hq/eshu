@@ -167,30 +167,25 @@ func TestCloudResourceOwnerBackfillerGraphReadIsDeadlineBounded(t *testing.T) {
 func TestCloudResourceOwnerBackfillQueriesAreUIDKeysetBounded(t *testing.T) {
 	t.Parallel()
 
-	for name, query := range map[string]string{
-		"first": cloudResourceOwnerBackfillFirstPageQuery,
-		"next":  cloudResourceOwnerBackfillNextPageQuery,
+	query := cloudResourceOwnerBackfillPageQuery
+	for _, want := range []string{
+		"MATCH (n:CloudResource)",
+		"n.uid AS uid",
+		"n.resource_type AS resource_type",
+		"n.source_fact_id AS source_fact_id",
+		"ORDER BY n.uid",
+		"LIMIT $limit",
 	} {
-		t.Run(name, func(t *testing.T) {
-			for _, want := range []string{
-				"MATCH (n:CloudResource)",
-				"n.uid AS uid",
-				"n.resource_type AS resource_type",
-				"n.source_fact_id AS source_fact_id",
-				"ORDER BY n.uid",
-				"LIMIT $limit",
-			} {
-				if !strings.Contains(query, want) {
-					t.Errorf("%s query missing %q:\n%s", name, want, query)
-				}
-			}
-		})
+		if !strings.Contains(query, want) {
+			t.Errorf("backfill page query missing %q:\n%s", want, query)
+		}
 	}
-	if strings.Contains(cloudResourceOwnerBackfillFirstPageQuery, "WHERE n.uid >") {
-		t.Fatalf("first page unexpectedly has a cursor predicate:\n%s", cloudResourceOwnerBackfillFirstPageQuery)
-	}
-	if !strings.Contains(cloudResourceOwnerBackfillNextPageQuery, "WHERE n.uid > $after_uid") {
-		t.Fatalf("next page lacks indexed uid cursor predicate:\n%s", cloudResourceOwnerBackfillNextPageQuery)
+	// #6842: on NornicDB, ORDER BY n.uid LIMIT with no uid range predicate
+	// exceeds the graph-read deadline at scale; the first page must carry the
+	// same indexed keyset predicate as every later page, so one query serves
+	// every page and the first page fences on $after_uid = "".
+	if !strings.Contains(query, "WHERE n.uid > $after_uid") {
+		t.Fatalf("backfill page lacks indexed uid cursor predicate:\n%s", query)
 	}
 }
 

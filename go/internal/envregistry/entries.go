@@ -180,4 +180,5 @@ var coreEntries = []Entry{
 	{Name: "ESHU_DIFFERENTIAL_CAPTURE", Type: VarString, Subsystem: "backend-conformance", Description: "Set to 1 to record differential statement fingerprints during a gate run; recording additionally requires ESHU_DIFFERENTIAL_CAPTURE_DIR, and a stray flag alone never records outside a gate run."},
 	{Name: "ESHU_DIFFERENTIAL_CAPTURE_DIR", Type: VarString, Subsystem: "backend-conformance", Description: "Directory differential recording files land in; the run fails closed when ESHU_DIFFERENTIAL_CAPTURE is set without it."},
 	{Name: "ESHU_REPOS_DIR", Type: VarString, Subsystem: "backend-conformance", Description: "Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset."},
+	{Name: "ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_LIVE", Type: VarString, Subsystem: "backend-conformance", Description: "Set to 1 to run the opt-in CloudResource owner-ledger backfill scale proof (go/internal/query) against the disposable NornicDB named by ESHU_NEO4J_URI; it seeds 150k nodes and skips when unset."},
 }
