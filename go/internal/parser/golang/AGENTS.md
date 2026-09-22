@@ -13,9 +13,8 @@
    - **Root (`golang/`)** - payload assembly and composition:
      - `language.go`, `call_chain_metadata.go` - `Parse`, payload assembly,
        call metadata, receiver handling, and chained receiver proof
-     - `function_literal_reachability.go`, `function_value_references.go` -
-       callback/registry literal and function-value root boundaries (the
-       identifier and scope logic these lean on now lives in `symbols/`)
+     - `function_value_references.go` - the function-value root boundary
+       (the identifier and scope logic it leans on now lives in `symbols/`)
      - `embedded_sql.go`, `embedded_shell.go` - SQL and shell call-site
        extraction and line-number accounting
      - `helpers.go`, `types.go` - local forwarders to `parser/shared` and
