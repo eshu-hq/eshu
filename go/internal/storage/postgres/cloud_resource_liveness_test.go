@@ -15,7 +15,8 @@ import (
 // current-generation join, and the fact-kind scoping. A query that silently
 // dropped any of these would either over-delete (missing tombstone or
 // generation fence) or scan the wrong kind. The live proof of the full
-// statements is TestCloudResourceLivenessLive.
+// statements is TestCloudResourceLivenessLive and
+// TestCloudResourceLivenessRefusesUndrainedAdmissionLive.
 func TestCloudRetractLivenessSQLGuards(t *testing.T) {
 	t.Parallel()
 
@@ -23,7 +24,7 @@ func TestCloudRetractLivenessSQLGuards(t *testing.T) {
 		name string
 		sql  string
 	}{
-		{"admission", liveAdmissionCloudUIDsSQL},
+		{"admission_fenced", liveAdmissionCloudUIDsFencedSQL},
 		{"ec2_posture", liveEC2PostureUIDsSQL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -41,14 +42,48 @@ func TestCloudRetractLivenessSQLGuards(t *testing.T) {
 		})
 	}
 
-	if !strings.Contains(liveAdmissionCloudUIDsSQL, cloudRetractAdmissionFactKind) {
+	if !strings.Contains(liveAdmissionCloudUIDsFencedSQL, cloudRetractAdmissionFactKind) {
 		t.Errorf("admission SQL must probe kind %q", cloudRetractAdmissionFactKind)
 	}
 	if !strings.Contains(liveEC2PostureUIDsSQL, cloudRetractEC2PostureFactKind) {
 		t.Errorf("ec2 SQL must probe kind %q", cloudRetractEC2PostureFactKind)
 	}
-	if !strings.Contains(liveAdmissionCloudUIDsSQL, "= ANY($1::text[])") {
+	if !strings.Contains(liveAdmissionCloudUIDsFencedSQL, "= ANY($1::text[])") {
 		t.Error("admission SQL must probe the candidate uid array with = ANY")
+	}
+	// The admission-drain fence (#6887): both the pre-lock statement and the
+	// fenced probe must carry the same predicate — reducer-stage
+	// cloud_inventory_admission items, joined to the ACTIVE generation, in
+	// the shared nonterminal status list — and the fenced probe must read the
+	// fence and the admission rows in ONE statement so they share a snapshot.
+	for _, tc := range []struct {
+		name string
+		sql  string
+	}{
+		{"pre_lock_fence", undrainedCloudAdmissionSQL},
+		{"admission_fenced", liveAdmissionCloudUIDsFencedSQL},
+	} {
+		for _, want := range []string{
+			"fact_work_items AS work",
+			"scope.active_generation_id = work.generation_id",
+			"work.stage = 'reducer'",
+			"work.domain = 'cloud_inventory_admission'",
+			"work.status IN " + cloudAdmissionNonterminalStatusList,
+		} {
+			if !strings.Contains(tc.sql, want) {
+				t.Errorf("%s SQL missing %q:\n%s", tc.name, want, tc.sql)
+			}
+		}
+	}
+	for _, status := range []string{"'pending'", "'claimed'", "'running'", "'retrying'", "'failed'", "'dead_letter'"} {
+		if !strings.Contains(cloudAdmissionNonterminalStatusList, status) {
+			t.Errorf("nonterminal status list missing %s", status)
+		}
+	}
+	if !strings.Contains(liveAdmissionCloudUIDsFencedSQL, "UNION ALL") ||
+		!strings.Contains(liveAdmissionCloudUIDsFencedSQL, "'undrained' AS kind") ||
+		!strings.Contains(liveAdmissionCloudUIDsFencedSQL, "'alive' AS kind") {
+		t.Error("fenced admission SQL must return fence rows and alive rows from one UNION ALL statement")
 	}
 	if !strings.Contains(liveEC2PostureUIDsSQL, "UNNEST($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])") {
 		t.Error("ec2 SQL must zip candidate tuples with multi-arg UNNEST")

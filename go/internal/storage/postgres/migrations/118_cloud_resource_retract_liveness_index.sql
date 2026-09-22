@@ -8,6 +8,11 @@
 -- 150k rows per kind the filter cost scales with kind cardinality while the
 -- index probe stays constant, which is what keeps the per-candidate check
 -- bounded on the materialization write path.
+-- Boundary (see #6946): the planner serves this index for small candidate
+-- arrays; at lock-chunk size (500 candidates) it estimates ~1,000 rows per
+-- element and walks ingestion_scopes instead, ~204k buffers per chunk at
+-- 2,000 scopes x 100 admitted facts. The constant-probe argument holds on
+-- the index path only.
 --
 -- Partial (not full-expression): the predicate matches the probe exactly, so
 -- unrelated kinds pay no maintenance. CONCURRENTLY so bootstrap never blocks

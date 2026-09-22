@@ -82,22 +82,6 @@ UNION ALL
    AND fact.is_tombstone = FALSE
    AND fact.payload->>'cloud_resource_uid' = ANY($1::text[]))`
 
-// liveAdmissionCloudUIDsSQL reports which candidate uids are still admitted
-// in some scope's current generation: a live non-tombstone admission row for
-// the uid joined to its scope's active generation pointer. The
-// payload->>'cloud_resource_uid' partial index (migration
-// 118_cloud_resource_retract_liveness_index) serves the = ANY probe as a
-// point lookup; without it the planner filters the fact-kind slice.
-const liveAdmissionCloudUIDsSQL = `
-SELECT DISTINCT fact.payload->>'cloud_resource_uid' AS uid
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-WHERE fact.fact_kind = '` + cloudRetractAdmissionFactKind + `'
-  AND fact.is_tombstone = FALSE
-  AND fact.payload->>'cloud_resource_uid' = ANY($1::text[])`
-
 // liveEC2PostureUIDsSQL reports which candidate EC2 tuples still have a live
 // posture fact in some scope's current generation. The tuple predicate
 // reproduces the unscoped reader's EC2 identity exactly: blank-tolerant
