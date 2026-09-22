@@ -130,7 +130,17 @@ tracked twins running the same `eshu-code-review` skill.
 Codex discovers a role file from each config layer's `<config_folder>/agents/`
 directory. The repo's own layer is the `.codex/` folder at the checkout root
 (the same layer `.codex/config.toml` already uses), so a role committed there is
-project-scoped and tracked. That layer is **disabled while the checkout is
+project-scoped and tracked.
+
+**A directory-discovered role file must define a non-blank
+`developer_instructions`.** That path parses with `role_name_hint: None`
+(`codex-rs/agent-roles/src/loader.rs:303`), which sets `require_present` on the
+validator (`agent_role_config.rs:67-71`, `:134-157`). A role missing the field
+does not fail loudly: it is logged as a startup warning and **silently dropped**
+(`loader.rs:305-308`), so its `model` never binds and the role simply is not
+there. Treat a Codex role that appears to do nothing as this defect until
+proven otherwise. The field is also where a Codex role's prose belongs — it is
+the counterpart of the Markdown body in the Claude and opencode twins. That layer is **disabled while the checkout is
 untrusted**: add the worktree path under `[projects."<path>"] trust_level =
 "trusted"` in `~/.codex/config.toml`, and note that trust is keyed by absolute
 path, so a second checkout of the same repo needs its own entry. A

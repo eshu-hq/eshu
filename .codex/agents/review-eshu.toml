@@ -11,6 +11,10 @@ update, or merge-readiness claim. Read/run only: it never edits the tree it \
 is reviewing.
 """
 
+# Workhorse tier for Codex is Terra per the tier table. Confirm the exact id
+# against your local Codex model list before relying on this role -- the
+# opencode examples in agent-orchestration.md carry the same caveat, and a
+# stale id fails at dispatch rather than at load.
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 
@@ -26,3 +30,28 @@ model_reasoning_effort = "high"
 # doing something it should not.
 sandbox_mode = "read-only"
 approval_policy = "on-request"
+
+# Required, not optional: a role file discovered from the `agents/` directory is
+# parsed with `role_name_hint: None` (codex-rs/agent-roles/src/loader.rs:303),
+# which sets `require_present` on the developer_instructions validator
+# (agent_role_config.rs:67-71, 134-157). Without a non-blank value here the role
+# fails validation, is logged as a startup warning, and is silently dropped --
+# the binding above would never take effect.
+#
+# This is the Codex counterpart of the prose body in the Claude and opencode
+# twins: runtime boundaries only. The review method lives in the skill.
+developer_instructions = """
+Load the eshu-code-review skill and follow it. It owns the review method: proof \
+tiers, the five passes, the hostile read, the merge bar, and the verdict shape. \
+Do not restate it here. Then load whichever project skill matches the diff \
+surface before judging findings. AGENTS.md is the canon.
+
+Never edit the tree you are judging. The sandbox is read-only; an approval \
+prompt to write is the signal that you are doing something a reviewer should \
+not. Approve network access only for the read-only GitHub truth the skill \
+requires at step 6.
+
+Never run `make pre-push`, `make pre-pr`, or `make pre-pr-full`. Those belong to \
+the orchestrator, once per branch. Run focused read-only verification and paste \
+it in the handoff.
+"""
