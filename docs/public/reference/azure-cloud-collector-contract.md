@@ -16,7 +16,7 @@ truth.
 
 The first fixture-testable slice landed in `go/internal/collector/cloud/azure`.
 It registers the Azure fact constants and schema versions in
-`go/internal/facts/azure.go`, normalizes ARM resource identity, redacts the
+`go/internal/facts/cloud/azure.go`, normalizes ARM resource identity, redacts the
 provider extension payload, and emits `azure_cloud_resource` and
 `azure_collection_warning` source facts from fixture Resource Graph pages.
 

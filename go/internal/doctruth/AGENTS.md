@@ -5,7 +5,7 @@
 1. `go/internal/doctruth/README.md`
 2. `go/internal/doctruth/doc.go`
 3. `go/internal/doctruth/extractor.go`
-4. `go/internal/facts/documentation.go`
+4. `go/internal/facts/docs/documentation.go`
 5. `go/internal/telemetry/README.md`
 
 ## Invariants

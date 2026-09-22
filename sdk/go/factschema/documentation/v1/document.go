@@ -143,7 +143,7 @@ type Document struct {
 // string-search reads (go/internal/query/documentation_read_model.go), never
 // through a structured decode. This kind additionally carries its OWN schema
 // version — DocumentationSectionFactSchemaVersion ("1.1.0") in
-// go/internal/facts/documentation.go, distinct from every other kind in this
+// go/internal/facts/docs/documentation.go, distinct from every other kind in this
 // family (all "1.0.0") — because it added source-native content fields for
 // updater diffing after the base family was first defined. DocumentID and
 // SectionID together with the identity-shaping fields form

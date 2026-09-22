@@ -98,6 +98,6 @@ and `Warning`. It must remain independent from Eshu internals.
 - This package defines nine fact kinds. Adding a tenth kind or a `v2` major is
   follow-on epic work, not a casual edit. The kinds and their wire strings are
   the `facts.PackageRegistry*FactKind` constants in
-  `go/internal/facts/package_registry.go`; the parent package's `FactKind*`
+  `go/internal/facts/supply/chain/package_registry.go`; the parent package's `FactKind*`
   constants MUST stay byte-equal to them (the reducer-side drift lock
   `TestFactSchemaKindsMatchWireFactKinds` asserts it).

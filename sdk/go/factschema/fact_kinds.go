@@ -459,7 +459,7 @@ const (
 
 	// The codedataflow family's fact-kind strings are also BARE (no family
 	// prefix): they are the git collector's original, pre-Contract-System
-	// literal kinds (go/internal/facts/code_dataflow.go,
+	// literal kinds (go/internal/facts/code/dataflow.go,
 	// code_function_summary.go, code_function_source.go, code_taint.go,
 	// code_interproc.go). TestFactSchemaKindsMatchWireFactKinds (reducer side)
 	// asserts each stays byte-equal to its facts.*FactKind counterpart.

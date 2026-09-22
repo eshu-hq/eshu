@@ -11,7 +11,7 @@
 4. `go/internal/collector/confluence/client.go` - read-only HTTP client and
    permission-gap behavior
 5. `go/internal/collector/confluence/config.go` - env config validation
-6. `go/internal/facts/documentation.go` - source-neutral documentation fact
+6. `go/internal/facts/docs/documentation.go` - source-neutral documentation fact
    schema
 
 ## Invariants This Package Enforces

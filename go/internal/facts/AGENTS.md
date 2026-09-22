@@ -6,8 +6,11 @@
    surface, and invariants
 2. `go/internal/facts/models.go` — `Envelope`, `Ref`, `ScopeGenerationKey`,
    `Clone`
-3. `go/internal/facts/stableid.go` — `StableID`, the SHA-256 normalization path
-4. `go/internal/facts/doc.go` — package contract statement
+3. `go/internal/facts/encode/stable.go` — `StableID`, the SHA-256
+   normalization path. The facts root's `stableid.go` is now only a forwarder
+   to it (issue #6776).
+4. `go/internal/facts/doc.go` — package contract statement, including which
+   families still live here and which moved to a nested package
 
 ## Invariants this package enforces
 
@@ -19,7 +22,9 @@
   must not be mutated. Use `Clone` when branching or replaying.
 - **StableID determinism** — `StableID` normalizes `time.Time` values to UTC
   RFC3339Nano and sorts map keys via `json.Marshal`. Do not change the
-  normalization without migrating all stored stable keys.
+  normalization without migrating all stored stable keys. The derivation bytes
+  are pinned by `encode.TestStableIDPinsDerivationBytes` against expectations
+  computed outside Go, so a change to the hashed encoding fails there first.
 - **Tombstone handling** — `IsTombstone` is a first-class field. Any stage that
   writes graph nodes or content rows must check this flag and take the deletion
   path, not the upsert path.
@@ -29,6 +34,36 @@
   `SourceConfidence` to say whether the claim was `observed`, `reported`,
   `inferred`, or `derived`. Treat `unknown` as a compatibility fallback, not as
   the expected value for new collector work.
+
+## Nested families and the compat surface
+
+Issue #6776 moved four family groups out of this directory so it drops back
+under the 40-non-test-`.go`-file `dirgate` cap: `cloud/`, `code/`, `docs/`,
+and `supply/chain/`, plus the shared `encode/` substrate. Read the touched
+package's own `AGENTS.md` before changing a family.
+
+- **The dependency runs root → family, never back.** This package imports the
+  nested families to build `schemaVersionFamilies` and to re-export their
+  pre-move spellings. A nested family that imports `internal/facts` is an
+  import cycle; shared substrate belongs in `internal/facts/encode`.
+- **`compat_*.go` files are aliases and thin forwarders only.** No logic, no
+  new behavior. A later family move adds a stanza to the matching file and
+  does not create a new `compat_*.go`. Delete an entry when its last caller
+  has moved, not before.
+- **A rename inside a nested family is a repo-wide change.** Callers reach
+  these names as `facts.X` through the compat surface, so `go build
+  ./internal/facts/...` proves nothing about them; run `cd go && go vet ./...`.
+- **Do not name a package `documentation`.** `go/build` excludes every `.go`
+  file in a package with that name, so it compiles nowhere. That is why the
+  documentation family is `docs/`.
+- **A root file must not be named after a sibling subpackage.** `dirgate`'s
+  naming rule rejects a root file whose stem equals a sibling package name or
+  starts with `<name>_`, which is why the supply-chain compat surface is
+  `compat_supply_chain.go` and not `supply_chain.go`.
+- **This directory has no `dirgate` grandfather row any more.** It sat at 45
+  files and is now 27. Growing it back past 40 is a gate failure with no
+  ledger row to bump; split into a nested family instead. Issue #6951 holds
+  the groups still at root; issue #6950 holds retiring the compat surface.
 
 ## Common changes and how to scope them
 
@@ -42,12 +77,15 @@
 
 - **Add or change a core fact kind registry entry** → update
   `specs/fact-kind-registry.v1.yaml`, regenerate
-  `fact_kind_registry.generated.go` and `FACT_KIND_REGISTRIES.md`, and keep the
-  family constants plus schema-version helpers aligned in the same slice. Keep
-  the package leaf-only: no collector imports and no I/O.
+  `fact_kind_registry.generated.go` and `FACT_KIND_REGISTRIES.md` with
+  `bash scripts/verify-fact-kind-registry.sh`, and keep the family constants
+  plus schema-version helpers aligned in the same slice — in the owning
+  nested package when the family lives in one. Keep every package in this
+  tree leaf-only: no collector imports and no I/O.
 
-- **Change `StableID` normalization** → first understand whether existing stored
-  keys must be migrated. If yes, write a migration before merging. The stable key
+- **Change `StableID` normalization** → the function lives in
+  `internal/facts/encode`. First understand whether existing stored keys must
+  be migrated. If yes, write a migration before merging. The stable key
   is used as a deduplication signal across ingestion runs; changing it changes
   which facts are considered "same as before."
 

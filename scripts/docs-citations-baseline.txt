@@ -111,9 +111,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/servicecatalog/facts_builder.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/parser.go:223
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/resources.go:179
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:118
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:184
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:208
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
@@ -135,7 +132,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storag
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:61
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/shared_intents.go:40
 LINE docs/internal/design/4866-offlinetier-cassette-exemption.md go/internal/replay/offlinetier/materialization.go:42
-LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/facts/stableid.go:15
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/ifa/graphdump/normalize.go:32
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/projector/gcp/resource_materialization_intents.go:37
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/query/cloud_resource_dependencies.go:43
