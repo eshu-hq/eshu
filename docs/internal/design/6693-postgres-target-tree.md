@@ -180,16 +180,15 @@ promoted methods. The hoists:
   path; an injected interface would, and a forgotten wiring would leave the
   bootstrap credential retrievable after rotation.
 
-With those, the package graph has no cycle. The cost is that 11
-private `identity/local` symbols that bootstrap uses become exported, per the
-census: `countExistingLocalIdentityUsers`, `insertBootstrapLocalIdentity`,
-`insertLocalIdentityMFA`, `localIdentityBootstrapLockQuery`,
-`lockLocalIdentityMFAReset`, `normalizeBootstrapRecord`, `normalizeMFAReset`,
-`revokeLocalIdentityMFAFactorsQuery`, `revokeLocalIdentityRecoveryCodesQuery`,
+With those, the package graph has no cycle. The cost is 12 private `identity/local`
+symbols that bootstrap uses becoming exported: `consumeBootstrapCredentialQuery`
+(setup completion runs it directly, `identity_setup_completion.go:105`),
+`countExistingLocalIdentityUsers`, `insertBootstrapLocalIdentity`, `insertLocalIdentityMFA`,
+`localIdentityBootstrapLockQuery`, `lockLocalIdentityMFAReset`, `normalizeBootstrapRecord`,
+`normalizeMFAReset`, `revokeLocalIdentityMFAFactorsQuery`, `revokeLocalIdentityRecoveryCodesQuery`,
 `validateBootstrapRecord` and `validateMFAReset`. The rejected alternative was folding
-`bootstrap/` into `local/`. The census does not prove that no two children
-export the same promoted method name; that would be a compile error, so the D1
-PR finds it at build time.
+`bootstrap/` into `local/`. A same-named promoted method in two children would be a
+compile error, so the D1 PR's build catches it.
 
 **D2. `migrations/embed.go` owns the embed.** Only three non-test files read
 `BootstrapDefinitions()`: `schema.go`, `status_queries.go` and
