@@ -34,8 +34,12 @@ type nodeDeleteFunc func(ctx context.Context, uids []string, evidenceSource stri
 // IDENTICAL key derivation concurrent writers hold), resolves liveness inside
 // the lock, releases the dead uids from the owner ledger, deletes them from
 // the graph, and commits — releasing the locks only after the graph delete.
-// A chunk whose delete fails rolls back, including its ledger release, so a
-// retry re-proves liveness from scratch.
+// A chunk whose delete fails rolls back its ledger release, so a retry
+// re-proves liveness from scratch; the graph half does not roll back — the
+// delete dispatches one statement per batch, so batches before the failing
+// one are already gone from the graph while their ledger rows come back.
+// That ledger-vs-graph ghost is logged with the uid set (see retractChunk),
+// and the retry's delete is a no-op for the uids already removed.
 //
 // The returned count is dead candidates handed to the graph delete, not
 // nodes provably removed: re-issuing the delete for an already-absent node
@@ -62,6 +66,18 @@ type nodeDeleteFunc func(ctx context.Context, uids []string, evidenceSource stri
 // admitting scope's own materialization recreates the node on its next
 // generation, so the graph heals; closing it would need a cross-system
 // global lock the design deliberately avoids.
+//
+// The mirror-image window is the retracting scope's own activation: the
+// projector enqueues the materialization intent inside Project and flips
+// ingestion_scopes.active_generation_id later, in Ack's separate
+// transaction, so a worker can claim generation G's intent while the scope's
+// active pointer still names G-1. Every candidate is by definition present
+// in G-1, so all of them read alive from the scope's own predecessor and the
+// retract deletes nothing. Direction is under-delete (today's status quo),
+// and it is not self-correcting: a uid absent in both G and G+1 is never a
+// candidate again. The fence in postgres.LiveAdmissionCloudUIDs does not
+// cover this window; closing it needs the same claim-readiness requirement
+// on the scope's own activation.
 //
 // A nil Gate (or one with no ledger wired) SKIPS the retract, deliberately
 // unlike Gate.write's pass-through: without the ledger there is no per-uid
@@ -177,11 +193,21 @@ func (g *Gate) retractChunk(
 	}
 	if err := deleteNodes(ctx, dead, evidenceSource); err != nil {
 		// Roll back this chunk's ledger release so the ledger never drops a
-		// contribution whose graph delete failed. Earlier chunks already
-		// committed and stay committed — the release is idempotent and the
-		// graph delete is unconditional, so replaying them on retry
+		// contribution whose graph delete failed. The delete runs one
+		// statement per batch, so batches before the failing one are
+		// already gone from the graph while the rollback restores their
+		// ledger rows: the same ledger-vs-graph ghost as a commit failure,
+		// logged with the uid set for the same reason. Earlier chunks
+		// already committed and stay committed — the release is idempotent
+		// and the graph delete is unconditional, so replaying on retry
 		// reconverges to the same result.
-		return 0, err
+		g.logger().WarnContext(ctx, "graph node owner retract delete failed; ledger release rolled back",
+			slog.String("family", family),
+			slog.Any("uids", dead),
+			slog.String("error", err.Error()),
+			log.Component("graphowner"),
+		)
+		return 0, fmt.Errorf("graphowner: delete retract nodes for %s: %w", family, err)
 	}
 	if err := tx.Commit(); err != nil {
 		// The graph delete above already succeeded while the deferred
@@ -189,7 +215,7 @@ func (g *Gate) retractChunk(
 		// re-admission until it is reconciled. Log the uid set so the 3 AM
 		// operator can reconcile ledger-vs-graph instead of seeing
 		// "nothing to do".
-		slog.WarnContext(ctx, "graph node owner retract commit failed after graph delete",
+		g.logger().WarnContext(ctx, "graph node owner retract commit failed after graph delete",
 			slog.String("family", family),
 			slog.Any("uids", dead),
 			log.Component("graphowner"),

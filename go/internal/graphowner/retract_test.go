@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -332,5 +334,78 @@ func TestGateRetractDeadUIDsChunksAtLockChunkSize(t *testing.T) {
 		if !tx.committed {
 			t.Fatal("every chunk transaction must commit")
 		}
+	}
+}
+
+// recordingHandler collects slog records so a test can assert the retract's
+// operator warnings without touching the process default logger.
+type recordingHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+
+func (h *recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *recordingHandler) WithGroup(string) slog.Handler { return h }
+
+// TestGateRetractDeadUIDsLogsGhostOnDeleteError pins the operator signal for
+// a failed graph delete: the ledger release rolls back while any earlier
+// delete batch stayed gone, so the warning must carry the family and the
+// exact uid set to reconcile, and the returned error must be attributable
+// to the delete step.
+func TestGateRetractDeadUIDsLogsGhostOnDeleteError(t *testing.T) {
+	t.Parallel()
+
+	beginner := &fakeChunkBeginner{}
+	store := &fakeRetractStore{}
+	deleter := &retractDeleter{err: errors.New("graph delete failed")}
+	handler := &recordingHandler{}
+	gate := newRetractGate(beginner, store)
+	gate.Logger = slog.New(handler)
+
+	_, err := gate.RetractDeadUIDs(
+		context.Background(), "cloud", []string{"uid-b", "uid-a"}, "reducer/aws-resources",
+		aliveSet(), deleter.delete,
+	)
+	if err == nil {
+		t.Fatal("RetractDeadUIDs with failing deleter = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "graphowner: delete retract nodes for cloud") {
+		t.Fatalf("error = %q, want the delete step named", err)
+	}
+	if !beginner.txs[0].rolledBack || beginner.txs[0].committed {
+		t.Fatal("chunk transaction must roll back on delete error")
+	}
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+	if len(handler.records) != 1 || handler.records[0].Level != slog.LevelWarn {
+		t.Fatalf("records = %d, want exactly one warning", len(handler.records))
+	}
+	var family string
+	var uids any
+	handler.records[0].Attrs(func(a slog.Attr) bool {
+		switch a.Key {
+		case "family":
+			family = a.Value.String()
+		case "uids":
+			uids = a.Value.Any()
+		}
+		return true
+	})
+	if family != "cloud" {
+		t.Fatalf("warning family = %q, want cloud", family)
+	}
+	got, ok := uids.([]string)
+	if !ok || !slices.Equal(got, []string{"uid-a", "uid-b"}) {
+		t.Fatalf("warning uids = %v, want the sorted dead set [uid-a uid-b]", uids)
 	}
 }

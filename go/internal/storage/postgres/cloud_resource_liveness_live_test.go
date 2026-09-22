@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -231,4 +232,119 @@ VALUES ($1, $2, $3, $4, $5, 'aws', $5, $6, $6, $7, $8::jsonb)`,
 			t.Fatalf("empty release: %v", err)
 		}
 	})
+}
+
+// TestCloudResourceLivenessRefusesUndrainedAdmissionLive pins the #6887
+// fence the review of PR #6892 found missing: reducer_cloud_resource_identity
+// is reducer output from the separate cloud_inventory_admission work item,
+// so a scope whose active generation has not drained that item has no
+// admission rows yet and every uid it still holds would read dead. The
+// live-check must refuse to prove death (fail closed, so the retract's work
+// item retries) while any active-generation admission item is nonterminal,
+// must answer normally once it is succeeded, and must ignore nonterminal
+// items on non-active generations.
+//
+// Skipped by default; set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN.
+func TestCloudResourceLivenessRefusesUndrainedAdmissionLive(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("ESHU_CLOUD_RETRACT_LIVE")) == "" {
+		t.Skip("set ESHU_CLOUD_RETRACT_LIVE=1 and ESHU_POSTGRES_DSN to run the cloud retract liveness proof")
+	}
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set")
+	}
+	ctx := context.Background()
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+	prefix := fmt.Sprintf("retract-fence-%d", time.Now().UnixNano())
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	scopeB := prefix + "-b"
+	genB1, genB2 := prefix+"-b1", prefix+"-b2"
+	uidHeld := prefix + "-held"
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO ingestion_scopes
+  (scope_id, scope_kind, source_system, source_key, collector_kind,
+   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
+VALUES ($1, 'aws', 'aws', $1, 'aws', $1, $2, $2, 'active', NULL, '{}'::jsonb)`,
+		scopeB, now); err != nil {
+		t.Fatalf("seed scope: %v", err)
+	}
+	for gen, status := range map[string]string{genB1: "superseded", genB2: "active"} {
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations
+  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+VALUES ($1, $2, 'manual', $3, $3, $4, $3)`, gen, scopeB, now, status); err != nil {
+			t.Fatalf("seed generation %s: %v", gen, err)
+		}
+	}
+	if _, err := database.ExecContext(ctx,
+		`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`, scopeB, genB2); err != nil {
+		t.Fatalf("activate B2: %v", err)
+	}
+	// B1 admitted the uid; B2's admission has not run yet, so B2 has no rows.
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records
+  (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+   observed_at, ingested_at, is_tombstone, payload)
+VALUES ($1, $2, $3, $4, $5, 'aws', $5, $6, $6, FALSE, $7::jsonb)`,
+		prefix+"-fact-held", scopeB, genB1, cloudRetractAdmissionFactKind, "k-held", now,
+		fmt.Sprintf(`{"cloud_resource_uid": %q}`, uidHeld)); err != nil {
+		t.Fatalf("seed admission: %v", err)
+	}
+	seedWork := func(id, gen, status string) {
+		t.Helper()
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_work_items
+  (work_item_id, scope_id, generation_id, stage, domain, status, created_at, updated_at)
+VALUES ($1, $2, $3, 'reducer', $4, $5, $6, $6)
+ON CONFLICT (work_item_id) DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at`,
+			id, scopeB, gen, reducercontract.DomainCloudInventoryAdmission, status, now); err != nil {
+			t.Fatalf("seed work item %s=%s: %v", id, status, err)
+		}
+	}
+	defer func() {
+		_, _ = database.ExecContext(ctx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeB)
+	}()
+
+	probe := func() (map[string]struct{}, error) {
+		t.Helper()
+		tx, err := database.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		return LiveAdmissionCloudUIDs(ctx, sqlTxExecQueryer{tx}, []string{uidHeld})
+	}
+	itemB2 := prefix + "-work-b2"
+	for _, status := range []string{"pending", "claimed", "running", "retrying", "dead_letter"} {
+		seedWork(itemB2, genB2, status)
+		alive, err := probe()
+		if !errors.Is(err, ErrCloudAdmissionUndrained) {
+			t.Fatalf("status %s: err = %v (alive=%v), want ErrCloudAdmissionUndrained", status, err, alive)
+		}
+		if !strings.Contains(err.Error(), scopeB) {
+			t.Fatalf("status %s: error %q does not name the undrained scope", status, err)
+		}
+	}
+	// A nonterminal item on the superseded generation is not the active
+	// generation's admission and must not block.
+	seedWork(itemB2, genB2, "succeeded")
+	seedWork(prefix+"-work-b1", genB1, "pending")
+	alive, err := probe()
+	if err != nil {
+		t.Fatalf("drained active admission: err = %v, want nil", err)
+	}
+	if _, ok := alive[uidHeld]; ok {
+		t.Fatalf("uid admitted only by the superseded generation read alive after B2's admission drained with no rows")
+	}
+	// Superseded active item counts as drained too (the generation was
+	// replaced, its admission will never run).
+	seedWork(itemB2, genB2, "superseded")
+	if _, err := probe(); err != nil {
+		t.Fatalf("superseded active admission: err = %v, want nil", err)
+	}
 }

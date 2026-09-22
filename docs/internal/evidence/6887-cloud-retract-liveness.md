@@ -31,13 +31,64 @@ row.uid})` already rides, so the delete costs one MERGE-equivalent lookup per
 uid, never a bare-label scan (#6822: bare-label `DETACH DELETE` costs
 7.6–9.3 s at 1M nodes even with zero matches).
 
+### Admission-drain fence (review of PR #6892, finding F1)
+
+`reducer_cloud_resource_identity` — the only oracle the cloud-family
+live-check reads — is reducer output written by the separate
+`cloud_inventory_admission` work item. Nothing orders that item against
+another scope's `*_resource_materialization`: `reducerClaimReadinessRequirementsSQL`
+gates neither domain, and the projector flips `active_generation_id` in
+`Ack` without waiting for the reducer. So a scope whose active generation's
+admission has not drained has no admission rows yet, and every uid it still
+holds would read dead to another scope's retract. The live tests never saw
+it because each seeds the surviving scope's admission rows directly.
+
+Fix (`postgres.LiveAdmissionCloudUIDs`): before the admission probe, refuse
+with `ErrCloudAdmissionUndrained` while any active-generation
+`cloud_inventory_admission` work item is nonterminal (`pending`, `claimed`,
+`running`, `retrying`, `dead_letter`). The chunk rolls back, the handler
+fails, and the durable queue retries the whole intent once the admission
+has landed. A skip instead of an error would leak forever: a uid absent in
+both G and G+1 is never a candidate again. A fallback to the scope's last
+drained generation was rejected too: it misses a uid that is new in the
+undrained generation. Dead-lettered admissions block the same way and name
+their scope, since their facts never land until an operator redrives them.
+
+Theory shim (private Postgres 18, rolled-back transaction, `ANALYZE` after
+seeding 2,000 scopes x 10 generations = 20,000 `cloud_inventory_admission`
+work items, 19,997 `succeeded`, 2 `pending` and 1 `dead_letter` on active
+generations): the predicate is an `Index Scan using
+fact_work_items_stage_domain_status_idx` with `status = ANY(...)` as an
+index condition, 8 shared buffers on the work-item side and 9 on the
+`ingestion_scopes_active_generation_idx` nested-loop side, 17 buffers and
+0.075 ms execution in total; the terminal items are never scanned. Script:
+`scratchpad/6887-shim.sql` (session-local, not committed).
+
+Proof: `TestCloudResourceLivenessRefusesUndrainedAdmissionLive` — every
+nonterminal status on the active generation returns the sentinel naming the
+scope; `succeeded` and `superseded` answer normally and the uid admitted
+only by the superseded generation reads dead; a nonterminal item on a
+non-active generation does not block. RED before the fence (undefined
+sentinel, then dead read), GREEN after.
+
+Operator signal: the sentinel text (scope/generation=status) lands in the
+failed work item's `failure_message` and the reducer's handler-failure log;
+no new metric. A scope stuck in `dead_letter` is already the operator's
+queue alarm and now also names itself in every blocked retract.
+
 ## Performance Evidence: battery EXPLAIN, live shape, and live end-to-end (NornicDB + Postgres)
 
-- Live end-to-end (`TestLiveCloudRetractEndToEnd`, battery PG + battery
-  NornicDB): 2 candidates → locks + global live-check + 1 ledger release + 1
-  uid-anchored graph delete + commit in 79ms wall (`graph node owner retract
-  chunk completed family=cloud_resource candidate_uids=2 retracted_uids=1
-  duration=79.098291ms`). Replay repeats the same decision in 67ms.
+- Live end-to-end (`TestLiveCloudRetractEndToEnd`, private Postgres 18 +
+  pinned NornicDB, compose project `wt6887` on ports 15532/7788): 2
+  candidates → locks + admission-drain fence + global live-check + 1 ledger
+  release + 1 uid-anchored graph delete + commit. The figure is the chunk
+  critical-section duration from the retract log (`graph node owner retract
+  chunk completed ... candidate_uids=2 retracted_uids=1 duration=...`), not
+  the whole-test wall: 6.9 ms and 32.7 ms on the two runs after the final
+  code edit (2026-09-22; the second run followed a fresh migration, cold
+  caches), 79 ms and 67 ms (replay) on the earlier host run this section
+  first recorded. Same data shape every time; the spread is host and cache
+  state, and every run is far below the 500-lock chunk's transaction budget.
 - Unit-bounded: every chunk holds at most `lockChunkSize` (500) advisory
   locks per transaction (`TestGateRetractDeadUIDsChunksAtLockChunkSize`:
   501 candidates open exactly 2 transactions), so no transaction can exhaust
@@ -80,8 +131,13 @@ uid, never a bare-label scan (#6822: bare-label `DETACH DELETE` costs
   deleted; all-alive commits without writes; empty input opens no
   transaction; deletes run in sorted uid order without mutating the input;
   liveness errors and delete errors both roll back (release never commits
-  without its delete); nil-ledger skips the retract (fail-closed, never an
-  over-delete); chunk bound holds.
+  without its delete); a failed delete logs the family and sorted uid set of
+  the ledger-vs-graph ghost and returns an error naming the delete step
+  (`TestGateRetractDeadUIDsLogsGhostOnDeleteError`); nil-ledger skips the
+  retract (fail-closed, never an over-delete); chunk bound holds.
+- `TestCloudResourceLivenessRefusesUndrainedAdmissionLive` (live PG): the
+  admission-drain fence above — undrained active admission refuses, drained
+  answers, non-active nonterminal items are ignored.
 - `TestLiveCloudRetractEndToEnd` (live PG + live graph): multi-scope
   adversarial layout — node live in scope B survives, history-only node is
   deleted and ledger-released, replay reconverges deterministically.

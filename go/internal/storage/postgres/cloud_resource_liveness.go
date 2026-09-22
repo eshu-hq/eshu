@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,36 @@ const cloudRetractEC2PostureFactKind = "ec2_instance_posture"
 // candidates with the same default so its tuple predicate matches the
 // reader's DISTINCT ON identity exactly.
 const cloudRetractDefaultEC2ResourceType = "aws_ec2_instance"
+
+// ErrCloudAdmissionUndrained is returned by LiveAdmissionCloudUIDs when some
+// scope's active generation still has a nonterminal cloud_inventory_admission
+// work item. reducer_cloud_resource_identity is reducer output written by
+// that separate, unfenced work item, so until it drains the scope has no
+// admission rows for its active generation and every uid it still holds
+// would read dead. The check refuses to prove death instead (fail closed):
+// the retract's own work item fails and the durable queue retries it once
+// the admission has landed. A dead-lettered admission blocks the same way
+// and names its scope, because its facts will never land until an operator
+// redrives it.
+var ErrCloudAdmissionUndrained = errors.New("cloud inventory admission not drained for an active generation")
+
+// undrainedCloudAdmissionSQL lists active-generation cloud_inventory_admission
+// work items that have not reached a terminal status. The explicit status
+// list (every nonterminal status the reducer queue writes) lets the
+// (stage, domain, status, ...) index serve each value as a range, so the
+// probe never scans the terminal items the queue keeps forever. LIMIT bounds
+// the error text; one row is enough to refuse.
+const undrainedCloudAdmissionSQL = `
+SELECT work.scope_id, work.generation_id, work.status
+FROM fact_work_items AS work
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = work.scope_id
+ AND scope.active_generation_id = work.generation_id
+WHERE work.stage = 'reducer'
+  AND work.domain = '` + string(reducercontract.DomainCloudInventoryAdmission) + `'
+  AND work.status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter')
+ORDER BY work.scope_id, work.generation_id
+LIMIT 5`
 
 // liveAdmissionCloudUIDsSQL reports which candidate uids are still admitted
 // in some scope's current generation: a live non-tombstone admission row for
@@ -70,8 +101,11 @@ WHERE fact.fact_kind = '` + cloudRetractEC2PostureFactKind + `'
 
 // LiveAdmissionCloudUIDs returns the subset of candidate uids that are still
 // admitted by a live (current-generation, non-tombstone)
-// reducer_cloud_resource_identity row in ANY scope. The graphowner Gate calls
-// it inside the retract chunk's lock-holding transaction; an empty input
+// reducer_cloud_resource_identity row in ANY scope. It first refuses with
+// ErrCloudAdmissionUndrained while any active generation's admission work
+// item is nonterminal, because such a scope's admission rows do not exist
+// yet and its uids would otherwise read dead. The graphowner Gate calls it
+// inside the retract chunk's lock-holding transaction; an empty input
 // returns an empty set without touching the database.
 func LiveAdmissionCloudUIDs(
 	ctx context.Context,
@@ -84,6 +118,9 @@ func LiveAdmissionCloudUIDs(
 	alive := make(map[string]struct{})
 	if len(uids) == 0 {
 		return alive, nil
+	}
+	if err := requireCloudAdmissionDrained(ctx, q); err != nil {
+		return nil, err
 	}
 	rows, err := q.QueryContext(ctx, liveAdmissionCloudUIDsSQL, uids)
 	if err != nil {
@@ -103,6 +140,34 @@ func LiveAdmissionCloudUIDs(
 		return nil, fmt.Errorf("iterate live admission cloud uids: %w", err)
 	}
 	return alive, nil
+}
+
+// requireCloudAdmissionDrained returns ErrCloudAdmissionUndrained (wrapped
+// with the first scopes it found) when any active generation's admission
+// work item is nonterminal, and nil otherwise. It runs inside the caller's
+// lock-holding transaction so the answer is consistent with the admission
+// probe that follows it.
+func requireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
+	rows, err := q.QueryContext(ctx, undrainedCloudAdmissionSQL)
+	if err != nil {
+		return fmt.Errorf("query undrained cloud admission work: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var pending []string
+	for rows.Next() {
+		var scopeID, generationID, status string
+		if err := rows.Scan(&scopeID, &generationID, &status); err != nil {
+			return fmt.Errorf("scan undrained cloud admission work: %w", err)
+		}
+		pending = append(pending, scopeID+"/"+generationID+"="+status)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate undrained cloud admission work: %w", err)
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrCloudAdmissionUndrained, strings.Join(pending, ", "))
 }
 
 // normalizeEC2PostureCandidate applies the unscoped reader's EC2 identity
