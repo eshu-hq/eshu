@@ -49,9 +49,11 @@
   3. Add a `case` to `buildCommand` (indexer.go) for the CLI invocation shape
      that language's `scip-*` binary expects (some take `index .`, some take a
      bare `--output`, cpp/c use `--index-output-path=`).
-  4. Add a test: a `TestDetectProjectLanguage*`-style case in
-     `indexer_test.go` for detection, and a `TestBuildCommand*`-style case for
-     the new binary's invocation shape.
+  4. Add a test following the existing names in `indexer_test.go`: a
+     `TestDetectSCIPProjectLanguage*` case for detection and a
+     `TestBuildSCIPCommand*` case for the new binary's invocation shape. Test
+     function names keep the `SCIP` prefix even though the identifiers they
+     exercise dropped it (#6772) -- match the siblings, do not de-stutter.
   5. Update `docs/public/languages/support-maturity.md` if the new language
      changes its documented support tier.
 - **Change symbol/name extraction** (`parser.go`): `nameFromSymbol` and
