@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestImportsTargetIDDistinguishesModuleLanguages covers the #6102 review
@@ -41,7 +43,7 @@ func TestImportsTargetIDDistinguishesModuleLanguages(t *testing.T) {
 	// 20-verb family (see queryplan_legacy_production_binding_test.go), and
 	// CALLS keeps the default projection, so a verb-specific override is
 	// invisible to that gate. This is what covers it instead.
-	access := repositoryAccessFilter{AllScopes: true}
+	access := querycontract.RepositoryAccessFilter{AllScopes: true}
 	for name, cypher := range map[string]string{
 		"relationshipEdgesCypher":         relationshipEdgesCypher(entry, access),
 		"relationshipEdgesCypherFiltered": relationshipEdgesCypherFiltered(entry, access),

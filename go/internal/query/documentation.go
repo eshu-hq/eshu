@@ -232,7 +232,7 @@ func (h *DocumentationHandler) getPacketFreshness(w http.ResponseWriter, r *http
 }
 
 func (h *DocumentationHandler) unsupported(w http.ResponseWriter, r *http.Request, capability string) bool {
-	if capabilityUnsupported(h.profile(), capability) {
+	if querycontract.CapabilityUnsupported(h.profile(), capability) {
 		writeDocumentationCapabilityError(
 			w,
 			r,

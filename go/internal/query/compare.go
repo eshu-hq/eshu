@@ -44,7 +44,7 @@ type compareEnvironmentsRequest struct {
 
 // compareEnvironments handles POST /api/v0/compare/environments.
 func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.environment_compare") {
+	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.environment_compare") {
 		WriteContractError(
 			w,
 			r,
@@ -86,7 +86,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	// outside the caller's grant renders identically to a workload that does not
 	// exist -- the same missing-workload response the unfiltered lookup already
 	// used -- so a scoped caller cannot distinguish "not found" from "not yours".
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	missingWorkloadResponse := func() {
 		leftSnap := missingEnvironmentSnapshot(req.Left)
 		rightSnap := missingEnvironmentSnapshot(req.Right)

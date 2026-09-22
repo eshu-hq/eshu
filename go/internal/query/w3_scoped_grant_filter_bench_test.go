@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // benchScopedGrantAccess grants half of the benchmark repositories so the
 // filters do real membership work (keep + drop), not a trivial all-pass or
 // all-drop path.
-func benchScopedGrantAccess(repoCount int) repositoryAccessFilter {
+func benchScopedGrantAccess(repoCount int) querycontract.RepositoryAccessFilter {
 	granted := make([]string, 0, repoCount/2)
 	allowed := make(map[string]struct{}, repoCount/2)
 	for i := 0; i < repoCount; i += 2 {
@@ -22,7 +23,7 @@ func benchScopedGrantAccess(repoCount int) repositoryAccessFilter {
 		granted = append(granted, id)
 		allowed[id] = struct{}{}
 	}
-	return repositoryAccessFilter{
+	return querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: granted,
 		Allowed:              allowed,
 	}

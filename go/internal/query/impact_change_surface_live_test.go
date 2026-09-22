@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -137,7 +138,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	}
 
 	// NEW legacy: per-edge provenance unwound in Go.
-	legacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "", 4, 50, repositoryAccessFilter{AllScopes: true})
+	legacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "", 4, 50, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
 	}
@@ -191,14 +192,14 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	if len(stagingInvestigate) != 0 {
 		t.Errorf("investigate(env=staging) = %d rows, want 0 (no staging impacted)", len(stagingInvestigate))
 	}
-	prodLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, repositoryAccessFilter{AllScopes: true})
+	prodLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=prod) error = %v", err)
 	}
 	if len(prodLegacy) == 0 {
 		t.Errorf("legacy(env=prod) returned no rows, want prod provenance (server-side env predicate must not drop all rows)")
 	}
-	stagingLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, repositoryAccessFilter{AllScopes: true})
+	stagingLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=staging) error = %v", err)
 	}
@@ -232,7 +233,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 		AllowedScopeIDs:      []string{changedID},
 	}
 	scopedCtx := ContextWithAuthContext(ctx, scopedAuth)
-	scopedAccess := repositoryAccessFilterFromContext(scopedCtx)
+	scopedAccess := querycontract.RepositoryAccessFilterFromContext(scopedCtx)
 	scopedOutgoing, err := handler.RunChangeSurfaceOutgoing(
 		scopedCtx,
 		"(start:Repository {id: $target_id})",

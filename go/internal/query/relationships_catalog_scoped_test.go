@@ -91,7 +91,7 @@ func (f *scopedRelationshipEdgesGraphReader) Run(
 }
 
 // scopedEdgeGrantSet unions the allowed_repository_ids and allowed_scope_ids
-// params the handler binds (repositoryAccessFilter.graphParams), matching the
+// params the handler binds (querycontract.RepositoryAccessFilter.graphParams), matching the
 // two arrays relationshipEndpointScopePredicate's IN clauses reference.
 func scopedEdgeGrantSet(params map[string]any) map[string]struct{} {
 	granted := map[string]struct{}{}

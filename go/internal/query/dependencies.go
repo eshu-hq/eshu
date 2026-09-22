@@ -78,7 +78,7 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), dependenciesCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), dependenciesCapability) {
 		WriteContractError(
 			w,
 			r,

@@ -7,13 +7,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func documentationFindingFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter documentationFindingFilter,
 ) (documentationFindingFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}
@@ -29,7 +31,7 @@ func documentationFactFilterWithRepositoryAccess(
 	ctx context.Context,
 	filter documentationFactFilter,
 ) (documentationFactFilter, bool) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if !access.Scoped() {
 		return filter, true
 	}

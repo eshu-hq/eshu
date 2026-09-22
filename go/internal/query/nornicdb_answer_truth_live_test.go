@@ -35,6 +35,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -145,7 +146,7 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 	})
 
 	t.Run("A5 ecosystem overview platform_count", func(t *testing.T) {
-		unscoped, err := runEcosystemOverviewCounts(ctx, reader, repositoryAccessFilterFromContext(ctx))
+		unscoped, err := runEcosystemOverviewCounts(ctx, reader, querycontract.RepositoryAccessFilterFromContext(ctx))
 		if err != nil {
 			t.Fatalf("unscoped: %v", err)
 		}
@@ -167,7 +168,7 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 				WorkspaceID:          "workspace-a",
 				AllowedRepositoryIDs: tc.grant,
 			})
-			scoped, err := runEcosystemOverviewCounts(scopedCtx, reader, repositoryAccessFilterFromContext(scopedCtx))
+			scoped, err := runEcosystemOverviewCounts(scopedCtx, reader, querycontract.RepositoryAccessFilterFromContext(scopedCtx))
 			if err != nil {
 				t.Fatalf("scoped %v: %v", tc.grant, err)
 			}

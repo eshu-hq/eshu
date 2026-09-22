@@ -215,7 +215,7 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 	ctx context.Context,
 	handles []evidenceCitationHandle,
 ) (map[evidenceCitationFileKey]FileContent, error) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
 		return map[evidenceCitationFileKey]FileContent{}, nil
 	}
@@ -260,7 +260,7 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 	ctx context.Context,
 	handles []evidenceCitationHandle,
 ) (map[string]*EntityContent, error) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
 		return map[string]*EntityContent{}, nil
 	}
@@ -284,7 +284,7 @@ func (h *EvidenceHandler) evidenceCitationEntityContents(
 
 func filterEvidenceCitationEntitiesForAccess(
 	entities map[string]*EntityContent,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) map[string]*EntityContent {
 	if !access.Scoped() {
 		return entities

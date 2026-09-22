@@ -73,7 +73,7 @@ func (h *EvidenceHandler) profile() QueryProfile {
 // F-6 W6 review behavior) spuriously 404'd evidence a caller fully owned via
 // the source. For a targetAttributable:true verb the target names a real
 // repository, so the target grant is enforced.
-func relationshipEvidenceRowWithinAccess(row map[string]any, access repositoryAccessFilter) bool {
+func relationshipEvidenceRowWithinAccess(row map[string]any, access querycontract.RepositoryAccessFilter) bool {
 	if !access.Scoped() {
 		return true
 	}
@@ -156,7 +156,7 @@ func (h *EvidenceHandler) getRelationshipEvidence(w http.ResponseWriter, r *http
 	// (infra_scope.go) -- otherwise the relationship is served as not-found,
 	// disclosing neither the edge's existence nor either endpoint's identity
 	// to an out-of-grant caller.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if !relationshipEvidenceRowWithinAccess(readModel.Row, access) {
 		WriteError(w, http.StatusNotFound, "relationship evidence not found")
 		return

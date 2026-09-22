@@ -137,7 +137,7 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 		span.End()
 	}()
 
-	if capabilityUnsupported(h.profile(), graphEntityInventoryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), graphEntityInventoryCapability) {
 		WriteContractError(
 			w,
 			r,

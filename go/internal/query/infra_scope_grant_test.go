@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestScopeGrantInlineScalarsDedupesSortsAndDropsEmpty proves the scalar
@@ -182,7 +184,7 @@ func TestInfraResourceScopePredicateCapDegradesFailClosed(t *testing.T) {
 func TestWorkloadScopePredicateComposesShapeA(t *testing.T) {
 	t.Parallel()
 
-	access := repositoryAccessFilter{
+	access := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repo-a"},
 		Allowed:              map[string]struct{}{"repo-a": {}},
 	}

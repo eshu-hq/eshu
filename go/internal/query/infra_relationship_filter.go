@@ -42,7 +42,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
+	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
 		WriteContractError(
 			w,
 			r,
@@ -77,7 +77,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 	span.SetAttributes(attribute.String("eshu.relationship_filter", infraRelationshipFilterLabel(relationshipTypes)))
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_relationships")
 	if access.Empty() {
 		WriteError(w, http.StatusNotFound, "entity not found")

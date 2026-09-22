@@ -67,7 +67,7 @@ func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
 // artifact (config_paths[].source_repo / shared_config_paths[].source_repo)
 // merged into deployment_evidence, deployment_artifacts, and
 // infrastructure_overview. Removing filterRepositoryArtifactSourcesForAccess (or
-// its repositoryAccessFilterFromContext call) in QueryRelatedRepositoryArtifactSources
+// its querycontract.RepositoryAccessFilterFromContext call) in QueryRelatedRepositoryArtifactSources
 // turns the scoped assertion red.
 func TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo(t *testing.T) {
 	t.Parallel()

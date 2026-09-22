@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -158,13 +159,13 @@ func TestIssue5318SameLogicalCorpusOldResolveEntityGraphAndNewContentIndex(t *te
 	scopedRepositoryIDs := []string{"repository:r_000", "repository:r_040", "repository:r_080"}
 	tests := []struct {
 		name      string
-		access    repositoryAccessFilter
+		access    querycontract.RepositoryAccessFilter
 		search    EntityNameSearch
 		wantCount int
 	}{
 		{
 			name:   "all-scope typed semantic",
-			access: repositoryAccessFilter{AllScopes: true},
+			access: querycontract.RepositoryAccessFilter{AllScopes: true},
 			search: EntityNameSearch{
 				Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
 				EntityType: "Function", MetadataKey: "semantic_kind", MetadataValue: "guard", Limit: 50,
@@ -269,12 +270,12 @@ func TestIssue5318SameLogicalCorpusOldResolveEntityGraphAndNewContentIndex(t *te
 	}
 }
 
-func issue5318ScopedRepositoryAccess(repositoryIDs []string) repositoryAccessFilter {
+func issue5318ScopedRepositoryAccess(repositoryIDs []string) querycontract.RepositoryAccessFilter {
 	allowed := make(map[string]struct{}, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		allowed[repositoryID] = struct{}{}
 	}
-	return repositoryAccessFilter{
+	return querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: append([]string(nil), repositoryIDs...),
 		Allowed:              allowed,
 	}
@@ -285,7 +286,7 @@ func issue5318ScopedRepositoryAccess(repositoryIDs []string) repositoryAccessFil
 func issue5318BaselineBuildResolveEntityGraphQuery(
 	req resolveEntityRequest,
 	limit int,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	repositoryAnchored := req.RepoID != ""
 	cypher := `MATCH (e) WHERE e.name = $name`

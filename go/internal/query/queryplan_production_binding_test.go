@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/language"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -36,7 +37,7 @@ func TestHandlerQueryplanManifestBindsProductionBuilders(t *testing.T) {
 }
 
 func handlerQueryplanProductionCypher() map[string]string {
-	allAccess := repositoryAccessFilter{AllScopes: true}
+	allAccess := querycontract.RepositoryAccessFilter{AllScopes: true}
 	entityCypher, _ := buildResolveEntityGraphQuery(resolveEntityRequest{
 		Name:   "proof",
 		RepoID: "proof-repository",
@@ -81,7 +82,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-LANGUAGE-DIRECTORY": directoryCypher,
 		// access is set explicitly on every import-dependency request below.
 		// Since #5167 batch 2a these builders render the caller's repository
-		// grant, and repositoryAccessFilter's zero value is a SCOPED filter with
+		// grant, and querycontract.RepositoryAccessFilter's zero value is a SCOPED filter with
 		// no grants -- so an unset access would silently repin these entries to
 		// the scoped shape, while the plan operators each entry commits to
 		// describe the repository-anchored shape a shared-key caller runs. The

@@ -159,7 +159,7 @@ func TestLocalAuthoritativeSupportsFullStackPlatformImpactCapabilities(t *testin
 		t.Run(capability, func(t *testing.T) {
 			t.Parallel()
 
-			if capabilityUnsupported(ProfileLocalAuthoritative, capability) {
+			if querycontract.CapabilityUnsupported(ProfileLocalAuthoritative, capability) {
 				t.Fatalf("%s is unsupported for %s", capability, ProfileLocalAuthoritative)
 			}
 			if got, want := querycontract.RequiredProfile(capability), ProfileLocalAuthoritative; got != want {

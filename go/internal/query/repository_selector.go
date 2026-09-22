@@ -6,6 +6,7 @@ package query //nolint:dirgate // B3 selector forwarder shim for #6060: the requ
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
@@ -29,7 +30,7 @@ func resolveRepositorySelectorForRequestWithAccess(
 	graph GraphQuery,
 	content ContentStore,
 	selector string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	capability string,
 ) (string, bool) {
 	return queryselector.ResolveForRequestWithAccess(w, r, graph, content, selector, access, capability)

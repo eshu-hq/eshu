@@ -35,6 +35,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -145,7 +146,7 @@ func TestLiveInfraScopeShapeShapeADiscriminates(t *testing.T) {
 	// accessA is a scoped filter granting only sst-repo-a; the production
 	// predicate builders derive their scalars from it, and paramsA binds the
 	// matching arrays + scope_grant_* scalars.
-	accessA := repositoryAccessFilter{
+	accessA := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"sst-repo-a"},
 		Allowed:              map[string]struct{}{"sst-repo-a": {}},
 	}
@@ -200,7 +201,7 @@ func TestLiveInfraScopeShapeShapeADiscriminates(t *testing.T) {
 	}
 
 	// GREEN: the tenant-B grant admits exactly the tenant-B secret.
-	accessB := repositoryAccessFilter{
+	accessB := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"sst-repo-b"},
 		Allowed:              map[string]struct{}{"sst-repo-b": {}},
 	}
@@ -269,7 +270,7 @@ func TestLiveInfraScopeShapeMatchesStateDiscriminates(t *testing.T) {
 	seedLiveScopeShapeStateFixture(t, session)
 	defer liveScopeRun(t, session, "MATCH (n) WHERE n.sst = true DETACH DELETE n", nil)
 
-	accessA := repositoryAccessFilter{
+	accessA := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"sst-repo-a"},
 		Allowed:              map[string]struct{}{"sst-repo-a": {}},
 	}
@@ -319,7 +320,7 @@ func TestLiveInfraScopeShapeMatchesStateDiscriminates(t *testing.T) {
 	}
 
 	// GREEN: the repo-b grant admits exactly its own matched state resource.
-	accessB := repositoryAccessFilter{
+	accessB := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"sst-repo-b"},
 		Allowed:              map[string]struct{}{"sst-repo-b": {}},
 	}

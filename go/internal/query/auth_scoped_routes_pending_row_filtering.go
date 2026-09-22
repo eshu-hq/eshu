@@ -16,7 +16,7 @@ import (
 // state IsPendingRowFilteringRoute exists for, alongside the scoped-token
 // allowlist (scopedHTTPRouteSupportsTenantFilter) and the shared-key-only
 // ledger (sharedKeyOnlyRoutes): every route in this set was verified via
-// `rg AllowedRepositoryIDs|AllowedScopeIDs|repositoryAccessFilterFromContext`
+// `rg AllowedRepositoryIDs|AllowedScopeIDs|querycontract.RepositoryAccessFilterFromContext`
 // returning zero hits in its handler as of #5167's W1 gate landing.
 //
 // This ledger is CLOSED, not a wildcard: TestEveryMCPReachableRouteIsScopedOrAnnotated

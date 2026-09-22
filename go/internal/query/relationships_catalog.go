@@ -81,7 +81,7 @@ func (req relationshipEdgesRequest) limit() int {
 // label that writes the verb is included. Source-label anchoring applies only
 // to the concrete edge slices and source_tool breakdowns.
 func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -282,7 +282,7 @@ func (h *InfraHandler) relationshipSourceToolBreakdown(
 // that verb's source label and always carries a LIMIT, so the slice is bounded.
 // The handler over-fetches limit+1 to set a truncated flag without a second scan.
 func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), relationshipsCatalogCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -328,7 +328,7 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 	// (empty page, no read); a granted scoped caller's edges are bound to its
 	// grant on both endpoints via relationshipEdgesScopeWhereClause (source
 	// always, target when entry.targetAttributable).
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 
 	limit := req.limit()
 	var (
@@ -390,7 +390,7 @@ func (h *InfraHandler) relationshipEdges(
 	entry relationshipVerbEntry,
 	tool string,
 	limit int,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) ([]relationshipEdge, bool, error) {
 	var (
 		cypher string

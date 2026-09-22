@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -58,7 +59,7 @@ func TestTerraformConfigStateDriftFilterToPostgresThreadsScopeGrantFields(t *tes
 func TestBindTerraformConfigStateDriftFilterAccessSetsScopeGrant(t *testing.T) {
 	t.Parallel()
 
-	scopedAccess := repositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), AuthContext{
+	scopedAccess := querycontract.RepositoryAccessFilterFromContext(ContextWithAuthContext(context.Background(), AuthContext{
 		Mode:                 AuthModeScoped,
 		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1", "repo-a"},
 	}))
@@ -71,7 +72,7 @@ func TestBindTerraformConfigStateDriftFilterAccessSetsScopeGrant(t *testing.T) {
 		t.Fatalf("filter.AllowedScopeIDs = %#v, want %#v", filter.AllowedScopeIDs, want)
 	}
 
-	unscopedAccess := repositoryAccessFilterFromContext(context.Background())
+	unscopedAccess := querycontract.RepositoryAccessFilterFromContext(context.Background())
 	unscopedFilter := bindTerraformConfigStateDriftFilterAccess(unscopedAccess, TerraformConfigStateDriftFindingFilter{ScopeID: "state_snapshot:s3:hash-1"})
 	if unscopedFilter.Scoped {
 		t.Fatal("unscopedFilter.Scoped = true, want false for an all-scopes caller")

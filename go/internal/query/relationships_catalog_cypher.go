@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // relationshipVerbEntry describes one typed-edge verb in the relationships
 // catalog: its layer, the source-node label for bounded edge slices, and a short
@@ -253,7 +257,7 @@ func relationshipCountCypher(entry relationshipVerbEntry) string {
 // only). Leaving targetIdentityProperty empty keeps this function's output
 // byte-identical to the pre-#5369 shape. The access filter adds the #5167
 // scope WHERE clause for a scoped caller (empty for shared/admin/local).
-func relationshipEdgesCypher(entry relationshipVerbEntry, access repositoryAccessFilter) string {
+func relationshipEdgesCypher(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
 		relationshipEdgesScopeWhereClause(entry, access) +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
@@ -358,7 +362,7 @@ func targetOrderTiebreaker(entry relationshipVerbEntry) string {
 // ensures a scoped caller never sees an edge sourced from another tenant's
 // entity. It additionally binds target t when entry.targetAttributable is
 // true (see that field's doc comment for which verbs qualify).
-func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access repositoryAccessFilter) string {
+func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
 	if !access.Scoped() {
 		return ""
 	}
@@ -382,7 +386,7 @@ func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access repos
 // identical in shape to the endpoint predicate every other scoped verb already
 // uses, one property disjunct wider, and safe to AND-combine with
 // r.source_tool in the filtered variant. $allowed_scope_ids is already bound
-// for every scoped call via repositoryAccessFilter.graphParams.
+// for every scoped call via querycontract.RepositoryAccessFilter.graphParams.
 func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) string {
 	if entry.edgeScopeAttributable {
 		disjuncts := append(infraResourceScopeCoreDisjuncts("s", scalars),
@@ -404,7 +408,7 @@ func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) s
 //
 // The verb, label, and property are taken from the fixed catalog, never from
 // request input, so the interpolation cannot inject arbitrary patterns.
-func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access repositoryAccessFilter) string {
+func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access querycontract.RepositoryAccessFilter) string {
 	where := "WHERE r.source_tool = $source_tool"
 	if access.Scoped() {
 		scalars, _ := access.ScopeGrantInlineScalars()

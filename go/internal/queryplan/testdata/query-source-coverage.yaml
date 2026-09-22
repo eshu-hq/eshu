@@ -35,7 +35,7 @@ source_coverage:
           max_results: 500
   - file: cloud_resources.go
     calls:
-      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: e2e4f0b23edcdaf6660ef725fb3e66e11fe0e13e01d5fb95844e9837799a1c2b, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
+      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: c25d41311b734d359fd6d690dc0f5b956ba6b07280fe031d1801e7db75782ca2, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
   - file: codequery/handler.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
@@ -183,7 +183,7 @@ source_coverage:
       - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: e1bf16c4924047b2c8232ee5b054cb70f43b13e0793b335ec63b00886ebf4612, key_bound: single_key, max_results: 101}}
   - file: dependencies.go
     calls:
-      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: f445506340e740ecc25e31ec6c42bfc6d073da1a9f7db2dcfea98ebec7ddc485, entry_ids: [QP-SC-DEPS]}
+      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 7654f63d3d81bd1ae83285c45cc2623a20d03dfb6d312bbb9ad02ad185f66401, entry_ids: [QP-SC-DEPS]}
   - file: entity/handler.go
     calls:
       - symbol: "(*Handler).GetEntityContext"
@@ -245,7 +245,7 @@ source_coverage:
       - {symbol: "(*Handler).exposurePathCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: b25bdb8efa44b39b7ced15a6f424f1e3ca18af2e449d61d4c4d6d37a7f53eb37, key_bound: single_key, max_results: 25}}
   - file: graph_entity_inventory.go
     calls:
-      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 3f503950f640892031096e26d576acfe79739488f3e9442805147e368f5ded51, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
+      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: b93c881f8233899acf3753d24a85e87ec2b313885fd4e25ff752d6831a3c4a48, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac/resources.go
     calls:
       - symbol: "(*Handler).listResources"
@@ -262,7 +262,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 977d432cd864b569de493a2aa5a30550a1414fb67b211eadbc777959f1547dfa
+          source_sha256: 3f17d8c373facba94a9ed253b458d64382eaeeda966ba85d1449068850638945
           label: ContainerImage
           max_results: 201
   - file: taghistory/page.go
@@ -394,14 +394,14 @@ source_coverage:
       - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: cb9824eefb67a269e092f413778ff8e99213a458f506b66ecfb9f0665c0fa66a, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: c67a480f903394168d738efb519e61cb3d7ed3686fd5d833af98517c3c966096, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
       - symbol: "(*InfraHandler).searchArgoCDCategoryRows"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: ad66e58f440159a4da6f9c333c9d5ab5da9d7e7ad979fe7a7130757b7769e75f
+          source_sha256: 2c83195c2726f8f5fd4f3f3a80842d7b4330ea15027300542739bb00cf66390d
           label: "ArgoCDApplication|ArgoCDApplicationSet"
           max_results: 201
   - file: infra_ecosystem_overview.go
@@ -410,7 +410,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 5eab5b1900a7ee44262a6ffbde124f5d59ff3d8fd4459145fd44b981111afb50
+          source_sha256: f19af7b3edeee0b25064282fbdeb109f71f65232906c941fbd22ee5a4906b43a
           label: "Repository|Workload|Platform|WorkloadInstance"
           max_results: 1
   - file: infra_graph_summary_packet.go
@@ -560,7 +560,7 @@ source_coverage:
           max_results: 1
   - file: relationships_catalog.go
     calls:
-      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 838dc8de7f8eebd8a948744a8d07464a9af36e5cf927074e09145071f2625279, entry_ids: [QP-RELATIONSHIPS-EDGES]}
+      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 7f8a416396f5f15e6f14a90b1529948b0e98c48e02c3a37e0af21ba16885713d, entry_ids: [QP-RELATIONSHIPS-EDGES]}
       - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, source_sha256: d854d833cdc75c1e250b0d049ca0733a5429bb3580360bcbf958cf46aee39441, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY, QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE]}
       - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
   - file: repository/handler.go

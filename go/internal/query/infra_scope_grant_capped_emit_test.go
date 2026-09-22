@@ -12,6 +12,7 @@ import (
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -41,21 +42,21 @@ func TestRecordScopeGrantInlineCapEmitsOncePerRead(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		filter    repositoryAccessFilter
+		filter    querycontract.RepositoryAccessFilter
 		wantCount int64
 	}{
 		{
 			name:      "over the cap emits exactly one",
-			filter:    repositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms + 1)},
+			filter:    querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms + 1)},
 			wantCount: 1,
 		},
 		{
 			name:   "at the cap is not a degradation",
-			filter: repositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms)},
+			filter: querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms)},
 		},
 		{
 			name:   "all-scopes caller never emits",
-			filter: repositoryAccessFilter{AllScopes: true, AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms * 2)},
+			filter: querycontract.RepositoryAccessFilter{AllScopes: true, AllowedRepositoryIDs: ids(maxScopeGrantInlineTerms * 2)},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -92,7 +93,7 @@ func TestRecordScopeGrantInlineCapEmitsOncePerRead(t *testing.T) {
 func TestRecordScopeGrantInlineCapSurvivesNilDependencies(t *testing.T) {
 	t.Parallel()
 
-	over := repositoryAccessFilter{AllowedRepositoryIDs: make([]string, 0, maxScopeGrantInlineTerms+1)}
+	over := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: make([]string, 0, maxScopeGrantInlineTerms+1)}
 	for i := 0; i < maxScopeGrantInlineTerms+1; i++ {
 		over.AllowedRepositoryIDs = append(over.AllowedRepositoryIDs, fmt.Sprintf("repo-%d", i))
 	}

@@ -717,7 +717,7 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipEdgesCypher
-      source_sha256: 1a856b5dbe655b9f18c63b48a4f7f512aacc8390e04f62f01a07720b10e1ec3d
+      source_sha256: 5f41c542959f21a0055fab3dc02224f4fb1d20d689cafb0d8fa3ea920b75f1e0
       line_hint: 178
     required_schema:
       - function_uid_unique
@@ -789,7 +789,7 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: cb9824eefb67a269e092f413778ff8e99213a458f506b66ecfb9f0665c0fa66a
+      source_sha256: c67a480f903394168d738efb519e61cb3d7ed3686fd5d833af98517c3c966096
       line_hint: 195
     required_limits:
       - $limit

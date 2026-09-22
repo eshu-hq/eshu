@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/language"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -59,8 +60,8 @@ const (
 // liveGrantImpossibleAccess is a scoped filter naming only repositories that do
 // not exist. It is the tenancy analogue of the impossible language: a caller
 // whose grant admits nothing must be shown nothing.
-func liveGrantImpossibleAccess() repositoryAccessFilter {
-	return repositoryAccessFilter{
+func liveGrantImpossibleAccess() querycontract.RepositoryAccessFilter {
+	return querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{liveGrantImpossibleRepo},
 	}
 }
@@ -110,7 +111,7 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 // TestLiveNornicDBLanguageQueryImpossibleGrantReturnsNoRows applies the same
 // control to the tenancy grant, and it is the more serious of the two.
 //
-// repositoryAccessFilter.GraphConditionOnProperty builds the whole grant as
+// querycontract.RepositoryAccessFilter.GraphConditionOnProperty builds the whole grant as
 // "(alias.prop IN $allowed_repository_ids OR alias.prop IN $allowed_scope_ids)",
 // and every scoped graph read in the product funnels through it. A caller whose
 // grant names only repositories that do not exist must receive zero rows from

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // recordingInfraScopeGraph records the Cypher + params sent to Run / RunSingle
@@ -89,12 +91,12 @@ func TestAuthMiddlewareWithScopedTokensAllowsInfraSearchAndRelationships(t *test
 func TestInfraSearchScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	t.Parallel()
 
-	unscoped := infraSearchScopeClause(repositoryAccessFilter{AllScopes: true})
+	unscoped := infraSearchScopeClause(querycontract.RepositoryAccessFilter{AllScopes: true})
 	if unscoped != "" {
 		t.Fatalf("unscoped search clause must be empty, got %q", unscoped)
 	}
 
-	scoped := infraSearchScopeClause(repositoryAccessFilter{
+	scoped := infraSearchScopeClause(querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 		Allowed:              map[string]struct{}{"repo-team-a": {}},
 	})
@@ -225,16 +227,16 @@ func TestInfraSearchUnscopedCypherUnchanged(t *testing.T) {
 func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	t.Parallel()
 
-	unscopedAnchor := infraRelationshipAnchorClause(repositoryAccessFilter{AllScopes: true})
+	unscopedAnchor := infraRelationshipAnchorClause(querycontract.RepositoryAccessFilter{AllScopes: true})
 	if unscopedAnchor != "" {
 		t.Fatalf("unscoped anchor clause must be empty, got %q", unscopedAnchor)
 	}
-	unscopedNeighbor := infraRelationshipNeighborClause(repositoryAccessFilter{AllScopes: true}, "target")
+	unscopedNeighbor := infraRelationshipNeighborClause(querycontract.RepositoryAccessFilter{AllScopes: true}, "target")
 	if unscopedNeighbor != "" {
 		t.Fatalf("unscoped neighbor clause must be empty, got %q", unscopedNeighbor)
 	}
 
-	scoped := repositoryAccessFilter{
+	scoped := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 		Allowed:              map[string]struct{}{"repo-team-a": {}},
 	}

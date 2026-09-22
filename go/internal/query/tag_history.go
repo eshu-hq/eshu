@@ -108,7 +108,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), tagHistoryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), tagHistoryCapability) {
 		recordTagHistoryError(r.Context(), "unsupported_capability")
 		recordTagHistoryDuration(r.Context(), start, "unsupported_capability")
 		WriteContractError(
@@ -140,7 +140,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	// Unscoped and all-scope callers get the unfiltered single-statement read.
 	// This is settled before the page selectors are parsed because it decides
 	// whether a raw offset is accepted at all (tagHistoryBounds).
-	access := repositoryAccessFilterFromContext(r.Context()).WithCanonicalScopeRepositories()
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context()).WithCanonicalScopeRepositories()
 	// The cursor is sealed against the caller's grant set, so a token minted in
 	// one authorization context cannot be opened in another (taghistory.Audience).
 	audience := taghistory.AudienceOf(access)

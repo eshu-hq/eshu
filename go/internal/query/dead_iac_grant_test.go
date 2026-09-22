@@ -15,7 +15,7 @@ import (
 // #5167 W4 two-tenant grant proof for find_dead_iac. handleDeadIaC resolves
 // every repo_id/repo_ids selector through resolveRepositoryScope ->
 // queryselector.ResolveExactForAccess bound to
-// repositoryAccessFilterFromContext (iac/handler.go) before either the
+// querycontract.RepositoryAccessFilterFromContext (iac/handler.go) before either the
 // reducer-materialized IaCReachabilityStore read or the content-derived
 // fallback runs. All three tests below are mutation-sensitive: reverting
 // resolveRepositoryScope to the unscoped resolveRepositorySelectorExact it

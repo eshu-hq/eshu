@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestGetRelationshipEdgesResolvesMixedCaseVerb guards issue #5450 P1-B:
@@ -87,7 +89,7 @@ func TestGetRelationshipEdgesResolvesMixedCaseVerb(t *testing.T) {
 func TestRelationshipEdgesScopeBindsEdgeScopeForLambdaImageVerb(t *testing.T) {
 	t.Parallel()
 
-	scoped := repositoryAccessFilter{
+	scoped := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repo-a"},
 		Allowed:              map[string]struct{}{"repo-a": {}},
 	}

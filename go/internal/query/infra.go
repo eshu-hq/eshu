@@ -192,7 +192,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
+	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.deployment_chain") {
 		WriteContractError(
 			w,
 			r,
@@ -249,7 +249,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		labels = mapped
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	// Once per read, before any clause is built: infraSearchScopeClause alone
 	// rebuilds the SHAPE-A disjunction three times, so emitting from there
 	// would count one degraded read as three (#5408).

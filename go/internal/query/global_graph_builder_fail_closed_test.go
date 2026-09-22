@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // Global-graph fail-closed builder proof that lives in package query: it
@@ -18,7 +19,7 @@ import (
 
 func TestGlobalGraphBuildersFailClosed(t *testing.T) {
 	t.Parallel()
-	accesses := []repositoryAccessFilter{{AllScopes: true}, queryplanScopedRepositoryAccess()}
+	accesses := []querycontract.RepositoryAccessFilter{{AllScopes: true}, queryplanScopedRepositoryAccess()}
 	for _, access := range accesses {
 		if cypher, params := buildResolveEntityGraphQuery(resolveEntityRequest{Name: "proof", Type: "function"}, 10, access); cypher != "" || params != nil {
 			t.Fatalf("global entity graph builder = %q/%#v, want fail-closed empty", cypher, params)

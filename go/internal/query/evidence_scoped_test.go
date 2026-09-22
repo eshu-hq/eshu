@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // This file holds the #5167 F-6 W6 access-scoping tests for
@@ -256,25 +258,25 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		row    map[string]any
-		access repositoryAccessFilter
+		access querycontract.RepositoryAccessFilter
 		want   bool
 	}{
 		{
 			name:   "unscoped caller always passes",
 			row:    bothGranted,
-			access: repositoryAccessFilter{AllScopes: true},
+			access: querycontract.RepositoryAccessFilter{AllScopes: true},
 			want:   true,
 		},
 		{
 			name:   "scoped caller with no grants fails closed",
 			row:    bothGranted,
-			access: repositoryAccessFilter{},
+			access: querycontract.RepositoryAccessFilter{},
 			want:   false,
 		},
 		{
 			name: "scoped caller with both endpoints granted passes",
 			row:  bothGranted,
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-a", "repo-b"},
 				Allowed:              map[string]struct{}{"repo-a": {}, "repo-b": {}},
 			},
@@ -283,7 +285,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 		{
 			name: "scoped caller missing source grant fails",
 			row:  bothGranted,
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-b"},
 				Allowed:              map[string]struct{}{"repo-b": {}},
 			},
@@ -292,7 +294,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 		{
 			name: "scoped caller missing target grant fails",
 			row:  bothGranted,
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-a"},
 				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
@@ -304,7 +306,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"source": map[string]any{"repo_id": ""},
 				"target": map[string]any{"repo_id": "repo-b"},
 			},
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-b"},
 				Allowed:              map[string]struct{}{"repo-b": {}},
 			},
@@ -319,7 +321,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"source":            map[string]any{"repo_id": "repo-a"},
 				"target":            map[string]any{"repo_id": ""},
 			},
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-a"},
 				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
@@ -333,7 +335,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"source":            map[string]any{"repo_id": "repo-a"},
 				"target":            map[string]any{"repo_id": ""},
 			},
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-other"},
 				Allowed:              map[string]struct{}{"repo-other": {}},
 			},
@@ -349,7 +351,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"source":            map[string]any{"repo_id": "repo-a"},
 				"target":            map[string]any{"repo_id": "repo-b"},
 			},
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-a"},
 				Allowed:              map[string]struct{}{"repo-a": {}},
 			},
@@ -364,7 +366,7 @@ func TestRelationshipEvidenceRowWithinAccessMutationCoverage(t *testing.T) {
 				"source":            map[string]any{"repo_id": "repo-a"},
 				"target":            map[string]any{"repo_id": "repo-b"},
 			},
-			access: repositoryAccessFilter{
+			access: querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{"repo-a"},
 				Allowed:              map[string]struct{}{"repo-a": {}},
 			},

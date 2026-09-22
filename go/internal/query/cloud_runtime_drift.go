@@ -241,7 +241,7 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), cloudRuntimeDriftReadbackCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), cloudRuntimeDriftReadbackCapability) {
 		h.writeContractError(
 			w, r,
 			http.StatusNotImplemented,
@@ -280,7 +280,7 @@ func (h *CloudRuntimeDriftHandler) listFindings(w http.ResponseWriter, r *http.R
 	// grants, or whose requested scope is outside its granted repositories/
 	// ingestion scopes, gets the same zero-finding page a real empty result
 	// would produce -- no existence disclosure, no store read.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() || (access.Scoped() && !access.AllowsRepositoryID(filter.ScopeID)) {
 		h.writeCloudRuntimeDriftFindings(w, r, filter, nil, 0)
 		return

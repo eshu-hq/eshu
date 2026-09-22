@@ -33,6 +33,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -180,7 +181,7 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 
 	sst := " AND n.uid = '" + stateUID + "'"
 
-	accessFormer := repositoryAccessFilter{
+	accessFormer := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{formerOwnerRepo},
 		Allowed:              map[string]struct{}{formerOwnerRepo: {}},
 	}
@@ -196,7 +197,7 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 		)
 	}
 
-	accessCurrent := repositoryAccessFilter{
+	accessCurrent := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{currentOwnerRepo},
 		Allowed:              map[string]struct{}{currentOwnerRepo: {}},
 	}
@@ -297,7 +298,7 @@ func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwn
 			}
 
 			sst := " AND n.uid = '" + stateUID + "'"
-			accessFormer := repositoryAccessFilter{
+			accessFormer := querycontract.RepositoryAccessFilter{
 				AllowedRepositoryIDs: []string{formerOwnerRepo},
 				Allowed:              map[string]struct{}{formerOwnerRepo: {}},
 			}

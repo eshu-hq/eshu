@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -297,7 +298,7 @@ func TestSQLTableBlastRadiusEveryBranchContributesLive(t *testing.T) {
 	}
 
 	rows, err := reader.Run(ctx,
-		impact.BlastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
+		impact.BlastRadiusSqlTableQuery(querycontract.RepositoryAccessFilter{AllScopes: true}),
 		map[string]any{"target_name": querytestutil.SqlBlastRadiusTableFor(sqlBlastRadiusPrefix), "limit": 200})
 	if err != nil {
 		t.Fatalf("run blast radius: %v", err)
@@ -355,7 +356,7 @@ func TestSQLTableBlastRadiusMatchesNothingForUnknownTableLive(t *testing.T) {
 	reader := sqlBlastRadiusLiveReader(ctx, t)
 
 	rows, err := reader.Run(ctx,
-		impact.BlastRadiusSqlTableQuery(repositoryAccessFilter{AllScopes: true}),
+		impact.BlastRadiusSqlTableQuery(querycontract.RepositoryAccessFilter{AllScopes: true}),
 		map[string]any{"target_name": sqlBlastRadiusPrefix + "_table_that_does_not_exist", "limit": 200})
 	if err != nil {
 		t.Fatalf("run blast radius: %v", err)

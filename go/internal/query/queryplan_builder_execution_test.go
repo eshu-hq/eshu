@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type queryplanCapturedRun struct {
@@ -63,7 +64,7 @@ func TestResolveEntityExecutesBuilderBytes(t *testing.T) {
 			if len(captured) != 1 {
 				t.Fatalf("graph calls = %d, want 1", len(captured))
 			}
-			access := repositoryAccessFilterFromContext(request.Context())
+			access := querycontract.RepositoryAccessFilterFromContext(request.Context())
 			wantCypher, wantParams := buildResolveEntityGraphQuery(tt.req, normalizeResolveEntityLimit(tt.req.Limit), access)
 			assertQueryplanCapturedRun(t, captured[0], wantCypher, wantParams)
 			assertQueryplanBaselineSHA256(t, captured[0].cypher, tt.wantSHA256)
@@ -124,7 +125,7 @@ func TestResolveWorkloadEntitiesExecutesBuilderBytes(t *testing.T) {
 			if len(captured) != 2 {
 				t.Fatalf("graph calls = %d, want 2", len(captured))
 			}
-			access := repositoryAccessFilterFromContext(ctx)
+			access := querycontract.RepositoryAccessFilterFromContext(ctx)
 			propertyCypher, relationshipCypher, wantParams := buildResolveWorkloadQueries(
 				"proof",
 				tt.repoID,
@@ -177,7 +178,7 @@ func TestHydrateResolvedWorkloadRepoNamesExecutesBuilderBytes(t *testing.T) {
 			if err := handler.HydrateResolvedWorkloadRepoNames(ctx, entities); err != nil {
 				t.Fatalf("hydrateResolvedWorkloadRepoNames() error = %v", err)
 			}
-			access := repositoryAccessFilterFromContext(ctx)
+			access := querycontract.RepositoryAccessFilterFromContext(ctx)
 			wantCypher, wantParams := buildHydrateResolvedWorkloadRepoNamesQuery(
 				[]string{"repository:r_proof"},
 				access,
@@ -202,16 +203,16 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 	selected := &impact.ResourceInvestigationCandidate{ID: "proof-resource", Labels: []string{"CloudResource"}}
 	req := impact.ResourceInvestigationRequest{Environment: "prod", MaxDepth: 3, Limit: 10}
 
-	if _, _, err := handler.ResourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationWorkloads(context.Background(), req, selected, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationWorkloads() error = %v", err)
 	}
 	if _, err := handler.ResourceInvestigationInstanceWorkloads(context.Background(), []map[string]any{{"instance_id": "proof-instance"}}); err != nil {
 		t.Fatalf("resourceInvestigationInstanceWorkloads() error = %v", err)
 	}
-	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths() error = %v", err)
 	}
-	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths(incoming) error = %v", err)
 	}
 	if len(captured) != 4 {

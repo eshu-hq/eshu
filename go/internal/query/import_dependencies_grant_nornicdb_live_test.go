@@ -21,13 +21,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // liveGrantImportRequest is the request every case below starts from: no
 // repo_id, so the caller's grant is the ONLY repository restriction in the
 // statement, and a limit that codequery.ImportDependencyParams turns into a page of 2 --
 // below the six rows the out-of-grant repository can supply.
-func liveGrantImportRequest(queryType string, access repositoryAccessFilter) codemodel.ImportDependencyRequest {
+func liveGrantImportRequest(queryType string, access querycontract.RepositoryAccessFilter) codemodel.ImportDependencyRequest {
 	return codemodel.ImportDependencyRequest{
 		QueryType: queryType,
 		Language:  liveGrantLanguage,
@@ -84,7 +85,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 		{
 			// query_type imports_by_file, no source module: the direct edge page.
 			name: "codemodel.DirectImportRowsCypher/imports_by_file",
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("imports_by_file", access)
 				return codemodel.DirectImportRowsCypher(req), codequery.ImportDependencyParams(req)
 			},
@@ -94,7 +95,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// every seeded file imports, so the out-of-grant repository has six
 			// edges competing for the page.
 			name: "codemodel.DirectImportRowsCypher/importers",
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("importers", access)
 				req.TargetModule = liveGrantImportedModue
 				return codemodel.DirectImportRowsCypher(req), codequery.ImportDependencyParams(req)
@@ -105,7 +106,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// logical-module page. Each out-of-grant file owns a module of its
 			// own, so the DISTINCT set is large enough to squeeze.
 			name: "codemodel.PackageImportRowsCypher/package_imports",
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("package_imports", access)
 				return codemodel.PackageImportRowsCypher(req, nil), codequery.ImportDependencyParams(req)
 			},
@@ -115,7 +116,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// shape that pages in Go.
 			name:   "codemodel.PackageImportRowsCypher/package_imports scoped",
 			params: pathParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("package_imports", access)
 				req.SourceModule = liveGrantSourceModule
 				return codemodel.PackageImportRowsCypher(req, liveGrantModuleScopes()), codequery.ImportDependencyParams(req)
@@ -127,7 +128,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// first.
 			name:   "codemodel.SourceModuleFilesCypher/module_dependencies",
 			params: scanParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("module_dependencies", access)
 				req.SourceModule = liveGrantSourceModule
 				return codemodel.SourceModuleFilesCypher(req), codequery.ImportDependencyParams(req)
@@ -138,7 +139,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// for its callee side.
 			name:   "codemodel.TargetModuleFilesCypher/cross_module_calls",
 			params: scanParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
 				req.TargetModule = liveGrantTargetModule
 				return codemodel.TargetModuleFilesCypher(req), codequery.ImportDependencyParams(req)
@@ -148,7 +149,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// The import-edge read a resolved source module leads to.
 			name:   "codemodel.SourceModuleImportRowsCypher/module_dependencies",
 			params: pathParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("module_dependencies", access)
 				req.SourceModule = liveGrantSourceModule
 				return codemodel.SourceModuleImportRowsCypher(req, liveGrantModuleScopes()), codequery.ImportDependencyParams(req)
@@ -158,7 +159,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// query_type file_import_cycles.
 			name:   "codemodel.FileImportCycleEdgeRowsCypher/file_import_cycles",
 			params: cycleParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("file_import_cycles", access)
 				return codemodel.FileImportCycleEdgeRowsCypher(req), codequery.ImportDependencyParams(req)
 			},
@@ -170,7 +171,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// caller granted only the caller's side.
 			name:   "codemodel.CrossModuleCallRowsCypher/cross_module_calls",
 			params: pathParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
 				return codemodel.CrossModuleCallRowsCypher(req, nil, nil), codequery.ImportDependencyParams(req)
 			},
@@ -181,7 +182,7 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// conditions.
 			name:   "codemodel.CrossModuleCallRowsCypher/cross_module_calls scoped",
 			params: pathParams,
-			build: func(access repositoryAccessFilter) (string, map[string]any) {
+			build: func(access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
 				req.SourceModule = liveGrantSourceModule
 				req.TargetModule = liveGrantTargetModule
