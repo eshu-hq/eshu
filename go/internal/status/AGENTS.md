@@ -6,7 +6,7 @@
    health states, JSON contract, and gotchas
 2. `go/internal/status/status.go` — `Reader`, `RawSnapshot`, `Report`, and
    `BuildReport`; understand projection before touching status shape
-3. `go/internal/status/status_health.go` — `evaluateHealth`; understand the
+3. `go/internal/status/health.go` — `evaluateHealth`; understand the
    health state machine before touching readiness logic
 4. `go/internal/status/http.go` — `NewHTTPHandler`; the format negotiation and
    method guard logic
@@ -14,9 +14,9 @@
    field name here is part of the operator contract
 6. `go/internal/status/coordinator.go` — `CoordinatorSnapshot`,
    `CollectorInstanceSummary`; how the workflow coordinator state plugs in
-7. `go/internal/status/aws_cloud.go` — AWS cloud scanner status text and JSON
+7. `go/internal/status/cloud/aws.go` — AWS cloud scanner status text and JSON
    projection support
-8. `go/internal/status/aws_freshness.go` — AWS freshness trigger backlog text
+8. `go/internal/status/cloud/aws_freshness.go` — AWS freshness trigger backlog text
    and JSON projection support
 9. `docs/public/reference/http-api.md` and `docs/public/reference/cli-reference.md`
    — the documented operator contract this package backs
