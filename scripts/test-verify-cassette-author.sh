@@ -112,6 +112,14 @@ plant_red hostname 'metrics.acme-internal.net'
 plant_red hostname 'orders.team-b.svc.cluster.local' hostname-cluster-local
 plant_red hostname 'orders.team-b.svc' hostname-svc
 plant_red hostname 'intranet.acme-internal.co.uk' hostname-cctld
+# Review of the second cut found four more shapes a cluster recording
+# carries: a wildcard host (TLS SANs, ingress), an internal zone outside the
+# original TLD list, an address ending a sentence, and an EKS node name.
+plant_red hostname '*.orders.acme-internal.com' hostname-wildcard
+plant_red hostname 'vault.acme-internal.corp' hostname-corp
+plant_red hostname 'vault.service.consul' hostname-consul
+plant_red ipv4 'reachable at 10.20.30.40.' ipv4-sentence
+plant_red nodeip 'ip-10-20-30-40'
 plant_red identifier 'eshu-canary-org'
 
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
@@ -200,11 +208,11 @@ mutate_expect_red() {
 # count; that proves the count, not the detection. Replacing its pattern with
 # one that can never match keeps the count and must trip the planted-sample
 # probe, which is the assertion the whole file exists for.
-for alt in ipv4 ipv6 account12 arn hostname identifier; do
+for alt in ipv4 nodeip ipv6 account12 arn hostname identifier; do
 	mutate_expect_red "delete alternative ${alt}" "/_cpd_detect\\[${alt}\\]/{/^[[:space:]]*#/!d;}" \
-		"carries 5 alternative(s), expected 6"
+		"carries 6 alternative(s), expected 7"
 done
-for alt in ipv4 ipv6 account12 arn hostname; do
+for alt in ipv4 nodeip ipv6 account12 arn hostname; do
 	mutate_expect_red "never-match alternative ${alt}" "s/^\\([[:space:]]*_cpd_detect\\[${alt}\\]=\\).*/\\1'(?!)'/" \
 		"alternative ${alt} no longer detects its planted sample"
 done
@@ -214,7 +222,7 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 7 sample(s), expected 8"
+	"positive control carries 11 sample(s), expected 12"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

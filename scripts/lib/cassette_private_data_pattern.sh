@@ -43,8 +43,8 @@
 # collides with a file extension or a dotted code/field path the corpus
 # carries (.in .it .is .at .no .es .cc .pl .rs .tf .sh .md .ps .pm .so .am
 # .mk .zip .name .email .run, measured on the committed cassettes). An
-# organisation domain under one of those TLDs is never a candidate here. That
-# blind spot is why Phase 3 of #6965 requires two further independent
+# organisation domain under one of those TLDs, or under any other TLD the list
+# does not name, is never a candidate here. That blind spot is why Phase 3 of #6965 requires two further independent
 # mechanisms (redaction on record, and re-validation) and does not rest on
 # this scan alone.
 #
@@ -67,7 +67,7 @@
 # Only the COUNT is ever printed; the values never reach a log.
 _cassette_identifier_pattern() {
 	local -n _cpd_ident_out="$1"
-	local file="${ESHU_PRIVATE_IDENTIFIERS_FILE:-}" line count=0 joined
+	local file="${ESHU_PRIVATE_IDENTIFIERS_FILE:-}" line count=0 lineno=0 joined
 	local -a terms=('eshu-canar''y-org')
 	if [[ -z "${file}" ]]; then
 		printf 'cassette private-data scan: WARNING ESHU_PRIVATE_IDENTIFIERS_FILE is not set; the identifier alternative scans for the committed canary only\n' >&2
@@ -76,13 +76,16 @@ _cassette_identifier_pattern() {
 	else
 		[[ -s "${file}" ]] \
 			|| fail "ESHU_PRIVATE_IDENTIFIERS_FILE names a missing or empty file -- a configured identifier source that resolves to nothing must never read as clean"
+		# `#` starts a comment anywhere on a line, so an identifier cannot
+		# contain one.
 		while IFS= read -r line || [[ -n "${line}" ]]; do
+			lineno=$((lineno + 1))
 			line="${line%%#*}"
 			line="${line#"${line%%[![:space:]]*}"}"
 			line="${line%"${line##*[![:space:]]}"}"
 			[[ -n "${line}" ]] || continue
 			[[ "${line}" != *'\'* ]] \
-				|| fail "ESHU_PRIVATE_IDENTIFIERS_FILE line ${count} contains a backslash, which \\Q..\\E quoting cannot carry"
+				|| fail "ESHU_PRIVATE_IDENTIFIERS_FILE line ${lineno} contains a backslash, which \\Q..\\E quoting cannot carry"
 			terms+=("\\Q${line}\\E")
 			count=$((count + 1))
 		done <"${file}"
@@ -131,7 +134,14 @@ cassette_private_data_patterns() {
 	doc_account='(?:12345678901[2]|0{11}[0-9]|([0-9])\1{11})'
 	# Detection. One line per alternative, so the test mirror can delete each
 	# in turn and show the control go red.
-	_cpd_detect[ipv4]='(?<![0-9.])(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?![0-9.])'
+	# A dot next to the quad closes it unless a digit follows the dot, so an
+	# address ending a sentence ("at 10.0.0.5.") or a reverse zone
+	# ("5.0.0.10.in-addr.arpa") is still a candidate while a five-part version
+	# string is not.
+	_cpd_detect[ipv4]='(?<![0-9])(?<![0-9]\.)(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?![0-9])(?!\.[0-9])'
+	# EKS-style node names spell the private address with hyphens. The IPv4
+	# alternative never sees them, so they get their own.
+	_cpd_detect[nodeip]='(?i)(?<![a-z0-9-])ip-(?:[0-9]{1,3}-){3}[0-9]{1,3}(?![0-9])'
 	# Colon-hex runs with three or more colons, or a `::`; that excludes hh:mm:ss
 	# and `sha256:<hex>` while keeping every compressed and full IPv6 form.
 	_cpd_detect[ipv6]='(?<![0-9A-Za-z:.-])(?:(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?|::(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6}))(?![0-9A-Za-z:])'
@@ -149,9 +159,15 @@ cassette_private_data_patterns() {
 	# service names still start a candidate.
 	local hostname_tlds
 	hostname_tlds='com|net|org|io|dev|app|cloud|co|ai|us|internal|local|svc|example|test|invalid|localhost'
+	# Enterprise and infrastructure zones a cluster recording carries: AD and
+	# intranet zones, Consul, AWS's own `on.aws` endpoints, and reverse DNS.
+	hostname_tlds="${hostname_tlds}|corp|lan|home|intranet|private|edu|gov|mil|int|aws|consul|arpa"
 	hostname_tlds="${hostname_tlds}|info|biz|me|xyz|tech|online|site|store|shop|blog|live|news|pro|mobi|tv|ws|work|world|today|space|website|digital|network|systems|solutions|services|software|engineering|tools|team|group|company|global|host|hosting|page|zone|club|link|click|top|vip|fun|life|gg"
 	hostname_tlds="${hostname_tlds}|uk|de|ca|jp|au|nl|fr|eu|ch|se|dk|be|fi|ie|pt|br|mx|ar|cn|kr|sg|hk|tw|nz|za|ru|ua|il|ae|sa|tr|gr|hu|ro|bg|sk|si|hr|lt|lv|ee|lu|cz"
-	_cpd_detect[hostname]="(?i)(?<![a-z0-9.-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:${hostname_tlds})(?![a-z0-9_-])"
+	# The left boundary refuses a mid-token suffix but admits a label that
+	# follows a bare dot, so `*.acme-internal.com` and `.acme-internal.com`
+	# (TLS SANs, ingress hosts, search domains) are candidates.
+	_cpd_detect[hostname]="(?i)(?<![a-z0-9-])(?<![a-z0-9]\\.)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:${hostname_tlds})(?![a-z0-9_-])"
 	_cassette_identifier_pattern '_cpd_detect[identifier]'
 	# Allow. Anchored on the whole token. RFC 5737 documentation ranges and
 	# loopback; RFC 3849 and ::1; documentation accounts; ARNs whose account
@@ -170,6 +186,7 @@ cassette_private_data_patterns() {
 	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
 	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
+	_cpd_allow[nodeip]='(?i)^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$'
 
 	# Positive control: `<alternative> <value>`, one per alternative, each a
 	# real-shaped private value that must be DETECTED and must NOT be allowed.
@@ -181,6 +198,10 @@ cassette_private_data_patterns() {
 		'hostname vault.acme''-internal.com'
 		'hostname payments.team-a.svc.cluster''.local'
 		'hostname payments.team-a''.svc'
+		'hostname *.orders.acme''-internal.com'
+		'hostname vault.service''.consul'
+		'ipv4 reachable at 172.16''.9.4.'
+		'nodeip ip-10''-0-1-5'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -190,6 +211,7 @@ cassette_private_data_patterns() {
 		'ipv4 198.51''.100.7'
 		'ipv4 203.0''.113.9'
 		'ipv4 127.0''.0.1'
+		'nodeip ip-192''-0-2-10'
 		'ipv6 2001:db8::1'
 		'ipv6 2001:db8:85a3::8a2e:370:7334'
 		'ipv6 ::1'
@@ -213,16 +235,17 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 6 alternatives, 8 planted samples (hostname carries three: a
-	# public-TLD host, an in-cluster FQDN and a short in-cluster name), 25
-	# allowed samples. Adding an alternative or an allowed form means adding
+	# patterns: 7 alternatives, 12 planted samples (hostname carries five: a
+	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
+	# host and a Consul name; ipv4 carries two: a bare address and one ending
+	# a sentence), 26 allowed samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
-	[[ "${#_cpd_detect[@]}" -eq 6 ]] \
-		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 6 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 8 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 8 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 25 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 25 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
+		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
+	[[ "${#planted[@]}" -eq 12 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 12 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#allowed[@]}" -eq 26 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 26 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()
@@ -275,7 +298,7 @@ cassette_private_data_scan() {
 	local alt rc matches match path rest line token verdict_rc
 	while IFS= read -r path; do
 		files+=("${path}")
-	done < <(rg --files -- "${dir}" | LC_ALL=C sort)
+	done < <(rg --files --no-ignore --hidden -- "${dir}" | LC_ALL=C sort)
 	[[ "${#files[@]}" -gt 0 ]] \
 		|| fail "cassette private-data scan found no files under ${dir}; a scan over nothing proves nothing"
 	while IFS= read -r alt; do
