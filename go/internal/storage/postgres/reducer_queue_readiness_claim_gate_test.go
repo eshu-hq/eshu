@@ -212,6 +212,14 @@ var readinessClassOwningDomain = map[string]string{
 	// no claim-time row can express it; the handler defer is bounded instead.
 	reducer.IAMCanPerformTargetNotReadyFailureClass: string(reducer.DomainIAMCanPerformMaterialization),
 	workloadinstance.NotReadyFailureClass:           string(reducer.DomainWorkloadCloudRelationshipMaterialization),
+	// #6887: the cloud-resource retract's admission-drain fence. Returned by
+	// the aws_, gcp_ and azure_resource_materialization handlers alike, and
+	// the awaited condition is deployment-wide (no scope's active generation
+	// may have a nonterminal cloud_inventory_admission item), which a
+	// single-scope payload-derived CTE row cannot express. Placed nowhere,
+	// like CrossScopeProducerNotReadyFailureClass; the handler defer is the
+	// defense and is non-counting.
+	reducer.CloudAdmissionNotReadyFailureClass: "",
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

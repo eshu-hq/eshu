@@ -77,6 +77,13 @@ type GCPResourceMaterializationHandler struct {
 	// Instruments records bounded Prometheus counters and histograms for GCP
 	// resource materialization. Nil preserves existing no-metric behavior.
 	Instruments *telemetry.Instruments
+	// NodeRetracter deletes predecessor-only uids under the globally-gated
+	// #6887 retract. Nil skips the retract so the domain stays safe to
+	// register before the retract slice is wired.
+	NodeRetracter CloudResourceNodeRetracter
+	// PriorGeneration resolves the predecessor generation for the
+	// generation-diff retract. Nil skips the retract.
+	PriorGeneration PriorGenerationID
 }
 
 // Handle executes one GCP resource materialization intent.
@@ -151,6 +158,33 @@ func (h GCPResourceMaterializationHandler) Handle(
 	// relationship edge stage gates its projection on this phase: publishing
 	// before a successful write would let edges resolve against nodes that never
 	// committed, and not publishing on an empty generation would block it forever.
+	// Retract predecessor-only nodes after the write succeeds and before the
+	// phase publishes, mirroring the AWS handler: a retract failure fails the
+	// intent so the durable queue retries it.
+	retractStart := time.Now()
+	retractedNodes, err := retractDeadCloudResourceNodes(
+		ctx,
+		h.FactLoader,
+		h.PriorGeneration,
+		h.NodeRetracter,
+		intent.ScopeID,
+		intent.GenerationID,
+		[]string{facts.GCPCloudResourceFactKind},
+		func(prior []facts.Envelope) (map[string]struct{}, error) {
+			priorRows, _, err := ExtractGCPCloudResourceNodeRows(prior)
+			if err != nil {
+				return nil, err
+			}
+			return cloudRowUIDSet(priorRows), nil
+		},
+		cloudRowUIDSet(rows),
+		gcpResourceEvidenceSource,
+	)
+	if err != nil {
+		return Result{}, err
+	}
+	retractDuration := time.Since(retractStart)
+
 	phasePublishStart := time.Now()
 	if err := publishIntentGraphPhase(
 		ctx,
@@ -173,6 +207,8 @@ func (h GCPResourceMaterializationHandler) Handle(
 		writeDuration:        writeDuration,
 		phasePublishDuration: phasePublishDuration,
 		totalDuration:        time.Since(totalStart),
+		retractedNodes:       retractedNodes,
+		retractDuration:      retractDuration,
 	}
 	logGCPResourceMaterializationCompleted(ctx, timing)
 	h.recordMetrics(ctx, timing)
@@ -182,10 +218,11 @@ func (h GCPResourceMaterializationHandler) Handle(
 		Domain:   DomainGCPResourceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical cloud resource node(s) from %d gcp resource fact(s); %d input_invalid fact(s) quarantined",
+			"materialized %d canonical cloud resource node(s) from %d gcp resource fact(s); %d input_invalid fact(s) quarantined; %d dead node(s) retracted",
 			len(rows),
 			len(envelopes),
 			inputInvalidCount,
+			retractedNodes,
 		),
 		CanonicalWrites: len(rows),
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
@@ -384,6 +421,8 @@ type gcpResourceMaterializationTiming struct {
 	loadDuration         time.Duration
 	extractDuration      time.Duration
 	writeDuration        time.Duration
+	retractedNodes       int
+	retractDuration      time.Duration
 	phasePublishDuration time.Duration
 	totalDuration        time.Duration
 }
@@ -402,6 +441,8 @@ func logGCPResourceMaterializationCompleted(
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
+		slog.Int("retracted_node_count", timing.retractedNodes),
+		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)

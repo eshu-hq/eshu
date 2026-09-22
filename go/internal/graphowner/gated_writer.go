@@ -59,6 +59,16 @@ type graphNodeOwnerResolver interface {
 		entries []postgres.GraphNodeOwnerEntry,
 		updatedAt time.Time,
 	) (owned map[string]struct{}, contendedLost int, err error)
+	LockUIDs(
+		ctx context.Context,
+		tx db.ExecQueryer,
+		uids []string,
+	) error
+	ReleaseOwnedUIDs(
+		ctx context.Context,
+		tx db.ExecQueryer,
+		uids []string,
+	) error
 }
 
 // Gate resolves #5007 cross-scope node ownership before a graph node write. A
@@ -77,6 +87,20 @@ type Gate struct {
 	// storage/cypher/edge/writer.EdgeWriter.Instruments). Set as a public field after
 	// NewGate, not a constructor parameter, mirroring that same convention.
 	Instruments *telemetry.Instruments
+
+	// Logger receives the retract's operator-facing warnings (ledger-vs-graph
+	// ghosts after a failed delete or commit). Optional: nil uses
+	// slog.Default(). Set as a public field after NewGate like Instruments,
+	// so tests can capture the records without touching the process logger.
+	Logger *slog.Logger
+}
+
+// logger returns the gate's warning logger, defaulting to slog.Default().
+func (g *Gate) logger() *slog.Logger {
+	if g != nil && g.Logger != nil {
+		return g.Logger
+	}
+	return slog.Default()
 }
 
 // NewGate returns a Gate backed by the owner ledger over db. A nil db yields a

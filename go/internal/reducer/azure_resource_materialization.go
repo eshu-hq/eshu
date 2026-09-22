@@ -48,6 +48,13 @@ type AzureResourceMaterializationHandler struct {
 	// Instruments only skips the counter increment; the quarantine and
 	// structured error log still happen via recordQuarantinedFacts.
 	Instruments *telemetry.Instruments
+	// NodeRetracter deletes predecessor-only uids under the globally-gated
+	// #6887 retract. Nil skips the retract so the domain stays safe to
+	// register before the retract slice is wired.
+	NodeRetracter CloudResourceNodeRetracter
+	// PriorGeneration resolves the predecessor generation for the
+	// generation-diff retract. Nil skips the retract.
+	PriorGeneration PriorGenerationID
 }
 
 // Handle executes one Azure resource materialization intent.
@@ -99,6 +106,33 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 		}
 	}
 
+	// Retract predecessor-only nodes after the write succeeds and before the
+	// phase publishes, mirroring the AWS handler: a retract failure fails the
+	// intent so the durable queue retries it.
+	retractStart := time.Now()
+	retractedNodes, err := retractDeadCloudResourceNodes(
+		ctx,
+		h.FactLoader,
+		h.PriorGeneration,
+		h.NodeRetracter,
+		intent.ScopeID,
+		intent.GenerationID,
+		[]string{facts.AzureCloudResourceFactKind},
+		func(prior []facts.Envelope) (map[string]struct{}, error) {
+			priorRows, _, err := ExtractAzureCloudResourceNodeRows(prior)
+			if err != nil {
+				return nil, err
+			}
+			return cloudRowUIDSet(priorRows), nil
+		},
+		cloudRowUIDSet(rows),
+		azureResourceEvidenceSource,
+	)
+	if err != nil {
+		return Result{}, err
+	}
+	retractDuration := time.Since(retractStart)
+
 	phasePublishStart := time.Now()
 	if err := publishIntentGraphPhase(ctx, h.PhasePublisher, intent, GraphProjectionKeyspaceCloudResourceUID, GraphProjectionPhaseCanonicalNodesCommitted, time.Now().UTC()); err != nil {
 		return Result{}, fmt.Errorf("publish canonical azure cloud resource nodes phase: %w", err)
@@ -112,6 +146,8 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 		loadDuration:         loadDuration,
 		extractDuration:      extractDuration,
 		writeDuration:        writeDuration,
+		retractedNodes:       retractedNodes,
+		retractDuration:      retractDuration,
 		phasePublishDuration: phasePublishDuration,
 		totalDuration:        time.Since(totalStart),
 	})
@@ -120,7 +156,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 		IntentID:        intent.IntentID,
 		Domain:          DomainAzureResourceMaterialization,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf("materialized %d canonical cloud resource node(s) from %d azure resource fact(s)", len(rows), len(envelopes)),
+		EvidenceSummary: fmt.Sprintf("materialized %d canonical cloud resource node(s) from %d azure resource fact(s); %d dead node(s) retracted", len(rows), len(envelopes), retractedNodes),
 		CanonicalWrites: len(rows),
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
@@ -266,6 +302,8 @@ type azureResourceMaterializationTiming struct {
 	loadDuration         time.Duration
 	extractDuration      time.Duration
 	writeDuration        time.Duration
+	retractedNodes       int
+	retractDuration      time.Duration
 	phasePublishDuration time.Duration
 	totalDuration        time.Duration
 }
@@ -281,6 +319,8 @@ func logAzureResourceMaterializationCompleted(ctx context.Context, timing azureR
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
+		slog.Int("retracted_node_count", timing.retractedNodes),
+		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),
 		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)

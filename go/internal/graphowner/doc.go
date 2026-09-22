@@ -46,6 +46,14 @@
 // RDSPostureLockedWriter, EC2InternetExposureLockedWriter,
 // EC2BlockDeviceKMSPostureLockedWriter, and S3InternetExposureLockedWriter
 // adapt it to the four reducer posture/exposure node-writer consumer
-// interfaces; Retract* is forwarded unwrapped (retraction targets a scope, not
-// an explicit uid list, so there is nothing to lock ahead of it).
+// interfaces; their scope-targeted Retract* is forwarded unwrapped (retraction
+// targets a scope, not an explicit uid list, so there is nothing to lock
+// ahead of it).
+//
+// CloudResourceRetracter and EC2InstanceRetracter are the opposite case: the
+// #6887 generation-diff retract deletes whole nodes for explicit candidate
+// uids, so they run THROUGH Gate.RetractDeadUIDs — per-uid advisory lock,
+// in-transaction global PG live-check, ledger release, then the uid-anchored
+// graph delete — never unwrapped. A delete racing a concurrent re-admit on
+// the same uid serializes on the identical lock key either order converges.
 package graphowner

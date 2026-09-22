@@ -29,6 +29,27 @@ SELECT EXISTS (
 )
 `
 
+// priorGenerationIDSQL resolves the strictly-older generation: the newest
+// generation whose (observed_at, generation_id) sorts before the intent's
+// own row. A newest-other lookup would return a NEWER generation whenever a
+// non-newest intent executes (retry crossing a scan boundary, backfill,
+// queue lag), and the diff would then yield newly-created uids as retract
+// candidates. A missing intent row (or no older generation) yields no rows,
+// which NewPriorGenerationID reports as found=false: the handler skips the
+// retract, which is the safe direction.
+const priorGenerationIDSQL = `
+SELECT generation_id
+FROM scope_generations
+WHERE scope_id = $1
+  AND (observed_at, generation_id) < (
+    SELECT observed_at, generation_id
+    FROM scope_generations
+    WHERE scope_id = $1 AND generation_id = $2
+  )
+ORDER BY observed_at DESC, generation_id DESC
+LIMIT 1
+`
+
 // CurrentScopeGeneration reports the newest pending or active generation with
 // a non-empty freshness hint for one scope.
 type CurrentScopeGeneration struct {
@@ -93,6 +114,37 @@ func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFres
 		}
 
 		return activeGenID.String == generationID, nil
+	}
+}
+
+// NewPriorGenerationID returns the predecessor-generation lookup backed by
+// scope_generations. The ordering is observation time with the generation id
+// as the deterministic tie-break, so concurrent same-timestamp generations
+// still resolve one predecessor. A scope with no earlier generation reports
+// found=false (first write: no diff source, no retract).
+func NewPriorGenerationID(database db.ExecQueryer) reducer.PriorGenerationID {
+	return func(ctx context.Context, scopeID, generationID string) (string, bool, error) {
+		rows, err := database.QueryContext(ctx, priorGenerationIDSQL, scopeID, generationID)
+		if err != nil {
+			return "", false, fmt.Errorf("query prior generation id for scope %s: %w", scopeID, err)
+		}
+		defer func() { _ = rows.Close() }()
+
+		if !rows.Next() {
+			if err := rows.Err(); err != nil {
+				return "", false, fmt.Errorf("iterate prior generation id for scope %s: %w", scopeID, err)
+			}
+			return "", false, nil
+		}
+
+		var prior string
+		if err := rows.Scan(&prior); err != nil {
+			return "", false, fmt.Errorf("scan prior generation id for scope %s: %w", scopeID, err)
+		}
+		if err := rows.Err(); err != nil {
+			return "", false, fmt.Errorf("iterate prior generation id for scope %s: %w", scopeID, err)
+		}
+		return strings.TrimSpace(prior), strings.TrimSpace(prior) != "", nil
 	}
 }
 

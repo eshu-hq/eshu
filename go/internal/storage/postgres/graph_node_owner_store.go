@@ -53,6 +53,10 @@ SELECT uid, source_order_key
 FROM graph_node_owner
 WHERE uid = ANY($1::text[])`
 
+const graphNodeOwnerReleaseSQL = `
+DELETE FROM graph_node_owner
+WHERE uid = ANY($1::text[])`
+
 // GraphNodeOwnerEntry is one node uid's contribution to the owner ledger: its
 // deterministic order key and its full node row (stored as JSONB for the Stage
 // 2 provenance foundation; Stage 1 does not read winning_row back for the graph
@@ -235,6 +239,33 @@ func (GraphNodeOwnerStore) upsert(ctx context.Context, tx db.ExecQueryer, entrie
 	query := graphNodeOwnerUpsertPrefix + strings.Join(values, ", ") + graphNodeOwnerUpsertSuffix
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert graph node owners: %w", err)
+	}
+	return nil
+}
+
+// ReleaseOwnedUIDs deletes the owner-ledger rows for the given uids. The
+// #6887 generation-diff retract calls it inside the per-uid lock-holding
+// transaction after the global PG live-check proved every uid dead and before
+// the graph delete commits: without the release, the stale max order key
+// would permanently block re-admission (a later contribution always loses to
+// the ghost winner, so the node is never rewritten). The delete is
+// idempotent — releasing an already-released uid is a no-op — so retries and
+// replays reconverge. An empty or all-blank input never touches the database.
+func (GraphNodeOwnerStore) ReleaseOwnedUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error {
+	if tx == nil {
+		return fmt.Errorf("graph node owner store transaction is required")
+	}
+	clean := make([]string, 0, len(uids))
+	for _, uid := range uids {
+		if uid = strings.TrimSpace(uid); uid != "" {
+			clean = append(clean, uid)
+		}
+	}
+	if len(clean) == 0 {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, graphNodeOwnerReleaseSQL, clean); err != nil {
+		return fmt.Errorf("release graph node owners: %w", err)
 	}
 	return nil
 }

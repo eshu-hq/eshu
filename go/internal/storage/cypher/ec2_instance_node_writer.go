@@ -59,6 +59,19 @@ SET r.id = row.uid,
     r.collector_kind = row.collector_kind,
     r.evidence_source = row.evidence_source`
 
+// canonicalEC2InstanceRetractCypher deletes EC2 instance CloudResource nodes
+// for the #6887 generation-diff retract. It is the same uid-anchored
+// MATCH-plus-DETACH-DELETE shape as canonicalCloudResourceRetractCypher:
+// EC2 nodes share the cloud_resource_uid keyspace, the
+// cloud_resource_uid_unique constraint, and the nornicdb lookup index, so one
+// anchored shape serves both families with point lookups (never a bare-label
+// scan, #6822) and no evidence_source predicate (the caller already proved no
+// family admits the uid). Not marked for the bounded-drain rewrite: UNWIND
+// batching already bounds every execution.
+const canonicalEC2InstanceRetractCypher = `UNWIND $rows AS row
+MATCH (n:CloudResource {uid: row.uid})
+DETACH DELETE n`
+
 // EC2InstanceNodeWriter materializes ec2_instance_posture facts into canonical
 // :CloudResource graph nodes on the existing cloud_resource_uid keyspace. It
 // satisfies the reducer-owned EC2InstanceNodeWriter consumer interface and writes
@@ -125,6 +138,51 @@ func (w *EC2InstanceNodeWriter) WriteEC2InstanceNodes(
 			return WrapRetryableNeo4jError(err)
 		}
 		return nil
+	}
+
+	for _, stmt := range stmts {
+		if err := w.executor.Execute(ctx, stmt); err != nil {
+			return WrapRetryableNeo4jError(err)
+		}
+	}
+	return nil
+}
+
+// RetractEC2InstanceNodes deletes the EC2 instance CloudResource nodes for
+// the given uids in input order using batched UNWIND statements. The caller
+// MUST have proved every uid dead across all scopes (the graphowner Gate's
+// global PG live-check over the ec2_instance_posture family): the delete is
+// unconditional once issued. Statements run sequentially through Execute,
+// never ExecuteGroup — on NornicDB a retract inside a managed transaction can
+// under-apply even as a single statement (#4367/#5128/#5146/#5152).
+func (w *EC2InstanceNodeWriter) RetractEC2InstanceNodes(
+	ctx context.Context,
+	uids []string,
+	evidenceSource string,
+) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	if w.executor == nil {
+		return fmt.Errorf("ec2 instance node writer executor is required")
+	}
+
+	rows := make([]map[string]any, 0, len(uids))
+	for _, uid := range uids {
+		rows = append(rows, map[string]any{"uid": uid})
+	}
+
+	stmts := BuildBatchedStatements(canonicalEC2InstanceRetractCypher, rows, w.batchSize)
+	for index := range stmts {
+		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
+		stmts[index].Operation = OperationCanonicalRetract
+		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2Instance
+		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "CloudResource"
+		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+			"label=CloudResource retract rows=%d evidence_source=%s",
+			len(batchRows),
+			evidenceSource,
+		)
 	}
 
 	for _, stmt := range stmts {

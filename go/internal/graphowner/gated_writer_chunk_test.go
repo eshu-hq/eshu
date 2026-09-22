@@ -101,6 +101,17 @@ func (f *fakeChunkStore) ResolveOwnedUIDs(
 	return owned, 0, nil
 }
 
+// LockUIDs and ReleaseOwnedUIDs satisfy the #6887-extended
+// graphNodeOwnerResolver; the chunk-boundary tests never exercise the retract
+// path, so both are no-ops.
+func (f *fakeChunkStore) LockUIDs(context.Context, db.ExecQueryer, []string) error {
+	return nil
+}
+
+func (f *fakeChunkStore) ReleaseOwnedUIDs(context.Context, db.ExecQueryer, []string) error {
+	return nil
+}
+
 // TestGateWriteChunksCriticalSectionAtLockChunkSize is the P2-1 unit proof:
 // driving 1201 distinct-uid rows through Gate.write must never resolve more
 // than lockChunkSize uids under one advisory-lock transaction, must open

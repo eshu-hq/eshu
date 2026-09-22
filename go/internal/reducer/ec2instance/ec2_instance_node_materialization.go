@@ -87,6 +87,13 @@ type EC2InstanceNodeMaterializationHandler struct {
 	// Instruments records the nodes-materialized and nodes-skipped counters.
 	// Nil-safe.
 	Instruments *telemetry.Instruments
+	// NodeRetracter deletes predecessor-only instances under the globally-gated
+	// #6887 retract. Nil skips the retract so the domain stays safe to
+	// register before the retract slice is wired.
+	NodeRetracter EC2InstanceNodeRetracter
+	// PriorGeneration resolves the predecessor generation for the
+	// generation-diff retract. Nil skips the retract.
+	PriorGeneration reducercontract.PriorGenerationID
 }
 
 // Handle executes one EC2 instance node materialization intent.
@@ -145,6 +152,25 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 		writeDuration = time.Since(writeStart)
 	}
 
+	// Retract predecessor-only instances after the write succeeds and before
+	// the phase publishes, mirroring the shared cloud handlers: a retract
+	// failure fails the intent so the durable queue retries it.
+	retractStart := time.Now()
+	retractedNodes, err := retractDeadEC2InstanceNodes(
+		ctx,
+		h.FactLoader,
+		h.PriorGeneration,
+		h.NodeRetracter,
+		intent.ScopeID,
+		intent.GenerationID,
+		rows,
+		ec2InstanceEvidenceSource,
+	)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	retractDuration := time.Since(retractStart)
+
 	// Publish the canonical-nodes-committed readiness phase only after the node
 	// write succeeds (or is a legitimate no-op for an empty generation). The
 	// USES_PROFILE edge slice (reducer/ec2usesprofile) gates on this phase:
@@ -174,6 +200,8 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 		loadDuration:         loadDuration,
 		extractDuration:      extractDuration,
 		writeDuration:        writeDuration,
+		retractedNodes:       retractedNodes,
+		retractDuration:      retractDuration,
 		phasePublishDuration: phasePublishDuration,
 		totalDuration:        time.Since(totalStart),
 	})
@@ -183,10 +211,11 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 		Domain:   reducercontract.DomainEC2InstanceNodeMaterialization,
 		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical ec2 instance node(s) from %d posture fact(s); %d input_invalid fact(s) quarantined",
+			"materialized %d canonical ec2 instance node(s) from %d posture fact(s); %d input_invalid fact(s) quarantined; %d dead node(s) retracted",
 			len(rows),
 			len(envelopes),
 			inputInvalidCount,
+			retractedNodes,
 		),
 		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 		CanonicalWrites: len(rows),

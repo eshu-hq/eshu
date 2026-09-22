@@ -67,6 +67,13 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// are the regression.
 	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
 	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
+	// #6887: the cloud-resource retract's admission-drain fence. The live-check
+	// refuses to prove death while another scope's active-generation
+	// cloud_inventory_admission item is nonterminal; under continuous
+	// multi-scope ingest that is a routine race, so a counting trip would
+	// dead-letter healthy node writes. TestReducerQueueFailDefersCloudAdmission
+	// ReadinessPastAttemptBudget is the regression.
+	reducer.CloudAdmissionNotReadyFailureClass,
 	// #5046: every remaining in-handler readiness-gate miss in the reducer.
 	// The seventeen below all returned a Retryable() readiness error under a
 	// class nothing here recognised, so their misses counted toward maxAttempts

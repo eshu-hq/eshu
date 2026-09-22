@@ -25,8 +25,14 @@ type canonicalGraphWriters struct {
 	// in the #5007 owner-ledger gate (graphowner) so a shared cross-scope node's
 	// scope-derived properties resolve deterministically to the max-order-key
 	// contributor. A nil-ledger gate writes through unchanged.
-	cloudResourceNode               *graphowner.CloudResourceGatedWriter
-	ec2InstanceNode                 *graphowner.EC2InstanceGatedWriter
+	cloudResourceNode *graphowner.CloudResourceGatedWriter
+	ec2InstanceNode   *graphowner.EC2InstanceGatedWriter
+	// cloudResourceRetracter / ec2InstanceRetracter delete predecessor-only
+	// CloudResource uids under the globally-gated #6887 retract: per-uid
+	// advisory lock, in-transaction global PG live-check, ledger release,
+	// then the uid-anchored graph delete.
+	cloudResourceRetracter          *graphowner.CloudResourceRetracter
+	ec2InstanceRetracter            *graphowner.EC2InstanceRetracter
 	cloudResourceEdge               *sourcecypher.CloudResourceEdgeWriter
 	cloudResourceContainerImageEdge *sourcecypher.CloudResourceContainerImageEdgeWriter
 	gcpCloudResourceEdge            *sourcecypher.GCPCloudResourceEdgeWriter
@@ -109,6 +115,8 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 	return canonicalGraphWriters{
 		cloudResourceNode:               graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
 		ec2InstanceNode:                 graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
+		cloudResourceRetracter:          graphowner.NewCloudResourceRetracter(ownerGate, rawCloudResourceNode.RetractCloudResourceNodes),
+		ec2InstanceRetracter:            graphowner.NewEC2InstanceRetracter(ownerGate, rawEC2InstanceNode.RetractEC2InstanceNodes),
 		cloudResourceEdge:               sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
 		cloudResourceContainerImageEdge: sourcecypher.NewCloudResourceContainerImageEdgeWriter(exec, batchSize),
 		gcpCloudResourceEdge:            sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),

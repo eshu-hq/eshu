@@ -26,6 +26,11 @@ type GenerationFreshnessCheck = reducercontract.GenerationFreshnessCheck
 // while preserving cleanup on refreshes and retries.
 type PriorGenerationCheck = reducercontract.PriorGenerationCheck
 
+// PriorGenerationID returns the scope's generation immediately before the
+// given generation. Generation diff retracts (#6887) enumerate delete
+// candidates from the predecessor's facts.
+type PriorGenerationID = reducercontract.PriorGenerationID
+
 // RunReport summarizes one bounded reducer drain.
 type RunReport struct {
 	StartedAt  time.Time

@@ -21,13 +21,15 @@ func appendCloudResourceNodeAdditiveDomains(definitions []DomainDefinition, hand
 	if handlers.FactLoader != nil && handlers.CloudResourceNodeWriter != nil {
 		awsResources := awsResourceMaterializationDomainDefinition()
 		awsResources.Handler = AWSResourceMaterializationHandler{
-			FactLoader:     handlers.FactLoader,
-			NodeWriter:     handlers.CloudResourceNodeWriter,
-			AffectedGraph:  handlers.RefreshAffectedGraph,
-			PhasePublisher: handlers.GraphProjectionPhasePublisher,
-			PresenceWriter: handlers.EndpointPresenceWriter,
-			Instruments:    handlers.Instruments,
-			Tracer:         handlers.Tracer,
+			FactLoader:      handlers.FactLoader,
+			NodeWriter:      handlers.CloudResourceNodeWriter,
+			AffectedGraph:   handlers.RefreshAffectedGraph,
+			PhasePublisher:  handlers.GraphProjectionPhasePublisher,
+			PresenceWriter:  handlers.EndpointPresenceWriter,
+			Instruments:     handlers.Instruments,
+			Tracer:          handlers.Tracer,
+			NodeRetracter:   handlers.CloudResourceNodeRetracter,
+			PriorGeneration: handlers.PriorGeneration,
 		}
 		definitions = append(definitions, awsResources)
 	}
@@ -38,10 +40,12 @@ func appendCloudResourceNodeAdditiveDomains(definitions []DomainDefinition, hand
 	if handlers.FactLoader != nil && handlers.EC2InstanceNodeWriter != nil {
 		ec2Instances := ec2instance.NodeMaterializationDomainDefinition()
 		ec2Instances.Handler = ec2instance.EC2InstanceNodeMaterializationHandler{
-			FactLoader:     handlers.FactLoader,
-			NodeWriter:     handlers.EC2InstanceNodeWriter,
-			PhasePublisher: handlers.GraphProjectionPhasePublisher,
-			Instruments:    handlers.Instruments,
+			FactLoader:      handlers.FactLoader,
+			NodeWriter:      handlers.EC2InstanceNodeWriter,
+			PhasePublisher:  handlers.GraphProjectionPhasePublisher,
+			Instruments:     handlers.Instruments,
+			NodeRetracter:   handlers.EC2InstanceNodeRetracter,
+			PriorGeneration: handlers.PriorGeneration,
 		}
 		definitions = append(definitions, ec2Instances)
 	}
