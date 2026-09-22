@@ -105,7 +105,12 @@ been excusing plus the unexcused tail.
 
 No-Regression Evidence: the three changed Go files run only inside the
 gate's offline backend-diff phase, never on a service path. Baseline binary
-built from this branch's base (main 2cafb7558) versus the head binary,
+built from main 2cafb7558 (the branch base when measured; later rebases
+changed no file under `go/internal/backendconformance`,
+`go/internal/graph/capture`, or `go/cmd/golden-corpus-gate`, so the baseline
+still isolates this branch: `git diff 2cafb7558..HEAD -- <those three
+paths>` shows only this branch's commits) versus the head binary built at
+49e95c530, whose Go tree is identical to every later head of the branch,
 `-phase=backend-diff` in quorum mode over the PR #6892 capture set (10,820
 records across both pairings) with the committed allowlist, same host,
 three consecutive runs each, every run reported (`/usr/bin/time -p`):
