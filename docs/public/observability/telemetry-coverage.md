@@ -5,7 +5,7 @@ source of truth that the CI coverage script (X2) diffs against. A new pipeline s
 entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
 `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains
 the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`;
-dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and its `contract_*.go` siblings. The public operator
+dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator
 contract is `docs/public/reference/telemetry/index.md`.
 
 ## How To Read This Doc
@@ -940,8 +940,8 @@ catalog; per-route variants share the same `route` label dimension.
 <!-- eshu:metric:section=otel-span-names -->
 ## OTEL Span Names
 
-Span name constants live in `go/internal/telemetry/contract.go` and the
-`contract_*.go` sibling files. Every span emits a duration histogram at the
+Span name constants live in `go/internal/telemetry/contract.go` and the per-family
+files under `go/internal/telemetry/contract/`. Every span emits a duration histogram at the
 parent level (where applicable) and is paired with one of the metric
 counters above. The table groups spans by category so a maintainer can find
 the right name when adding a new stage.
@@ -950,9 +950,9 @@ the right name when adding a new stage.
 | --- | --- | --- | --- |
 | collector.observe | go/internal/telemetry/contract.go:222 | `eshu_dp_collector_observe_duration_seconds` | span collector |
 | collector.stream | go/internal/telemetry/contract.go:223 | `eshu_dp_collector_observe_duration_seconds` | span collector |
-| collector.claimed_run | go/internal/telemetry/contract_collector_run.go:69 | `eshu_dp_workflow_claim_run_duration_seconds` | span collector |
-| collector.snapshot_stage | go/internal/telemetry/contract_collector_stage.go:59 | `eshu_dp_collector_snapshot_stage_duration_seconds` | span collector |
-| bootstrap.collector_cycle | go/internal/telemetry/contract_bootstrap_ingestion.go:24 | `eshu_dp_bootstrap_pipeline_phase_seconds` | span bootstrap |
+| collector.claimed_run | go/internal/telemetry/contract/collector_run.go (`SpanCollectorClaimedRun`) | `eshu_dp_workflow_claim_run_duration_seconds` | span collector |
+| collector.snapshot_stage | go/internal/telemetry/contract/collector_stage.go (`SpanCollectorSnapshotStage`) | `eshu_dp_collector_snapshot_stage_duration_seconds` | span collector |
+| bootstrap.collector_cycle | go/internal/telemetry/contract/bootstrap_ingestion.go (`SpanBootstrapCollectorCycle`) | `eshu_dp_bootstrap_pipeline_phase_seconds` | span bootstrap |
 | scope.assign | go/internal/telemetry/contract.go:224 | `eshu_dp_scope_assign_duration_seconds` | span scope |
 | fact.emit | go/internal/telemetry/contract.go:225 | `eshu_dp_fact_emit_duration_seconds` | span fact |
 | projector.run | go/internal/telemetry/contract.go:226 | `eshu_dp_projector_run_duration_seconds` | span projector |
@@ -993,7 +993,7 @@ the right name when adding a new stage.
 | reducer.code_import_repo_edge | go/internal/telemetry/contract.go:386 | `eshu_dp_code_import_repo_edges_total` | span reducer |
 | shared_acceptance.lookup | go/internal/telemetry/contract.go:387 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | span shared acceptance |
 | shared_acceptance.upsert | go/internal/telemetry/contract.go:388 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | span shared acceptance |
-| query.* (handler spans) | go/internal/telemetry/contract.go:389-470, contract_z_observability_coverage.go:10 | `eshu_dp_api_request_duration_seconds` | span query |
+| query.* (handler spans) | go/internal/telemetry/contract.go (`SpanQuery*` block), contract/z_observability_coverage.go | `eshu_dp_api_request_duration_seconds` | span query |
 | tfstate.collector.* (claim/parse/emit) | go/internal/telemetry/contract.go:491-496 | `eshu_dp_tfstate_snapshots_observed_total`, `eshu_dp_tfstate_resources_emitted_total`, `eshu_dp_tfstate_outputs_emitted_total`, `eshu_dp_tfstate_modules_emitted_total`, `eshu_dp_tfstate_warnings_emitted_total`, `eshu_dp_tfstate_redactions_applied_total`, `eshu_dp_tfstate_s3_conditional_get_not_modified_total`, `eshu_dp_tfstate_parse_duration_seconds` | span tfstate |
 | webhook.handle / webhook.store | go/internal/telemetry/contract.go:497-498 | `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | span webhook |
 | oci_registry.scan / oci_registry.api_call | go/internal/telemetry/contract.go:499-500 | `eshu_dp_oci_registry_scan_duration_seconds` | span OCI |
