@@ -194,8 +194,9 @@ func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
 // allowlist was open-ended whack-a-mole (#6782 permanent disposition,
 // 2026-09-21). Row truth stays covered: results and missing on the reads
 // compare final state, failures still catches a one-sided error, and a
-// systematic duplicate-row regression would inflate the advisory total and
-// trip the #6941 advisory ceiling instead of passing silently.
+// systematic duplicate-row regression would inflate the advisory total and,
+// where the ceiling is configured (CI: 200), trip it once the total
+// exceeds it; small totals stay advisory by design.
 func AdvisoryKind(kind string) bool {
 	return kind == DivergenceExecutions || kind == DivergenceRowCount
 }

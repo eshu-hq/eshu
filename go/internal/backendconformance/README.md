@@ -89,9 +89,11 @@ No-Observability-Change: unchanged from above — no new signals.
 divergence (`missing`, `results`, `executions`, `failures`, `rowcount`), so
 the allowlist excuses a named dialect divergence without ever excusing a
 result disagreement. `AdvisoryKind`/`SplitAdvisory` hold the `executions`
-kind advisory at the gate (#6782 permanent disposition): agreeing result
-sets with different execution counts are drain-pass noise that reproduces
-across quorum pairings because the backends drain at different speeds;
+and `rowcount` kinds advisory at the gate (#6782 permanent disposition as
+extended by the option-2 slice): agreeing result sets with different
+execution counts or row totals are drain-pass and poll-iteration noise that
+reproduces across quorum pairings because the backends drain at different
+speeds;
 `TopAdvisoryStatementReports` ranks those advisory divergences by statement
 (count descending, text ascending; a statement over
 `AdvisoryStatementMaxLen` runes is middle-elided and suffixed with an 8-hex

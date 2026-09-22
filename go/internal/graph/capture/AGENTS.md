@@ -38,9 +38,9 @@
   `specs/backend-divergence-allowlist.v1.yaml` docs in the same change.
   Scope the tier to the narrowest kind the excuse needs — a dialect
   excuse must never match `results` on a read that should agree. Never
-  reintroduce an `executions` tier: that kind is advisory at the gate
-  (`backendconformance.AdvisoryKind`), so an entry for it is dead weight
-  and the parser rejects it.
+  reintroduce an `executions` or `rowcount` tier: both kinds are advisory
+  at the gate (`backendconformance.AdvisoryKind`), so an entry for either
+  is dead weight and the parser rejects both.
 - **Richer diff output** → keep `MaxReportedDiffs` bounded (the gate's quorum phase shares it for its per-pairing dump); the full
   recordings stay in the CI artifact for the unbounded case.
 - **New capture tier** → open the session once at binary startup with

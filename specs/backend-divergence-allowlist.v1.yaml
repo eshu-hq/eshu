@@ -21,9 +21,10 @@ design: >
   or to the whole statement. There is no executions or rowcount tier:
   execution-count and row-total differences with agreeing result sets are
   scheduling noise by the
-  classifier's own definition (drain passes, retries, regrouped batches),
-  the two backends drain at systematically different speeds so they
-  reproduce across quorum pairings, and the gate holds them advisory
+  classifier's own definition (drain passes, retries, regrouped batches,
+  extra poll iterations observing converged rows), the two backends drain
+  at systematically different speeds so they reproduce across quorum
+  pairings, and the gate holds them advisory
   (backendconformance.AdvisoryKind, #6782 permanent disposition
   2026-09-21, extended to row totals by the option-2 slice) instead of
   excusing them one statement at a time. An entry
