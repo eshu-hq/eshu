@@ -37,6 +37,8 @@ Load the project skills whose contracts match the diff, using root skill routing
    including review bodies, issue comments, inline threads, checks, and current
    head/base. Before first PR creation record `no PR exists yet`; collect live
    truth immediately after creation and re-review any new findings or drift.
+   Classify every review comment by the code it cites and the body it carries,
+   never by author identity: a bot finding and a human finding bind equally.
 7. Record findings and readiness using [verdict.md](references/verdict.md) and
    the [merge bar](references/merge-bar.md). Keep every finding's identity,
    severity, confidence, disposition, evidence location, violated contract, and
@@ -47,6 +49,13 @@ separate context when delegation is available and authorized. If it is unavailab
 or the user explicitly requests self-review, name that mode and limitation. An
 external-review replacement has additional independence requirements in
 `eshu-issue-driver`; author-side review does not satisfy that second review.
+
+This skill runs at **Workhorse tier**; see
+[default model bindings by tier](../../../docs/internal/agent-orchestration.md#default-model-bindings-by-tier).
+A Deep-tier orchestrator dispatches it to the reviewer role rather than
+reviewing inline. Every harness has a `review-eshu` role and the role carries
+the model binding, so this skill never names a model and a subagent never
+changes its own.
 
 ## Promotion And Evidence Reuse
 
