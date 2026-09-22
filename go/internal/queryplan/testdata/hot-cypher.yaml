@@ -639,7 +639,7 @@ entries:
     source:
       file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
       symbol: FetchFluxDeploymentSourceTargetBindings
-      source_sha256: 789926e38615c14f304a0b117ebabd2bd2750f15a0884ccf3a11498086e0e5e3
+      source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
       line_hint: 34
     required_anchors:
       - label: Repository
@@ -667,7 +667,7 @@ entries:
     source:
       file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
       symbol: FetchFluxDeploymentSourceTargetBindings
-      source_sha256: 789926e38615c14f304a0b117ebabd2bd2750f15a0884ccf3a11498086e0e5e3
+      source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
       line_hint: 34
     required_anchors:
       - label: EvidenceArtifact
@@ -690,7 +690,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "ce21d2c3e129ff6e5421ec7893cbb4176ce92fb6a3773e79a45fe9c28e7081a1"
+    cypher_sha256: "51a52e966308dfb470b80594aaade4d6f6f933e704af28d470800e3aa78f5303"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
     backend: nornicdb

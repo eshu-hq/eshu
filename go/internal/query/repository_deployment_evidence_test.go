@@ -441,7 +441,7 @@ func TestContentReaderRepositoryDeploymentEvidenceHydratesPreviewArtifacts(t *te
 	}
 }
 
-func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing.T) {
+func TestQueryRepoDeploymentEvidenceIncomingAnchorsOnTheBoundRepository(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingDeploymentEvidenceGraphReader{}

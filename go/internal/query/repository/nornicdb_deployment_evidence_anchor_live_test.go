@@ -19,10 +19,11 @@
 // exactly 2, all known by construction, plus ESHU_6811_FILLER (default 300)
 // filler repos wired to EACH OTHER so the hub's answer stays 40 regardless
 // of filler size. Runs the production function, the pre-change
-// (right-anchored) statement verbatim, and a candidate bound-anchored
-// statement, and asserts the CANDIDATE matches the known truth. The
+// (right-anchored) statement, and the shipped bound-anchored statement, and
+// asserts that the shipped statement returns exactly the constructed
+// (artifact, source) pairs and that production returns the same rows. The
 // pre-change statement is compared and logged but does NOT gate the test --
-// a wrong row count there is the #6811 finding this file records, not a
+// a wrong row set there is the #6811 finding this file records, not a
 // reason to weaken the assertion.
 //
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27687 go test ./internal/query/repository \
@@ -32,6 +33,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strconv"
@@ -39,6 +41,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -55,13 +58,17 @@ const (
 	deployEvidenceAnchorWriteBatch    = 500
 )
 
-// Pre-change (right-anchored) statements, kept verbatim as the parity oracle.
-// deployEvidenceAnchorOldIncoming mirrors QueryRepoDeploymentEvidence's
-// incoming branch exactly (deployment_evidence.go); deployEvidenceAnchorOldFlux
-// mirrors FetchFluxDeploymentSourceTargetBindings' expansion read exactly
-// (impact_trace_deployment_flux_bindings.go), with the unscoped
-// (AllScopes:true) access predicates -- which are both empty strings --
-// already inlined.
+// Statement pairs under comparison. deployEvidenceAnchorOldIncoming is the
+// pre-change (right-anchored) incoming read: its MATCH clauses are verbatim
+// from the pre-#6811 deployment_evidence.go and its RETURN is abridged to the
+// identity columns the comparison keys on (path, artifact_id, source and
+// target ids); deployEvidenceAnchorCandidateIncoming is the shipped
+// bound-anchored form with the same abridged RETURN.
+// deployEvidenceAnchorOldFlux is FetchFluxDeploymentSourceTargetBindings'
+// shipped expansion read verbatim (impact_trace_deployment_flux_bindings.go)
+// with the unscoped (AllScopes:true) access predicates -- both empty strings
+// -- inlined; deployEvidenceAnchorCandidateFlux is the mirrored form that was
+// measured and not adopted (no speedup; see the #6811 evidence note).
 const (
 	deployEvidenceAnchorOldIncoming = `
 		MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})
@@ -177,7 +184,37 @@ type deployEvidenceAnchorSeed struct {
 	leafID      string
 	midID       string
 	srcIDs      []string
+	midSrcIDs   []string
 	fillerCount int
+}
+
+// hubKeys is the hub's constructed (artifact, source) answer: one artifact
+// per source repository, in sorted key order.
+func (s deployEvidenceAnchorSeed) hubKeys() []evidenceRowKey {
+	keys := make([]evidenceRowKey, 0, len(s.srcIDs))
+	for i, src := range s.srcIDs {
+		keys = append(keys, evidenceRowKey{artifactID: fmt.Sprintf("%sart-hub-%04d", deployEvidenceAnchorPrefix, i), sourceID: src})
+	}
+	return sortedEvidenceRowKeys(keys)
+}
+
+// midKeys is the mid-graph repository's constructed answer.
+func (s deployEvidenceAnchorSeed) midKeys() []evidenceRowKey {
+	keys := make([]evidenceRowKey, 0, len(s.midSrcIDs))
+	for i, src := range s.midSrcIDs {
+		keys = append(keys, evidenceRowKey{artifactID: fmt.Sprintf("%sart-mid-%04d", deployEvidenceAnchorPrefix, i), sourceID: src})
+	}
+	return sortedEvidenceRowKeys(keys)
+}
+
+// fluxKeys is the hub's constructed flux binding answer keyed the way
+// fluxRowKeys keys a binding row: (target, source).
+func (s deployEvidenceAnchorSeed) fluxKeys() []evidenceRowKey {
+	keys := make([]evidenceRowKey, 0, len(s.srcIDs))
+	for _, src := range s.srcIDs {
+		keys = append(keys, evidenceRowKey{artifactID: s.hubID, sourceID: src})
+	}
+	return sortedEvidenceRowKeys(keys)
 }
 
 func (r repoLiveReader) writeParams(ctx context.Context, t *testing.T, cypher string, params map[string]any) {
@@ -231,6 +268,7 @@ func seedDeployEvidenceAnchor(ctx context.Context, t *testing.T, reader repoLive
 			fmt.Sprintf("deploy/hub-%04d.yaml", i),
 		))
 	}
+	seed.midSrcIDs = []string{deployEvidenceAnchorRepoID("filler", fillerAIdx), deployEvidenceAnchorRepoID("filler", fillerBIdx)}
 	coreRows = append(coreRows,
 		deployEvidenceAnchorArtifactRow(deployEvidenceAnchorRepoID("filler", fillerAIdx), seed.midID,
 			fmt.Sprintf("%sart-mid-0000", deployEvidenceAnchorPrefix), "deploy/mid-0000.yaml"),
@@ -358,6 +396,14 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 		t.Fatalf("verify connectivity: %v", err)
 	}
 
+	// Production graphs carry Eshu's NornicDB schema; the uniqueness
+	// constraint alone creates no index on this build, so apply it before
+	// seeding to read against the shape production reads.
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	if err := graph.EnsureSchemaWithBackend(ctx, deployEvidenceSchemaExecutor{driver: driver}, logger, graph.SchemaBackendNornicDB); err != nil {
+		t.Fatalf("apply NornicDB schema: %v", err)
+	}
+
 	reader := repoLiveReader{driver: driver}
 	reader.write(ctx, t, deployEvidenceAnchorCleanup)
 	seed := seedDeployEvidenceAnchor(ctx, t, reader, fillerCount)
@@ -365,13 +411,13 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 
 	t.Run("incoming read row-set truth", func(t *testing.T) {
 		for _, tc := range []struct {
-			name    string
-			repoID  string
-			wantLen int
+			name   string
+			repoID string
+			want   []evidenceRowKey
 		}{
-			{"hub", seed.hubID, deployEvidenceAnchorHubIncoming},
-			{"leaf", seed.leafID, 0},
-			{"mid", seed.midID, deployEvidenceAnchorMidIncoming},
+			{"hub", seed.hubID, seed.hubKeys()},
+			{"leaf", seed.leafID, []evidenceRowKey{}},
+			{"mid", seed.midID, seed.midKeys()},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				params := map[string]any{"repo_id": tc.repoID}
@@ -396,18 +442,17 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 				candidateKeys := evidenceRowKeysFromRaw(candidateRows)
 
 				t.Logf("%s: production=%d rows, old-statement=%d rows, candidate=%d rows, want=%d",
-					tc.name, len(prodKeys), len(oldKeys), len(candidateKeys), tc.wantLen)
+					tc.name, len(prodKeys), len(oldKeys), len(candidateKeys), len(tc.want))
 
-				// The candidate is the truth assertion: it must equal the
-				// known-by-construction answer.
-				if len(candidateKeys) != tc.wantLen {
-					t.Fatalf("%s: candidate returned %d rows, want %d (known by construction)", tc.name, len(candidateKeys), tc.wantLen)
+				// Row-set truth: the bound-anchored statement must return
+				// exactly the (artifact, source) pairs the seed constructed,
+				// and production must run that statement.
+				if !keysEqual(candidateKeys, tc.want) {
+					t.Fatalf("%s: candidate rows %v, want %v (known by construction)", tc.name, candidateKeys, tc.want)
 				}
-				// Production currently runs the pre-change statement, so it
-				// must track old-statement exactly (same code path).
-				if !keysEqual(prodKeys, oldKeys) {
-					t.Fatalf("%s: production artifacts (%d) != old-statement rows (%d) -- production should be running the pre-change statement verbatim",
-						tc.name, len(prodKeys), len(oldKeys))
+				if !keysEqual(prodKeys, candidateKeys) {
+					t.Fatalf("%s: production artifacts %v != bound-anchored rows %v -- production should be running the bound-anchored statement",
+						tc.name, prodKeys, candidateKeys)
 				}
 				// This is the #6811 finding, not a test failure: log whether
 				// the pre-change (right-anchored) shape already disagrees
@@ -453,18 +498,21 @@ func TestLiveNornicDBDeploymentEvidenceAnchor(t *testing.T) {
 		t.Logf("flux hub: production=%d rows, old-statement=%d rows, candidate=%d rows, want=%d",
 			len(prodKeys), len(oldKeys), len(candidateKeys), deployEvidenceAnchorHubIncoming)
 
-		if len(candidateKeys) != deployEvidenceAnchorHubIncoming {
-			t.Fatalf("flux hub: candidate returned %d rows, want %d (known by construction)", len(candidateKeys), deployEvidenceAnchorHubIncoming)
+		// The flux expansion keeps its shipped shape (the mirrored form
+		// measured no faster, see the #6811 evidence note); production must
+		// return the constructed pairs and the shipped statement verbatim.
+		if !keysEqual(prodKeys, seed.fluxKeys()) {
+			t.Fatalf("flux hub: production bindings %v, want %v (known by construction)", prodKeys, seed.fluxKeys())
 		}
 		if !keysEqual(prodKeys, oldKeys) {
-			t.Fatalf("flux hub: production bindings (%d) != old-statement rows (%d) -- production should be running the pre-change statement verbatim",
+			t.Fatalf("flux hub: production bindings (%d) != shipped-statement rows (%d) -- production should be running the shipped statement verbatim",
 				len(prodKeys), len(oldKeys))
 		}
 		if !keysEqual(oldKeys, candidateKeys) {
-			t.Logf("#6811 FINDING for flux hub: pre-change statement returned %d rows %v, candidate/truth returned %d rows %v -- accuracy bug confirmed on this build",
+			t.Logf("#6811 FINDING for flux hub: shipped statement returned %d rows %v, mirrored form returned %d rows %v -- the two shapes disagree on this build",
 				len(oldKeys), oldKeys, len(candidateKeys), candidateKeys)
 		} else {
-			t.Logf("flux hub: pre-change statement matches candidate/truth (%d rows) -- no accuracy divergence observed on this build", len(oldKeys))
+			t.Logf("flux hub: shipped statement and the mirrored form agree (%d rows) -- no accuracy divergence observed on this build", len(oldKeys))
 		}
 	})
 }

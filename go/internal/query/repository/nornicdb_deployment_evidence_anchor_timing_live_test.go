@@ -113,6 +113,7 @@ func TestLiveNornicDBDeploymentEvidenceAnchorTiming(t *testing.T) {
 	reader.write(ctx, t, deployEvidenceAnchorCleanup)
 	seedStart := time.Now()
 	seed := seedDeployEvidenceAnchor(ctx, t, reader, fillerCount)
+	defer reader.write(context.Background(), t, deployEvidenceAnchorCleanup)
 	t.Logf("SEED filler=%d seconds=%.1f", fillerCount, time.Since(seedStart).Seconds())
 
 	shapes := deployEvidenceAnchorShapes(seed)

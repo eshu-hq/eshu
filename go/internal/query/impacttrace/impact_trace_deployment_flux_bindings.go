@@ -85,7 +85,7 @@ func FetchFluxDeploymentSourceTargetBindings(
 	expansionCypher := `
 		UNWIND $artifact_ids AS artifact_id
 		MATCH (artifact:EvidenceArtifact {id: artifact_id})<-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]-(repo:Repository)
-		MATCH (targetRepo:Repository {id: $repo_id})<-[targetRel:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact)
+		MATCH (artifact)-[targetRel:EVIDENCES_REPOSITORY_RELATIONSHIP]->(targetRepo:Repository {id: $repo_id})
 		WHERE sourceRel.relationship_type = 'DEPLOYS_FROM'
 		  AND targetRel.relationship_type = 'DEPLOYS_FROM'
 		  AND repo.id IN $source_repo_ids` + access.GraphPredicate("repo") + access.GraphPredicate("targetRepo") + `
