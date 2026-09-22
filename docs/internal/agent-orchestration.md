@@ -119,7 +119,7 @@ portable seam: a skill states its tier and names no model.
 | --- | --- | --- | --- |
 | Claude Code | `.claude/agents/*.md` | `model:` and `effort:` in the role frontmatter | withheld `Edit`/`Write` tools |
 | opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write: deny` plus per-command bash denies |
-| Codex | `.codex/agents/*.toml` | `model` and `model_reasoning_effort` in the role file | `sandbox_mode = "read-only"` |
+| Codex | `.codex/agents/*.toml` | `model` and `model_reasoning_effort` in the role file | `sandbox_mode = "read-only"` (also gates network, so the role sets `approval_policy = "on-request"`) |
 
 The reviewer is the role bound on all three:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
@@ -137,6 +137,14 @@ path, so a second checkout of the same repo needs its own entry. A
 `[profiles.<name>]` in `~/.codex/config.toml` remains the way to run a whole
 Codex *session* at a chosen tier; the role file is what binds a spawned
 reviewer.
+
+Codex's `read-only` preset gates internet access behind approval as well as
+writes, and a reviewer needs the network for the live GitHub truth the skill
+requires. A user-level `approval_policy = "never"` returns that call as a
+failure rather than prompting, so the role sets `approval_policy =
+"on-request"`. That does not widen the write boundary: read-only still refuses
+edits, and an approval prompt for one is the signal that the reviewer is doing
+something it should not.
 
 The Claude and Codex roles pin a model while the opencode role stays unpinned.
 That is not an inconsistency: Workhorse is the tier this repo already declares

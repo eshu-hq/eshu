@@ -16,4 +16,13 @@ model_reasoning_effort = "high"
 
 # Review stays separate from authorship: read-only is the sandbox equivalent of
 # the withheld write tools in the Claude and opencode twins.
+#
+# Codex's read-only preset also gates network access behind approval, and a
+# reviewer needs the network for the live GitHub truth the skill requires
+# (review threads, check rollup, head/base). `approval_policy = "never"`
+# returns such a call as a failure instead of prompting, so this role asks
+# on request. It does not widen the write boundary: read-only still refuses
+# edits, and an approval prompt for one is the signal that the reviewer is
+# doing something it should not.
 sandbox_mode = "read-only"
+approval_policy = "on-request"

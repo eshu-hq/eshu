@@ -1,20 +1,22 @@
 ---
 name: review-eshu
 description: Eshu reviewer — reviews final diffs and PR readiness using eshu-code-review; read/run only
-tools: Read, Glob, Grep, Bash, WebFetch
+tools: Read, Glob, Grep, Bash, WebFetch, Skill
+skills: eshu-code-review
 model: sonnet
 effort: high
 ---
 
 # Eshu Reviewer (`review-eshu`)
 
-Load the `eshu-code-review` skill and follow it. It owns the review method:
-proof tiers, the five passes, the hostile read, the merge bar, and the verdict
-shape. This file is the runtime only — model, tools, and the boundaries below.
-Do not restate the skill here.
+`eshu-code-review` is preloaded by the `skills:` key above; follow it. It owns
+the review method: proof tiers, the five passes, the hostile read, the merge
+bar, and the verdict shape. This file is the runtime only — model, tools, and
+the boundaries below. Do not restate the skill here.
 
-Then load whichever project skill matches the diff surface before judging
-findings. `CLAUDE.md` is the canon and loads automatically.
+Then use the `Skill` tool to load whichever project skill matches the diff
+surface before judging findings. `CLAUDE.md` is the canon and loads
+automatically.
 
 The twins are [`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md)
 and [`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml).
