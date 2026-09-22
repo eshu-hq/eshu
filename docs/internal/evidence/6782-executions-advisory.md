@@ -180,6 +180,12 @@ the ceiling and the detail both count reproduced fingerprints, because a
 drain-pass regression shows up as more statements diverging, not as one
 statement's counts drifting further apart.
 
+### Performance and observability markers (#6941)
+
+No-Regression Evidence: the change is gate verdict logic over already-captured recordings, not a runtime path. Baseline main's `golden-corpus-gate` binary (391a69b892) vs this branch's, `-phase=backend-diff` in quorum mode over the run 35664395755 capture (634 distinct statements, 56 reproduced advisory divergences, committed allowlist), three warm runs each on the same host: main 295-297 ms, branch 247-255 ms (first cold run 1,114 ms vs 1,836 ms, disk cache); both exit 0 with identical findings apart from the widened advisory detail, and the branch adds no ceiling finding at `-diff-executions-advisory-max=200`. The ranking helper is O(n log n) over at most the advisory total (12-70 observed), so it cannot dominate a phase that already loads and compares every recording.
+
+No-Observability-Change: no metric, span, log key, or status field changes; the only new operator-visible text is the advisory finding's top-3 detail and the ceiling finding, both on the gate's stdout.
+
 ### RED/GREEN proof commands run
 
 Unit level (`go/internal/backendconformance`, pure ranking/truncation helper):
