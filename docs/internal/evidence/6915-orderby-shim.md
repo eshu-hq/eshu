@@ -100,7 +100,9 @@ MATCH (e:Function) OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r
 | 4 | `fn-06, Error, 7` | `fn-09, Worker, 7` **≠** |
 
 NornicDB applies `complexity DESC` and then leaves each tie group in insertion
-order (Worker, Apply, Divide, Error). `e.name` and `e.id` have no effect even
+order (Worker, Apply, Divide, Error). That holds at 12 rows. NornicDB sorts with
+Go's unstable `sort.Slice`, so a larger tie group can come back in some other
+permutation. `e.name` and `e.id` have no effect even
 though both expressions are projected (`AS name`, `AS id`).
 
 ### F3_raw_limit (same keys, first key written as an expression)
@@ -141,9 +143,11 @@ created first, so the window contains none of `repo-a`'s rows.
 ### Bisect rows (no LIMIT)
 
 - B1 and B4 (`MATCH (e:Function) RETURN e.id AS id ORDER BY e.name, e.id`,
-  with and without `WHERE`) match. A single-node `MATCH` sorts correctly on
-  non-projected property keys. F4 is the F1 statement without the
-  `OPTIONAL MATCH`, and it matches too.
+  with and without `WHERE`) match. A single-node `MATCH` sorts correctly when
+  every key is a plain property of the matched node. F4 is the F1 statement
+  without the `OPTIONAL MATCH`, and it matches too, but for a different
+  reason: its alias key sends it down the post-projection path, where `e.name`
+  and `e.id` resolve because they are the exact text of `RETURN` expressions.
 - B6 (`MATCH (f:File)-[:CONTAINS]->(e:Function) RETURN e.id AS id ORDER BY
   e.name`): once the `MATCH` contains a relationship pattern, a single
   non-projected key is ignored and rows come back in storage order.
@@ -194,9 +198,11 @@ The observed Neo4j rows agree with this on every statement in both scripts.
 
 Neo4j orders by every sort key, in the order given, whether or not the key's
 expression appears in `RETURN`. NornicDB at `a427a468` does that only for a
-single-node `MATCH` whose keys are all plain `var.prop` terms. After a relationship pattern, a sort key only takes effect
-when it is an alias or has the same text as a projected expression. After
-`OPTIONAL MATCH`, only aliases take effect. Every other key is silently
+single-node `MATCH` whose keys are all plain `var.prop` terms, because it sorts
+those nodes before projection. Every other statement is sorted after
+projection. After a single-node `MATCH` or a relationship pattern, a sort key
+then only takes effect when it is an alias or has the same text as a projected
+expression. After `OPTIONAL MATCH`, only aliases take effect. Every other key is silently
 ignored. With `LIMIT`, the window is then taken from a partly sorted or
 unsorted row stream, which is why F3 and D1 return the wrong rows and not only
 the wrong order.
@@ -230,7 +236,8 @@ It adds two queries the shim does not have:
 
 Root-Cause Evidence: every observed NornicDB row order in the shim and the
 minimal repro follows from the code at `a427a468` below, read at that commit in
-a local orneryd/NornicDB checkout. Dropped keys leave storage order. Partly
+a local orneryd/NornicDB checkout. When every key is dropped, rows stay in
+storage order. Partly
 resolved keys sort by the key that survives. The two queries this reading
 predicted before they were run (bare `MATCH` with a `coalesce` key, and
 `RETURN e ORDER BY e.id`) came back as predicted.
@@ -243,7 +250,10 @@ predicted before they were run (bare `MATCH` with a `coalesce` key, and
   is itself a returned column. Any other key hits a `continue` and is dropped
   without an error.
 - For a bare single-node `MATCH`, `parseNodeOrderSpecs` sorts the nodes before
-  projection when every key is `var.prop`. That is why B1, B4 and F4 match.
+  projection when every key is `var.prop` (B1, B4). It returns nil on any
+  other key, such as an alias. The statement then takes the post-projection
+  path with the `RETURN`-item resolver. F4 matches on that path because
+  `e.name` and `e.id` are the exact text of its `RETURN` expressions.
 - The relationship-pattern path in `match.go` always sorts after projection,
   using the `RETURN`-item resolver (B2, B6, B7).
 - The `OPTIONAL MATCH` paths (`optional_match_traversal.go`, `clauses.go`) call
