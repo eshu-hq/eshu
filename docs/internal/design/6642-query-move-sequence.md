@@ -88,21 +88,26 @@ two files. Neither lane touches the other's row, but both touch both files.
 
 ## UNDECIDED
 
-Three items that were listed here have since been settled by evidence rather
-than left to you — the `tracing`/`queryspan` identification (git history: PR
-#6846, "move query/queryspan to query/tracing", merged) , the `content/read` merges (an empty `go doc -all` diff proves
-they keep the exported surface identical, so they sit inside the issue's stated
-Scope) and the `contract/` displacement (37 of its 40 files are per-family rows
-that travel with their families, as seven already-moved families demonstrate).
+This list started at seven. Four were settled by evidence rather than left to
+you:
+
+- **The root-test rule** — a measured partition rather than a proposal: 560 of
+  the 728 root tests move to a single destination at a median 100% reference
+  share, 30 stay at root as `package query_test`, and 138 reference nothing
+  that moves.
+- **The `tracing`/`queryspan` identification** — `git log --all
+  --grep=queryspan` finds PR #6846, "move query/queryspan to query/tracing",
+  merged. Not an inference from a doc comment.
+- **The `content/read` merges** — `go doc -all ./internal/query` is byte-identical
+  before and after all four, so they keep the exported surface the issue's Scope
+  requires.
+- **The `contract/` displacement** — 37 of its 40 files are per-family
+  capability rows that travel with their families, as seven already-moved
+  families demonstrate. No displacement PR is needed.
+
 What remains are genuine owner calls.
 
-1. **The root test rule.** 403 of 728 root test files match no moving root
-   file, and the largest cluster (63 `openapi_*`) belongs to a family that
-   moved in Part C. The proposed rule — single-destination tests move,
-   router-level tests stay and convert to `package query_test` — changes how
-   about 400 files are treated and should be agreed before PR 6, not argued
-   per PR.
-2. **`repository` does not reach the cap and this plan will not guess how.**
+1. **`repository` does not reach the cap and this plan will not guess how.**
    Fourteen of its 45 files pin to `Handler`, and of the other 31 exactly one
    has no inbound reference. Three cohesive leaves — `story` (5),
    `semantics` (4), `deployment` (4) — were each tested and each crosses the
@@ -115,13 +120,13 @@ What remains are genuine owner calls.
    its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
    one place the definition of done is not met by the plan as written.
 
-3. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
+2. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
    invented here for root files that adapt one family to another
    (`repository_authz.go`, `code_seam.go`, `family_impact_*.go`). After PR 1
    deletes the `repositoryAccessFilter` forwarders, `repository/seam` may
    collapse to two files and be worth folding into `contract/` instead. Left
    as leaves here so the mapping is complete; revisit at PR 32.
-4. **`CodeHandler`.** Not renamed by this plan, per the issue's own
+3. **`CodeHandler`.** Not renamed by this plan, per the issue's own
    precondition and #6649. Whether it is renamed at all is still open.
 
 ## Checklist
@@ -135,7 +140,7 @@ Updated as each PR lands.
 - [ ] PR 6 — `auth/`
 - [ ] PR 7–30 — 24 leaf PRs, smallest first
 - [ ] PR 31 — `code/`
-- [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 2)
+- [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 1)
 - [ ] PR 33 — Part B, `content/`
 - [ ] PR 34 — alias sweep
 - [ ] PR 35 — `contract/` name handed to #6818; root at 5 files; dirgate row retired

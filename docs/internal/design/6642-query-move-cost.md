@@ -413,14 +413,25 @@ the moved package's API — `supply_chain_impact_findings_test.go` is
 `package query`, imports `query/supply/chain/impact`, and drives
 `httptest` against the mounted route.
 
-The rule this document proposes:
+The rule, and it is measured rather than proposed. Resolve every identifier each
+test references to its declaring file, map that file to its destination, and
+assign the test to the destination the plurality of its references point at:
 
-- A test that names symbols from exactly one destination moves with it and
-  becomes an internal test there.
-- A test that drives the composed router, or spans two or more destinations,
-  stays at root and becomes `package query_test`, importing what it needs.
-- The conversion happens in the same PR as its family's move, not as a sweep
-  afterwards.
+| | tests | |
+| ---: | --- | --- |
+| **560** | reference at most three destinations | move to the winning one |
+| **30** | reference four or more | stay at root as `package query_test` |
+| **138** | reference no moving destination | stay; they test the root spine or already-moved subpackages |
+
+The signal is strong, not marginal: for the 560 movers the **median share of
+references pointing at the winning destination is 100%**, the mean is 82%, and
+57% sit at 80% or above. Only one test in 728 references eight or more
+destinations.
+
+The destinations that inherit the most are the ones the mapping already says are
+biggest — `content/read` 118, `auth` 112, `supply/chain` 61, `graph/read` 44,
+`infra` 21. Each family's move PR carries its own share; no separate test sweep
+is needed, and no test is stranded.
 
 Twenty-four root test files are behind `//go:build` tags and need the
 constraint-name check described under [Build-tagged files](6642-query-target-tree.md#build-tagged-files)
