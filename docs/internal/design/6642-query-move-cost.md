@@ -172,7 +172,13 @@ them back**, so extracting each is acyclic.
 | `contract/language` | 4 | story, content | nothing |
 | `contract/visualization` | 2 | graph, evidence | nothing |
 
-**56 − 19 = 37 files** left in `contract/`, four under the cap, and the
+All seven pass the same cycle test that rejected the `repository` leaves below:
+`stay → leaf` is **zero** for every one of them, so each extraction is one-way
+by construction rather than by argument. The only leaf-to-leaf edges are
+`answer → evidence` (1 symbol) and `visualization → evidence` (2), both one-way,
+which is why `evidence` is listed as a base rather than a consumer.
+
+**56 − 19 = 37 files** left in `contract/`, three under the cap, and the
 `//nolint:dirgate` tracker on #6597 retires.
 
 What stays is genuinely one unit. The remaining groups — the core vocabulary,
