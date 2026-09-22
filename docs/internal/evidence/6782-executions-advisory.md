@@ -63,9 +63,9 @@ returns `executions` first), and `missing` fires only when the statement ran
 on one backend alone. A write that one backend silently drops and the
 reducer re-drives to convergence therefore shows here only as a count
 difference, which is now advisory. Its consequence is still caught by two
-layers this phase does not own: a later read in the same capture, where a
-read covers the written state, observes it and diverges on `results` or `missing` (a MERGE that
-duplicates on one backend, or a drop that is never re-driven, still fails
+layers this phase does not own: a later read in the same capture, where it
+covers the written state, observes it and diverges on `results` or
+`missing` (a MERGE that duplicates on one backend, or a drop that is never re-driven, still fails
 there), and the B-12 snapshot's node and edge count tolerances on the
 canonical backend. The advisory count itself has no ceiling yet; #6941
 tracks bounding it.
@@ -105,12 +105,17 @@ been excusing plus the unexcused tail.
 
 No-Regression Evidence: the three changed Go files run only inside the
 gate's offline backend-diff phase, never on a service path. Baseline binary
-(main 965631995) versus this branch, `-phase=backend-diff` in quorum mode
-over the PR #6892 capture set (10,820 records across both pairings, the
-committed allowlist): 0.23-0.24 s wall each, three runs per binary, on the
-same host. Input shape and terminal verdicts as in the table above; the only
-added work is one O(n) partition over an already-materialized slice and one
-report line bounded by `maxReportedDiffs`.
+built from this branch's base (main 2cafb7558) versus the head binary,
+`-phase=backend-diff` in quorum mode over the PR #6892 capture set (10,820
+records across both pairings) with the committed allowlist, same host,
+three consecutive runs each, every run reported (`/usr/bin/time -p`):
+baseline real 2.17 / 0.24 / 0.25 s, user 0.23 / 0.23 / 0.24 s; head real
+1.29 / 0.23 / 0.25 s, user 0.23 / 0.22 / 0.23 s. The first run of each
+binary is a cold page-cache launch of a fresh build, which is why its wall
+time differs while CPU does not; runs 2-3 are the comparable figures. Input
+shape and terminal verdicts as in the table above; the only added work is
+one O(n) partition over an already-materialized slice and one report line
+bounded by `maxReportedDiffs`.
 
 No-Observability-Change: no new metrics, spans, or log keys. The gate report
 gains one finding line per quorum run.
