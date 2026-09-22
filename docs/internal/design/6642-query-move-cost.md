@@ -71,6 +71,81 @@ read models were written next to the families they read for". Each of those is
 resolved inside the `content/read` move by exporting the helper from its owning
 package, and the count is the honest size of that PR.
 
+## The tree is not reachable by moving files alone
+
+This is the finding that changes the plan, and it was missed on the first pass.
+
+Build the destination graph — one node per destination in
+[the mapping](6642-query-file-mapping.md), one edge wherever a file references a
+symbol declared in a file bound for a different destination — and run a
+strongly-connected-component pass over it. **Thirty-eight of the 45
+destinations fall into a single component.** Every one of them mutually
+depends on another, so none of them can become a Go package while the others
+stand still.
+
+Most of that is an artifact of today's root, not of the tree. Retire the two
+things PR 1 and the alias sweep remove — the five spine symbols, and every edge
+into a `*_alias.go` or into root — and the picture improves but does not clear:
+**23 destinations remain in one component, across 18 mutually-importing pairs
+and 85 distinct unexported symbols.**
+
+| pair | a→b | b→a | unexported symbols to resolve |
+| --- | ---: | ---: | ---: |
+| `content/read` ↔ `documentation` | 16 | 1 | 17 |
+| `content/read` ↔ `cloud` | 9 | 2 | 11 |
+| `infra` ↔ `infra/aggregate` | 1 | 10 | 9 |
+| `content/read` ↔ `evidence` | 6 | 2 | 7 |
+| `auth` ↔ `auth/route` | 5 | 7 | 6 |
+| `supply/chain` ↔ `supply/chain/sbom` | 2 | 20 | 5 |
+| `supply/chain` ↔ `investigation/packet` | 13 | 2 | 5 |
+| `evidence` ↔ `investigation/packet` | 6 | 4 | 5 |
+| `auth/session` ↔ `auth/signin` | 2 | 13 | 4 |
+| `auth` ↔ `status` | 2 | 4 | 4 |
+| `auth` ↔ `auth/signin` | 1 | 9 | 4 |
+| `auth` ↔ `auth/session` | 1 | 9 | 4 |
+| `investigation/packet` ↔ `cloud/drift` | 1 | 6 | 3 |
+| `semantic_evidence.go`'s two halves | 2 | 1 | 3 |
+| `supply/chain` ↔ `kubernetes` | 1 | 4 | 2 |
+| `cloud` ↔ `supply/chain` | 3 | 1 | 2 |
+| `supply/chain` ↔ `image` | 2 | 11 | 1 |
+| `content/read` ↔ `semantic_evidence.go`'s read half | 1 | 1 | 1 |
+
+A mutual import is a cycle whatever the export status of the symbols, so
+`supply/chain → supply/chain/sbom` being exported-only does not save that pair.
+
+Three shapes account for all eighteen.
+
+**A family is cyclic with its own leaves.** `auth` is mutually dependent with
+`auth/route`, `auth/session` and `auth/signin`; `infra` with `infra/aggregate`
+and `infra/relationship`; `supply/chain` with `supply/chain/sbom`. Collapsing
+each family back into one package would fix it and is not available — `auth`
+would be 60 files and `infra` 21. So the split stands and the shared symbols
+must move somewhere both sides can import.
+
+**Shared vocabulary was written into whichever family needed it first.**
+`packetBoundsFromRequest`, `refusalPacketForAPI` and `writeInvestigationPacket`
+are needed by `evidence`, `cloud/drift` and `supply/chain` as well as
+`investigation/packet`; `normalizeAuthContext` and `unauthorizedResponse` by
+three auth leaves. These are not family internals, they are contract, and they
+belong in `contract/` below every consumer.
+
+**A read model sits on the wrong side.** `content/read` ↔ `documentation` (17
+symbols) and ↔ `cloud` (11) are the same statement as
+[where the prefix lies](6642-query-target-tree.md#where-the-prefix-lies): the
+`ContentReader` read models were written next to the families they read for,
+and the SQL-building helpers stayed behind when the methods left.
+
+**What this means for the plan.** Every family move is a *hoist and move*, not a
+move: the family's PR first lifts the symbols on its row above into `contract/`
+(or into the leaf both sides can import), proves the direction is one-way, and
+only then relocates the files. The 85 symbols are the complete bill, measured,
+and each row names its own share. The sequencing table reflects this.
+
+No family PR is "independent once PR 1 lands" — that claim was wrong in the
+first draft of this page and is retracted here. What PR 1 buys is the removal
+of the root and alias edges, which is what takes the component from 38 nodes to
+23.
+
 ## The alias ledger
 
 Twenty-one `*_alias.go` files sit at root. The issue forbids retaining them.

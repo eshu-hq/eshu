@@ -12,13 +12,13 @@ order is the shared spine: nothing moves before PR 1.
 
 | # | PR | files | why here |
 | ---: | --- | ---: | --- |
-| 1 | **Spine repoint.** Delete the five unexported root forwarders; point every call site at the `querycontract` / `tracing` twins that already exist. | 0 moved | 192 cross-boundary symbols, 5 of which block every later PR |
+| 1 | **Spine repoint.** Delete the five unexported root forwarders; point every call site at the `querycontract` / `tracing` twins that already exist. | 0 moved | 192 cross-boundary symbols, 5 of which block every later PR; also takes the dependency component from 38 destinations to 23 |
 | 2 | `contract/` ← `querycontract`, with the seven leaf extractions | 56 | closes #6597; every later PR imports the renamed package |
 | 3 | `capability/matrix/` ← `contract/`, plus `capability/` from root | 44 | clears the name for PR 2's landing |
 | 4 | `testutil/` ← `querytestutil`, nested | 42 | test helpers, no production risk; unblocks moved tests |
 | 5 | `span/` ← `tracing` | 2 | tiny; completes the Part D rename set |
 | 6 | `auth/` ← `queryauth` + the 52 root auth files, nested five ways | 60 | the largest root family; `auth/route/` alone is 24 files |
-| 7–30 | **one parent per PR, smallest first.** 24 PRs covering 33 leaves and 145 files: `decode` (1), `workload` (1), `dependency` (2), `observability/coverage` (2), `terraform/drift` (2), `kubernetes` (3), `metrics` (3), `compare` (4), `cicd` (5), `ask` (6), `collector` (8), `documentation` (8), `evidence` (10), `status` (14), the three seam leaves `code/seam` (2), `repository/seam` (3) and `impact/seam` (5), and the parent-grouped `semantic` (3), `graph` (5), `image` (8), `investigation` (11), `supply/chain` (7), `cloud` (11), `infra` (21) | 145 | independent of each other once PR 1 lands |
+| 7–30 | **one parent per PR, smallest first. Each is a hoist-then-move**, not a move — see [the cycle analysis](6642-query-move-cost.md#the-tree-is-not-reachable-by-moving-files-alone) for the symbols each owes.** 24 PRs covering 33 leaves and 145 files: `decode` (1), `workload` (1), `dependency` (2), `observability/coverage` (2), `terraform/drift` (2), `kubernetes` (3), `metrics` (3), `compare` (4), `cicd` (5), `ask` (6), `collector` (8), `documentation` (8), `evidence` (10), `status` (14), the three seam leaves `code/seam` (2), `repository/seam` (3) and `impact/seam` (5), and the parent-grouped `semantic` (3), `graph` (5), `image` (8), `investigation` (11), `supply/chain` (7), `cloud` (11), `infra` (21) | 145 | order within the block is free; each PR carries its own hoist |
 | 31 | `code/` ← `codequery` + the four `code*` siblings | 102 | large but mechanical; `CodeHandler` is **not** renamed here |
 | 32 | `repository/artifacts` ← `repositoryartifacts` (rename only); `repository/` itself stays at 45 pending the UNDECIDED below | 20 | queryplan pins regenerate |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
@@ -35,6 +35,12 @@ real code. That is a separate change on top of PR 31.
 - `git mv` for every relocated file so history follows the move.
 - Census by symbol before the move, not by filename prefix. The 20 files in
   [Where the prefix lies](6642-query-target-tree.md#where-the-prefix-lies) are why.
+- Run the cycle check before writing any code: build the file-level reference
+  graph, assign files to the proposed destination, and confirm references cross
+  the new boundary in **one direction only**. A two-way crossing is an import
+  cycle the moment the leaf becomes a package. This check rejected five of the
+  seven leaves proposed in the first draft of this plan, and it is the reason
+  every family PR is a hoist-then-move.
 - All Go commands from `go/`: `go build ./... && go vet ./...`, then
   `go test ./internal/query/... -count=1` **recursive** — a bare package path
   silently skips the subpackages a move touched.
