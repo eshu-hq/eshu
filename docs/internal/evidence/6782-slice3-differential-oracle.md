@@ -261,10 +261,12 @@ identical tied-key pagination defect. Fix mirrors #6932: total key with the
 No-Regression Evidence: scratch probe on the same pinned backends,
 label-scan shape with tied `(name, id)` rows plus 5000-row bulk corpus at
 LIMIT 100 (2x the production `ServiceStoryItemLimit = 50`). Extended ORDER
-BY delivered identical row order on both backends, stable across 8/8 runs
-each, with the same row multiset as the original on each backend. Timings:
-NornicDB 337.8ms → 356.5ms (+5.5% median, bands overlap 334–342 vs 336–419,
-under the 10% bar), Neo4j 17.2ms → 16.4ms (noise). Baseline: original
+BY delivered identical row order on both backends (ledger:6933-sibling-orderby-agreement),
+with the same row multiset as the original on each backend. NornicDB wall
+clock (ledger:6933-sibling-orderby-nornicdb-orig,
+ledger:6933-sibling-orderby-nornicdb-ext) stays under the 10% bar; Neo4j
+(ledger:6933-sibling-orderby-neo4j-orig,
+ledger:6933-sibling-orderby-neo4j-ext) is noise-level. Baseline: original
 `ORDER BY name, id` on the same corpus. Probe source:
 `/tmp/6782-flap/probe/sibling.go` (throwaway, not committed).
 
