@@ -337,7 +337,8 @@ func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
 // analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
 // table in the exact-count read-back plus content_entities, which is seeded
 // and verified through its own count path. A test pins the list to the
-// read-back set so a newly seeded table cannot be left unanalyzed.
+// read-back set so a newly seeded table cannot be left unanalyzed once it is in
+// the read-back set.
 func analyzedSeededTables() []string {
 	return []string{
 		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
