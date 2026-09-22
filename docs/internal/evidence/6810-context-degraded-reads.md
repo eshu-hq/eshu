@@ -27,8 +27,9 @@ changed.
 
 Not converted, with the reason: `QueryRepoInfrastructureFromContent`
 (`infrastructure.go`) turns a content-store error into an empty result, but
-its only caller then falls through to `queryRepoInfrastructureFromGraph`, the
-authoritative read, whose own failure already degrades to
+both of its callers (`repository/infrastructure.go`,
+`entity/workload_context.go`) then fall through to
+`queryRepoInfrastructureFromGraph`, the authoritative read, whose own failure already degrades to
 `infrastructure_read_degraded`; a content error followed by an empty graph
 answer is a true empty panel, not a hidden failure. It stays as the #5764
 P2-3 follow-up recorded in that file.

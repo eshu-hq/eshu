@@ -143,6 +143,12 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 			if strings.Contains(cypher, "CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)") || strings.Contains(cypher, "CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)") {
 				return nil, readErr
 			}
+			if strings.Contains(cypher, "AS endpoint_count") {
+				// The API surface's count read fails here (the detail read fails
+				// in TestRepositoryContextReportsDegradedGraphReads), so both of
+				// its error branches are covered.
+				return nil, readErr
+			}
 			if strings.Contains(cypher, "RETURN count(") {
 				return []map[string]any{{"count": int64(0)}}, nil
 			}
@@ -170,8 +176,10 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 	}
 	body := decodeRepositoryAuthzBody(t, rec)
 	reasons := querytestutil.RequireStringAnySlice(t, body, "partial_reasons")
-	if !querytestutil.AnySliceContains(reasons, deployableUnitRelationshipsReadDegradedReason) {
-		t.Fatalf("partial_reasons = %#v, want %q", reasons, deployableUnitRelationshipsReadDegradedReason)
+	for _, reason := range []string{deployableUnitRelationshipsReadDegradedReason, apiSurfaceReadDegradedReason} {
+		if !querytestutil.AnySliceContains(reasons, reason) {
+			t.Fatalf("partial_reasons = %#v, want %q", reasons, reason)
+		}
 	}
 	for _, reason := range []string{relationshipsReadDegradedReason, relationshipOverviewReadDegradedReason, consumersReadDegradedReason} {
 		if querytestutil.AnySliceContains(reasons, reason) {
