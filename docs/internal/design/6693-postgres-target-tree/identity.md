@@ -94,14 +94,14 @@ identity_setup_completion.go -> identity/bootstrap/setup_completion.go   # Ident
 <details><summary>Tests</summary>
 
 ```text
-identity_bootstrap_credential_concurrency_test.go -> identity/bootstrap/credential_concurrency_test.go   # external test package: imports identity, root
-identity_bootstrap_credential_mfa_test.go -> identity/bootstrap/credential_mfa_test.go   # external test package: imports identity
-identity_bootstrap_credential_owner_test.go -> identity/bootstrap/credential_owner_test.go   # external test package: imports identity
+identity_bootstrap_credential_concurrency_test.go -> identity/bootstrap/credential_concurrency_test.go   # external test package: imports root
+identity_bootstrap_credential_mfa_test.go -> identity/bootstrap/credential_mfa_test.go
+identity_bootstrap_credential_owner_test.go -> identity/bootstrap/credential_owner_test.go
 identity_bootstrap_credential_recovery_scope_live_test.go -> identity/bootstrap/credential_recovery_scope_live_test.go   # external test package + export_test.go shim: imports root
-identity_bootstrap_credential_test.go -> identity/bootstrap/credential_test.go   # external test package: imports identity, identity/local
-identity_bootstrap_reenroll_mfa_lock_contention_test.go -> identity/bootstrap/reenroll_mfa_lock_contention_test.go   # external test package: imports identity, identity/local, root
-identity_setup_completion_concurrency_test.go -> identity/bootstrap/setup_completion_concurrency_test.go   # external test package: imports identity, identity/local, root
-identity_setup_completion_test.go -> identity/bootstrap/setup_completion_test.go   # external test package: imports identity, identity/local
+identity_bootstrap_credential_test.go -> identity/bootstrap/credential_test.go
+identity_bootstrap_reenroll_mfa_lock_contention_test.go -> identity/bootstrap/reenroll_mfa_lock_contention_test.go   # external test package: imports root
+identity_setup_completion_concurrency_test.go -> identity/bootstrap/setup_completion_concurrency_test.go   # external test package: imports root
+identity_setup_completion_test.go -> identity/bootstrap/setup_completion_test.go   # spans identity/local=46% identity/bootstrap=46% identity=8%
 ```
 
 </details>
@@ -243,21 +243,21 @@ browser_sessions_test.go -> identity/session/session_test.go   # external test p
 
 </details>
 
-### `identity/sign/` (3 non-test, 4 test)
+### `identity/signin/` (3 non-test, 4 test)
 
 ```text
-identity_sign_in_policy.go -> identity/sign/policy.go   # IdentitySubjectStore method: moves only after D1
-identity_sign_in_policy_sql.go -> identity/sign/sql.go
-identity_sign_in_policy_types.go -> identity/sign/types.go
+identity_sign_in_policy.go -> identity/signin/policy.go   # IdentitySubjectStore method: moves only after D1
+identity_sign_in_policy_sql.go -> identity/signin/sql.go
+identity_sign_in_policy_types.go -> identity/signin/types.go
 ```
 
 <details><summary>Tests</summary>
 
 ```text
-identity_sign_in_policy_concurrency_helpers_test.go -> identity/sign/policy_concurrency_helpers_test.go   # external test package: imports root
-identity_sign_in_policy_concurrency_test.go -> identity/sign/policy_concurrency_test.go   # external test package: imports identity, identity/local, root
-identity_sign_in_policy_revoke_timeout_test.go -> identity/sign/policy_revoke_timeout_test.go   # external test package: imports identity
-identity_sign_in_policy_test.go -> identity/sign/policy_test.go   # external test package + export_test.go shim: imports identity, identity/local
+identity_sign_in_policy_concurrency_helpers_test.go -> identity/signin/policy_concurrency_helpers_test.go   # external test package: imports root
+identity_sign_in_policy_concurrency_test.go -> identity/signin/policy_concurrency_test.go   # external test package: imports identity, identity/local, root
+identity_sign_in_policy_revoke_timeout_test.go -> identity/signin/policy_revoke_timeout_test.go   # external test package: imports identity
+identity_sign_in_policy_test.go -> identity/signin/policy_test.go   # external test package + export_test.go shim: imports identity, identity/local
 ```
 
 </details>

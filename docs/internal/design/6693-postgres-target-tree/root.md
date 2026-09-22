@@ -65,7 +65,7 @@ iac_inventory_index_schema_test.go -> iac_inventory_index_schema_test.go
 identity_admin_fake_rows_test.go -> identity_admin_fake_rows_test.go   # no production references
 identity_epoch_index_replay_live_test.go -> identity_epoch_index_replay_live_test.go
 identity_provider_config_fake_db_test.go -> identity_provider_config_fake_db_test.go   # SPLIT: reads private symbols of identity/provider, identity/saml
-incident_routing_sql_schema_lockstep_test.go -> incident_routing_sql_schema_lockstep_test.go   # SPLIT: reads private symbols of incident, service/evidence
+incident_routing_sql_schema_lockstep_test.go -> incident_routing_sql_schema_lockstep_test.go   # SPLIT: reads private symbols of incident, service
 infra_resource_entities_fence_test.go -> infra_resource_entities_fence_test.go
 infra_resource_entities_schema_test.go -> infra_resource_entities_schema_test.go
 ingestion_backfill_relationship_family_binary_proof_test.go -> ingestion_backfill_relationship_family_binary_proof_test.go   # SPLIT: reads private symbols of generation, ingestion, relationship, root
@@ -79,7 +79,7 @@ migration_order_test.go -> migration_order_test.go
 package_registry_sql_schema_lockstep_test.go -> package_registry_sql_schema_lockstep_test.go   # SPLIT: reads private symbols of facts, status
 pool_exhaustion_test.go -> pool_exhaustion_test.go   # no production references
 projector_queue_source_fairness_test.go -> projector_queue_source_fairness_test.go   # SPLIT: reads private symbols of queue/projector, queue/reducer
-proof_domain_harness_test.go -> proof_domain_harness_test.go   # SPLIT: reads private symbols of collector, facts, freshness/vulnerability, status
+proof_domain_harness_test.go -> proof_domain_harness_test.go   # SPLIT: reads private symbols of collector, facts, status, vulnerability
 proof_domain_retirement_support_test.go -> proof_domain_retirement_support_test.go   # no production references
 proof_domain_state_test.go -> proof_domain_state_test.go   # no production references
 proof_domain_support_test.go -> proof_domain_support_test.go   # no production references
@@ -110,7 +110,7 @@ status_collector_evidence_test.go -> status_collector_evidence_test.go   # SPLIT
 status_filtered_selection_test.go -> status_filtered_selection_test.go   # SPLIT: reads private symbols of collector, status
 status_query_shape_test.go -> status_query_shape_test.go   # SPLIT: reads private symbols of collector, queue/reducer, status
 status_read_telemetry_test.go -> status_read_telemetry_test.go   # SPLIT: reads private symbols of db, status
-status_test.go -> status_test.go   # SPLIT: reads private symbols of collector, freshness/vulnerability, queue/reducer, status
+status_test.go -> status_test.go   # SPLIT: reads private symbols of collector, queue/reducer, status, vulnerability
 supply_chain_impact_canonical_winners_schema_test.go -> supply_chain_impact_canonical_winners_schema_test.go
 supply_chain_impact_winners_materialization_schema_test.go -> supply_chain_impact_winners_materialization_schema_test.go
 supply_chain_suppression_migration_live_test.go -> supply_chain_suppression_migration_live_test.go
@@ -124,21 +124,6 @@ work_queue_lifecycle_test.go -> work_queue_lifecycle_test.go   # SPLIT: reads pr
 
 </details>
 
-### UNDECIDED (1 non-test, 2 test)
-
-```text
-reducer_input_invalid_facts.go -> UNDECIDED   # UNDECIDED: see Open decisions U1
-```
-
-<details><summary>Tests</summary>
-
-```text
-reducer_input_invalid_facts_live_test.go -> UNDECIDED   # spans root=60% UNDECIDED=40%
-reducer_input_invalid_facts_test.go -> UNDECIDED
-```
-
-</details>
-
 ### DELETE (empty files) (9 non-test, 0 test)
 
 ```text
@@ -148,7 +133,7 @@ collector_generation_dead_letter_schema.go -> (delete)   # empty file: license h
 graph_schema_applications.go -> (delete)   # empty file: license header and package clause only
 schema_fact_records_sbom.go -> (delete)   # empty file: license header and package clause only
 schema_fact_records_service_catalog_indexes.go -> (delete)   # empty file: license header and package clause only
-service_materialization_schema.go -> (delete)   # empty file: license header and package clause only
-supply_chain_impact_canonical_winners_schema.go -> (delete)   # empty file: license header and package clause only
-supply_chain_impact_winners_materialization_schema.go -> (delete)   # empty file: license header and package clause only
+service_materialization_schema.go -> (delete)   # design notes only (#1943): fold into service/README.md in the service/ move, then delete
+supply_chain_impact_canonical_winners_schema.go -> (delete)   # design notes only (#3389): fold into supply/chain/impact/README.md in that move, then delete
+supply_chain_impact_winners_materialization_schema.go -> (delete)   # design notes only (#3389): fold into supply/chain/impact/README.md in that move, then delete
 ```

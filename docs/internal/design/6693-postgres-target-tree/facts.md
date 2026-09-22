@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `facts/` (35 non-test, 67 test)
+### `facts/` (36 non-test, 69 test)
 
 ```text
 code_function_source_loader.go -> facts/function_source_loader.go
@@ -39,6 +39,7 @@ incident_routing_evidence_loader.go -> facts/incident_routing_evidence.go
 installed_advisory_targets.go -> facts/installed_advisory_targets.go
 installed_advisory_targets_os_package_envelope.go -> facts/installed_advisory_targets_os_package.go
 owned_package_targets.go -> facts/owned_package_targets.go
+reducer_input_invalid_facts.go -> facts/reducer_input_invalid.go   # U1: facts/ (per-fact ledger, no claim or lease)
 secrets_iam_trust_chain_anchor_decode.go -> facts/secrets_iam_trust_chain_anchors.go
 secrets_iam_trust_chain_evidence_loader.go -> facts/secrets_iam_trust_chain_evidence.go
 service_vulnerability_advisory_loader.go -> facts/service_vulnerability_advisories.go
@@ -110,6 +111,8 @@ installed_advisory_targets_test.go -> facts/installed_advisory_targets_test.go
 owned_package_targets_test.go -> facts/owned_package_targets_test.go
 proof_domain_retirement_test.go -> facts/proof_domain_retirement_test.go   # external test package + export_test.go shim: imports ingestion
 proof_domain_tx_harness_test.go -> facts/proof_domain_tx_harness_test.go   # spans facts=50% facts/payload=50%
+reducer_input_invalid_facts_live_test.go -> facts/reducer_input_invalid_live_test.go   # external test package: imports root
+reducer_input_invalid_facts_test.go -> facts/reducer_input_invalid_test.go
 secrets_iam_trust_chain_evidence_loader_test.go -> facts/secrets_iam_trust_chain_evidence_test.go
 service_vulnerability_advisory_loader_test.go -> facts/service_vulnerability_advisories_test.go
 supply_chain_suppression_sql_proof_live_test.go -> facts/supply_chain_suppression_sql_proof_live_test.go   # external test package + export_test.go shim: imports root; follows its private symbols, not its name
