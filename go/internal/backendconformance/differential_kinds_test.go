@@ -221,9 +221,10 @@ func TestTopAdvisoryStatementReportsTieBreaksByStatementText(t *testing.T) {
 	}
 }
 
-// TestTopAdvisoryStatementReportsTruncatesLongStatements pins the 120-rune
+// TestTopAdvisoryStatementReportsTruncatesLongStatements pins the rune
 // bound (#6941): a long Cypher statement must not dominate the one-line gate
-// report, so it is cut with a "..." suffix while the count stays intact.
+// report, so it is cut while the count stays intact. Below 8 runes only a
+// head fits; at or under the bound nothing is cut, including exactly at it.
 func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
 	t.Parallel()
 	long := strings.Repeat("x", 10)
@@ -236,10 +237,35 @@ func TestTopAdvisoryStatementReportsTruncatesLongStatements(t *testing.T) {
 	}
 	// A statement at or under the bound is never marked truncated.
 	short := DifferentialFingerprint{Statement: "MATCH (n) RETURN n", Parameters: `{}`}
-	got = TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, 120)
-	want = []string{"MATCH (n) RETURN n (1)"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("TopAdvisoryStatementReports = %v, want %v", got, want)
+	for _, maxLen := range []int{120, len([]rune(short.Statement))} {
+		got = TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: short}}, 3, maxLen)
+		want = []string{"MATCH (n) RETURN n (1)"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("TopAdvisoryStatementReports(maxLen=%d) = %v, want %v", maxLen, got, want)
+		}
+	}
+}
+
+// TestTopAdvisoryStatementReportsKeepsSharedPrefixStatementsDistinct pins
+// the middle elision (#6941): two statements that agree on a prefix longer
+// than the bound must still print as two different labels, or the top-3
+// detail cannot tell an operator which one regressed.
+func TestTopAdvisoryStatementReportsKeepsSharedPrefixStatementsDistinct(t *testing.T) {
+	t.Parallel()
+	prefix := "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (source)-[rel:"
+	a := DifferentialFingerprint{Statement: prefix + "ATTACHED_TO]->(target)", Parameters: `{}`}
+	b := DifferentialFingerprint{Statement: prefix + "ROUTES_TO]->(target)", Parameters: `{}`}
+	got := TopAdvisoryStatementReports([]DifferentialDifference{{Fingerprint: a}, {Fingerprint: b}}, 3, AdvisoryStatementMaxLen)
+	if len(got) != 2 || got[0] == got[1] {
+		t.Fatalf("TopAdvisoryStatementReports = %v, want two distinct labels", got)
+	}
+	for _, label := range got {
+		if n := len([]rune(label)); n > AdvisoryStatementMaxLen+len("... (1)") {
+			t.Fatalf("label %q is %d runes, want at most %d plus the marker and count", label, n, AdvisoryStatementMaxLen)
+		}
+		if !strings.Contains(label, "...") || !strings.HasSuffix(label, "]->(target) (1)") {
+			t.Fatalf("label %q lost its tail or its elision marker", label)
+		}
 	}
 }
 

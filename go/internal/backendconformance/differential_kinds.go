@@ -210,9 +210,10 @@ func SplitAdvisory(diffs []DifferentialDifference) (required, advisory []Differe
 // how many divergences each statement contributed, and formats the top n
 // groups as "<statement> (<count>)" — descending by count, tied broken by
 // statement text ascending so the order is deterministic across runs instead
-// of depending on map iteration. Each statement is truncated to maxLen runes
-// with a "..." suffix when cut (maxLen <= 0 disables truncation), so one long
-// Cypher statement cannot dominate a one-line gate report. n <= 0 returns
+// of depending on map iteration. Each statement is bounded to maxLen runes
+// by eliding its middle (maxLen <= 0 disables truncation), so one long
+// Cypher statement cannot dominate a one-line gate report and statements
+// sharing a long prefix keep distinct labels. n <= 0 returns
 // every ranked group. Nil or empty diffs return nil (#6941: the advisory
 // ceiling finding names its top offenders instead of only the first).
 func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) []string {
@@ -247,8 +248,11 @@ func TopAdvisoryStatementReports(diffs []DifferentialDifference, n, maxLen int) 
 	return out
 }
 
-// truncateStatement bounds s to maxLen runes, appending "..." when cut.
-// maxLen <= 0 disables truncation.
+// truncateStatement bounds s to maxLen runes by eliding the middle
+// ("head...tail") so two statements that share a long prefix -- the corpus
+// has one 120-rune prefix shared by 115 distinct UNWIND statements -- still
+// print as distinct labels. Below 8 runes there is no room for a tail and
+// the head is kept with a "..." suffix. maxLen <= 0 disables truncation.
 func truncateStatement(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return s
@@ -257,7 +261,12 @@ func truncateStatement(s string, maxLen int) string {
 	if len(r) <= maxLen {
 		return s
 	}
-	return string(r[:maxLen]) + "..."
+	if maxLen < 8 {
+		return string(r[:maxLen]) + "..."
+	}
+	head := maxLen * 2 / 3
+	tail := maxLen - head
+	return string(r[:head]) + "..." + string(r[len(r)-tail:])
 }
 
 // quorumKey identifies one divergence across leg pairings: the same

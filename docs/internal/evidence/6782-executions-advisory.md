@@ -143,9 +143,12 @@ line of each run's "Compare backend recordings" step. Every completed
 57 (35711167105, main d4b50d1348), 54 (35711318028, main 1f777b5e48),
 55 (35715309080), 63 (35715863614), 58 (35715941325), 12 (35720266323),
 64 (35720279505, main 9208c2f575), 58 (35723358515), 14 (35723589651).
-Four earlier capture artifacts replayed locally with this branch's binary
+Every completed run that printed an advisory total is listed; runs that
+were cancelled or failed before the compare step print none. Four earlier
+capture artifacts replayed locally with this branch's binary
 (`-diff-executions-advisory-max=200`, no ceiling finding on any): 56
-(run 35664395755, main), 70 (run 35661933201, PR #6932), 56 (PR #6931),
+(run 35664395755, main), 70 (run 35661933201, PR #6932), 56 (run
+35659894831, PR #6931),
 21 (run 35695605570, PR #6892). Observed range 12-70. CI now passes
 `-diff-executions-advisory-max=200` (`.github/workflows/golden-corpus-gate.yml`,
 "Compare backend recordings" step): about 2.9x the observed max. This is a
@@ -155,13 +158,20 @@ corpus's normal scheduling-noise band. Narrowing it toward the observed
 band would turn ordinary run-to-run variance into gate flakes; the point is a
 wide backstop, not a calibrated alarm.
 
-The advisory finding's own detail was also widened (#6941): it previously
-named only the first recorded divergence, which does not identify whether a
-count is spread across many statements (scheduling noise, the expected shape)
-or concentrated on one or two (a possible regression). It now names the top 3
-statements by reproduced-divergence count
-(`backendconformance.TopAdvisoryStatementReports`), truncated to 120
-characters each; the ceiling finding names the same top statements.
+The advisory finding's detail changed shape (#6941). It previously named
+the first recorded divergence with its per-statement execution counts
+(`nornicdb=N, neo4j=M`), which says how far one statement's counts differ
+but not whether the total is spread across many statements (scheduling
+noise, the expected shape) or concentrated on one or two (a possible
+regression). It now names the top 3 statements by reproduced-divergence
+count (`backendconformance.TopAdvisoryStatementReports`), each label
+elided in the middle to 120 runes so statements sharing a long prefix stay
+distinct; the ceiling finding names the same top statements. The
+per-statement execution magnitude is no longer on the summary line; it
+stays in the per-pairing dump printed above it. That trade is deliberate:
+the ceiling and the detail both count reproduced fingerprints, because a
+drain-pass regression shows up as more statements diverging, not as one
+statement's counts drifting further apart.
 
 ### RED/GREEN proof commands run
 
