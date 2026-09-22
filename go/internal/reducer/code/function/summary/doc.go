@@ -9,8 +9,17 @@
 // loader/writers are wired, [Handler.Handle] also persists
 // that generation's param-level taint sources and the FunctionID->uid map,
 // which the cross-repo value-flow fixpoint needs alongside the summaries.
-// When the optional fixpoint projector is wired it runs after those durable
-// writes complete, so graph projection cannot race ahead of persistence.
+//
+// [Handler] does NOT run the global value-flow fixpoint itself (issue
+// #6923): summaries are fixpoint inputs by definition, so Handle always
+// reports the refresh_affected_repos sub-signal and CanonicalWrites counts a
+// full-snapshot replace's removed rows alongside written ones (and never
+// less than one for a full-snapshot replace), so even a replace that
+// empties a repo, or a retry of one, still triggers a solve. That lets this
+// handler's ACK become the fifth producer of the code/value/refresh
+// singleton, which fences the actual solve until every writer of the
+// cloud-sink chain has drained — collapsing what used to be up to one inline
+// solve per repo generation onto one fenced global run.
 //
 // This package's own name collides with its central dependency,
 // internal/parser/summary (FunctionID, Effects, Snapshot, Store): every file

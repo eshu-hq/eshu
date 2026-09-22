@@ -44,11 +44,14 @@ func TestDependencyValidate(t *testing.T) {
 // TestDependencyCatalogIsValid asserts every entry in the single source of
 // truth names a registered consumer and only registered producers, so a typo
 // in the catalog fails here rather than silently disabling completion replay.
-// TestValueFlowRefreshConsumerDeclaresFourProducers pins the #6785 refresh
-// wiring: the code_value_flow_refresh consumer completes on workload
-// (RUNS_IN), workload-cloud (USES), IAM CAN_PERFORM, and aws_resource
-// completions.
-func TestValueFlowRefreshConsumerDeclaresFourProducers(t *testing.T) {
+// TestValueFlowRefreshConsumerDeclaresFiveProducers pins the #6785/#6923
+// refresh wiring: the code_value_flow_refresh consumer completes on workload
+// (RUNS_IN), workload-cloud (USES), IAM CAN_PERFORM, aws_resource, and
+// code_function_summary completions. code_function_summary is the fifth
+// producer added by #6923: it stopped solving the global fixpoint inline and
+// became a refresh producer instead, so every trigger of the solve coalesces
+// onto the one fenced singleton.
+func TestValueFlowRefreshConsumerDeclaresFiveProducers(t *testing.T) {
 	t.Parallel()
 
 	dependency, ok := dependencyCatalog()[reducercontract.DomainCodeValueFlowRefresh]
@@ -60,6 +63,7 @@ func TestValueFlowRefreshConsumerDeclaresFourProducers(t *testing.T) {
 		reducercontract.DomainWorkloadCloudRelationshipMaterialization,
 		reducercontract.DomainIAMCanPerformMaterialization,
 		reducercontract.DomainAWSResourceMaterialization,
+		reducercontract.DomainCodeFunctionSummary,
 	}
 	if len(dependency.ProducerDomains) != len(want) {
 		t.Fatalf("code_value_flow_refresh producers = %v, want %v", dependency.ProducerDomains, want)
@@ -93,6 +97,7 @@ func TestCompletionEdgesExposeCatalogExactly(t *testing.T) {
 	want := []CompletionEdge{
 		{Producer: reducercontract.DomainAWSResourceMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},
 		{Producer: reducercontract.DomainCICDRunCorrelation, Consumer: reducercontract.DomainSupplyChainImpact},
+		{Producer: reducercontract.DomainCodeFunctionSummary, Consumer: reducercontract.DomainCodeValueFlowRefresh},
 		{Producer: reducercontract.DomainContainerImageIdentity, Consumer: reducercontract.DomainCICDRunCorrelation},
 		{Producer: reducercontract.DomainContainerImageIdentity, Consumer: reducercontract.DomainSupplyChainImpact},
 		{Producer: reducercontract.DomainIAMCanPerformMaterialization, Consumer: reducercontract.DomainCodeValueFlowRefresh},

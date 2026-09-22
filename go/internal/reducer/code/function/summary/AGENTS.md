@@ -15,8 +15,10 @@ Ownership boundary sections for exactly what this package owns versus what
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/function/summary/README.md`
-- `go/internal/reducer/code/value/README.md` (the fixpoint sibling this package's projector calls into)
+- `go/internal/reducer/code/value/README.md` (the fixpoint sibling this package used to solve directly)
+- `go/internal/reducer/code/value/refresh/README.md` (the singleton this package's ACK now feeds, issue #6923)
 - `docs/internal/design/reducer-target-tree.md`
+- `docs/internal/evidence/6923-value-flow-single-solve.md`
 
 ## Invariants
 
@@ -32,9 +34,17 @@ Ownership boundary sections for exactly what this package owns versus what
   `code_function_summary` facts the summary-effects view already
   quarantined; do not double-count one malformed fact's quarantine by
   recording both views' results.
-- **The fixpoint projector always runs after every durable write.** Do not
-  reorder `Handle` to call `ValueFlowFixpointWriter` before the
-  summary/source/graph-id persistence completes.
+- **`Handler` must never solve the value-flow fixpoint itself (issue
+  #6923).** It has no field for a fixpoint projector; do not re-add one. The
+  handler's job is to make its ACK an accurate value-flow-refresh producer
+  signal (`refresh_affected_repos`, `CanonicalWrites` including removed
+  rows), not to run the solve.
+- **`CanonicalWrites` must include removed rows on a full-snapshot replace.**
+  A replace that empties a repo still changed that repo's fixpoint inputs and
+  must still trigger the refresh singleton even though
+  `persistedFunctionCount == 0`. A full-snapshot replace whose counts net to
+  0 (a retried empty replace, a zero-function repo) still reports 1, so the
+  refresh is never lost to a retry.
 
 ## Common changes
 
@@ -60,4 +70,6 @@ builder in the moved handler tests.
 - The separate quarantine-discard rule for the graph-id view (it must not
   double-count the summary-effects view's quarantines on
   `input_invalid_facts`).
-- The fixpoint-projector-runs-last ordering in `Handler.Handle`.
+- The no-inline-solve invariant (issue #6923): this handler must not regain a
+  fixpoint-projector field. The refresh singleton
+  (`code/value/refresh.Handler`) is the only global-solve entry point.

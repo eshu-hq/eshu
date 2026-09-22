@@ -40,17 +40,22 @@ func dependencyCatalog() map[reducercontract.Domain]reducercontract.CrossScopeDe
 			},
 		},
 		// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint
-		// when the graph chain it reads lands late (issue #6785): RUNS_IN
-		// from workload materialization, USES from workload-cloud
+		// when the graph chain it reads lands late (issues #6785, #6923):
+		// RUNS_IN from workload materialization, USES from workload-cloud
 		// relationship materialization, CAN_PERFORM from IAM CAN_PERFORM
-		// materialization, and the CloudResource nodes from AWS resource
-		// materialization.
+		// materialization, the CloudResource nodes from AWS resource
+		// materialization, and the Function/INVOKES_CLOUD_ACTION summaries
+		// from code_function_summary — the fifth producer, added when that
+		// handler stopped solving the fixpoint inline and started ACKing
+		// into this singleton instead so every trigger of the global solve
+		// coalesces onto one fenced run.
 		reducercontract.DomainCodeValueFlowRefresh: {
 			ProducerDomains: []reducercontract.Domain{
 				reducercontract.DomainWorkloadMaterialization,
 				reducercontract.DomainWorkloadCloudRelationshipMaterialization,
 				reducercontract.DomainIAMCanPerformMaterialization,
 				reducercontract.DomainAWSResourceMaterialization,
+				reducercontract.DomainCodeFunctionSummary,
 			},
 		},
 	}

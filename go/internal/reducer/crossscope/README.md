@@ -39,6 +39,11 @@ This package owns:
   it), `DecideWait`, `WaitInput`, `WaitDecision`, `PollEligible`,
   `SameMissingSet`, `ApplyWaitDecision`, `ReadWait`, `MissingSample`, the
   `ReadinessWait*` outcome labels, and `ReadinessWaitMaxKeys`.
+- The #6923 value-flow-inputs readiness class:
+  `ValueFlowInputsNotReadyFailureClass`, `ClassifyValueFlowInputsError`, and
+  `WrapValueFlowInputsUndrained`. See "The #6923 value-flow-inputs fence" below
+  — this is declared here for the enrollment guard, not because this package
+  runs the fence.
 
 It owns no domain knowledge beyond the catalog's own producer/consumer
 declarations, no fact decoding, no writer, and no queue or Postgres access. The
@@ -128,6 +133,32 @@ re-commits rather than trusting a commit whose edges may be gone. The
 supersession proof is `TestReadinessWaitSurvivesSupersessionLive` in
 `internal/storage/postgres`. See
 `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
+
+## The #6923 value-flow-inputs fence
+
+`code_value_flow_refresh` (the #6785 singleton, `code/value/refresh.Handler`)
+is NOT a registered consumer in `dependencyCatalog` and does not call
+`CheckProducerReadinessBeforeLoad` — its gate is a different mechanism: one
+Postgres fence statement (`storage/postgres.ValueFlowInputsLivenessStore`,
+built from `storage/postgres.ValueFlowInputsFenceReducerDomains` /
+`ValueFlowInputsFenceSharedDomains`) checking whether every active-generation
+writer of the cloud-sink chain the fixpoint reads
+(`code_function_summary`, `code_call_materialization`,
+`workload_materialization`, `workload_cloud_relationship_materialization`,
+`iam_can_perform_materialization`, `aws_resource_materialization`, plus the
+`runs_in`/`invokes_cloud_action` shared-projection intents) has drained.
+
+This package supplies only the classification vocabulary
+(`ValueFlowInputsNotReadyFailureClass`, `ClassifyValueFlowInputsError`,
+`WrapValueFlowInputsUndrained`, in `value_flow_inputs_readiness.go`) and
+reuses `ReadinessCycleAnchor` / `ProducerReadinessMaxWait` for the refresh
+handler's own starvation bound — the same 30-minute elapsed-time rule
+documented under "Ordering assumption" above, for the same reason
+(`ValueFlowInputsNotReadyFailureClass` is also enrolled in
+`nonCountingReducerRetryFailureClasses`, so `attempt_count` freezes on every
+defer and only elapsed time can end the wait). See
+`docs/internal/evidence/6923-value-flow-single-solve.md` for the fence's
+EXPLAIN proof and `code/value/refresh/README.md` for the handler side.
 
 ## Telemetry
 
