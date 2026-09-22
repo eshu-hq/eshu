@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 func evaluateHealth(
@@ -16,7 +18,7 @@ func evaluateHealth(
 	domainBacklogs []DomainBacklog,
 	producerActivity ProducerActivitySnapshot,
 	coordinator *CoordinatorSnapshot,
-	collectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot,
+	collectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot,
 	opts Options,
 ) HealthSummary {
 	if queue.OverdueClaims > 0 {
@@ -73,7 +75,7 @@ func evaluateHealth(
 			Reasons: []string{coordinatorStalled},
 		}
 	}
-	collectorGenerationDeadLetters = cloneCollectorGenerationDeadLetterSnapshot(collectorGenerationDeadLetters)
+	collectorGenerationDeadLetters = collector.CloneGenerationDeadLetterSnapshot(collectorGenerationDeadLetters)
 	unresolvedCollectorGenerations := collectorGenerationDeadLetters.DeadLetter +
 		collectorGenerationDeadLetters.ReplayRequested
 	if queue.DeadLetter > 0 || queue.Failed > 0 || generationTotals["failed"] > 0 || coordinatorDegraded(coordinator) ||

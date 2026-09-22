@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"slices"
 	"time"
 )
 
-// CollectorFactEvidence summarizes persisted source or reducer fact evidence
+// FactEvidence summarizes persisted source or reducer fact evidence
 // for one collector runtime without exposing source payload identifiers.
-type CollectorFactEvidence struct {
+type FactEvidence struct {
 	InstanceID       string
 	CollectorKind    string
 	EvidenceSource   string
@@ -20,7 +20,7 @@ type CollectorFactEvidence struct {
 	UpdatedAt        time.Time
 }
 
-func cloneCollectorFactEvidence(rows []CollectorFactEvidence) []CollectorFactEvidence {
+func CloneFactEvidence(rows []FactEvidence) []FactEvidence {
 	cloned := slices.Clone(rows)
 	for i := range cloned {
 		cloned[i].SourceSystems = slices.Clone(rows[i].SourceSystems)

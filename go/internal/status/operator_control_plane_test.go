@@ -6,6 +6,8 @@ package status
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // TestControlPlaneProjectsQueueClaimLatencyAndStuckWork verifies the unified
@@ -73,7 +75,7 @@ func TestControlPlaneProjectsDeadLetterClasses(t *testing.T) {
 			{Domain: "deployable_unit_correlation", DeadLetter: 1, OldestAge: 4 * time.Minute},
 			{Domain: "cloud_asset_resolution", DeadLetter: 0, Outstanding: 5},
 		},
-		CollectorGenerationDeadLetters: CollectorGenerationDeadLetterSnapshot{
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 			DeadLetter:          2,
 			ReplayRequested:     1,
 			OldestDeadLetterAge: 20 * time.Minute,
@@ -140,29 +142,29 @@ func TestControlPlaneProjectsCollectorFamilies(t *testing.T) {
 // state must travel with the verdict so the row never mixes a failed verdict
 // with a healthy sibling's runtime state.
 func TestControlPlaneCollectorFamilyWorstVerdictCarriesItsRuntimeFields(t *testing.T) {
-	healthy := CollectorPromotionProof{
+	healthy := collector.PromotionProof{
 		CollectorKind:   "aws",
-		PromotionState:  CollectorPromotionImplemented,
+		PromotionState:  collector.PromotionImplemented,
 		Health:          "healthy",
 		ClaimState:      "claim_driven",
 		ReducerReadback: "available",
 		LastObservedAt:  time.Date(2026, 6, 19, 2, 0, 0, 0, time.UTC),
 	}
-	failed := CollectorPromotionProof{
+	failed := collector.PromotionProof{
 		CollectorKind:   "aws",
-		PromotionState:  CollectorPromotionFailed,
+		PromotionState:  collector.PromotionFailed,
 		Health:          "degraded",
 		ClaimState:      "direct",
 		ReducerReadback: "unavailable",
 		LastObservedAt:  time.Date(2026, 6, 19, 1, 0, 0, 0, time.UTC),
 	}
 
-	families := rollupOperatorCollectorFamilies([]CollectorPromotionProof{healthy, failed})
+	families := rollupOperatorCollectorFamilies([]collector.PromotionProof{healthy, failed})
 	if len(families) != 1 {
 		t.Fatalf("families len = %d, want 1", len(families))
 	}
 	fam := families[0]
-	if fam.PromotionState != CollectorPromotionFailed {
+	if fam.PromotionState != collector.PromotionFailed {
 		t.Fatalf("PromotionState = %q, want failed (worst verdict)", fam.PromotionState)
 	}
 	if fam.ClaimState != "direct" || fam.ReducerReadback != "unavailable" {

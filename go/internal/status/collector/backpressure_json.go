@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-type collectorBackpressureJSON struct {
+type BackpressureJSON struct {
 	CollectorKind           string                  `json:"collector_kind"`
 	CollectorInstanceID     string                  `json:"collector_instance_id"`
 	SourceSystem            string                  `json:"source_system"`
@@ -30,11 +30,11 @@ type collectorBackpressureJSON struct {
 	FailureClassCounts      []shared.NamedCountJSON `json:"failure_class_counts,omitempty"`
 }
 
-func collectorBackpressureJSONRows(rows []CollectorBackpressureSnapshot) []collectorBackpressureJSON {
-	rows = cloneCollectorBackpressure(rows)
-	projected := make([]collectorBackpressureJSON, 0, len(rows))
+func BackpressureJSONRows(rows []BackpressureSnapshot) []BackpressureJSON {
+	rows = CloneBackpressure(rows)
+	projected := make([]BackpressureJSON, 0, len(rows))
 	for _, row := range rows {
-		projected = append(projected, collectorBackpressureJSON{
+		projected = append(projected, BackpressureJSON{
 			CollectorKind:           row.CollectorKind,
 			CollectorInstanceID:     row.CollectorInstanceID,
 			SourceSystem:            row.SourceSystem,

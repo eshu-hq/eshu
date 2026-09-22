@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"strings"
@@ -9,12 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// CollectorCatalogEntry declares the readiness expectations for one collector
+// CatalogEntry declares the readiness expectations for one collector
 // family. The catalog is the deterministic spine of the promotion proof report:
 // every entry produces at least one proof row even when no instance is
 // configured, so a reviewer always sees the full fleet and unconfigured lanes
 // are explicit rather than silently absent.
-type CollectorCatalogEntry struct {
+type CatalogEntry struct {
 	// CollectorKind is the durable scope.CollectorKind string for the family.
 	CollectorKind string
 	// DisplayName is the operator-facing label for the family.
@@ -82,10 +82,10 @@ func defaultCatalogMetadata() map[string]collectorCatalogMetadata {
 	}
 }
 
-// KnownCollectorKinds returns the canonical collector kind strings the readiness
+// KnownKinds returns the canonical collector kind strings the readiness
 // report enumerates. It mirrors scope.AllCollectorKinds so the catalog and any
 // readiness consumer never drift from the platform's real collector fleet.
-func KnownCollectorKinds() []string {
+func KnownKinds() []string {
 	kinds := scope.AllCollectorKinds()
 	out := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
@@ -94,14 +94,14 @@ func KnownCollectorKinds() []string {
 	return out
 }
 
-// DefaultCollectorCatalog returns the readiness catalog for the full collector
+// DefaultCatalog returns the readiness catalog for the full collector
 // fleet, in scope.AllCollectorKinds order. Kinds without declared metadata get a
 // synthesized display name and claim-driven default so adding a collector to
 // scope.AllCollectorKinds automatically surfaces a readiness lane.
-func DefaultCollectorCatalog() []CollectorCatalogEntry {
+func DefaultCatalog() []CatalogEntry {
 	metadata := defaultCatalogMetadata()
 	kinds := scope.AllCollectorKinds()
-	entries := make([]CollectorCatalogEntry, 0, len(kinds))
+	entries := make([]CatalogEntry, 0, len(kinds))
 	for _, kind := range kinds {
 		kindStr := string(kind)
 		meta, ok := metadata[kindStr]
@@ -112,7 +112,7 @@ func DefaultCollectorCatalog() []CollectorCatalogEntry {
 				sourceScope: kindStr,
 			}
 		}
-		entries = append(entries, CollectorCatalogEntry{
+		entries = append(entries, CatalogEntry{
 			CollectorKind:    kindStr,
 			DisplayName:      meta.displayName,
 			ClaimDriven:      meta.claimDriven,
@@ -123,20 +123,20 @@ func DefaultCollectorCatalog() []CollectorCatalogEntry {
 	return entries
 }
 
-// presentCollectorCatalog returns the catalog restricted to collector kinds that
+// PresentCatalog returns the catalog restricted to collector kinds that
 // have runtime evidence or a registered instance in the report. The global
 // status surface uses this focused catalog so it reports only collectors that
 // are actually present; the full-fleet enumeration (including no-instance and
 // unsupported lanes) belongs to the dedicated collector-readiness read model.
-func presentCollectorCatalog(report Report) []CollectorCatalogEntry {
+func PresentCatalog(evidence Evidence) []CatalogEntry {
 	present := map[string]bool{}
-	for _, row := range CollectorRuntimeStatuses(report) {
+	for _, row := range RuntimeStatuses(evidence) {
 		present[row.CollectorKind] = true
 	}
 	// Return a non-nil empty catalog when nothing is present so callers get an
 	// empty proof set instead of the full default fleet.
-	entries := make([]CollectorCatalogEntry, 0, len(present))
-	for _, entry := range DefaultCollectorCatalog() {
+	entries := make([]CatalogEntry, 0, len(present))
+	for _, entry := range DefaultCatalog() {
 		if present[entry.CollectorKind] {
 			entries = append(entries, entry)
 		}

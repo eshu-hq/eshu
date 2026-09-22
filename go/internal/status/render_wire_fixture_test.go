@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // fixtureBase anchors every deterministic timestamp used by maxRawSnapshot.
@@ -206,7 +208,7 @@ func maxRawSnapshot() RawSnapshot {
 			DirtyRepos:     17,
 			OldestDirtyAge: fixtureDuration(720),
 		},
-		VulnerabilitySources: []VulnerabilitySourceState{
+		VulnerabilitySources: []collector.VulnerabilitySourceState{
 			{
 				CollectorInstanceID: "vuln-collector-1",
 				ScopeID:             "scope-fixture-a",
@@ -244,13 +246,13 @@ func maxRawSnapshot() RawSnapshot {
 		},
 		SemanticExtraction: fixtureSemanticExtractionStatus(),
 		AnswerNarration:    fixtureAnswerNarrationStatus(),
-		CollectorGenerationDeadLetters: CollectorGenerationDeadLetterSnapshot{
+		CollectorGenerationDeadLetters: collector.GenerationDeadLetterSnapshot{
 			DeadLetter:          4,
 			ReplayRequested:     2,
 			ReplayAttempts:      6,
 			OldestDeadLetterAge: fixtureDuration(1200),
 		},
-		CollectorFactEvidence: []CollectorFactEvidence{
+		CollectorFactEvidence: []collector.FactEvidence{
 			{
 				InstanceID:       "documentation-collector-1",
 				CollectorKind:    "documentation",

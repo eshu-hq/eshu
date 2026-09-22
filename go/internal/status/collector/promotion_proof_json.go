@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"time"
@@ -9,12 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// DefaultCollectorPromotionStaleAfter is the freshness window used when the
+// DefaultPromotionStaleAfter is the freshness window used when the
 // status render derives promotion proofs. Evidence older than this window marks
 // a collector family stale so operators notice silently aging lanes.
-const DefaultCollectorPromotionStaleAfter = 24 * time.Hour
+const DefaultPromotionStaleAfter = 24 * time.Hour
 
-type collectorPromotionProofJSON struct {
+type PromotionProofJSON struct {
 	CollectorKind    string   `json:"collector_kind"`
 	InstanceID       string   `json:"instance_id,omitempty"`
 	DisplayName      string   `json:"display_name,omitempty"`
@@ -35,10 +35,10 @@ type collectorPromotionProofJSON struct {
 	UpdatedAt        string   `json:"updated_at,omitempty"`
 }
 
-func collectorPromotionProofsJSON(rows []CollectorPromotionProof) []collectorPromotionProofJSON {
-	projected := make([]collectorPromotionProofJSON, 0, len(rows))
+func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
+	projected := make([]PromotionProofJSON, 0, len(rows))
 	for _, row := range rows {
-		projected = append(projected, collectorPromotionProofJSON{
+		projected = append(projected, PromotionProofJSON{
 			CollectorKind:    row.CollectorKind,
 			InstanceID:       row.InstanceID,
 			DisplayName:      row.DisplayName,

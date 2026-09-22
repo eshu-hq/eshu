@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"fmt"
@@ -10,19 +10,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// CollectorGenerationDeadLetterSnapshot captures collector generation commit
+// GenerationDeadLetterSnapshot captures collector generation commit
 // failures that were quarantined before projector work items existed.
-type CollectorGenerationDeadLetterSnapshot struct {
+type GenerationDeadLetterSnapshot struct {
 	DeadLetter          int
 	ReplayRequested     int
 	ReplayAttempts      int
 	OldestDeadLetterAge time.Duration
 }
 
-func cloneCollectorGenerationDeadLetterSnapshot(
-	snapshot CollectorGenerationDeadLetterSnapshot,
-) CollectorGenerationDeadLetterSnapshot {
-	return CollectorGenerationDeadLetterSnapshot{
+func CloneGenerationDeadLetterSnapshot(
+	snapshot GenerationDeadLetterSnapshot,
+) GenerationDeadLetterSnapshot {
+	return GenerationDeadLetterSnapshot{
 		DeadLetter:          nonNegativeCount(snapshot.DeadLetter),
 		ReplayRequested:     nonNegativeCount(snapshot.ReplayRequested),
 		ReplayAttempts:      nonNegativeCount(snapshot.ReplayAttempts),
@@ -30,8 +30,8 @@ func cloneCollectorGenerationDeadLetterSnapshot(
 	}
 }
 
-func renderCollectorGenerationDeadLetterLine(snapshot CollectorGenerationDeadLetterSnapshot) string {
-	snapshot = cloneCollectorGenerationDeadLetterSnapshot(snapshot)
+func RenderGenerationDeadLetterLine(snapshot GenerationDeadLetterSnapshot) string {
+	snapshot = CloneGenerationDeadLetterSnapshot(snapshot)
 	return fmt.Sprintf(
 		"Collector generation dead letters: dead_letter=%d replay_requested=%d replay_attempts=%d oldest=%s",
 		snapshot.DeadLetter,

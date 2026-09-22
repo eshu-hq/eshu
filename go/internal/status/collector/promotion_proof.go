@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"fmt"
@@ -15,41 +15,41 @@ import (
 // is reused by status rendering and the collector-readiness API/MCP read model
 // so operators and reviewers see one consistent promotion label.
 const (
-	// CollectorPromotionImplemented marks a family with healthy, fresh evidence
+	// PromotionImplemented marks a family with healthy, fresh evidence
 	// that reached reducer readback. It is the only "ready to promote" state.
-	CollectorPromotionImplemented = "implemented"
-	// CollectorPromotionPartial marks a family with some evidence that has not
+	PromotionImplemented = "implemented"
+	// PromotionPartial marks a family with some evidence that has not
 	// yet met the full implemented contract (for example reducer readback is
 	// still pending or the lane is fixture-only).
-	CollectorPromotionPartial = "partial"
-	// CollectorPromotionFailed marks a family whose runtime health is degraded.
-	CollectorPromotionFailed = "failed"
-	// CollectorPromotionStale marks a family whose newest evidence is older than
+	PromotionPartial = "partial"
+	// PromotionFailed marks a family whose runtime health is degraded.
+	PromotionFailed = "failed"
+	// PromotionStale marks a family whose newest evidence is older than
 	// the configured freshness window.
-	CollectorPromotionStale = "stale"
-	// CollectorPromotionGated marks a claim-driven family with claims disabled or
+	PromotionStale = "stale"
+	// PromotionGated marks a claim-driven family with claims disabled or
 	// a family hidden by an active runtime profile gate.
-	CollectorPromotionGated = "gated"
-	// CollectorPromotionDisabled marks a registered family disabled by
+	PromotionGated = "gated"
+	// PromotionDisabled marks a registered family disabled by
 	// configuration or deactivated by reconciliation.
-	CollectorPromotionDisabled = "disabled"
-	// CollectorPromotionPermissionHidden marks a family hidden from the caller by
+	PromotionDisabled = "disabled"
+	// PromotionPermissionHidden marks a family hidden from the caller by
 	// an active permission scope. The proof is redacted to instance-free metadata.
-	CollectorPromotionPermissionHidden = "permission_hidden"
-	// CollectorPromotionUnsupported marks a known family with no configured
+	PromotionPermissionHidden = "permission_hidden"
+	// PromotionUnsupported marks a known family with no configured
 	// instance and no runtime evidence.
-	CollectorPromotionUnsupported = "unsupported"
+	PromotionUnsupported = "unsupported"
 )
 
 // Reducer readback availability for a collector family.
 const (
-	// CollectorReadbackAvailable means reducer-projected fact evidence exists.
-	CollectorReadbackAvailable = "available"
-	// CollectorReadbackPending means source facts exist but reducer readback has
+	// ReadbackAvailable means reducer-projected fact evidence exists.
+	ReadbackAvailable = "available"
+	// ReadbackPending means source facts exist but reducer readback has
 	// not yet been observed.
-	CollectorReadbackPending = "pending"
-	// CollectorReadbackUnavailable means no fact evidence was observed.
-	CollectorReadbackUnavailable = "unavailable"
+	ReadbackPending = "pending"
+	// ReadbackUnavailable means no fact evidence was observed.
+	ReadbackUnavailable = "unavailable"
 )
 
 // Claim-execution state for a collector instance.
@@ -65,11 +65,11 @@ const (
 	CollectorClaimNone = "none"
 )
 
-// CollectorPromotionProof is a deterministic, shareable readiness record for one
+// PromotionProof is a deterministic, shareable readiness record for one
 // collector family or instance. It contains no credentials and no raw source
 // payloads: only counts, evidence-source labels, bounded source-system names,
 // and safe blocker descriptions derived from existing status evidence.
-type CollectorPromotionProof struct {
+type PromotionProof struct {
 	// CollectorKind is the durable collector family identifier.
 	CollectorKind string
 	// InstanceID identifies a configured instance, or is empty for a family-level
@@ -79,7 +79,7 @@ type CollectorPromotionProof struct {
 	DisplayName string
 	// PromotionState is the derived promotion verdict (see the constants above).
 	PromotionState string
-	// RuntimeCategory is the underlying CollectorRuntimeStatus category.
+	// RuntimeCategory is the underlying RuntimeStatus category.
 	RuntimeCategory string
 	// Health is the underlying runtime health, empty when no instance exists.
 	Health string
@@ -111,12 +111,12 @@ type CollectorPromotionProof struct {
 	UpdatedAt time.Time
 }
 
-// CollectorPromotionOptions controls promotion proof derivation. All fields are
+// PromotionOptions controls promotion proof derivation. All fields are
 // optional; an empty value yields the default catalog with no staleness window.
-type CollectorPromotionOptions struct {
+type PromotionOptions struct {
 	// Catalog is the readiness catalog to enumerate. Empty uses
-	// DefaultCollectorCatalog so every known collector family is covered.
-	Catalog []CollectorCatalogEntry
+	// DefaultCatalog so every known collector family is covered.
+	Catalog []CatalogEntry
 	// AsOf is the evaluation time used for staleness. Zero falls back to the
 	// report's AsOf.
 	AsOf time.Time
@@ -130,29 +130,29 @@ type CollectorPromotionOptions struct {
 	FixtureOnly map[string]bool
 }
 
-// CollectorPromotionProofs derives the deterministic per-collector promotion
-// proof report from the status report without performing I/O. The catalog is the
+// PromotionProofs derives the deterministic per-collector promotion
+// proof report from the collector evidence, without performing I/O. The catalog is the
 // spine: every catalog family yields at least one proof (a no-instance proof
 // when nothing is configured), and any runtime evidence for a kind missing from
 // the catalog is still surfaced so catalog drift is visible rather than hidden.
-func CollectorPromotionProofs(report Report, opts CollectorPromotionOptions) []CollectorPromotionProof {
+func PromotionProofs(evidence Evidence, opts PromotionOptions) []PromotionProof {
 	catalog := opts.Catalog
 	// A nil catalog means "no catalog supplied"; fall back to the full fleet. An
 	// explicitly empty (non-nil) catalog means "enumerate nothing".
 	if catalog == nil {
-		catalog = DefaultCollectorCatalog()
+		catalog = DefaultCatalog()
 	}
 	asOf := opts.AsOf
 	if asOf.IsZero() {
-		asOf = report.AsOf
+		asOf = evidence.AsOf
 	}
 
-	runtimeByKind := map[string][]CollectorRuntimeStatus{}
-	for _, row := range CollectorRuntimeStatuses(report) {
+	runtimeByKind := map[string][]RuntimeStatus{}
+	for _, row := range RuntimeStatuses(evidence) {
 		runtimeByKind[row.CollectorKind] = append(runtimeByKind[row.CollectorKind], row)
 	}
 
-	proofs := make([]CollectorPromotionProof, 0, len(catalog))
+	proofs := make([]PromotionProof, 0, len(catalog))
 	cataloged := map[string]bool{}
 	for _, entry := range catalog {
 		cataloged[entry.CollectorKind] = true
@@ -176,7 +176,7 @@ func CollectorPromotionProofs(report Report, opts CollectorPromotionOptions) []C
 		if cataloged[kind] {
 			continue
 		}
-		entry := CollectorCatalogEntry{
+		entry := CatalogEntry{
 			CollectorKind:    kind,
 			DisplayName:      synthesizeDisplayName(kind),
 			ClaimDriven:      true,
@@ -199,45 +199,45 @@ func CollectorPromotionProofs(report Report, opts CollectorPromotionOptions) []C
 	return proofs
 }
 
-func permissionHiddenProof(entry CollectorCatalogEntry) CollectorPromotionProof {
-	return CollectorPromotionProof{
+func permissionHiddenProof(entry CatalogEntry) PromotionProof {
+	return PromotionProof{
 		CollectorKind:    entry.CollectorKind,
 		DisplayName:      entry.DisplayName,
-		PromotionState:   CollectorPromotionPermissionHidden,
+		PromotionState:   PromotionPermissionHidden,
 		ClaimDriven:      entry.ClaimDriven,
 		ClaimState:       CollectorClaimNone,
 		SourceScope:      entry.SourceScope,
-		ReducerReadback:  CollectorReadbackUnavailable,
+		ReducerReadback:  ReadbackUnavailable,
 		TelemetryHandles: telemetryHandles(entry),
 		Blockers:         []string{"hidden by active permission scope"},
 	}
 }
 
-func noInstanceProof(entry CollectorCatalogEntry) CollectorPromotionProof {
-	return CollectorPromotionProof{
+func noInstanceProof(entry CatalogEntry) PromotionProof {
+	return PromotionProof{
 		CollectorKind:    entry.CollectorKind,
 		DisplayName:      entry.DisplayName,
-		PromotionState:   CollectorPromotionUnsupported,
+		PromotionState:   PromotionUnsupported,
 		ClaimDriven:      entry.ClaimDriven,
 		ClaimState:       CollectorClaimNone,
 		SourceScope:      entry.SourceScope,
-		ReducerReadback:  CollectorReadbackUnavailable,
+		ReducerReadback:  ReadbackUnavailable,
 		TelemetryHandles: telemetryHandles(entry),
 		Blockers:         []string{"no configured instance for this collector family"},
 	}
 }
 
 func promotionProofForInstance(
-	entry CollectorCatalogEntry,
-	row CollectorRuntimeStatus,
-	opts CollectorPromotionOptions,
+	entry CatalogEntry,
+	row RuntimeStatus,
+	opts PromotionOptions,
 	asOf time.Time,
-) CollectorPromotionProof {
+) PromotionProof {
 	readback := reducerReadbackState(row.EvidenceSources)
 	claimState := claimStateFromRuntime(row.RuntimeMode)
 	fixtureOnly := opts.FixtureOnly[entry.CollectorKind]
 
-	proof := CollectorPromotionProof{
+	proof := PromotionProof{
 		CollectorKind:    entry.CollectorKind,
 		InstanceID:       row.InstanceID,
 		DisplayName:      displayName(entry, row),
@@ -263,46 +263,46 @@ func promotionProofForInstance(
 // disabled, then failed, then gated, then stale, then implemented/partial. The
 // precedence keeps the most actionable blocker first for a reviewer.
 func derivePromotionState(
-	entry CollectorCatalogEntry,
-	row CollectorRuntimeStatus,
+	entry CatalogEntry,
+	row RuntimeStatus,
 	readback string,
 	claimState string,
 	fixtureOnly bool,
-	opts CollectorPromotionOptions,
+	opts PromotionOptions,
 	asOf time.Time,
 ) (string, []string) {
 	switch {
-	case row.StatusCategory == CollectorRuntimeDisabled || row.Health == "disabled":
-		return CollectorPromotionDisabled, []string{"collector disabled or deactivated"}
+	case row.StatusCategory == RuntimeDisabled || row.Health == "disabled":
+		return PromotionDisabled, []string{"collector disabled or deactivated"}
 	case row.Health == "degraded":
-		return CollectorPromotionFailed, []string{degradedBlocker(row)}
+		return PromotionFailed, []string{degradedBlocker(row)}
 	case row.Health == "partial":
-		return CollectorPromotionPartial, []string{"runtime health partial: some work did not complete"}
+		return PromotionPartial, []string{"runtime health partial: some work did not complete"}
 	case isGated(entry, row, claimState):
-		return CollectorPromotionGated, []string{gatedBlocker(row)}
+		return PromotionGated, []string{gatedBlocker(row)}
 	}
 
 	if opts.StaleAfter > 0 && evidenceIsStale(row, opts.StaleAfter, asOf) {
-		return CollectorPromotionStale, []string{fmt.Sprintf("newest evidence older than %s", opts.StaleAfter)}
+		return PromotionStale, []string{fmt.Sprintf("newest evidence older than %s", opts.StaleAfter)}
 	}
 
 	if fixtureOnly {
-		return CollectorPromotionPartial, []string{"evidence is fixture-only; live promotion not proven"}
+		return PromotionPartial, []string{"evidence is fixture-only; live promotion not proven"}
 	}
 
 	if isImplemented(entry, readback, claimState) {
-		return CollectorPromotionImplemented, nil
+		return PromotionImplemented, nil
 	}
-	return CollectorPromotionPartial, []string{partialBlocker(entry, readback, claimState)}
+	return PromotionPartial, []string{partialBlocker(entry, readback, claimState)}
 }
 
-func isGated(entry CollectorCatalogEntry, row CollectorRuntimeStatus, claimState string) bool {
-	if row.StatusCategory == CollectorRuntimeProfileGated {
+func isGated(entry CatalogEntry, row RuntimeStatus, claimState string) bool {
+	if row.StatusCategory == RuntimeProfileGated {
 		return true
 	}
 	// Unregistered evidence has no coordinator row to gate; it is partial, not
 	// gated, so it never claims a registration that does not exist.
-	if row.StatusCategory == CollectorRuntimeUnregistered {
+	if row.StatusCategory == RuntimeUnregistered {
 		return false
 	}
 	// A claim-driven family registered with claims disabled is gated; the same
@@ -310,8 +310,8 @@ func isGated(entry CollectorCatalogEntry, row CollectorRuntimeStatus, claimState
 	return entry.ClaimDriven && claimState == CollectorClaimDirect
 }
 
-func isImplemented(entry CollectorCatalogEntry, readback string, claimState string) bool {
-	if readback != CollectorReadbackAvailable {
+func isImplemented(entry CatalogEntry, readback string, claimState string) bool {
+	if readback != ReadbackAvailable {
 		return false
 	}
 	if entry.ClaimDriven {
@@ -325,15 +325,15 @@ func reducerReadbackState(evidenceSources []string) string {
 	for _, source := range evidenceSources {
 		switch source {
 		case "reducer_facts":
-			return CollectorReadbackAvailable
+			return ReadbackAvailable
 		case "source_facts":
 			hasSource = true
 		}
 	}
 	if hasSource {
-		return CollectorReadbackPending
+		return ReadbackPending
 	}
-	return CollectorReadbackUnavailable
+	return ReadbackUnavailable
 }
 
 func claimStateFromRuntime(runtimeMode string) string {
@@ -345,7 +345,7 @@ func claimStateFromRuntime(runtimeMode string) string {
 	}
 }
 
-func evidenceIsStale(row CollectorRuntimeStatus, staleAfter time.Duration, asOf time.Time) bool {
+func evidenceIsStale(row RuntimeStatus, staleAfter time.Duration, asOf time.Time) bool {
 	newest := row.LastObservedAt
 	if row.UpdatedAt.After(newest) {
 		newest = row.UpdatedAt
@@ -356,25 +356,25 @@ func evidenceIsStale(row CollectorRuntimeStatus, staleAfter time.Duration, asOf 
 	return newest.Before(asOf.Add(-staleAfter))
 }
 
-func degradedBlocker(row CollectorRuntimeStatus) string {
+func degradedBlocker(row RuntimeStatus) string {
 	if detail := row.Detail; detail != "" {
 		return "runtime health degraded: " + detail
 	}
 	return "runtime health degraded"
 }
 
-func gatedBlocker(row CollectorRuntimeStatus) string {
-	if row.StatusCategory == CollectorRuntimeProfileGated {
+func gatedBlocker(row RuntimeStatus) string {
+	if row.StatusCategory == RuntimeProfileGated {
 		return "hidden by active runtime profile gate"
 	}
 	return "claim-driven collector registered with claims disabled"
 }
 
-func partialBlocker(entry CollectorCatalogEntry, readback string, claimState string) string {
+func partialBlocker(entry CatalogEntry, readback string, claimState string) string {
 	switch {
-	case readback == CollectorReadbackUnavailable:
+	case readback == ReadbackUnavailable:
 		return "no fact evidence observed yet"
-	case readback == CollectorReadbackPending:
+	case readback == ReadbackPending:
 		return "reducer readback not yet available"
 	case entry.ClaimDriven && claimState != CollectorClaimDriven:
 		return "claim-driven execution not active"
@@ -383,7 +383,7 @@ func partialBlocker(entry CollectorCatalogEntry, readback string, claimState str
 	}
 }
 
-func displayName(entry CollectorCatalogEntry, row CollectorRuntimeStatus) string {
+func displayName(entry CatalogEntry, row RuntimeStatus) string {
 	if entry.DisplayName != "" {
 		return entry.DisplayName
 	}
@@ -392,16 +392,16 @@ func displayName(entry CollectorCatalogEntry, row CollectorRuntimeStatus) string
 
 // telemetryHandles resolves the handles for a catalog entry, falling back to the
 // shared collector handles every collector emits when none are declared.
-func telemetryHandles(entry CollectorCatalogEntry) []string {
+func telemetryHandles(entry CatalogEntry) []string {
 	if len(entry.TelemetryHandles) > 0 {
 		return entry.TelemetryHandles
 	}
 	return sharedCollectorTelemetryHandles()
 }
 
-// renderCollectorPromotionProofLines renders one compact, shareable line per
+// RenderPromotionProofLines renders one compact, shareable line per
 // collector promotion proof for the plain-text status surface.
-func renderCollectorPromotionProofLines(rows []CollectorPromotionProof) []string {
+func RenderPromotionProofLines(rows []PromotionProof) []string {
 	if len(rows) == 0 {
 		return nil
 	}

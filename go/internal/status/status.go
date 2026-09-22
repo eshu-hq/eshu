@@ -17,6 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 const (
@@ -157,11 +159,11 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		AWSCloudScans:                  cloud.CloneAWSScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:                   cloud.CloneAWSFreshnessSnapshot(raw.AWSFreshness),
 		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
-		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
+		VulnerabilitySources:           collector.CloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
-		CollectorGenerationDeadLetters: cloneCollectorGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
-		CollectorFactEvidence:          cloneCollectorFactEvidence(raw.CollectorFactEvidence),
+		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
+		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              raw.AWSCloudScanLimit,
 		TerraformState: TerraformStateReport{
@@ -225,19 +227,19 @@ func RenderText(report Report) string {
 	}
 	lines = append(lines, renderQueueBlockageLines(report.QueueBlockages)...)
 	lines = append(lines, renderCoordinatorLines(report.Coordinator)...)
-	lines = append(lines, renderCollectorRuntimeStatusLines(CollectorRuntimeStatuses(report))...)
-	lines = append(lines, renderCollectorPromotionProofLines(CollectorPromotionProofs(report, CollectorPromotionOptions{
-		Catalog:    presentCollectorCatalog(report),
+	lines = append(lines, collector.RenderRuntimeStatusLines(collector.RuntimeStatuses(collectorEvidence(report)))...)
+	lines = append(lines, collector.RenderPromotionProofLines(collector.PromotionProofs(collectorEvidence(report), collector.PromotionOptions{
+		Catalog:    collector.PresentCatalog(collectorEvidence(report)),
 		AsOf:       report.AsOf,
-		StaleAfter: DefaultCollectorPromotionStaleAfter,
+		StaleAfter: collector.DefaultPromotionStaleAfter,
 	}))...)
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, cloud.RenderAWSScanLines(report.AWSCloudScans)...)
 	lines = append(lines, cloud.RenderAWSFreshnessLines(report.AWSFreshness)...)
 	lines = append(lines, renderInfraInventoryLines(report.InfraInventory)...)
-	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
+	lines = append(lines, collector.RenderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
-	lines = append(lines, renderCollectorGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
+	lines = append(lines, collector.RenderGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

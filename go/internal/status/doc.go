@@ -25,16 +25,16 @@
 // RegistryCollectorSnapshot rows expose aggregate OCI and package-registry
 // runtime liveness, bounded failure classes, and package-registry metadata
 // target counts without registry object names, package names, or credentials.
-// CollectorRuntimeStatus rows derive a unified collector inventory from
+// collector.RuntimeStatus rows derive a unified collector inventory from
 // workflow coordinator registrations, durable direct status evidence, and
 // active persisted source or reducer fact evidence, including Git repository
 // ingestion facts, so coordinator-managed, direct-mode, disabled, and
 // unregistered collectors are visible in one operator view.
-// CollectorPromotionProof rows (CollectorPromotionProofs over a
+// collector.PromotionProof rows (collector.PromotionProofs over a
 // CollectorCatalog) project that runtime evidence into a deterministic,
 // credential-safe promotion verdict per collector family or instance:
 // implemented, partial, failed, stale, gated, disabled, permission_hidden, or
-// unsupported. The catalog (DefaultCollectorCatalog, built from
+// unsupported. The catalog (collector.DefaultCatalog, built from
 // scope.AllCollectorKinds) is the spine, so every known family yields at least
 // one proof and unconfigured lanes are explicit; implemented requires reducer
 // readback evidence and a fixture-only lane is never promoted to implemented.
@@ -44,7 +44,7 @@
 // scanner liveness, throttle counts, warning state, and commit status so
 // operators can separate throttling, credential failure, budget exhaustion, and
 // commit failures without scanning logs.
-// CollectorGenerationDeadLetterSnapshot reports commit failures that happened
+// collector.GenerationDeadLetterSnapshot reports commit failures that happened
 // before projector work existed, so operators can separate source-level replay
 // requests from normal queue replay; unresolved dead-letter and replay-request
 // rows keep health degraded until a later successful source commit clears them.

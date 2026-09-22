@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-type collectorRuntimeStatusJSON struct {
+type RuntimeStatusJSON struct {
 	InstanceID            string   `json:"instance_id"`
 	CollectorKind         string   `json:"collector_kind"`
 	Mode                  string   `json:"mode,omitempty"`
@@ -28,10 +28,10 @@ type collectorRuntimeStatusJSON struct {
 	Detail                string   `json:"detail,omitempty"`
 }
 
-func collectorRuntimeStatusesJSON(rows []CollectorRuntimeStatus) []collectorRuntimeStatusJSON {
-	projected := make([]collectorRuntimeStatusJSON, 0, len(rows))
+func RuntimeStatusesJSON(rows []RuntimeStatus) []RuntimeStatusJSON {
+	projected := make([]RuntimeStatusJSON, 0, len(rows))
 	for _, row := range rows {
-		projected = append(projected, collectorRuntimeStatusJSON{
+		projected = append(projected, RuntimeStatusJSON{
 			InstanceID:            row.InstanceID,
 			CollectorKind:         row.CollectorKind,
 			Mode:                  row.Mode,

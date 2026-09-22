@@ -3,12 +3,16 @@
 
 package status
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
+)
+
 // fixtureCoordinatorSnapshot returns a fully populated *CoordinatorSnapshot,
 // including CollectorInstances, CollectorBackpressure, and RecentFailures,
 // for maxRawSnapshot (render_wire_fixture_test.go).
 func fixtureCoordinatorSnapshot() *CoordinatorSnapshot {
 	return &CoordinatorSnapshot{
-		CollectorInstances: []CollectorInstanceSummary{
+		CollectorInstances: []collector.InstanceSummary{
 			{
 				InstanceID:     "collector-git-1",
 				CollectorKind:  "git",
@@ -46,7 +50,7 @@ func fixtureCoordinatorSnapshot() *CoordinatorSnapshot {
 			{Name: "pending", Count: 3},
 			{Name: "blocked", Count: 1},
 		},
-		CollectorBackpressure: []CollectorBackpressureSnapshot{
+		CollectorBackpressure: []collector.BackpressureSnapshot{
 			{
 				CollectorKind:       "git",
 				CollectorInstanceID: "collector-git-1",

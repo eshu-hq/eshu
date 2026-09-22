@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"fmt"
@@ -14,26 +14,26 @@ import (
 )
 
 const (
-	// CollectorRuntimeCoordinatorManaged identifies a collector registered with
+	// RuntimeCoordinatorManaged identifies a collector registered with
 	// the workflow coordinator and eligible for claim-driven work.
-	CollectorRuntimeCoordinatorManaged = "coordinator_managed"
-	// CollectorRuntimeDirectMode identifies a configured collector whose
+	RuntimeCoordinatorManaged = "coordinator_managed"
+	// RuntimeDirectMode identifies a configured collector whose
 	// coordinator row is enabled but not claim-driven.
-	CollectorRuntimeDirectMode = "direct_mode"
-	// CollectorRuntimeProfileGated identifies a collector intentionally hidden
+	RuntimeDirectMode = "direct_mode"
+	// RuntimeProfileGated identifies a collector intentionally hidden
 	// by an active runtime profile gate.
-	CollectorRuntimeProfileGated = "profile_gated"
-	// CollectorRuntimeDisabled identifies a registered collector disabled by
+	RuntimeProfileGated = "profile_gated"
+	// RuntimeDisabled identifies a registered collector disabled by
 	// configuration or deactivated by reconciliation.
-	CollectorRuntimeDisabled = "disabled"
-	// CollectorRuntimeUnregistered identifies runtime status evidence without a
+	RuntimeDisabled = "disabled"
+	// RuntimeUnregistered identifies runtime status evidence without a
 	// matching workflow coordinator registration.
-	CollectorRuntimeUnregistered = "unregistered"
+	RuntimeUnregistered = "unregistered"
 )
 
-// CollectorRuntimeStatus is the unified operator view of one collector runtime
+// RuntimeStatus is the unified operator view of one collector runtime
 // identity across coordinator registration and direct status evidence.
-type CollectorRuntimeStatus struct {
+type RuntimeStatus struct {
 	InstanceID            string
 	CollectorKind         string
 	Mode                  string
@@ -54,33 +54,31 @@ type CollectorRuntimeStatus struct {
 	Detail                string
 }
 
-// CollectorRuntimeStatuses derives the shared collector runtime readback from
-// the status report without performing I/O.
-func CollectorRuntimeStatuses(report Report) []CollectorRuntimeStatus {
-	builder := collectorRuntimeStatusBuilder{byKey: map[string]int{}}
-	if report.Coordinator != nil {
-		for _, instance := range report.Coordinator.CollectorInstances {
-			builder.add(coordinatorRuntimeStatus(instance))
-		}
+// RuntimeStatuses derives the shared collector runtime readback from
+// the collector evidence in the status report, without performing I/O.
+func RuntimeStatuses(evidence Evidence) []RuntimeStatus {
+	builder := runtimeStatusBuilder{byKey: map[string]int{}}
+	for _, instance := range evidence.Instances {
+		builder.add(coordinatorRuntimeStatus(instance))
 	}
-	builder.addAWSCloudScans(report.AWSCloudScans)
-	builder.addVulnerabilitySources(report.VulnerabilitySources)
-	builder.addCollectorFactEvidence(report.CollectorFactEvidence)
+	builder.addAWSCloudScans(evidence.AWSScans)
+	builder.addVulnerabilitySources(evidence.VulnerabilitySources)
+	builder.addFactEvidence(evidence.FactEvidence)
 	return builder.rows()
 }
 
-type collectorRuntimeStatusBuilder struct {
-	statuses []CollectorRuntimeStatus
+type runtimeStatusBuilder struct {
+	statuses []RuntimeStatus
 	byKey    map[string]int
 }
 
-func (b *collectorRuntimeStatusBuilder) add(status CollectorRuntimeStatus) int {
+func (b *runtimeStatusBuilder) add(status RuntimeStatus) int {
 	status.InstanceID = strings.TrimSpace(status.InstanceID)
 	status.CollectorKind = strings.TrimSpace(status.CollectorKind)
 	if status.InstanceID == "" || status.CollectorKind == "" {
 		return -1
 	}
-	key := collectorRuntimeStatusKey(status.CollectorKind, status.InstanceID)
+	key := runtimeStatusKey(status.CollectorKind, status.InstanceID)
 	if index, ok := b.byKey[key]; ok {
 		b.merge(index, status)
 		return index
@@ -92,7 +90,7 @@ func (b *collectorRuntimeStatusBuilder) add(status CollectorRuntimeStatus) int {
 	return len(b.statuses) - 1
 }
 
-func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntimeStatus) {
+func (b *runtimeStatusBuilder) merge(index int, status RuntimeStatus) {
 	existing := &b.statuses[index]
 	existing.EvidenceSources = uniqueNonEmptyStrings(append(existing.EvidenceSources, status.EvidenceSources...))
 	existing.SourceSystems = uniqueNonEmptyStrings(append(existing.SourceSystems, status.SourceSystems...))
@@ -109,7 +107,7 @@ func (b *collectorRuntimeStatusBuilder) merge(index int, status CollectorRuntime
 	}
 }
 
-func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []cloud.AWSScanStatus) {
+func (b *runtimeStatusBuilder) addAWSCloudScans(rows []cloud.AWSScanStatus) {
 	type aggregate struct {
 		count          int
 		health         string
@@ -156,7 +154,7 @@ func (b *collectorRuntimeStatusBuilder) addAWSCloudScans(rows []cloud.AWSScanSta
 	}
 }
 
-func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []VulnerabilitySourceState) {
+func (b *runtimeStatusBuilder) addVulnerabilitySources(rows []VulnerabilitySourceState) {
 	type aggregate struct {
 		count     int
 		health    string
@@ -190,7 +188,7 @@ func (b *collectorRuntimeStatusBuilder) addVulnerabilitySources(rows []Vulnerabi
 	}
 }
 
-func (b *collectorRuntimeStatusBuilder) addCollectorFactEvidence(rows []CollectorFactEvidence) {
+func (b *runtimeStatusBuilder) addFactEvidence(rows []FactEvidence) {
 	for _, row := range rows {
 		instanceID := strings.TrimSpace(row.InstanceID)
 		collectorKind := strings.TrimSpace(row.CollectorKind)
@@ -210,7 +208,7 @@ func (b *collectorRuntimeStatusBuilder) addCollectorFactEvidence(rows []Collecto
 	}
 }
 
-func (b collectorRuntimeStatusBuilder) instanceIDForCollectorKind(collectorKind string) string {
+func (b runtimeStatusBuilder) instanceIDForCollectorKind(collectorKind string) string {
 	if collectorKind == "" {
 		return ""
 	}
@@ -237,7 +235,7 @@ func (b collectorRuntimeStatusBuilder) instanceIDForCollectorKind(collectorKind 
 	return collectorKind + "-persisted-facts"
 }
 
-func (b collectorRuntimeStatusBuilder) rows() []CollectorRuntimeStatus {
+func (b runtimeStatusBuilder) rows() []RuntimeStatus {
 	statuses := slices.Clone(b.statuses)
 	sort.Slice(statuses, func(i, j int) bool {
 		if statuses[i].CollectorKind != statuses[j].CollectorKind {
@@ -248,22 +246,22 @@ func (b collectorRuntimeStatusBuilder) rows() []CollectorRuntimeStatus {
 	return statuses
 }
 
-func coordinatorRuntimeStatus(instance CollectorInstanceSummary) CollectorRuntimeStatus {
-	category := CollectorRuntimeCoordinatorManaged
+func coordinatorRuntimeStatus(instance InstanceSummary) RuntimeStatus {
+	category := RuntimeCoordinatorManaged
 	mode := CollectorClaimDriven
 	detail := "registered with workflow coordinator"
 	health := "registered"
 	if !instance.Enabled || !instance.DeactivatedAt.IsZero() {
-		category = CollectorRuntimeDisabled
+		category = RuntimeDisabled
 		mode = CollectorClaimRegistration
 		health = "disabled"
 		detail = "registered but disabled or deactivated"
 	} else if !instance.ClaimsEnabled {
-		category = CollectorRuntimeDirectMode
+		category = RuntimeDirectMode
 		mode = CollectorClaimDirect
 		detail = "registered with claims disabled; direct-mode or profile-gated runtime"
 	}
-	return CollectorRuntimeStatus{
+	return RuntimeStatus{
 		InstanceID:            instance.InstanceID,
 		CollectorKind:         instance.CollectorKind,
 		Mode:                  instance.Mode,
@@ -292,12 +290,12 @@ func directEvidenceRuntimeStatus(
 	health string,
 	lastObservedAt time.Time,
 	updatedAt time.Time,
-) CollectorRuntimeStatus {
-	return CollectorRuntimeStatus{
+) RuntimeStatus {
+	return RuntimeStatus{
 		InstanceID:       instanceID,
 		CollectorKind:    collectorKind,
 		RuntimeMode:      CollectorClaimDirect,
-		StatusCategory:   CollectorRuntimeUnregistered,
+		StatusCategory:   RuntimeUnregistered,
 		Health:           health,
 		EvidenceSources:  []string{evidenceSource},
 		SourceSystems:    uniqueNonEmptyStrings(sourceSystems),
@@ -398,7 +396,7 @@ func runtimeHealthRank(value string) int {
 	}
 }
 
-func collectorRuntimeStatusKey(collectorKind string, instanceID string) string {
+func runtimeStatusKey(collectorKind string, instanceID string) string {
 	return collectorKind + "\x00" + instanceID
 }
 
@@ -420,7 +418,7 @@ func uniqueNonEmptyStrings(values []string) []string {
 	return output
 }
 
-func renderCollectorRuntimeStatusLines(rows []CollectorRuntimeStatus) []string {
+func RenderRuntimeStatusLines(rows []RuntimeStatus) []string {
 	if len(rows) == 0 {
 		return nil
 	}

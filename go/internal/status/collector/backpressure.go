@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package status
+package collector
 
 import (
 	"fmt"
@@ -12,11 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
-// CollectorBackpressureSnapshot captures bounded workflow claim pressure for
+// BackpressureSnapshot captures bounded workflow claim pressure for
 // one collector family/instance/source-system tuple. It intentionally excludes
 // scope ids, source locators, generation ids, payload excerpts, and failure
 // messages so the operator status surface stays credential-safe.
-type CollectorBackpressureSnapshot struct {
+type BackpressureSnapshot struct {
 	CollectorKind       string
 	CollectorInstanceID string
 	SourceSystem        string
@@ -32,14 +32,14 @@ type CollectorBackpressureSnapshot struct {
 	OldestRetryAge      time.Duration
 	OldestClaimAge      time.Duration
 	NextRetryDelay      time.Duration
-	FailureClassCounts  []NamedCount
+	FailureClassCounts  []shared.NamedCount
 }
 
-func cloneCollectorBackpressure(rows []CollectorBackpressureSnapshot) []CollectorBackpressureSnapshot {
+func CloneBackpressure(rows []BackpressureSnapshot) []BackpressureSnapshot {
 	if len(rows) == 0 {
 		return nil
 	}
-	cloned := make([]CollectorBackpressureSnapshot, 0, len(rows))
+	cloned := make([]BackpressureSnapshot, 0, len(rows))
 	for _, row := range rows {
 		row.OldestPendingAge = shared.NonNegativeDuration(row.OldestPendingAge)
 		row.OldestRetryAge = shared.NonNegativeDuration(row.OldestRetryAge)
@@ -48,7 +48,7 @@ func cloneCollectorBackpressure(rows []CollectorBackpressureSnapshot) []Collecto
 		row.FailureClassCounts = cloneNamedCounts(row.FailureClassCounts)
 		cloned = append(cloned, row)
 	}
-	slices.SortFunc(cloned, func(a, b CollectorBackpressureSnapshot) int {
+	slices.SortFunc(cloned, func(a, b BackpressureSnapshot) int {
 		if a.CollectorKind != b.CollectorKind {
 			return strings.Compare(a.CollectorKind, b.CollectorKind)
 		}
@@ -60,18 +60,18 @@ func cloneCollectorBackpressure(rows []CollectorBackpressureSnapshot) []Collecto
 	return cloned
 }
 
-func cloneNamedCounts(rows []NamedCount) []NamedCount {
+func cloneNamedCounts(rows []shared.NamedCount) []shared.NamedCount {
 	if len(rows) == 0 {
 		return nil
 	}
 	cloned := slices.Clone(rows)
-	slices.SortFunc(cloned, func(a, b NamedCount) int {
+	slices.SortFunc(cloned, func(a, b shared.NamedCount) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	return cloned
 }
 
-func renderCollectorBackpressureLines(rows []CollectorBackpressureSnapshot) []string {
+func RenderBackpressureLines(rows []BackpressureSnapshot) []string {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -103,7 +103,7 @@ func renderCollectorBackpressureLines(rows []CollectorBackpressureSnapshot) []st
 	return lines
 }
 
-func formatNamedCounts(rows []NamedCount) string {
+func formatNamedCounts(rows []shared.NamedCount) string {
 	if len(rows) == 0 {
 		return ""
 	}

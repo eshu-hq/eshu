@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/shared"
 
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+
+	"github.com/eshu-hq/eshu/go/internal/status/collector"
 )
 
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.
@@ -34,13 +36,13 @@ type RawSnapshot struct {
 	AWSCloudScans         []cloud.AWSScanStatus
 	AWSFreshness          cloud.AWSFreshnessSnapshot
 	InfraInventory        InfraInventorySnapshot
-	VulnerabilitySources  []VulnerabilitySourceState
+	VulnerabilitySources  []collector.VulnerabilitySourceState
 	SemanticExtraction    SemanticExtractionStatus
 	AnswerNarration       AnswerNarrationStatus
 	// CollectorGenerationDeadLetters captures commit failures that happened
 	// before normal projector/reducer queue rows existed.
-	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
-	CollectorFactEvidence          []CollectorFactEvidence
+	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
+	CollectorFactEvidence          []collector.FactEvidence
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
 	AWSCloudScansTruncated bool
@@ -149,11 +151,11 @@ type Report struct {
 	AWSCloudScans                  []cloud.AWSScanStatus
 	AWSFreshness                   cloud.AWSFreshnessSnapshot
 	InfraInventory                 InfraInventorySnapshot
-	VulnerabilitySources           []VulnerabilitySourceState
+	VulnerabilitySources           []collector.VulnerabilitySourceState
 	SemanticExtraction             SemanticExtractionStatus
 	AnswerNarration                AnswerNarrationStatus
-	CollectorGenerationDeadLetters CollectorGenerationDeadLetterSnapshot
-	CollectorFactEvidence          []CollectorFactEvidence
+	CollectorGenerationDeadLetters collector.GenerationDeadLetterSnapshot
+	CollectorFactEvidence          []collector.FactEvidence
 	AWSCloudScansTruncated         bool
 	AWSCloudScanLimit              int
 	// DomainBacklogsTruncated reports that more non-empty materialization
