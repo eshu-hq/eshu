@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
@@ -185,6 +186,14 @@ func semanticStatementRowCount(stmt Statement) int {
 	case []any:
 		return len(typed)
 	default:
+		// The writer only emits the two slice types above today, but a
+		// future write mode with another slice type must not silently
+		// evade the cap: measure any slice by length, anything else 0.
+		if v := reflect.ValueOf(rows); v.IsValid() {
+			if k := v.Kind(); k == reflect.Slice || k == reflect.Array {
+				return v.Len()
+			}
+		}
 		return 0
 	}
 }

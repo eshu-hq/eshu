@@ -30,6 +30,10 @@ byte-identical dispatch to before. Splitting only engages past 2000 rows,
 i.e. only writes that previously failed outright. Retry convergence holds
 because upserts are idempotent MERGEs and retracts are scoped to the same
 repo IDs the upserts write; a partial prefix replays to the same end state.
+Splitting trades away single-transaction atomicity: concurrent readers can
+observe a prefix state (retract committed, upserts partial) on oversized
+writes until the retry converges. Only writes that previously failed
+outright ever split, so this is transient by construction.
 Splitting adds commit boundaries, which strictly increases cross-statement
 read-your-writes visibility on NornicDB (same-transaction multi-label MATCH
 invisibility is the documented failure direction, not the reverse).

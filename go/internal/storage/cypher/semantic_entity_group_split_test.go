@@ -163,6 +163,11 @@ func TestSemanticStatementRowCount(t *testing.T) {
 			stmt: Statement{Operation: OperationCanonicalUpsert, Parameters: map[string]any{"rows": "not-a-slice"}},
 			want: 0,
 		},
+		{
+			name: "other slice types count by length",
+			stmt: Statement{Operation: OperationCanonicalUpsert, Parameters: map[string]any{"rows": []string{"a", "b", "c"}}},
+			want: 3,
+		},
 	}
 	for _, tc := range cases {
 		if got := semanticStatementRowCount(tc.stmt); got != tc.want {
