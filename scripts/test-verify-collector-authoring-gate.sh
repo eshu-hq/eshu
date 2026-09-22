@@ -122,6 +122,38 @@ git -C "${complete_repo}" add .
 git -C "${complete_repo}" commit -q -m 'complete collector gate evidence'
 expect_pass "${complete_repo}"
 
+# Nested telemetry contract path (issue #6777): the frozen per-family
+# declarations moved out of flat go/internal/telemetry/contract_*.go into
+# leaf subpackages such as go/internal/telemetry/contract/thirdparty/*.go.
+# is_telemetry_contract_file must recognize a change at that nested path the
+# same way it recognizes the old flat contract_jira.go above -- otherwise a
+# collector PR that only touches the moved thirdparty/jira.go telemetry
+# contract file (no No-Observability-Change marker) fails this gate even
+# though it did touch the telemetry contract.
+nested_repo="$(init_repo nested)"
+mkdir -p "${nested_repo}/go/internal/collector/confluence3" \
+  "${nested_repo}/go/internal/telemetry/contract/thirdparty"
+printf 'package confluence3\n' >"${nested_repo}/go/internal/collector/confluence3/source.go"
+printf 'package confluence3\n' >"${nested_repo}/go/internal/collector/confluence3/doc.go"
+printf '# Confluence3 Agent Rules\n' >"${nested_repo}/go/internal/collector/confluence3/AGENTS.md"
+cat >"${nested_repo}/go/internal/collector/confluence3/README.md" <<'MD'
+# Confluence3
+
+Collector Performance Evidence: smoke fixture scanned 25 pages, emitted 76 facts,
+and completed under the documented local budget.
+
+Collector Observability Evidence: source request, parse, fact-emission, and
+failure metrics expose the bounded source stage without page IDs or titles.
+
+Collector Deployment Evidence: no hosted runtime in this slice; ServiceMonitor
+coverage is deferred until a charted command package lands.
+MD
+printf 'package confluence3\nfunc TestSource(t interface{}) {}\n' >"${nested_repo}/go/internal/collector/confluence3/source_test.go"
+printf 'package thirdparty\nconst SpanJiraFetch = "jira.fetch"\n' >"${nested_repo}/go/internal/telemetry/contract/thirdparty/jira.go"
+git -C "${nested_repo}" add .
+git -C "${nested_repo}" commit -q -m 'nested telemetry contract path gate evidence'
+expect_pass "${nested_repo}"
+
 # Regression: with neither ESHU_COLLECTOR_AUTHORING_BASE nor GITHUB_BASE_REF
 # set -- the shape every test above bypasses by pinning HEAD~1 -- the base must
 # be the merge base with origin/main. A HEAD~1 default scopes the gate to the
