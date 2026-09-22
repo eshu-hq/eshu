@@ -66,7 +66,7 @@ above.
 | X8 | `UNWIND … MERGE (n:L {k: v})` as the statement's final clause | `k` stored as null (a following `SET`, or `CREATE`, is correct) |
 | X9 | the `UNWIND` variable's name reused as a `RETURN` alias, with a `MATCH` between them (`UNWIND $ids AS repo_id MATCH … RETURN i.repo_id AS repo_id`) | that column comes back named after the first `UNWIND` value (`'r1'`) on every row, so a reader looking up the alias finds nothing |
 | X10 | node-identity comparison in an `OPTIONAL MATCH … WHERE` (`OPTIONAL MATCH (repo)-[:DEFINES]->(direct:Workload) WHERE direct = e`) | the projected properties come back as expression text (`"repo.id"`) |
-| X11 | label predicate in the `WHERE` of a relationship `MATCH` (`(s)-[:R]->(t) WHERE s:Label`), a quantifier or list comprehension over `labels()`, or `IN labels()` / `NOT x:Label` in a `WITH`-attached `WHERE` | `x:Label` ignored (extra rows); `NOT x:Label` drops every row; quantifier/comprehension over `labels()` ignored after a pattern and zero rows on a single-node `MATCH` |
+| X11 | label predicate by clause position: `x:Label` in the `WHERE` of a relationship `MATCH`; a quantifier or list comprehension over `labels()`; `IN labels()` / `NOT x:Label` in a `WITH`-attached `WHERE` | in `MATCH`-`WHERE` position `x:Label` is ignored (extra rows) and `NOT x:Label` drops every row; a quantifier/comprehension over `labels()` is ignored after a pattern and returns zero rows on a single-node `MATCH`; `WITH`-attached `IN labels()` / `NOT` is ignored (a positive `WITH`-attached `x:Label` is evaluated) |
 
 ## Exposure
 
@@ -93,9 +93,9 @@ above.
 | Workload dependency lookup, Kubernetes runtime probe | X9 candidates | Not affected: the reused `UNWIND` variable is not a `RETURN` alias | Rows match |
 | Every other production statement | #401, #405, #406, #407, #409, X1, X2, X6, X8, X9, X10 | No production statement has the shape | Static audit; X8 scan found only one statement ending in a relationship `MERGE`, which is correct |
 | #404 | `.id` on node-only `MATCH` | No reachable exposure | Labels that can lack `id`: File, Directory, Module, Environment, CodeownerTeam, Rationale, DocumentationSection, KustomizeOverlay, ShellCommand, Parameter |
-| Repository infrastructure read (`go/internal/query/repository/infrastructure.go`): two-hop `WHERE infra:K8sResource OR …` over 20 labels | X11 | Affected; fixed in #6861 (filter moved to a `WITH`-attached `WHERE`) | Live RED/GREEN in [6786-nornicdb-label-predicates.md](6786-nornicdb-label-predicates.md): NornicDB returned `[]` truncated before, all 4 infra rows after |
-| Change-surface legacy unscoped traversal (`go/internal/query/impact/change_surface_legacy.go`): `any(label IN labels(impacted) …)` | X11 | Affected; fixed in #6861 (OR of `'Label' IN labels(impacted)` terms) | Live RED/GREEN in the labels doc: NornicDB `[]` truncated before, `[workload]` after |
-| Relationship-story overrides read (`go/internal/query/codequery/relationships/story/class.go`): pair of `any(label IN labels(x) …)` | X11 | Affected shape; not observable (the canonical writer only writes `OVERRIDES` between the seven override labels); fixed in #6861 (`'Label' IN labels(x)` chains) | Seeded out-of-contract `OVERRIDES` to a `Variable` leaked on NornicDB (2 rows vs 1) in the labels doc |
+| Repository infrastructure read (`repository/infrastructure.go`): two-hop `WHERE infra:K8sResource OR …` over 20 labels | X11 | Affected; fixed in #6861 (filter moved to a `WITH`-attached `WHERE`) | Live RED/GREEN in [6786-nornicdb-label-predicates.md](6786-nornicdb-label-predicates.md): NornicDB returned `[]` truncated before, all 4 infra rows after |
+| Change-surface legacy unscoped traversal (`impact/change_surface_legacy.go`): `any(label IN labels(impacted) …)` | X11 | Affected; fixed in #6861 (OR of `'Label' IN labels(impacted)` terms) | Live RED/GREEN in the labels doc: NornicDB `[]` truncated before, `[workload]` after |
+| Relationship-story overrides read (`codequery/relationships/story/class.go`): pair of `any(label IN labels(x) …)` | X11 | Affected shape; not observable (the canonical writer only writes `OVERRIDES` between the seven override labels); fixed in #6861 (`'Label' IN labels(x)` chains) | Seeded out-of-contract `OVERRIDES` to a `Variable` leaked on NornicDB (2 rows vs 1) in the labels doc |
 | X11 audit remainder (scoped traversal, entity resolve, ArgoCD `NOT`-label, infra aggregates, `CASE IN labels()`, canonical checker, investigation selector) | X11 | Not affected or unreachable per statement | Live drives in the labels doc ([Exposure audit](6786-nornicdb-label-predicates.md#exposure-audit)) |
 
 ## X9 fix: workload-instance retraction lookup
@@ -124,9 +124,9 @@ expected, not a fault.
 
 ## Upstream
 
-X1–X10 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
-drafted but not yet filed; #6787 tracks upstream fixes and the re-proof on the
-next pin.
+X1–X11 are outside orneryd/NornicDB#400–#409. Upstream reports for X1–X10 are
+drafted but not yet filed; no upstream report is recorded for X11 in either
+evidence doc. #6787 tracks upstream fixes and the re-proof on the next pin.
 
 The re-proof on the next pin must also cover two properties the repository
 dependency read relies on:
