@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -85,6 +86,14 @@ func cleanupBootstrapWaitObjects(t *testing.T, database *sql.DB, table, path str
 		if _, err := database.ExecContext(ctx, "DROP TABLE IF EXISTS "+table); err != nil {
 			t.Errorf("cleanup %s: %v", table, err)
 		}
+		var ledgerExists bool
+		if err := database.QueryRowContext(ctx, "SELECT to_regclass('eshu_schema_migrations') IS NOT NULL").Scan(&ledgerExists); err != nil {
+			t.Errorf("cleanup: inspect ledger: %v", err)
+			return
+		}
+		if !ledgerExists {
+			return // the run failed before the ledger existed; nothing to delete
+		}
 		if _, err := database.ExecContext(ctx, "DELETE FROM eshu_schema_migrations WHERE path = $1", path); err != nil {
 			t.Errorf("cleanup receipt %s: %v", path, err)
 		}
@@ -137,13 +146,15 @@ func TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive(t *testing.T) {
 		t.Fatalf("bootstrap finished after %s, before the owner released at %s; it did not wait for ownership", waited.Round(time.Millisecond), hold)
 	}
 	text := logs.String()
-	if !strings.Contains(text, "bootstrap.postgres.ownership.waiting") || !strings.Contains(text, fmt.Sprintf("pid=%d", pid)) {
+	// The holder string is "pid=<n> application_name=..."; match with the
+	// trailing space so 312 cannot match 3127.
+	if !strings.Contains(text, "bootstrap.postgres.ownership.waiting") || !strings.Contains(text, fmt.Sprintf("pid=%d ", pid)) {
 		t.Fatalf("want a waiting event naming the holder pid %d, got:\n%s", pid, text)
 	}
 	if !strings.Contains(text, "bootstrap.postgres.ownership.acquired") {
 		t.Fatalf("want an acquired event after the wait, got:\n%s", text)
 	}
-	if otherPid != 0 && strings.Contains(text, fmt.Sprintf("pid=%d", otherPid)) {
+	if otherPid != 0 && strings.Contains(text, fmt.Sprintf("pid=%d ", otherPid)) {
 		t.Fatalf("waiting event named pid %d, a holder in another database that cannot block this one:\n%s", otherPid, text)
 	}
 	var exists bool
@@ -170,9 +181,16 @@ func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, databas
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, _ = database.ExecContext(cleanupCtx, "DROP DATABASE IF EXISTS "+other+" WITH (FORCE)")
+		if _, err := database.ExecContext(cleanupCtx, "DROP DATABASE IF EXISTS "+other+" WITH (FORCE)"); err != nil {
+			t.Errorf("drop %s: %v", other, err)
+		}
 	})
-	otherDB, err := sql.Open("pgx", strings.Replace(os.Getenv("ESHU_POSTGRES_RECOVERY_TEST_DSN"), "/"+dsnDatabase, "/"+other, 1))
+	otherDSN, err := url.Parse(os.Getenv("ESHU_POSTGRES_RECOVERY_TEST_DSN"))
+	if err != nil {
+		t.Fatalf("parse test DSN: %v", err)
+	}
+	otherDSN.Path = "/" + other // only the database path; the user may share the database's name
+	otherDB, err := sql.Open("pgx", otherDSN.String())
 	if err != nil {
 		t.Fatalf("open other database: %v", err)
 	}

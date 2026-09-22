@@ -85,7 +85,7 @@ type projectorDeps struct {
 
 type (
 	openBootstrapDBFn              func(context.Context, func(string) string) (bootstrapDB, error)
-	applyBootstrapFn               func(context.Context, bootstrapDB) error
+	applyBootstrapFn               func(context.Context, bootstrapDB, *slog.Logger) error
 	finalizeContentSearchIndexesFn func(context.Context, bootstrapDB) error
 	openGraphFn                    func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
 	buildCollectorFn               func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
@@ -195,7 +195,7 @@ func run(
 		}
 	}()
 
-	if err = schemaFn(ctx, database); err != nil {
+	if err = schemaFn(ctx, database, logger); err != nil {
 		return err
 	}
 	if err = graphSchemaFn(ctx, database, getenv, logger); err != nil {

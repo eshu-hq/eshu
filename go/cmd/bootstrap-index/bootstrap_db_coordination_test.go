@@ -6,8 +6,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -41,7 +44,7 @@ func TestApplySchemaFromEnvRefusesABadKnobBeforeAnyStatement(t *testing.T) {
 			return "0s"
 		}
 		return ""
-	})(context.Background(), database)
+	})(context.Background(), database, slog.Default())
 	if err == nil || !strings.Contains(err.Error(), postgres.OwnershipWaitEnv) {
 		t.Fatalf("err = %v, want a refusal naming %s", err, postgres.OwnershipWaitEnv)
 	}
@@ -53,10 +56,31 @@ func TestApplySchemaFromEnvRefusesABadKnobBeforeAnyStatement(t *testing.T) {
 func TestApplySchemaFromEnvDefersContentSearchIndexes(t *testing.T) {
 	t.Parallel()
 	database := &countingBootstrapDB{}
-	if err := applySchemaFromEnv(func(string) string { return "" })(context.Background(), database); err != nil {
+	if err := applySchemaFromEnv(func(string) string { return "" })(context.Background(), database, slog.Default()); err != nil {
 		t.Fatalf("applySchemaFromEnv: %v", err)
 	}
 	if want := len(postgres.BootstrapDefinitionsWithoutContentSearchIndexes()); database.execs != want {
 		t.Fatalf("migrator executed %d statements, want %d (content search indexes deferred)", database.execs, want)
+	}
+}
+
+// Non-default knobs and the runtime logger reach the migrator's options.
+func TestSchemaOptionsFromEnvThreadsKnobsAndLogger(t *testing.T) {
+	t.Parallel()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	options, err := schemaOptionsFromEnv(func(key string) string {
+		switch key {
+		case postgres.OwnershipWaitEnv:
+			return "2m"
+		case postgres.LockRetryBudgetEnv:
+			return "45s"
+		}
+		return ""
+	}, logger)
+	if err != nil {
+		t.Fatalf("schemaOptionsFromEnv: %v", err)
+	}
+	if options.OwnershipWait != 2*time.Minute || options.LockRetryBudget != 45*time.Second || !options.DeferContentSearchIndexes || options.Logger != logger {
+		t.Fatalf("options = %+v, want 2m / 45s / deferred indexes / the given logger", options)
 	}
 }

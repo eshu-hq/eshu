@@ -19,11 +19,23 @@ func lockNotAvailable() error {
 	return &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}
 }
 
-type recordedSleeps struct{ waits []time.Duration }
+// recordedSleeps records backoffs and advances a fake clock by them, so the
+// run deadline is exercised without real time.
+type recordedSleeps struct {
+	waits []time.Duration
+	clock time.Time
+}
 
 func (r *recordedSleeps) sleep(_ context.Context, d time.Duration) error {
 	r.waits = append(r.waits, d)
+	r.clock = r.clock.Add(d)
 	return nil
+}
+
+func (r *recordedSleeps) now() time.Time { return r.clock }
+
+func retryPolicy(sleeps *recordedSleeps, budget, initial, maxBackoff time.Duration) LockRetryPolicy {
+	return LockRetryPolicy{Budget: budget, Deadline: sleeps.clock.Add(budget), InitialBackoff: initial, MaxBackoff: maxBackoff}
 }
 
 // TestRetryOnLockTimeoutRetriesUntilTheLockClears pins #6956 cause 2: a
@@ -33,13 +45,9 @@ func TestRetryOnLockTimeoutRetriesUntilTheLockClears(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	sleeps := &recordedSleeps{}
+	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
 	attempts := 0
-	err := RetryOnLockTimeout(context.Background(), logger, "test/002_index.sql", LockRetryPolicy{
-		Budget:         time.Minute,
-		InitialBackoff: time.Second,
-		MaxBackoff:     4 * time.Second,
-	}, sleeps.sleep, func() error {
+	err := RetryOnLockTimeout(context.Background(), logger, "test/002_index.sql", retryPolicy(sleeps, time.Minute, time.Second, 4*time.Second), sleeps.sleep, sleeps.now, func() error {
 		attempts++
 		if attempts < 4 {
 			return lockNotAvailable()
@@ -75,12 +83,10 @@ func TestRetryOnLockTimeoutRetriesUntilTheLockClears(t *testing.T) {
 // attempt untouched.
 func TestRetryOnLockTimeoutDoesNotRetryOtherErrors(t *testing.T) {
 	t.Parallel()
-	sleeps := &recordedSleeps{}
+	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
 	boom := errors.New("syntax error")
 	attempts := 0
-	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/003.sql", LockRetryPolicy{
-		Budget: time.Minute, InitialBackoff: time.Second, MaxBackoff: time.Second,
-	}, sleeps.sleep, func() error {
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/003.sql", retryPolicy(sleeps, time.Minute, time.Second, time.Second), sleeps.sleep, sleeps.now, func() error {
 		attempts++
 		return boom
 	})
@@ -89,32 +95,65 @@ func TestRetryOnLockTimeoutDoesNotRetryOtherErrors(t *testing.T) {
 	}
 }
 
-// TestRetryOnLockTimeoutGivesUpWhenTheBudgetIsSpent pins the bound: once
-// the next backoff would exceed the budget the migrator fails, naming the
-// attempts and the budget, and the error still classifies as 55P03.
-func TestRetryOnLockTimeoutGivesUpWhenTheBudgetIsSpent(t *testing.T) {
+// TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses pins the bound: the
+// deadline is wall clock, so time an attempt itself burned (the lock_timeout
+// it waited) counts as much as the sleeps; once the next backoff would end
+// after the deadline the migrator fails, naming the budget, the attempts and
+// the path, and the error still classifies as 55P03.
+func TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
-	sleeps := &recordedSleeps{}
+	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
 	attempts := 0
-	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/004.sql", LockRetryPolicy{
-		Budget: 3 * time.Second, InitialBackoff: time.Second, MaxBackoff: 8 * time.Second,
-	}, sleeps.sleep, func() error {
+	// Each failed attempt burns 5 s of lock_timeout on the clock before the
+	// backoff is considered, as the real statement does.
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/004.sql", retryPolicy(sleeps, 20*time.Second, 5*time.Second, 15*time.Second), sleeps.sleep, sleeps.now, func() error {
 		attempts++
+		sleeps.clock = sleeps.clock.Add(5 * time.Second)
 		return lockNotAvailable()
 	})
 	if err == nil {
-		t.Fatal("RetryOnLockTimeout() = nil, want budget exhaustion")
+		t.Fatal("RetryOnLockTimeout() = nil, want deadline exhaustion")
 	}
 	if !IsLockNotAvailable(err) {
 		t.Fatalf("error lost its 55P03 classification: %v", err)
 	}
-	if !strings.Contains(err.Error(), "lock retry budget 3s") || !strings.Contains(err.Error(), "test/004.sql") {
+	if !strings.Contains(err.Error(), "lock retry budget 20s") || !strings.Contains(err.Error(), "test/004.sql") {
 		t.Fatalf("error = %q, want it to name the budget and the migration", err)
 	}
-	// backoffs 1s, 2s fit inside 3s of budget (sleeps 1s then 2s = 3s); the
-	// next 4s would exceed it, so exactly three attempts run.
-	if attempts != 3 || len(sleeps.waits) != 2 {
-		t.Fatalf("attempts=%d sleeps=%v, want 3 attempts and 2 sleeps", attempts, sleeps.waits)
+	// t=5 after attempt 1: 5+5=10 <= 20, sleep 5 (t=10); attempt 2 burns to
+	// t=15: 15+10=25 > 20, fail. Two attempts, one sleep: the 5 s each attempt
+	// burned is what ended the run, not the sleeps alone.
+	if attempts != 2 || len(sleeps.waits) != 1 {
+		t.Fatalf("attempts=%d sleeps=%v, want 2 attempts and 1 sleep", attempts, sleeps.waits)
+	}
+}
+
+// TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements pins that the
+// deadline belongs to the run: a second statement retried with the same
+// policy after the first spent most of the budget gets only what is left.
+func TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements(t *testing.T) {
+	t.Parallel()
+	sleeps := &recordedSleeps{clock: time.Unix(0, 0)}
+	policy := retryPolicy(sleeps, 30*time.Second, 5*time.Second, 5*time.Second)
+	failTwice := func() func() error {
+		n := 0
+		return func() error {
+			n++
+			sleeps.clock = sleeps.clock.Add(5 * time.Second)
+			if n <= 2 {
+				return lockNotAvailable()
+			}
+			return nil
+		}
+	}
+	if err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/a.sql", policy, sleeps.sleep, sleeps.now, failTwice()); err != nil {
+		t.Fatalf("first statement: %v", err)
+	}
+	// The first statement consumed 25 s of the 30 s (three 5 s attempts, two
+	// 5 s sleeps); the second gets 5 s and must fail on its first lock timeout.
+	err := RetryOnLockTimeout(context.Background(), slog.Default(), "test/b.sql", policy, sleeps.sleep, sleeps.now, failTwice())
+	if err == nil || !strings.Contains(err.Error(), "test/b.sql") {
+		t.Fatalf("second statement err = %v, want the shared deadline to end it", err)
 	}
 }
 
@@ -125,12 +164,13 @@ func TestRetryOnLockTimeoutStopsWhenTheContextEnds(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	attempts := 0
+	clock := time.Unix(0, 0)
 	err := RetryOnLockTimeout(ctx, slog.Default(), "test/005.sql", LockRetryPolicy{
-		Budget: time.Minute, InitialBackoff: time.Second, MaxBackoff: time.Second,
+		Budget: time.Minute, Deadline: clock.Add(time.Minute), InitialBackoff: time.Second, MaxBackoff: time.Second,
 	}, func(ctx context.Context, _ time.Duration) error {
 		cancel()
 		return ctx.Err()
-	}, func() error {
+	}, func() time.Time { return clock }, func() error {
 		attempts++
 		return lockNotAvailable()
 	})

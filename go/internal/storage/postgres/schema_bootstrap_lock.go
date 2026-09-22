@@ -47,13 +47,18 @@ type schemaStatementBounds struct {
 // for it rather than fail after one statement timeout; and a statement that
 // loses a lock race (SQLSTATE 55P03, e.g. against an anti-wraparound
 // autovacuum's ShareUpdateExclusiveLock) applied nothing and is retried.
-// The two defaults sum to 8 minutes so that, with the migrations themselves,
-// a run stays inside the chart's schema bootstrap Job deadline
-// (schemaBootstrap.activeDeadlineSeconds, 600 s): a bound the Job cannot
-// reach never prints its holder diagnostic.
+// Both bounds are wall clock: the ownership wait runs before any statement,
+// and the lock retry budget is one deadline shared by every statement of the
+// run (it counts the lock_timeout each failed attempt waited as well as the
+// sleeps). The defaults sum to 6 minutes, leaving 4 minutes of the chart's
+// schema bootstrap Job deadline (schemaBootstrap.activeDeadlineSeconds,
+// 600 s) for pod start, the migrations' own work and the graph schema; a
+// bound the Job cannot reach never prints its holder diagnostic.
+// TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline binds this to
+// the chart value.
 const (
-	defaultSchemaOwnershipWait   = 4 * time.Minute
-	defaultSchemaLockRetryBudget = 4 * time.Minute
+	defaultSchemaOwnershipWait   = 3 * time.Minute
+	defaultSchemaLockRetryBudget = 3 * time.Minute
 	schemaOwnershipPollInterval  = time.Second
 	schemaOwnershipLogInterval   = 15 * time.Second
 	schemaLockRetryMaxBackoff    = 15 * time.Second
@@ -317,6 +322,10 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		plans = append(plans, schemaMigrationPlan{definition: def, checksum: checksum, variant: variant, apply: true})
 	}
 
+	// One retry deadline for the whole run: a statement that spends the
+	// budget leaves nothing for the next, so the run cannot exceed the bound
+	// by the number of contended statements.
+	retryDeadline := time.Now().Add(bounds.lockRetryBudget)
 	appliedCount := 0
 	for index, plan := range plans {
 		if !plan.apply {
@@ -352,10 +361,11 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		}
 		retryPolicy := coordination.LockRetryPolicy{
 			Budget:         bounds.lockRetryBudget,
+			Deadline:       retryDeadline,
 			InitialBackoff: max(lockTimeout, time.Second),
 			MaxBackoff:     schemaLockRetryMaxBackoff,
 		}
-		if err := coordination.RetryOnLockTimeout(ctx, logger, plan.definition.Path, retryPolicy, coordination.SleepContext, func() error {
+		if err := coordination.RetryOnLockTimeout(ctx, logger, plan.definition.Path, retryPolicy, coordination.SleepContext, time.Now, func() error {
 			_, err := executor.execContextWithLockTimeout(ctx, plan.definition.SQL, lockTimeout)
 			return err
 		}); err != nil {

@@ -4,6 +4,10 @@
 package postgres
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -68,16 +72,32 @@ func TestBootstrapOptionsFromEnv(t *testing.T) {
 	}
 }
 
-// TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline pins the reason
-// for the defaults: their sum must leave room for the migrations inside the
-// chart's 600 s schema bootstrap Job deadline, or the holder diagnostic can
-// never print before Kubernetes kills the Job.
+// TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline binds the
+// defaults to the chart: both bounds are wall clock (the retry deadline is
+// shared by every statement of the run and counts each attempt's
+// lock_timeout), so their sum plus a floor for pod start, the migrations'
+// own work and the graph schema must fit inside the schema bootstrap Job's
+// activeDeadlineSeconds, read from deploy/helm/eshu/values.yaml, or the
+// holder diagnostic can never print before Kubernetes kills the Job.
 func TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline(t *testing.T) {
 	t.Parallel()
-	const jobDeadline = 600 * time.Second
+	const workFloor = 4 * time.Minute // pod start, image pull, migrations, graph schema
+	values, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "helm", "eshu", "values.yaml"))
+	if err != nil {
+		t.Fatalf("read chart values: %v", err)
+	}
+	match := regexp.MustCompile(`(?m)^schemaBootstrap:\n(?:[ \t]+.*\n)*?[ \t]+activeDeadlineSeconds:[ \t]*([0-9]+)`).FindSubmatch(values)
+	if match == nil {
+		t.Fatal("chart values.yaml has no schemaBootstrap.activeDeadlineSeconds")
+	}
+	seconds, err := strconv.Atoi(string(match[1]))
+	if err != nil {
+		t.Fatalf("parse activeDeadlineSeconds: %v", err)
+	}
+	jobDeadline := time.Duration(seconds) * time.Second
 	c := schemaBootstrapCoordination{}.withDefaults()
-	if c.ownershipWait+c.lockRetryBudget >= jobDeadline {
-		t.Fatalf("defaults %s + %s do not fit inside the %s Job deadline", c.ownershipWait, c.lockRetryBudget, jobDeadline)
+	if got := c.ownershipWait + c.lockRetryBudget + workFloor; got > jobDeadline {
+		t.Fatalf("defaults %s + %s plus the %s work floor = %s exceed the chart's %s Job deadline", c.ownershipWait, c.lockRetryBudget, workFloor, got, jobDeadline)
 	}
 	if c.ownershipWait <= 0 || c.lockRetryBudget <= 0 {
 		t.Fatalf("defaults must be positive: %+v", c)

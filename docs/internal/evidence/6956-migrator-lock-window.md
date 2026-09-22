@@ -46,14 +46,24 @@ migration wants a conflicting lock (migration 118's index build and 119's
   is bounded only by its own ownership wait, which is acceptable for the
   two bootstrappers that exist (a Job and bootstrap-index) and is stated in
   the public doc rather than hidden.
-- Starvation bounds: ownership wait 4 m (`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`),
-  statement retry budget 4 m of backoff (`ESHU_SCHEMA_LOCK_RETRY_BUDGET`,
-  backoff 5 s doubling to 15 s), both also cut by the caller's context. The
-  defaults sum to 8 m so a run stays inside the chart's schema bootstrap Job
-  deadline (`schemaBootstrap.activeDeadlineSeconds: 600`); a bound the Job
-  cannot reach would never print its holder diagnostic, and a unit test pins
-  the sum under 600 s. The 5 s statement `lock_timeout` is unchanged, so a
-  single attempt still cannot pin a table lock queue for long.
+- Starvation bounds: ownership wait 3 m (`ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT`),
+  lock retry budget 3 m (`ESHU_SCHEMA_LOCK_RETRY_BUDGET`, backoff 5 s
+  doubling to 15 s), both wall clock and both also cut by the caller's
+  context. The retry budget is ONE deadline computed when the run starts
+  applying and shared by every statement, and it counts the 5 s
+  `lock_timeout` each failed attempt waited as well as the sleeps, so two
+  contended statements (118 and 119 both touch `fact_records`) cannot
+  multiply it: the run's waiting is bounded by 3 m + 3 m = 6 m, leaving 4 m
+  of the chart's `schemaBootstrap.activeDeadlineSeconds: 600` for pod start,
+  the migrations' own work and the graph schema. The bounds cover waiting,
+  not work: a long index build is still bounded only by the Job deadline, as
+  before. `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads
+  the chart value and fails if the defaults plus a 4 m work floor exceed it
+  (proven RED with 5 m + 5 m defaults through a `go test -overlay` mutant);
+  `TestRetryOnLockTimeoutGivesUpWhenTheDeadlinePasses` proves attempt time
+  counts and `TestRetryOnLockTimeoutDeadlineIsSharedAcrossStatements` proves
+  the sharing. The 5 s statement `lock_timeout` is unchanged, so a single
+  attempt still cannot pin a table lock queue for long.
 - Retry boundary: only SQLSTATE 55P03 is retried. Any other failure returns
   on the first attempt with the original error.
 
@@ -79,16 +89,17 @@ is named.
 
 - Hermetic (`go test ./internal/storage/postgres/coordination`): retry
   until the lock clears with backoff 1 s, 2 s, 4 s and a `lock_recovered`
-  event naming `attempts=4`; no retry on a non-55P03 error; budget
-  exhaustion after exactly the attempts the budget allows, error naming the
-  budget and the path and still classifying as 55P03; context cancellation
+  event naming `attempts=4`; no retry on a non-55P03 error; deadline
+  exhaustion where the 5 s each attempt burns is what ends the run, error
+  naming the budget and the path and still classifying as 55P03; the
+  deadline shared across two statements; context cancellation
   during backoff returns `context.Canceled` after one attempt; ownership
   polling logs the holder and proceeds on the third try; ownership give-up
   names the wait and the holder.
 - `TestBootstrapOptionsFromEnv`: both knobs, all five cases each (unset,
   set, garbage, zero, negative), plus both set at once;
-  `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` pins the
-  defaults' sum under 600 s. `cmd/bootstrap-data-plane` and
+  `TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` reads the
+  chart's Job deadline and pins the defaults plus the work floor under it. `cmd/bootstrap-data-plane` and
   `cmd/bootstrap-index` each prove the hop from the environment to the
   migrator on a fake executor: a refused knob stops before any statement,
   an accepted one executes every bootstrap definition.

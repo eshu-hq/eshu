@@ -35,7 +35,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 		func(context.Context, func(string) string) (bootstrapDB, error) {
 			return database, nil
 		},
-		func(context.Context, bootstrapDB) error {
+		func(context.Context, bootstrapDB, *slog.Logger) error {
 			schemaApplied = true
 			return nil
 		},
@@ -100,7 +100,7 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 		func(context.Context, func(string) string) (bootstrapDB, error) {
 			return database, nil
 		},
-		func(context.Context, bootstrapDB) error {
+		func(context.Context, bootstrapDB, *slog.Logger) error {
 			return nil
 		},
 		func(context.Context, bootstrapDB) error {
