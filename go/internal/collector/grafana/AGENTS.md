@@ -6,7 +6,7 @@
 2. `docs/public/reference/observability-evidence.md`
 3. `docs/public/guides/collector-authoring.md`
 4. `go/internal/facts/observability.go`
-5. `go/internal/telemetry/contract_grafana.go`
+5. `go/internal/telemetry/contract/observability/grafana.go`
 
 ## Invariants this package enforces
 

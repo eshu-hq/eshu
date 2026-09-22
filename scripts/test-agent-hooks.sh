@@ -180,6 +180,7 @@ blocks 'go/internal/parser/parse.go' 'golang-engineering'
 # of these flips to golang-engineering if someone reorders the case.
 blocks 'go/internal/collector/doc.go' 'eshu-folder-doc-keeper'
 blocks 'go/internal/telemetry/contract_x.go' 'telemetry-coverage-discipline'
+blocks 'go/internal/telemetry/contract/cicd.go' 'telemetry-coverage-discipline'
 blocks 'go/internal/reducer/project.go' 'eshu-correlation-truth'
 
 # --- surfaces nobody claims stay out of the way ------------------------------

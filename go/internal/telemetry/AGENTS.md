@@ -2,18 +2,27 @@
 
 ## Read first
 
-1. `go/internal/telemetry/README.md` — full metric, span, and log inventory
-2. `go/internal/telemetry/contract.go` — frozen span names, log keys, metric
-   dimension keys, and the `Bootstrap` type
-3. `go/internal/telemetry/instruments.go` — all `Instruments` fields and their
+1. `go/internal/telemetry/README.md` — full metric, span, and log inventory,
+   including the "Package layout" section for the contract subpackages
+2. `go/internal/telemetry/contract.go` — the majority-share frozen span
+   names, log keys, metric dimension keys, and the `Bootstrap` type
+3. `go/internal/telemetry/registration.go` and `registration_steps.go` — the
+   single explicit, ordered `registrationSteps` list that splices every
+   `contract`/`contract/observability`/`contract/thirdparty` family's spans,
+   dimensions, and log keys into the frozen slices (issue #6777); read the
+   load-bearing-order comment before touching it
+4. `go/internal/telemetry/contract/AGENTS.md` (and its `observability`,
+   `thirdparty` siblings) — scoped rules for the per-family declaration
+   subpackages
+5. `go/internal/telemetry/instruments.go` — all `Instruments` fields and their
    registered metric names; the `Attr*` helper functions
-4. `go/internal/telemetry/logging.go` — `TraceHandler`, phase constants,
+6. `go/internal/telemetry/logging.go` — `TraceHandler`, phase constants,
    `ScopeAttrs`, `DomainAttrs`, and `PhaseAttr`
-5. `go/internal/telemetry/provider.go` — `NewProviders`, `Providers`, OTLP and
+7. `go/internal/telemetry/provider.go` — `NewProviders`, `Providers`, OTLP and
    Prometheus wiring
-6. `docs/public/reference/telemetry/index.md` — operator-facing tuning and
+8. `docs/public/reference/telemetry/index.md` — operator-facing tuning and
    signal-selection guidance
-7. `docs/public/observability/telemetry-coverage.md` — telemetry coverage
+9. `docs/public/observability/telemetry-coverage.md` — telemetry coverage
    contract. Every stage in the data plane maps to a row; new stages fail
    X2 without a corresponding entry. Cite this doc when adding a new stage.
 
@@ -30,17 +39,21 @@
   before adding a new one. Put scoped diagnostic keys in `logging.go` when
   the grandfathered `contract.go` cannot grow; register them in `registry.go`.
   Update the telemetry reference and cross-service correlation guides.
-- **Frozen span names** — `Span*` constants in `contract.go` are frozen. Add
-  new names to the `spanNames` slice in `contract.go` before using them in
-  callers. Query-handler spans such as `SpanQueryEvidenceCitationPacket` must
-  stay stable because API and MCP observability depends on the span name.
+- **Frozen span names** — `Span*` constants, wherever they live (`contract.go`
+  or a per-family file under `contract/`, `contract/observability/`, or
+  `contract/thirdparty/`), are frozen. A new name reaches `spanNames` either
+  directly in `registry.go` (for a `contract.go`-declared name) or through a
+  `registerXxx` step in `registration.go`/`registration_steps.go` (for a
+  subpackage-declared name) — see "How to add a new span" below.
+  Query-handler spans such as `SpanQueryEvidenceCitationPacket` must stay
+  stable because API and MCP observability depends on the span name.
 - **No high-cardinality metric labels** — file paths, fact IDs, repository
   names, and work-item IDs must not appear in metric attribute values. They
   belong in span attributes or log fields. Dashboards and alert rules depend on
   bounded label cardinality.
 
 - **Graph-read outcomes stay closed and sanitized** — `neo4j.query` read spans
-  use the constants in `contract_graph_read.go`; the duration histogram uses
+  use the constants in `contract/graph_read.go`; the duration histogram uses
   only `operation="read"` and the same closed outcome vocabulary. Slow,
   deadline, and unavailable warnings must not include Cypher text, graph
   addresses, or raw driver errors.
@@ -64,11 +77,24 @@
 
 ## How to add a new span
 
-1. Add a `Span*` constant to the `spanNames` constant block in `contract.go`.
-2. Add the constant to the `spanNames` slice so `SpanNames()` returns it.
-3. In the calling package, use `tracer.Start(ctx, telemetry.SpanXxx)` — never
+1. Add a `Span*` constant either to the constant block in `contract.go` (a
+   majority-share family) or to the relevant per-family file under
+   `contract/`, `contract/observability/`, or `contract/thirdparty/` (see
+   that package's own `AGENTS.md`).
+2. Splice it into the frozen order: a `contract.go` constant goes directly
+   into the `spanNames` slice literal in `registry.go`; a subpackage
+   constant goes into an existing or new `registerXxx` step in
+   `registration.go`/`registration_steps.go`, referenced as
+   `contract.SpanXxx` (or `observability.SpanXxx` / `thirdparty.SpanXxx`).
+   Read `registration.go`'s load-bearing-order comment first — these steps
+   run in a fixed, anchor-dependent order.
+3. Add the root compat alias in `compat_contract.go` (or the matching
+   `compat_observability.go`/`compat_thirdparty.go`) so existing callers can
+   keep using the bare root name.
+4. Update the expected list in `contract_test.go`'s `TestSpanNames`.
+5. In the calling package, use `tracer.Start(ctx, telemetry.SpanXxx)` — never
    inline the string literal.
-4. Update `docs/public/reference/telemetry/traces.md` (span contract).
+6. Update `docs/public/reference/telemetry/traces.md` (span contract).
 
 ## How to add a new log key
 

@@ -5,6 +5,7 @@ package telemetry_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -109,29 +110,16 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 	// (?s) lets . match \n so multiline attribute.String( calls are caught.
 	re := regexp.MustCompile(`(?s)attribute\.String\(\s*"([^"]+)"`)
 
-	dir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
-
 	var violations []string
 	seen := make(map[string]bool)
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
-		}
-		matches := re.FindAllStringSubmatch(string(content), -1)
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
 		for _, m := range matches {
 			key := m[1]
 			if hardBanned[key] && !seen[key] {
 				seen[key] = true
 				violations = append(violations, fmt.Sprintf(
-					"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name(),
+					"hard-banned dimension key %q used via attribute.String() in %s", key, src.rel,
 				))
 			}
 		}
@@ -146,8 +134,11 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 	}
 }
 
-// TestCardinalityAudit_NoBannedKeysInContractFiles scans all contract_*.go
-// files for newly defined dimension key constants whose wire value is a
+// TestCardinalityAudit_NoBannedKeysInContractFiles scans every source file in
+// the telemetry package and its contract, contract/observability, and
+// contract/thirdparty subpackages (issue #6777 nested the frozen contract
+// declarations out of the flat contract_*.go layout this test originally
+// assumed) for newly defined dimension key constants whose wire value is a
 // hard-banned key.  The metricDimensionKeys registry in registry.go should
 // already catch these, but this test provides defense-in-depth.
 func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
@@ -156,31 +147,17 @@ func TestCardinalityAudit_NoBannedKeysInContractFiles(t *testing.T) {
 		hardBanned[k] = true
 	}
 
-	telemetryDir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(telemetryDir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
-
-	var violations []string
 	// Match Go string constants of the form: MetricDimensionXxx = "key"
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(telemetryDir, e.Name()))
-		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
-		}
-
-		matches := re.FindAllStringSubmatch(string(content), -1)
+	var violations []string
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
 		for _, m := range matches {
 			wireKey := m[1]
 			if hardBanned[wireKey] {
 				violations = append(violations, fmt.Sprintf(
-					"hard-banned wire key %q in dimension constant in %s", wireKey, e.Name(),
+					"hard-banned wire key %q in dimension constant in %s", wireKey, src.rel,
 				))
 			}
 		}
@@ -315,29 +292,70 @@ func telemetrySourceDir(t *testing.T) string {
 
 func collectWireKeysFromContracts(t *testing.T) map[string]bool {
 	t.Helper()
-	dir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
 
 	wireKeys := make(map[string]bool)
 	re := regexp.MustCompile(`MetricDimension\w+\s*=\s*"([^"]+)"`)
 
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
-		}
-
-		matches := re.FindAllStringSubmatch(string(content), -1)
+	for _, src := range telemetrySourceFiles(t) {
+		matches := re.FindAllStringSubmatch(src.content, -1)
 		for _, m := range matches {
 			wireKeys[m[1]] = true
 		}
 	}
 
 	return wireKeys
+}
+
+// telemetrySource is one non-test Go source file under the telemetry package
+// tree, with its path relative to the package root for violation messages.
+type telemetrySource struct {
+	rel     string
+	content string
+}
+
+// telemetrySourceFiles returns every non-test Go file under the telemetry
+// package root, walking all subdirectories. Issue #6777 moved the per-family
+// contract declarations into contract/ and its subpackages; walking the tree
+// keeps any future nested package covered by construction instead of relying
+// on a hardcoded directory list. It fails closed if the walk finds no file
+// under contract/, so a relocation cannot silently empty the scan.
+func telemetrySourceFiles(t *testing.T) []telemetrySource {
+	t.Helper()
+	root := telemetrySourceDir(t)
+	var files []telemetrySource
+	sawContract := false
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path) // #nosec G304 -- path comes from walking the package's own source tree
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(filepath.ToSlash(rel), "contract/") {
+			sawContract = true
+		}
+		files = append(files, telemetrySource{rel: filepath.ToSlash(rel), content: string(content)})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk telemetry source tree %s: %v", root, err)
+	}
+	if !sawContract {
+		t.Fatalf("no Go source found under %s/contract; the contract declarations moved and this scan would be empty", root)
+	}
+	return files
 }

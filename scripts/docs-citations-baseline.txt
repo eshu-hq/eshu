@@ -383,7 +383,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contr
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:386
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:387
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:388
-LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:389
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:491
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:497
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:499
@@ -405,9 +404,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contr
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:553
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:578
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:598
-LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract_bootstrap_ingestion.go:24
-LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract_collector_run.go:69
-LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract_collector_stage.go:59
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/instruments.go:3617
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/instruments.go:3690
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/logging.go:166

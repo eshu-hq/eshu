@@ -91,6 +91,16 @@ is_telemetry_contract_file() {
   local path="$1"
   case "$path" in
     go/internal/telemetry/contract.go|go/internal/telemetry/contract_*.go|go/internal/telemetry/instruments.go) return 0 ;;
+    # The per-family declarations that used to live flat as contract_*.go
+    # moved into leaf subpackages (issue #6777): go/internal/telemetry/contract/*.go
+    # and its observability/thirdparty subdirectories. Root registration.go,
+    # registration_steps.go, and the compat_*.go re-export files also carry
+    # telemetry contract changes (splice order and compat aliases).
+    go/internal/telemetry/contract/*.go) return 0 ;;
+    go/internal/telemetry/contract/observability/*.go) return 0 ;;
+    go/internal/telemetry/contract/thirdparty/*.go) return 0 ;;
+    go/internal/telemetry/registration.go|go/internal/telemetry/registration_steps.go) return 0 ;;
+    go/internal/telemetry/compat_*.go) return 0 ;;
     *) return 1 ;;
   esac
 }

@@ -340,7 +340,7 @@ substitution stays parameter-safe).
 
 Observability Evidence: the aggregate routes add the
 `query.supply_chain_impact_aggregate` request span (registered in
-`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+`go/internal/telemetry/contract/supply_chain.go`) with route and capability
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
@@ -465,7 +465,7 @@ repository scope ids.
 
 Observability Evidence: the aggregate routes add the
 `query.security_alert_reconciliation_aggregate` request span (registered in
-`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+`go/internal/telemetry/contract/supply_chain.go`) with route and capability
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
@@ -514,7 +514,7 @@ instead of returning only an aggregate zero.
 
 Observability Evidence: the aggregate routes add the
 `query.container_image_identity_aggregate` request span (registered in
-`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+`go/internal/telemetry/contract/supply_chain.go`) with route and capability
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
@@ -551,7 +551,7 @@ dimension-to-SQL-expression map is a closed enum.
 
 Observability Evidence: the aggregate routes add the
 `query.ci_cd_run_correlation_aggregate` request span (registered in
-`go/internal/telemetry/contract_cicd.go`) with route and capability
+`go/internal/telemetry/contract/cicd.go`) with route and capability
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
@@ -578,7 +578,7 @@ no graph write, worker, lease, or schema change.
 
 Observability Evidence: the route adds the
 `query.observability_coverage_correlations` request span (registered in
-`go/internal/telemetry/contract_z_observability_coverage.go`) with route and
+`go/internal/telemetry/contract/z_observability_coverage.go`) with route and
 capability attributes and re-uses the existing
 `eshu_dp_postgres_query_duration_seconds` histogram. No new metric instrument
 is introduced; the `coverage_signal` metric dimension and
@@ -627,7 +627,7 @@ indexes before promoting the routes in production.
 
 Observability Evidence: the aggregate routes add the
 `query.package_registry_aggregate` request span (registered in
-`go/internal/telemetry/contract_package_registry.go`) with route and
+`go/internal/telemetry/contract/package_registry.go`) with route and
 capability attributes. They re-use the existing query-handler tracing and
 the `neo4j.query` graph span; no new metric instrument is added.
 
@@ -680,7 +680,7 @@ dimension-to-SQL-expression map is a closed enum.
 
 Observability Evidence: the aggregate routes add the
 `query.sbom_attestation_attachment_aggregate` request span (registered in
-`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+`go/internal/telemetry/contract/supply_chain.go`) with route and capability
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or
 metric instrument.

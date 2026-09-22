@@ -202,7 +202,7 @@ seek; capture it after `eshu-bootstrap-data-plane` completes.
 
 Observability Evidence: the aggregate routes add the
 `query.package_registry_aggregate` request span registered in
-`go/internal/telemetry/contract_package_registry.go` with route and
+`go/internal/telemetry/contract/package_registry.go` with route and
 capability attributes. They re-use the existing `Neo4jReader.Run` tracing
 and the `neo4j.query` graph span; no new metric instrument is added.
 
@@ -932,7 +932,7 @@ the existing scalar `package_id`/`repository_id` reads for all existing callers
 Observability Evidence: the route emits the new
 `query.package_registry_dependency_chains` request span
 (`telemetry.SpanQueryPackageRegistryDependencyChains`, registered in
-`internal/telemetry/contract_package_registry.go` and pinned by the
+`internal/telemetry/contract/package_registry.go` and pinned by the
 `TestSpanNames` golden) with the standard `http.route` and `eshu.capability`
 attributes, and reuses the existing `postgres.query` spans and
 `eshu_dp_postgres_query_duration_seconds` for both bounded reads. No new

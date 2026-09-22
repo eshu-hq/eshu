@@ -6,7 +6,7 @@
 2. `docs/public/reference/observability-evidence.md`
 3. `docs/public/guides/collector-authoring.md`
 4. `go/internal/facts/observability.go`
-5. `go/internal/telemetry/contract_prometheus_mimir.go`
+5. `go/internal/telemetry/contract/observability/prometheus_mimir.go`
 
 ## Invariants this package enforces
 

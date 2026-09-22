@@ -21,6 +21,38 @@ invent local observability vocabularies.
 See `CLAUDE.md` §Observability Contract for the project-wide rules that flow
 from this package.
 
+## Package layout
+
+The frozen per-family declarations (span names, metric dimensions, log keys,
+and their bounded values) live one file per family under three leaf
+subpackages so no single directory holds an unbounded, unreviewable pile of
+files (issue #6777):
+
+- `contract/` — most families: admission decisions, Azure relationships,
+  bootstrap ingestion, CI/CD, collector runs and snapshot stages, graph-read
+  outcomes, Kubernetes, language and language-query, package registry,
+  prompt-facing query spans, S3 external-principal grants, scanner-worker,
+  security alerts, semantic extraction, service catalog, source-tool
+  provenance, supply-chain/vulnerability findings, vulnerability
+  intelligence, incident context, observability coverage, secrets/IAM,
+  work-item evidence, generation lifecycle, and changed-since reads.
+- `contract/observability/` — Grafana, Loki, Prometheus/Mimir, Tempo.
+- `contract/thirdparty/` — Jira, PagerDuty, the live Vault collector's
+  redaction dimension.
+
+Root `contract.go` (untouched by #6777) still holds the majority-share
+frozen contract and is the file to read first. `registration.go` and
+`registration_steps.go` hold the ONE explicit, ordered `registrationSteps`
+list that splices every subpackage family into the root `spanNames`,
+`metricDimensionKeys`, and `logKeys` slices — replacing the 23 independent,
+filename-sort-ordered `func init()` bodies the flat `contract_*.go` layout
+relied on. That order is load-bearing (anchor-based inserts) and pinned by
+`TestSpanNames`, `TestMetricDimensionKeys`, and `TestLogKeys` in
+`contract_test.go`; see `registration.go`'s own comment before reordering it.
+Every identifier the subpackages export is still available as a root
+`telemetry.*` name via `compat_contract.go`, `compat_observability.go`, and
+`compat_thirdparty.go`, so no caller outside this package needed to change.
+
 ## Where this fits in the runtime
 
 ```mermaid
@@ -389,58 +421,21 @@ per-collector and per-file-kind volume breakdown.
 
 ### Span name constants
 
-Defined in `contract.go` and small companion files such as
-`contract_query_spans.go`. Use `telemetry.SpanXxx` rather than string literals;
-new query routes such as hardcoded-secret investigation register their span name
-here before handlers use it.
+Defined in root `contract.go` plus the per-family files under `contract/`,
+`contract/observability/`, and `contract/thirdparty/` described in
+"Package layout" above. Use `telemetry.SpanXxx` rather than string literals;
+new query routes such as hardcoded-secret investigation register their span
+name in the owning family file, then add a `registerXxx` step (or extend an
+existing one) in `registration.go`/`registration_steps.go` before handlers
+use it. The full frozen, ordered list is accessible at runtime via
+`SpanNames()` and is not duplicated here — see each family file's own doc
+comment for what it covers.
 
 `SpanQueryVulnerabilitySuppressionMutation` uses
 `SpanAttrVulnerabilitySuppressionMutationOutcome`
 (`eshu.mutation.outcome`) with the closed values `created`, `unchanged`,
 `rejected`, and `store_error`. The dimension is intentionally low-cardinality;
 suppression ids, authors, anchors, and reasons must not be attached.
-
-Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
-`SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
-`SpanReducerBatchClaim`, `SpanReducerEshuSearchIndexWrite`,
-`SpanReducerDriftEvidenceLoad`,
-`SpanReducerAzureRelationshipMaterialization`,
-`SpanReducerRDSPostureMaterialization`,
-`SpanReducerS3ExternalPrincipalGrantMaterialization`, `SpanCanonicalWrite`,
-`SpanCanonicalProjection`,
-`SpanCanonicalRetract`, `SpanEvidenceDiscovery`,
-`SpanIaCReachabilityMaterialization`, `SpanSQLRelationshipMaterialization`,
-`SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,
-`SpanSharedAcceptanceLookup`, `SpanSharedAcceptanceUpsert`,
-`SpanQueryRelationshipEvidence`, `SpanQueryEvidenceCitationPacket`,
-`SpanQueryDocumentationFindings`,
-`SpanQueryDocumentationEvidencePacket`, `SpanQueryDocumentationPacketFreshness`,
-`SpanQuerySemanticEvidence`,
-`SpanQueryDeadIaC`, `SpanQueryIaCUnmanagedResources`,
-`SpanQueryIaCManagementStatus`, `SpanQueryIaCManagementExplanation`,
-`SpanQueryIaCTerraformImportPlan`, `SpanQueryAWSRuntimeDriftFindings`,
-`SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
-`SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
-`SpanQueryCallGraphMetrics`, `SpanQueryGraphEntityInventory`,
-`SpanQueryChangeSurfaceInvestigation`,
-`SpanQueryPackageRegistryPackages`, `SpanQueryPackageRegistryVersions`,
-`SpanQueryPackageRegistryDependencies`,
-`SpanQueryAdvisoryEvidence`,
-`SpanQueryIncidentContext`,
-`SpanQueryWorkItemEvidence`,
-`SpanQueryVulnerabilitySuppressionMutation`,
-`SpanQuerySupplyChainImpactExplanation`,
-`SpanQueryLanguageQuery`,
-`SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
-`SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,
-`SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
-`SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,
-`SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
-`SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`,
-`SpanPagerDutyFetch`, `SpanJiraObserve`, `SpanJiraFetch`,
-`SpanPrometheusMimirObserve`, `SpanPrometheusMimirFetch`, `SpanLokiObserve`,
-`SpanLokiFetch`, `SpanTempoObserve`,
-and `SpanTempoFetch`.
 
 Work-item evidence query spans use bounded `SpanAttrWorkItemEvidence*` integer
 and boolean attributes for query count, result count, stale evidence,
@@ -457,8 +452,6 @@ observation and code-hint list routes. The underlying Postgres read still emits
 `SpanPostgresQuery` with `db.operation=list_semantic_evidence`, so operators can
 separate semantic provenance inspection from deterministic documentation, code,
 and graph-truth reads without adding a metric label.
-
-The full frozen list is also accessible at runtime via `SpanNames()`.
 
 ### Log keys and phase constants
 
@@ -477,7 +470,13 @@ File-group diagnostic keys (frozen in `logging.go`): `LogKeyFileGroupCallID`,
 `LogKeyFileGroupRowCount`, `LogKeyFileGroupRunDuration`,
 `LogKeyFileGroupConsumeDuration`, `LogKeyFileGroupOutcome`,
 `LogKeyFileGroupAttempts`, `LogKeyFileGroupDuration`, and
-`LogKeyFileGroupPostCallbackDuration`. `LogKeys()` registers both groups.
+`LogKeyFileGroupPostCallbackDuration`.
+
+Semantic-extraction log keys (`LogKeySemanticExtractionStatus`,
+`...SourceClass`, `...ProviderKind`, `...ProviderProfileClass`,
+`...BudgetState`, `...BudgetReason`) are declared in
+`contract/semantic_extraction.go` and appended by `registerSemanticExtraction`
+in `registration_steps.go`. `LogKeys()` returns all three groups.
 
 Drift-specific log keys (also frozen in `contract.go`):
 `LogKeyDriftPriorConfigDepth`, `LogKeyDriftPriorConfigAddresses`,
