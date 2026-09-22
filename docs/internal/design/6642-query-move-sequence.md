@@ -163,13 +163,19 @@ What remains are genuine owner calls.
    type. Both are design changes rather than moves, and both are outside what
    this issue's Scope section authorizes ("Move and rename").
 
-   The hoist is priced, so option (a) is not an open-ended commitment:
-   **34 symbols cross the three proposed boundaries, 32 of them unexported**,
-   and the heaviest single edge is `story -> stay` at 13. The full list is
-   `queryRepositoryFileCount`, `queryRepositoryDependencyCount`,
-   `repositoryFrameworkAggregate`, `intValue`, `cloneStringAnyMap` and 27
-   siblings — row helpers and query builders, not architecture. That is a
-   tractable single issue, not a rewrite. The options are
+   The hoist is priced, and the price is higher than the first look suggests.
+   **32 unexported symbols cross the three proposed boundaries** — that is the
+   first layer, and an earlier revision of this page stopped there and called
+   it a tractable single issue. Following what those symbols themselves need
+   adds five more rounds: +9, +9, +16, +4, +3, settling at **73 symbols across
+   30 of the package's 45 files**.
+
+   The closure is computed at file granularity — a symbol drags what its
+   declaring file references, not strictly what the symbol itself references —
+   so 73 is an upper bound and 32 a lower one. The honest statement is that the
+   hoist is somewhere between a third and two thirds of `repository`, not a
+   handful of helpers. That makes option (a) a real refactor and is worth
+   knowing before choosing it over (b) or (c). The options are
    (a) do that design work as its own issue, (b) accept `repository` keeping
    its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
    one place the definition of done is not met by the plan as written.
