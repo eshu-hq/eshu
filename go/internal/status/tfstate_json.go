@@ -5,6 +5,8 @@ package status
 
 import (
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // terraformStateJSON is the operator-facing JSON shape for the tfstate admin
@@ -68,7 +70,7 @@ func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
 			Lineage:         row.Lineage,
 			Serial:          row.Serial,
 			GenerationID:    row.GenerationID,
-			ObservedAt:      nullableRFC3339Value(row.ObservedAt),
+			ObservedAt:      shared.NullableRFC3339Value(row.ObservedAt),
 		})
 	}
 	for _, row := range report.RecentWarnings {
@@ -112,7 +114,7 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 		Source:          row.Source,
 		SourceHandle:    row.SourceHandle,
 		GenerationID:    row.GenerationID,
-		ObservedAt:      nullableRFC3339Value(row.ObservedAt),
+		ObservedAt:      shared.NullableRFC3339Value(row.ObservedAt),
 	}
 }
 

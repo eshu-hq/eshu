@@ -3,6 +3,10 @@
 
 package status
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
+
 // awsCloudScansJSON projects AWS cloud scan status rows into the stable status
 // JSON shape without exposing raw provider payloads.
 func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
@@ -25,11 +29,11 @@ func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
 			TagObservationCount: row.TagObservationCount,
 			BudgetExhausted:     row.BudgetExhausted,
 			CredentialFailed:    row.CredentialFailed,
-			LastStartedAt:       nullableRFC3339Value(row.LastStartedAt),
-			LastObservedAt:      nullableRFC3339Value(row.LastObservedAt),
-			LastCompletedAt:     nullableRFC3339Value(row.LastCompletedAt),
-			LastSuccessfulAt:    nullableRFC3339Value(row.LastSuccessfulAt),
-			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
+			LastStartedAt:       shared.NullableRFC3339Value(row.LastStartedAt),
+			LastObservedAt:      shared.NullableRFC3339Value(row.LastObservedAt),
+			LastCompletedAt:     shared.NullableRFC3339Value(row.LastCompletedAt),
+			LastSuccessfulAt:    shared.NullableRFC3339Value(row.LastSuccessfulAt),
+			UpdatedAt:           shared.NullableRFC3339Value(row.UpdatedAt),
 		})
 	}
 	return projected
@@ -45,17 +49,17 @@ func vulnerabilitySourcesJSON(rows []VulnerabilitySourceState) []vulnerabilitySo
 			ScopeID:             row.ScopeID,
 			Source:              row.Source,
 			Ecosystem:           row.Ecosystem,
-			WindowStart:         nullableRFC3339Value(row.WindowStart),
-			WindowEnd:           nullableRFC3339Value(row.WindowEnd),
-			LastAttemptAt:       nullableRFC3339Value(row.LastAttemptAt),
-			LastSuccessAt:       nullableRFC3339Value(row.LastSuccessAt),
-			NextRetryAt:         nullableRFC3339Value(row.NextRetryAt),
+			WindowStart:         shared.NullableRFC3339Value(row.WindowStart),
+			WindowEnd:           shared.NullableRFC3339Value(row.WindowEnd),
+			LastAttemptAt:       shared.NullableRFC3339Value(row.LastAttemptAt),
+			LastSuccessAt:       shared.NullableRFC3339Value(row.LastSuccessAt),
+			NextRetryAt:         shared.NullableRFC3339Value(row.NextRetryAt),
 			LastErrorClass:      row.LastErrorClass,
 			FreshnessState:      row.FreshnessState,
 			TerminalStatus:      row.TerminalStatus,
 			ResultCount:         row.ResultCount,
 			WarningCount:        row.WarningCount,
-			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
+			UpdatedAt:           shared.NullableRFC3339Value(row.UpdatedAt),
 		})
 	}
 	return projected

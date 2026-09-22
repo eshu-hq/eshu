@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // AWSFreshnessSnapshot captures aggregate EventBridge/AWS Config freshness
@@ -17,15 +19,15 @@ type AWSFreshnessSnapshot struct {
 }
 
 type awsFreshnessJSON struct {
-	StatusCounts           []namedCountJSON `json:"status_counts"`
-	OldestQueuedAge        string           `json:"oldest_queued_age"`
-	OldestQueuedAgeSeconds float64          `json:"oldest_queued_age_seconds"`
+	StatusCounts           []shared.NamedCountJSON `json:"status_counts"`
+	OldestQueuedAge        string                  `json:"oldest_queued_age"`
+	OldestQueuedAgeSeconds float64                 `json:"oldest_queued_age_seconds"`
 }
 
 func cloneAWSFreshnessSnapshot(snapshot AWSFreshnessSnapshot) AWSFreshnessSnapshot {
 	return AWSFreshnessSnapshot{
 		StatusCounts:    slices.Clone(snapshot.StatusCounts),
-		OldestQueuedAge: nonNegativeDuration(snapshot.OldestQueuedAge),
+		OldestQueuedAge: shared.NonNegativeDuration(snapshot.OldestQueuedAge),
 	}
 }
 
@@ -47,9 +49,9 @@ func awsFreshnessJSONFromReport(snapshot AWSFreshnessSnapshot) *awsFreshnessJSON
 	if len(snapshot.StatusCounts) == 0 && snapshot.OldestQueuedAge == 0 {
 		return nil
 	}
-	counts := make([]namedCountJSON, 0, len(snapshot.StatusCounts))
+	counts := make([]shared.NamedCountJSON, 0, len(snapshot.StatusCounts))
 	for _, count := range snapshot.StatusCounts {
-		counts = append(counts, namedCountJSON(count))
+		counts = append(counts, shared.NamedCountJSON(count))
 	}
 	return &awsFreshnessJSON{
 		StatusCounts:           counts,

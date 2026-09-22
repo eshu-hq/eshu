@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // QueueBlockage captures eligible work that could not be claimed because a
@@ -29,7 +31,7 @@ func cloneQueueBlockages(rows []QueueBlockage) []QueueBlockage {
 		if strings.TrimSpace(row.Stage) == "" {
 			continue
 		}
-		row.OldestAge = nonNegativeDuration(row.OldestAge)
+		row.OldestAge = shared.NonNegativeDuration(row.OldestAge)
 		cloned = append(cloned, row)
 	}
 	sort.Slice(cloned, func(i, j int) bool {

@@ -6,6 +6,8 @@ package status
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // FlowSummary describes one operator-facing lane in the collector/projector/
@@ -28,8 +30,8 @@ func buildFlowSummaries(
 		{
 			Lane:     "collector",
 			Source:   "live",
-			Progress: fmt.Sprintf("scopes %s", formatNamedTotals(scopeTotals)),
-			Backlog:  fmt.Sprintf("generations %s", formatNamedTotals(generationTotals)),
+			Progress: fmt.Sprintf("scopes %s", shared.FormatTotals(scopeTotals)),
+			Backlog:  fmt.Sprintf("generations %s", shared.FormatTotals(generationTotals)),
 		},
 		{
 			Lane:     "projector",

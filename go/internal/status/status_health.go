@@ -6,6 +6,8 @@ package status
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 func evaluateHealth(
@@ -233,9 +235,9 @@ func coordinatorDegradedReasons(snapshot *CoordinatorSnapshot) []string {
 	if snapshot == nil {
 		return nil
 	}
-	runCounts := toCountMap(snapshot.RunStatusCounts)
-	workItemCounts := toCountMap(snapshot.WorkItemStatusCounts)
-	completenessCounts := toCountMap(snapshot.CompletenessCounts)
+	runCounts := shared.CountMap(snapshot.RunStatusCounts)
+	workItemCounts := shared.CountMap(snapshot.WorkItemStatusCounts)
+	completenessCounts := shared.CountMap(snapshot.CompletenessCounts)
 	cumulativeFailedRuns := runCounts["failed"]
 	cumulativeBlocked := completenessCounts["blocked"]
 	cumulativeTerminal := workItemCounts["failed_terminal"] + workItemCounts["expired"]
@@ -269,7 +271,7 @@ func recentCoordinatorDegradedReasons(
 	if !recent.Active() {
 		return nil
 	}
-	window := nonNegativeDuration(recent.Window)
+	window := shared.NonNegativeDuration(recent.Window)
 	reasons := make([]string, 0, 3)
 	if recent.FailedRuns > 0 {
 		reasons = append(reasons, fmt.Sprintf(
@@ -296,7 +298,7 @@ func coordinatorStalledReason(snapshot *CoordinatorSnapshot, opts Options) strin
 	if snapshot == nil || snapshot.OldestPendingAge < opts.StallAfter {
 		return ""
 	}
-	workItemCounts := toCountMap(snapshot.WorkItemStatusCounts)
+	workItemCounts := shared.CountMap(snapshot.WorkItemStatusCounts)
 	if workItemCounts["pending"] == 0 || snapshot.ActiveClaims > 0 {
 		return ""
 	}
@@ -311,9 +313,9 @@ func coordinatorProgressReason(snapshot *CoordinatorSnapshot) string {
 	if snapshot == nil {
 		return ""
 	}
-	runCounts := toCountMap(snapshot.RunStatusCounts)
-	workItemCounts := toCountMap(snapshot.WorkItemStatusCounts)
-	completenessCounts := toCountMap(snapshot.CompletenessCounts)
+	runCounts := shared.CountMap(snapshot.RunStatusCounts)
+	workItemCounts := shared.CountMap(snapshot.WorkItemStatusCounts)
+	completenessCounts := shared.CountMap(snapshot.CompletenessCounts)
 
 	parts := make([]string, 0, 8)
 	for _, status := range []string{

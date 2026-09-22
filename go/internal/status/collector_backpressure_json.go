@@ -3,27 +3,31 @@
 
 package status
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
+
 type collectorBackpressureJSON struct {
-	CollectorKind           string           `json:"collector_kind"`
-	CollectorInstanceID     string           `json:"collector_instance_id"`
-	SourceSystem            string           `json:"source_system"`
-	Pending                 int              `json:"pending"`
-	Claimed                 int              `json:"claimed"`
-	Retrying                int              `json:"retrying"`
-	DeadLetter              int              `json:"dead_letter"`
-	TerminalFailed          int              `json:"terminal_failed"`
-	Expired                 int              `json:"expired"`
-	ActiveClaims            int              `json:"active_claims"`
-	OverdueClaims           int              `json:"overdue_claims"`
-	OldestPendingAge        string           `json:"oldest_pending_age"`
-	OldestPendingAgeSeconds float64          `json:"oldest_pending_age_seconds"`
-	OldestRetryAge          string           `json:"oldest_retry_age"`
-	OldestRetryAgeSeconds   float64          `json:"oldest_retry_age_seconds"`
-	OldestClaimAge          string           `json:"oldest_claim_age"`
-	OldestClaimAgeSeconds   float64          `json:"oldest_claim_age_seconds"`
-	NextRetryDelay          string           `json:"next_retry_delay"`
-	NextRetryDelaySeconds   float64          `json:"next_retry_delay_seconds"`
-	FailureClassCounts      []namedCountJSON `json:"failure_class_counts,omitempty"`
+	CollectorKind           string                  `json:"collector_kind"`
+	CollectorInstanceID     string                  `json:"collector_instance_id"`
+	SourceSystem            string                  `json:"source_system"`
+	Pending                 int                     `json:"pending"`
+	Claimed                 int                     `json:"claimed"`
+	Retrying                int                     `json:"retrying"`
+	DeadLetter              int                     `json:"dead_letter"`
+	TerminalFailed          int                     `json:"terminal_failed"`
+	Expired                 int                     `json:"expired"`
+	ActiveClaims            int                     `json:"active_claims"`
+	OverdueClaims           int                     `json:"overdue_claims"`
+	OldestPendingAge        string                  `json:"oldest_pending_age"`
+	OldestPendingAgeSeconds float64                 `json:"oldest_pending_age_seconds"`
+	OldestRetryAge          string                  `json:"oldest_retry_age"`
+	OldestRetryAgeSeconds   float64                 `json:"oldest_retry_age_seconds"`
+	OldestClaimAge          string                  `json:"oldest_claim_age"`
+	OldestClaimAgeSeconds   float64                 `json:"oldest_claim_age_seconds"`
+	NextRetryDelay          string                  `json:"next_retry_delay"`
+	NextRetryDelaySeconds   float64                 `json:"next_retry_delay_seconds"`
+	FailureClassCounts      []shared.NamedCountJSON `json:"failure_class_counts,omitempty"`
 }
 
 func collectorBackpressureJSONRows(rows []CollectorBackpressureSnapshot) []collectorBackpressureJSON {
@@ -50,7 +54,7 @@ func collectorBackpressureJSONRows(rows []CollectorBackpressureSnapshot) []colle
 			OldestClaimAgeSeconds:   row.OldestClaimAge.Seconds(),
 			NextRetryDelay:          row.NextRetryDelay.String(),
 			NextRetryDelaySeconds:   row.NextRetryDelay.Seconds(),
-			FailureClassCounts:      namedCountsJSON(row.FailureClassCounts),
+			FailureClassCounts:      shared.NamedCountsJSON(row.FailureClassCounts),
 		})
 	}
 	return projected

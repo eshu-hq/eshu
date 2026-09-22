@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // CollectorInstanceSummary captures the operator-visible durable shape of one
@@ -81,7 +83,7 @@ func cloneCoordinatorSnapshot(snapshot *CoordinatorSnapshot) *CoordinatorSnapsho
 		CollectorBackpressure: cloneCollectorBackpressure(snapshot.CollectorBackpressure),
 		ActiveClaims:          snapshot.ActiveClaims,
 		OverdueClaims:         snapshot.OverdueClaims,
-		OldestPendingAge:      nonNegativeDuration(snapshot.OldestPendingAge),
+		OldestPendingAge:      shared.NonNegativeDuration(snapshot.OldestPendingAge),
 		RecentFailures:        cloneCoordinatorRecentFailures(snapshot.RecentFailures),
 	}
 	return cloned
@@ -92,7 +94,7 @@ func cloneCoordinatorRecentFailures(recent *CoordinatorRecentFailures) *Coordina
 		return nil
 	}
 	cloned := *recent
-	cloned.Window = nonNegativeDuration(recent.Window)
+	cloned.Window = shared.NonNegativeDuration(recent.Window)
 	return &cloned
 }
 
@@ -111,13 +113,13 @@ func renderCoordinatorLines(snapshot *CoordinatorSnapshot) []string {
 		),
 	}
 	if len(snapshot.RunStatusCounts) > 0 {
-		lines = append(lines, fmt.Sprintf("Coordinator runs: %s", formatNamedTotals(toCountMap(snapshot.RunStatusCounts))))
+		lines = append(lines, fmt.Sprintf("Coordinator runs: %s", shared.FormatTotals(shared.CountMap(snapshot.RunStatusCounts))))
 	}
 	if len(snapshot.WorkItemStatusCounts) > 0 {
-		lines = append(lines, fmt.Sprintf("Coordinator work items: %s", formatNamedTotals(toCountMap(snapshot.WorkItemStatusCounts))))
+		lines = append(lines, fmt.Sprintf("Coordinator work items: %s", shared.FormatTotals(shared.CountMap(snapshot.WorkItemStatusCounts))))
 	}
 	if len(snapshot.CompletenessCounts) > 0 {
-		lines = append(lines, fmt.Sprintf("Coordinator completeness: %s", formatNamedTotals(toCountMap(snapshot.CompletenessCounts))))
+		lines = append(lines, fmt.Sprintf("Coordinator completeness: %s", shared.FormatTotals(shared.CountMap(snapshot.CompletenessCounts))))
 	}
 	lines = append(lines, renderCollectorBackpressureLines(snapshot.CollectorBackpressure)...)
 	if len(snapshot.CollectorInstances) > 0 {

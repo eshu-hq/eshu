@@ -3,7 +3,11 @@
 
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
 
 // ProducerActivitySnapshot captures recent fact-producing generation movement.
 // It lets status distinguish an idle reducer gap from a still-active producer.
@@ -15,6 +19,6 @@ type ProducerActivitySnapshot struct {
 func normalizeProducerActivitySnapshot(snapshot ProducerActivitySnapshot) ProducerActivitySnapshot {
 	return ProducerActivitySnapshot{
 		HasActiveOrPendingGeneration: snapshot.HasActiveOrPendingGeneration,
-		LatestGenerationAge:          nonNegativeDuration(snapshot.LatestGenerationAge),
+		LatestGenerationAge:          shared.NonNegativeDuration(snapshot.LatestGenerationAge),
 	}
 }

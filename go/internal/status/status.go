@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const (
@@ -23,10 +25,11 @@ const (
 )
 
 // NamedCount captures one status bucket and its count.
-type NamedCount struct {
-	Name  string
-	Count int
-}
+//
+// Deprecated: use [shared.NamedCount]. This alias keeps the ~170 packages that
+// import internal/status compiling across the #6775 nest; it is removed once
+// the last caller has moved to the leaf.
+type NamedCount = shared.NamedCount
 
 // StageStatusCount captures one stage/status bucket from the work queue.
 type StageStatusCount struct {
@@ -111,8 +114,8 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		opts.DomainLimit = DefaultOptions().DomainLimit
 	}
 
-	scopeTotals := toCountMap(raw.ScopeCounts)
-	generationTotals := toCountMap(raw.GenerationCounts)
+	scopeTotals := shared.CountMap(raw.ScopeCounts)
+	generationTotals := shared.CountMap(raw.GenerationCounts)
 	scopeActivity := raw.ScopeActivity
 	if scopeActivity == (ScopeActivitySnapshot{}) {
 		scopeActivity = deriveScopeActivity(scopeTotals, generationTotals)
@@ -207,7 +210,7 @@ func RenderText(report Report) string {
 			"Scope activity: %s",
 			scopeActivityText(report.ScopeActivity),
 		),
-		fmt.Sprintf("Scope statuses: %s", formatNamedTotals(report.ScopeTotals)),
+		fmt.Sprintf("Scope statuses: %s", shared.FormatTotals(report.ScopeTotals)),
 		fmt.Sprintf("Generation history: %s", generationHistoryText(report.GenerationHistory)),
 		fmt.Sprintf("Generation transitions: %s", generationTransitionsText(report.GenerationTransitions)),
 	}
@@ -354,19 +357,6 @@ func topDomainBacklogs(rows []DomainBacklog, limit int) (result []DomainBacklog,
 	return filtered, false
 }
 
-func toCountMap(rows []NamedCount) map[string]int {
-	counts := make(map[string]int, len(rows))
-	for _, row := range rows {
-		name := strings.TrimSpace(row.Name)
-		if name == "" {
-			continue
-		}
-		counts[name] += row.Count
-	}
-
-	return counts
-}
-
 func cloneCounts(values map[string]int) map[string]int {
 	if len(values) == 0 {
 		return map[string]int{}
@@ -376,49 +366,4 @@ func cloneCounts(values map[string]int) map[string]int {
 		cloned[key] = value
 	}
 	return cloned
-}
-
-func formatNamedTotals(values map[string]int) string {
-	if len(values) == 0 {
-		return "none"
-	}
-
-	keys := make([]string, 0, len(values))
-	for key, value := range values {
-		if value <= 0 {
-			continue
-		}
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return countOrder(keys[i]) < countOrder(keys[j]) ||
-			(countOrder(keys[i]) == countOrder(keys[j]) && keys[i] < keys[j])
-	})
-
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))
-	}
-	if len(parts) == 0 {
-		return "none"
-	}
-
-	return strings.Join(parts, " ")
-}
-
-func countOrder(name string) int {
-	switch name {
-	case "active":
-		return 0
-	case "pending":
-		return 1
-	case "completed":
-		return 2
-	case "succeeded":
-		return 3
-	case "failed":
-		return 4
-	default:
-		return 100
-	}
 }

@@ -3,7 +3,11 @@
 
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
 
 type semanticExtractionQueueJSON struct {
 	Total                 int                                          `json:"total"`
@@ -20,9 +24,9 @@ type semanticExtractionQueueJSON struct {
 	ProviderUnavailable   int                                          `json:"provider_unavailable"`
 	Unchanged             int                                          `json:"unchanged"`
 	Stale                 int                                          `json:"stale"`
-	StatusCounts          []namedCountJSON                             `json:"status_counts,omitempty"`
-	SourceClassCounts     []namedCountJSON                             `json:"source_class_counts,omitempty"`
-	FailureClassCounts    []namedCountJSON                             `json:"failure_class_counts,omitempty"`
+	StatusCounts          []shared.NamedCountJSON                      `json:"status_counts,omitempty"`
+	SourceClassCounts     []shared.NamedCountJSON                      `json:"source_class_counts,omitempty"`
+	FailureClassCounts    []shared.NamedCountJSON                      `json:"failure_class_counts,omitempty"`
 	ProviderProfileCounts []semanticExtractionProviderProfileQueueJSON `json:"provider_profile_counts,omitempty"`
 	PolicyDecisionCounts  []semanticExtractionDecisionJSON             `json:"policy_decision_counts,omitempty"`
 	GuardDecisionCounts   []semanticExtractionDecisionJSON             `json:"guard_decision_counts,omitempty"`
@@ -63,9 +67,9 @@ type semanticExtractionBudgetDecisionJSON struct {
 }
 
 type semanticExtractionAuditJSON struct {
-	ActorClassCounts []namedCountJSON `json:"actor_class_counts,omitempty"`
-	ACLStateCounts   []namedCountJSON `json:"acl_state_counts,omitempty"`
-	LastProcessedAt  string           `json:"last_processed_at,omitempty"`
+	ActorClassCounts []shared.NamedCountJSON `json:"actor_class_counts,omitempty"`
+	ACLStateCounts   []shared.NamedCountJSON `json:"acl_state_counts,omitempty"`
+	LastProcessedAt  string                  `json:"last_processed_at,omitempty"`
 }
 
 func semanticExtractionQueueStatusJSON(snapshot SemanticExtractionQueueSnapshot) *semanticExtractionQueueJSON {
@@ -84,9 +88,9 @@ func semanticExtractionQueueStatusJSON(snapshot SemanticExtractionQueueSnapshot)
 		ProviderUnavailable:   snapshot.ProviderUnavailable,
 		Unchanged:             snapshot.Unchanged,
 		Stale:                 snapshot.Stale,
-		StatusCounts:          namedCountsJSON(snapshot.StatusCounts),
-		SourceClassCounts:     namedCountsJSON(snapshot.SourceClassCounts),
-		FailureClassCounts:    namedCountsJSON(snapshot.FailureClassCounts),
+		StatusCounts:          shared.NamedCountsJSON(snapshot.StatusCounts),
+		SourceClassCounts:     shared.NamedCountsJSON(snapshot.SourceClassCounts),
+		FailureClassCounts:    shared.NamedCountsJSON(snapshot.FailureClassCounts),
 		ProviderProfileCounts: semanticExtractionProviderProfileQueueCountsJSON(snapshot.ProviderProfileCounts),
 		PolicyDecisionCounts:  semanticExtractionDecisionCountsJSON(snapshot.PolicyDecisionCounts),
 		GuardDecisionCounts:   semanticExtractionDecisionCountsJSON(snapshot.GuardDecisionCounts),
@@ -151,8 +155,8 @@ func semanticExtractionBudgetDecisionCountsJSON(
 
 func semanticExtractionAuditStatusJSON(snapshot SemanticExtractionAuditSnapshot) *semanticExtractionAuditJSON {
 	out := &semanticExtractionAuditJSON{
-		ActorClassCounts: namedCountsJSON(snapshot.ActorClassCounts),
-		ACLStateCounts:   namedCountsJSON(snapshot.ACLStateCounts),
+		ActorClassCounts: shared.NamedCountsJSON(snapshot.ActorClassCounts),
+		ACLStateCounts:   shared.NamedCountsJSON(snapshot.ACLStateCounts),
 	}
 	if !snapshot.LastProcessedAt.IsZero() {
 		out.LastProcessedAt = snapshot.LastProcessedAt.UTC().Format(time.RFC3339)

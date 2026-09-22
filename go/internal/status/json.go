@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // RenderJSON returns a stable machine-readable projection of the report.
@@ -130,11 +132,6 @@ type generationHistoryJSON struct {
 	Other      int `json:"other"`
 }
 
-type namedCountJSON struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
 type collectorInstanceJSON struct {
 	InstanceID     string  `json:"instance_id"`
 	CollectorKind  string  `json:"collector_kind"`
@@ -150,9 +147,9 @@ type collectorInstanceJSON struct {
 
 type coordinatorSnapshotJSON struct {
 	CollectorInstances    []collectorInstanceJSON        `json:"collector_instances"`
-	RunStatusCounts       []namedCountJSON               `json:"run_status_counts"`
-	WorkItemStatusCounts  []namedCountJSON               `json:"work_item_status_counts"`
-	CompletenessCounts    []namedCountJSON               `json:"completeness_counts"`
+	RunStatusCounts       []shared.NamedCountJSON        `json:"run_status_counts"`
+	WorkItemStatusCounts  []shared.NamedCountJSON        `json:"work_item_status_counts"`
+	CompletenessCounts    []shared.NamedCountJSON        `json:"completeness_counts"`
 	CollectorBackpressure []collectorBackpressureJSON    `json:"collector_backpressure,omitempty"`
 	ActiveClaims          int                            `json:"active_claims"`
 	OverdueClaims         int                            `json:"overdue_claims"`
@@ -170,15 +167,15 @@ type coordinatorRecentFailuresJSON struct {
 }
 
 type registryCollectorJSON struct {
-	CollectorKind              string               `json:"collector_kind"`
-	ConfiguredInstances        int                  `json:"configured_instances"`
-	ActiveScopes               int                  `json:"active_scopes"`
-	RecentCompletedGenerations int                  `json:"recent_completed_generations"`
-	LastCompletedAt            string               `json:"last_completed_at,omitempty"`
-	RetryableFailures          int                  `json:"retryable_failures"`
-	TerminalFailures           int                  `json:"terminal_failures"`
-	FailureClassCounts         []namedCountJSON     `json:"failure_class_counts,omitempty"`
-	MetadataTargets            []metadataTargetJSON `json:"metadata_targets,omitempty"`
+	CollectorKind              string                  `json:"collector_kind"`
+	ConfiguredInstances        int                     `json:"configured_instances"`
+	ActiveScopes               int                     `json:"active_scopes"`
+	RecentCompletedGenerations int                     `json:"recent_completed_generations"`
+	LastCompletedAt            string                  `json:"last_completed_at,omitempty"`
+	RetryableFailures          int                     `json:"retryable_failures"`
+	TerminalFailures           int                     `json:"terminal_failures"`
+	FailureClassCounts         []shared.NamedCountJSON `json:"failure_class_counts,omitempty"`
+	MetadataTargets            []metadataTargetJSON    `json:"metadata_targets,omitempty"`
 }
 
 type metadataTargetJSON struct {
@@ -295,7 +292,7 @@ func queueFailureJSONFromReport(snapshot *QueueFailureSnapshot) *queueFailureJSO
 		FailureClass:   snapshot.FailureClass,
 		FailureMessage: snapshot.FailureMessage,
 		FailureDetails: snapshot.FailureDetails,
-		UpdatedAt:      nullableRFC3339Value(snapshot.UpdatedAt),
+		UpdatedAt:      shared.NullableRFC3339Value(snapshot.UpdatedAt),
 	}
 }
 
@@ -361,9 +358,9 @@ func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
 
 	return &coordinatorSnapshotJSON{
 		CollectorInstances:    instances,
-		RunStatusCounts:       namedCountsJSON(snapshot.RunStatusCounts),
-		WorkItemStatusCounts:  namedCountsJSON(snapshot.WorkItemStatusCounts),
-		CompletenessCounts:    namedCountsJSON(snapshot.CompletenessCounts),
+		RunStatusCounts:       shared.NamedCountsJSON(snapshot.RunStatusCounts),
+		WorkItemStatusCounts:  shared.NamedCountsJSON(snapshot.WorkItemStatusCounts),
+		CompletenessCounts:    shared.NamedCountsJSON(snapshot.CompletenessCounts),
 		CollectorBackpressure: collectorBackpressureJSONRows(snapshot.CollectorBackpressure),
 		ActiveClaims:          snapshot.ActiveClaims,
 		OverdueClaims:         snapshot.OverdueClaims,
@@ -386,14 +383,6 @@ func coordinatorRecentFailuresJSONValue(recent *CoordinatorRecentFailures) *coor
 	}
 }
 
-func namedCountsJSON(rows []NamedCount) []namedCountJSON {
-	projected := make([]namedCountJSON, 0, len(rows))
-	for _, row := range rows {
-		projected = append(projected, namedCountJSON(row))
-	}
-	return projected
-}
-
 func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollectorJSON {
 	projected := make([]registryCollectorJSON, 0, len(rows))
 	for _, row := range rows {
@@ -402,10 +391,10 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 			ConfiguredInstances:        row.ConfiguredInstances,
 			ActiveScopes:               row.ActiveScopes,
 			RecentCompletedGenerations: row.RecentCompletedGenerations,
-			LastCompletedAt:            nullableRFC3339Value(row.LastCompletedAt),
+			LastCompletedAt:            shared.NullableRFC3339Value(row.LastCompletedAt),
 			RetryableFailures:          row.RetryableFailures,
 			TerminalFailures:           row.TerminalFailures,
-			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
+			FailureClassCounts:         shared.NamedCountsJSON(row.FailureClassCounts),
 			MetadataTargets:            metadataTargetsJSON(row.MetadataTargetCounts),
 		})
 	}
@@ -453,11 +442,4 @@ func nullableRFC3339String(value time.Time) *string {
 	}
 	formatted := value.UTC().Format(time.RFC3339)
 	return &formatted
-}
-
-func nullableRFC3339Value(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return value.UTC().Format(time.RFC3339)
 }

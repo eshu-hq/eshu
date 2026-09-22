@@ -6,6 +6,8 @@ package status
 import (
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // CollectorGenerationDeadLetterSnapshot captures collector generation commit
@@ -24,7 +26,7 @@ func cloneCollectorGenerationDeadLetterSnapshot(
 		DeadLetter:          nonNegativeCount(snapshot.DeadLetter),
 		ReplayRequested:     nonNegativeCount(snapshot.ReplayRequested),
 		ReplayAttempts:      nonNegativeCount(snapshot.ReplayAttempts),
-		OldestDeadLetterAge: nonNegativeDuration(snapshot.OldestDeadLetterAge),
+		OldestDeadLetterAge: shared.NonNegativeDuration(snapshot.OldestDeadLetterAge),
 	}
 }
 

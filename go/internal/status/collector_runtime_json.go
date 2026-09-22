@@ -3,6 +3,10 @@
 
 package status
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
+
 type collectorRuntimeStatusJSON struct {
 	InstanceID            string   `json:"instance_id"`
 	CollectorKind         string   `json:"collector_kind"`
@@ -42,9 +46,9 @@ func collectorRuntimeStatusesJSON(rows []CollectorRuntimeStatus) []collectorRunt
 			EvidenceSources:       row.EvidenceSources,
 			SourceSystems:         row.SourceSystems,
 			ObservationCount:      row.ObservationCount,
-			LastObservedAt:        nullableRFC3339Value(row.LastObservedAt),
-			UpdatedAt:             nullableRFC3339Value(row.UpdatedAt),
-			DeactivatedAt:         nullableRFC3339Value(row.DeactivatedAt),
+			LastObservedAt:        shared.NullableRFC3339Value(row.LastObservedAt),
+			UpdatedAt:             shared.NullableRFC3339Value(row.UpdatedAt),
+			DeactivatedAt:         shared.NullableRFC3339Value(row.DeactivatedAt),
 			Detail:                row.Detail,
 		})
 	}

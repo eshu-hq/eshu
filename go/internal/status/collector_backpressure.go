@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // CollectorBackpressureSnapshot captures bounded workflow claim pressure for
@@ -39,10 +41,10 @@ func cloneCollectorBackpressure(rows []CollectorBackpressureSnapshot) []Collecto
 	}
 	cloned := make([]CollectorBackpressureSnapshot, 0, len(rows))
 	for _, row := range rows {
-		row.OldestPendingAge = nonNegativeDuration(row.OldestPendingAge)
-		row.OldestRetryAge = nonNegativeDuration(row.OldestRetryAge)
-		row.OldestClaimAge = nonNegativeDuration(row.OldestClaimAge)
-		row.NextRetryDelay = nonNegativeDuration(row.NextRetryDelay)
+		row.OldestPendingAge = shared.NonNegativeDuration(row.OldestPendingAge)
+		row.OldestRetryAge = shared.NonNegativeDuration(row.OldestRetryAge)
+		row.OldestClaimAge = shared.NonNegativeDuration(row.OldestClaimAge)
+		row.NextRetryDelay = shared.NonNegativeDuration(row.NextRetryDelay)
 		row.FailureClassCounts = cloneNamedCounts(row.FailureClassCounts)
 		cloned = append(cloned, row)
 	}

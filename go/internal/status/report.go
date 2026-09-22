@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.
@@ -211,7 +213,7 @@ var infraInventoryGraphReasons = map[string]string{
 }
 
 func cloneInfraInventorySnapshot(snapshot InfraInventorySnapshot) InfraInventorySnapshot {
-	snapshot.OldestDirtyAge = nonNegativeDuration(snapshot.OldestDirtyAge)
+	snapshot.OldestDirtyAge = shared.NonNegativeDuration(snapshot.OldestDirtyAge)
 	return snapshot
 }
 

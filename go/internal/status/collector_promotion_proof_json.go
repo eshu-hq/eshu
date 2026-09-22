@@ -3,7 +3,11 @@
 
 package status
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+)
 
 // DefaultCollectorPromotionStaleAfter is the freshness window used when the
 // status render derives promotion proofs. Evidence older than this window marks
@@ -51,8 +55,8 @@ func collectorPromotionProofsJSON(rows []CollectorPromotionProof) []collectorPro
 			ReducerReadback:  row.ReducerReadback,
 			TelemetryHandles: row.TelemetryHandles,
 			Blockers:         row.Blockers,
-			LastObservedAt:   nullableRFC3339Value(row.LastObservedAt),
-			UpdatedAt:        nullableRFC3339Value(row.UpdatedAt),
+			LastObservedAt:   shared.NullableRFC3339Value(row.LastObservedAt),
+			UpdatedAt:        shared.NullableRFC3339Value(row.UpdatedAt),
 		})
 	}
 	return projected

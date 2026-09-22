@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
 )
 
 const (
@@ -338,7 +340,7 @@ func semanticExtractionObservabilityText(status SemanticExtractionStatus) string
 			parts,
 			fmt.Sprintf(
 				"semantic_audit_actor_classes=%s",
-				formatNamedTotals(toCountMap(status.Audit.ActorClassCounts)),
+				shared.FormatTotals(shared.CountMap(status.Audit.ActorClassCounts)),
 			),
 		)
 	}
