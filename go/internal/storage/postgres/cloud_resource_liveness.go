@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -31,35 +30,57 @@ const cloudRetractEC2PostureFactKind = "ec2_instance_posture"
 // reader's DISTINCT ON identity exactly.
 const cloudRetractDefaultEC2ResourceType = "aws_ec2_instance"
 
-// ErrCloudAdmissionUndrained is returned by LiveAdmissionCloudUIDs when some
-// scope's active generation still has a nonterminal cloud_inventory_admission
-// work item. reducer_cloud_resource_identity is reducer output written by
-// that separate, unfenced work item, so until it drains the scope has no
-// admission rows for its active generation and every uid it still holds
-// would read dead. The check refuses to prove death instead (fail closed):
-// the retract's own work item fails and the durable queue retries it once
-// the admission has landed. A dead-lettered admission blocks the same way
-// and names its scope, because its facts will never land until an operator
-// redrives it.
-var ErrCloudAdmissionUndrained = errors.New("cloud inventory admission not drained for an active generation")
+// cloudAdmissionNonterminalStatusList is every fact_work_items status that
+// is not terminal, spelled as the SQL IN list the fence probes. It matches
+// generation_liveness_sql.go's enumeration of the same concept (the fail path
+// writes dead_letter, but 'failed' is listed there too and costs nothing
+// here: the (stage, domain, status, ...) index serves each value as a range,
+// so the probe never scans the terminal items the queue keeps forever). Any
+// status outside this list and outside succeeded/superseded would slip past
+// the fence, which is why the list is the superset the repo already uses.
+const cloudAdmissionNonterminalStatusList = `('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')`
 
-// undrainedCloudAdmissionSQL lists active-generation cloud_inventory_admission
-// work items that have not reached a terminal status. The explicit status
-// list (every nonterminal status the reducer queue writes) lets the
-// (stage, domain, status, ...) index serve each value as a range, so the
-// probe never scans the terminal items the queue keeps forever. LIMIT bounds
-// the error text; one row is enough to refuse.
-const undrainedCloudAdmissionSQL = `
-SELECT work.scope_id, work.generation_id, work.status
+// undrainedCloudAdmissionWhere is the shared predicate: active-generation
+// cloud_inventory_admission work items that have not reached a terminal
+// status.
+const undrainedCloudAdmissionWhere = `
 FROM fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id
  AND scope.active_generation_id = work.generation_id
 WHERE work.stage = 'reducer'
   AND work.domain = '` + string(reducercontract.DomainCloudInventoryAdmission) + `'
-  AND work.status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter')
+  AND work.status IN ` + cloudAdmissionNonterminalStatusList
+
+// undrainedCloudAdmissionSQL lists undrained active-generation admission
+// items for the pre-lock check (RequireCloudAdmissionDrained). LIMIT bounds
+// the error text; one row is enough to refuse.
+const undrainedCloudAdmissionSQL = `
+SELECT work.scope_id || '/' || work.generation_id || '=' || work.status AS pending` +
+	undrainedCloudAdmissionWhere + `
 ORDER BY work.scope_id, work.generation_id
 LIMIT 5`
+
+// liveAdmissionCloudUIDsFencedSQL is the in-transaction probe: the fence
+// rows and the admission rows come back from ONE statement, so under READ
+// COMMITTED both see the same snapshot and a scope's active pointer cannot
+// flip onto an undrained generation between "no admission is pending" and
+// "this uid has no admission row". Kind 'undrained' rows (at most 5) make
+// the caller refuse; kind 'alive' rows are the admitted candidate uids.
+const liveAdmissionCloudUIDsFencedSQL = `
+(SELECT 'undrained' AS kind, work.scope_id || '/' || work.generation_id || '=' || work.status AS value` +
+	undrainedCloudAdmissionWhere + `
+ ORDER BY work.scope_id, work.generation_id
+ LIMIT 5)
+UNION ALL
+(SELECT DISTINCT 'alive' AS kind, fact.payload->>'cloud_resource_uid' AS value
+ FROM fact_records AS fact
+ JOIN ingestion_scopes AS scope
+   ON scope.scope_id = fact.scope_id
+  AND scope.active_generation_id = fact.generation_id
+ WHERE fact.fact_kind = '` + cloudRetractAdmissionFactKind + `'
+   AND fact.is_tombstone = FALSE
+   AND fact.payload->>'cloud_resource_uid' = ANY($1::text[]))`
 
 // liveAdmissionCloudUIDsSQL reports which candidate uids are still admitted
 // in some scope's current generation: a live non-tombstone admission row for
@@ -101,10 +122,11 @@ WHERE fact.fact_kind = '` + cloudRetractEC2PostureFactKind + `'
 
 // LiveAdmissionCloudUIDs returns the subset of candidate uids that are still
 // admitted by a live (current-generation, non-tombstone)
-// reducer_cloud_resource_identity row in ANY scope. It first refuses with
-// ErrCloudAdmissionUndrained while any active generation's admission work
-// item is nonterminal, because such a scope's admission rows do not exist
-// yet and its uids would otherwise read dead. The graphowner Gate calls it
+// reducer_cloud_resource_identity row in ANY scope. It refuses with
+// reducercontract.ErrCloudAdmissionUndrained while any active generation's
+// admission work item is nonterminal, because such a scope's admission rows
+// do not exist yet and its uids would otherwise read dead; the fence and the
+// admission rows are read by one statement, so they share a snapshot. The graphowner Gate calls it
 // inside the retract chunk's lock-holding transaction; an empty input
 // returns an empty set without touching the database.
 func LiveAdmissionCloudUIDs(
@@ -119,35 +141,43 @@ func LiveAdmissionCloudUIDs(
 	if len(uids) == 0 {
 		return alive, nil
 	}
-	if err := requireCloudAdmissionDrained(ctx, q); err != nil {
-		return nil, err
-	}
-	rows, err := q.QueryContext(ctx, liveAdmissionCloudUIDsSQL, uids)
+	rows, err := q.QueryContext(ctx, liveAdmissionCloudUIDsFencedSQL, uids)
 	if err != nil {
 		return nil, fmt.Errorf("query live admission cloud uids: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	var pending []string
 	for rows.Next() {
-		var uid string
-		if err := rows.Scan(&uid); err != nil {
+		var kind, value string
+		if err := rows.Scan(&kind, &value); err != nil {
 			return nil, fmt.Errorf("scan live admission cloud uid: %w", err)
 		}
-		if uid != "" {
-			alive[uid] = struct{}{}
+		switch kind {
+		case "undrained":
+			pending = append(pending, value)
+		case "alive":
+			if value != "" {
+				alive[value] = struct{}{}
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate live admission cloud uids: %w", err)
 	}
+	if len(pending) > 0 {
+		return nil, fmt.Errorf("%w: %s", reducercontract.ErrCloudAdmissionUndrained, strings.Join(pending, ", "))
+	}
 	return alive, nil
 }
 
-// requireCloudAdmissionDrained returns ErrCloudAdmissionUndrained (wrapped
-// with the first scopes it found) when any active generation's admission
-// work item is nonterminal, and nil otherwise. It runs inside the caller's
-// lock-holding transaction so the answer is consistent with the admission
-// probe that follows it.
-func requireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
+// RequireCloudAdmissionDrained returns reducercontract.ErrCloudAdmissionUndrained
+// (wrapped with the first scopes it found) when any active generation's
+// cloud_inventory_admission work item is nonterminal, and nil otherwise. The
+// graphowner retracter runs it BEFORE taking any per-uid lock so a refusal
+// costs one index probe and no lock churn; the in-transaction probe
+// (LiveAdmissionCloudUIDs) repeats the same predicate in the same statement
+// as the admission rows, which is what makes the answer consistent.
+func RequireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
 	rows, err := q.QueryContext(ctx, undrainedCloudAdmissionSQL)
 	if err != nil {
 		return fmt.Errorf("query undrained cloud admission work: %w", err)
@@ -155,11 +185,11 @@ func requireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
 	defer func() { _ = rows.Close() }()
 	var pending []string
 	for rows.Next() {
-		var scopeID, generationID, status string
-		if err := rows.Scan(&scopeID, &generationID, &status); err != nil {
+		var item string
+		if err := rows.Scan(&item); err != nil {
 			return fmt.Errorf("scan undrained cloud admission work: %w", err)
 		}
-		pending = append(pending, scopeID+"/"+generationID+"="+status)
+		pending = append(pending, item)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate undrained cloud admission work: %w", err)
@@ -167,7 +197,7 @@ func requireCloudAdmissionDrained(ctx context.Context, q db.ExecQueryer) error {
 	if len(pending) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%w: %s", ErrCloudAdmissionUndrained, strings.Join(pending, ", "))
+	return fmt.Errorf("%w: %s", reducercontract.ErrCloudAdmissionUndrained, strings.Join(pending, ", "))
 }
 
 // normalizeEC2PostureCandidate applies the unscoped reader's EC2 identity

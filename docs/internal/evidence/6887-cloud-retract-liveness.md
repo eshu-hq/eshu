@@ -43,26 +43,70 @@ admission has not drained has no admission rows yet, and every uid it still
 holds would read dead to another scope's retract. The live tests never saw
 it because each seeds the surviving scope's admission rows directly.
 
-Fix (`postgres.LiveAdmissionCloudUIDs`): before the admission probe, refuse
-with `ErrCloudAdmissionUndrained` while any active-generation
-`cloud_inventory_admission` work item is nonterminal (`pending`, `claimed`,
-`running`, `retrying`, `dead_letter`). The chunk rolls back, the handler
-fails, and the durable queue retries the whole intent once the admission
-has landed. A skip instead of an error would leak forever: a uid absent in
-both G and G+1 is never a candidate again. A fallback to the scope's last
-drained generation was rejected too: it misses a uid that is new in the
-undrained generation. Dead-lettered admissions block the same way and name
-their scope, since their facts never land until an operator redrives them.
+Fix, in four parts (rounds 1 and 2 of the post-rebase review):
 
-Theory shim (private Postgres 18, rolled-back transaction, `ANALYZE` after
-seeding 2,000 scopes x 10 generations = 20,000 `cloud_inventory_admission`
-work items, 19,997 `succeeded`, 2 `pending` and 1 `dead_letter` on active
-generations): the predicate is an `Index Scan using
-fact_work_items_stage_domain_status_idx` with `status = ANY(...)` as an
-index condition, 8 shared buffers on the work-item side and 9 on the
-`ingestion_scopes_active_generation_idx` nested-loop side, 17 buffers and
-0.075 ms execution in total; the terminal items are never scanned. Script:
-`scratchpad/6887-shim.sql` (session-local, not committed).
+1. Refuse, never skip. `LiveAdmissionCloudUIDs` returns
+   `reducercontract.ErrCloudAdmissionUndrained` (wrapped with
+   `scope/generation=status` for the first five) while any active-generation
+   `cloud_inventory_admission` work item is nonterminal — `pending`,
+   `claimed`, `running`, `retrying`, `failed`, `dead_letter`, the same list
+   `generation_liveness_sql.go` uses for the same table. A skip would leak
+   forever (a uid absent in G and G+1 is never a candidate again); a
+   fallback to the scope's last drained generation misses a uid new in the
+   undrained one. Dead-lettered admissions block and name their scope.
+2. One statement, one snapshot. The chunk transaction is READ COMMITTED,
+   so a fence statement followed by the admission probe would see two
+   snapshots and a scope's pointer could flip onto an undrained generation
+   between them. `liveAdmissionCloudUIDsFencedSQL` returns the fence rows and
+   the admission rows from a single `UNION ALL` statement, so they cannot
+   disagree, without REPEATABLE READ and its serialization retries.
+3. Cheap refusal. `CloudResourceRetracter.RetractDeadCloudResourceNodes`
+   runs `postgres.RequireCloudAdmissionDrained` in its own rolled-back
+   transaction before the first per-uid lock, so a routine multi-scope race
+   costs one index probe and no 500-lock acquisition on the write path
+   (`TestCloudResourceRetracterRefusesBeforeLockingWhenAdmissionUndrained`:
+   zero `LockUIDs` calls, zero deletes, one rolled-back transaction).
+4. Non-counting deferral. The handler classifies the refusal
+   (`reducer.ClassifyCloudRetractError`) as `cloud_admission_not_ready`, a
+   `Retryable()` readiness class enrolled in
+   `nonCountingReducerRetryFailureClasses`, so the queue retries the intent
+   without eroding its attempt budget; an unclassified refusal would have
+   counted toward `maxAttempts` and dead-lettered a healthy scope's node
+   writes under continuous multi-scope ingest. Pinned by
+   `TestReducerQueueFailDefersCloudAdmissionReadinessPastAttemptBudget`
+   (AttemptCount 42 past MaxAttempts 3 stays `retrying` in that class),
+   `TestEveryReadinessFailureClassIsEnrolled` (the go/ast guard sees the
+   class beside its method in `internal/reducer/cloud_resource_retract.go`)
+   and `TestReadinessDomainsWithoutAClaimGateAreTheKnownSet` (placed nowhere:
+   three domains return it and the awaited condition is deployment-wide, so
+   no single-scope CTE row can express it).
+
+The EC2 family needs no fence: `LiveEC2PostureUIDs` reads
+`ec2_instance_posture`, a collector-emitted kind that lands with the
+generation at ingest. Only the cloud family chose a reducer-derived oracle,
+which is exactly why only it needed the fence.
+
+Theory shims (private Postgres 18, rolled-back transactions after `ANALYZE`;
+scripts `scratchpad/6887-shim*.sql`, session-local, not committed):
+
+| shape | statement | plan | buffers | time |
+| --- | --- | --- | --- | --- |
+| 2,000 scopes x 10 generations = 20,000 admission items (19,997 `succeeded`, 2 `pending`, 1 `dead_letter`) | pre-lock fence (`undrainedCloudAdmissionSQL`) | Index Scan `fact_work_items_stage_domain_status_idx`, `status = ANY` as index cond, nested loop on `ingestion_scopes_active_generation_idx` | 17 | 0.075 ms |
+| same, plus 200,000 admission facts (100 per active scope); 500 candidates, 250 alive; drained | fenced probe (`liveAdmissionCloudUIDsFencedSQL`) | fence branch 2 buffers; alive branch Seq Scan `ingestion_scopes` -> Nested Loop `fact_records_scope_generation_idx` | 204,079 | 199.8 ms |
+| same | original alive-only probe (pre-fence statement) | identical alive plan | 204,077 | 201.3 ms |
+| same, 3 undrained | fenced probe | same, 253 rows | — | 123.2 ms |
+| same, 2 candidates | alive-only probe | Bitmap Index Scan `fact_records_cloud_retract_admission_uid_idx` (migration 118), hash join over Seq Scan `ingestion_scopes` | 130 | <1 ms |
+
+Reading: the fence adds two buffers to the in-transaction probe and nothing
+else; fenced and unfenced statements plan the alive branch identically. The
+alive branch itself abandons the migration-118 partial index once the
+candidate array reaches lock-chunk size (the planner estimates ~1,000 rows
+per array element) and walks the scopes instead: ~200 ms and ~204k buffers
+per 500-candidate chunk at 2,000 scopes x 100 admitted facts, held under up
+to 500 per-uid advisory locks. That is a property of the probe this PR
+already carries, not of the fence, and it bounds the "per-candidate O(1)"
+argument below to the index path. Recorded as #6946 with the exact input
+shape; not widened into this PR.
 
 Proof: `TestCloudResourceLivenessRefusesUndrainedAdmissionLive` — every
 nonterminal status on the active generation returns the sentinel naming the
@@ -71,10 +115,12 @@ only by the superseded generation reads dead; a nonterminal item on a
 non-active generation does not block. RED before the fence (undefined
 sentinel, then dead read), GREEN after.
 
-Operator signal: the sentinel text (scope/generation=status) lands in the
-failed work item's `failure_message` and the reducer's handler-failure log;
-no new metric. A scope stuck in `dead_letter` is already the operator's
-queue alarm and now also names itself in every blocked retract.
+Operator signal: the refusal lands as `failure_class =
+cloud_admission_not_ready` on the retrying work item with the sentinel text
+(`scope/generation=status`) in `failure_message`, and in the reducer's
+handler-failure log; no new metric. A scope stuck in `dead_letter` is
+already the operator's queue alarm and now also names itself in every
+deferred retract.
 
 ## Performance Evidence: battery EXPLAIN, live shape, and live end-to-end (NornicDB + Postgres)
 

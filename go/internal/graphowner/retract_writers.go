@@ -5,6 +5,7 @@ package graphowner
 
 import (
 	"context"
+	"fmt"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -19,27 +20,61 @@ import (
 type CloudResourceRetracter struct {
 	gate        *Gate
 	deleteNodes nodeDeleteFunc
+	// requireDrained is the pre-lock admission-drain fence
+	// (postgres.RequireCloudAdmissionDrained in production; tests inject a
+	// stand-in). It runs in its own short transaction before any per-uid
+	// lock so a refusal costs one index probe, not a 500-lock acquisition.
+	requireDrained func(context.Context, db.ExecQueryer) error
 }
 
 // NewCloudResourceRetracter gates deleteNodes (the raw cypher writer's
 // RetractCloudResourceNodes method) on the owner ledger via gate with the
 // admission-uid liveness probe.
 func NewCloudResourceRetracter(gate *Gate, deleteNodes nodeDeleteFunc) *CloudResourceRetracter {
-	return &CloudResourceRetracter{gate: gate, deleteNodes: deleteNodes}
+	return &CloudResourceRetracter{gate: gate, deleteNodes: deleteNodes, requireDrained: postgres.RequireCloudAdmissionDrained}
 }
 
-// RetractDeadCloudResourceNodes resolves liveness inside the per-uid
-// lock-holding transaction, releases the dead uids from the ledger, and
-// deletes them from the graph. It returns the number of deleted nodes.
+// RetractDeadCloudResourceNodes first refuses, before any lock, while some
+// scope's active-generation cloud_inventory_admission item is nonterminal
+// (the error unwraps to reducercontract.ErrCloudAdmissionUndrained, which
+// the handler classifies as a non-counting readiness miss). It then resolves
+// liveness inside each per-uid lock-holding transaction — where the fence is
+// re-read in the same statement as the admission rows — releases the dead
+// uids from the ledger, and deletes them from the graph. It returns the
+// number of deleted nodes.
 func (w *CloudResourceRetracter) RetractDeadCloudResourceNodes(
 	ctx context.Context,
 	uids []string,
 	evidenceSource string,
 ) (int, error) {
+	if len(uids) == 0 || w.gate == nil || w.gate.database == nil {
+		// Same fail-closed skip as the gate itself: nothing to retract, or no
+		// ledger to prove death against.
+		return w.gate.RetractDeadUIDs(ctx, familyCloudResource, uids, evidenceSource,
+			postgres.LiveAdmissionCloudUIDs, w.deleteNodes)
+	}
+	if err := w.checkDrained(ctx); err != nil {
+		return 0, err
+	}
 	return w.gate.RetractDeadUIDs(
 		ctx, familyCloudResource, uids, evidenceSource,
 		postgres.LiveAdmissionCloudUIDs, w.deleteNodes,
 	)
+}
+
+// checkDrained runs the pre-lock fence in a short transaction that is always
+// rolled back: it reads nothing the retract chunk will not re-read under
+// lock, so it only exists to make a refusal cheap.
+func (w *CloudResourceRetracter) checkDrained(ctx context.Context) error {
+	tx, err := w.gate.database.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("graphowner: begin admission-drain check: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := w.requireDrained(ctx, tx); err != nil {
+		return fmt.Errorf("graphowner: admission-drain check for %s: %w", familyCloudResource, err)
+	}
+	return nil
 }
 
 // EC2InstanceRetracter deletes globally-dead EC2 instance CloudResource node

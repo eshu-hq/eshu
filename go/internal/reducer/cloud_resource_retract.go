@@ -5,10 +5,12 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // CloudResourceNodeRetracter deletes globally-dead CloudResource node uids
@@ -80,7 +82,10 @@ func retractDeadCloudResourceNodes(
 	sort.Strings(candidates)
 	retracted, err := retracter.RetractDeadCloudResourceNodes(ctx, candidates, evidenceSource)
 	if err != nil {
-		return 0, fmt.Errorf("retract dead cloud resource nodes: %w", err)
+		// An admission-drain refusal is a readiness miss, not a failure on
+		// this intent's merits: classify it so the queue defers without
+		// counting the attempt (see ClassifyCloudRetractError below).
+		return 0, ClassifyCloudRetractError(fmt.Errorf("retract dead cloud resource nodes: %w", err))
 	}
 	return retracted, nil
 }
@@ -96,4 +101,53 @@ func cloudRowUIDSet(rows []map[string]any) map[string]struct{} {
 		}
 	}
 	return set
+}
+
+// cloudAdmissionNotReadyError marks a #6887 retract refused by the
+// admission-drain fence as a readiness-gate miss: some scope's active
+// generation still has a nonterminal cloud_inventory_admission work item, so
+// the intent is waiting on an upstream phase, not failing on its own merits.
+// The durable queue re-runs the intent once that admission lands.
+type cloudAdmissionNotReadyError struct {
+	cause error
+}
+
+func (e cloudAdmissionNotReadyError) Error() string { return e.cause.Error() }
+
+func (e cloudAdmissionNotReadyError) Unwrap() error { return e.cause }
+
+func (cloudAdmissionNotReadyError) Retryable() bool { return true }
+
+// CloudAdmissionNotReadyFailureClass identifies an in-handler readiness-gate
+// miss on the #6887 cloud-resource retract: the live-check found an
+// active-generation cloud_inventory_admission work item still nonterminal
+// (see reducercontract.ErrCloudAdmissionUndrained) and refused to prove
+// death, so the whole materialization intent defers.
+//
+// Enrolled in nonCountingReducerRetryFailureClasses so the miss never erodes
+// the retry budget and dead-letters a still-pending intent that the
+// succeeded-only reopen path would never reopen — under continuous
+// multi-scope ingest some scope is mid-activation much of the time, so a
+// counting trip would dead-letter healthy node writes. Declaring the
+// constant is not what enrolls it; TestEveryReadinessFailureClassIsEnrolled
+// checks the registration.
+const CloudAdmissionNotReadyFailureClass = "cloud_admission_not_ready"
+
+func (cloudAdmissionNotReadyError) FailureClass() string {
+	return CloudAdmissionNotReadyFailureClass
+}
+
+// ClassifyCloudRetractError maps a retract failure to the queue's readiness
+// vocabulary: an error wrapping reducercontract.ErrCloudAdmissionUndrained
+// becomes a Retryable, non-counting cloudAdmissionNotReadyError that still
+// unwraps to the sentinel; any other error is returned unchanged. Exported
+// so the queue's budget test can drive the exact error the handler returns.
+func ClassifyCloudRetractError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, reducercontract.ErrCloudAdmissionUndrained) {
+		return cloudAdmissionNotReadyError{cause: err}
+	}
+	return err
 }

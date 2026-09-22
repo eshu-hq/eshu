@@ -320,10 +320,10 @@ ON CONFLICT (work_item_id) DO UPDATE SET status = EXCLUDED.status, updated_at = 
 		return LiveAdmissionCloudUIDs(ctx, sqlTxExecQueryer{tx}, []string{uidHeld})
 	}
 	itemB2 := prefix + "-work-b2"
-	for _, status := range []string{"pending", "claimed", "running", "retrying", "dead_letter"} {
+	for _, status := range []string{"pending", "claimed", "running", "retrying", "failed", "dead_letter"} {
 		seedWork(itemB2, genB2, status)
 		alive, err := probe()
-		if !errors.Is(err, ErrCloudAdmissionUndrained) {
+		if !errors.Is(err, reducercontract.ErrCloudAdmissionUndrained) {
 			t.Fatalf("status %s: err = %v (alive=%v), want ErrCloudAdmissionUndrained", status, err, alive)
 		}
 		if !strings.Contains(err.Error(), scopeB) {

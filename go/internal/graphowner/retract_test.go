@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -407,5 +408,44 @@ func TestGateRetractDeadUIDsLogsGhostOnDeleteError(t *testing.T) {
 	got, ok := uids.([]string)
 	if !ok || !slices.Equal(got, []string{"uid-a", "uid-b"}) {
 		t.Fatalf("warning uids = %v, want the sorted dead set [uid-a uid-b]", uids)
+	}
+}
+
+// TestCloudResourceRetracterRefusesBeforeLockingWhenAdmissionUndrained pins
+// the pre-lock fence: a refusal returns the sentinel-wrapping error before
+// LockUIDs is ever called, using one short rolled-back transaction and no
+// delete, so a routine multi-scope race costs one index probe and no lock
+// churn on the write path.
+func TestCloudResourceRetracterRefusesBeforeLockingWhenAdmissionUndrained(t *testing.T) {
+	t.Parallel()
+
+	beginner := &fakeChunkBeginner{}
+	store := &fakeRetractStore{}
+	deleter := &retractDeleter{}
+	gate := newRetractGate(beginner, store)
+	retracter := &CloudResourceRetracter{
+		gate:        gate,
+		deleteNodes: deleter.delete,
+		requireDrained: func(context.Context, db.ExecQueryer) error {
+			return fmt.Errorf("%w: scope-b/gen-2=pending", reducercontract.ErrCloudAdmissionUndrained)
+		},
+	}
+
+	retracted, err := retracter.RetractDeadCloudResourceNodes(
+		context.Background(), []string{"uid-a", "uid-b"}, "reducer/aws-resources")
+	if !errors.Is(err, reducercontract.ErrCloudAdmissionUndrained) {
+		t.Fatalf("err = %v, want the undrained sentinel", err)
+	}
+	if retracted != 0 {
+		t.Fatalf("retracted = %d, want 0", retracted)
+	}
+	if len(store.locked) != 0 {
+		t.Fatalf("LockUIDs calls = %v, want none before the fence passes", store.locked)
+	}
+	if len(deleter.calls) != 0 {
+		t.Fatalf("delete calls = %v, want none", deleter.calls)
+	}
+	if beginner.calls() != 1 || !beginner.txs[0].rolledBack || beginner.txs[0].committed {
+		t.Fatalf("fence transaction: calls=%d txs=%+v, want one rolled-back transaction", beginner.calls(), beginner.txs)
 	}
 }

@@ -55,6 +55,17 @@ type nodeDeleteFunc func(ctx context.Context, uids []string, evidenceSource stri
 // which uids die. The input slice is never mutated: the gate sorts a copy so
 // retries and replays converge on the same statement sequence.
 //
+// The cloud-family live-check also carries the #6887 admission-drain fence:
+// it refuses (fail closed, retryable, non-counting) while some scope's
+// active-generation cloud_inventory_admission item is nonterminal, because
+// that scope's admission rows do not exist yet. The retracter runs the fence
+// once before any lock so a refusal is cheap, and the in-transaction probe
+// re-reads it in the SAME statement as the admission rows: the chunk
+// transaction is READ COMMITTED, so two statements would see two snapshots
+// and a scope's pointer could flip onto an undrained generation between
+// them; one statement sees one snapshot, which closes that gap without
+// REPEATABLE READ and its serialization retries.
+//
 // Residual TOCTOU the per-uid lock does not fence: the live-check reads
 // ingestion_scopes.active_generation_id, which a scope-level ingest upsert
 // advances without taking any per-uid lock. If another scope flips its
