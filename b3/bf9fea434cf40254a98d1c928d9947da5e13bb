@@ -1,0 +1,34 @@
+go/cmd/golden-corpus-gate/README.md
+  h_78a442cba0b3e6 74-81,228-229
+go/cmd/golden-corpus-gate/backenddiff.go
+  h_78a442cba0b3e6 26-27,85-88,126-133,135,138,148
+go/cmd/golden-corpus-gate/backenddiff_ceiling_test.go
+  h_78a442cba0b3e6 13-15,59-61,90,102,169-225
+go/cmd/golden-corpus-gate/backenddiff_test.go
+  h_78a442cba0b3e6 297
+go/cmd/golden-corpus-gate/main.go
+  h_78a442cba0b3e6 104
+go/internal/backendconformance/differential_kinds.go
+  h_78a442cba0b3e6 186-193,196-198,200
+go/internal/backendconformance/differential_kinds_test.go
+  h_78a442cba0b3e6 135-139,152-153,167,169,172-175,182-206
+go/internal/graph/capture/README.md
+  h_78a442cba0b3e6 57-59,61-62
+go/internal/graph/capture/allowlist.go
+  h_78a442cba0b3e6 39-44,74
+go/internal/graph/capture/diff.go
+  h_78a442cba0b3e6 21-23,79-82,87
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 20-23,28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b3bf9fea434cf40254a98d1c928d9947da5e13bb",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
