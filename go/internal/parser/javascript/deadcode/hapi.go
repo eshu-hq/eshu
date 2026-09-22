@@ -50,7 +50,7 @@ func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser Sibli
 
 	dirs := []string{}
 	for _, candidate := range candidates {
-		root, source, ok := siblingParser.RootForFile(candidate)
+		root, source, ok := rootForFile(siblingParser, candidate)
 		if !ok {
 			continue
 		}

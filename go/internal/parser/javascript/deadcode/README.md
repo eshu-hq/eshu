@@ -81,11 +81,16 @@ path live in the parent `javascript` package, which owns the parse lifecycle.
 
 ## Gotchas / invariants
 
-- **Both seams must tolerate nil.** A nil `SiblingSource` answers "no sibling
-  evidence" rather than panicking, and callers treat that as absence of
-  evidence, not an error. The parent's cache behaved this way before the
-  interface existed; a nil pointer in a non-nil interface still dispatches to
-  the method, which guards `p == nil` itself.
+- **A nil `SiblingSource` means absence of evidence, and you must go through
+  `rootForFile` to get that.** This is subtler than it looks and it bit this
+  refactor. The parameter used to be a concrete `*javaScriptSiblingParser`
+  whose method guarded `p == nil`, so a nil parser answered ok false. A nil
+  typed pointer and a nil *interface* are not alike: the first dispatches to
+  the method, the second panics. Production always supplies a real parser, but
+  tests pass nil and the walk-count tests only survived because they also pass
+  `repoRoot ""` and return before the seam. `rootForFile` restores the
+  pre-#6771 behaviour; `sibling_test.go` pins it with a control that fails
+  loudly if an earlier guard starts short-circuiting the probe.
 - **Never import the parent.** Go would reject the cycle, and the census behind
   #6771 shows how readily this directory's call graph produces one. New
   framework knowledge belongs in the parent, reached through

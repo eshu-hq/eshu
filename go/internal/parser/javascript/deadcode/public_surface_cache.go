@@ -121,7 +121,7 @@ func packageSurfaceFacts(
 // mentions. This is the only place that invokes the sibling parser for the
 // public-surface walks.
 func computePackageSurfaceFacts(path string, siblingParser SiblingSource) typeScriptPublicSurfaceNodeFacts {
-	root, source, ok := siblingParser.RootForFile(path)
+	root, source, ok := rootForFile(siblingParser, path)
 	if !ok {
 		return typeScriptPublicSurfaceNodeFacts{}
 	}

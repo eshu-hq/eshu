@@ -20,9 +20,11 @@
   the sibling-file cache stay in the parent; #6062 requires that pending the
   `LanguageProvider` decision. `SiblingSource` exists precisely so this package
   does not need them.
-- **Both seams tolerate nil.** A nil `SiblingSource` must answer ok false, not
-  panic, and callers must treat that as "no sibling evidence available" rather
-  than as an error. Tests construct evidence with nil seams; keep that working.
+- **Consult `SiblingSource` only through `rootForFile`.** A nil interface
+  panics where the nil `*javaScriptSiblingParser` it replaced returned ok
+  false, so calling the method directly reintroduces a latent panic that the
+  walk-count tests will not catch (they pass `repoRoot ""` and return before
+  the seam). `sibling_test.go` pins the graceful answer.
 - **Root evidence is gathered once per file.** `RootEvidence` runs one pass and
   `RootKinds` answers per declaration from it. Do not add a per-declaration
   filesystem read or a per-declaration AST walk; that is the cost #4925 and
