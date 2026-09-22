@@ -140,18 +140,19 @@ unconditional `truncated` boolean attribute alongside the conditional
 also sets the response's top-level `truncated` field (and therefore
 `answer_metadata.truncated`), OR'd together with the row-narrative bound
 above (P3 review follow-up to #5764): either bound landing past its limit is
-disclosed the same way. `entry_points`, `languages` (context only; the
-story's languages are part of the propagating narrative rows above),
+disclosed the same way. Since #6810, `entry_points`, `languages` (context
+only; the story's languages are part of the propagating narrative rows above),
 `relationships`/`dependencies`, `relationship_overview`,
-`source_tool_breakdown`, `consumers`, `api_surface` (`queryRepoAPISurface`),
+`source_tool_breakdown`, `consumers`, `api_surface` (`queryRepoAPISurface`) and
 the deployable-unit relationship supplement
-(`queryRepoDeployableUnitRelationshipOverview`), and the deployment/
-infrastructure overview builder (`loadDeploymentArtifactOverview`, whose error
-both routes discard) are not yet bounded or disclosed the way `infrastructure`
-is above — including but not limited to this list, since neither route's full
-call graph has an exhaustive audit yet: a graph-read failure on any of those
-still silently folds into the same "no rows" (or discarded-error) path as a
-genuine empty result, with no `failure_class` signal. See
+(`queryRepoDeployableUnitRelationshipOverview`) disclose a failed read the same
+way: the response carries `<read>_read_degraded` in `partial_reasons` (story:
+`limitations`) and the stage log carries `failure_class=<that reason>`. They
+are still not bounded (no `_truncated` reason). The deployment/infrastructure
+overview builder (`loadDeploymentArtifactOverview`, whose error both routes
+discard) is neither bounded nor disclosed, and neither route's full call graph
+has an exhaustive audit yet: a graph-read failure there still folds into the
+"no rows" path with no `failure_class` signal. See
 `go/internal/query/AGENTS-evidence-history-3.md` (part 3, linked from
 `go/internal/query/AGENTS.md`) for the full per-site propagate/degrade
 rationale and the reasoning behind the narrower scope, and
