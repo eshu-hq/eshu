@@ -250,3 +250,26 @@ semantics differ, treat as observed behavior pending a dedicated probe).
 Bare keys stay; both pinned backends place NULL names last (probed), and a
 backend or version change that moves NULLs surfaces as an unexcused
 differential-oracle divergence since entry 57 is retired.
+
+## #6933: same treatment for the config-derived sibling
+
+`LoadConfigDerivedCloudResourceDependencies` sorts the same `ORDER BY
+name, id` over 11 projected aliases with LIMIT truncation, so it carries the
+identical tied-key pagination defect. Fix mirrors #6932: total key with the
+`name, id` lead preserved, plus the same guard shape.
+
+No-Regression Evidence: scratch probe on the same pinned backends,
+label-scan shape with tied `(name, id)` rows plus 5000-row bulk corpus at
+LIMIT 100 (2x the production `ServiceStoryItemLimit = 50`). Extended ORDER
+BY delivered identical row order on both backends, stable across 8/8 runs
+each, with the same row multiset as the original on each backend. Timings:
+NornicDB 337.8ms → 356.5ms (+5.5% median, bands overlap 334–342 vs 336–419,
+under the 10% bar), Neo4j 17.2ms → 16.4ms (noise). Baseline: original
+`ORDER BY name, id` on the same corpus. Probe source:
+`/tmp/6782-flap/probe/sibling.go` (throwaway, not committed).
+
+No-Observability-Change: no new spans, metrics, or logs; anchors (regex
+config pattern), `$limit`, and saturation/truncation semantics unchanged.
+In-repo guard:
+`TestLoadConfigDerivedCloudResourceDependenciesOrderByIsTotalKey` fails on
+uncovered aliases or lead-order drift.
