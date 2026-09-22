@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"context"
@@ -13,19 +13,19 @@ import (
 	"time"
 )
 
-type scipLanguageConfig struct {
+type languageConfig struct {
 	Language    string
 	Binary      string
 	InstallHint string
 }
 
-// SCIPLanguageFileGroup captures selected files for one SCIP-capable language.
-type SCIPLanguageFileGroup struct {
+// LanguageFileGroup captures selected files for one SCIP-capable language.
+type LanguageFileGroup struct {
 	Language string
 	Files    []string
 }
 
-var scipExtensionConfigs = map[string]scipLanguageConfig{
+var extensionConfigs = map[string]languageConfig{
 	".c":     {Language: "c", Binary: "scip-clang", InstallHint: "brew install llvm"},
 	".cpp":   {Language: "cpp", Binary: "scip-clang", InstallHint: "brew install llvm"},
 	".go":    {Language: "go", Binary: "scip-go", InstallHint: "go install github.com/sourcegraph/scip-go/...@latest"},
@@ -41,7 +41,7 @@ var scipExtensionConfigs = map[string]scipLanguageConfig{
 	".tsx":   {Language: "typescript", Binary: "scip-typescript", InstallHint: "npm install -g @sourcegraph/scip-typescript"},
 }
 
-var scipLanguagePriority = []string{
+var languagePriority = []string{
 	"python",
 	"typescript",
 	"javascript",
@@ -52,22 +52,22 @@ var scipLanguagePriority = []string{
 	"c",
 }
 
-// SCIPIndexer runs an external scip-* CLI and returns the generated index path.
-type SCIPIndexer struct {
+// Indexer runs an external scip-* CLI and returns the generated index path.
+type Indexer struct {
 	LookPath   func(string) (string, error)
 	RunCommand func(context.Context, []string, string) error
 	Timeout    time.Duration
 }
 
-// DetectSCIPProjectLanguage returns the dominant SCIP-capable language across
+// DetectProjectLanguage returns the dominant SCIP-capable language across
 // the provided file paths, restricted to the allowed set.
-func DetectSCIPProjectLanguage(paths []string, allowed []string) string {
-	allowedSet := scipAllowedLanguageSet(allowed)
-	filesByLanguage := scipFilesByLanguage(paths, allowedSet)
+func DetectProjectLanguage(paths []string, allowed []string) string {
+	allowedSet := allowedLanguageSet(allowed)
+	grouped := filesByLanguage(paths, allowedSet)
 	bestLanguage := ""
 	bestCount := 0
-	for _, language := range scipLanguagePriority {
-		count := len(filesByLanguage[language])
+	for _, language := range languagePriority {
+		count := len(grouped[language])
 		if count > bestCount {
 			bestLanguage = language
 			bestCount = count
@@ -76,25 +76,25 @@ func DetectSCIPProjectLanguage(paths []string, allowed []string) string {
 	return bestLanguage
 }
 
-// DetectSCIPProjectLanguageGroups returns SCIP-capable selected files grouped
+// DetectProjectLanguageGroups returns SCIP-capable selected files grouped
 // by language in deterministic priority order.
-func DetectSCIPProjectLanguageGroups(paths []string, allowed []string) []SCIPLanguageFileGroup {
-	allowedSet := scipAllowedLanguageSet(allowed)
+func DetectProjectLanguageGroups(paths []string, allowed []string) []LanguageFileGroup {
+	allowedSet := allowedLanguageSet(allowed)
 	if len(allowedSet) == 0 {
 		return nil
 	}
-	filesByLanguage := scipFilesByLanguage(paths, allowedSet)
+	grouped := filesByLanguage(paths, allowedSet)
 
-	groups := make([]SCIPLanguageFileGroup, 0, len(filesByLanguage))
-	for _, language := range scipLanguagePriority {
+	groups := make([]LanguageFileGroup, 0, len(grouped))
+	for _, language := range languagePriority {
 		if _, ok := allowedSet[language]; !ok {
 			continue
 		}
-		files := filesByLanguage[language]
+		files := grouped[language]
 		if len(files) == 0 {
 			continue
 		}
-		groups = append(groups, SCIPLanguageFileGroup{
+		groups = append(groups, LanguageFileGroup{
 			Language: language,
 			Files:    append([]string(nil), files...),
 		})
@@ -102,7 +102,7 @@ func DetectSCIPProjectLanguageGroups(paths []string, allowed []string) []SCIPLan
 	return groups
 }
 
-func scipAllowedLanguageSet(allowed []string) map[string]struct{} {
+func allowedLanguageSet(allowed []string) map[string]struct{} {
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, language := range allowed {
 		normalized := strings.TrimSpace(strings.ToLower(language))
@@ -113,24 +113,24 @@ func scipAllowedLanguageSet(allowed []string) map[string]struct{} {
 	return allowedSet
 }
 
-func scipFilesByLanguage(paths []string, allowedSet map[string]struct{}) map[string][]string {
-	filesByLanguage := make(map[string][]string)
+func filesByLanguage(paths []string, allowedSet map[string]struct{}) map[string][]string {
+	byLanguage := make(map[string][]string)
 	for _, path := range paths {
-		config, ok := scipExtensionConfigs[strings.ToLower(filepath.Ext(path))]
+		config, ok := extensionConfigs[strings.ToLower(filepath.Ext(path))]
 		if !ok {
 			continue
 		}
 		if _, ok := allowedSet[config.Language]; !ok {
 			continue
 		}
-		filesByLanguage[config.Language] = append(filesByLanguage[config.Language], path)
+		byLanguage[config.Language] = append(byLanguage[config.Language], path)
 	}
-	return filesByLanguage
+	return byLanguage
 }
 
 // IsAvailable reports whether the external scip-* binary is installed for the language.
-func (i SCIPIndexer) IsAvailable(language string) bool {
-	binary, _, ok := scipBinaryForLanguage(language)
+func (i Indexer) IsAvailable(language string) bool {
+	binary, _, ok := binaryForLanguage(language)
 	if !ok {
 		return false
 	}
@@ -140,13 +140,13 @@ func (i SCIPIndexer) IsAvailable(language string) bool {
 
 // Run executes the language-appropriate scip-* binary and returns the resulting
 // index.scip path.
-func (i SCIPIndexer) Run(
+func (i Indexer) Run(
 	ctx context.Context,
 	projectPath string,
 	language string,
 	outputDir string,
 ) (string, error) {
-	binary, installHint, ok := scipBinaryForLanguage(language)
+	binary, installHint, ok := binaryForLanguage(language)
 	if !ok {
 		return "", fmt.Errorf("unsupported SCIP language %q", language)
 	}
@@ -156,7 +156,7 @@ func (i SCIPIndexer) Run(
 	}
 
 	outputPath := filepath.Join(outputDir, "index.scip")
-	command, err := buildSCIPCommand(language, binaryPath, outputPath)
+	command, err := buildCommand(language, binaryPath, outputPath)
 	if err != nil {
 		return "", err
 	}
@@ -177,9 +177,9 @@ func (i SCIPIndexer) Run(
 	return outputPath, nil
 }
 
-func scipBinaryForLanguage(language string) (string, string, bool) {
+func binaryForLanguage(language string) (string, string, bool) {
 	normalized := strings.TrimSpace(strings.ToLower(language))
-	for _, config := range scipExtensionConfigs {
+	for _, config := range extensionConfigs {
 		if config.Language == normalized {
 			return config.Binary, config.InstallHint, true
 		}
@@ -187,7 +187,7 @@ func scipBinaryForLanguage(language string) (string, string, bool) {
 	return "", "", false
 }
 
-func buildSCIPCommand(language string, binary string, outputPath string) ([]string, error) {
+func buildCommand(language string, binary string, outputPath string) ([]string, error) {
 	switch strings.TrimSpace(strings.ToLower(language)) {
 	case "python":
 		return []string{binary, "index", ".", "--output", outputPath}, nil
@@ -204,14 +204,14 @@ func buildSCIPCommand(language string, binary string, outputPath string) ([]stri
 	}
 }
 
-func (i SCIPIndexer) lookPath() func(string) (string, error) {
+func (i Indexer) lookPath() func(string) (string, error) {
 	if i.LookPath != nil {
 		return i.LookPath
 	}
 	return exec.LookPath
 }
 
-func (i SCIPIndexer) runCommand() func(context.Context, []string, string) error {
+func (i Indexer) runCommand() func(context.Context, []string, string) error {
 	if i.RunCommand != nil {
 		return i.RunCommand
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"path/filepath"
@@ -80,7 +80,7 @@ func TestSCIPFunctionCallsRoundTripThroughTypedContract(t *testing.T) {
 		},
 	)
 
-	got, err := (SCIPIndexParser{}).Parse(indexPath, repoRoot)
+	got, err := (IndexParser{}).Parse(indexPath, repoRoot)
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}

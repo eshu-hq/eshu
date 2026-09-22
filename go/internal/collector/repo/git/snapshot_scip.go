@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -36,7 +37,7 @@ type scipProjectIndexer interface {
 }
 
 type scipResultParser interface {
-	Parse(string, string) (parser.SCIPParseResult, error)
+	Parse(string, string) (scip.ParseResult, error)
 }
 
 // LoadSnapshotSCIPConfig parses the SCIP environment contract for the Go collector.
@@ -106,14 +107,14 @@ func (s NativeRepositorySnapshotter) scipIndexer(config SnapshotSCIPConfig) scip
 	if config.Indexer != nil {
 		return config.Indexer
 	}
-	return parser.SCIPIndexer{}
+	return scip.Indexer{}
 }
 
 func (s NativeRepositorySnapshotter) scipParser(config SnapshotSCIPConfig) scipResultParser {
 	if config.Parser != nil {
 		return config.Parser
 	}
-	return parser.SCIPIndexParser{}
+	return scip.IndexParser{}
 }
 
 func (s NativeRepositorySnapshotter) buildParsedRepositoryFiles(
@@ -208,7 +209,7 @@ func (s NativeRepositorySnapshotter) trySCIPSnapshot(
 		return nil, nil, nil, false, nil
 	}
 
-	groups := parser.DetectSCIPProjectLanguageGroups(fileSet.FilePaths(), config.Languages)
+	groups := scip.DetectProjectLanguageGroups(fileSet.FilePaths(), config.Languages)
 	if len(groups) == 0 {
 		s.recordSCIPSnapshotAttempt(ctx, scipSnapshotLanguageUnknown, scipSnapshotResultNoLanguage)
 		return nil, nil, nil, false, nil

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"os"
@@ -75,7 +75,7 @@ func TestSCIPIndexParserParsesDefinitionsAndCallEdges(t *testing.T) {
 		},
 	)
 
-	got, err := (SCIPIndexParser{}).Parse(indexPath, repoRoot)
+	got, err := (IndexParser{}).Parse(indexPath, repoRoot)
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
@@ -137,10 +137,10 @@ func writeSCIPIndexFixture(t *testing.T, path string, index *scippb.Index) {
 func writeSCIPTestFile(t *testing.T, path string, body string) {
 	t.Helper()
 
-	if err := ensureParentDirectory(path); err != nil {
-		t.Fatalf("ensureParentDirectory(%q) error = %v, want nil", path, err)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v, want nil", filepath.Dir(path), err)
 	}
-	if err := osWriteFile(path, []byte(body)); err != nil {
-		t.Fatalf("osWriteFile(%q) error = %v, want nil", path, err)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v, want nil", path, err)
 	}
 }

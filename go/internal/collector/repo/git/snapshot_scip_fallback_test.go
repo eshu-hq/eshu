@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -31,7 +32,7 @@ func TestSCIPSnapshotConcurrentParseMergesSCIPSupplement(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				appPath: {
 					"function_calls_scip": []map[string]any{{
@@ -218,7 +219,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 				t.Helper()
 				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true}
-				config.Parser = fakeSCIPParser{result: parser.SCIPParseResult{Files: map[string]map[string]any{}}}
+				config.Parser = fakeSCIPParser{result: scip.ParseResult{Files: map[string]map[string]any{}}}
 				return config
 			},
 			wantLanguage: "python",
@@ -231,7 +232,7 @@ func TestSCIPSnapshotRecordsAttemptResults(t *testing.T) {
 				config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 				config.Indexer = &recordingSCIPIndexer{available: true}
 				config.Parser = fakeSCIPParser{
-					result: parser.SCIPParseResult{
+					result: scip.ParseResult{
 						Files: map[string]map[string]any{
 							appPath: {
 								"function_calls_scip": []map[string]any{{

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"fmt"
@@ -14,39 +14,39 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// SCIPParseResult captures the file payloads and symbol table derived from one index.scip file.
-type SCIPParseResult struct {
+// ParseResult captures the file payloads and symbol table derived from one index.scip file.
+type ParseResult struct {
 	Files       map[string]map[string]any
 	SymbolTable map[string]map[string]any
 }
 
-// SCIPIndexParser parses one index.scip protobuf payload into Eshu file structures.
-type SCIPIndexParser struct{}
+// IndexParser parses one index.scip protobuf payload into Eshu file structures.
+type IndexParser struct{}
 
 // Parse reads one index.scip file and returns file payloads plus the enriched symbol table.
-func (SCIPIndexParser) Parse(indexPath string, projectPath string) (SCIPParseResult, error) {
+func (IndexParser) Parse(indexPath string, projectPath string) (ParseResult, error) {
 	body, err := os.ReadFile(indexPath) // #nosec G304 -- reads an indexed SCIP file at a path derived from the parser's own scan target
 	if err != nil {
-		return SCIPParseResult{}, fmt.Errorf("read SCIP index %q: %w", indexPath, err)
+		return ParseResult{}, fmt.Errorf("read SCIP index %q: %w", indexPath, err)
 	}
 
 	var index scippb.Index
 	if err := proto.Unmarshal(body, &index); err != nil {
-		return SCIPParseResult{}, fmt.Errorf("parse SCIP index %q: %w", indexPath, err)
+		return ParseResult{}, fmt.Errorf("parse SCIP index %q: %w", indexPath, err)
 	}
 
-	symbolTable := buildSCIPSymbolTable(&index)
-	files, err := buildSCIPFiles(&index, projectPath, symbolTable)
+	symbolTable := buildSymbolTable(&index)
+	files, err := buildFiles(&index, projectPath, symbolTable)
 	if err != nil {
-		return SCIPParseResult{}, err
+		return ParseResult{}, err
 	}
-	return SCIPParseResult{
+	return ParseResult{
 		Files:       files,
 		SymbolTable: symbolTable,
 	}, nil
 }
 
-func buildSCIPSymbolTable(index *scippb.Index) map[string]map[string]any {
+func buildSymbolTable(index *scippb.Index) map[string]map[string]any {
 	table := make(map[string]map[string]any)
 	for _, document := range index.GetDocuments() {
 		for _, occurrence := range document.GetOccurrences() {
@@ -58,20 +58,20 @@ func buildSCIPSymbolTable(index *scippb.Index) map[string]map[string]any {
 			}
 			table[occurrence.GetSymbol()] = map[string]any{
 				"file": document.GetRelativePath(),
-				"line": scipOccurrenceLine(occurrence),
+				"line": occurrenceLine(occurrence),
 			}
 		}
 		for _, symbol := range document.GetSymbols() {
-			enrichSCIPSymbol(table, symbol)
+			enrichSymbol(table, symbol)
 		}
 	}
 	for _, symbol := range index.GetExternalSymbols() {
-		enrichSCIPSymbol(table, symbol)
+		enrichSymbol(table, symbol)
 	}
 	return table
 }
 
-func enrichSCIPSymbol(table map[string]map[string]any, symbol *scippb.SymbolInformation) {
+func enrichSymbol(table map[string]map[string]any, symbol *scippb.SymbolInformation) {
 	entry, ok := table[symbol.GetSymbol()]
 	if !ok {
 		return
@@ -81,7 +81,7 @@ func enrichSCIPSymbol(table map[string]map[string]any, symbol *scippb.SymbolInfo
 	entry["kind"] = int32(symbol.GetKind())
 }
 
-func buildSCIPFiles(
+func buildFiles(
 	index *scippb.Index,
 	projectPath string,
 	symbolTable map[string]map[string]any,
@@ -95,7 +95,7 @@ func buildSCIPFiles(
 
 		payload := map[string]any{
 			"path":                absolutePath,
-			"lang":                scipLanguageFromPath(document.GetRelativePath()),
+			"lang":                languageFromPath(document.GetRelativePath()),
 			"is_dependency":       false,
 			"functions":           []map[string]any{},
 			"classes":             []map[string]any{},
@@ -117,20 +117,20 @@ func buildSCIPFiles(
 				continue
 			}
 			if occurrence.GetSymbolRoles()&int32(scippb.SymbolRole_Definition) != 0 {
-				appendSCIPDefinition(payload, symbol, scipOccurrenceLine(occurrence), symbolTable[symbol])
+				appendDefinition(payload, symbol, occurrenceLine(occurrence), symbolTable[symbol])
 				continue
 			}
-			appendSCIPReference(payload, symbol, scipOccurrenceLine(occurrence), projectPath, symbolTable, definitions)
+			appendReference(payload, symbol, occurrenceLine(occurrence), projectPath, symbolTable, definitions)
 		}
 		files[absolutePath] = payload
 	}
 	return files, nil
 }
 
-func appendSCIPDefinition(payload map[string]any, symbol string, line int, definition map[string]any) {
-	kind := scipDefinitionKind(symbol, definition)
-	name := scipNameFromSymbol(symbol)
-	args, returnType := scipParseSignature(stringValueFromMap(definition, "display_name"))
+func appendDefinition(payload map[string]any, symbol string, line int, definition map[string]any) {
+	kind := definitionKind(symbol, definition)
+	name := nameFromSymbol(symbol)
+	args, returnType := parseSignature(stringValueFromMap(definition, "display_name"))
 	node := map[string]any{
 		"name":          name,
 		"line_number":   line,
@@ -168,7 +168,7 @@ func appendSCIPDefinition(payload map[string]any, symbol string, line int, defin
 	}
 }
 
-func appendSCIPReference(
+func appendReference(
 	payload map[string]any,
 	symbol string,
 	line int,
@@ -180,7 +180,7 @@ func appendSCIPReference(
 	if !ok {
 		return
 	}
-	callerSymbol := scipFindEnclosingDefinition(line, definitions)
+	callerSymbol := findEnclosingDefinition(line, definitions)
 	if callerSymbol == "" {
 		return
 	}
@@ -198,12 +198,12 @@ func appendSCIPReference(
 		"callee_symbol": symbol,
 		"callee_file":   calleeFile,
 		"callee_line":   intValueFromMap(calleeInfo, "line"),
-		"callee_name":   scipNameFromSymbol(symbol),
+		"callee_name":   nameFromSymbol(symbol),
 		"ref_line":      line,
 	})
 }
 
-func scipDefinitionKind(symbol string, definition map[string]any) int32 {
+func definitionKind(symbol string, definition map[string]any) int32 {
 	kind := int32(intValueFromMap(definition, "kind")) // #nosec G115 -- bounded: intValueFromMap returns a value sourced from protobuf int32 fields, always fits int32
 	if kind != 0 {
 		return kind
@@ -218,7 +218,7 @@ func scipDefinitionKind(symbol string, definition map[string]any) int32 {
 	}
 }
 
-func scipOccurrenceLine(occurrence *scippb.Occurrence) int {
+func occurrenceLine(occurrence *scippb.Occurrence) int {
 	if len(occurrence.GetRange()) == 0 {
 		return 0
 	}
@@ -226,22 +226,22 @@ func scipOccurrenceLine(occurrence *scippb.Occurrence) int {
 }
 
 var (
-	scipTrailingCallRe  = regexp.MustCompile(`\(\)\.?$`)
-	scipSeparatorRe     = regexp.MustCompile(`[/#]`)
-	scipSignatureArgsRe = regexp.MustCompile(`\(([^)]*)\)`)
+	trailingCallRe  = regexp.MustCompile(`\(\)\.?$`)
+	separatorRe     = regexp.MustCompile(`[/#]`)
+	signatureArgsRe = regexp.MustCompile(`\(([^)]*)\)`)
 )
 
-func scipNameFromSymbol(symbol string) string {
+func nameFromSymbol(symbol string) string {
 	stripped := strings.TrimRight(symbol, ".#")
-	stripped = scipTrailingCallRe.ReplaceAllString(stripped, "")
-	parts := scipSeparatorRe.Split(stripped, -1)
+	stripped = trailingCallRe.ReplaceAllString(stripped, "")
+	parts := separatorRe.Split(stripped, -1)
 	if len(parts) == 0 || parts[len(parts)-1] == "" {
 		return symbol
 	}
 	return parts[len(parts)-1]
 }
 
-func scipLanguageFromPath(relativePath string) string {
+func languageFromPath(relativePath string) string {
 	switch strings.ToLower(filepath.Ext(relativePath)) {
 	case ".c":
 		return "c"
@@ -264,7 +264,7 @@ func scipLanguageFromPath(relativePath string) string {
 	}
 }
 
-func scipParseSignature(displayName string) ([]string, string) {
+func parseSignature(displayName string) ([]string, string) {
 	args := make([]string, 0)
 	if displayName == "" {
 		return args, ""
@@ -274,7 +274,7 @@ func scipParseSignature(displayName string) ([]string, string) {
 	if parts := strings.Split(displayName, "->"); len(parts) > 1 {
 		returnType = strings.TrimSpace(parts[len(parts)-1])
 	}
-	matches := scipSignatureArgsRe.FindStringSubmatch(displayName)
+	matches := signatureArgsRe.FindStringSubmatch(displayName)
 	if len(matches) != 2 || strings.TrimSpace(matches[1]) == "" {
 		return args, returnType
 	}
@@ -288,13 +288,13 @@ func scipParseSignature(displayName string) ([]string, string) {
 	return args, returnType
 }
 
-func scipFindEnclosingDefinition(line int, definitions []*scippb.Occurrence) string {
+func findEnclosingDefinition(line int, definitions []*scippb.Occurrence) string {
 	bestSymbol := ""
 	bestLine := -1
 	for _, occurrence := range definitions {
-		occurrenceLine := scipOccurrenceLine(occurrence)
-		if occurrenceLine <= line && occurrenceLine > bestLine {
-			bestLine = occurrenceLine
+		defLine := occurrenceLine(occurrence)
+		if defLine <= line && defLine > bestLine {
+			bestLine = defLine
 			bestSymbol = occurrence.GetSymbol()
 		}
 	}

@@ -20,7 +20,3 @@ func sharedOptions(options Options) shared.Options {
 func basePayload(path string, lang string, isDependency bool) map[string]any {
 	return shared.BasePayload(path, lang, isDependency)
 }
-
-func appendBucket(payload map[string]any, key string, item map[string]any) {
-	shared.AppendBucket(payload, key, item)
-}

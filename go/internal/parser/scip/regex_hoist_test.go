@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"reflect"
 	"testing"
 )
 
-// TestScipNameFromSymbolMatchesSeparatorSplit pins scipNameFromSymbol's output
+// TestScipNameFromSymbolMatchesSeparatorSplit pins nameFromSymbol's output
 // before and after the per-call `[/#]` split regex is hoisted to a
 // package-level var (issue #4874).
 func TestScipNameFromSymbolMatchesSeparatorSplit(t *testing.T) {
@@ -31,15 +31,15 @@ func TestScipNameFromSymbolMatchesSeparatorSplit(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := scipNameFromSymbol(testCase.symbol)
+			got := nameFromSymbol(testCase.symbol)
 			if got != testCase.want {
-				t.Fatalf("scipNameFromSymbol(%q) = %q, want %q", testCase.symbol, got, testCase.want)
+				t.Fatalf("nameFromSymbol(%q) = %q, want %q", testCase.symbol, got, testCase.want)
 			}
 		})
 	}
 }
 
-// TestScipParseSignatureMatchesArgsAndReturnType pins scipParseSignature's
+// TestScipParseSignatureMatchesArgsAndReturnType pins parseSignature's
 // output before and after the per-call signature-argument regex is hoisted to
 // a package-level var (issue #4874).
 func TestScipParseSignatureMatchesArgsAndReturnType(t *testing.T) {
@@ -88,12 +88,12 @@ func TestScipParseSignatureMatchesArgsAndReturnType(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotArgs, gotReturnType := scipParseSignature(testCase.displayName)
+			gotArgs, gotReturnType := parseSignature(testCase.displayName)
 			if !reflect.DeepEqual(gotArgs, testCase.wantArgs) {
-				t.Fatalf("scipParseSignature(%q) args = %#v, want %#v", testCase.displayName, gotArgs, testCase.wantArgs)
+				t.Fatalf("parseSignature(%q) args = %#v, want %#v", testCase.displayName, gotArgs, testCase.wantArgs)
 			}
 			if gotReturnType != testCase.wantReturnType {
-				t.Fatalf("scipParseSignature(%q) returnType = %q, want %q", testCase.displayName, gotReturnType, testCase.wantReturnType)
+				t.Fatalf("parseSignature(%q) returnType = %q, want %q", testCase.displayName, gotReturnType, testCase.wantReturnType)
 			}
 		})
 	}

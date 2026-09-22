@@ -258,7 +258,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
 - `internal/collector/discovery` — `ResolveRepositoryFileSetsWithStats`,
   `Options`, `RepoFileSet`, `DiscoveryStats`
 - `internal/parser` — `Engine`, `Registry`, `Options`, `DefaultEngine`,
-  `DefaultRegistry`, `SCIPIndexer`, `SCIPIndexParser`, `SCIPParseResult`
+  `DefaultRegistry`
+- `internal/parser/scip` — `Indexer`, `IndexParser`, `ParseResult`,
+  `LanguageFileGroup`, `DetectProjectLanguageGroups`
 - `internal/facts` — `facts.Envelope`, `facts.StableID`
 - `internal/scope` — `scope.IngestionScope`, `scope.ScopeGeneration`
 - `internal/content/shape` — `shape.Materialize`, `shape.Input`

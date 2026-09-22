@@ -133,6 +133,21 @@ debt"; they are documented exceptions with fixture-backed deterministic output.
 | hcl | `structured-parser-backed-exception` | Terraform, tfvars, lockfile, and Terragrunt evidence uses HashiCorp's official HCL v2 parser and expression AST. | `go/internal/parser/hcl/*`, `docs/public/languages/terraform.md`, `docs/public/languages/terragrunt.md`, `specs/parser-backing-ledger.v1.yaml` |
 | yaml | `structured-parser-backed-exception` | YAML-family evidence uses YAML v3 document decoding plus bounded Kubernetes, Argo CD, Crossplane, Kustomize, Helm, CloudFormation, GitLab CI, Atlantis, Pub, and observability walkers. | `go/internal/parser/yaml/*`, `docs/public/languages/{argocd,crossplane,helm,kubernetes,kustomize}.md`, `specs/parser-backing-ledger.v1.yaml` |
 
+### SCIP corroboration is not a parser backing
+
+SCIP is not a row in the table above and never promotes a language's grade on
+its own. A SCIP index is produced by an external `scip-*` indexer, so it is
+ingested rather than parsed from source, and it supplements native tree-sitter
+output instead of replacing a grammar. A language whose only evidence is a SCIP
+index is still parse-only for the purposes of the promotion rules above.
+
+The ingestion code lives in `go/internal/parser/scip` (`parser.go` decodes the
+`index.scip` protobuf, `indexer.go` runs the external CLI and picks the
+language). Its only consumer is `go/internal/collector/repo/git`, and it runs
+only when collector configuration enables it, an allowed language group is
+present, and the matching `scip-*` binary is on `PATH` — so a missing indexer
+degrades enrichment, never file coverage.
+
 ## Language Feature Parity Ledger
 
 The machine-readable language claim ledger lives at

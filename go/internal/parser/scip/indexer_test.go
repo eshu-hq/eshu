@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package parser
+package scip
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 func TestDetectSCIPProjectLanguagePrefersDominantAllowedLanguage(t *testing.T) {
 	t.Parallel()
 
-	got := DetectSCIPProjectLanguage(
+	got := DetectProjectLanguage(
 		[]string{
 			"/tmp/repo/a.py",
 			"/tmp/repo/b.py",
@@ -23,14 +23,14 @@ func TestDetectSCIPProjectLanguagePrefersDominantAllowedLanguage(t *testing.T) {
 		[]string{"go", "python"},
 	)
 	if got != "python" {
-		t.Fatalf("DetectSCIPProjectLanguage() = %q, want %q", got, "python")
+		t.Fatalf("DetectProjectLanguage() = %q, want %q", got, "python")
 	}
 }
 
 func TestDetectSCIPProjectLanguagePrefersLowerPriorityDominantLanguage(t *testing.T) {
 	t.Parallel()
 
-	got := DetectSCIPProjectLanguage(
+	got := DetectProjectLanguage(
 		[]string{
 			"/tmp/repo/a.py",
 			"/tmp/repo/service/main.go",
@@ -39,14 +39,14 @@ func TestDetectSCIPProjectLanguagePrefersLowerPriorityDominantLanguage(t *testin
 		[]string{"go", "python"},
 	)
 	if got != "go" {
-		t.Fatalf("DetectSCIPProjectLanguage() = %q, want %q", got, "go")
+		t.Fatalf("DetectProjectLanguage() = %q, want %q", got, "go")
 	}
 }
 
 func TestDetectSCIPProjectLanguageBreaksTiesLikePythonContract(t *testing.T) {
 	t.Parallel()
 
-	got := DetectSCIPProjectLanguage(
+	got := DetectProjectLanguage(
 		[]string{
 			"/tmp/repo/a.py",
 			"/tmp/repo/b.ts",
@@ -54,21 +54,21 @@ func TestDetectSCIPProjectLanguageBreaksTiesLikePythonContract(t *testing.T) {
 		[]string{"typescript", "python"},
 	)
 	if got != "python" {
-		t.Fatalf("DetectSCIPProjectLanguage() = %q, want %q", got, "python")
+		t.Fatalf("DetectProjectLanguage() = %q, want %q", got, "python")
 	}
 }
 
 func TestBuildSCIPCommandMatchesRuntimeContract(t *testing.T) {
 	t.Parallel()
 
-	got, err := buildSCIPCommand("typescript", "/usr/local/bin/scip-typescript", "/tmp/index.scip")
+	got, err := buildCommand("typescript", "/usr/local/bin/scip-typescript", "/tmp/index.scip")
 	if err != nil {
-		t.Fatalf("buildSCIPCommand() error = %v, want nil", err)
+		t.Fatalf("buildCommand() error = %v, want nil", err)
 	}
 
 	want := []string{"/usr/local/bin/scip-typescript", "index", "--output", "/tmp/index.scip"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("buildSCIPCommand() = %#v, want %#v", got, want)
+		t.Fatalf("buildCommand() = %#v, want %#v", got, want)
 	}
 }
 
@@ -76,7 +76,7 @@ func TestSCIPIndexerRunWritesIndexToOutputPath(t *testing.T) {
 	t.Parallel()
 
 	outputDir := t.TempDir()
-	indexer := SCIPIndexer{
+	indexer := Indexer{
 		LookPath: func(binary string) (string, error) {
 			if binary != "scip-python" {
 				t.Fatalf("LookPath() binary = %q, want %q", binary, "scip-python")

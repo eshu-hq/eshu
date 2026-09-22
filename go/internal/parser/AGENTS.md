@@ -28,8 +28,8 @@
 13. Language-owned adapter READMEs for extracted parsers before touching their
     parent wrappers: `c`, `cpp`, `rust`, `csharp`, `scala`, `elixir`, `swift`,
     `dart`, `ruby`, `perl`, `haskell`, `sql`, and `hcl`
-14. `go/internal/parser/scip_support.go` — `SCIPIndexer`,
-   `DetectSCIPProjectLanguage`, SCIP binary map
+14. `go/internal/parser/scip/indexer.go` — `scip.Indexer`,
+   `scip.DetectProjectLanguage`, SCIP binary map
 15. `go/internal/parser/doc.go` — the package contract, especially the
    determinism invariant
 16. `go/internal/telemetry/instruments.go` — `telemetry.FileParseDuration` before
@@ -96,7 +96,7 @@ grammar.
 | dbt SQL (`dbtsql`) | bounded regex SQL-lineage scanner over compiled dbt SQL | `dbtsql/lineage.go`, `dbtsql/expressions.go` | Extracts bounded column lineage (select projections, CTEs, relation aliases) from compiled model SQL; unsupported shapes go on the unresolved path. This is lineage extraction, not source-grammar parsing. |
 | `templated_detection.go` | regex content classification | `templated_detection.go` | Classifies possibly-invalid-grammar templated text (Go template, Jinja, GitHub Actions, Terraform interpolation/directive). The input is frequently not valid in any single grammar, so tree-sitter cannot parse it; this is detection, not extraction. |
 | Raw text (`raw_text`) | filename/extension classification, no grammar | `raw_text_engine.go` | The fallback adapter for `.cnf`/`.cfg`/`.conf`/`.j2`/`.tpl` and similar. It carries content-metadata detection only and has no grammar to migrate. |
-| SCIP (`scip`) | `google.golang.org/protobuf/proto` index decode | `scip_parser.go` | `index.scip` is a precomputed protobuf index produced by an external indexer. It is ingested, not parsed from source; SCIP supplements native tree-sitter output, it does not replace a grammar. |
+| SCIP (`scip`) | `google.golang.org/protobuf/proto` index decode | `scip/parser.go` | `index.scip` is a precomputed protobuf index produced by an external indexer. It is ingested, not parsed from source; SCIP supplements native tree-sitter output, it does not replace a grammar. |
 | Dockerfile (`__dockerfile__`) | `bufio` instruction scanner | `dockerfile_language.go`, `dockerfile/metadata.go`, `dockerfile/tokens.go` | A Dockerfile is a build manifest of `FROM`/`COPY`/`ARG`/`ENV`/`LABEL` instructions, not a programming language. The scanner extracts bounded runtime evidence (stages, ports, args, envs, labels); there is no source grammar to migrate. |
 | Java metadata (`java_metadata`) | declarative file scanner | `java_metadata_files.go`, `java/metadata.go`, `java/parser_metadata.go` | `META-INF/services/*`, `AutoConfiguration.imports`, and `spring.factories` are declarative service-registration manifests, not Java source. They are scanned for registered class names; the `.java` grammar work lives in the `java` adapter row above. |
 
@@ -132,12 +132,25 @@ The README cross-references this section from its tree-sitter support table.
      entity type needs a graph node label.
 
 - **Add SCIP support for a new language** →
-  1. Add the extension-to-`scipLanguageConfig` entry in `scip_support.go`.
-  2. Add the language to `scipLanguagePriority` at the appropriate priority
-     position.
-  3. Verify the external binary name matches what `SCIPIndexer.LookPath` would
-     find.
-  4. Add a test in `scip_parser_test.go` with a known SCIP index fixture.
+  1. Add the extension-to-`languageConfig` entry in
+     `go/internal/parser/scip/indexer.go`.
+  2. Add the language to `languagePriority` at the appropriate priority
+     position (same file).
+  3. Verify the external binary name matches what `scip.Indexer.LookPath`
+     would find.
+  4. Add a test in `go/internal/parser/scip/indexer_test.go`, alongside the
+     existing `TestDetectSCIPProjectLanguage*` and `TestBuildSCIPCommand*`
+     cases -- that file covers detection and CLI invocation, which is what
+     steps 1-3 change. `parser_test.go` is protobuf-decode coverage for
+     `IndexParser.Parse` and is not where a new language's test belongs.
+  5. `scip.Indexer`, `scip.IndexParser`, `scip.ParseResult`, and
+     `scip.LanguageFileGroup` are consumed outside this package by
+     `go/internal/collector/repo/git` (`snapshot_scip.go`,
+     `snapshot_scip_groups.go`), which selects files by language, runs the
+     indexer subtree-by-subtree, and merges parsed SCIP rows into native
+     parser payloads. Extend that collector-side language allowlist/grouping
+     too if the new language needs to actually run end to end, not just
+     compile against the `scip` package.
 
 - **Change pre-scan behavior for a language** →
   1. Edit the `preScan<Language>` function.
@@ -162,8 +175,8 @@ The README cross-references this section from its tree-sitter support table.
   file was excluded earlier in the discovery pass →
   add the extension to the correct `Definition.Extensions` list.
 
-- Symptom: SCIP path produces no `SCIPParseResult` →
-  likely cause: `scip-*` binary not on PATH, or `DetectSCIPProjectLanguage`
+- Symptom: SCIP path produces no `scip.ParseResult` →
+  likely cause: `scip-*` binary not on PATH, or `scip.DetectProjectLanguage`
   returned `""` because no allowed language files exist → check the
   SCIP_LANGUAGES env var; verify binary availability with `which scip-go`
   (or equivalent).
@@ -212,9 +225,10 @@ The README cross-references this section from its tree-sitter support table.
   fixture coverage — reassigning an extension (e.g. moving `.ts` from
   `typescript` to a new key) changes which parser runs on existing indexed
   files and breaks fact idempotency for those repos.
-- SCIP language priority in `scipLanguagePriority` — the priority order
-  determines which language wins in mixed-language repos; changing it alters
-  SCIP-path fact output for all repos with multiple SCIP-capable languages.
+- SCIP language priority in `go/internal/parser/scip/indexer.go`'s
+  `languagePriority` — the priority order determines which language wins in
+  mixed-language repos; changing it alters SCIP-path fact output for all
+  repos with multiple SCIP-capable languages.
 - `Registry` mutability contract — the registry is used concurrently by the
   pre-scan worker pool; any mutable state addition requires proof of
   thread-safety and a test.
@@ -333,18 +347,18 @@ Kotlin/Swift parsing through the existing collector parse-stage logs and
 
 ### SCIP symbol-parsing regex compile hoist (issue #4874)
 
-`scipNameFromSymbol` and `scipParseSignature` (`scip_parser.go`) each compiled
-a static `regexp.MustCompile` pattern inside the function body on every call
-(`[/#]` separator split and `\(([^)]*)\)` signature-argument capture,
-respectively), instead of reusing a package-level `*regexp.Regexp`. Both
-patterns are static (no runtime-dependent content), so they are hoisted to
-plain package-level vars (`scipSeparatorRe`, `scipSignatureArgsRe`) alongside
-the pre-existing `scipTrailingCallRe`. `TestScipNameFromSymbolMatchesSeparatorSplit`
+`nameFromSymbol` and `parseSignature` (`go/internal/parser/scip/parser.go`)
+each compiled a static `regexp.MustCompile` pattern inside the function body
+on every call (`[/#]` separator split and `\(([^)]*)\)` signature-argument
+capture, respectively), instead of reusing a package-level `*regexp.Regexp`.
+Both patterns are static (no runtime-dependent content), so they are hoisted
+to plain package-level vars (`separatorRe`, `signatureArgsRe`) alongside the
+pre-existing `trailingCallRe`. `TestScipNameFromSymbolMatchesSeparatorSplit`
 and `TestScipParseSignatureMatchesArgsAndReturnType` pin the exact matched
 name/args/return-type output, including the empty-input and no-match
 fallback cases, before and after the hoist.
 
-Benchmark Evidence: `go test ./internal/parser -run '^$' -bench
+Benchmark Evidence: `go test ./internal/parser/scip -run '^$' -bench
 BenchmarkScipNameFromSymbolRegexHoist -benchmem -benchtime=200000x -count=3`
 measured `10972-19615 ns/op`, `1425-1429 B/op`, `20 allocs/op` before the
 hoist versus `7057-12181 ns/op`, `642-644 B/op`, `10 allocs/op` after — 50%

@@ -2086,7 +2086,7 @@ copy raw edge values verbatim with present/absent semantics
 byte-identically, so per the byte-identity-non-negotiable guardrail it keeps its
 raw read while the typed `codegraphv1.SCIPFunctionCall` struct is delivered as
 the authoritative contract shape (round-trip-proven in
-`go/internal/parser/scip_parsed_file_data_contract_test.go`). Result class:
+`go/internal/parser/scip/parsed_file_data_contract_test.go`). Result class:
 Correctness/contract win (typed inner-key seam) with no measured handler
 regression.
 
