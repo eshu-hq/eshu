@@ -104,7 +104,7 @@ in it**.
 | `content/` | ← `contentread` (the handler), `read` (the `ContentReader` unit), `relationship` |
 | `code/` | ← `codequery`, `model` ← `codemodel`, `shaping` ← `codeshaping`, `owners` ← `codeowners`, `divergence` ← `codedivergence`, `seam`, and `codequery`'s nine existing children |
 | `contract/` | ← `querycontract`, split into `answer`, `code`, `entity`, `evidence`, `kubernetes`, `language`, `visualization`, `rowvalue` |
-| `capability/` | `matrix` ← the current `contract/` capability rows, plus the root capability handler |
+| `capability/` | the root capability handler, plus `capability_matrix.go` and `registry.go` from today's `contract/` |
 | `infra/` | `aggregate`, `relationship`, `summary` |
 | `cloud/` | `drift` |
 | `investigation/` | `packet`, `workflow` |
@@ -126,7 +126,7 @@ in it**.
 | current | new | why |
 | --- | --- | --- |
 | `queryauth` | `auth` | naming.md rule 4: a four-or-more character parent matches as a prefix, so `query/queryauth` fails |
-| `querycontract` | `contract` | same rule; forces the current `contract/` to move — see [#6597](6642-query-move-cost.md#6597-and-the-contract-name-collision) |
+| `querycontract` | `contract` | same rule; the name frees itself as today's `contract/` empties — see [#6597](6642-query-move-cost.md#6597-and-the-contract-name-collision) |
 | `querytestutil` | `testutil` | same rule |
 | `queryselector` | `selector` | same rule |
 | `codequery` | `code/` | reads as `query/codequery`; the issue folds it into `code/` |
@@ -168,19 +168,39 @@ remaining lever is merging files that already cover one concern. Four merges
 take the leaf to 37 with real headroom, and every result stays well inside the
 500-line file cap:
 
-| merge | lines | result |
+| merge | merged size | result |
 | --- | ---: | --- |
-| `entities_by_ids.go` + `entities_by_paths.go` | 64 + 89 = 153 | `content/read/entities.go` |
-| `entity_search.go` + `entity_search_page.go` | 173 + 108 = 281 | `content/read/entity_search.go` |
-| `repository_refs.go` + `repository_catalog.go` | 59 + 200 = 259 | `content/read/repository_catalog.go` |
-| `index_readiness.go` + `coverage.go` | 26 + 117 = 143 | `content/read/coverage.go` |
+| `entities_by_ids.go` + `entities_by_paths.go` | 139 | `content/read/entities.go` |
+| `entity_search.go` + `entity_search_page.go` | 267 | `content/read/entity_search.go` |
+| `repository_refs.go` + `repository_catalog.go` | 249 | `content/read/repository_catalog.go` |
+| `index_readiness.go` + `coverage.go` | 134 | `content/read/coverage.go` |
+
+Those are measured sizes after merging, not the sum of the inputs — deduplicated
+headers and import blocks take roughly 14 lines off each pair. The largest
+result is 267 lines against a 500-line cap.
+
+**These merges preserve the exported surface exactly, and that is measured, not
+argued.** In a throwaway worktree, `go doc -all ./internal/query` was captured
+before and after performing all four merges:
+
+```
+diff doc-before.txt doc-after.txt        exit 0, zero lines of difference
+go build ./internal/query/               exit 0
+go test ./internal/query/ -run 'ContentReader|Entit|RepositoryCatalog|Coverage|IndexReadiness' -count=1
+                                         ok  0.946s
+```
+
+The issue's Scope section requires that "every exported symbol and route
+registration stays identical". An empty `go doc -all` diff is that requirement
+satisfied, so the merges sit inside the stated scope rather than stretching it.
+Which file a declaration lives in is not part of the surface Go exposes.
 
 The minimum to clear the cap is one merge; four is the recommendation, because
 landing a leaf at exactly 40 means the next file added to it fails CI. None of
 the eight files carries a `//go:build` tag, so the merges are plain
-concatenation with no tag hazard. This is the one place in the tree where a
-move is not a pure `git mv`, and it is called out here rather than discovered
-in review.
+concatenation with no tag hazard. It remains the one place in the tree where a
+move is not a pure `git mv`, which is why it is called out here rather than
+discovered in review.
 
 ### The one file that must be split before it moves
 
@@ -288,10 +308,9 @@ this rule comes from is recorded in
 
 ## Per-directory arithmetic
 
-Every directory after the plan, with its non-test file count.
-The three at 40 are at 40 on `origin/main` today and this plan adds nothing to
-them, but they have zero headroom and the next file added to any of them fails
-CI. `repository` is the one directory this plan does not bring under the cap —
+Every directory after the plan, with its non-test file count. Three land at
+exactly 40 and have zero headroom — the next file added to any of them fails
+CI. `repository` is the one directory this plan does not bring under the cap;
 the measurement and the reason are in
 [what the moves cost](6642-query-move-cost.md#the-other-three-over-cap-directories),
 and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
@@ -299,29 +318,28 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | directory | non-test files |
 | --- | ---: |
 | `query/ (root)` | 5 |
-| `query/admin` | 8 |
+| `query/admin` | 9 |
 | `query/admin/audit` | 3 |
 | `query/admin/identity` | 6 |
 | `query/admin/provider/config` | 7 |
 | `query/admin/store` | 6 |
-| `query/ask` | 6 |
+| `query/ask` | 7 |
 | `query/auth` | 16 |
 | `query/auth/acl` | 2 |
 | `query/auth/route` | 24 |
 | `query/auth/session` | 4 |
 | `query/auth/setup` | 5 |
 | `query/auth/signin` | 9 |
-| `query/capability` | 4 |
-| `query/capability/matrix` | 40 **← at cap** |
-| `query/cicd` | 5 |
-| `query/cloud` | 5 |
-| `query/cloud/drift` | 6 |
-| `query/code` | 39 |
+| `query/capability` | 10 |
+| `query/cicd` | 6 |
+| `query/cloud` | 6 |
+| `query/cloud/drift` | 7 |
+| `query/code` | 40 **← at cap** |
 | `query/code/chain` | 5 |
 | `query/code/deadcode` | 13 |
 | `query/code/divergence` | 10 |
-| `query/code/imports` | 3 |
-| `query/code/metrics` | 2 |
+| `query/code/imports` | 4 |
+| `query/code/metrics` | 3 |
 | `query/code/model` | 40 **← at cap** |
 | `query/code/owners` | 7 |
 | `query/code/quality` | 4 |
@@ -332,7 +350,7 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/code/search` | 3 |
 | `query/code/shaping` | 4 |
 | `query/code/visualization` | 2 |
-| `query/collector` | 8 |
+| `query/collector` | 11 |
 | `query/compare` | 4 |
 | `query/content` | 6 |
 | `query/content/read` | 37 |
@@ -351,12 +369,12 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/documentation` | 8 |
 | `query/entity` | 29 |
 | `query/entity/semantics` | 6 |
-| `query/evidence` | 10 |
-| `query/freshness` | 8 |
+| `query/evidence` | 11 |
+| `query/freshness` | 11 |
 | `query/graph/entity` | 2 |
 | `query/graph/read` | 3 |
 | `query/graph/rows` | 2 |
-| `query/iac` | 32 |
+| `query/iac` | 36 |
 | `query/image` | 6 |
 | `query/image/tag` | 7 |
 | `query/impact` | 40 **← at cap** |
@@ -368,15 +386,15 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/incident/store` | 14 |
 | `query/infra` | 10 |
 | `query/infra/aggregate` | 5 |
-| `query/infra/relationship` | 4 |
-| `query/infra/summary` | 2 |
+| `query/infra/relationship` | 5 |
+| `query/infra/summary` | 3 |
 | `query/investigation/packet` | 8 |
 | `query/investigation/workflow` | 3 |
-| `query/kubernetes` | 3 |
+| `query/kubernetes` | 4 |
 | `query/language` | 11 |
 | `query/local` | 10 |
-| `query/metrics` | 3 |
-| `query/observability/coverage` | 2 |
+| `query/metrics` | 4 |
+| `query/observability/coverage` | 3 |
 | `query/openapi` | 10 |
 | `query/openapi/paths/auth` | 9 |
 | `query/openapi/paths/catalog` | 5 |
@@ -396,23 +414,23 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/openapi/paths/supply` | 1 |
 | `query/openapi/paths/supply/chain` | 18 |
 | `query/openapi/schema` | 3 |
-| `query/package/registry` | 18 |
+| `query/package/registry` | 19 |
 | `query/playbook` | 9 |
 | `query/repository` | 45 **← OVER, see UNDECIDED** |
 | `query/repository/artifacts` | 20 |
 | `query/repository/readmodel` | 5 |
 | `query/repository/seam` | 3 |
-| `query/secrets` | 9 |
+| `query/secrets` | 11 |
 | `query/selector` | 3 |
 | `query/semantic` | 2 |
-| `query/semantic/evidence` | 2 |
+| `query/semantic/evidence` | 3 |
 | `query/semantic/search` | 17 |
 | `query/service` | 27 |
 | `query/service/evidence` | 2 |
 | `query/span` | 3 |
-| `query/status` | 14 |
+| `query/status` | 18 |
 | `query/supply` | 1 |
-| `query/supply/chain` | 37 |
+| `query/supply/chain` | 38 |
 | `query/supply/chain/advisory` | 10 |
 | `query/supply/chain/alerts` | 6 |
 | `query/supply/chain/impact` | 37 |
@@ -422,9 +440,9 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/testutil/content` | 10 |
 | `query/testutil/graph` | 8 |
 | `query/visualization` | 7 |
-| `query/workitem` | 12 |
+| `query/workitem` | 13 |
 | `query/workload` | 1 |
 
-126 directories, 1184 non-test files.
-At the cap with zero headroom: `query/capability/matrix`, `query/code/model`, `query/impact`.
+125 directories, 1184 non-test files.
+At the cap with zero headroom: `query/code`, `query/code/model`, `query/impact`.
 Over the cap: `query/repository` (45).

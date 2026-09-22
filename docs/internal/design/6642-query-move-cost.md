@@ -236,13 +236,26 @@ First, the collision. Two packages under `query/` want the name `contract`:
 
 They are different things and the dependency runs one way: four `contract/`
 files import `querycontract`, and no `querycontract` file imports `contract`.
-Merging them is not an option (96 files, and the concepts differ), so the name
-goes to the one the issue named:
 
-- `querycontract` → `contract/` (shared vocabulary; matches the reducer
-  precedent, where `contract/` is "top-level shared vocabulary").
-- `contract/` → `capability/matrix/` (the support rows), beside the root
-  capability handler at `capability/`.
+**But the collision dissolves on its own, and that changes the order.** Of
+`contract/`'s 40 files, **37 are a single `init()` registering one capability
+row** — `contract/kubernetes.go` is nine lines registering
+`kubernetesCorrelationsCapability`, and its 36 siblings have the same shape.
+Only `capability_matrix.go`, `registry.go` and `doc.go` are shared.
+
+Those 37 rows are not a package. They are the residue of families that have not
+moved yet, and the repository has already been migrating them the other way: of
+the families that have moved, `playbook`, `secrets`, `incident`,
+`package/registry` each hold one registration inside their own package, and
+`impact` holds three, `service` two, `semanticsearch` two. A family's capability
+row travels with the family; that is established practice here, not a proposal.
+
+So today's `contract/` empties itself as the family moves land, from 40 to 3.
+`capability_matrix.go` and `registry.go` join the root capability handler at
+`capability/`, and the name `contract/` is free by the time `querycontract`
+needs it — no `capability/matrix/` package, and no separate displacement PR.
+The consequence for sequencing is that the `querycontract` rename goes **late**,
+after the families have drained the name, rather than second.
 
 Second, the split. A third `go/ast` pass resolved every cross-file reference
 inside `querycontract` and grouped the 56 files by consumer family. Seven
@@ -422,8 +435,8 @@ before treating them as done". Both are done:
 
 - **`replatforming`** has no non-test root file left. Its types live in
   `iac_alias.go`'s 36 unexported forwarders (which delete with `iac/`), its
-  capability rows in `contract/replatforming*.go` (three files, moving to
-  `capability/matrix/`), and its OpenAPI fragment in
+  capability rows in `contract/replatforming*.go` (three files, travelling to `iac/`), and its
+OpenAPI fragment in
   `openapi/components_replatforming.go`. Only tests remain at root.
 - **`security`** was never a family. Its one root non-test file,
   `content_reader_security_secrets.go`, is a `ContentReader` method and goes to
