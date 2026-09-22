@@ -109,30 +109,30 @@ func TestCardinalityAudit_NoBannedInlineKeys(t *testing.T) {
 	// (?s) lets . match \n so multiline attribute.String( calls are caught.
 	re := regexp.MustCompile(`(?s)attribute\.String\(\s*"([^"]+)"`)
 
-	dir := telemetrySourceDir(t)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read telemetry dir: %v", err)
-	}
-
 	var violations []string
 	seen := make(map[string]bool)
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-			continue
-		}
-		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+	for _, dir := range telemetryContractDirs(t) {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			t.Fatalf("read %s: %v", e.Name(), err)
+			t.Fatalf("read %s: %v", dir, err)
 		}
-		matches := re.FindAllStringSubmatch(string(content), -1)
-		for _, m := range matches {
-			key := m[1]
-			if hardBanned[key] && !seen[key] {
-				seen[key] = true
-				violations = append(violations, fmt.Sprintf(
-					"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name(),
-				))
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			if err != nil {
+				t.Fatalf("read %s: %v", e.Name(), err)
+			}
+			matches := re.FindAllStringSubmatch(string(content), -1)
+			for _, m := range matches {
+				key := m[1]
+				if hardBanned[key] && !seen[key] {
+					seen[key] = true
+					violations = append(violations, fmt.Sprintf(
+						"hard-banned dimension key %q used via attribute.String() in %s", key, e.Name(),
+					))
+				}
 			}
 		}
 	}
