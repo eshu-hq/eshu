@@ -215,6 +215,11 @@ func encodeOwnerRefs(values []OwnerRef) []documentationv1.OwnerRef {
 	return out
 }
 
+// EncodeACLSummary maps an internal documentation ACL summary onto the SDK
+// factschema shape used for emitted fact payloads, returning nil for a nil
+// summary so an unobserved posture stays absent rather than becoming an empty
+// claim. It is exported for the facts root's semantic_encode.go, which reuses
+// this family's ACL shape across the package boundary.
 func EncodeACLSummary(value *ACLSummary) *documentationv1.ACLSummary {
 	if value == nil {
 		return nil
@@ -232,6 +237,11 @@ func EncodeACLSummary(value *ACLSummary) *documentationv1.ACLSummary {
 	}
 }
 
+// EncodeEvidenceRefs maps internal documentation evidence references onto the
+// SDK factschema shape used for emitted fact payloads, returning nil for a nil
+// slice so an absent list stays absent rather than becoming an empty one. It is
+// exported for the facts root's semantic_encode.go, which reuses this family's
+// evidence shape across the package boundary.
 func EncodeEvidenceRefs(values []EvidenceRef) []documentationv1.EvidenceRef {
 	if values == nil {
 		return nil
