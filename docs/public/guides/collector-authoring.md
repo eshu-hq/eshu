@@ -112,7 +112,7 @@ A new scanner adds:
   `AGENTS.md`) and a `bind_test.go` that asserts the binding resolves via
   `awsruntime.LookupBuilder`.
 - One underscore-import line appended to
-  `go/internal/collector/awscloud/awsruntime/bindings/bindings.go`. That file
+  `go/internal/collector/cloud/aws/runtime/bindings/all.go`. That file
   is marked `merge=union` in `.gitattributes` so parallel scanner PRs do not
   collide.
 

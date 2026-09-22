@@ -177,7 +177,7 @@ matches ~280 package `README.md`/`AGENTS.md` files; restricted to Go it still
 counts **12** files under `go/` whose only mention is a comment or a string
 literal (seven under `go/internal/reducer/`, one under
 `go/internal/storage/postgres/`, and four inside this package's own subtree — of
-which `go/internal/collector/cloud/aws/internal/relguard/relguard.go:42` is a map
+which `go/internal/collector/cloud/aws/internal/relguard/validate.go::KnownTargetTypeAllowlist` is a map
 value rather than a comment, and just as non-dependent), or 13 counting
 `sdk/go/factschema/aws/v1/resource_types.go`, which the command reaches when run
 from the repository root; and it *undercounts*, because it misses the

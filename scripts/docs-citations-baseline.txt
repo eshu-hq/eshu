@@ -98,16 +98,9 @@ LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/i
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/answer_packet.go:88
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/evidence_citation.go:33
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/ec2_posture_envelope.go:23
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/posture_envelope.go:23
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/resource_policy_permission_envelope.go:76
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/iam_policy_observation.go:98
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/relationship.go:101
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/servicecatalog/facts_builder.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/parser.go:223
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/resources.go:179
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
@@ -233,7 +226,6 @@ LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.g
 LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
 LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
-LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/awscloud/awsruntime/source.go:177
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/git_source_processing.go:217
 LINE docs/internal/evidence/5457-provenance-edges.md go/internal/storage/cypher/oci_registry_canonical_writer.go:35
 LINE docs/internal/evidence/5709-quiescence-probe.md go/internal/storage/postgres/reducer_queue_claim_query.go:25
@@ -415,7 +407,6 @@ LINE docs/public/reference/telemetry/index.md go/internal/storage/postgres/inges
 LINE docs/public/reference/telemetry/index.md go/internal/telemetry/instruments.go:4745
 LINE docs/public/reference/telemetry/streaming-memory.md go/internal/collector/service.go:438
 LINE go/cmd/ingester/README.md go/internal/collector/service.go:223
-LINE go/internal/collector/awscloud/AGENTS.md go/internal/collector/awscloud/internal/relguard/relguard.go:42
 LINE go/internal/collector/terraformstate/README.md go/internal/redact/redact.go:161
 LINE go/internal/correlation/drift/tfconfigstate/AGENTS.md go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22
 LINE go/internal/correlation/drift/tfconfigstate/AGENTS.md go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go:45

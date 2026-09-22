@@ -1,6 +1,6 @@
 # The AWS scanner bindings aggregator is a pure list of blank imports. Parallel
 # scanner PRs append independent lines; merge=union avoids textual conflicts.
-go/internal/collector/awscloud/awsruntime/bindings/bindings.go merge=union
+go/internal/collector/cloud/aws/runtime/bindings/all.go merge=union
 
 # The AWS scanner reference table and Data Boundaries paragraphs grow by one
 # independent row/section per scanner PR. merge=union auto-merges parallel

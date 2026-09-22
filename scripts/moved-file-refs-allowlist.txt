@@ -295,3 +295,11 @@ docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal
 CHANGELOG.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
 docs/internal/evidence/5717-ami-node-class.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/collector/awscloud/services/ec2/ami_identity.go
+
+# Dated #6696 evidence note recording the constants rename as it happened
+# (paths as they stood at capture time). Repointing would falsify the record.
+docs/internal/evidence/6696-aws-constants-mismatch-leaf.md:go/internal/collector/awscloud/constants_acm.go
+
+# Dated #4591 evidence note quoting the extractor registry paths as they
+# stood at capture time. Repointing would falsify the record.
+docs/internal/evidence/4591-awscloud-extractor-registry.md:go/internal/collector/awscloud/awsruntime/source.go

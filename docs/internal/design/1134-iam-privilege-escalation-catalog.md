@@ -59,7 +59,7 @@ Explicitly **out of scope** (named follow-ups):
 The reducer consumes the merged `aws_iam_permission` fact (kind
 `facts.AWSIAMPermissionFactKind`, schema `1.0.0`). Each fact is one normalized
 IAM policy statement attached to a principal. Relevant payload fields
-(`go/internal/collector/awscloud/iam_permission_envelope.go`):
+(`go/internal/collector/cloud/aws/iam_permission_envelope.go`):
 
 | Field | Meaning | Normalization |
 | --- | --- | --- |
