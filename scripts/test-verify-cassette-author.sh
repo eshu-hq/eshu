@@ -83,12 +83,12 @@ rg --quiet --fixed-strings 'WARNING ESHU_PRIVATE_IDENTIFIERS_FILE is not set' "$
 # from the library's own control samples, so this proves the scan is wired
 # to the pattern and not only that the library agrees with itself.
 plant_red() {
-	local alt="$1" value="$2" dir out
-	dir="${scratch}/red-${alt}"
+	local alt="$1" value="$2" tag="${3:-$1}" dir out
+	dir="${scratch}/red-${tag}"
 	mkdir -p "${dir}/awscloud"
 	cp "${cassettes}/awscloud/supply-chain-demo.json" "${dir}/awscloud/"
 	printf '{"value": "%s"}\n' "${value}" >"${dir}/planted.json"
-	out="${scratch}/red-${alt}.out"
+	out="${scratch}/red-${tag}.out"
 	rc=0
 	run_scan "${dir}" "${out}" rc
 	[[ "${rc}" -ne 0 ]] \
@@ -99,14 +99,30 @@ plant_red() {
 	# into the CI log.
 	rg --quiet --fixed-strings -- "${value}" "${out}" \
 		&& fail "RED ${alt}: the finding printed the planted value"
-	printf 'RED %s: exit %s, named planted.json:1:%s\n' "${alt}" "${rc}" "${alt}"
+	printf 'RED %s: exit %s, named planted.json:1:%s\n' "${tag}" "${rc}" "${alt}"
 }
 plant_red ipv4 '172.16.4.20'
 plant_red ipv6 '2001:4860:4860::8888'
 plant_red account12 '987654321098'
 plant_red arn 'arn:aws:lambda:us-east-1:987654321098:function:example'
 plant_red hostname 'metrics.acme-internal.net'
+# An in-cluster FQDN carries the namespace out; a wildcard `.local` allow
+# would pass it, and did (review of the first cut). Short in-cluster names
+# and an org domain under a widened TLD are candidates too.
+plant_red hostname 'orders.team-b.svc.cluster.local' hostname-cluster-local
+plant_red hostname 'orders.team-b.svc' hostname-svc
+plant_red hostname 'intranet.acme-internal.co.uk' hostname-cctld
 plant_red identifier 'eshu-canary-org'
+
+# Terraform addresses glue a dotted token to `_`; they are not hosts and the
+# corpus asserts them, so they must not be candidates.
+tfdir="${scratch}/tf-address"
+mkdir -p "${tfdir}"
+printf '{"address": "aws_s3_bucket.local_backend_demo_state_only"}\n' >"${tfdir}/address.json"
+rc=0
+run_scan "${tfdir}" "${scratch}/tf-address.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a Terraform resource address was flagged as a .local host; output: $(cat "${scratch}/tf-address.out")"
 
 # The hex false positive the Ifá form carries must NOT be a finding here: a
 # 12-digit run inside a sha256 digest is not an account id.
@@ -198,7 +214,7 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 5 sample(s), expected 6"
+	"positive control carries 7 sample(s), expected 8"
 
 # GREEN: the real gate over the committed tree, including the format go test.
 green_out="${scratch}/green.out"

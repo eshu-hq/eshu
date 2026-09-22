@@ -160,8 +160,18 @@ slipping past a blocklist:
 | `ipv6` | RFC 3849 `2001:db8::/32` and `::1` |
 | `account12` | `123456789012`, zero-prefixed `00000000000N`, and repdigits; twelve digits inside a hex digest are not a candidate |
 | `arn` | an empty, `aws`, or documentation account field |
-| `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `.local`, `example.com/.net/.org`), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
+| `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
 | `identifier` | nothing; the committed canary `eshu-canary-org` plus every literal in `ESHU_PRIVATE_IDENTIFIERS_FILE` |
+
+The hostname alternative is lexical: a dotted token is a candidate only when
+its last label is in the gate's TLD list, which covers the reserved names, the
+common generic TLDs, in-cluster `svc`, and the country TLDs that do not
+collide with a file extension or a dotted code path in the corpus. A domain
+under an excluded TLD (`.in`, `.it`, `.is`, `.at`, `.no`, `.es`, `.cc`,
+`.pl`, `.rs`, `.tf`, `.sh`, `.md`, `.ps`, `.pm`, `.so`, `.am`, `.mk`, `.zip`,
+`.name`, `.email`, `.run`) is a stated blind spot of this scan, which is why
+recordings also pass through the collectors' redaction layer and an
+independent re-validation before they are committed.
 
 A finding is reported as `file:line:alternative`; the value is never printed.
 The alternatives, the allowlist, and the controls that prove each still

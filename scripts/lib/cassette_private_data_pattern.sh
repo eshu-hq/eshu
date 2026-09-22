@@ -37,6 +37,17 @@
 # uses, which would fail the clean tree, but also so a typo in it is caught
 # here rather than at the next cassette refresh).
 #
+# WHAT THE HOSTNAME ALTERNATIVE CANNOT SEE, stated plainly. It is a lexical
+# scan: a dotted token is a hostname candidate only when its last label is in
+# the TLD list below, and that list deliberately leaves out every TLD that
+# collides with a file extension or a dotted code/field path the corpus
+# carries (.in .it .is .at .no .es .cc .pl .rs .tf .sh .md .ps .pm .so .am
+# .mk .zip .name .email .run, measured on the committed cassettes). An
+# organisation domain under one of those TLDs is never a candidate here. That
+# blind spot is why Phase 3 of #6965 requires two further independent
+# mechanisms (redaction on record, and re-validation) and does not rest on
+# this scan alone.
+#
 # Same caveat as the Ifá file: the counts catch deletion, not substitution.
 # The per-alternative coverage check below narrows that -- a sample moved to
 # another alternative leaves its own alternative with zero samples -- but a
@@ -123,16 +134,27 @@ cassette_private_data_patterns() {
 	# inside a sha256 digest because hex letters read as boundaries.
 	_cpd_detect[account12]='(?<![0-9A-Fa-f])[0-9]{12}(?![0-9A-Fa-f])'
 	_cpd_detect[arn]='arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:[^:"[:space:]]*:'
-	# Hostnames end in an explicit TLD list so file-name tokens (.py .sql .yaml
-	# .tf .git .tar .gz .txt .sh) cannot match. Two labels are enough: a bare
-	# `<org>.com` is exactly the leak this is for.
-	_cpd_detect[hostname]='(?i)(?<![a-z0-9.-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.(?:com|net|org|io|dev|app|cloud|co|ai|us|internal|local|example|test|invalid|localhost)(?![a-z0-9-])'
+	# Hostnames end in an explicit TLD list: the reserved names, the common
+	# generic TLDs, in-cluster `svc`, and the country TLDs that do not collide
+	# with a file extension or a dotted code path (the excluded ones are in the
+	# header). Two labels are enough: a bare `<org>.com` is exactly the leak
+	# this is for. `_` closes the token on the right: DNS labels cannot carry
+	# it, so `aws_s3_bucket.local_backend_demo` is a Terraform address, not a
+	# `.local` host. It is not a left boundary, so `_tcp.example.com`-style
+	# service names still start a candidate.
+	local hostname_tlds
+	hostname_tlds='com|net|org|io|dev|app|cloud|co|ai|us|internal|local|svc|example|test|invalid|localhost'
+	hostname_tlds="${hostname_tlds}|info|biz|me|xyz|tech|online|site|store|shop|blog|live|news|pro|mobi|tv|ws|work|world|today|space|website|digital|network|systems|solutions|services|software|engineering|tools|team|group|company|global|host|hosting|page|zone|club|link|click|top|vip|fun|life|gg"
+	hostname_tlds="${hostname_tlds}|uk|de|ca|jp|au|nl|fr|eu|ch|se|dk|be|fi|ie|pt|br|mx|ar|cn|kr|sg|hk|tw|nz|za|ru|ua|il|ae|sa|tr|gr|hu|ro|bg|sk|si|hr|lt|lv|ee|lu|cz"
+	_cpd_detect[hostname]="(?i)(?<![a-z0-9.-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\\.(?:${hostname_tlds})(?![a-z0-9_-])"
 	_cassette_identifier_pattern '_cpd_detect[identifier]'
 	# Allow. Anchored on the whole token. RFC 5737 documentation ranges and
 	# loopback; RFC 3849 and ::1; documentation accounts; ARNs whose account
 	# field is empty, `aws`, or a documentation account; and for hostnames the
-	# reserved names (RFC 2606, RFC 6761, RFC 6762 .local, the .example and
-	# example.com/.net/.org zones), an exact list of public service hosts the
+	# reserved names (RFC 2606 and RFC 6761: .example, .test, .invalid,
+	# .localhost and the example.com/.net/.org zones -- NOT .local, because a
+	# recording from a cluster is full of <svc>.<namespace>.svc.cluster.local
+	# and each one carries the namespace out), an exact list of public service hosts the
 	# committed corpus uses (including the google.cloud and Microsoft.<Provider>
 	# vendor namespaces, which end in a TLD without being hosts), a single
 	# service label under googleapis.com, ECR under a documentation account,
@@ -141,7 +163,7 @@ cassette_private_data_patterns() {
 	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1)$'
 	_cpd_allow[account12]="^${doc_account}\$"
 	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
-	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost|local)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
+	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
 
 	# Positive control: `<alternative> <value>`, one per alternative, each a
@@ -152,6 +174,8 @@ cassette_private_data_patterns() {
 		'account12 2109''87654321'
 		'arn arn:aw''s:iam::210987654321:role/example'
 		'hostname vault.acme''-internal.com'
+		'hostname payments.team-a.svc.cluster''.local'
+		'hostname payments.team-a''.svc'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -172,7 +196,7 @@ cassette_private_data_patterns() {
 		'arn arn:aw''s:iam::123456789012:role/example'
 		'arn arn:aw''s:iam::000000000000:role/example'
 		'hostname registry.example''.invalid'
-		'hostname bucket.loc''al'
+		'hostname registry.local''host'
 		'hostname registry.example''.com'
 		'hostname github''.com'
 		'hostname compute.googleapis''.com'
@@ -184,13 +208,14 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 6 alternatives, 6 planted samples, 25 allowed samples. Adding
-	# an alternative or an allowed form means adding its sample and bumping
-	# the number, and that is the point.
+	# patterns: 6 alternatives, 8 planted samples (hostname carries three: a
+	# public-TLD host, an in-cluster FQDN and a short in-cluster name), 25
+	# allowed samples. Adding an alternative or an allowed form means adding
+	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 6 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 6 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 6 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 6 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#planted[@]}" -eq 8 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 8 -- a sample was added or removed without re-checking it against the alternatives"
 	[[ "${#allowed[@]}" -eq 25 ]] \
 		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 25 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
