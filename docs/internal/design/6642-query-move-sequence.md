@@ -113,9 +113,17 @@ What remains are genuine owner calls.
    `semantics` (4), `deployment` (4) — were each tested and each crosses the
    boundary in both directions, so each would be an import cycle; `story` and
    `deployment` also cross each other both ways. Getting under 40 needs a real
-   seam: hoist the shared row helpers into `contract/`, or split the `Handler`
+   seam: hoist the shared helpers into `contract/`, or split the `Handler`
    type. Both are design changes rather than moves, and both are outside what
-   this issue's Scope section authorizes ("Move and rename"). The options are
+   this issue's Scope section authorizes ("Move and rename").
+
+   The hoist is priced, so option (a) is not an open-ended commitment:
+   **34 symbols cross the three proposed boundaries, 32 of them unexported**,
+   and the heaviest single edge is `story -> stay` at 13. The full list is
+   `queryRepositoryFileCount`, `queryRepositoryDependencyCount`,
+   `repositoryFrameworkAggregate`, `intValue`, `cloneStringAnyMap` and 27
+   siblings — row helpers and query builders, not architecture. That is a
+   tractable single issue, not a rewrite. The options are
    (a) do that design work as its own issue, (b) accept `repository` keeping
    its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
    one place the definition of done is not met by the plan as written.
