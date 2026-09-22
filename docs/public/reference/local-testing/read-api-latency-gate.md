@@ -49,8 +49,11 @@ lanes never exercise.
    domain backlog aggregate reads that table, and the size is chosen so one
    full scan of its heap (~51k blocks) exceeds the 3x work budget of those
    routes while the shipped pending-only aggregate reads a few hundred blocks
-   by index (issue #6820). Runs `ANALYZE` on the seeded Postgres tables
-   afterward so the sweep plans against fresh statistics.
+   by index (issue #6820); the seed costs about 54 s and 1.1 GB of Postgres
+   storage in the CI job. Runs `ANALYZE` on the seeded Postgres tables
+   afterward (every table in the exact-count read-back plus
+   `content_entities`, pinned by `TestAnalyzeSeededTablesCoversEverySeededTable`)
+   so the sweep plans against fresh statistics.
    Right after the Postgres seeds it reads the row counts of
    `ingestion_scopes`, `scope_generations`, `fact_work_items`, `fact_records`
    and `shared_projection_intents` back (`VerifyRelationalCounts`), and after the graph seeds it reads the
