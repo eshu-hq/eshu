@@ -59,3 +59,45 @@ func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 		t.Errorf("group ids = %v, every producer item still ACKs", groups[0].ids)
 	}
 }
+
+// TestSplitValueFlowRefreshAckIntentsRoutesCodeFunctionSummary is the #6923
+// regression: code_function_summary is the fifth value-flow refresh
+// producer, so its intents must be pulled into their own ACK group — not
+// left in the unrelated "kept" tail — with the same paired/fail-open emit
+// rule as the other four producers.
+func TestSplitValueFlowRefreshAckIntentsRoutesCodeFunctionSummary(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC().Truncate(time.Second)
+	intent := func(id string, domain reducer.Domain) reducer.Intent {
+		return reducer.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
+	}
+	intents := []reducer.Intent{
+		intent("s-paired-emit", reducer.DomainCodeFunctionSummary),
+		intent("s-missing-result", reducer.DomainCodeFunctionSummary),
+		intent("w-unrelated", reducer.DomainCICDRunCorrelation),
+	}
+	results := map[string]reducer.Result{
+		"s-paired-emit": {CanonicalWrites: 2, SubSignals: map[string]float64{affected.RefreshAffectedReposSignal: 1}},
+	}
+
+	kept, groups := splitValueFlowRefreshAckIntents(intents, results)
+
+	if len(kept) != 1 || kept[0].IntentID != "w-unrelated" {
+		t.Fatalf("kept = %v, want only the non-producer intent", kept)
+	}
+	if len(groups) != 1 || groups[0].domain != reducer.DomainCodeFunctionSummary {
+		t.Fatalf("groups = %+v, want one code_function_summary group", groups)
+	}
+	if len(groups[0].ids) != 2 {
+		t.Fatalf("group ids = %v, want both code_function_summary items ACKed", groups[0].ids)
+	}
+	emit := map[string]bool{}
+	for _, id := range groups[0].emitIDs {
+		emit[id] = true
+	}
+	for _, id := range []string{"s-paired-emit", "s-missing-result"} {
+		if !emit[id] {
+			t.Errorf("emitIDs = %v, want %s to emit", groups[0].emitIDs, id)
+		}
+	}
+}

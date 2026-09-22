@@ -644,6 +644,18 @@ const (
 	SpanAWSCredentialsAssumeRole         = "aws.credentials.assume_role"
 	SpanAWSServiceScan                   = "aws.service.scan"
 	SpanAWSServicePaginationPage         = "aws.service.pagination.page"
+	// SpanReducerValueFlowInputsFence wraps the #6923 value-flow refresh
+	// singleton's input-liveness fence read: one statement checking whether
+	// every active-generation writer of the cloud-sink chain
+	// (code_function_summary, code_call_materialization,
+	// workload_materialization, workload_cloud_relationship_materialization,
+	// iam_can_perform_materialization, aws_resource_materialization) and the
+	// runs_in/invokes_cloud_action shared-projection intents have drained,
+	// run before the fixpoint solve so a refusal costs one index probe and no
+	// graph read. The span carries the refusal outcome so a trace shows
+	// whether the singleton deferred, was abandoned past the bound, or
+	// proceeded straight to the solve.
+	SpanReducerValueFlowInputsFence = "reducer.value_flow_inputs_fence"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"

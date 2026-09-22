@@ -25,6 +25,16 @@
 // commit ready edges first, then wait, and write the ledger through
 // [ReadinessWaitLedger] only after the graph commit.
 //
+// It also owns the #6923 value-flow-inputs readiness class
+// ([ValueFlowInputsNotReadyFailureClass], [ClassifyValueFlowInputsError],
+// [WrapValueFlowInputsUndrained]): a DIFFERENT gate from the producer-scope
+// floor above, declared here only so the go/ast enrollment guard
+// (TestEveryReadinessFailureClassIsEnrolled in internal/storage/postgres,
+// which walks internal/reducer and its immediate subdirectories only) can
+// see it. code/value/refresh.Handler runs its own SQL fence
+// (storage/postgres.ValueFlowInputsLivenessStore) directly; it does not call
+// CheckProducerReadinessBeforeLoad or go through the dependency catalog.
+//
 // This package imports internal/reducer/contract (the dependency-neutral
 // domain/intent vocabulary) and internal/reducer/factload (for the fact-load
 // error classifier the readiness probe reuses), and nothing else outside the

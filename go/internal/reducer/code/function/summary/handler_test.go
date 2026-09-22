@@ -11,7 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -413,47 +412,43 @@ func TestCodeFunctionSummaryHandlerReplacesUnresolvedGraphIDs(t *testing.T) {
 	}
 }
 
-type recordingValueFlowFixpointProjector struct {
-	calls        int
-	scopeID      string
-	generationID string
-	result       value.FixpointProjectionResult
-}
-
-func (p *recordingValueFlowFixpointProjector) ProjectValueFlowFixpointEvidence(
-	_ context.Context,
-	scopeID string,
-	generationID string,
-) (value.FixpointProjectionResult, error) {
-	p.calls++
-	p.scopeID = scopeID
-	p.generationID = generationID
-	return p.result, nil
-}
-
-// TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence proves the
-// summary-driven TAINT_FLOWS_TO projection is ordered after the summary/source/id
-// stores have been updated, not queued as a racing direct interproc intent.
-func TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence(t *testing.T) {
+// TestCodeFunctionSummaryHandlerDoesNotSolveInline proves #6923's fifth
+// producer shape: the summary handler no longer runs the global value-flow
+// fixpoint inline (there is no such field to wire — a compile-time proof),
+// it always reports the refresh_affected_repos sub-signal so its ACK can
+// become the fifth value-flow-refresh producer, and CanonicalWrites counts a
+// full-snapshot replace that empties a repo (0 written + N removed) so that
+// edge case still triggers the singleton refresh rather than going unnoticed.
+func TestCodeFunctionSummaryHandlerDoesNotSolveInline(t *testing.T) {
 	t.Parallel()
 
-	projector := &recordingValueFlowFixpointProjector{
-		result: value.FixpointProjectionResult{FindingCount: 1, GraphRows: 1},
-	}
+	fnA := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fhandlerA")
+	fnB := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fhandlerB")
+	previousStore := parsed.NewStore()
+	previousStore.Upsert(map[parsed.FunctionID]parsed.Effects{
+		fnA: {SourceToReturn: []string{"http_request"}},
+		fnB: {SourceToReturn: []string{"http_request"}},
+	})
+	writer := &recordingCodeFunctionSummaryWriter{previous: previousStore.Snapshot()}
 	handler := Handler{
-		Loader:                  stubCodeFunctionSummaryLoader{},
-		Writer:                  &recordingCodeFunctionSummaryWriter{},
-		ValueFlowFixpointWriter: projector,
+		Loader: stubCodeFunctionSummaryLoader{},
+		Writer: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), codeFunctionSummaryIntent())
+	intent := codeFunctionSummaryIntent()
+	intent.Payload = map[string]any{"full_snapshot": true, "repo_id": "repo-1"}
+
+	result, err := handler.Handle(context.Background(), intent)
 	if err != nil {
 		t.Fatalf("Handle error: %v", err)
 	}
-	if projector.calls != 1 || projector.scopeID != "scope-1" || projector.generationID != "gen-1" {
-		t.Fatalf("fixpoint projector not called with intent scope: %+v", projector)
+	if writer.replaceCalls != 1 || len(writer.replaceSnapshot.Functions) != 0 {
+		t.Fatalf("replace snapshot = %+v, want the repo emptied", writer.replaceSnapshot)
 	}
-	if result.CanonicalWrites != 1 {
-		t.Fatalf("CanonicalWrites = %d, want fixpoint write counted", result.CanonicalWrites)
+	if result.CanonicalWrites != 2 {
+		t.Fatalf("CanonicalWrites = %d, want 2 (0 written + 2 removed) so the zero-functions replace still triggers a solve", result.CanonicalWrites)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Fatalf("SubSignals[refresh_affected_repos] = %v, want 1 (summaries are fixpoint inputs by definition, no graph gate read)", got)
 	}
 }

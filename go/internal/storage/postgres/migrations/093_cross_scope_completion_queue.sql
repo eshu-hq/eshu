@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS cross_scope_completion_events (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT cross_scope_completion_events_producer_domain_check
-        CHECK (producer_domain IN ('aws_resource_materialization', 'ci_cd_run_correlation', 'container_image_identity', 'iam_can_perform_materialization', 'workload_cloud_relationship_materialization', 'workload_materialization')),
+        CHECK (producer_domain IN ('aws_resource_materialization', 'ci_cd_run_correlation', 'code_function_summary', 'container_image_identity', 'iam_can_perform_materialization', 'workload_cloud_relationship_materialization', 'workload_materialization')),
     CONSTRAINT cross_scope_completion_events_status_check
         CHECK (status IN ('pending', 'claimed', 'running', 'retrying')),
     CONSTRAINT cross_scope_completion_events_items_check
@@ -216,7 +216,7 @@ BEGIN
             OLD.stage = 'reducer'
             AND NEW.stage = 'reducer'
             AND OLD.domain = NEW.domain
-            AND NEW.domain IN ('aws_resource_materialization', 'ci_cd_run_correlation', 'container_image_identity', 'iam_can_perform_materialization', 'workload_cloud_relationship_materialization', 'workload_materialization')
+            AND NEW.domain IN ('aws_resource_materialization', 'ci_cd_run_correlation', 'code_function_summary', 'container_image_identity', 'iam_can_perform_materialization', 'workload_cloud_relationship_materialization', 'workload_materialization')
             AND OLD.status IN ('claimed', 'running')
             AND NEW.status = 'succeeded'
             AND OLD.cross_scope_completion_ack_epoch = NEW.cross_scope_completion_ack_epoch

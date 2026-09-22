@@ -9,8 +9,18 @@
 //
 // The refresh item is a singleton anchored to the migration-seeded eshu:global
 // scope, so producer completions in any later generation reopen the same row
-// through the existing durable completion fanout. It serializes against
-// itself on a global conflict key; overlap with concurrent per-repo summary
-// fixpoint runs is the pre-existing race class the #6785 design note files
-// separately.
+// through the existing durable completion fanout — including, since issue
+// #6923, code_function_summary's own completion, which stopped solving the
+// fixpoint inline and became the fifth producer instead.
+//
+// Before that solve runs, [Handler.checkInputsLiveness] fences it (#6923):
+// while [InputsLiveness] reports a pending writer of the cloud-sink chain on
+// an active generation, Handle refuses (Retryable, non-counting
+// value_flow_inputs_not_ready) instead of reading partial graph state, until
+// either the fence clears or elapsed time since the singleton's own cycle
+// anchor reaches crossscope.ProducerReadinessMaxWait, at which point it
+// solves anyway. This is what collapsed the concurrent-writer race the
+// #6785 design note used to file separately (issue #6880): every trigger of
+// the global solve now coalesces onto this one fenced singleton, so there is
+// one writer, not several racing ones.
 package refresh

@@ -35,6 +35,58 @@ against itself on a global conflict key.
 
 Open question below is retained as the rejected-alternatives record.
 
+## Update 2026-09-22 (issue #6923): fifth producer, input fence, one solve
+
+The residual filed above was #6923: `CAN_PERFORM sink probe row set varies
+run to run`. Root cause, confirmed by capture: `code_function_summary`
+solved the fixpoint inline in the SAME statement chain this refresh
+singleton also runs, so a B-7 leg triggered the global solve up to N+1
+times (N repos + this singleton) and at least one solve read the
+CAN_PERFORM/USES/RUNS_IN chain before it finished materializing — the
+`CompareRecordings` results-kind divergence #6923 reports.
+
+Fix, two changes, both reducer-side:
+
+1. **`code_function_summary` becomes the fifth refresh producer.** It stops
+   calling the fixpoint projector (the `ValueFlowFixpointWriter` field is
+   removed from `code/function/summary.Handler`); its ACK emits a
+   `cross_scope_completion_events` row like the other four when its result
+   carries `refresh_affected_repos = 1` (set unconditionally — summaries are
+   fixpoint inputs by definition, so no graph gate read is needed) and
+   positive `CanonicalWrites` (which now also counts rows a full-snapshot
+   replace removes, so a replace that empties a repo still triggers a
+   solve). Migration 120 extends the producer-domain CHECK/trigger list from
+   112's six domains to seven.
+2. **The singleton refuses until its inputs have drained.** Before any load,
+   `code/value/refresh.Handler` runs one fence statement
+   (`storage/postgres.ValueFlowInputsLivenessStore`) checking every
+   active-generation writer of the cloud-sink chain — six `fact_work_items`
+   domains (`code_function_summary`, `code_call_materialization`,
+   `workload_materialization`, `workload_cloud_relationship_materialization`,
+   `iam_can_perform_materialization`, `aws_resource_materialization`) plus
+   the `runs_in`/`invokes_cloud_action` shared-projection intents. A pending
+   writer refuses (`Retryable`, non-counting
+   `value_flow_inputs_not_ready`); past
+   `crossscope.ProducerReadinessMaxWait` (30 min) since the singleton's own
+   cycle anchor, it solves anyway (outcome `abandoned`) so a stuck producer
+   degrades to bounded staleness instead of an eternal defer.
+
+Together these collapse every trigger of the global solve onto the one
+fenced singleton: exactly one solve per quiescent replay, so each probe
+statement in `cloud_sink_loader.go` executes once per leg. This also removes
+the mechanism behind the residual filed above (#6880, the
+summary-vs-refresh concurrent-writer race) as a consequence — there is now
+one writer, not several racing ones. #6880 stays open for the owner to
+resolve after a multi-leg capture re-proof; this change does not resolve it
+directly.
+
+No change to the differential oracle, capture, or allowlist (`backendconformance`,
+`graph/capture`): the oracle was always correct, the wobble was a timing
+defect in when the solve ran. See
+`docs/internal/evidence/6923-value-flow-single-solve.md` for the
+prove-the-theory-first shims (capture analysis, fence EXPLAIN) and the
+performance/observability evidence.
+
 ## Problem
 
 The value-flow fixpoint writes the cloud-sink edge

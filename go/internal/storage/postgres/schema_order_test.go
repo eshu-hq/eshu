@@ -265,4 +265,12 @@ var orderedBootstrapDefinitionNames = []string{
 	// shingles migration as 117 first.
 	"cloud_resource_retract_liveness_index",
 	"cloud_resource_retract_liveness_stats",
+	// migration 120 (#6923) admits code_function_summary as the fifth
+	// value-flow refresh producer domain: converges the
+	// cross_scope_completion_events producer_domain CHECK and the
+	// fact_work_items_cross_scope_completion trigger's domain list on
+	// installs that already applied 112 but predate this migration.
+	// Numbered 120 because main merged the #6946 liveness-stats
+	// migration as 119 first.
+	"value_flow_refresh_code_function_summary_producer",
 }

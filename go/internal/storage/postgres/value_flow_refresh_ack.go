@@ -4,22 +4,30 @@
 package postgres
 
 import (
+	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// isValueFlowRefreshProducer reports the four producer domains whose ACKs
-// feed the value-flow refresh emit gate (issue #6785): workload, USES,
-// CAN_PERFORM, and aws_resource materialization.
+// isValueFlowRefreshProducer reports the five producer domains whose ACKs
+// feed the value-flow refresh emit gate (issues #6785, #6923): workload,
+// USES, CAN_PERFORM, aws_resource materialization, and code_function_summary.
+// The summary producer stopped solving the fixpoint inline (#6923) and
+// became this fifth producer instead, so every trigger of the global solve
+// coalesces onto the one fenced #6785 refresh singleton.
 func isValueFlowRefreshProducer(domain reducer.Domain) bool {
 	switch domain {
 	case reducer.DomainWorkloadMaterialization,
 		reducer.DomainWorkloadCloudRelationshipMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
-		reducer.DomainAWSResourceMaterialization:
+		reducer.DomainAWSResourceMaterialization,
+		reducer.DomainCodeFunctionSummary:
 		return true
 	default:
 		return false
@@ -209,4 +217,121 @@ func splitValueFlowRefreshAckIntents(
 		groups = append(groups, *byDomain[domain])
 	}
 	return kept, groups
+}
+
+// ValueFlowInputsFenceReducerDomains is the six fact_work_items queue
+// domains that still write a link in the cloud-sink chain the #6785/#6923
+// global value-flow solve reads: code_function_summary (Function nodes and
+// INVOKES_CLOUD_ACTION), code_call_materialization (the RUNS_IN/
+// INVOKES_CLOUD_ACTION writer pair for the call-site chain), the workload and
+// workload-cloud-relationship materializers (INSTANCE_OF, USES),
+// iam_can_perform_materialization (CAN_PERFORM), and aws_resource
+// materialization (the CloudResource node writer). Exported so
+// TestValueFlowInputsFenceDomainsCoverCloudSinkChain
+// (go/internal/reducer/code/value) can assert this set, derived from the
+// probe statements themselves, covers every writer — the guard against this
+// list drifting from go/internal/reducer/code/value/cloud_sink_loader.go's
+// two statements.
+var ValueFlowInputsFenceReducerDomains = []reducer.Domain{
+	reducer.DomainCodeFunctionSummary,
+	reducer.DomainCodeCallMaterialization,
+	reducer.DomainWorkloadMaterialization,
+	reducer.DomainWorkloadCloudRelationshipMaterialization,
+	reducer.DomainIAMCanPerformMaterialization,
+	reducer.DomainAWSResourceMaterialization,
+}
+
+// ValueFlowInputsFenceSharedDomains is the shared_projection_intents
+// projection_domain values the fence also watches. RUNS_IN and
+// INVOKES_CLOUD_ACTION are shared-projection edges
+// (materialized/families.go: "runs_in", "invokes_cloud_action") drained by
+// the shared worker rather than a fact_work_items row, so a fence on
+// fact_work_items alone would pass while one of these is still queued and
+// the solve would again read Functions with no workload. Exported for the
+// same drift guard as ValueFlowInputsFenceReducerDomains.
+var ValueFlowInputsFenceSharedDomains = []reducer.Domain{
+	reducer.DomainRunsIn,
+	reducer.DomainInvokesCloudAction,
+}
+
+// valueFlowInputsFenceSQL is the #6923 value-flow refresh input-liveness
+// fence: one statement, UNION ALL, so both halves share the same READ
+// COMMITTED snapshot. Each half is LIMIT 5 so the pending sample stays
+// bounded and a single row is enough to refuse. The reducer half reuses
+// cloudAdmissionNonterminalStatusList (the #6887 status enumeration) and
+// joins on active_generation_id so a superseded generation's nonterminal
+// rows never hold the fence. Built from ValueFlowInputsFenceReducerDomains /
+// ValueFlowInputsFenceSharedDomains (not a hand-copied literal) so the SQL
+// and the exported, test-covered domain lists cannot drift apart. See
+// docs/internal/evidence/6923-value-flow-single-solve.md for the EXPLAIN
+// (ANALYZE, BUFFERS) proof (index range scans only, sub-millisecond at B-7
+// scale) and docs/internal/design/6785-value-flow-cloud-sink-refresh.md for
+// why the writer set is eight domains (six reducer, two shared), not four.
+var valueFlowInputsFenceSQL = `
+(SELECT 'reducer' AS kind,
+        work.scope_id || '/' || work.generation_id || '=' || work.domain || ':' || work.status AS pending
+ FROM fact_work_items AS work
+ JOIN ingestion_scopes AS scope
+   ON scope.scope_id = work.scope_id
+  AND scope.active_generation_id = work.generation_id
+ WHERE work.stage = 'reducer'
+   AND work.domain IN ` + sqlDomainInList(ValueFlowInputsFenceReducerDomains) + `
+   AND work.status IN ` + cloudAdmissionNonterminalStatusList + `
+ ORDER BY work.scope_id, work.generation_id
+ LIMIT 5)
+UNION ALL
+(SELECT 'shared' AS kind,
+        intent.projection_domain || ':' || intent.partition_key AS pending
+ FROM shared_projection_intents AS intent
+ WHERE intent.completed_at IS NULL
+   AND intent.projection_domain IN ` + sqlDomainInList(ValueFlowInputsFenceSharedDomains) + `
+ ORDER BY intent.projection_domain, intent.partition_key
+ LIMIT 5)
+`
+
+// sqlDomainInList renders domains as a SQL IN-list literal, single-quoted.
+// Callers pass only the closed, compile-time domain lists above — never
+// request- or database-derived values — so this is not a SQL-injection
+// surface.
+func sqlDomainInList(domains []reducer.Domain) string {
+	quoted := make([]string, len(domains))
+	for i, d := range domains {
+		quoted[i] = "'" + string(d) + "'"
+	}
+	return "(" + strings.Join(quoted, ", ") + ")"
+}
+
+// ValueFlowInputsLivenessStore implements
+// refresh.InputsLiveness (go/internal/reducer/code/value/refresh) for the
+// #6923 value-flow refresh singleton's pre-load fence.
+type ValueFlowInputsLivenessStore struct {
+	DB db.ExecQueryer
+}
+
+// PendingValueFlowInputs runs the fence statement and returns every pending
+// row's description (reducer queue rows plus shared-projection intents,
+// bounded to at most 10 total by the SQL's two LIMIT 5 halves). An empty,
+// nil-error result means the cloud-sink chain has drained and the singleton
+// may solve.
+func (s ValueFlowInputsLivenessStore) PendingValueFlowInputs(ctx context.Context) ([]string, error) {
+	if s.DB == nil {
+		return nil, fmt.Errorf("value-flow inputs liveness queryer is required")
+	}
+	rows, err := s.DB.QueryContext(ctx, valueFlowInputsFenceSQL)
+	if err != nil {
+		return nil, fmt.Errorf("query value-flow inputs liveness: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var pending []string
+	for rows.Next() {
+		var kind, value string
+		if err := rows.Scan(&kind, &value); err != nil {
+			return nil, fmt.Errorf("scan value-flow inputs liveness row: %w", err)
+		}
+		pending = append(pending, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate value-flow inputs liveness rows: %w", err)
+	}
+	return pending, nil
 }

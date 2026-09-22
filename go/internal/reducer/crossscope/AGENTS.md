@@ -6,6 +6,7 @@
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/crossscope/README.md`
 - `docs/internal/design/package-restructure.md`
+- `docs/internal/evidence/6923-value-flow-single-solve.md`
 
 ## Invariants
 
@@ -48,6 +49,18 @@
   the README's Compatibility section). Do not re-unexport them without also
   fixing `ci_cd_run_correlation.go` and
   `cross_scope_readiness_test.go`.
+- `ValueFlowInputsNotReadyFailureClass` and its error type's `Retryable()`/
+  `FailureClass()` methods MUST stay in the SAME file
+  (`value_flow_inputs_readiness.go`). `TestEveryReadinessFailureClassIsEnrolled`
+  resolves the constant via per-file `go/ast` object resolution; splitting
+  them across files makes the class unreadable to that guard, which reports
+  it as `unreadable`, not as passing.
+- This class is declared here for the enrollment guard's depth requirement
+  ONLY (internal/reducer + immediate subdirectories). It is not part of the
+  `dependencyCatalog`/`CheckProducerReadinessBeforeLoad` floor above — do not
+  wire `code_value_flow_refresh` into that catalog as a "fix" for this; the
+  fence is a direct Postgres statement in `storage/postgres`, not a
+  producer-scope-activation check.
 
 ## Common changes
 

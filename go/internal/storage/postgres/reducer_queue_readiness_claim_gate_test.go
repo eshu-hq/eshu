@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
@@ -220,6 +221,14 @@ var readinessClassOwningDomain = map[string]string{
 	// like CrossScopeProducerNotReadyFailureClass; the handler defer is the
 	// defense and is non-counting.
 	reducer.CloudAdmissionNotReadyFailureClass: "",
+	// #6923: the value-flow refresh singleton's input-liveness fence. The
+	// awaited condition spans eight domains (six fact_work_items queue
+	// domains plus two shared-projection intent domains) across every active
+	// generation, not one scope's payload-derived keyspace, so no claim-time
+	// CTE row can express it. Placed nowhere, like
+	// CloudAdmissionNotReadyFailureClass; the handler's own pre-load fence
+	// is the defense and is non-counting.
+	crossscope.ValueFlowInputsNotReadyFailureClass: "",
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

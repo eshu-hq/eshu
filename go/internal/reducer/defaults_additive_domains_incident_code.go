@@ -54,14 +54,13 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 	if handlers.CodeFunctionSummaryLoader != nil && handlers.CodeFunctionSummaryWriter != nil {
 		codeFunctionSummary := codeFunctionSummaryDomainDefinition()
 		codeFunctionSummary.Handler = CodeFunctionSummaryMaterializationHandler{
-			Loader:                  handlers.CodeFunctionSummaryLoader,
-			Writer:                  handlers.CodeFunctionSummaryWriter,
-			SourceLoader:            handlers.CodeFunctionSourceLoader,
-			SourceWriter:            handlers.CodeFunctionSourceWriter,
-			GraphIDLoader:           handlers.CodeFunctionGraphIDLoader,
-			GraphIDWriter:           handlers.CodeFunctionGraphIDWriter,
-			ValueFlowFixpointWriter: handlers.ValueFlowFixpointProjector,
-			Instruments:             handlers.Instruments,
+			Loader:        handlers.CodeFunctionSummaryLoader,
+			Writer:        handlers.CodeFunctionSummaryWriter,
+			SourceLoader:  handlers.CodeFunctionSourceLoader,
+			SourceWriter:  handlers.CodeFunctionSourceWriter,
+			GraphIDLoader: handlers.CodeFunctionGraphIDLoader,
+			GraphIDWriter: handlers.CodeFunctionGraphIDWriter,
+			Instruments:   handlers.Instruments,
 		}
 		definitions = append(definitions, codeFunctionSummary)
 	}
@@ -82,7 +81,10 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 	if handlers.ValueFlowFixpointProjector != nil {
 		codeValueFlowRefresh := refresh.Definition()
 		codeValueFlowRefresh.Handler = refresh.Handler{
-			Fixpoint: handlers.ValueFlowFixpointProjector,
+			Fixpoint:       handlers.ValueFlowFixpointProjector,
+			InputsLiveness: handlers.ValueFlowInputsLiveness,
+			Tracer:         handlers.Tracer,
+			Instruments:    handlers.Instruments,
 		}
 		definitions = append(definitions, codeValueFlowRefresh)
 	}

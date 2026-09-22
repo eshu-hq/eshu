@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
@@ -350,9 +351,17 @@ type CodeEvidenceHandlers struct {
 	// durable store for the cross-repo fixpoint's TAINT_FLOWS_TO projection.
 	CodeFunctionGraphIDWriter CodeFunctionGraphIDWriter
 
-	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings
-	// after function summaries, sources, and graph ids are persisted.
+	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings.
+	// Fed only to the #6785 refresh singleton (code_function_summary stopped
+	// solving it inline in issue #6923).
 	ValueFlowFixpointProjector ValueFlowFixpointProjector
+
+	// ValueFlowInputsLiveness answers the #6923 value-flow refresh singleton's
+	// pre-load fence: whether every active-generation writer of the
+	// cloud-sink chain has drained. Optional; a nil value makes the refresh
+	// handler behave exactly as it did before the fence existed (no refusal,
+	// solves on every claim).
+	ValueFlowInputsLiveness refresh.InputsLiveness
 
 	// CodeInterprocProjectedEdgeLedger records and enumerates source Function uids
 	// of projected TAINT_FLOWS_TO edges for anchored-delete retraction.

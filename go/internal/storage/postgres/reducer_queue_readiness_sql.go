@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -74,6 +75,17 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// dead-letter healthy node writes. TestReducerQueueFailDefersCloudAdmission
 	// ReadinessPastAttemptBudget is the regression.
 	reducer.CloudAdmissionNotReadyFailureClass,
+	// #6923: the value-flow refresh singleton's input-liveness fence. The
+	// fence refuses while any active-generation writer of the cloud-sink
+	// chain (code_function_summary, code_call_materialization, workload,
+	// workload-cloud-relationship, iam_can_perform, or aws_resource
+	// materialization) or an open runs_in/invokes_cloud_action
+	// shared-projection intent is nonterminal; under continuous ingest that
+	// is a routine race, so a counting trip would dead-letter a singleton
+	// that nothing but the next producer ACK reopens.
+	// TestReducerQueueFailDefersValueFlowInputsReadinessPastAttemptBudget is
+	// the regression.
+	crossscope.ValueFlowInputsNotReadyFailureClass,
 	// #5046: every remaining in-handler readiness-gate miss in the reducer.
 	// The seventeen below all returned a Retryable() readiness error under a
 	// class nothing here recognised, so their misses counted toward maxAttempts

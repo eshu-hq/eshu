@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -102,8 +103,15 @@ type GraphIDWriter interface {
 	ReplaceGraphIDs(ctx context.Context, repo string, ids map[parsed.FunctionID]string, updatedAt time.Time) error
 }
 
-// ValueFlowFixpointProjector projects durable cross-repo value-flow findings
-// after summaries, sources, and graph ids have been persisted.
+// ValueFlowFixpointProjector projects durable cross-repo value-flow findings.
+// Retained here (rather than removed with #6923's inline solve, below) only
+// because go/internal/reducer/compat_decode.go aliases it as the root
+// reducer.ValueFlowFixpointProjector type, which
+// defaults_handlers.go.ValueFlowFixpointProjector and
+// go/cmd/reducer/value_flow_wiring.go still depend on to feed the #6785
+// refresh singleton (code/value/refresh.Handler.Fixpoint). This Handler no
+// longer holds a field of this type: the summary handler stopped solving
+// inline and became the fifth refresh producer instead (issue #6923).
 type ValueFlowFixpointProjector interface {
 	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (value.FixpointProjectionResult, error)
 }
@@ -115,19 +123,26 @@ type ValueFlowFixpointProjector interface {
 // duplicating. When the optional source and graph-id loader/writers are
 // wired it also persists that generation's param-level taint sources and the
 // FunctionID->uid map, which the cross-repo fixpoint needs alongside the
-// summaries. When the optional fixpoint projector is wired it runs after
-// those durable writes complete, so graph projection cannot race ahead of
-// persistence.
+// summaries.
+//
+// It does NOT run the global value-flow fixpoint solve itself (issue #6923):
+// summaries are fixpoint inputs by definition, so this handler always
+// reports the refresh_affected_repos sub-signal and lets its ACK become the
+// fifth producer of the #6785 refresh singleton
+// (code/value/refresh.Handler), which fences the solve until every writer of
+// the cloud-sink chain has drained. Running N per-repo inline solves used to
+// read that chain before it finished materializing on some runs, which is
+// the row-set wobble #6923 reports; collapsing every trigger onto the one
+// fenced singleton removes it.
 type Handler struct {
-	Loader                  Loader
-	Writer                  Writer
-	SourceLoader            SourceLoader
-	SourceWriter            SourceWriter
-	GraphIDLoader           GraphIDLoader
-	GraphIDWriter           GraphIDWriter
-	ValueFlowFixpointWriter ValueFlowFixpointProjector
-	Now                     func() time.Time
-	Instruments             *telemetry.Instruments
+	Loader        Loader
+	Writer        Writer
+	SourceLoader  SourceLoader
+	SourceWriter  SourceWriter
+	GraphIDLoader GraphIDLoader
+	GraphIDWriter GraphIDWriter
+	Now           func() time.Time
+	Instruments   *telemetry.Instruments
 }
 
 // Handle executes one function-summary persistence intent.
@@ -167,7 +182,9 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 			}
 		}
 	}
+	var previousRepoFunctionCount int
 	if fullSnapshot {
+		previousRepoFunctionCount = len(codeFunctionSummarySnapshotForRepo(current, repo).Functions)
 		current = codeFunctionSummarySnapshotWithoutRepo(current, repo)
 	}
 	store := parsed.Load(current)
@@ -230,14 +247,18 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		graphIDCount = len(ids)
 	}
 
-	fixpoint := value.FixpointProjectionResult{}
-	if h.ValueFlowFixpointWriter != nil {
-		var err error
-		fixpoint, err = h.ValueFlowFixpointWriter.ProjectValueFlowFixpointEvidence(ctx, intent.ScopeID, intent.GenerationID)
-		if err != nil {
-			return reducercontract.Result{}, fmt.Errorf("project value-flow fixpoint evidence: %w", err)
+	// A full-snapshot replace that empties a repo removes every fixpoint
+	// input the graph solve read for it; that must still trigger the
+	// #6785 refresh singleton even though nothing was written (persisted=0),
+	// so CanonicalWrites counts removed rows alongside written ones.
+	removedFunctionCount := 0
+	if fullSnapshot {
+		removedFunctionCount = previousRepoFunctionCount - persistedFunctionCount
+		if removedFunctionCount < 0 {
+			removedFunctionCount = 0
 		}
 	}
+	canonicalWrites := persistedFunctionCount + removedFunctionCount
 
 	slog.Info(
 		"code function summary persistence completed",
@@ -246,25 +267,27 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		"repo_id", repo,
 		"full_snapshot", fullSnapshot,
 		"function_count", persistedFunctionCount,
+		"removed_function_count", removedFunctionCount,
 		"source_count", sourceCount,
 		"graph_id_count", graphIDCount,
 		"input_invalid_facts", inputInvalidCount,
-		"fixpoint_finding_count", fixpoint.FindingCount,
-		"fixpoint_graph_rows", fixpoint.GraphRows,
-		"fixpoint_unresolved_endpoint_count", fixpoint.UnresolvedEndpointCount,
 	)
+
+	// Summaries are fixpoint inputs by definition: this handler runs no
+	// graph gate read of its own (issue #6923), so the signal is always an
+	// explicit 1 rather than gated on an affected-repo count.
+	subSignals := affected.WithRefreshSignal(factdecode.InputInvalidSubSignals(inputInvalidCount), 1)
 
 	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   reducercontract.DomainCodeFunctionSummary,
 		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"persisted %d function summary row(s), projected %d fixpoint edge(s)",
+			"persisted %d function summary row(s)",
 			persistedFunctionCount,
-			fixpoint.GraphRows,
 		),
-		CanonicalWrites: persistedFunctionCount + fixpoint.GraphRows,
-		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
+		CanonicalWrites: canonicalWrites,
+		SubSignals:      subSignals,
 	}, nil
 }
 

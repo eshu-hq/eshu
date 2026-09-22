@@ -269,6 +269,7 @@ func buildReducerCodeEvidenceHandlers(
 		CodeFunctionGraphIDLoader:            factStore,
 		CodeFunctionGraphIDWriter:            functionGraphIDStore,
 		ValueFlowFixpointProjector:           valueFlowFixpointProjector,
+		ValueFlowInputsLiveness:              postgres.ValueFlowInputsLivenessStore{DB: database},
 		CodeInterprocProjectedEdgeLedger:     codeInterprocLedger,
 		CodeTaintEvidenceProjectedNodeLedger: codeTaintLedger,
 	}
