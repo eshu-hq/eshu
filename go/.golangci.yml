@@ -518,7 +518,7 @@ linters:
       - path: 'internal/reducer/workload_materializer\.go'
         linters:
           - funlen
-      - path: 'internal/status/status_health\.go'
+      - path: 'internal/status/health\.go'
         linters:
           - funlen
       - path: 'internal/storage/cypher/semantic_entity\.go'

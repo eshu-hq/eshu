@@ -314,7 +314,7 @@ require_workflow_path "SBOM attachment dedupe/sort/cap (#5877 correction)" "go/i
 # internal/tfstatewarning was excluded as "not one of the 9 credentialed
 # collectors this gate replays via cassette" -- factually wrong, terraform-state
 # IS one of the cassette-replayed collectors (testdata/cassettes/terraformstate/
-# supply-chain-demo.json). internal/status/tfstate.go (already-covered
+# supply-chain-demo.json). internal/status/tfstate/tfstate.go (already-covered
 # internal/status) unconditionally calls tfstatewarning.Classify for every
 # recent warning row to build get_index_status's required "terraform_state"
 # field (status.go's GroupTerraformStateWarningsByKind/
