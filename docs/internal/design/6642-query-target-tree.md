@@ -118,10 +118,22 @@ in it**.
 | `observability/` | `coverage` |
 | `terraform/` | `drift` |
 | new top-level leaves | `ask`, `cicd`, `collector`, `compare`, `dependency`, `documentation`, `evidence`, `kubernetes`, `metrics`, `status`, `workload` |
-| renamed in place | `testutil` ← `querytestutil`, `selector` ← `queryselector`, `span` ← `tracing` |
+| renamed in place, by [#6818](https://github.com/eshu-hq/eshu/issues/6818) not by this plan | `testutil` ← `querytestutil`, `selector` ← `queryselector`, `auth` ← `queryauth`, `contract` ← `querycontract`, `impact/trace` ← `impacttrace` |
 | unchanged | `admin`, `decode`, `freshness`, `iac`, `incident`, `language`, `local`, `openapi`, `package/registry`, `playbook`, `secrets`, `service`, `visualization`, `workitem` |
 
-### Part D renames, settled by the issue
+### Part D renames — owned by #6818, not by this plan
+
+[#6818](https://github.com/eshu-hq/eshu/issues/6818) is open and owns exactly
+these renames, one PR per package, smallest first, and it already says
+"`querycontract` has a pending split (#6597); the rename is coordinated with
+that split rather than duplicating it". Its first PR,
+[#6846](https://github.com/eshu-hq/eshu/pull/6846), has merged:
+**`queryspan` is already `tracing`.** This plan therefore does not rename
+`tracing` to `span` — Part D's `queryspan -> span` line is satisfied, and
+renaming it again would reverse an accepted decision.
+
+The rows below are recorded so this tree is readable end to end. Executing them
+belongs to #6818; this plan's PRs move root files and wait for the names.
 
 | current | new | why |
 | --- | --- | --- |
@@ -133,11 +145,10 @@ in it**.
 | `repositoryartifacts` | `repository/artifacts` | rule 3: nest the compound, do not glue it |
 | `codemodel`, `codeshaping`, `codeowners`, `codedivergence` | `code/{model,shaping,owners,divergence}` | rule 3 |
 | `impacttrace`, `entitysemantics`, `semanticsearch`, `contentread` | `impact/trace`, `entity/semantics`, `semantic/search`, `content/` | rule 3 |
-| `tracing` | `span` | the issue's Part D names `queryspan -> span`; `queryspan` has since been renamed `tracing`, which collides with the `handler_tracing.go` concern and with `go.opentelemetry.io` vocabulary |
 
-`queryspan` no longer exists under that name. Treating `tracing` as its
-successor is an inference, not a measurement — flagged in
-[UNDECIDED](6642-query-move-sequence.md#undecided).
+`queryspan` no longer exists under that name, and git history says why: PR
+#6846, "refactor(6818): move query/queryspan to query/tracing", merged. That is
+a measurement, not the inference an earlier draft of this page called it.
 
 ## The ContentReader problem
 
@@ -427,7 +438,7 @@ and the decision is [UNDECIDED](6642-query-move-sequence.md#undecided).
 | `query/semantic/search` | 17 |
 | `query/service` | 27 |
 | `query/service/evidence` | 2 |
-| `query/span` | 3 |
+| `query/tracing` | 3 |
 | `query/status` | 18 |
 | `query/supply` | 1 |
 | `query/supply/chain` | 38 |

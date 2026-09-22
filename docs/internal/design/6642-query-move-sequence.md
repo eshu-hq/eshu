@@ -15,15 +15,14 @@ order is the shared spine: nothing moves before PR 1.
 | 1 | **Spine repoint.** Delete the five unexported root forwarders; point every call site at the `querycontract` / `tracing` twins that already exist. | 0 moved | 192 cross-boundary symbols, 5 of which block every later PR; also takes the dependency component from 38 destinations to 23 |
 | 2 | `capability/` — the root capability handler, plus `capability_matrix.go` and `registry.go` from today's `contract/` | 7 | small, and it starts draining the `contract/` name |
 | 3 | `querycontract`'s seven leaf extractions, in place, without the rename | 19 | closes the #6597 split; the rename waits for the name |
-| 4 | `testutil/` ← `querytestutil`, nested | 42 | test helpers, no production risk; unblocks moved tests |
-| 5 | `span/` ← `tracing` | 2 | tiny; completes the Part D rename set |
-| 6 | `auth/` ← `queryauth` + the 52 root auth files, nested five ways | 60 | the largest root family; `auth/route/` alone is 24 files |
+| 4 | `testutil/` nesting — the `content` and `graph` leaves only. The `querytestutil` → `testutil` **rename itself belongs to [#6818](https://github.com/eshu-hq/eshu/issues/6818)** | 42 | test helpers, no production risk |
+| 6 | the 52 root auth files, nested five ways under whatever `queryauth` is called by then | 52 | the largest root family; `auth/route/` alone is 24 files |
 | 7–30 | **one parent per PR, smallest first. Each is a hoist-then-move**, not a move — see [the cycle analysis](6642-query-move-cost.md#the-tree-is-not-reachable-by-moving-files-alone) for the symbols each owes.** 24 PRs covering 33 leaves and 145 files: `decode` (1), `workload` (1), `dependency` (2), `observability/coverage` (2), `terraform/drift` (2), `kubernetes` (3), `metrics` (3), `compare` (4), `cicd` (5), `ask` (6), `collector` (8), `documentation` (8), `evidence` (10), `status` (14), the three seam leaves `code/seam` (2), `repository/seam` (3) and `impact/seam` (5), and the parent-grouped `semantic` (3), `graph` (5), `image` (8), `investigation` (11), `supply/chain` (7), `cloud` (11), `infra` (21) | 145 | order within the block is free; each PR carries its own hoist |
 | 31 | `code/` ← `codequery` + the four `code*` siblings | 102 | large but mechanical; `CodeHandler` is **not** renamed here |
 | 32 | `repository/artifacts` ← `repositoryartifacts` (rename only); `repository/` itself stays at 45 pending the UNDECIDED below | 20 | queryplan pins regenerate |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
-| 35 | `querycontract` → `contract/` once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
+| 35 | hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
 
 `CodeHandler` is deliberately not renamed anywhere in this plan. The issue
 requires inspecting the current query-plan entries and recording affected
@@ -89,26 +88,21 @@ two files. Neither lane touches the other's row, but both touch both files.
 
 ## UNDECIDED
 
-Two items that were listed here have since been settled by experiment rather
-than left to you — the `content/read` merges (an empty `go doc -all` diff proves
+Three items that were listed here have since been settled by evidence rather
+than left to you — the `tracing`/`queryspan` identification (git history: PR
+#6846, "move query/queryspan to query/tracing", merged) , the `content/read` merges (an empty `go doc -all` diff proves
 they keep the exported surface identical, so they sit inside the issue's stated
 Scope) and the `contract/` displacement (37 of its 40 files are per-family rows
 that travel with their families, as seven already-moved families demonstrate).
 What remains are genuine owner calls.
 
-1. **`tracing` is treated as the issue's `queryspan`.** No package named
-   `queryspan` exists today. `tracing/`'s `doc.go` describes exactly the
-   per-route span role Part D names, so the identification is near-certain —
-   but it is an inference from the doc comment, not from rename history, which
-   this drive did not reconstruct.
-
-2. **The root test rule.** 403 of 728 root test files match no moving root
+1. **The root test rule.** 403 of 728 root test files match no moving root
    file, and the largest cluster (63 `openapi_*`) belongs to a family that
    moved in Part C. The proposed rule — single-destination tests move,
    router-level tests stay and convert to `package query_test` — changes how
    about 400 files are treated and should be agreed before PR 6, not argued
    per PR.
-3. **`repository` does not reach the cap and this plan will not guess how.**
+2. **`repository` does not reach the cap and this plan will not guess how.**
    Fourteen of its 45 files pin to `Handler`, and of the other 31 exactly one
    has no inbound reference. Three cohesive leaves — `story` (5),
    `semantics` (4), `deployment` (4) — were each tested and each crosses the
@@ -121,13 +115,13 @@ What remains are genuine owner calls.
    its `//nolint:dirgate` marker, or (c) widen this issue's scope. This is the
    one place the definition of done is not met by the plan as written.
 
-4. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
+3. **`repository/seam`, `code/seam` and `impact/seam`.** Three small leaves
    invented here for root files that adapt one family to another
    (`repository_authz.go`, `code_seam.go`, `family_impact_*.go`). After PR 1
    deletes the `repositoryAccessFilter` forwarders, `repository/seam` may
    collapse to two files and be worth folding into `contract/` instead. Left
    as leaves here so the mapping is complete; revisit at PR 32.
-5. **`CodeHandler`.** Not renamed by this plan, per the issue's own
+4. **`CodeHandler`.** Not renamed by this plan, per the issue's own
    precondition and #6649. Whether it is renamed at all is still open.
 
 ## Checklist
@@ -138,11 +132,10 @@ Updated as each PR lands.
 - [ ] PR 2 — `capability/`
 - [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
 - [ ] PR 4 — `testutil/` ← `querytestutil`
-- [ ] PR 5 — `span/` ← `tracing`
 - [ ] PR 6 — `auth/`
 - [ ] PR 7–30 — 24 leaf PRs, smallest first
 - [ ] PR 31 — `code/`
-- [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 3)
+- [ ] PR 32 — `repository/artifacts` rename (`repository/` itself blocked on UNDECIDED 2)
 - [ ] PR 33 — Part B, `content/`
 - [ ] PR 34 — alias sweep
-- [ ] PR 35 — `querycontract` → `contract/`; root at 5 files; dirgate row retired
+- [ ] PR 35 — `contract/` name handed to #6818; root at 5 files; dirgate row retired
