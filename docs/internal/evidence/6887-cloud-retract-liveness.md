@@ -169,10 +169,18 @@ index"), RED against the old probe with statistics on a bloated table (the
 Merge Join, twice), RED against the new probe with the statistics object
 dropped, GREEN after applying the migration file (three consecutive runs:
 1,700 / 1,393 / 1,393 buffers). The liveness live tests and the graph-side
-live battery pass on the new shape.
+live battery pass on the new shape. The real migrator applies it: with the
+ledger row cleared and the object dropped, `docker compose run db-migrate`
+on the private stack recorded migration 119 and left
+`fact_records_cloud_retract_admission_uid_stats` analyzed
+(`pg_stats_ext_exprs` n_distinct -0.38, MCV present); the plan test then
+passed a fourth time on the migrator-applied statistics (1,693 buffers).
+Editing an already-applied migration file is not an option for the
+boundary note: the ledger checksums the whole file, comments included, and
+every existing database would refuse bootstrap.
 
 Performance Evidence: before/after on the same seed and host, 500-candidate
-probe: 14,115 shared buffers and 39.6 ms (scope walk) -> 1,346-1,393
+probe: 14,115 shared buffers and 39.6 ms (scope walk) -> 1,346-1,700
 buffers and 1.4-1.9 ms (partial index); 50 candidates 253-328 buffers /
 0.2-0.4 ms; 2 candidates 13 buffers. Row multiset identical (250 alive of
 500). ANALYZE cost is paid once at migration and by autovacuum afterwards.
