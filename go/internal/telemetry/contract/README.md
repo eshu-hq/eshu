@@ -56,9 +56,24 @@ spans, or logs.
   history; they no longer control registration order.
 - `TestSpanNames`, `TestMetricDimensionKeys`, and `TestLogKeys` in root
   `contract_test.go` pin the exact frozen order these declarations are
-  spliced into. Adding a new span, dimension, or log key here requires a new
-  registration step in root `registration.go`/`registration_steps.go`, not an
-  edit to those tests' expected lists.
+  spliced into. Adding a new span, dimension, or log key here also needs a
+  registration change in root `registration.go`/`registration_steps.go` and a
+  deliberate update to those tests' expected lists.
+
+## Move evidence (#6777)
+
+No-Regression Evidence: the move is compile-time only. Baseline origin/main
+44e5607db and the #6777 branch produce identical `SpanNames()`,
+`MetricDimensionKeys()` and `LogKeys()` contents and order, pinned by the
+unedited `TestSpanNames`, `TestMetricDimensionKeys` and `TestLogKeys` (go1.27.1,
+`go test ./internal/telemetry/... -count=1`). Registration still runs once in
+`init()` with the same slice inserts, so there is no hot-path, Cypher, queue or
+concurrency change. Swapping two registration steps turns those tests red.
+
+No-Observability-Change: every existing `eshu_dp_*` signal, span name,
+dimension key and log key keeps its wire name, for example
+`eshu_dp_api_request_duration_seconds` and
+`eshu_dp_collector_snapshot_stage_duration_seconds`.
 
 ## Related docs
 
