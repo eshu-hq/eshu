@@ -346,7 +346,9 @@ func changedPathsForPR(ctx context.Context, runner ghRunner, repo string, pr int
 	return paths, false, nil
 }
 
-// changedPathsViaCommits unions the file lists of every commit on the PR.
+// Per-commit union is deliberately not a fallback here: single-commit file
+// lists cap at 300 entries, so the union is partial too (see
+// TestChangedPathsForPR_ReportsTruncationOnCappedFilesResponse).
 func verifyPRHead(ctx context.Context, runner ghRunner, repo string, pr int, expected string) error {
 	output, err := runner.Run(
 		ctx,

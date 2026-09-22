@@ -177,11 +177,13 @@ fi
 # Built with a single awk pass, not a bash while-read loop: the loop version
 # is O(n^2) (string-append per diff line) and takes ~6 minutes on a 108k-line
 # diff, which trips the 20-minute CI step timeout on large rename PRs. The awk
-# pass handles the same diff in under a second with byte-identical output
-# (proven by diffing both builders on a real 108k-line PR diff; the only
-# difference is the trailing newline, which command substitution strips here
-# and which the awk-based lookup in is_comment_only_change below does not
-# read). Do not revert to a per-line shell loop; see
+# pass handles the same diff in under a second with output identical to the
+# old loop (proven by diffing the byte-verbatim old loop against this pass on
+# a real 108k-line PR diff plus a crafted six-class diff; the only
+# differences are the stripped trailing newline, which the awk-based lookup
+# in is_comment_only_change below does not read, and /* openers, which the
+# old misquoted middle arms misread as code -- see the +/- arm comment).
+# Do not revert to a per-line shell loop; see
 # scripts/test-verify-performance-evidence.sh (large-diff case) and
 # scripts/test-verify-performance-evidence-large-marker.sh.
 _perf_code_change_map=""
@@ -216,10 +218,16 @@ if [ -n "${_perf_diff_cache}" ]; then
     substr($0, 1, 1) == "+" || substr($0, 1, 1) == "-" {
       if (cur == "") next
       payload = substr($0, 2)
-      # Comment or blank: Go line (//), block markers (/* * */), shell/
-      # YAML (#), or empty. Anything else flips the file to code-change.
+      # Comment or blank: Go line (//), block-open (/*), shell/YAML (#),
+      # or empty. Anything else flips the file to code-change. This
+      # matches the old bash classifier byte-for-byte except for /*
+      # (the old misquoted middle arms were dead, so /* used to read as
+      # code; treating the opener as a comment honors the documented
+      # block-marker intent). Single-/-led lines (/usr/bin/foo), */
+      # closers, and bare-*-led lines stay code: fail-safe, matching old
+      # behavior (eshu-hq/eshu#6969 review).
       first = substr(payload, 1, 1)
-      if (payload == "" || first == "/" || first == "*" || first == "#") next
+      if (payload == "" || substr(payload, 1, 2) == "//" || substr(payload, 1, 2) == "/*" || first == "#") next
       print cur "\t1"
     }
   ')"
