@@ -9,19 +9,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/status/shared"
-
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
-
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
-
-	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
-
-	"github.com/eshu-hq/eshu/go/internal/status/queue"
-
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
-
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // RawSnapshot is the read-only substrate snapshot gathered from Postgres.

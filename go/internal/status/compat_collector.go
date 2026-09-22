@@ -8,7 +8,7 @@ package status
 // change: every alias names the same type, every constant the same value, and
 // every forwarder calls straight through. The packages importing
 // internal/status keep compiling unchanged, and each entry is deleted once its
-// last caller has moved to the leaf; see the importer-migration child issue. A
+// last caller has moved to the leaf; see the importer-migration issue #6949. A
 // later collector move adds a stanza here and never creates a second compat
 // file for this family.
 //
@@ -46,22 +46,17 @@ func collectorEvidence(report Report) collector.Evidence {
 // Stanza: collector runtime readback.
 
 // CollectorRuntimeStatus is the unified operator view of one collector runtime
-// identity.
-//
-// Deprecated: use [collector.RuntimeStatus].
+// identity. See [collector.RuntimeStatus].
 type CollectorRuntimeStatus = collector.RuntimeStatus
 
 // CollectorRuntimeStatuses derives the collector runtime readback from the
-// status report.
-//
-// Deprecated: use [collector.RuntimeStatuses] with [collector.Evidence].
+// status report. See [collector.RuntimeStatuses], which takes a
+// [collector.Evidence] instead of the whole report.
 func CollectorRuntimeStatuses(report Report) []collector.RuntimeStatus {
 	return collector.RuntimeStatuses(collectorEvidence(report))
 }
 
-// Collector runtime status categories.
-//
-// Deprecated: use the [collector] constants.
+// Collector runtime status categories. See the [collector] constants.
 const (
 	CollectorRuntimeCoordinatorManaged = collector.RuntimeCoordinatorManaged
 	CollectorRuntimeDirectMode         = collector.RuntimeDirectMode
@@ -73,45 +68,37 @@ const (
 // Stanza: collector promotion proof and catalog.
 
 // CollectorPromotionProof is one collector family's promotion evidence.
-//
-// Deprecated: use [collector.PromotionProof].
+// See [collector.PromotionProof].
 type CollectorPromotionProof = collector.PromotionProof
 
 // CollectorPromotionOptions controls promotion-proof derivation.
-//
-// Deprecated: use [collector.PromotionOptions].
+// See [collector.PromotionOptions].
 type CollectorPromotionOptions = collector.PromotionOptions
 
 // CollectorCatalogEntry describes one catalogued collector family.
-//
-// Deprecated: use [collector.CatalogEntry].
+// See [collector.CatalogEntry].
 type CollectorCatalogEntry = collector.CatalogEntry
 
 // CollectorPromotionProofs derives the per-collector promotion proof report.
-//
-// Deprecated: use [collector.PromotionProofs] with [collector.Evidence].
+// See [collector.PromotionProofs], which takes a [collector.Evidence] instead
+// of the whole report.
 func CollectorPromotionProofs(report Report, opts collector.PromotionOptions) []collector.PromotionProof {
 	return collector.PromotionProofs(collectorEvidence(report), opts)
 }
 
 // DefaultCollectorCatalog returns the full collector fleet catalog.
-//
-// Deprecated: use [collector.DefaultCatalog].
+// See [collector.DefaultCatalog].
 func DefaultCollectorCatalog() []collector.CatalogEntry { return collector.DefaultCatalog() }
 
 // KnownCollectorKinds lists every catalogued collector kind.
-//
-// Deprecated: use [collector.KnownKinds].
+// See [collector.KnownKinds].
 func KnownCollectorKinds() []string { return collector.KnownKinds() }
 
 // DefaultCollectorPromotionStaleAfter is the default promotion staleness bound.
-//
-// Deprecated: use [collector.DefaultPromotionStaleAfter].
+// See [collector.DefaultPromotionStaleAfter].
 const DefaultCollectorPromotionStaleAfter time.Duration = collector.DefaultPromotionStaleAfter
 
-// Collector promotion states.
-//
-// Deprecated: use the [collector] constants.
+// Collector promotion states. See the [collector] constants.
 const (
 	CollectorPromotionImplemented      = collector.PromotionImplemented
 	CollectorPromotionPartial          = collector.PromotionPartial
@@ -123,9 +110,7 @@ const (
 	CollectorPromotionUnsupported      = collector.PromotionUnsupported
 )
 
-// Collector reducer-readback states.
-//
-// Deprecated: use the [collector] constants.
+// Collector reducer-readback states. See the [collector] constants.
 const (
 	CollectorReadbackAvailable   = collector.ReadbackAvailable
 	CollectorReadbackPending     = collector.ReadbackPending
@@ -135,30 +120,25 @@ const (
 // Stanza: collector backpressure, fact evidence, generation dead letters.
 
 // CollectorBackpressureSnapshot reports one collector's queue backpressure.
-//
-// Deprecated: use [collector.BackpressureSnapshot].
+// See [collector.BackpressureSnapshot].
 type CollectorBackpressureSnapshot = collector.BackpressureSnapshot
 
 // CollectorFactEvidence aggregates one collector instance's fact emission.
-//
-// Deprecated: use [collector.FactEvidence].
+// See [collector.FactEvidence].
 type CollectorFactEvidence = collector.FactEvidence
 
 // CollectorGenerationDeadLetterSnapshot reports pre-queue commit failures.
-//
-// Deprecated: use [collector.GenerationDeadLetterSnapshot].
+// See [collector.GenerationDeadLetterSnapshot].
 type CollectorGenerationDeadLetterSnapshot = collector.GenerationDeadLetterSnapshot
 
 // Stanza: vulnerability source state.
 
 // VulnerabilitySourceState is one durable vulnerability source checkpoint.
-//
-// Deprecated: use [collector.VulnerabilitySourceState].
+// See [collector.VulnerabilitySourceState].
 type VulnerabilitySourceState = collector.VulnerabilitySourceState
 
 // Stanza: coordinator collector instance summary.
 
 // CollectorInstanceSummary is one configured collector runtime instance.
-//
-// Deprecated: use [collector.InstanceSummary].
+// See [collector.InstanceSummary].
 type CollectorInstanceSummary = collector.InstanceSummary

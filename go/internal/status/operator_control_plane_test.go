@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
-
 	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 

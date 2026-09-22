@@ -7,8 +7,7 @@ package status
 // that moved to [changedsince] (issue #6775). It carries no behavior change: every
 // alias names the same type and every constant the same value, so the packages
 // importing internal/status keep compiling unchanged. Each entry is deleted
-// once its last caller has moved to the leaf; see the importer-migration child
-// issue. A later changedsince move adds a stanza here and never creates a second
+// once its last caller has moved to the leaf; see the importer-migration issue #6949. A later changedsince move adds a stanza here and never creates a second
 // compat file for this family.
 
 import (
@@ -17,9 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status/changedsince"
 )
 
-// Changed-since delta sections.
-//
-// Deprecated: use the [changedsince] names.
+// Changed-since delta sections. See the [changedsince] names.
 type (
 	ChangedSinceClassification = changedsince.Classification
 	ChangedSinceCategory       = changedsince.Category
@@ -33,8 +30,7 @@ type (
 )
 
 // Changed-since classifications, categories, reasons and sample bounds.
-//
-// Deprecated: use the [changedsince] constants.
+// See the [changedsince] constants.
 const (
 	ChangedSinceAdded      = changedsince.Added
 	ChangedSinceUpdated    = changedsince.Updated
@@ -60,8 +56,7 @@ const (
 )
 
 // Changed-since enumerations and timestamp formatting.
-//
-// Deprecated: use the [changedsince] names. These are vars, not consts: each
+// See the [changedsince] names. These are vars, not consts: each
 // shares the leaf's backing array rather than copying it, so behavior matches
 // the single package-level var these replaced.
 var (
@@ -71,6 +66,5 @@ var (
 )
 
 // ChangedSinceTimestamp renders a changed-since timestamp.
-//
-// Deprecated: use [changedsince.Timestamp].
+// See [changedsince.Timestamp].
 func ChangedSinceTimestamp(value time.Time) string { return changedsince.Timestamp(value) }

@@ -13,20 +13,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-
-	"github.com/eshu-hq/eshu/go/internal/status/shared"
-
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
-
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
-
-	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
-
-	"github.com/eshu-hq/eshu/go/internal/status/queue"
-
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
-
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 const (
@@ -37,8 +30,7 @@ const (
 )
 
 // NamedCount captures one status bucket and its count.
-//
-// Deprecated: use [shared.NamedCount]. This alias keeps the ~170 packages that
+// See [shared.NamedCount]. This alias keeps the ~170 packages that
 // import internal/status compiling across the #6775 nest; it is removed once
 // the last caller has moved to the leaf.
 type NamedCount = shared.NamedCount

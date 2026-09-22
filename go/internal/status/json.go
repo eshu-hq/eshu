@@ -9,20 +9,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-
-	"github.com/eshu-hq/eshu/go/internal/status/shared"
-
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
-
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
-
-	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
-
-	"github.com/eshu-hq/eshu/go/internal/status/queue"
-
 	"github.com/eshu-hq/eshu/go/internal/status/generation"
-
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	"github.com/eshu-hq/eshu/go/internal/status/semantic"
+	"github.com/eshu-hq/eshu/go/internal/status/shared"
+	"github.com/eshu-hq/eshu/go/internal/status/tfstate"
 )
 
 // RenderJSON returns a stable machine-readable projection of the report.
