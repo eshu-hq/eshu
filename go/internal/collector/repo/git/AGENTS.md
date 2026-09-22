@@ -75,10 +75,16 @@ their names.
 
 No-Regression Evidence: #6772 changed these two files by import and type
 repoint only — no logic, control flow, signatures, or error wrapping.
-Baseline origin/main 788edd169, after f1d0ccfcd, same tree and toolchain.
-Normalizing the moved files through the rename map leaves only two local
-variable renames forced to avoid shadowing (`occurrenceLine` -> `defLine`,
-`filesByLanguage` -> `grouped`), so there is no measurable path to regress.
+Baseline origin/main 788edd169, same tree and toolchain. Normalizing all seven
+moved files through the rename map leaves four residual hunks, every one
+semantically null. Two are in production: locals renamed to avoid shadowing the
+functions that took their names -- `occurrenceLine` -> `defLine` in parser.go,
+and inside `filesByLanguage` the local became `byLanguage` (the `grouped` locals
+in that function's two callers are pre-existing and untouched). The other two
+are in moved tests: `parser_test.go` inlines two unexported parent-package
+helpers that could not move, and `regex_hoist_bench_test.go` de-stutters a
+benchmark helper whose body is byte-identical. So there is no measurable path
+to regress.
 `go test ./internal/collector/repo/git/... -count=1` passes (ok 4.684s,
 unchanged set), and `go test -list` shows the SCIP test inventory moved
 intact at 10 of 10 with the parent package retaining 127 tests and none
