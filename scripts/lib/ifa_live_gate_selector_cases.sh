@@ -221,7 +221,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/graphbackpressure/**|go/internal/graphbackpressure/materializer_backpressure.go'
 	'go/cmd/reducer/observed_service_wiring.go|go/cmd/reducer/observed_service_wiring.go'
 	'go/cmd/reducer/neo4j_wiring.go|go/cmd/reducer/neo4j_wiring.go'
-	'go/cmd/reducer/reducer_executor_adapters.go|go/cmd/reducer/reducer_executor_adapters.go'
+	'go/cmd/reducer/executor_adapters.go|go/cmd/reducer/executor_adapters.go'
 	'go/cmd/reducer/graph_write_backpressure_wiring.go|go/cmd/reducer/graph_write_backpressure_wiring.go'
 	'go/cmd/reducer/worker_gauge.go|go/cmd/reducer/worker_gauge.go'
 	'go/internal/storage/postgres/reducer_queue.go|go/internal/storage/postgres/reducer_queue.go'

@@ -76,7 +76,7 @@ func (s *fakeNeo4jSession) RunCypherGroup(ctx context.Context, stmts []sourcecyp
 }
 
 // QueryCypherExists implements the cypherProber interface
-// (reducer_executor_adapters.go) so fakeNeo4jSession can stand in for
+// (executor_adapters.go) so fakeNeo4jSession can stand in for
 // neo4jSessionRunner in ExecuteProbe tests.
 func (s *fakeNeo4jSession) QueryCypherExists(_ context.Context, cypher string, params map[string]any) (bool, error) {
 	s.probeCalls = append(s.probeCalls, fakeCypherCall{Cypher: cypher, Parameters: params})

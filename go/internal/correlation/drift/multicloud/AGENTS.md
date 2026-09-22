@@ -7,7 +7,7 @@
 3. `candidate.go` — uid-keyed candidate and evidence construction.
 4. `../cloudruntime/` — the AWS path this package mirrors but must not change.
 5. `../../cloudinventory/identity.go` — the canonical `cloud_resource_uid`.
-6. `../../rules/multi_cloud_runtime_drift_rules.go` — rule-pack declaration.
+6. `../../rules/multi_cloud_runtime_drift.go` — rule-pack declaration.
 7. `docs/public/reference/multi-cloud-collector-contract.md` — reducer contract.
 
 ## Invariants
