@@ -427,7 +427,7 @@ log carries no trace of it. Logs: `/tmp/6923-legs-runB/compare.log`,
   inputs not drained" / "... solving with undrained cloud-sink chain
   inputs: starvation bound reached"), keys: `scope_id`, `generation_id`,
   `failure_class`, `readiness_wait_outcome`, `pending_input_count`,
-  `pending_input_sample`, `elapsed_since_cycle_anchor` (abandoned only),
+  `pending_input_sample`, `elapsed_since_cycle_anchor`,
   `max_wait`.
 - `docs/public/observability/telemetry-coverage.md`: the value-flow refresh
   row now carries the counter and span (no longer No-Observability-Change)

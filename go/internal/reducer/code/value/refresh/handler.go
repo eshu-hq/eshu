@@ -147,6 +147,13 @@ func (h Handler) checkInputsLiveness(ctx context.Context, intent reducercontract
 	if anchor.IsZero() || now.Sub(anchor) < crossscope.ProducerReadinessMaxWait {
 		outcome = crossscope.ReadinessWaitDeferred
 		h.recordReadinessWait(ctx, outcome)
+		// A zero anchor cannot happen on a real claim (cycle_started_at is
+		// COALESCE(reopened_at, created_at)); log a zero elapsed rather than
+		// a duration since the epoch if it ever does.
+		elapsed := time.Duration(0)
+		if !anchor.IsZero() {
+			elapsed = now.Sub(anchor)
+		}
 		slog.Info(
 			"value-flow refresh deferred: cloud-sink chain inputs not drained",
 			"scope_id", intent.ScopeID,
@@ -155,7 +162,7 @@ func (h Handler) checkInputsLiveness(ctx context.Context, intent reducercontract
 			"readiness_wait_outcome", outcome,
 			"pending_input_count", len(pending),
 			"pending_input_sample", pending,
-			"elapsed_since_cycle_anchor", now.Sub(anchor),
+			"elapsed_since_cycle_anchor", elapsed,
 			"max_wait", crossscope.ProducerReadinessMaxWait,
 		)
 		return crossscope.WrapValueFlowInputsUndrained(pending)
