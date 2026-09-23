@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
@@ -67,7 +69,7 @@ func GlobalContentEntityNameFilter(typeName string) (GlobalContentEntityFilter, 
 	if _, graphOnly := globalGraphOnlyEntityTypes[typeName]; graphOnly {
 		return GlobalContentEntityFilter{}, false
 	}
-	if semanticType, ok := querycontract.ElixirSemanticEntityTypes[typeName]; ok {
+	if semanticType, ok := taxonomy.ElixirSemanticEntityTypes[typeName]; ok {
 		return GlobalContentEntityFilter{
 			EntityType: semanticType.BaseType, MetadataKey: semanticType.MetadataKey, MetadataValue: semanticType.MetadataValue,
 		}, true
@@ -75,13 +77,13 @@ func GlobalContentEntityNameFilter(typeName string) (GlobalContentEntityFilter, 
 	if entityType, ok := resolveContentBackedEntityTypes[typeName]; ok {
 		return GlobalContentEntityFilter{EntityType: entityType}, true
 	}
-	if entityType, ok := querycontract.ContentBackedEntityTypes[typeName]; ok {
+	if entityType, ok := taxonomy.ContentBackedEntityTypes[typeName]; ok {
 		return GlobalContentEntityFilter{EntityType: entityType}, true
 	}
-	if entityType, ok := querycontract.GraphBackedEntityTypes[typeName]; ok {
+	if entityType, ok := taxonomy.GraphBackedEntityTypes[typeName]; ok {
 		return GlobalContentEntityFilter{EntityType: entityType}, true
 	}
-	if entityType, ok := querycontract.GraphFirstContentBackedEntityTypes[typeName]; ok {
+	if entityType, ok := taxonomy.GraphFirstContentBackedEntityTypes[typeName]; ok {
 		return GlobalContentEntityFilter{EntityType: entityType}, true
 	}
 	return GlobalContentEntityFilter{}, false
@@ -245,10 +247,11 @@ func (h *Handler) resolveEntityFromContent(
 }
 
 // contentEntityTypeForResolve forwards to
-// querycontract.ContentEntityTypeForResolve. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
+// taxonomy.ContentEntityTypeForResolve. The implementation moved to
+// querycontract for #6060 and on to querycontract/taxonomy for #6597; this
+// wrapper keeps entity callers unchanged.
 func contentEntityTypeForResolve(typeName string) string {
-	return querycontract.ContentEntityTypeForResolve(typeName)
+	return taxonomy.ContentEntityTypeForResolve(typeName)
 }
 
 // ResolveGraphEntityType maps a user-facing entity type to its graph label
@@ -260,16 +263,16 @@ func ResolveGraphEntityType(typeName string) (string, string, string, bool) {
 }
 
 func resolveGraphEntityType(typeName string) (string, string, string, bool) {
-	if graphLabel, semanticKey, semanticValue, ok := querycontract.ElixirGraphSemanticEntityType(typeName); ok {
+	if graphLabel, semanticKey, semanticValue, ok := taxonomy.ElixirGraphSemanticEntityType(typeName); ok {
 		return graphLabel, semanticKey, semanticValue, true
 	}
-	if graphLabel, ok := querycontract.GraphBackedEntityTypes[typeName]; ok {
+	if graphLabel, ok := taxonomy.GraphBackedEntityTypes[typeName]; ok {
 		return graphLabel, "", "", true
 	}
 	if graphLabel, ok := resolverOnlyGraphEntityTypes[typeName]; ok {
 		return graphLabel, "", "", true
 	}
-	if graphLabel, ok := querycontract.GraphFirstContentBackedEntityTypes[typeName]; ok {
+	if graphLabel, ok := taxonomy.GraphFirstContentBackedEntityTypes[typeName]; ok {
 		return graphLabel, "", "", true
 	}
 	if graphLabel, ok := graphResolvableNotLanguageQueryableEntityTypes[typeName]; ok {
@@ -279,9 +282,10 @@ func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 }
 
 // resolveContentBackedEntityTypes forwards to
-// querycontract.ResolveContentBackedEntityTypes. The implementation moved to
-// querycontract for #6060; this alias keeps root callers unchanged.
-var resolveContentBackedEntityTypes = querycontract.ResolveContentBackedEntityTypes
+// taxonomy.ResolveContentBackedEntityTypes. The implementation moved to
+// querycontract for #6060 and on to querycontract/taxonomy for #6597; this
+// alias keeps entity callers unchanged.
+var resolveContentBackedEntityTypes = taxonomy.ResolveContentBackedEntityTypes
 
 func contentEntityToMap(entity querycontract.EntityContent) map[string]any {
 	result := map[string]any{

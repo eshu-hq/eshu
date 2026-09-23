@@ -106,7 +106,7 @@ in it**.
 | `auth/` | ← `queryauth`, plus `route`, `session`, `signin`, `setup`, `acl` from root |
 | `content/` | ← `contentread` (the handler), `read` (the `ContentReader` unit), `relationship` |
 | `code/` | ← `codequery`, `model` ← `codemodel`, `shaping` ← `codeshaping`, `owners` ← `codeowners`, `divergence` ← `codedivergence`, `seam`, and `codequery`'s nine existing children |
-| `contract/` | ← `querycontract`, split into `answer`, `code`, `entity`, `evidence`, `kubernetes`, `language`, `visualization`, `rowvalue` |
+| `contract/` | ← `querycontract`, split into `answer`, `code`, `entity`, `evidence`, `kubernetes`, `taxonomy` (planned as `language`; see the move checklist), `visualization`, `rowvalue` |
 | `capability/` | the root capability handler, plus `capability_matrix.go` and `registry.go` from today's `contract/` |
 | `infra/` | `aggregate`, `relationship`, `summary` |
 | `cloud/` | `drift` |

@@ -22,11 +22,11 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 1 | `capability/` | 2 | [#6985](https://github.com/eshu-hq/eshu/pull/6985) | **merged** `2d68f1cbb` | — |
 | 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
-| 4 | `querycontract/language` | 4 | — | not started | |
+| 4 | `querycontract/taxonomy` (planned as `language`) | 4 | — | open | 37 |
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
 | 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
 | 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | **merged** `957772254` | 44 |
-| 8 | `querycontract/answer` | 3 | — | open | 41 |
+| 8 | `querycontract/answer` | 3 | [#7025](https://github.com/eshu-hq/eshu/pull/7025) | **merged** `1d119f391` | 41 |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
@@ -225,3 +225,33 @@ removed or renamed. The moved package holds types and pure builders.
 Why it is safe: `go vet ./...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
 `verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `taxonomy` leaf
+
+The leaf was planned as `querycontract/language`. It is named `taxonomy`
+because three of its seventeen exported symbols are about languages,
+`query/language` already exists and is its largest consumer, and a package of
+that name would force a rename or import alias in six of its 28 importing files
+(five declare a `language` local that shadows it, one collides on the package
+name), measured by compiling that variant.
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/taxonomy/` (`language_registry.go` -> `language.go`,
+`language_query_entities.go` -> `entity_types.go` with `GraphResultMetadata`
+split into `result_metadata.go`, `language_query_metadata.go` -> `search.go`).
+`language_query_reasons.go`'s two wire constants fold into the parent's
+`truth.go`. Root's `contentEntityTypeForResolve` and
+`elixirSemanticEntityTypes` wrappers are deleted; no root file goes. In every
+touched Go file the diff changes an import line, a package qualifier or a
+comment. No SQL, Cypher, call site, argument, allocation or loop bound
+changes. Four queryplan source-hash pins
+(`listMostComplexFunctions`, `searchGraphEntitiesWithExact`,
+`GetEntityContext`, `ResolveEntity`) refresh because their bodies now say
+`taxonomy.X`.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds maps and pure functions.
+
+Why it is safe: `go vet ./...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1`, `verify-parser-relationship-kit.sh`,
+`verify-dirgate.sh --all` and `verify-moved-file-refs.sh` all exit 0.

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -262,7 +264,7 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 			"start_line": IntVal(row, "start_line"),
 			"end_line":   IntVal(row, "end_line"),
 		}
-		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+		if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
 			entitysemantics.AttachSemanticSummary(result)
 		}
@@ -324,7 +326,7 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 
 	allowedLanguages := make(map[string]struct{})
 	if strings.TrimSpace(language) != "" {
-		for _, variant := range querycontract.NormalizedLanguageVariants(language) {
+		for _, variant := range taxonomy.NormalizedLanguageVariants(language) {
 			allowedLanguages[variant] = struct{}{}
 		}
 	}

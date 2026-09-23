@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -52,7 +54,7 @@ func (h *Handler) EnrichEntityResultsWithContentMetadata(
 
 	metadataByKey := make(map[string]map[string]any, len(rows))
 	for _, row := range rows {
-		metadataByKey[querycontract.LanguageResultMatchKey(
+		metadataByKey[taxonomy.LanguageResultMatchKey(
 			row.RelativePath,
 			row.EntityType,
 			row.EntityName,
@@ -64,11 +66,11 @@ func (h *Handler) EnrichEntityResultsWithContentMetadata(
 		if metadata, ok := results[i]["metadata"].(map[string]any); ok && len(metadata) > 0 {
 			continue
 		}
-		entityType := querycontract.ResultContentEntityType(results[i])
+		entityType := taxonomy.ResultContentEntityType(results[i])
 		if entityType == "" {
 			continue
 		}
-		key := querycontract.LanguageResultMatchKey(
+		key := taxonomy.LanguageResultMatchKey(
 			querycontract.StringVal(results[i], "file_path"),
 			entityType,
 			querycontract.StringVal(results[i], "name"),

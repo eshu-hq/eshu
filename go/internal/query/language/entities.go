@@ -7,20 +7,22 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// graphBackedEntityTypes forwards to querycontract.GraphBackedEntityTypes.
-var graphBackedEntityTypes = querycontract.GraphBackedEntityTypes
+// graphBackedEntityTypes forwards to taxonomy.GraphBackedEntityTypes.
+var graphBackedEntityTypes = taxonomy.GraphBackedEntityTypes
 
-// contentBackedEntityTypes forwards to querycontract.ContentBackedEntityTypes.
-var contentBackedEntityTypes = querycontract.ContentBackedEntityTypes
+// contentBackedEntityTypes forwards to taxonomy.ContentBackedEntityTypes.
+var contentBackedEntityTypes = taxonomy.ContentBackedEntityTypes
 
 // graphFirstContentBackedEntityTypes forwards to
-// querycontract.GraphFirstContentBackedEntityTypes.
-var graphFirstContentBackedEntityTypes = querycontract.GraphFirstContentBackedEntityTypes
+// taxonomy.GraphFirstContentBackedEntityTypes.
+var graphFirstContentBackedEntityTypes = taxonomy.GraphFirstContentBackedEntityTypes
 
 // buildLanguageResult converts a Neo4j result row into the response shape.
 func buildLanguageResult(row map[string]any, label string) map[string]any {
@@ -70,9 +72,9 @@ func buildLanguageResult(row map[string]any, label string) map[string]any {
 	return result
 }
 
-// graphResultMetadata forwards to querycontract.GraphResultMetadata.
+// graphResultMetadata forwards to taxonomy.GraphResultMetadata.
 func graphResultMetadata(row map[string]any) map[string]any {
-	return querycontract.GraphResultMetadata(row)
+	return taxonomy.GraphResultMetadata(row)
 }
 
 // graphSemanticMetadataProjection forwards to
@@ -83,9 +85,9 @@ func graphSemanticMetadataProjection() string {
 }
 
 // graphLabelToContentEntityType forwards to
-// querycontract.GraphLabelToContentEntityType.
+// taxonomy.GraphLabelToContentEntityType.
 func graphLabelToContentEntityType(label string) string {
-	return querycontract.GraphLabelToContentEntityType(label)
+	return taxonomy.GraphLabelToContentEntityType(label)
 }
 
 func allSupportedEntityTypes() map[string]string {

@@ -358,11 +358,11 @@ When adding or promoting language-query support:
    `go/internal/query/language/registry.go` — that is the file to edit when
    adding or removing an accepted language. The alias table behind the `jsx`
    and `tsx` normalizations above, and the coverage maps, live separately in
-   `go/internal/query/querycontract/language_registry.go` so every
+   `go/internal/query/querycontract/taxonomy/language.go` so every
    handler-family subpackage, this one included, can reach them.
-   `language/registry.go` calls `querycontract` directly as
+   `language/registry.go` calls `taxonomy` directly as
    `canonicalLanguage` and `NormalizedVariants`; root package `query` (#6642)
-   does not re-export the querycontract helpers itself, it forwards to this
+   does not re-export the taxonomy helpers itself, it forwards to this
    package's own spellings (`normalizedLanguageVariants`) for its own staying
    callers.
 2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value
@@ -413,7 +413,7 @@ use) through a compatibility stanza in `language_alias.go`.
 
 The graph-row metadata projection that fills a language-query result's
 `metadata` object, and the entity-type mapping that decides which label a row
-resolves to, live in `internal/query/querycontract`. The graph-first
+resolves to, live in `internal/query/querycontract/taxonomy`. The graph-first
 content-backed map (`GraphFirstContentBackedEntityTypes`, with
 `internal/query/language`'s `entities.go` keeping a same-value alias) is
 canonical there too since the #6060 entity move; no mapping entry changed. The

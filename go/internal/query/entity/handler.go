@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -242,7 +244,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 			"start_line": querycontract.IntVal(row, "start_line"),
 			"end_line":   querycontract.IntVal(row, "end_line"),
 		}
-		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+		if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 			entity["metadata"] = metadata
 		}
 		entities = append(entities, entity)
@@ -398,7 +400,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		"end_line":      querycontract.IntVal(row, "end_line"),
 		"relationships": extractRelationships(row),
 	}
-	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
 	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {

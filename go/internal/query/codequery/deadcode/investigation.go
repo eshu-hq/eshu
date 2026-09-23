@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -414,7 +416,7 @@ func (a *Analyzer) deadCodeInvestigationCoverage(
 	}
 	coverage["file_count"] = contentCoverage.FileCount
 	coverage["entity_count"] = contentCoverage.EntityCount
-	coverage["languages"] = querycontract.CoverageLanguageMaps(contentCoverage.Languages)
+	coverage["languages"] = taxonomy.CoverageLanguageMaps(contentCoverage.Languages)
 	if latest := latestDeadCodeCoverageTimestamp(contentCoverage); !latest.IsZero() {
 		coverage["content_last_indexed_at"] = latest.Format(time.RFC3339Nano)
 		coverage["freshness_state"] = "content_index_available"

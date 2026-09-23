@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 )
 
 func TestBuildContentRelationshipSetArgoCDApplicationPromotesSourceAndDestination(t *testing.T) {
@@ -293,8 +295,8 @@ func TestContentEntityTypeForResolveMapsArgoCDAndIaCContentEntities(t *testing.T
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := contentEntityTypeForResolve(tt.typeName); got != tt.want {
-				t.Fatalf("contentEntityTypeForResolve(%q) = %q, want %q", tt.typeName, got, tt.want)
+			if got := taxonomy.ContentEntityTypeForResolve(tt.typeName); got != tt.want {
+				t.Fatalf("taxonomy.ContentEntityTypeForResolve(%q) = %q, want %q", tt.typeName, got, tt.want)
 			}
 		})
 	}

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
@@ -211,7 +213,7 @@ func (r StructuralInventoryRequest) validate() error {
 	}
 	if r.Kind() == "function_count_by_file" &&
 		strings.TrimSpace(r.EntityKind) != "" &&
-		querycontract.ContentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
+		taxonomy.ContentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
 		return fmt.Errorf("entity_kind must be function for function_count_by_file inventory")
 	}
 	if !r.hasScopeFilter() {
@@ -265,7 +267,7 @@ func (r StructuralInventoryRequest) EntityType() string {
 	if entityKind == "" {
 		return ""
 	}
-	return querycontract.ContentEntityTypeForResolve(strings.ToLower(entityKind))
+	return taxonomy.ContentEntityTypeForResolve(strings.ToLower(entityKind))
 }
 
 func (r StructuralInventoryRequest) hasScopeFilter() bool {

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -115,7 +117,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		"outgoing":   querycontract.FilterNullRelationships(row["outgoing"]),
 		"incoming":   querycontract.FilterNullRelationships(row["incoming"]),
 	}
-	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
 	if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {
@@ -209,7 +211,7 @@ func (h *CodeHandler) serveTransitiveRelationships(
 		"outgoing":   mapRelationships(row["outgoing"]),
 		"incoming":   mapRelationships(row["incoming"]),
 	}
-	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
 	if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {

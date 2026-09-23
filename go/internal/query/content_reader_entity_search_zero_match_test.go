@@ -7,7 +7,7 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 )
 
 // TestSearchEntitiesByLanguageAndTypeGatesPageReadOnSameFilters is the #6540
@@ -34,7 +34,7 @@ func TestSearchEntitiesByLanguageAndTypeGatesPageReadOnSameFilters(t *testing.T)
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.SearchEntitiesByLanguageAndTypeForAccess(t.Context(), querycontract.LanguageEntitySearch{
+	got, err := reader.SearchEntitiesByLanguageAndTypeForAccess(t.Context(), taxonomy.LanguageEntitySearch{
 		Language:   "hcl",
 		EntityType: "Function",
 		Limit:      50,
@@ -68,7 +68,7 @@ func TestSearchEntitiesByLanguageAndTypeGateKeepsBindArgs(t *testing.T) {
 	})
 	reader := NewContentReader(db)
 
-	got, err := reader.SearchEntitiesByLanguageAndTypeForAccess(t.Context(), querycontract.LanguageEntitySearch{
+	got, err := reader.SearchEntitiesByLanguageAndTypeForAccess(t.Context(), taxonomy.LanguageEntitySearch{
 		Language:   "go",
 		EntityType: "Function",
 		Limit:      50,

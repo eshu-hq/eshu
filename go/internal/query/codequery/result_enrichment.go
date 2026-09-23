@@ -6,6 +6,8 @@ package codequery
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/search"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -52,7 +54,7 @@ func contentStoreOf(h *CodeHandler) querycontract.ContentStore {
 // its graph labels. The implementation moved to querycontract with lane B5
 // of #6060; this wrapper keeps codequery callers unchanged.
 func ResultContentEntityType(result map[string]any) string {
-	return querycontract.ResultContentEntityType(result)
+	return taxonomy.ResultContentEntityType(result)
 }
 
 func cloneQueryAnyMap(input map[string]any) map[string]any {

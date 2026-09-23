@@ -20,7 +20,7 @@ grant type (`codequery`), the content-model types or capability registry
 (`rows`) -- those are separate leaves this package calls into.
 Does not own `*ContentReader` (package query, a later lane's family): this
 package reaches it only through the `querycontract.ContentStore` and
-`querycontract.LanguageEntityContentSearcher` port interfaces.
+`taxonomy.LanguageEntityContentSearcher` port interfaces.
 
 ## Layout
 

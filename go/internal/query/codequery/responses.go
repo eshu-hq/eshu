@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 )
@@ -105,7 +106,7 @@ func attachCallChainNodeSemantics(nodes []any) []any {
 		}
 
 		normalized := cloneQueryAnyMap(nodeMap)
-		if metadata := querycontract.GraphResultMetadata(normalized); len(metadata) > 0 {
+		if metadata := taxonomy.GraphResultMetadata(normalized); len(metadata) > 0 {
 			normalized["metadata"] = metadata
 			entitysemantics.AttachSemanticSummary(normalized)
 		}

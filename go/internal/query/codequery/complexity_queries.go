@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
@@ -245,7 +247,7 @@ func (h *CodeHandler) listMostComplexFunctions(
 			"end_line":   IntVal(row, "end_line"),
 			"complexity": IntVal(row, "complexity"),
 		}
-		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+		if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
 			entitysemantics.AttachSemanticSummary(result)
 		}
@@ -350,7 +352,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		"incoming_count":      IntVal(row, "incoming_count"),
 		"total_relationships": IntVal(row, "total_relationships"),
 	}
-	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+	if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
 	enriched, err := h.enrichGraphSearchResultsWithContentMetadata(

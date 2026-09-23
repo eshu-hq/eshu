@@ -4,6 +4,8 @@
 package query //nolint:dirgate // B5 root alias shim for #6642: type aliases and thin forwarders for the moved language family must live in package query so handler wiring, cmd constructors, and staying callers compile unchanged.
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/language"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -71,4 +73,4 @@ func sourceBackendForTruthBasis(basis querycontract.TruthBasis) string {
 // `go build`, not only `go test`, the moment it stops satisfying the port.
 // It moved from language/metadata.go (#6642) because ContentReader is a
 // later lane's family and the leaf must never name it.
-var _ querycontract.LanguageEntityContentSearcher = (*ContentReader)(nil)
+var _ taxonomy.LanguageEntityContentSearcher = (*ContentReader)(nil)

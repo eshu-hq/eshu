@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package taxonomy
 
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/rowvalue"
 )
 
 // LanguageResultMatchKey identifies one entity by where it sits in a file. It
-// is shared with the entity and code-search enrichments (root's
-// entity_metadata.go, code_search_metadata.go), which anchor their own reads
+// is shared with the entity and code-search enrichments (entity/metadata.go,
+// codequery/search/enrich.go), which anchor their own reads
 // differently, so a caller adding the repository to the key does so itself
 // rather than this shape changing. The implementation moved from root's
 // language_query_metadata.go for #6060 so a handler-family subpackage can
@@ -45,7 +48,7 @@ type LanguageEntitySearch struct {
 // language_query_metadata.go for #6060 so a handler-family subpackage can
 // name the same interface without importing root.
 type LanguageEntityContentSearcher interface {
-	SearchEntitiesByLanguageAndTypeForAccess(context.Context, LanguageEntitySearch) ([]EntityContent, error)
+	SearchEntitiesByLanguageAndTypeForAccess(context.Context, LanguageEntitySearch) ([]querycontract.EntityContent, error)
 }
 
 // ResultContentEntityType resolves a result row's content-entity type from
@@ -53,7 +56,7 @@ type LanguageEntityContentSearcher interface {
 // code_search_metadata.go for #6060 so a handler-family subpackage can
 // resolve a row's content type without importing root.
 func ResultContentEntityType(result map[string]any) string {
-	labels := StringSliceVal(result, "labels")
+	labels := rowvalue.StringSliceVal(result, "labels")
 	for _, label := range labels {
 		if entityType := GraphLabelToContentEntityType(label); entityType != "" {
 			return entityType

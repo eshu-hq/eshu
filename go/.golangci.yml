@@ -457,8 +457,9 @@ linters:
         linters:
           - funlen
       # GraphResultMetadata moved out of internal/query/language_query_entities.go
-      # into querycontract for #6060, same pre-existing function, new path.
-      - path: 'internal/query/querycontract/language_query_entities\.go'
+      # into querycontract for #6060, then into querycontract/taxonomy's
+      # result_metadata.go for #6597. Same pre-existing function, new path.
+      - path: 'internal/query/querycontract/taxonomy/result_metadata\.go'
         linters:
           - funlen
       - path: 'internal/query/handler\.go'
@@ -471,9 +472,6 @@ linters:
         linters:
           - funlen
       - path: 'internal/query/investigation_workflow_catalog\.go'
-        linters:
-          - funlen
-      - path: 'internal/query/language_query_entities\.go'
         linters:
           - funlen
       - path: 'internal/query/repository/handler\.go'

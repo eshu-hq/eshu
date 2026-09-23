@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
@@ -116,7 +118,7 @@ func (a *Analyzer) buildDeadCodeResults(
 			"start_line": querycontract.IntVal(row, "start_line"),
 			"end_line":   querycontract.IntVal(row, "end_line"),
 		}
-		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+		if metadata := taxonomy.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
 		}
 		results = append(results, result)
