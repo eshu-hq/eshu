@@ -309,9 +309,9 @@ the concrete adapters stay here.
   coalesced AWS Config/EventBridge freshness triggers with
   `AWSFreshnessSchemaSQL`; `StatusStore` also reads aggregate freshness trigger
   counts and oldest queued age for `/admin/status`
-- `VulnerabilitySourceStateStore` / `NewVulnerabilitySourceStateStore` —
+- `vulnerabilitystore.VulnerabilitySourceStateStore` / `vulnerabilitystore.NewVulnerabilitySourceStateStore` —
   durable OSV/NVD/KEV/EPSS source freshness, checkpoint, retry, and terminal
-  state with `VulnerabilitySourceStateSchemaSQL`; `StatusStore` reads the
+  state with `vulnerabilitystore.VulnerabilitySourceStateSchemaSQL`; `StatusStore` reads the
   bounded source-state rows for `/admin/status`
 
 **Schema bootstrap**
@@ -324,7 +324,7 @@ the concrete adapters stay here.
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `iacstore.IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
-  `VulnerabilitySourceStateSchemaSQL`, `tenantstore.TenantWorkspaceGrantSchemaSQL`,
+  `vulnerabilitystore.VulnerabilitySourceStateSchemaSQL`, `tenantstore.TenantWorkspaceGrantSchemaSQL`,
   `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`, `OIDCLoginSchemaSQL`,
   `SAMLSSOSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,
