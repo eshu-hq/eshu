@@ -113,7 +113,7 @@ file-path field changed. `DependenciesCypher`'s digest was re-derived the
 same way. No
 Cypher text, response shape, pagination bound, or capability behavior
 changed. No production-file rename this move required touched the
-`querycontract`/`queryauth`/`decode`/`queryselector`/`tracing` leaf
+`querycontract`/`queryauth`/`decode`/`selector`/`tracing` leaf
 packages it depends on.
 
 ## No-Regression Evidence
@@ -155,7 +155,7 @@ The Go standard library, `database/sql`, `go/internal/storage/postgres/array`,
   two `Build*` functions.
 - `decode` -- the classified fact-decode failure
   (`*decode.Error`) this package's correlation decode wrappers return.
-- `queryselector` -- `ResolveForRequestWithAccess`, the repository-selector
+- `selector` -- `ResolveForRequestWithAccess`, the repository-selector
   resolution this package's correlation and dependency-chains handlers use.
 - `queryauth` -- `AuthContext`, `AuthContextFromContext`,
   `RepositoryAccessFilterFromContext` (via `querycontract`), the scoped-token

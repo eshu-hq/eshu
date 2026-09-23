@@ -90,3 +90,75 @@ recording the move. The tracer is still
 and dashboards that match on these names still work. The
 `docs/public/observability/telemetry-coverage.md` row now points at
 `handler.go`.
+
+## Performance and observability evidence for the `selector` leaf
+
+No-Regression Evidence: six files move from `queryselector/` to
+`selector/` (four Go files plus the `doc.go`/`README.md`/`AGENTS.md`
+trio), 45 importer files repoint the import path and the `queryselector.`
+qualifier to `selector.`, and 11 of those importers rename a
+`selector`-named parameter or local to `rawSelector` where it would
+otherwise shadow the new package qualifier. No call site, argument,
+allocation, or loop bound changes.
+
+Before tree `04a017c57463c9697fe0a8346003b5208437a21a`
+(`9cf27f072:go/internal/query/queryselector`), after tree
+`57c21635d3ff595bb75cc9d0e0f4770c9c5ca516`
+(`HEAD:go/internal/query/selector`). Moved-file blob pairs
+(before → after):
+
+- `doc.go`: `3bf21fd1` → `ba207755` (package clause plus the godoc
+  `Package queryselector` lead line only)
+- `selector.go`: `4b6b97a0` → `988a1e80` (package clause only)
+- `entity_repo_identity.go`: `2a177fe0` → `2c8401a0` (package clause only)
+- `entity_repo_identity_test.go`: `aaf3531b` → `92abee14` (package clause only)
+- `AGENTS.md`: title line only; `README.md`: byte-identical.
+
+Importer substitution proof, base `9cf27f072`, run from the worktree root:
+
+```bash
+git diff --name-only 9cf27f072 HEAD -- '*.go' \
+ | while read f; do git cat-file -e "9cf27f072:$f" 2>/dev/null && echo "MOD $f"; done \
+ | while read cls f; do
+     rg -q rawSelector "$f" && continue
+     git show "9cf27f072:$f" | sed 's/queryselector/selector/g' | cmp -s - "$f" && echo "CLEAN $f"
+   done
+```
+
+32 importer files are byte-exact under `s/queryselector/selector/g`.
+Two more (`codequery/search_authz_test.go`, `repository/authz_test.go`)
+match under the same sed plus one gofumpt import-line resort each
+(`query/selector` sorts after `query/querytestutil`, while
+`query/queryselector` sorted before it). The remaining 11 importer
+files (including `repository/selectors.go`, both `repository_selector.go`
+families, `contentread/content_handler.go`, `iac/handler.go`, and five
+`supply/chain` scopes) carry the extra `selector` → `rawSelector`
+parameter rename; every changed line in their diffs contains the
+`selector` or `rawSelector` token, so no other byte changed.
+
+`scripts/verify-performance-evidence.sh` reports no hot
+Cypher/concurrency/runtime files changed, so no benchmark applies: the
+Cypher text inside the moved files is untouched and the call graph is
+identical up to the qualifier rename. The two `query-source-coverage.yaml`
+rows for the moved files rename only the `file:` key (`queryselector/` →
+`selector/`); their `source_sha256` pins hash the extracted symbol source,
+which excludes the package clause, so they stay valid. One hot-callsite pin
+outside the moved files IS touched: `entity/handler.go:(*Handler).ResolveEntity`
+calls through the renamed qualifier twice inside the function body, so its
+symbol-source digest moves `91a04b4e…` → `07158242…`. The refresh is
+qualifier-only (the function diff shows exactly two `queryselector.` →
+`selector.` token changes and nothing else), the new digest was recomputed
+independently with `go/ast` extraction plus sha256 (matching the
+`manifestSymbolSource`/`sourceNodeText` method), and the full
+`go test ./internal/queryplan/ -count=1` plus
+`scripts/verify-query-plan-regression.sh` pass with no other pin drifting. `scripts/verify-moved-file-refs.sh` reports 4 vacated
+Go paths against base `9cf27f072` with no dangling references (dated
+evidence and design docs that name the old path stay pinned via four
+new `scripts/moved-file-refs-allowlist.txt` rows), and
+`scripts/verify-package-docs.sh` reports the moved doc trio present.
+`go build ./...` (exit 0) plus `go test ./internal/query/... -count=1`
+(all ok, no failures) prove the repointed call graph still resolves and
+behaves.
+
+No-Observability-Change: no span name, attribute, metric, or log line
+changes; the move touches no telemetry emission point.

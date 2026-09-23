@@ -14,8 +14,8 @@ code, entity and impact query families.
 ## Dependencies
 
 Inbound: 20 files across `internal/query`, `codequery`, `codequery/search`,
-`codequery/relationships/story`, `entity`, `impact` and `queryselector`.
-`codequery` and `queryselector` import it as `entitycontract` where a local
+`codequery/relationships/story`, `entity`, `impact` and `selector`.
+`codequery` and `selector` import it as `entitycontract` where a local
 variable is named `entity`. The `query/entity` handler package imports it
 under the plain name `entity` too: both are package `entity`, which Go allows.
 

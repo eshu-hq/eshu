@@ -1,4 +1,4 @@
-# Agent instructions: queryselector
+# Agent instructions: selector
 
 Read `doc.go` and `README.md` first. This resolves an untrusted client string
 against the graph under authorization bounds, so treat changes as security work.

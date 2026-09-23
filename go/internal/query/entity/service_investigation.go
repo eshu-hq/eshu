@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -64,7 +64,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-		var repoAmbiguous queryselector.AmbiguousError
+		var repoAmbiguous selector.AmbiguousError
 		if errors.As(err, &repoAmbiguous) {
 			writeServiceStoryEnvelopeError(
 				w,
@@ -81,7 +81,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-		if queryselector.IsNotFound(err) {
+		if selector.IsNotFound(err) {
 			writeServiceStoryEnvelopeError(
 				w,
 				r,

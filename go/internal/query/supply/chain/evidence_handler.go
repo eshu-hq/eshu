@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -47,7 +47,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	// with the impact findings that derive advisory anchors so a scoped caller
 	// only learns advisories affecting its own repositories.
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := queryselector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, querycontract.QueryParam(r, "repository_id"), access, advisory.EvidenceCapability)
+	repositoryID, ok := selector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, querycontract.QueryParam(r, "repository_id"), access, advisory.EvidenceCapability)
 	if !ok {
 		return
 	}

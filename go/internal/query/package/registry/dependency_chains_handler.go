@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -71,7 +71,7 @@ func (h *Handler) listDependencyChains(w http.ResponseWriter, r *http.Request) {
 		h.writeEmptyPackageDependencyChainPage(w, r, limit)
 		return
 	}
-	repositoryID, ok := queryselector.ResolveForRequestWithAccess(
+	repositoryID, ok := selector.ResolveForRequestWithAccess(
 		w,
 		r,
 		h.Neo4j,

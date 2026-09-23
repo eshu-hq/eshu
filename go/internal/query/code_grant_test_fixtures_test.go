@@ -30,7 +30,7 @@ import (
 // (decodeEnvelopeData). Keep both copies in lockstep by hand.
 
 // codeGrantGrantedRepo and codeGrantOtherRepo are canonical repository ids
-// (the repo:// form queryselector.LooksCanonicalRepositoryID recognises), so
+// (the repo:// form selector.LooksCanonicalRepositoryID recognises), so
 // a route that takes a repository selector resolves them through the grant
 // rather than through a catalog or graph lookup the fakes do not implement.
 //

@@ -29,7 +29,7 @@
 // see capabilities.go's file doc comment for why this family carries its own
 // copy of those two strings. Every route resolves the caller's
 // repository/scope grant through querycontract.RepositoryAccessFilterFromContext
-// (or queryselector.ResolveExactForAccess for a selector-bearing route) before
+// (or selector.ResolveExactForAccess for a selector-bearing route) before
 // binding it into the query, and reports a bounded, deterministically
 // ordered, truncation-aware result.
 //
@@ -46,7 +46,7 @@
 //
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, RepositoryAccessFilterFromContext,
-// DriftedAttributeView), queryselector (repository selector resolution),
+// DriftedAttributeView), selector (repository selector resolution),
 // tracing (the shared handler-span seam), queryauth (AuthContext, only in
 // tests), and storage/postgres (the concrete Postgres adapters and their row
 // types); it MUST NOT import the query root, or root would cycle back through

@@ -39,7 +39,7 @@ import (
 //     returned.
 //
 // The two ids are canonical repository ids (the repo:// form
-// queryselector.LooksCanonicalRepositoryID recognises), so a route that takes
+// selector.LooksCanonicalRepositoryID recognises), so a route that takes
 // a repository selector resolves them through the grant rather than through a
 // catalog or graph lookup the fakes do not implement.
 const (

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package queryselector resolves a caller-supplied repository selector to a
+// Package selector resolves a caller-supplied repository selector to a
 // canonical repository id, under the caller's authorization bounds.
 //
 // A selector is whatever a client typed: an id, a name, a path, a local path, a
@@ -18,4 +18,4 @@
 // It is its own package, rather than part of querycontract, because the
 // request-level entry point writes to a ResponseWriter. Request-time
 // orchestration does not belong in the dependency-neutral contract package.
-package queryselector
+package selector

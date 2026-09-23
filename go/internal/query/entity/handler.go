@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -163,13 +163,13 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	limit := NormalizeResolveEntityLimit(req.Limit)
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if req.RepoID != "" {
-		resolvedRepoID, err := queryselector.ResolveExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
+		resolvedRepoID, err := selector.ResolveExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
 		if err != nil {
 			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
 				return
 			}
 			status := http.StatusBadRequest
-			if queryselector.IsNotFound(err) {
+			if selector.IsNotFound(err) {
 				status = http.StatusNotFound
 			}
 			querycontract.WriteError(w, status, err.Error())

@@ -20,7 +20,7 @@ subpackage can call the same logic without an import cycle (#6060):
 
 | Promoted seam | File here | What root keeps |
 | --- | --- | --- |
-| `#6408` projection-placeholder scrubber | moved to `entity/` (#6597) | `codequery` and `queryselector` call `entity.ClearResolvedEntityRepoProjectionPlaceholders` directly |
+| `#6408` projection-placeholder scrubber | moved to `entity/` (#6597) | `codequery` and `selector` call `entity.ClearResolvedEntityRepoProjectionPlaceholders` directly |
 | Visualization packet, builder and merge | moved to `visualization/` (#6597) | callers name `visualization.VisualizationPacket`, `visualization.NewVisualizationBuilder` and friends directly |
 | Entity-name search and resolution | moved to `entity/` (#6597) | callers name `entity.EntityNameSearch`, `entity.ResolveExactGraphEntityCandidates` and friends directly; root's #6060 aliases were deleted with the move |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |

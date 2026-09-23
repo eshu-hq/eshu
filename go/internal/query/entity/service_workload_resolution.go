@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
@@ -113,7 +113,7 @@ func (h *Handler) resolveServiceTraceRepoSelector(ctx context.Context, repoSelec
 	if strings.TrimSpace(repoSelector) == "" {
 		return "", nil
 	}
-	return queryselector.ResolveExactForAccess(
+	return selector.ResolveExactForAccess(
 		ctx,
 		h.Neo4j,
 		h.Content,

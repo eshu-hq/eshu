@@ -14,7 +14,7 @@ import (
 
 // groupARepositoryRoutes is the #5167 Group A inventory: five already-filtered
 // single-repository GET routes that resolve through
-// queryselector.ResolveExactForAccess (via resolveRepositoryPathSelector /
+// selector.ResolveExactForAccess (via resolveRepositoryPathSelector /
 // resolveRepositoryStatsPathSelector) exactly like
 // GET /api/v0/repositories/{repo_id}/freshness (#5143, #5150). Each needed only
 // the allowlist matcher, the OpenAPI marker, and the completeness-ledger entry

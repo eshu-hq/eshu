@@ -195,7 +195,7 @@ func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 
 	// #5167 batch 2a. This route is owned by Handler, not CodeHandler, so
 	// req.RepoID used to reach both backends raw: never resolved through
-	// queryselector and never checked against the caller's grant. Both
+	// selector and never checked against the caller's grant. Both
 	// halves of the family's fix apply here through free functions rather
 	// than a second copy of the plumbing -- the selector is resolved and an
 	// ungranted one rejected with 400, then the grant the remaining reads

@@ -93,7 +93,7 @@ list route adds `cluster_count`.
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
-envelopes, shared bounds), `queryselector` (selector resolution),
+envelopes, shared bounds), `selector` (selector resolution),
 `queryauth` (scoped-context checks), `impact`/`impacttrace` (deployment
 seams), `repositoryartifacts`, `repository/readmodel`, `querytestutil` in
 tests only, and the `telemetry`/`log` packages for the

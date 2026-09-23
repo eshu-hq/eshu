@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 type securityAlertProviderRepositoryScopeStore interface {
@@ -21,20 +21,20 @@ type securityAlertProviderRepositoryScopeStore interface {
 func (h *Handler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
-	selector string,
+	rawSelector string,
 	capability string,
 ) (string, bool) {
-	selector = strings.TrimSpace(selector)
-	if selector == "" {
+	rawSelector = strings.TrimSpace(rawSelector)
+	if rawSelector == "" {
 		return "", true
 	}
-	repoID, err := queryselector.ResolveExact(r.Context(), h.Neo4j, h.Content, selector)
+	repoID, err := selector.ResolveExact(r.Context(), h.Neo4j, h.Content, rawSelector)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
 			return "", false
 		}
 		status := http.StatusBadRequest
-		if queryselector.IsNotFound(err) {
+		if selector.IsNotFound(err) {
 			status = http.StatusNotFound
 		}
 		querycontract.WriteError(w, status, err.Error())
@@ -46,39 +46,39 @@ func (h *Handler) resolveSupplyChainRepositorySelector(
 func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
-	selector string,
+	rawSelector string,
 	capability string,
 ) (string, []string, bool) {
-	selector = strings.TrimSpace(selector)
-	if selector == "" {
+	rawSelector = strings.TrimSpace(rawSelector)
+	if rawSelector == "" {
 		return "", nil, true
 	}
 
 	if h.Content != nil {
-		entries, err := h.Content.MatchRepositories(r.Context(), selector)
+		entries, err := h.Content.MatchRepositories(r.Context(), rawSelector)
 		if err != nil {
 			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return "", nil, false
 		}
-		matches := queryselector.CatalogMatches(entries, selector)
+		matches := selector.CatalogMatches(entries, rawSelector)
 		switch len(matches) {
 		case 0:
 		case 1:
-			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, selector, matches[0], entries, capability)
+			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, rawSelector, matches[0], entries, capability)
 			if !ok {
 				return "", nil, false
 			}
 			return matches[0], scopes, true
 		default:
-			querycontract.WriteError(w, http.StatusBadRequest, queryselector.AmbiguousError{Selector: selector, Matches: matches}.Error())
+			querycontract.WriteError(w, http.StatusBadRequest, selector.AmbiguousError{Selector: rawSelector, Matches: matches}.Error())
 			return "", nil, false
 		}
 	}
 
-	if queryselector.LooksCanonicalRepositoryID(selector) {
-		return selector, SecurityAlertRepositoryScopeIDs(selector, nil), true
+	if selector.LooksCanonicalRepositoryID(rawSelector) {
+		return rawSelector, SecurityAlertRepositoryScopeIDs(rawSelector, nil), true
 	}
-	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, selector, capability)
+	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, rawSelector, capability)
 	if !ok {
 		return "", nil, false
 	}

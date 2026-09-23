@@ -127,7 +127,7 @@ live in the repository today.
 | `go/internal/query/queryauth/` | request-scoped authorization bounds a query handler reads, and the context slot they travel in |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/query/decode/` | the query layer's classified fact-decode failure, defaulting an unexpected error to non-retryable |
-| `go/internal/query/queryselector/` | resolves a caller-supplied repository selector to one canonical repository id under the caller's access bounds |
+| `go/internal/query/selector/` | resolves a caller-supplied repository selector to one canonical repository id under the caller's access bounds |
 | `go/internal/query/tracing/` | the per-route span query HTTP reads emit, startable from a family subpackage without importing root |
 | `go/internal/query/querytestutil/` | test helpers shared by internal/query and its handler-family subpackages, in non-test files so they are importable |
 | `go/internal/query/semanticsearch/` | curated semantic-search handler family: bounded keyword/semantic/hybrid retrieval, scope resolution, graph reranking, snapshot caching, and the search-vector freshness downgrade |
@@ -197,7 +197,7 @@ Read and operator surfaces live under:
 - `go/internal/query/querycontract/`: response contracts, profile gates, and read ports
 - `go/internal/query/decode/`: classified fact-decode failure for query
   handlers
-- `go/internal/query/queryselector/`: repository-selector resolution under
+- `go/internal/query/selector/`: repository-selector resolution under
   access bounds
 - `go/internal/query/tracing/`: the per-route query read span
 - `go/internal/query/querytestutil/`: importable test helpers shared by the

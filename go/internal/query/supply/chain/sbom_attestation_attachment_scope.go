@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -22,11 +22,11 @@ import (
 func (h *Handler) resolveSBOMAttachmentRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
-	selector string,
+	rawSelector string,
 	access querycontract.RepositoryAccessFilter,
 	capability string,
 ) (string, bool) {
-	return queryselector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access, capability)
+	return selector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, rawSelector, access, capability)
 }
 
 // writeEmptySBOMAttachmentPage returns the bounded zero-attachments page for an

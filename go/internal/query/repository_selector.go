@@ -7,10 +7,10 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
-// The repository-selector resolution moved to queryselector for #6060, so a
+// The repository-selector resolution moved to selector for #6060, so a
 // handler-family subpackage can resolve a selector without importing this
 // package, which it cannot do without an import cycle. It is not in
 // querycontract because resolveRepositorySelectorForRequestWithAccess writes to
@@ -20,8 +20,8 @@ import (
 
 // resolveRepositorySelectorExactForAccess's only caller was iac.go's
 // handleDeadIaC. It moved to iac/handler.go (#6642 Part A) and calls
-// queryselector.ResolveExactForAccess directly (the leaf can import
-// queryselector without a cycle), so this root forwarder is dead and was
+// selector.ResolveExactForAccess directly (the leaf can import
+// selector without a cycle), so this root forwarder is dead and was
 // removed rather than kept as an unused wrapper.
 
 func resolveRepositorySelectorForRequestWithAccess(
@@ -29,9 +29,9 @@ func resolveRepositorySelectorForRequestWithAccess(
 	r *http.Request,
 	graph GraphQuery,
 	content ContentStore,
-	selector string,
+	rawSelector string,
 	access querycontract.RepositoryAccessFilter,
 	capability string,
 ) (string, bool) {
-	return queryselector.ResolveForRequestWithAccess(w, r, graph, content, selector, access, capability)
+	return selector.ResolveForRequestWithAccess(w, r, graph, content, rawSelector, access, capability)
 }

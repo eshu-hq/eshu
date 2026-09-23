@@ -101,7 +101,7 @@ vet. Run `scripts/verify-package-docs.sh` whenever this package changes.
   let a caller hold the bounds and forget to apply them.
   A complete query -- anything with its own `MATCH`/`RETURN` and a result shape
   -- still belongs in a query-owning package. If you are about to add one here,
-  you want a family package or a leaf like `queryselector` instead.
+  you want a family package or a leaf like `selector` instead.
 - Do not expose graph or Postgres implementations through the neutral ports.
 - Do not replace root function wrappers with mutable function variables.
 

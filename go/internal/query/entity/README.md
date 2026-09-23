@@ -32,7 +32,7 @@ shaping behind the entity reads. The `*ContentReader` target-support seam
 stays in the query root: Go requires methods to live with their receiver
 type, and `ContentReader` is a later lane's family. Shared read-model
 loaders, row decoders, bounds, ports, envelopes, and the authorization seam
-live in `querycontract`; selector resolution lives in `queryselector`;
+live in `querycontract`; selector resolution lives in `selector`;
 service tech fingerprints and repo infrastructure reads live in
 `repository`; service query-stage timing and evidence shaping live in
 `service`; image/SBOM read models live in `supplychain`. This package
@@ -83,7 +83,7 @@ through `querytestutil` (notably `FakePortContentStore` and
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
-envelopes, shared bounds, authorization seam), `queryselector` (selector
+envelopes, shared bounds, authorization seam), `selector` (selector
 resolution), `querytestutil`-adjacent fakes in tests only, `repository`
 (tech fingerprint, repo dependency/infrastructure reads), `service` (query
 timing, story/enrichment shaping), `supplychain` (image/SBOM read models),

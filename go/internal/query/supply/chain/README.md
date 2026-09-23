@@ -78,7 +78,7 @@ Internal packages, all of them leaves that never import root package
 - `internal/query/querycontract` — envelopes, capabilities, profiles,
   row-value decoders, repository access filter, collector readiness.
 - `internal/query/queryauth` — auth context bounds and normalization.
-- `internal/query/queryselector` — repository-selector resolution.
+- `internal/query/selector` — repository-selector resolution.
 - `internal/query/tracing` — handler span plumbing.
 - `internal/query/supply/chain/advisory`, `.../impact` — the advisory and
   impact read models.
@@ -110,7 +110,7 @@ structural rather than promissory — each names what a reader can check.
 No-Regression Evidence: the move is a package relocation, not a rewrite.
 `git diff -M --find-renames` pairs each file with its root predecessor;
 the only statement-level changes are the `package` clause, the
-`querycontract`/`queryauth`/`queryselector` qualification of helpers
+`querycontract`/`queryauth`/`selector` qualification of helpers
 root forwards to the identical functions, the export renames listed in
 `AGENTS.md`, the family-local copies documented above, and the packet
 responder seam (the route's request parsing, store reads, and response

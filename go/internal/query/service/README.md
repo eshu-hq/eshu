@@ -53,7 +53,7 @@ pins go through `querytestutil` or `querycontract`.
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
-envelopes, shared bounds), `queryselector` (selector resolution),
+envelopes, shared bounds), `selector` (selector resolution),
 `querytestutil`-adjacent fakes in tests only, `impact`/`impacttrace`
 (deployment seams), `repository`/`repositoryartifacts` (deployment and
 relationship overviews), `service/evidence` (spec parsing), `supplychain`

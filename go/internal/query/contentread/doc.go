@@ -9,7 +9,7 @@
 // read, tested, and changed without pulling in the rest of the query
 // surface. Production code here depends only on dependency-neutral leaf
 // packages -- querycontract (ports, row types, response and truth envelopes,
-// the paged-searcher seam, readiness errors), queryselector
+// the paged-searcher seam, readiness errors), selector
 // (repository-selector resolution), codemodel (document-ID recovery for
 // re-rank), and the search* leaf packages for the hybrid ranker. Tests
 // additionally use queryauth (scoped auth contexts) and querytestutil (the

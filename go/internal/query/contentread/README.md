@@ -19,7 +19,7 @@ implementation or any `content_reader_*.go` file -- those stay in root
 package `query` deliberately (see Gotchas below). It does not own auth, the
 graph/content port definitions, selector resolution, or the
 response-envelope contract -- those live in `querycontract`,
-`queryselector`, and the other leaf packages under `internal/query` (see
+`selector`, and the other leaf packages under `internal/query` (see
 Dependencies).
 
 Root package `query` keeps compatibility aliases and forwarders
@@ -53,7 +53,7 @@ The Go standard library, `database/sql` via the store port, and these
   `RepositoryAccessFilter` + `RepositoryAccessFilterFromContext`,
   response/truth envelopes, `WriteContentSubstringIndexUnavailable`,
   `ErrContentSubstringIndexesNotReady`, `PagedContentSearcher`.
-- `queryselector` -- `ResolveExactForAccess` + `IsNotFound`, the
+- `selector` -- `ResolveExactForAccess` + `IsNotFound`, the
   repository-selector resolution the search/file/entity paths use.
 - `codemodel` -- `EntityIDFromDocument`, the document-ID recovery the
   entity re-rank passes as its rank function (a direct leaf call; root's

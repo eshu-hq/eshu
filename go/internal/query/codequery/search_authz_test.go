@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 func TestCodeSearchGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
@@ -254,7 +254,7 @@ func TestCodeSearchScopedSelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	if err == nil {
 		t.Fatal("resolveRepositorySelector() error = nil, want out-of-scope not found")
 	}
-	if !queryselector.IsNotFound(err) {
+	if !selector.IsNotFound(err) {
 		t.Fatalf("resolveRepositorySelector() error = %T %v, want not found", err, err)
 	}
 }

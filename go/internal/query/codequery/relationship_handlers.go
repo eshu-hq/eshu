@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // The relationshipsRequest type split to
@@ -254,7 +254,7 @@ func (h *CodeHandler) hydrateRelationshipResponseRepoIdentity(ctx context.Contex
 	if h == nil {
 		return nil
 	}
-	if _, err := queryselector.HydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
+	if _, err := selector.HydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
 		return fmt.Errorf("hydrate relationship repo identity: %w", err)
 	}
 	response["repo_id"] = StringVal(entity, "repo_id")
