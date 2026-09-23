@@ -193,10 +193,15 @@ Declared limits of the pilot:
   name or tag value, is rewritten only where it is a whole field value or
   a whole `/`- or `:`-delimited component of a composite (an ARN, a stable
   key, a source uri), never inside longer text (otherwise a tag value `1`
-  would rewrite every `us-east-1`); one glued into a longer word without
-  such a boundary stays raw;
-- a name that exactly matches the AWS region or availability-zone grammar
-  (`us-east-1`, `eu-central-1a`) is AWS vocabulary and is kept.
+  would rewrite every `us-east-1`) and never in a Keep field; one glued
+  into a longer word without such a boundary stays raw, and a Keep value
+  equal to one is kept;
+- a numeric name of fewer than four digits is kept; a longer one never
+  rewrites the `:`-qualifier position of an ARN;
+- a name or tag value that exactly matches the AWS region or
+  availability-zone grammar (`us-east-1`, `eu-central-1a`) or an AWS
+  service, resource-type or host-service word (`rds`, `db`, `iam`, ...) is
+  AWS vocabulary and is kept.
 
 Before committing a refreshed cassette:
 

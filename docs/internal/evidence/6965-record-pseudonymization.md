@@ -66,9 +66,12 @@ networks; the 763rd is `ErrIPv4Exhausted` from `Next`, and
 `Report.IPv4Addresses` shows the count. A name or tag value shorter than
 four characters, or a purely numeric name or tag value, is rewritten only
 as a whole classified value or a whole `/`- or `:`-delimited component of
-a composite, so one glued into a longer word without such a boundary
-stays raw; a name exactly matching the region or availability-zone
-grammar is AWS vocabulary and is kept. The composite envelope fields (`scope_id`,
+a composite (never a Keep field), so one glued into a longer word without
+such a boundary stays raw and a Keep value equal to one is kept; a numeric
+name under four digits is kept and a longer one never rewrites an ARN's
+`:`-qualifier; a name or tag value exactly matching the region or
+availability-zone grammar or an AWS service, type or host-service word is
+AWS vocabulary and is kept. The composite envelope fields (`scope_id`,
 `partition_key`, `stable_fact_key`, `source_record_id`, `source_uri`) are
 substitution-only by design; scope metadata is classified per key like a
 payload.
@@ -138,6 +141,23 @@ scope metadata is learned in sorted key order (`metadata_order_internal_test.go`
 a forced IPv4 slot collision across two metadata keys, 41 runs). F5: the
 gate-test comments name go-race and macos only. F6: the region/AZ-grammar
 limit is declared. Each landed RED-first; corpus tests unchanged.
+
+## Review round 5 (verdict-p3-r4.md on 14bd08d82)
+
+Round 4's whole-component lookup opened four over- or under-rewrite
+paths, each closed RED-first with the reviewer's probe values. F8: a
+12-digit ARN path component (a foreign account in an S3 `AWSLogs/` key,
+an organizations member account) is learned as an account before the
+numeric-qualifier skip (`arn_account_component_test.go`). F9: the finite
+AWS vocabulary (service names, `arnTypeTokens`/`arnSecondTokens` words,
+host service labels, collector service kinds) is structural like regions
+and refused at `set`, so tags `Tier=db`/`Service=rds` and a role named
+`iam` leave scope ids, stable keys, source uris, ARNs and `service_kind`
+intact (`aws_vocabulary_test.go`). F10: numeric names under four digits
+are not learned and a longer one never rewrites an ARN `:`-qualifier
+(`numeric_qualifier_test.go`). F11: `rewrite` threads an exact flag so
+Keep fields never take exact-only tokens (`keep_field_test.go`).
+Corpus tests unchanged.
 
 ## Runtime impact
 

@@ -25,8 +25,14 @@
   regions protected, short or numeric free-text tokens exact-only but
   looked up whole per composite component); a change to it must keep
   `TestShortTokensNeverRewriteStructure`,
-  `TestShortWholeNamesAreRewrittenInComposites` and
-  `TestNumericNamesAreLearned` green. The reducer
+  `TestShortWholeNamesAreRewrittenInComposites`,
+  `TestNumericNamesAreLearned`, `TestNumericNamesNeverRewriteQualifiers`,
+  `TestKeepFieldsIgnoreExactOnlyTokens`,
+  `TestAccountsInsideARNPathsArePseudonymized` and
+  `TestAWSVocabularyWordsAreNeverLearned` green. The AWS vocabulary
+  (`arn_vocabulary.go`) is structural: a learned token equal to one of
+  its words would rewrite service and type segments everywhere, so `set`
+  refuses it; extend the vocabulary, never bypass the refusal. The reducer
   extractors are
   the judge: `TestAWSCorpusShapePreserved` compares raw and pseudonymized
   rows and must stay at the design's exact numbers.
