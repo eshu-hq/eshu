@@ -335,6 +335,37 @@ func TestRunBackendDiffQuorumTransientOrphanPasses(t *testing.T) {
 	}
 }
 
+// A reproduced digest disagreement on a registered tie-order read is not
+// a backend divergence: ORDER BY over tied keys leaves delivery order
+// backend-undefined, so the gate holds it in a visible tie-order finding
+// and stays green (#6782 entry-44 flap). RED: no tie-order exclusion
+// exists, so quorum fails.
+func TestRunBackendDiffQuorumTieOrderPasses(t *testing.T) {
+	const tied = "MATCH (r:Repository) RETURN r.language AS language ORDER BY language DESC"
+	writePair := func() (string, string) {
+		nornic := writeBackendDiffDirStmt(t, "nornicdb", tied, "left")
+		neo := writeBackendDiffDirStmt(t, "neo4j", tied, "right")
+		return nornic, neo
+	}
+	left, right := writePair()
+	left2, right2 := writePair()
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "tie_order_reads:\n- statement: \"" + tied + "\"\n  reason: \"seeded tie-order read\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n  owner: \"query\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	out, err := runBackendDiffQuorumPhaseOutput(t, left, right, left2, right2, allowlist)
+	if err != nil {
+		t.Fatalf("reproduced tie-order divergence failed quorum: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "[WARN] nornicdb_vs_neo4j_tie_order") {
+		t.Fatalf("stdout = %q, want a tie-order finding", out)
+	}
+	if !strings.Contains(out, tied) {
+		t.Fatalf("stdout = %q, want the tie-order finding to name the statement", out)
+	}
+}
+
 // appendStmt adds one more recorded statement to an existing capture dir.
 func appendStmt(t *testing.T, dir, backend, statement, digest string) {
 	t.Helper()
@@ -378,7 +409,7 @@ func TestRunBackendDiffQuorumPairingReportIsBounded(t *testing.T) {
 	if err == nil {
 		t.Fatalf("%d reproduced results divergences passed quorum\n%s", n, out)
 	}
-	if !strings.Contains(out, fmt.Sprintf("pairing 1: %d unexcused divergence(s)", n)) {
+	if !strings.Contains(out, fmt.Sprintf("pairing 1: %d pre-advisory-split divergence(s) (0 transient + 0 tie-order held advisory separately)", n)) {
 		t.Fatalf("stdout = %q, want the full pairing count in the header", out)
 	}
 	want := fmt.Sprintf("... and %d more (see recording artifacts)", extra)

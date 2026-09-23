@@ -379,3 +379,245 @@ func TestEmptyAllowlistExcusesNothing(t *testing.T) {
 		t.Fatalf("Excuse() remaining = %d, want 1", len(remaining))
 	}
 }
+
+// tieOrderStatement is the entry-44 shape: ORDER BY over tied keys with
+// no truncation, so only delivery order (never the row multiset) can
+// differ across backends.
+const tieOrderStatement = "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File) WHERE f.language IS NOT NULL RETURN f.language AS language, count(f) AS file_count ORDER BY file_count DESC"
+
+// TestParseTieOrderReadsAcceptsOrderByWithoutLimit is the GREEN case for
+// the tie-order disposition: an ORDER BY read with no truncation
+// registers without error. RED: tie_order_reads does not exist, so the
+// section is ignored and nothing registers.
+func TestParseTieOrderReadsAcceptsOrderByWithoutLimit(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  reason: ORDER BY over tied keys, backend-undefined delivery order
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	tie := backendconformance.DifferentialDifference{
+		Fingerprint: backendconformance.DifferentialFingerprint{Statement: tieOrderStatement},
+		Kind:        backendconformance.DivergenceResults,
+		Detail:      "row digest differs",
+	}
+	remaining, excluded := allow.ExcludeTieOrder([]backendconformance.DifferentialDifference{tie})
+	if len(remaining) != 0 {
+		t.Fatalf("ExcludeTieOrder() remaining = %v, want the tie-order results differ excluded", remaining)
+	}
+	if len(excluded) != 1 {
+		t.Fatalf("ExcludeTieOrder() excluded = %v, want the tie divergence reported as excluded", excluded)
+	}
+}
+
+// TestParseTieOrderReadsRejectsLimit pins the guard's fail-closed
+// boundary: ORDER BY with LIMIT can return different rows (not just a
+// different order) when keys tie, so that statement must stay required
+// and never register as tie-order.
+func TestParseTieOrderReadsRejectsLimit(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "MATCH (n:Repository) RETURN n ORDER BY n.name LIMIT $limit"
+  reason: tied keys with truncation
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want LIMIT rejection")
+	}
+}
+
+// TestParseTieOrderReadsRejectsSkip pins the other truncation boundary:
+// SKIP drops rows, so a skipped read is row-truth, not order-only.
+func TestParseTieOrderReadsRejectsSkip(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "MATCH (n:Repository) RETURN n ORDER BY n.name SKIP $offset"
+  reason: tied keys with truncation
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want SKIP rejection")
+	}
+}
+
+// TestParseTieOrderReadsRejectsMissingOrderBy pins that the disposition
+// is only for ordering nondeterminism: without ORDER BY the comparator
+// already sorts rows, so there is nothing tie-shaped to register.
+func TestParseTieOrderReadsRejectsMissingOrderBy(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "MATCH (n:Repository) RETURN n"
+  reason: no ordering at all
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want missing-ORDER-BY rejection")
+	}
+}
+
+// TestParseTieOrderReadsRejectsMixedCaseLimit pins the guard against
+// case evasion: Cypher keywords are case-insensitive, so a lowercase
+// limit truncates exactly like an uppercase one and must stay required.
+// RED: the guard scans case-sensitively, so this registers.
+func TestParseTieOrderReadsRejectsMixedCaseLimit(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "MATCH (n:Repository) RETURN n ORDER BY n.name limit $limit"
+  reason: tied keys with lowercase truncation
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want mixed-case-LIMIT rejection")
+	}
+}
+
+// TestParseTieOrderReadsAcceptsLowercaseOrderBy pins the other
+// direction: an all-lowercase order by still orders, and the comparator
+// treats it as ordered (backendconformance.HasOrderBy is
+// case-insensitive), so the guard must accept it too. RED: the guard
+// scans case-sensitively, so this is rejected.
+func TestParseTieOrderReadsAcceptsLowercaseOrderBy(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`tie_order_reads:
+- statement: "match (n:Repository) return n order by n.name"
+  reason: lowercase ordering
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v, want lowercase order by accepted", err)
+	}
+	tie := backendconformance.DifferentialDifference{
+		Fingerprint: backendconformance.DifferentialFingerprint{Statement: "match (n:Repository) return n order by n.name"},
+		Kind:        backendconformance.DivergenceResults,
+		Detail:      "row digest differs",
+	}
+	if remaining, _ := allow.ExcludeTieOrder([]backendconformance.DifferentialDifference{tie}); len(remaining) != 0 {
+		t.Fatalf("ExcludeTieOrder() remaining = %v, want the lowercase tie-order differ excluded", remaining)
+	}
+}
+
+// TestParseTieOrderReadsIgnoresLimitInLiteral pins that the truncation
+// scan skips string literals: the word LIMIT inside a quoted value is
+// prose, not a clause, and must not block registration.
+func TestParseTieOrderReadsIgnoresLimitInLiteral(t *testing.T) {
+	if _, err := ParseAllowlist([]byte(`tie_order_reads:
+- statement: "MATCH (n:Repository) WHERE n.note = 'LIMIT reached' RETURN n ORDER BY n.name"
+  reason: limit word in a literal
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)); err != nil {
+		t.Fatalf("ParseAllowlist() error = %v, want LIMIT-in-literal ignored", err)
+	}
+}
+
+// TestParseTieOrderReadsRejectsTier pins that tie-order exclusions take
+// no tier, like transient reads: the exclusion is order-only by design,
+// so a tier key would be a silent no-op inviting confusion with the
+// allowlist tiers.
+func TestParseTieOrderReadsRejectsTier(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  tier: results
+  reason: tied keys
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want tie-order-tier rejection")
+	}
+}
+
+// TestParseTieOrderReadsRejectsMissingReason keeps the accountability
+// contract: a tie-order registration without a reason must fail.
+func TestParseTieOrderReadsRejectsMissingReason(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want missing-reason rejection")
+	}
+}
+
+// TestParseTieOrderReadsRejectsMissingUpstream keeps the tracking
+// contract: a tie-order registration without an upstream issue must fail.
+func TestParseTieOrderReadsRejectsMissingUpstream(t *testing.T) {
+	raw := []byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  reason: tied keys
+  owner: query
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want missing-upstream rejection")
+	}
+}
+
+// TestExcludeTieOrderKeepsFailuresMissingAndCounts pins the exclusion's
+// kind scope: only the results kind (order-only digest disagreement) is
+// excluded. A backend error, a one-sided recording, or a count
+// disagreement on the registered statement stays required, so the
+// exclusion can never mask a real breakage.
+func TestExcludeTieOrderKeepsFailuresMissingAndCounts(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  reason: tied keys
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	diffs := []backendconformance.DifferentialDifference{
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: tieOrderStatement},
+			Kind:        backendconformance.DivergenceFailures,
+			Detail:      "backend error",
+		},
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: tieOrderStatement},
+			Kind:        backendconformance.DivergenceMissing,
+			Detail:      "recorded on one backend only",
+		},
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: tieOrderStatement},
+			Kind:        backendconformance.DivergenceRowCount,
+			Detail:      "row totals differ",
+		},
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: tieOrderStatement},
+			Kind:        backendconformance.DivergenceExecutions,
+			Detail:      "execution counts differ",
+		},
+	}
+	remaining, excluded := allow.ExcludeTieOrder(diffs)
+	if len(remaining) != 4 {
+		t.Fatalf("ExcludeTieOrder() remaining = %v, want failures, missing, rowcount and executions kept required", remaining)
+	}
+	if len(excluded) != 0 {
+		t.Fatalf("ExcludeTieOrder() excluded = %v, want nothing excluded", excluded)
+	}
+}
+
+// TestTieOrderReadsAreNotStaleChecked pins the entry-44 fix: a
+// tie-order registration that matches no divergence in the run is not
+// an error, because tied delivery order agrees on most runs by design.
+// Without this, the flap returns the next time both backends happen to
+// deliver the tied rows in the same order.
+func TestTieOrderReadsAreNotStaleChecked(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`tie_order_reads:
+- statement: "` + tieOrderStatement + `"
+  reason: tied keys
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	if err := allow.Validate(nil); err != nil {
+		t.Fatalf("Validate(nil) error = %v, want no stale error for tie-order registrations", err)
+	}
+}

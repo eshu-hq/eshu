@@ -47,6 +47,20 @@ design: >
   recording on a transient read still fails (enforced by ExcludeTransient).
   Excluded transient divergences report in the visible
   nornicdb_vs_neo4j_transient advisory finding, never silently.
+  Beside those, a tie_order_reads section registers ORDER BY reads with
+  no LIMIT or SKIP whose keys can tie, so delivery order is
+  backend-undefined while the row multiset always agrees (#6782 entry-44
+  flap: the tied-keys excuse lived in entries, where the stale check
+  failed the gate on exactly the runs where both backends agreed). A
+  tie-order entry takes no tier and is never stale-checked, but the
+  parse guard requires ORDER BY and rejects LIMIT/SKIP — with
+  truncation, tied keys change which rows return, and that is row truth
+  that must stay required — with the same reason and upstream-issue
+  accountability as an entry, and the exclusion covers only the results
+  kind: a backend error, a one-sided recording, or a count disagreement
+  on a tie-order read still fails (enforced by ExcludeTieOrder).
+  Excluded tie-order divergences report in the visible
+  nornicdb_vs_neo4j_tie_order advisory finding, never silently.
 
 entries:
 - statement: "MATCH (anchor {uid: $entity_id})-[rel:IMPORTS]->(target) OPTIONAL MATCH (anchor)<-[:CONTAINS]-(sourceFile:File) OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile) OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File) OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile) RETURN 'outgoing' as direction, 'IMPORTS' as type, 'direct_code_edge' as edge_origin, rel.call_kind as call_kind, rel.reason as reason, rel.confidence as confidence, rel.resolution_method as resolution_method, rel.evidence_source as evidence_source, rel.why_trail_json as why_trail_json, rel.why_trail_truncated as why_trail_truncated, anchor.id as source_legacy_id, anchor.uid as source_uid, anchor.name as source_name, anchor.repo_id as source_node_repo_id, sourceRepo.id as source_repo_fallback_id, sourceRepo.name as source_repo_name, sourceFile.relative_path as source_file_path, anchor.language as source_language_value, anchor.lang as source_lang_value, sourceFile.language as source_file_language, target.id as target_legacy_id, target.uid as target_uid, target.name as target_name, target.repo_id as target_node_repo_id, targetRepo.id as target_repo_fallback_id, targetRepo.name as target_repo_name, targetFile.relative_path as target_file_path, target.language as target_language_value, target.lang as target_lang_value, targetFile.language as target_file_language ORDER BY target.name, target.id, target.uid SKIP $offset LIMIT $limit"
@@ -264,11 +278,6 @@ entries:
   reason: "Order-dependent cross-repo correlation write attempts: repo sets (32/32) and scope sets (31/31) are identical across legs, and post-normalization element sets are identical modulo run-scoped lineage cells (proven by analysis). Final correlation truth verifies through paired correlation reads with agreeing result sets."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
-- statement: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File) WHERE f.language IS NOT NULL RETURN f.language AS language, count(f) AS file_count ORDER BY file_count DESC"
-  tier: results
-  reason: "ORDER BY over tied keys: backend-undefined delivery order with identical row multisets (cell proof). No defect; #6782 disposition."
-  upstream: https://github.com/eshu-hq/eshu/issues/6782
-  owner: query
 - statement: "MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(related:Repository) RETURN related.id AS repo_id, related.name AS repo_name UNION MATCH (related:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id}) RETURN related.id AS repo_id, related.name AS repo_name"
   tier: results
   reason: "NornicDB UNION appends an extra text-named column duplicating repo_name; row values agree and name-based readers are unaffected (B-7 query shapes green on both legs). Tracked in #6916."
@@ -294,3 +303,9 @@ transient_reads:
   reason: "EvidenceArtifact orphan-sweep pages on the orphan-observation timestamp: the observed set depends on wall-clock drain progress, so digests disagree across legs. The fingerprint is the paginated template, so every page is covered."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
+
+tie_order_reads:
+- statement: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File) WHERE f.language IS NOT NULL RETURN f.language AS language, count(f) AS file_count ORDER BY file_count DESC"
+  reason: "ORDER BY over tied keys: backend-undefined delivery order with identical row multisets (cell proof). No defect; #6782 disposition. Moved out of entries (was entry 44): the excuse is nondeterministic but entries are stale-checked, so the gate flapped red on runs where both backends happened to agree. Tie-order registrations are never stale-checked by design."
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: query

@@ -136,8 +136,40 @@ func TestRunBackendDiffQuorumCeilingCountsTransient(t *testing.T) {
 	if !strings.Contains(out, "[FAIL] nornicdb_vs_neo4j_executions_ceiling") {
 		t.Fatalf("stdout = %q, want the required ceiling finding", out)
 	}
-	if !strings.Contains(out, "(1 scheduling-noise + 1 transient-read)") {
-		t.Fatalf("stdout = %q, want the ceiling finding to break out both buckets", out)
+	if !strings.Contains(out, "(1 scheduling-noise + 1 transient-read + 0 tie-order)") {
+		t.Fatalf("stdout = %q, want the ceiling finding to break out all three buckets", out)
+	}
+}
+
+// Reproduced tie-order exclusions count toward the advisory ceiling
+// like transient ones: a systematic divergence on a registered tie-order
+// statement cannot hide behind ordering noise indefinitely. RED: ties
+// bypass the ceiling, so the over-ceiling total passes.
+func TestRunBackendDiffQuorumCeilingCountsTieOrder(t *testing.T) {
+	const tied = "MATCH (r:Repository) RETURN r.language AS language ORDER BY language DESC"
+	writePair := func() (string, string) {
+		nornic := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1", "d1")
+		neo := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d1", "d1", "d1")
+		appendStmt(t, nornic, "nornicdb", tied, "left")
+		appendStmt(t, neo, "neo4j", tied, "right")
+		return nornic, neo
+	}
+	left, right := writePair()
+	left2, right2 := writePair()
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "tie_order_reads:\n- statement: \"" + tied + "\"\n  reason: \"seeded tie-order read\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n  owner: \"query\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	out, err := runBackendDiffQuorumPhaseWithCeiling(t, left, right, left2, right2, allowlist, 1)
+	if err == nil {
+		t.Fatalf("scheduling-noise-plus-tie-order total above the ceiling passed the gate\n%s", out)
+	}
+	if !strings.Contains(out, "[FAIL] nornicdb_vs_neo4j_executions_ceiling") {
+		t.Fatalf("stdout = %q, want the required ceiling finding", out)
+	}
+	if !strings.Contains(out, "(1 scheduling-noise + 0 transient-read + 1 tie-order)") {
+		t.Fatalf("stdout = %q, want the ceiling finding to count the tie-order bucket", out)
 	}
 }
 

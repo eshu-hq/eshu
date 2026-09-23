@@ -63,7 +63,12 @@ and `.github/workflows/golden-corpus-gate.yml`.
   `transient_reads` section registers transient-state reads (guarded by a
   transient-state marker in the statement); `ExcludeTransient` holds their
   observed-noise divergences out of the required set without stale
-  checking, and `Compare` prints them as transient lines.
+  checking, and `Compare` prints them as transient lines. A
+  `tie_order_reads` section registers ORDER BY reads with no `LIMIT` or
+  `SKIP` whose keys can tie (guarded by the order-only shape);
+  `ExcludeTieOrder` holds their `results` divergences out of the required
+  set without stale checking, and `Compare` prints them as tie-order
+  lines.
 - `OpenDir` / `LoadDir` — JSONL sink and loader; unknown backends fail on
   both sides.
 - `MaxReportedDiffs` — the per-report line cap (20) shared by `Compare`
