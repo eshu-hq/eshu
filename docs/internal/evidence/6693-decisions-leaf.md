@@ -31,7 +31,7 @@ literally; both are updated to `decisionsstore.DecisionStore`. Root
 use the `decisionsstore.` qualifier. Root `doc.go` and `AGENTS.md` do not
 name them.
 
-Test repoints, checked with exact-name assertions on base `3ab7d6934`: for each of the seven moved tests (`TestDecisionStoreUpsertAndList`, `TestDecisionStoreUpsertOverwrites`, `TestDecisionStoreFilterByType`, `TestDecisionStoreEvidenceInsertAndList`, `TestDecisionStoreEmptyEvidenceInsert`, `TestDecisionStoreListDecisionsDefaultLimit`, `TestDecisionStoreSchemaSQL`), `go test ./internal/storage/postgres/decisions/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
+Test repoints, checked with exact-name assertions (rebased on `ebe632a56`): for each of the seven moved tests (`TestDecisionStoreUpsertAndList`, `TestDecisionStoreUpsertOverwrites`, `TestDecisionStoreFilterByType`, `TestDecisionStoreEvidenceInsertAndList`, `TestDecisionStoreEmptyEvidenceInsert`, `TestDecisionStoreListDecisionsDefaultLimit`, `TestDecisionStoreSchemaSQL`), `go test ./internal/storage/postgres/decisions/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
 
 No-Regression Evidence: `go test ./internal/storage/postgres/... -race
 -count=1` and `go test ./internal/storage/postgres/decisions/... -race
