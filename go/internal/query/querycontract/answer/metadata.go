@@ -35,8 +35,9 @@ type AnswerMetadata struct {
 
 // AttachAnswerMetadata derives the normalized answer companion from an
 // already-built response payload and stores it under "answer_metadata".
-// Exported because the impact handler-family subpackage (#6060 lane B2) and
-// package query both attach it from outside this package.
+// Exported because the handler families (impact, codequery, repository,
+// service) and root package query attach it from outside this package
+// (#6060, #6597).
 func AttachAnswerMetadata(data map[string]any) map[string]any {
 	if data == nil {
 		return data
