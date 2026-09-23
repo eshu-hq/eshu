@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // FakePortContentStore is the shared content-read double for handler tests. It
@@ -411,7 +412,7 @@ func (f FakePortContentStore) ListRepoEntitiesByIDs(
 
 // ListRepoK8sSelectCandidates projects Entities' K8sResource rows into the
 // narrow K8sSelectCandidate shape through the same helper the production
-// narrow SQL mirrors (querycontract.K8sSelectCandidateFromEntity), preserving
+// narrow SQL mirrors (kubernetes.SelectCandidateFromEntity), preserving
 // the comma-ok tri-state and the relative_path/start_line/entity_id ordering.
 func (f FakePortContentStore) ListRepoK8sSelectCandidates(
 	_ context.Context,
@@ -431,7 +432,7 @@ func (f FakePortContentStore) ListRepoK8sSelectCandidates(
 	SortEntityContentByLocation(filtered)
 	candidates := make([]querycontract.K8sSelectCandidate, 0, len(filtered))
 	for _, entity := range filtered {
-		candidates = append(candidates, querycontract.K8sSelectCandidateFromEntity(entity))
+		candidates = append(candidates, kubernetes.SelectCandidateFromEntity(entity))
 		if limit > 0 && len(candidates) >= limit {
 			break
 		}

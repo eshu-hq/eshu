@@ -6,7 +6,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // TestK8sSelectMatchSelectorAuthoritativeMatch proves a Service with a known,
@@ -16,14 +16,14 @@ import (
 func TestK8sSelectMatchSelectorAuthoritativeMatch(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "web",
 		Namespace:       "prod",
 		Selector:        "app=frontend",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "frontend-deploy",
 		Namespace:                "prod",
@@ -31,12 +31,12 @@ func TestK8sSelectMatchSelectorAuthoritativeMatch(t *testing.T) {
 		PodTemplateLabelsPresent: true,
 	}
 
-	matched, reason, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, reason, _ := kubernetes.SelectMatch(service, workload)
 	if !matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = false, want true")
+		t.Fatalf("kubernetes.SelectMatch() matched = false, want true")
 	}
-	if reason != querycontract.K8sSelectReasonSelectorMatch {
-		t.Fatalf("querycontract.K8sSelectMatch() reason = %q, want %q", reason, querycontract.K8sSelectReasonSelectorMatch)
+	if reason != kubernetes.SelectReasonSelectorMatch {
+		t.Fatalf("kubernetes.SelectMatch() reason = %q, want %q", reason, kubernetes.SelectReasonSelectorMatch)
 	}
 }
 
@@ -48,14 +48,14 @@ func TestK8sSelectMatchSelectorAuthoritativeMatch(t *testing.T) {
 func TestK8sSelectMatchAnchorSelectorMismatchNeverFallsBack(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "api",
 		Namespace:       "prod",
 		Selector:        "app=api-v2",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "api",
 		Namespace:                "prod",
@@ -63,9 +63,9 @@ func TestK8sSelectMatchAnchorSelectorMismatchNeverFallsBack(t *testing.T) {
 		PodTemplateLabelsPresent: true,
 	}
 
-	matched, reason, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, reason, _ := kubernetes.SelectMatch(service, workload)
 	if matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = true, want false (selector mismatch must never fall back); reason = %q", reason)
+		t.Fatalf("kubernetes.SelectMatch() matched = true, want false (selector mismatch must never fall back); reason = %q", reason)
 	}
 }
 
@@ -76,14 +76,14 @@ func TestK8sSelectMatchAnchorSelectorMismatchNeverFallsBack(t *testing.T) {
 func TestK8sSelectMatchSelectorlessServiceNeverMatches(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "external",
 		Namespace:       "prod",
 		Selector:        "",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "external",
 		Namespace:                "prod",
@@ -91,9 +91,9 @@ func TestK8sSelectMatchSelectorlessServiceNeverMatches(t *testing.T) {
 		PodTemplateLabelsPresent: true,
 	}
 
-	matched, _, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, _, _ := kubernetes.SelectMatch(service, workload)
 	if matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = true, want false (empty selector must never vacuously match)")
+		t.Fatalf("kubernetes.SelectMatch() matched = true, want false (empty selector must never vacuously match)")
 	}
 }
 
@@ -103,25 +103,25 @@ func TestK8sSelectMatchSelectorlessServiceNeverMatches(t *testing.T) {
 func TestK8sSelectMatchVintageFallback(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "demo",
 		Namespace:       "prod",
 		SelectorPresent: false,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "demo",
 		Namespace:                "prod",
 		PodTemplateLabelsPresent: false,
 	}
 
-	matched, reason, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, reason, _ := kubernetes.SelectMatch(service, workload)
 	if !matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = false, want true (vintage name+namespace fallback)")
+		t.Fatalf("kubernetes.SelectMatch() matched = false, want true (vintage name+namespace fallback)")
 	}
-	if reason != k8sSelectReasonNameNamespace {
-		t.Fatalf("querycontract.K8sSelectMatch() reason = %q, want %q", reason, k8sSelectReasonNameNamespace)
+	if reason != kubernetes.SelectReasonNameNamespace {
+		t.Fatalf("kubernetes.SelectMatch() reason = %q, want %q", reason, kubernetes.SelectReasonNameNamespace)
 	}
 }
 
@@ -133,26 +133,26 @@ func TestK8sSelectMatchVintageFallback(t *testing.T) {
 func TestK8sSelectMatchMixedVintageNoFallback(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "demo",
 		Namespace:       "prod",
 		Selector:        "app=demo",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "demo",
 		Namespace:                "prod",
 		PodTemplateLabelsPresent: false,
 	}
 
-	matched, _, mixedVintageDrop := querycontract.K8sSelectMatch(service, workload)
+	matched, _, mixedVintageDrop := kubernetes.SelectMatch(service, workload)
 	if matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = true, want false (mixed vintage must not match or fall back)")
+		t.Fatalf("kubernetes.SelectMatch() matched = true, want false (mixed vintage must not match or fall back)")
 	}
 	if !mixedVintageDrop {
-		t.Fatalf("querycontract.K8sSelectMatch() mixedVintageDrop = false, want true (this is the diagnostic signal callers log at Debug)")
+		t.Fatalf("kubernetes.SelectMatch() mixedVintageDrop = false, want true (this is the diagnostic signal callers log at Debug)")
 	}
 }
 
@@ -166,45 +166,45 @@ func TestK8sSelectMatchMixedVintageDropFlagOnlySetOnThatPath(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		service  k8sSelectMatchInput
-		workload k8sSelectMatchInput
+		service  kubernetes.SelectMatchInput
+		workload kubernetes.SelectMatchInput
 	}{
 		"selector_mismatch": {
-			service: k8sSelectMatchInput{
+			service: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "api", Namespace: "prod",
 				Selector: "app=api-v2", SelectorPresent: true,
 			},
-			workload: k8sSelectMatchInput{
+			workload: kubernetes.SelectMatchInput{
 				Kind: "Deployment", Name: "api", Namespace: "prod",
 				PodTemplateLabels: "app=api-v1", PodTemplateLabelsPresent: true,
 			},
 		},
 		"empty_selector": {
-			service: k8sSelectMatchInput{
+			service: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "external", Namespace: "prod",
 				Selector: "", SelectorPresent: true,
 			},
-			workload: k8sSelectMatchInput{
+			workload: kubernetes.SelectMatchInput{
 				Kind: "Deployment", Name: "external", Namespace: "prod",
 				PodTemplateLabels: "app=anything", PodTemplateLabelsPresent: true,
 			},
 		},
 		"namespace_mismatch": {
-			service: k8sSelectMatchInput{
+			service: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "web", Namespace: "prod",
 				Selector: "app=frontend", SelectorPresent: true,
 			},
-			workload: k8sSelectMatchInput{
+			workload: kubernetes.SelectMatchInput{
 				Kind: "Deployment", Name: "frontend-deploy", Namespace: "staging",
 				PodTemplateLabels: "app=frontend", PodTemplateLabelsPresent: true,
 			},
 		},
 		"non_deployment_workload": {
-			service: k8sSelectMatchInput{
+			service: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "web", Namespace: "prod",
 				Selector: "app=frontend", SelectorPresent: true,
 			},
-			workload: k8sSelectMatchInput{
+			workload: kubernetes.SelectMatchInput{
 				Kind: "StatefulSet", Name: "frontend-set", Namespace: "prod",
 				PodTemplateLabels: "app=frontend", PodTemplateLabelsPresent: true,
 			},
@@ -216,9 +216,9 @@ func TestK8sSelectMatchMixedVintageDropFlagOnlySetOnThatPath(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, mixedVintageDrop := querycontract.K8sSelectMatch(tc.service, tc.workload)
+			_, _, mixedVintageDrop := kubernetes.SelectMatch(tc.service, tc.workload)
 			if mixedVintageDrop {
-				t.Fatalf("querycontract.K8sSelectMatch() mixedVintageDrop = true, want false for case %q", name)
+				t.Fatalf("kubernetes.SelectMatch() mixedVintageDrop = true, want false for case %q", name)
 			}
 		})
 	}
@@ -229,14 +229,14 @@ func TestK8sSelectMatchMixedVintageDropFlagOnlySetOnThatPath(t *testing.T) {
 func TestK8sSelectMatchNamespaceScoped(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "web",
 		Namespace:       "prod",
 		Selector:        "app=frontend",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "frontend-deploy",
 		Namespace:                "staging",
@@ -244,9 +244,9 @@ func TestK8sSelectMatchNamespaceScoped(t *testing.T) {
 		PodTemplateLabelsPresent: true,
 	}
 
-	matched, _, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, _, _ := kubernetes.SelectMatch(service, workload)
 	if matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = true, want false (namespace mismatch)")
+		t.Fatalf("kubernetes.SelectMatch() matched = true, want false (namespace mismatch)")
 	}
 }
 
@@ -256,14 +256,14 @@ func TestK8sSelectMatchNamespaceScoped(t *testing.T) {
 func TestK8sSelectMatchNonDeploymentWorkloadNeverMatches(t *testing.T) {
 	t.Parallel()
 
-	service := k8sSelectMatchInput{
+	service := kubernetes.SelectMatchInput{
 		Kind:            "Service",
 		Name:            "web",
 		Namespace:       "prod",
 		Selector:        "app=frontend",
 		SelectorPresent: true,
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "StatefulSet",
 		Name:                     "frontend-set",
 		Namespace:                "prod",
@@ -271,9 +271,9 @@ func TestK8sSelectMatchNonDeploymentWorkloadNeverMatches(t *testing.T) {
 		PodTemplateLabelsPresent: true,
 	}
 
-	matched, _, _ := querycontract.K8sSelectMatch(service, workload)
+	matched, _, _ := kubernetes.SelectMatch(service, workload)
 	if matched {
-		t.Fatalf("querycontract.K8sSelectMatch() matched = true, want false (matcher scope is Deployment-only in v1)")
+		t.Fatalf("kubernetes.SelectMatch() matched = true, want false (matcher scope is Deployment-only in v1)")
 	}
 }
 
@@ -283,11 +283,11 @@ func TestK8sSelectMatchNonDeploymentWorkloadNeverMatches(t *testing.T) {
 func TestK8sSelectorSubsetOfEmptySelectorNeverSubset(t *testing.T) {
 	t.Parallel()
 
-	if k8sSelectorSubsetOf("", "app=anything,tier=web") {
-		t.Fatalf("k8sSelectorSubsetOf(empty, ...) = true, want false")
+	if kubernetes.SelectorSubsetOf("", "app=anything,tier=web") {
+		t.Fatalf("kubernetes.SelectorSubsetOf(empty, ...) = true, want false")
 	}
-	if k8sSelectorSubsetOf("", "") {
-		t.Fatalf("k8sSelectorSubsetOf(empty, empty) = true, want false")
+	if kubernetes.SelectorSubsetOf("", "") {
+		t.Fatalf("kubernetes.SelectorSubsetOf(empty, empty) = true, want false")
 	}
 }
 
@@ -296,7 +296,7 @@ func TestK8sSelectorSubsetOfEmptySelectorNeverSubset(t *testing.T) {
 func TestK8sSelectorSubsetOfPartialLabelValueMismatch(t *testing.T) {
 	t.Parallel()
 
-	if k8sSelectorSubsetOf("app=frontend", "app=backend,tier=web") {
-		t.Fatalf("k8sSelectorSubsetOf() = true, want false (value mismatch on shared key)")
+	if kubernetes.SelectorSubsetOf("app=frontend", "app=backend,tier=web") {
+		t.Fatalf("kubernetes.SelectorSubsetOf() = true, want false (value mismatch on shared key)")
 	}
 }

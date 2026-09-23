@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -129,7 +130,7 @@ func TestImpactTraceK8sSelectWideningUnderLinkingRegression(t *testing.T) {
 	}
 
 	relationships := impacttrace.BuildK8sRelationships(result.rows)
-	if !hasSelectsEdge(relationships, "svc-web", "dep-web", querycontract.K8sSelectReasonSelectorMatch) {
+	if !hasSelectsEdge(relationships, "svc-web", "dep-web", kubernetes.SelectReasonSelectorMatch) {
 		t.Fatalf("missing SELECTS edge web-svc -> web (selector match); relationships = %#v", relationships)
 	}
 	if got, want := querycontract.BoolVal(result.limits, "k8s_relationships_complete"), true; got != want {
@@ -189,7 +190,7 @@ func TestImpactTraceK8sSelectWideningEnforcesNamespaceEquality(t *testing.T) {
 		t.Fatalf("cross-namespace Service must not surface; rows = %#v", result.rows)
 	}
 	relationships := impacttrace.BuildK8sRelationships(result.rows)
-	if hasSelectsEdge(relationships, "svc-web", "dep-web", querycontract.K8sSelectReasonSelectorMatch) {
+	if hasSelectsEdge(relationships, "svc-web", "dep-web", kubernetes.SelectReasonSelectorMatch) {
 		t.Fatalf("cross-namespace SELECTS edge produced; relationships = %#v", relationships)
 	}
 }
