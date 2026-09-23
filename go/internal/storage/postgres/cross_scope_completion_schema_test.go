@@ -135,7 +135,14 @@ func TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly(t *testing.T) {
 		slices.Sort(values)
 		return strings.Join(values, ", ")
 	}
-	queueSQL := MigrationSQL("cross_scope_completion_queue")
+	// #7002 restored 093 to its originally shipped two-domain CHECK/trigger;
+	// 112 and 120 are the guarded upgrade deltas that converge both fresh and
+	// existing installs onto the current producer catalog (see
+	// migrations/README.md). 120 is the most recent delta, so it is now the
+	// migration whose literal CHECK/trigger text must match
+	// reducer.CrossScopeCompletionEdges() exactly. A future producer addition
+	// lands in a new guarded migration and moves this assertion to that file.
+	queueSQL := MigrationSQL("value_flow_refresh_code_function_summary_producer")
 	producerList := quotedSorted(producerSet)
 	for _, fragment := range []string{
 		"CHECK (producer_domain IN (" + producerList + "))",

@@ -27,12 +27,34 @@ the directory is the single source of truth root already documented it as.
 
 ## Invariants
 
+- **Never edit a shipped `.sql` file, for any reason, once it has merged.**
+  Widen or fix behavior through a new migration instead. `#7002`:
+  `093_cross_scope_completion_queue.sql` shipped, was edited in place twice
+  (`#6785`, then `#6923`) to widen a `CHECK` constraint and a trigger's `WHEN`
+  list, and both edits broke `applyTrackedDefinitions`'s checksum guard for
+  every database that had already recorded 093 -- including a stuck ops-qa
+  rollout. `093` was restored to its originally shipped bytes; `112` and `120`
+  are the correct pattern for that same widening (a new file, guarded by
+  `pg_get_constraintdef`/`pg_get_triggerdef` `NOT LIKE` checks, that converges
+  an existing database once and no-ops on every boot after). `112` and `120`
+  are themselves now shipped and must never be edited either, including to
+  "fix" the fresh-bootstrap comment at their own top: a fresh bootstrap runs
+  `093` (original) then every later `.sql` file in path order, so the current
+  full domain list lives in whichever upgrade file was added last (`120`
+  today) -- see `checksum_alias.go` for the narrow,
+  path-scoped exception that let already-applied databases from the `#6785`/
+  `#6923` window keep working, and
+  `../cross_scope_completion_schema_test.go`'s
+  `TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly` for the test
+  that must track whichever file is current.
 - `Path` stays exactly `go/internal/storage/postgres/migrations/<file>.sql`.
   The migration tracker (`schema_bootstrap_lock.go` in root) keys applied
   migrations by `path + variant + checksum_sha256`, so any change to `Name`,
   `Path`, `SQL`, or definition order makes bootstrap try to re-apply or
   diverge on migrations already applied to an existing database. See
-  `embed_invariant_test.go`'s golden digest.
+  `embed_invariant_test.go`'s golden digest and
+  `migration_checksum_manifest_test.go`'s per-file manifest (the latter names
+  the exact file when one drifts or is deleted).
 - The embed pattern is `*.sql` only. `embed.go`, `doc.go`, `README.md`, and
   `AGENTS.md` must never appear as definitions.
 - No `.sql` file in this directory is added, removed, renamed, or edited by

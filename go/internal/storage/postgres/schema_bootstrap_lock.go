@@ -297,8 +297,17 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		key := schemaMigrationKey{path: def.Path, variant: variant}
 		if recorded, exists := ledger.applied[key]; exists {
 			if recorded != checksum {
-				return fmt.Errorf("schema migration %q (%s) checksum changed: recorded %s, current %s",
-					def.Path, variant, recorded, checksum)
+				if !migrations.IsSupersededChecksum(def.Path, recorded) {
+					return fmt.Errorf("schema migration %q (%s) checksum changed: recorded %s, current %s",
+						def.Path, variant, recorded, checksum)
+				}
+				logger.WarnContext(ctx, "postgres schema migration checksum alias accepted",
+					telemetry.EventAttr("bootstrap.postgres.migration.checksum_alias_accepted"),
+					"path", def.Path,
+					"variant", variant,
+					"recorded_checksum", recorded,
+					"current_checksum", checksum,
+				)
 			}
 			recoverIndex := false
 			for _, name := range concurrentIndexNamesForInvalidCleanup(def.SQL) {
