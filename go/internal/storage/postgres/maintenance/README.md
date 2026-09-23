@@ -37,7 +37,8 @@ See `doc.go` for the godoc contract.
 ## Telemetry
 
 None. This package executes bounded SQL through the injected database
-handle; the caller (`cmd/api`'s `StatusRequestHandler` wiring) owns any
+handle; the caller (`cmd/api`, which wires it into `internal/runtime`'s
+`StatusRequestHandler`) owns any
 operator-facing signal.
 
 ## Gotchas / invariants

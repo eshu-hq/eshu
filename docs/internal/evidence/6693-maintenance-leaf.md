@@ -37,11 +37,9 @@ own dependency graph. I classified it as "external test package plus
 assert against `postgres.SQLDB`/`SQLQueryer`/`SQLTx`). Root does not import
 `maintenance` anywhere (the only prior root caller, `status_requests.go`
 itself, moved), so this is not a hard import-cycle requirement, but it keeps
-the new package's test consistent with the repo's established convention. I
-left the plan doc's global "Test placement" tally (packageless test moved
-counts) unedited since that table's rows were not otherwise identified as
-needing a per-step update by the brief, and the doc is at its 500-line cap;
-flagging the classification here instead.
+the new package's test consistent with the repo's established convention. The plan's
+"Test placement" tally is updated to match (in-package 375, external test
+package plus shim 88), and the `control-plane.md` mapping line is annotated.
 
 ## Callers repointed
 
@@ -72,6 +70,12 @@ Regenerated `tools/golangci-lint-dirgate/grandfather.go` via
 
 Every moved test name is discovered in the new package and absent from the
 old package (`for n in TestStatusRequestStoreRequestScanExecutesUpsert TestStatusRequestStoreClaimScanQueryReturnsScanRequest TestStatusRequestStoreClaimScanReturnsErrorWhenNoPending TestStatusRequestStoreCompleteScanExecutesUpdate TestStatusRequestStoreRequestReindexExecutesUpsert TestStatusRequestStoreClaimReindexQueryReturnsReindexRequest TestStatusRequestStoreClaimReindexReturnsErrorWhenNoPending TestStatusRequestStoreGetScanStateReturnsIdleWhenNotFound TestStatusRequestStoreGetReindexStateReturnsIdleWhenNotFound TestStatusRequestStoreRequiresDB TestStatusRequestStoreControlSchemaIncludesExpectedColumns TestStatusRequestStoreBootstrapDefinitionRegistered; do go test ./internal/storage/postgres/maintenance/... -list "^$n\$" -count=1 | rg -q "^$n\$" || echo "missing $n"; done`, exit 0 = found):
+
+The `new pkg` column is that loop's per-name exit code against
+`./internal/storage/postgres/maintenance/...` (0 = registered). The `old pkg`
+column is the same per-name check run against `./internal/storage/postgres`
+(`go test ./internal/storage/postgres -list "^$n$" -count=1 | rg -q "^$n$"`),
+where exit 1 means the name is no longer registered in root.
 
 | test | new pkg | old pkg |
 | --- | --- | --- |
