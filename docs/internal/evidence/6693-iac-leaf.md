@@ -1,9 +1,9 @@
 # #6693 checklist step 5: `iac/` leaf
 
 Baseline: `origin/main` `aa7cc0d1d`. Change: `git mv
-go/internal/storage/postgres/iac_reachability.go
+iac_reachability.go
 go/internal/storage/postgres/iac/reachability.go` and `git mv
-go/internal/storage/postgres/iac_reachability_test.go
+iac_reachability_test.go
 go/internal/storage/postgres/iac/reachability_test.go`, per the target-tree
 mapping in `docs/internal/design/6693-postgres-target-tree/code.md`
 (`iac/` section). Package clause changed `postgres` -> `iacstore` (the
