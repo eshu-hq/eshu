@@ -110,6 +110,10 @@ type Source struct {
 	walker  *walker
 	report  *Report
 	drained bool
+	// failure is the error drain returned; every later Next returns it
+	// again, so a caller that polls past the failure never sees a clean
+	// end of batch.
+	failure error
 	queue   []collector.CollectedGeneration
 }
 
@@ -136,8 +140,12 @@ type rawGeneration struct {
 
 // Next implements collector.Source.
 func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
+	if s.failure != nil {
+		return collector.CollectedGeneration{}, false, s.failure
+	}
 	if !s.drained {
 		if err := s.drain(ctx); err != nil {
+			s.failure = err
 			return collector.CollectedGeneration{}, false, err
 		}
 	}

@@ -46,4 +46,10 @@ func TestIPv4CeilingIsAnError(t *testing.T) {
 	if !errors.Is(err, recordpseudo.ErrIPv4Exhausted) || !strings.Contains(err.Error(), "exceeds 762 distinct IPv4 addresses") {
 		t.Errorf("error = %v, want ErrIPv4Exhausted naming the 762 limit", err)
 	}
+	// The failure is sticky (round 3 F3): a caller that polls again must see
+	// the same error, never a clean end of batch.
+	_, ok, err := wrapped.Next(context.Background())
+	if ok || !errors.Is(err, recordpseudo.ErrIPv4Exhausted) {
+		t.Errorf("second Next after exhaustion: ok=%v err=%v, want the same error", ok, err)
+	}
 }
