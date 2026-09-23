@@ -110,6 +110,10 @@
     "collector": {
       "type": "string"
     },
+    "pseudonym_key_fingerprint": {
+      "pattern": "^[0-9a-f]{8}$",
+      "type": "string"
+    },
     "schema_version": {
       "const": "1"
     },

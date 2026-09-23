@@ -26,4 +26,11 @@
 // Metadata-only services such as SQS, SNS, EventBridge, GuardDuty, S3, Athena,
 // Glue, ElastiCache, MSK, Step Functions, and Access Analyzer leave the flag
 // unset and do not require that key.
+//
+// The opt-in record mode (-mode=record, -cassette-file required, #6965 Phase
+// 3) runs the claimed-live credential and scanner path once over every
+// configured (account, region, service_kind) tuple with no database, and
+// writes a pseudonymized canonical cassette: replay/recordpseudo rewrites
+// every identifier under the corpus key in ESHU_RECORD_PSEUDONYM_KEY, and the
+// recorder refuses to write a file the private-data gate would reject.
 package main

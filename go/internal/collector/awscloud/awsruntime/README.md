@@ -49,6 +49,12 @@ See `doc.go` for the godoc contract.
   adapters.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
+- `RecordSource` - the `-mode=record` adapter: a `collector.Source` that
+  synthesizes one work item per `(account, region, service)` from `Config`
+  and resolves each through `ClaimedSource.NextClaimed`, so a recording
+  exercises the production credential and scanner path with no workflow row
+  and no Postgres (`Checkpoints`, `ScanStatus` and `Limiter` nil). The
+  recorder pseudonymizes what it emits (`replay/recordpseudo`).
 - `DefaultScannerFactory` - production scanner dispatcher. It holds the
   runtime-wide tracer, instruments, checkpoint store, and redaction key and
   dispatches every claim through the init-time scanner registry. It has no

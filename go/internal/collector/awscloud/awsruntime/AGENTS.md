@@ -12,6 +12,8 @@
    (`FixtureSource`) plus its declarative config (`FixtureConfig`,
    `FixtureScope`, `FixtureResource`, `FixtureRelationship`).
 7. `scan_status.go` - scanner-side durable status projection.
+8. `record_source.go` - `RecordSource`, the `-mode=record` adapter that walks
+   every configured target tuple through `NextClaimed` with no stores.
 7. `../checkpoint/README.md` - durable pagination checkpoint contract.
 8. `../README.md` - shared AWS fact-envelope contract.
 9. `docs/public/services/collector-aws-cloud.md` - runtime and
@@ -35,6 +37,9 @@
   boundary and warning fact.
 - Expire pagination checkpoints for prior generations before building service
   scanners.
+- Keep `Checkpoints`, `ScanStatus` and `Limiter` nil-tolerant: `RecordSource`
+  runs the claimed path with all three nil, and a scanner that dereferences a
+  nil checkpoint store breaks record mode.
 - Record AWS scan status after claim start and after scanner completion when a
   scan-status store is configured. Scanner status is not the same as durable
   fact commit status.

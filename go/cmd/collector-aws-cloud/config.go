@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
+	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -326,6 +327,29 @@ func isAWSAccountID(value string) bool {
 		}
 	}
 	return true
+}
+
+// envRecordPseudonymKey names the record-mode pseudonymization key. One key
+// per corpus (every cassette whose joins must survive shares it), generated
+// with `openssl rand -hex 32`, kept with the corpus's other secrets, never
+// committed. Read once, never logged.
+const envRecordPseudonymKey = "ESHU_RECORD_PSEUDONYM_KEY"
+
+// loadRecordPseudonymKey reads the record-mode key. A blank or short value is
+// refused; the error names the variable, never the material.
+func loadRecordPseudonymKey(getenv func(string) string) (recordpseudo.Key, error) {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	value := strings.TrimSpace(getenv(envRecordPseudonymKey))
+	if value == "" {
+		return recordpseudo.Key{}, fmt.Errorf("%s is required in record mode (one key per corpus; generate with `openssl rand -hex 32`)", envRecordPseudonymKey)
+	}
+	key, err := recordpseudo.NewKey([]byte(value))
+	if err != nil {
+		return recordpseudo.Key{}, fmt.Errorf("%s: %w", envRecordPseudonymKey, err)
+	}
+	return key, nil
 }
 
 func loadAWSRedactionKeyIfNeeded(

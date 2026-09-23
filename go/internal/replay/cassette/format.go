@@ -36,6 +36,12 @@ type File struct {
 	// Scopes is the ordered list of pre-recorded scope+generation batches. Each
 	// batch is replayed as one CollectedGeneration by Source.Next.
 	Scopes []Scope `json:"scopes"`
+	// PseudonymKeyFingerprint identifies the recording key a pseudonymized
+	// recording was written under (replay/recordpseudo Key.Fingerprint, 8 hex
+	// characters). Informational: replay ignores it. It lets a gate check that
+	// every cassette of one corpus shares a key, since cross-cassette joins
+	// only survive under one key. Empty for hand-authored or raw recordings.
+	PseudonymKeyFingerprint string `json:"pseudonym_key_fingerprint,omitempty"`
 }
 
 // Scope is one pre-recorded scope+generation worth of facts.

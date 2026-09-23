@@ -495,6 +495,15 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      # go/internal/replay/recorder and go/cmd/collector-aws-cloud run the
+      # committed private-data gate library (scripts/lib/
+      # cassette_private_data_pattern.sh) in-process, and it shells out to rg.
+      # The library reports a missing rg as a broken scan (exit 127) and the
+      # tests fail on it rather than skip (#6987 review), so this lane needs
+      # ripgrep exactly as go-core does.
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         working-directory: go
         env:

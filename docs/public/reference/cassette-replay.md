@@ -47,9 +47,11 @@ go test ./conformance -count=1
 The first and last commands are credential-free. The `-mode=record` command is
 the optional live step: it runs your collector once against your source system,
 writes a canonical cassette, and does not require Postgres, NornicDB, or Docker.
-Use a binary that actually implements record mode. The current in-tree pilot is
-`collector-kubernetes-live`; out-of-tree collectors should substitute their own
-record-capable binary after adding the same recorder seam.
+Use a binary that actually implements record mode. The in-tree pilots are
+`collector-kubernetes-live` (raw) and `collector-aws-cloud` (pseudonymized, see
+[Record-Mode Pseudonymization](#record-mode-pseudonymization)); out-of-tree
+collectors should substitute their own record-capable binary after adding the
+same recorder seam.
 
 After recording real collector facts, update `conformance/observe.go` so
 `Observe` maps those fact kinds into the node, edge, correlation, property, and
@@ -122,12 +124,89 @@ go run ./cmd/collector-<record-capable-collector> -mode=record \
   -cassette-file=../testdata/cassettes/<collector>/<recording>.json
 ```
 
-For the current in-tree pilot, that is:
+For the current in-tree pilots, that is:
 
 ```bash
 go run ./cmd/collector-kubernetes-live -mode=record \
   -cassette-file=../testdata/cassettes/kuberneteslive/supply-chain-demo.json
+ESHU_RECORD_PSEUDONYM_KEY="$(cat /path/to/corpus.key)" \
+  go run ./cmd/collector-aws-cloud -mode=record \
+  -cassette-file=../testdata/cassettes/awscloud/supply-chain-demo.json
 ```
+
+### Record-Mode Pseudonymization
+
+A recording of a real estate carries account ids, ARNs, resource names,
+hostnames and addresses, none of which may be committed. Recorders that
+implement it (`collector-aws-cloud` is the pilot) rewrite every identifier
+before the recorder sees it, through `go/internal/replay/recordpseudo`:
+each raw token becomes a keyed pseudonym of the same shape (12-digit accounts
+in the reserved `0000` range, ARNs with their grammar intact, `n` + 11 hex
+names, RFC 5737 addresses), so the reducers project the same graph from the
+recording as from the raw run. Equal raw tokens under one key give equal
+pseudonyms, which is what keeps cross-cassette joins alive.
+
+The key is `ESHU_RECORD_PSEUDONYM_KEY`:
+
+- generate it with `openssl rand -hex 32`;
+- use **one key per corpus**: every cassette whose facts join each other
+  (for example the AWS, OCI registry and Terraform-state cassettes of one
+  demo estate) must be recorded under the same key, or the joins break;
+- keep it with the corpus's other secrets and never commit it; the cassette
+  carries only its 8-character fingerprint in `pseudonym_key_fingerprint`.
+
+A recorder that pseudonymizes refuses to run without the key and refuses to
+write a file the private-data gate would reject: `recordpseudo.Verify` scans
+the canonical bytes with the gate's own alternatives before the file exists,
+and admits the reserved `0000` account form only when that run minted it.
+Payload field paths and scope metadata keys the collector's policy does not
+classify are made opaque and listed in the `collector.record.pseudonymized`
+log event, never their values. The composite envelope fields (`scope_id`,
+`partition_key`, `stable_fact_key`, `source_record_id`, `source_uri`) are
+rewritten by token substitution only, because the collector composes them
+from tokens that also appear in classified fields, from one-way hashes or
+from structural URI text; the recorder's `Verify` scan is the belt for them.
+
+Declared limits of the pilot:
+
+- two private CIDRs lose their overlap relation, and resource names lose
+  readability;
+- any customer host under an AWS-owned suffix -- an ELB DNS name, an RDS or
+  OpenSearch endpoint, a Route53 alias target, an AWS service principal --
+  is pseudonymized to a form (`h<hex>.<region>.<service>.amazonaws.com`) the
+  private-data gate has no allow row for, so the recording is refused, not
+  written, until a reviewed row exists;
+- Keep-class free text (an environment name, an engine or status string)
+  is written verbatim when it is not also learned from a classified field,
+  and the recorder's belt carries no organisation identifiers. Run
+  `scripts/verify-cassette-author.sh` with `ESHU_PRIVATE_IDENTIFIERS_FILE`
+  set before committing a recording: that alternative is the check for
+  this residual. Container image tags are not in this class: a
+  customer-chosen tag is pseudonymized, and only `latest`, pure semver
+  (`v1.2.3`, `1.2.3`) and digests are kept;
+- one recording holds at most 762 distinct IPv4 addresses and CIDR
+  networks (the RFC 5737 slot space). The 763rd makes the record run fail
+  with `recording exceeds 762 distinct IPv4 addresses`, and no cassette is
+  written; the `collector.record.pseudonymized` event reports
+  `ipv4_addresses` so an operator can see how close a recording is;
+- account pseudonyms share a space of 10^8 `0000xxxxxxxx` slots; a
+  recording that would exceed it fails with `ErrAccountsExhausted` rather
+  than letting two accounts share a pseudonym;
+- a name or tag value shorter than four characters, or a purely numeric
+  name or tag value, is rewritten only where it is a whole field value or
+  a whole `/`- or `:`-delimited component of a composite (an ARN, a stable
+  key, a source uri), never inside longer text (otherwise a tag value `1`
+  would rewrite every `us-east-1`) and never in a Keep field; one glued
+  into a longer word without such a boundary stays raw, and a Keep value
+  equal to one is kept;
+- a numeric name or tag value of fewer than four digits is kept; a longer
+  numeric name is rewritten wherever it is the resource name, including
+  after a `:`-joined type token, and never rewrites an ARN qualifier after
+  the name;
+- a name or tag value that exactly matches the AWS region or
+  availability-zone grammar (`us-east-1`, `eu-central-1a`) or an AWS
+  service, resource-type or host-service word (`rds`, `db`, `iam`, ...) is
+  AWS vocabulary and is kept.
 
 Before committing a refreshed cassette:
 
@@ -159,7 +238,7 @@ slipping past a blocklist:
 | `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) and loopback |
 | `nodeip` | EKS-style `ip-A-B-C-D` node names only in those documentation ranges or loopback |
 | `ipv6` | RFC 3849 `2001:db8::/32` and `::1`; six-group MAC addresses also land here, and only the RFC 7042 documentation block (`00:00:5e:00:53:xx`) and the all-zero MAC pass |
-| `account12` | `123456789012`, zero-prefixed `00000000000N`, and repdigits; twelve digits inside a hex digest are not a candidate |
+| `account12` | `123456789012`, zero-prefixed `00000000000N`, repdigits, and the reserved `0000` + 8-digit range that record-mode pseudonymization mints accounts into (the recorder's own belt checks that a run minted them; here it is a shape check); twelve digits inside a hex digest are not a candidate |
 | `arn` | an empty, `aws`, or documentation account field |
 | `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
 | `identifier` | nothing; the committed canary `eshu-canary-org` plus every literal in `ESHU_PRIVATE_IDENTIFIERS_FILE` |

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
+	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 )
 
 // Options configures one record pass.
@@ -26,9 +27,26 @@ type Options struct {
 	CollectorLabel string
 	// RedactKeys are payload key names redacted to the canonical redaction
 	// sentinel wherever they appear, for collectors whose facts can carry a
-	// secret. Fact payloads are already collector-sanitized, so most collectors
-	// pass none; the input tape (R-4) redacts at the HTTP boundary.
+	// secret. Fact payloads are secret-sanitized by their collector (tokens,
+	// policy documents, message bodies never reach an envelope), so most
+	// collectors pass none; the input tape (R-4) redacts at the HTTP boundary.
+	// Secret-sanitized is not identifier-free: account ids, ARNs, names,
+	// hostnames and addresses do reach envelopes, which is what Pseudonymize
+	// is for.
 	RedactKeys []string
+	// Pseudonymize, when set, wraps the source with recordpseudo.Wrap so every
+	// identifier is replaced by a keyed, structure-preserving pseudonym before
+	// the recorder sees it (#6965 Phase 3). The key fingerprint is written to
+	// the cassette; the key never is.
+	Pseudonymize *recordpseudo.Config
+	// RequirePseudonymization refuses to run -- before polling the source --
+	// unless Pseudonymize carries a usable key. A collector that records
+	// real estates sets it so a missing key can never produce a raw cassette.
+	RequirePseudonymization bool
+	// OnPseudonymized receives the pseudonymization report after the source
+	// is drained (counts, field paths, key fingerprint; never a value). Nil
+	// discards it.
+	OnPseudonymized func(recordpseudo.Report)
 }
 
 // Run performs one credentialed record pass: it polls src for a single batch
@@ -44,6 +62,11 @@ type Options struct {
 // generation_id derived, configured secrets redacted) so re-recording the same
 // input yields byte-identical output, and it replays credential-free through
 // replay/cassette.
+//
+// Before the canonical bytes reach disk they pass recordpseudo.Verify, the
+// private-data membership belt: a candidate identifier that is neither a
+// documented safe form nor a pseudonym this run produced aborts the record
+// and nothing is written.
 func Run(ctx context.Context, src collector.Source, opts Options) error {
 	if src == nil {
 		return errors.New("recorder: source is required")
@@ -51,8 +74,23 @@ func Run(ctx context.Context, src collector.Source, opts Options) error {
 	if strings.TrimSpace(opts.Path) == "" {
 		return errors.New("recorder: output path is required")
 	}
-
+	if opts.RequirePseudonymization && (opts.Pseudonymize == nil || opts.Pseudonymize.Key.IsZero()) {
+		return errors.New("recorder: pseudonymization is required but no recording key is configured")
+	}
 	var rec recording
+	if opts.Pseudonymize != nil {
+		if err := opts.Pseudonymize.Validate(); err != nil {
+			return fmt.Errorf("recorder: %w", err)
+		}
+		wrapped, report, err := recordpseudo.Wrap(src, opts.Pseudonymize.Key, opts.Pseudonymize.Policy)
+		if err != nil {
+			return fmt.Errorf("recorder: %w", err)
+		}
+		src = wrapped
+		rec.report = report
+		rec.keyFingerprint = opts.Pseudonymize.Key.Fingerprint()
+	}
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("recorder: %w", err)
@@ -68,6 +106,9 @@ func Run(ctx context.Context, src collector.Source, opts Options) error {
 			return err
 		}
 	}
+	if rec.report != nil && opts.OnPseudonymized != nil {
+		opts.OnPseudonymized(*rec.report)
+	}
 	return rec.write(opts)
 }
 
@@ -75,6 +116,9 @@ func Run(ctx context.Context, src collector.Source, opts Options) error {
 // serialized. It is single-goroutine: Run drains each generation in turn.
 type recording struct {
 	scopes []cassette.Scope
+	// report and keyFingerprint are set when the run is pseudonymized.
+	report         *recordpseudo.Report
+	keyFingerprint string
 }
 
 // capture drains one collected generation's fact channel and appends the scope.
@@ -95,17 +139,20 @@ func (r *recording) capture(gen collector.CollectedGeneration) error {
 	return nil
 }
 
-// write builds the cassette file, canonicalizes it, verifies it still loads as a
-// valid cassette, and writes it to disk. The load-back is a guard: the recorder
-// must never emit a cassette the replay loader would reject.
+// write builds the cassette file, canonicalizes it, runs the private-data
+// membership belt over the canonical bytes, verifies the result still loads
+// as a valid cassette, and writes it to disk. Verify runs BEFORE the write so
+// a refused recording leaves no file behind; the load-back is a guard that
+// the recorder never emits a cassette the replay loader would reject.
 func (r *recording) write(opts Options) error {
 	if len(r.scopes) == 0 {
 		return errors.New("recorder: no scopes captured; nothing to record")
 	}
 	file := cassette.File{
-		Collector:     opts.CollectorLabel,
-		SchemaVersion: cassette.SchemaVersionV1,
-		Scopes:        r.scopes,
+		Collector:               opts.CollectorLabel,
+		SchemaVersion:           cassette.SchemaVersionV1,
+		Scopes:                  r.scopes,
+		PseudonymKeyFingerprint: r.keyFingerprint,
 	}
 	raw, err := json.Marshal(file)
 	if err != nil {
@@ -114,6 +161,13 @@ func (r *recording) write(opts Options) error {
 	canonical, err := replay.Canonicalize(raw, replay.DefaultCanonicalOptions().WithRedactedKeys(opts.RedactKeys...))
 	if err != nil {
 		return fmt.Errorf("recorder: canonicalize cassette: %w", err)
+	}
+	produced := recordpseudo.Set{}
+	if r.report != nil {
+		produced = r.report.Produced
+	}
+	if err := recordpseudo.Verify(canonical, produced); err != nil {
+		return fmt.Errorf("recorder: refusing to write %q: %w", opts.Path, err)
 	}
 	// #nosec G306 -- a cassette is a committed, world-readable test fixture, not
 	// a secret; 0o644 matches the repo's other generated artifacts.

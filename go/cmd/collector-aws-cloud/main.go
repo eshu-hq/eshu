@@ -35,6 +35,7 @@ const (
 	launchModeFixture     launchMode = "fixture"
 	launchModeClaimedLive launchMode = "claimed-live"
 	launchModeCassette    launchMode = "cassette"
+	launchModeRecord      launchMode = "record"
 )
 
 // launchOptions holds the parsed command-line inputs for the collector binary.
@@ -76,12 +77,13 @@ func main() {
 // parseArgs parses the collector mode and the fixture config path. The default
 // mode is claimed-live so existing live deployments keep their behavior; the
 // fixture mode is opt-in and requires a config file; cassette mode is opt-in
-// and requires a cassette JSON file.
+// and requires a cassette JSON file; record mode is opt-in, requires the
+// cassette output path, and rejects -config like claimed-live does.
 func parseArgs(args []string) (launchOptions, error) {
 	flags := flag.NewFlagSet("collector-aws-cloud", flag.ContinueOnError)
-	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: fixture, claimed-live, or cassette")
+	mode := flags.String("mode", string(launchModeClaimedLive), "collector mode: fixture, claimed-live, cassette, or record")
 	configPath := flags.String("config", "", "path to the declarative AWS collector fixture config JSON (fixture mode only)")
-	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (cassette mode only)")
+	cassetteFile := flags.String("cassette-file", "", "path to a cassette JSON file (replayed in cassette mode, written in record mode)")
 	if err := flags.Parse(args); err != nil {
 		return launchOptions{}, err
 	}
@@ -101,6 +103,13 @@ func parseArgs(args []string) (launchOptions, error) {
 	case launchModeCassette:
 		if strings.TrimSpace(*cassetteFile) == "" {
 			return launchOptions{}, fmt.Errorf("-cassette-file is required in cassette mode")
+		}
+	case launchModeRecord:
+		if strings.TrimSpace(*cassetteFile) == "" {
+			return launchOptions{}, fmt.Errorf("-cassette-file is required in record mode")
+		}
+		if strings.TrimSpace(*configPath) != "" {
+			return launchOptions{}, fmt.Errorf("-config is not used in record mode")
 		}
 	default:
 		return launchOptions{}, fmt.Errorf("unsupported -mode %q", selectedMode)
@@ -132,6 +141,15 @@ func run(parent context.Context, opts launchOptions) error {
 	if err != nil {
 		return fmt.Errorf("telemetry instruments: %w", err)
 	}
+
+	// Record mode is a one-shot credentialed fixture run: it drives the live
+	// scan path and writes a pseudonymized canonical cassette, with no
+	// durable commit and no status server, so it needs AWS credentials and
+	// the recording key but no database.
+	if opts.mode == launchModeRecord {
+		return runRecord(parent, opts.cassetteFile, tracer, instruments, logger)
+	}
+
 	pprofSrv, err := runtimecfg.NewPprofServer(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("pprof server: %w", err)

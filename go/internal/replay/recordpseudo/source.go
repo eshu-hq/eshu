@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package recordpseudo
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// ErrIPv4Exhausted is the declared IPv4 limit: one recording can hold at
+// most 762 distinct IPv4 addresses and CIDR networks (the RFC 5737 slot
+// space). Next returns it, wrapped with the count, instead of a cassette.
+var ErrIPv4Exhausted = errors.New("recordpseudo: RFC 5737 slot space exhausted")
+
+// ErrAccountsExhausted is the declared account limit: one recording can
+// hold at most accountSlotCount distinct accounts in the reserved
+// 0000xxxxxxxx pseudonym space. Past that, the recording fails rather than
+// letting two accounts share a pseudonym and merge their joins.
+var ErrAccountsExhausted = errors.New("recordpseudo: account pseudonym space exhausted")
+
+// Report is what a recorder logs about one pseudonymized run. It carries
+// counts, field paths and the key fingerprint -- never a raw or pseudonymized
+// value.
+type Report struct {
+	// KeyFingerprint identifies the recording key (Key.Fingerprint).
+	KeyFingerprint string
+	// Scopes and Facts count what the wrapped source emitted.
+	Scopes int
+	Facts  int
+	// Tokens is the dictionary size: distinct raw identifiers learned.
+	Tokens int
+	// Learned counts learned tokens per class.
+	Learned map[Class]int
+	// OpaquePaths are the field paths whose values were made opaque, sorted,
+	// including every unclassified path.
+	OpaquePaths []string
+	// UnclassifiedPaths are the opaque paths whose key the policy does not
+	// list at all: each one is a table gap for the collector owner to classify.
+	UnclassifiedPaths []string
+	// IPv4Collisions counts linear-probe steps taken in the RFC 5737 slot
+	// space; a non-zero value means some address pseudonyms are order-dependent.
+	IPv4Collisions int
+	// IPv4Addresses counts the distinct IPv4 addresses and CIDR networks that
+	// took a slot, against the declared limit of 762 (ErrIPv4Exhausted).
+	IPv4Addresses int
+	// AccountCollisions counts linear-probe steps in the reserved account
+	// pseudonym space, the account counterpart of IPv4Collisions.
+	AccountCollisions int
+	// UnlistedARNTypes lists, sorted, each "service:token" where an ARN of a
+	// service that has a type vocabulary led with a token outside it. The
+	// token was learned as a name, so the ARN grammar changed for that ARN;
+	// each entry is a vocabulary gap to review. Only the type token is
+	// carried, never a later component.
+	UnlistedARNTypes []string
+	// UnlistedARNTypeCount is how many ARNs hit an unlisted type token.
+	UnlistedARNTypeCount int
+	// Produced is the set of pseudonym tokens this run emitted, for Verify.
+	Produced Set
+}
+
+// LogAttrs renders the report as slog key/value pairs for the
+// collector.record.pseudonymized event.
+func (r Report) LogAttrs() []any {
+	learned := make(map[string]int, len(r.Learned))
+	for class, n := range r.Learned {
+		learned[class.String()] = n
+	}
+	return []any{
+		"key_fingerprint", r.KeyFingerprint,
+		"scopes", r.Scopes,
+		"facts", r.Facts,
+		"tokens", r.Tokens,
+		"learned_by_class", learned,
+		"opaque_paths", r.OpaquePaths,
+		"unclassified_paths", r.UnclassifiedPaths,
+		"ipv4_collisions", r.IPv4Collisions,
+		"ipv4_addresses", r.IPv4Addresses,
+		"account_collisions", r.AccountCollisions,
+		"unlisted_arn_types", r.UnlistedARNTypes,
+		"unlisted_arn_type_count", r.UnlistedARNTypeCount,
+	}
+}
+
+// Set is the membership belt input: every pseudonym token a run produced.
+type Set map[string]struct{}
+
+// Has reports membership.
+func (s Set) Has(token string) bool {
+	_, ok := s[token]
+	return ok
+}
+
+// Source is a collector.Source that pseudonymizes every generation of the
+// wrapped source before a recorder sees it. Payload fields and scope metadata
+// are classified per key by the Policy. The composite envelope fields --
+// scope_id, partition_key, stable_fact_key, source_record_id, source_uri --
+// are substitution-only by design: they are built by the collector from
+// tokens that also appear in classified fields (account, region, service,
+// resource ids), from one-way hashes (facts.StableID), or from structural
+// URI text, and a table keyed by field name has no key to classify them by.
+// Verify's shape scan over the canonical bytes is the belt for them. The first Next drains the inner
+// source completely, learns the dictionary from every generation, and only
+// then rewrites -- so a token learned late is still rewritten in an earlier
+// scope's structural fields.
+type Source struct {
+	inner   collector.Source
+	dict    *dictionary
+	walker  *walker
+	report  *Report
+	drained bool
+	// failure is the error drain returned; every later Next returns it
+	// again, so a caller that polls past the failure never sees a clean
+	// end of batch.
+	failure error
+	queue   []collector.CollectedGeneration
+}
+
+// Wrap returns the pseudonymizing source and the report it fills once the
+// inner source is drained. The report's fields are valid after Next has
+// reported the batch exhausted.
+func Wrap(inner collector.Source, key Key, policy Policy) (*Source, *Report, error) {
+	if inner == nil {
+		return nil, nil, fmt.Errorf("recordpseudo: inner source is required")
+	}
+	cfg := Config{Key: key, Policy: policy}
+	if err := cfg.Validate(); err != nil {
+		return nil, nil, err
+	}
+	dict := newDictionary(key)
+	report := &Report{KeyFingerprint: key.Fingerprint(), Learned: map[Class]int{}, Produced: Set{}}
+	return &Source{inner: inner, dict: dict, walker: newWalker(policy, dict), report: report}, report, nil
+}
+
+type rawGeneration struct {
+	gen       collector.CollectedGeneration
+	envelopes []facts.Envelope
+}
+
+// Next implements collector.Source.
+func (s *Source) Next(ctx context.Context) (collector.CollectedGeneration, bool, error) {
+	if s.failure != nil {
+		return collector.CollectedGeneration{}, false, s.failure
+	}
+	if !s.drained {
+		if err := s.drain(ctx); err != nil {
+			s.failure = err
+			return collector.CollectedGeneration{}, false, err
+		}
+	}
+	if len(s.queue) == 0 {
+		return collector.CollectedGeneration{}, false, nil
+	}
+	next := s.queue[0]
+	s.queue = s.queue[1:]
+	return next, true, nil
+}
+
+func (s *Source) drain(ctx context.Context) error {
+	s.drained = true
+	var raws []rawGeneration
+	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("recordpseudo: %w", err)
+		}
+		gen, ok, err := s.inner.Next(ctx)
+		if err != nil {
+			return fmt.Errorf("recordpseudo: inner source: %w", err)
+		}
+		if !ok {
+			break
+		}
+		envelopes := make([]facts.Envelope, 0, gen.FactCount())
+		for env := range gen.Facts {
+			normalized, err := normalizePayload(env.Payload)
+			if err != nil {
+				return fmt.Errorf("recordpseudo: scope %q fact %q: %w", gen.Scope.ScopeID, env.StableFactKey, err)
+			}
+			env.Payload = normalized
+			envelopes = append(envelopes, env)
+		}
+		if gen.FactStreamErr != nil {
+			if err := gen.FactStreamErr(); err != nil {
+				return fmt.Errorf("recordpseudo: fact stream for scope %q: %w", gen.Scope.ScopeID, err)
+			}
+		}
+		raws = append(raws, rawGeneration{gen: gen, envelopes: envelopes})
+	}
+	for _, raw := range raws {
+		s.learnGeneration(raw)
+	}
+	if err := s.dict.failure; err != nil {
+		return err
+	}
+	s.queue = make([]collector.CollectedGeneration, 0, len(raws))
+	for _, raw := range raws {
+		s.queue = append(s.queue, s.rewriteGeneration(raw))
+	}
+	s.fillReport(len(raws))
+	return nil
+}
+
+// learnGeneration feeds scope metadata (in sorted key order, like payload
+// keys, so a probed pseudonym never depends on map iteration) and every
+// payload to the walker.
+func (s *Source) learnGeneration(raw rawGeneration) {
+	for _, key := range sortedMapKeys(raw.gen.Scope.Metadata) {
+		s.walker.learn(key, raw.gen.Scope.Metadata[key], ClassUnknown)
+	}
+	for _, env := range raw.envelopes {
+		s.walker.learn("", env.Payload, ClassUnknown)
+	}
+}
+
+func (s *Source) rewriteGeneration(raw rawGeneration) collector.CollectedGeneration {
+	sc := raw.gen.Scope
+	sc.ScopeID = s.dict.substitute(sc.ScopeID)
+	sc.PartitionKey = s.dict.substitute(sc.PartitionKey)
+	if raw.gen.Scope.Metadata != nil {
+		// Metadata is a keyed map like a payload, so it goes through the
+		// policy: a classified key is substituted, an unlisted one is made
+		// opaque and reported as scope.metadata.<key>.
+		sc.Metadata = make(map[string]string, len(raw.gen.Scope.Metadata))
+		for key, value := range raw.gen.Scope.Metadata {
+			sc.Metadata[key] = s.walker.rewriteString("scope.metadata."+key, s.walker.policy.classOf(key), value)
+		}
+	}
+	gen := raw.gen.Generation
+	gen.ScopeID = sc.ScopeID
+	out := make([]facts.Envelope, 0, len(raw.envelopes))
+	for _, env := range raw.envelopes {
+		next := env
+		next.ScopeID = sc.ScopeID
+		next.StableFactKey = s.dict.substitute(env.StableFactKey)
+		next.SourceRef.ScopeID = sc.ScopeID
+		next.SourceRef.FactKey = next.StableFactKey
+		next.SourceRef.SourceRecordID = s.dict.substitute(env.SourceRef.SourceRecordID)
+		next.SourceRef.SourceURI = s.dict.substitute(env.SourceRef.SourceURI)
+		if env.Payload != nil {
+			next.Payload, _ = s.walker.rewrite("payload", "", env.Payload, ClassUnknown).(map[string]any)
+		}
+		out = append(out, next)
+	}
+	s.report.Facts += len(out)
+	return collector.FactsFromSlice(sc, gen, out)
+}
+
+func (s *Source) fillReport(scopes int) {
+	s.report.Scopes = scopes
+	s.report.Tokens = len(s.dict.entries)
+	for class, n := range s.dict.learned {
+		s.report.Learned[class] = n
+	}
+	s.report.IPv4Collisions = s.dict.ipCollisions
+	s.report.IPv4Addresses = len(s.dict.ipSlots)
+	s.report.AccountCollisions = s.dict.accountCollisions
+	s.report.UnlistedARNTypes = sortedKeys(s.dict.unlistedARNTypes)
+	for _, n := range s.dict.unlistedARNTypes {
+		s.report.UnlistedARNTypeCount += n
+	}
+	s.report.OpaquePaths = sortedKeys(s.walker.opaque)
+	s.report.UnclassifiedPaths = sortedKeys(s.walker.unclassified)
+	for _, learned := range s.dict.entries {
+		s.report.Produced[learned.pseudonym] = struct{}{}
+	}
+}
+
+func sortedKeys(counts map[string]int) []string {
+	out := make([]string, 0, len(counts))
+	for key := range counts {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// normalizePayload reduces a payload to JSON kinds only (map[string]any,
+// []any, string, json.Number, bool, nil) through a JSON round trip. Live
+// collectors build payloads from typed values -- []string anchors,
+// map[string]string tags, *string fields, time.Time -- and a walker that
+// matched Go types would let every unknown shape through untouched, which
+// is the one failure this package must not have. json.Number keeps numeric
+// literals byte-identical to what the recorder would have marshaled.
+func normalizePayload(payload map[string]any) (map[string]any, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("normalize payload: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var out map[string]any
+	if err := decoder.Decode(&out); err != nil {
+		return nil, fmt.Errorf("normalize payload: %w", err)
+	}
+	return out, nil
+}
