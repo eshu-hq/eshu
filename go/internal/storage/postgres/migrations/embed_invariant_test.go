@@ -23,7 +23,7 @@ import (
 // c95cae2762bd4d0d42da4720eb0ad5545d2d032914bded15a65ab01acb92ce42). #6785
 // and #6923 had edited that file in place instead of shipping a new guarded
 // migration, which is exactly the mistake this golden digest exists to catch
-// -- see migrations/README.md and schema_migration_checksum_alias.go.
+// -- see README.md and checksum_alias.go.
 const goldenBootstrapDefinitionsDigest = "c430b2cb8dba521c13024307f84a8952885f752eac9f5bc96a29c35278c98740"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

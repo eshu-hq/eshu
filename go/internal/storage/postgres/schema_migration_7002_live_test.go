@@ -127,7 +127,7 @@ func TestBootstrapAcceptsLedgerRecordingShippedChecksum093Live(t *testing.T) {
 // alias path end-to-end: a ledger that recorded either edited-in-place
 // checksum of 093 (#6785 or #6923) must still bootstrap successfully once 093
 // is restored, because those checksums were genuinely applied to real
-// databases during the window described in schema_migration_checksum_alias.go.
+// databases during the window described in migrations/checksum_alias.go.
 func TestBootstrapAcceptsSupersededChecksumAliasesFor093Live(t *testing.T) {
 	dsn := os.Getenv("ESHU_POSTGRES_TEST_DSN")
 	if dsn == "" {

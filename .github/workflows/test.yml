@@ -198,6 +198,11 @@ jobs:
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
 
+      - name: Verify shipped migration immutability
+        run: |
+          scripts/test-verify-migration-immutability.sh
+          scripts/verify-migration-immutability.sh
+
       - name: Verify Go license headers
         run: |
           scripts/test-verify-license-header.sh
