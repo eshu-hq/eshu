@@ -353,7 +353,7 @@
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
   and/or `Content ContentStore` fields, add a `Mount(mux *http.ServeMux)` method
   with explicit `mux.HandleFunc` calls, add the struct field to `APIRouter`
-  (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:125`), wire
+  (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:140`), wire
   the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a fragment
   under `openapi/paths/<family>/`, reference it in `openapi.Spec()`, update
   `docs/public/reference/http-api.md`. Run
