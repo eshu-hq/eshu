@@ -37,7 +37,7 @@ No-Regression Evidence: `go test ./internal/storage/postgres/... -race
 -count=1` and `go test ./internal/storage/postgres/decisions/... -race
 -count=1` pass; `go test ./internal/query/... -count=1` passes (repointed
 caller); `go build ./...` and `go vet ./...` pass; `go test -list '.*'
-./internal/storage/postgres/decisions/` shows all six moved
+./internal/storage/postgres/decisions/` shows all seven moved
 `TestDecisionStore*` tests are discovered. The SQL text is unchanged so no
 plan, index, or lifecycle proof is re-owed.
 

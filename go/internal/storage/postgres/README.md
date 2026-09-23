@@ -20,7 +20,7 @@ flowchart LR
   D -->|WriteContent| G["postgres.ContentWriter\ncontent_files, content_entities,\nrepository_refs"]
   D -->|Publish phases| H["postgres.GraphProjectionPhaseStateStore\n(graph_projection_phase_state)"]
   H -->|ReadinessLookup| F
-  F -->|WriteDecisions| I["decisionsstore.DecisionStore\n(projection_decisions)"]
+  I["decisionsstore.DecisionStore\n(projection_decisions)"] -->|ListDecisions| AQ["internal/query/admin\ndecision reads"]
   F -->|WriteAdmissionDecisions| I2["postgres.AdmissionDecisionStore\n(admission_decisions)"]
   F -->|WriteIntents| J["postgres.SharedIntentStore\n(shared_projection_intents)"]
   J -->|ReadBacklog| K["postgres.StatusStore\n/admin/status domain backlog"]
