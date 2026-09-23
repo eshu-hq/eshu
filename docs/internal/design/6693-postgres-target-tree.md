@@ -382,7 +382,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 44. [ ] `terraform/state/backend/` (5 files; after `facts/`)
 45. [ ] `search/vector/` (10 files; after `facts/`, `search/document/`)
 46. [ ] `cloud/inventory/` (12 files; after `facts/`, `terraform/state/drift/`)
-47. [ ] `ingestion/` (31 files; after `facts/`, `facts/payload/`, `generation/`, `iac/`, `lock/`, `queue/projector/`, `queue/reducer/`, `relationship/`, `scope/`, `workflow/`)
+47. [ ] `ingestion/` (31 files; after `facts/`, `facts/payload/`, `generation/`, `iac/`, `lock/`, `queue/projector/`, `queue/reducer/`, `relationship/`, `scope/`, `workflow/`; removes the `iac_reachability_materializer.go` dirgate marker)
 48. [ ] `collector/` (4 files; after `facts/payload/`, `ingestion/`)
 49. [ ] `recovery/` (1 file; after `collector/`)
 50. [ ] `status/` (17 files; after `collector/`, `generation/`, `queue/reducer/`, `terraform/state/`, `vulnerability/`, `workflow/`)
