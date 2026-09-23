@@ -350,6 +350,12 @@ const canonicalNodeModuleUpsertCypher = `UNWIND $rows AS row
 MERGE (m:Module {name: row.name, lang: row.language})
 SET m.evidence_source = 'projector/canonical'`
 
+// CanonicalNodeModuleUpsertCypher is the import-graph Module upsert that
+// CanonicalNodeWriter batches with row keys `name` and `language`. It is
+// exported only so internal/backendconformance can run the exact production
+// statement against both backends; production callers go through the writer.
+const CanonicalNodeModuleUpsertCypher = canonicalNodeModuleUpsertCypher
+
 // --- Phase G: Structural edge Cypher ---
 
 // canonicalNodeImportEdgeCypher wires each file to the module it imports. The

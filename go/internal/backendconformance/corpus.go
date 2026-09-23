@@ -35,6 +35,10 @@ type ReadCase struct {
 	// with the wrong values -- a count that ignores DISTINCT, or a projection
 	// that echoes its expression text -- which MinRows cannot see.
 	WantRows []map[string]any
+	// Overrides pins what a named backend returns today when that differs
+	// from the correct WantRows. Each entry must name its tracking issue; see
+	// BackendOverride. Only RunReadCorpusFor applies them.
+	Overrides map[BackendID]BackendOverride
 }
 
 // WriteCase is one backend-neutral graph write shape.
@@ -57,12 +61,17 @@ type CaseResult struct {
 	Capability CapabilityClass
 	Rows       int
 	Statements int
+	// Divergence is the tracking issue of the backend override the read was
+	// held to, or empty when it was held to the correct rows.
+	Divergence string
 }
 
 // DefaultReadCorpus returns the deterministic read corpus used as the common
 // graph-query adapter smoke for Chunk 5 backend conformance. It ends with the
-// value-flow cloud sink statements (#6690) and the answer-truth shapes (#6689),
-// which assert exact rows.
+// value-flow cloud sink statements (#6690), the answer-truth shapes (#6689),
+// and the semantic Module write outcomes (#6965, #6968), which assert exact
+// rows. The semantic Module seeds are backend-dialect writes, so they live in
+// WriteCorpusFor rather than DefaultWriteCorpus.
 func DefaultReadCorpus() []ReadCase {
 	cases := append([]ReadCase{
 		{
@@ -111,7 +120,8 @@ RETURN contains_count, file_count, entity_count`,
 			MinRows: 1,
 		},
 	}, valueFlowReadCases()...)
-	return append(cases, answerTruthReadCases()...)
+	cases = append(cases, answerTruthReadCases()...)
+	return append(cases, semanticModuleReadCases()...)
 }
 
 // DefaultWriteCorpus returns the deterministic write corpus used as the common
@@ -277,41 +287,11 @@ func backendConformanceContainmentParams() map[string]any {
 }
 
 // RunReadCorpus runs read cases against a GraphQuery implementation and returns
-// a report with row counts per case.
+// a report with row counts per case. It applies no backend override: every
+// exact-row case must return its correct WantRows. Live runs against a known
+// backend use RunReadCorpusFor.
 func RunReadCorpus(ctx context.Context, graph GraphQuery, cases []ReadCase) (Report, error) {
-	if graph == nil {
-		return Report{}, fmt.Errorf("graph query is required")
-	}
-	if len(cases) == 0 {
-		return Report{}, fmt.Errorf("read corpus must include at least one case")
-	}
-
-	report := Report{Results: make([]CaseResult, 0, len(cases))}
-	for _, tc := range cases {
-		if err := validateReadCase(tc); err != nil {
-			return Report{}, err
-		}
-		caseCtx, cancel := context.WithTimeout(ctx, corpusTimeout)
-		rows, err := graph.Run(caseCtx, tc.Cypher, tc.Parameters)
-		cancel()
-		if err != nil {
-			return Report{}, fmt.Errorf("read case %q: %w", tc.Name, err)
-		}
-		if tc.MinRows > 0 && len(rows) < tc.MinRows {
-			return Report{}, fmt.Errorf("read case %q returned %d rows, want at least %d", tc.Name, len(rows), tc.MinRows)
-		}
-		if tc.WantRows != nil {
-			if err := compareReadRows(rows, tc.WantRows); err != nil {
-				return Report{}, fmt.Errorf("read case %q: %w", tc.Name, err)
-			}
-		}
-		report.Results = append(report.Results, CaseResult{
-			Name:       tc.Name,
-			Capability: tc.Capability,
-			Rows:       len(rows),
-		})
-	}
-	return report, nil
+	return RunReadCorpusFor(ctx, graph, "", cases)
 }
 
 // RunWriteCorpus runs write cases against a Cypher executor. Cases that require
@@ -399,7 +379,7 @@ func validateReadCase(tc ReadCase) error {
 	if tc.MinRows < 0 {
 		return fmt.Errorf("read case %q minimum rows must be zero or positive", tc.Name)
 	}
-	return nil
+	return validateReadCaseOverrides(tc)
 }
 
 // validateWriteCase rejects incomplete write cases and empty statement groups.

@@ -1,5 +1,101 @@
 # Backend conformance evidence notes
 
+## Semantic Module write path (#6965 Phase 4, 2026-09-23)
+
+`corpus_semantic_module.go` adds three exact-row cases for the semantic-entity
+`:Module` write. Each backend runs the statements its reducer really sends:
+the case builder drives the production `SemanticEntityWriter` through a
+recording executor. `WriteCorpusFor(backend)` picks the writer the reducer
+wires. For Neo4j that is `NewSemanticEntityWriter` (MATCH-first). For NornicDB
+it is `NewSemanticEntityWriterWithCanonicalNodeRows(...).WithLabelScopedRetract()`,
+which rewrites Module MERGE-first through
+`semanticEntityMergeFirstRowsUpsertCypher`.
+`TestSemanticModuleConformanceCasesUseTheReducerWiring` in `go/cmd/reducer`
+pins that mirror to `semanticEntityWriterForGraphBackend` by deep equality of
+the emitted statements. Swapping either backend's mirror to
+`NewSemanticEntityWriterWithMergeFirstRows` fails it for that backend (both
+mutations run, both red). Dropping only `WithLabelScopedRetract()` does not
+fail it, because canonical-node-rows mode ignores the retract mode
+(`semanticRetractStatements`), so the statements stay identical.
+
+| Case | Seed | Expected rows |
+| --- | --- | --- |
+| absent file | Module row, File never written | none |
+| present file | File seeded, then the same row shape | one contained Module, uid set, `parser/semantic-entities` |
+| canonical import | absent-file Module row, then the production `CanonicalNodeModuleUpsertCypher` for the same `(name, lang)` | one Module, `uid` null, `projector/canonical` |
+
+### Why "no Module" is the correct absent-file outcome
+
+- `semanticModuleUpsertCypher` is the source template. The default writer
+  runs it, and so does Neo4j. It creates the node only for a row whose File
+  exists. The merge-first form rewrites that template to keep NornicDB on its
+  UNWIND/MERGE hot path (see the reducer wiring comment and
+  `NewSemanticEntityWriterWithMergeFirstRows`), and nothing documents a change
+  of meaning. #6965 Problem 3 states the contract: different statements, same
+  semantics.
+- A semantic Module with no File has no `CONTAINS` edge, and the `:Module`
+  orphan sweep only acts on `n.uid IS NULL` (`orphanSweepClassPredicate`). So
+  only the next repo-scoped semantic retract removes it.
+- It captures the import graph. `MERGE (m:Module {name, lang})` matches any
+  Module with that name and language, so a later canonical import binds to the
+  stray semantic node and overwrites its `evidence_source`. No uid-NULL node is
+  created. This is #6968's mechanism, and the third case pins it.
+
+### Per-backend pins (BackendOverride)
+
+`WantRows` on every case is the correct outcome above. NornicDB does not give
+it today on two cases. It gets a `BackendOverride` holding the rows it
+produces, with `Divergence` set to `#6968`
+(`corpus_override.go`). Both lanes are therefore green and deterministic:
+
+- Neo4j is held to the correct rows. Any drift fails.
+- NornicDB is held to its pinned rows. When #6968 fixes the write path,
+  NornicDB returns the correct rows, fails its pin, and the fix must delete
+  the override. Any other change fails too.
+
+Validation rejects an override that has no `#NNNN` issue, nil rows, rows
+equal to the correct rows, an unknown backend, or no default `WantRows`. A
+mismatch error names the backend, the divergence, the correct rows, the
+pinned rows, and the rows actually returned. A live-lane failure therefore
+shows the true values in the CI log.
+
+| Case | Correct (default, Neo4j) | NornicDB pin (#6968) |
+| --- | --- | --- |
+| absent file | no rows | `{uid: module:backend-conformance:semantic-absent, lang: typescript, evidence_source: parser/semantic-entities}` |
+| present file | one contained Module | no override |
+| canonical import | `{uid: null, evidence_source: projector/canonical}` | `{uid: module:backend-conformance:semantic-import, evidence_source: projector/canonical}` |
+
+The pins were first derived from the Cypher each lane receives and the #6965
+measurement (merge-first creates the uid-bearing node and skips only the
+edge). The canonical-import pin also rested on #6968's hypothesis: the
+canonical MERGE binds to the stray node and its SET overwrites
+`evidence_source`. Both lanes were then run live, one backend at a time, each
+on a fresh container of the image the Compose files pin, on its own ports:
+
+- NornicDB, `ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`:
+  `TestLiveBackendConformance` PASS, exit 0. The absent-file and
+  canonical-import cases passed on their #6968 pins (`1 rows, pinned
+  divergence #6968`), and the present-file case passed on the default rows.
+  Validation rejects a pin equal to the correct rows, so NornicDB did not
+  return the correct rows: the divergence is observed, not assumed.
+- Neo4j, `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`:
+  `TestLiveBackendConformance` PASS, exit 0, every case on the default rows
+  (absent file 0 rows, present file 1 row, canonical import 1 uid-null row).
+
+To reproduce with Compose, from the repo root, one backend at a time:
+
+```bash
+docker compose up -d nornicdb
+ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
+
+docker compose -f docker-compose.neo4j.yml up -d neo4j
+ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_conformance_live.sh
+```
+
+In CI the same script is the "Run live backend conformance" step of
+`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`).
+A case that passes on a pin logs `pinned divergence #6968`.
+
 ## Current state: value-flow statements and answer-truth shapes (2026-09-18)
 
 Measured on the pinned image

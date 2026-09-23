@@ -28,8 +28,9 @@ flowchart LR
 The default test path validates contracts without a live database. The live
 script opts into the same corpora against Neo4j or NornicDB. Read cases assert a
 minimum row count or, with `WantRows`, the exact rows; the exact-row cases pin
-the reducer's value-flow cloud sink statements (#6690) and the aggregation and
-optional-match shapes older NornicDB builds answered wrongly (#6689).
+the reducer's value-flow cloud sink statements (#6690), the aggregation and
+optional-match shapes older NornicDB builds answered wrongly (#6689), and the
+semantic `:Module` write outcomes (#6965, #6968).
 
 The package keeps two contracts together:
 
@@ -48,6 +49,40 @@ The live write corpus includes the source-local shape that matters for canonical
 projection parity: repository, directory, file, function, and
 `File-[:CONTAINS]->Function`. The live test runs the write corpus twice before
 readback so both official backends prove the relationship stays idempotent.
+
+## Semantic Module write path (issue #6965, phase 4)
+
+Most write cases send the same Cypher to every backend. The semantic-entity
+write does not: the reducer runs MATCH-first templates on Neo4j and a
+MERGE-first rewrite on NornicDB. `WriteCorpusFor(backend)` therefore appends
+backend-dialect cases to `DefaultWriteCorpus`. `corpus_semantic_module.go`
+builds them by running the production `SemanticEntityWriter` for that backend
+through a recording executor, so each lane executes its real statements. The
+reads in `DefaultReadCorpus` then pin one outcome for both lanes: a Module row
+whose File is absent creates no Module; a present File yields one contained,
+uid-bearing Module; and a later canonical import `MERGE (m:Module {name, lang})`
+leaves a uid-NULL node. `go/cmd/reducer` pins the mirrored writer choice to the
+reducer's own wiring.
+
+When a backend does not give the correct rows today, a read case can carry a
+`BackendOverride` (`corpus_override.go`) for that backend. The override pins
+the rows the backend actually returns and must name its tracking issue in
+`Divergence`. `RunReadCorpusFor(backend)` holds that backend to the pin and
+every other backend to `WantRows`, so both lanes stay deterministic. The
+NornicDB semantic Module pins sit under #6968. Both lanes were observed live
+returning exactly these rows; the reasoning, the commands, and the images are
+in `evidence-notes.md`.
+
+No-Regression Evidence: no production Cypher text, index, schema, queue or
+batching changed. `sourcecypher.CanonicalNodeModuleUpsertCypher` is a new
+exported alias of the unchanged `canonicalNodeModuleUpsertCypher` and has no
+production caller. The new cases run only in the backend conformance tests.
+`go test ./internal/backendconformance/... -count=1` and the
+`go/cmd/reducer` wiring test pass with no live backend, so there is no
+hot-path shape to benchmark before and after.
+
+No-Observability-Change: no metrics, spans, or log keys added or changed; the
+live test's existing per-case `read case passed` log lines cover the new cases.
 
 ## Differential capture (issue #6782, slice 2)
 
