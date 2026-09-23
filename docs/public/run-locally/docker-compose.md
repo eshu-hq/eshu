@@ -171,12 +171,12 @@ or document id to logs or metric labels.
 
 ### Immutable NornicDB default
 
-The default Compose NornicDB service uses the eshu-hq self-built multi-architecture image
+The default Compose NornicDB service uses the eshu-hq build multi-architecture image
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a`.
-That exact artifact is upstream main at the Close-versus-commit fix (orneryd/NornicDB#501, with the numID counter floor
-#498 for the restart cell, #6162) plus the ORDER BY key fix from orneryd/NornicDB#502 (not yet merged upstream). The
-default pull policy `missing` downloads the immutable artifact once and reuses
-it without requiring registry access on every start.
+That exact artifact is plain upstream orneryd/NornicDB main at `c4de1c5c`, built after #492 (parser refactor, TCK 100%)
+and #512, carrying the Close-versus-commit fix (#501, numID counter floor #498 for the restart cell #6162, conjunct
+index-seek fix #491), and the #500 ORDER BY key fix. The default pull policy `missing` downloads the immutable artifact
+once and reuses it without requiring registry access on every start.
 
 Controlled backend comparisons retain the image override contract. Set
 `NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` when a run

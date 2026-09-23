@@ -52,19 +52,23 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Eshu pins the same eshu-hq self-built NornicDB image by digest for
+Eshu pins the same eshu-hq build of NornicDB image by digest for
 Compose, Helm, and R-5 graph startup. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; `fix-6915-c4de1c5c` is the pinned eshu-hq self-built
-ghcr.io image, built from upstream main at the merged Close-versus-commit fix
-([orneryd/NornicDB#501](https://github.com/orneryd/NornicDB/pull/501)), which
-carries the numID counter floor ([#498](https://github.com/orneryd/NornicDB/pull/498))
-and the conjunct index-seek fix
-([orneryd/NornicDB#491](https://github.com/orneryd/NornicDB/pull/491)), plus the
-ORDER BY key fix from
-[orneryd/NornicDB#502](https://github.com/orneryd/NornicDB/pull/502) (not yet
-merged upstream), with
+preserved in later releases; `fix-6915-c4de1c5c` is the pinned eshu-hq
+ghcr.io image, an eshu-hq build of plain upstream orneryd/NornicDB main at
+`c4de1c5c`, built after
+[orneryd/NornicDB#492](https://github.com/orneryd/NornicDB/pull/492) (parser
+refactor, TCK 100%) and
+[#512](https://github.com/orneryd/NornicDB/pull/512), carrying the merged
+Close-versus-commit fix
+([orneryd/NornicDB#501](https://github.com/orneryd/NornicDB/pull/501)), the
+numID counter floor
+([#498](https://github.com/orneryd/NornicDB/pull/498)), the conjunct
+index-seek fix
+([orneryd/NornicDB#491](https://github.com/orneryd/NornicDB/pull/491)), and
+the #500 ORDER BY key fix, with
 `linux/amd64` and `linux/arm64` descriptors. The validated Linux amd64 artifact
 reports `NornicDB v1.3.3`; the v1.3.2 artifact reported `NornicDB v1.3.1` because
 upstream retained a stale embedded `VERSION` file;
