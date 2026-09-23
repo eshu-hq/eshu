@@ -41,6 +41,11 @@ type QueryCall struct {
 // argument to a per-key fixture") without ExecQueryer knowing anything about
 // that query. See doc.go for why this replaced constant-matching in the
 // package this fake was extracted from.
+//
+// A Route runs while QueryContext holds the ExecQueryer's lock, so it must
+// not call back into the same ExecQueryer (ExecContext, QueryContext, or
+// BeginReadOnlyRepeatableRead) or it deadlocks; it should be a pure function
+// of (query, args).
 type Route func(query string, args []any) (rows *Rows, handled bool)
 
 // ExecQueryer is a shared, in-memory stand-in for db.ExecQueryer (and, via
@@ -147,15 +152,27 @@ func (f *ExecQueryer) QueryContext(
 	f.Queries = append(f.Queries, QueryCall{Query: query, Args: args})
 
 	for _, route := range f.Routes {
-		if response, handled := route(query, args); handled {
-			if response.FailWith != nil {
-				return nil, response.FailWith
-			}
-			if response.Adapt == nil {
-				response.Adapt = f.Adapt
-			}
-			return response, nil
+		response, handled := route(query, args)
+		if !handled {
+			continue
 		}
+		if response == nil {
+			return nil, fmt.Errorf("fake: route handled query but returned nil rows: %s", query)
+		}
+		// Copy the route's Rows before handing it out: routes are ordinary
+		// functions and may return the same *Rows for repeated matching
+		// calls (a package-level fixture, say), so returning it as-is would
+		// let one call's Next/Scan advance shared state that the next call
+		// then sees, matching neither the caller's fixture nor the FIFO
+		// path below (which already hands out a fresh copy).
+		copied := *response
+		if copied.FailWith != nil {
+			return nil, copied.FailWith
+		}
+		if copied.Adapt == nil {
+			copied.Adapt = f.Adapt
+		}
+		return &copied, nil
 	}
 
 	if len(f.QueryResponses) == 0 {

@@ -180,6 +180,55 @@ func TestExecQueryerQueryContextRouteCanFailTheCall(t *testing.T) {
 	}
 }
 
+func TestExecQueryerQueryContextRouteReturningNilRowsErrorsInsteadOfPanicking(t *testing.T) {
+	t.Parallel()
+
+	database := &fake.ExecQueryer{
+		Routes: []fake.Route{
+			func(string, []any) (*fake.Rows, bool) {
+				return nil, true
+			},
+		},
+	}
+	_, err := database.QueryContext(context.Background(), "SELECT nil rows")
+	if err == nil {
+		t.Fatal("QueryContext() error = nil, want an error naming the query")
+	}
+	if !strings.Contains(err.Error(), "SELECT nil rows") {
+		t.Fatalf("QueryContext() error = %v, want it to name the query", err)
+	}
+}
+
+func TestExecQueryerQueryContextRouteResponseIsCopiedNotSharedAcrossCalls(t *testing.T) {
+	t.Parallel()
+
+	shared := &fake.Rows{Data: [][]any{{"first"}, {"second"}}}
+	database := &fake.ExecQueryer{
+		Routes: []fake.Route{
+			func(string, []any) (*fake.Rows, bool) {
+				return shared, true
+			},
+		},
+	}
+
+	for i := 0; i < 2; i++ {
+		rows, err := database.QueryContext(context.Background(), "SELECT repeated")
+		if err != nil {
+			t.Fatalf("QueryContext() call %d error = %v, want nil", i, err)
+		}
+		if !rows.Next() {
+			t.Fatalf("call %d: Next() = false, want true", i)
+		}
+		var got string
+		if err := rows.Scan(&got); err != nil {
+			t.Fatalf("call %d: Scan() error = %v, want nil", i, err)
+		}
+		if got != "first" {
+			t.Fatalf("call %d: Scan() = %q, want %q (route's shared Rows must not be consumed)", i, got, "first")
+		}
+	}
+}
+
 func TestExecQueryerQueryContextFIFOEntryCanFailTheCall(t *testing.T) {
 	t.Parallel()
 

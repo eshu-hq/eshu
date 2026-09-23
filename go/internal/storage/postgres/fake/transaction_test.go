@@ -64,6 +64,23 @@ func TestExecQueryerBeginReadOnlyRepeatableReadHonorsInjectedError(t *testing.T)
 	}
 }
 
+func TestTransactionCommitTracksCallsAndHonorsInjectedError(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("commit boom")
+	database := &fake.ExecQueryer{TransactionCommitErr: boom}
+	tx, err := database.BeginReadOnlyRepeatableRead(context.Background())
+	if err != nil {
+		t.Fatalf("BeginReadOnlyRepeatableRead() error = %v, want nil", err)
+	}
+	if err := tx.Commit(); !errors.Is(err, boom) {
+		t.Fatalf("tx.Commit() error = %v, want %v", err, boom)
+	}
+	if got, want := database.TransactionCommitCalls, 1; got != want {
+		t.Fatalf("TransactionCommitCalls = %d, want %d", got, want)
+	}
+}
+
 func TestTransactionRollbackTracksCallsAndHonorsInjectedError(t *testing.T) {
 	t.Parallel()
 
