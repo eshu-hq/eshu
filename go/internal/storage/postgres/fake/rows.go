@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
+
+var _ db.Rows = (*Rows)(nil)
 
 // Rows is an in-memory db.Rows: a fixed set of rows a caller stages ahead of
 // time, served in order by Next and Scan.
@@ -27,6 +30,11 @@ type Rows struct {
 	// FailWith, when non-nil, is returned as QueryContext's error instead
 	// of this Rows value.
 	FailWith error
+	// Adapt, when non-nil, reshapes each row before Scan checks it against
+	// the caller's destination count. ExecQueryer.QueryContext fills this in
+	// from its own Adapt when a handed-out Rows leaves it nil, so a caller
+	// can set it once on the ExecQueryer instead of on every Rows.
+	Adapt RowAdapter
 
 	index int
 }
@@ -49,6 +57,9 @@ func (r *Rows) Scan(dest ...any) error {
 		return errors.New("fake: Scan called without a row; call Next first")
 	}
 	row := r.Data[r.index]
+	if r.Adapt != nil {
+		row = r.Adapt(len(dest), row)
+	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("fake: scan destination count = %d, want %d", len(dest), len(row))
 	}

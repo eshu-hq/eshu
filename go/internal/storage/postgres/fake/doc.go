@@ -24,6 +24,15 @@
 // caller stages the query-shape-to-response logic its own tests need, and
 // ExecQueryer applies it before falling back to a FIFO QueryResponses queue.
 //
+// The same duplication problem applied to queueFakeRows.Scan's two
+// column-count reshapes for legacy reducer-queue fixtures (rows written
+// before the work-queue schema grew a claim epoch and a last_attempt_at
+// column). Rows.Scan does not hard-code that reshaping either: a caller
+// opts a Rows or an ExecQueryer into it via the RowAdapter it sets as
+// Adapt, and LegacyQueueRowAdapter reproduces the exact reshapes moved
+// queue tests need. Every other domain's fixtures leave Adapt nil and see
+// no behavior change.
+//
 // ExecQueryer, Rows, and Result are safe for concurrent use, matching the
 // concurrency contract of the storage adapters they stand in for (see
 // go/internal/storage/postgres/content_writer_batch.go, whose parallel

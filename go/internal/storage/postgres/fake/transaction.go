@@ -10,6 +10,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+var _ db.Transaction = (*Transaction)(nil)
+
 // BeginReadOnlyRepeatableRead implements db.ReadOnlyRepeatableReadBeginner.
 // It records the call and, absent an injected BeginReadOnlyRepeatableReadErr,
 // returns a Transaction that delegates every call back to this ExecQueryer

@@ -43,6 +43,13 @@ business logic it stands in for. Callers stage that behavior themselves via
 - `Transaction` -- the `db.Transaction` `BeginReadOnlyRepeatableRead`
   returns; delegates to the parent `ExecQueryer` so one fixture answers both
   direct and transactional calls.
+- `RowAdapter` -- `func(destCount int, row []any) []any`, reshapes a row
+  before `Scan` checks it against the destination count. `ExecQueryer.Adapt`
+  and `Rows.Adapt` both take one; `ExecQueryer.Adapt` fills in any
+  handed-out `Rows` whose own `Adapt` is nil, so a caller can set it once.
+- `LegacyQueueRowAdapter` -- a `RowAdapter` reproducing the two column-count
+  reshapes moved reducer-queue fixtures need (see its doc comment). Every
+  other package's tests leave `Adapt` unset.
 
 ## Dependencies
 
@@ -83,3 +90,8 @@ durable write of its own.
 - This package carries no query-string knowledge for any Eshu domain
   (ingestion, semantic, workflow, `fact_records`, ...). That routing stays in
   the caller's own tests via `Routes`.
+- `LegacyQueueRowAdapter` is the one exception to "no domain knowledge": it
+  exists so moved reducer-queue fixtures do not need a bespoke `Scan`
+  reimplementation for two schema-growth column shims. It is opt-in
+  (`Adapt`), never applied by default, and every other domain's fixtures are
+  unaffected by it.

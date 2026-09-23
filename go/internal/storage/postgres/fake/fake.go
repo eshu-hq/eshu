@@ -12,6 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+var (
+	_ db.ExecQueryer                    = (*ExecQueryer)(nil)
+	_ db.ReadOnlyRepeatableReadBeginner = (*ExecQueryer)(nil)
+)
+
 // ExecCall records one ExecContext invocation: the exact query text and
 // positional arguments the caller passed.
 type ExecCall struct {
@@ -70,6 +75,12 @@ type ExecQueryer struct {
 	// handled. A call with an empty queue and no matching Route fails with
 	// an error naming the unexpected query.
 	QueryResponses []Rows
+	// Adapt, when non-nil, is copied onto every Rows this ExecQueryer hands
+	// out (from a Route or from QueryResponses) whose own Adapt is nil, so a
+	// caller with legacy fixtures can opt every response into a RowAdapter
+	// (see LegacyQueueRowAdapter) once instead of setting it on each Rows
+	// individually. A Rows with its own Adapt already set keeps it.
+	Adapt RowAdapter
 
 	// BeginReadOnlyRepeatableReadCalls counts calls to
 	// BeginReadOnlyRepeatableRead.
@@ -140,6 +151,9 @@ func (f *ExecQueryer) QueryContext(
 			if response.FailWith != nil {
 				return nil, response.FailWith
 			}
+			if response.Adapt == nil {
+				response.Adapt = f.Adapt
+			}
 			return response, nil
 		}
 	}
@@ -151,6 +165,9 @@ func (f *ExecQueryer) QueryContext(
 	f.QueryResponses = f.QueryResponses[1:]
 	if response.FailWith != nil {
 		return nil, response.FailWith
+	}
+	if response.Adapt == nil {
+		response.Adapt = f.Adapt
 	}
 	return &response, nil
 }
