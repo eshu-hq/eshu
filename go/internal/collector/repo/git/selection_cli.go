@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -66,35 +65,43 @@ func syncGitRepositoriesWithLogger(
 
 		if !hasGitMarker(repoPath) {
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
-			if cloneErr == nil && cloned {
-				selected = append(selected, repoPath)
-				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-				if refsErr != nil {
-					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-					return GitSyncSelection{}, refsErr
+			if cloneErr != nil {
+				recordGitRepoSyncFailure(ctx, baseline.Instruments, "clone") // already logged by cloneRepository
+			} else if cloned {
+				refs, ok, fatalErr := resolveRepoRefsIsolated(ctx, config, repoPath, token, logger, event, baseline.Instruments)
+				if fatalErr != nil {
+					return GitSyncSelection{}, fatalErr
 				}
-				refsByRepoPath[repoPath] = refs
+				if ok {
+					selected = append(selected, repoPath)
+					refsByRepoPath[repoPath] = refs
+				}
 			}
 		} else {
 			forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
 				baseline.reconcileDue(ctx, config, repoPath)
+			// updated==false with a nil updateErr is the legitimate no-new-changes
+			// no-op, not a failure — only updateErr != nil is metered below.
 			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
-			if updateErr == nil && updated {
-				selected = append(selected, repoPath)
-				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-				if refsErr != nil {
-					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-					return GitSyncSelection{}, refsErr
+			if updateErr != nil {
+				recordGitRepoSyncFailure(ctx, baseline.Instruments, "fetch") // already logged by updateRepository
+			} else if updated {
+				refs, ok, fatalErr := resolveRepoRefsIsolated(ctx, config, repoPath, token, logger, event, baseline.Instruments)
+				if fatalErr != nil {
+					return GitSyncSelection{}, fatalErr
 				}
-				refsByRepoPath[repoPath] = refs
-				if !delta.IsEmpty() {
-					deltaByRepoPath[repoPath] = delta
-				}
-				sourceSHAByRepoPath[repoPath] = sourceSHA
-				if forceReconcile {
-					reconcileByRepoPath[repoPath] = true
-					reconciledThisCycle++
-					baseline.recordReconciliation(ctx)
+				if ok {
+					selected = append(selected, repoPath)
+					refsByRepoPath[repoPath] = refs
+					if !delta.IsEmpty() {
+						deltaByRepoPath[repoPath] = delta
+					}
+					sourceSHAByRepoPath[repoPath] = sourceSHA
+					if forceReconcile {
+						reconcileByRepoPath[repoPath] = true
+						reconciledThisCycle++
+						baseline.recordReconciliation(ctx)
+					}
 				}
 			}
 		}
@@ -453,45 +460,4 @@ func gitRun(
 	args ...string,
 ) (string, error) {
 	return gitRunWithStderrWriter(ctx, repoPath, config, token, nil, args...)
-}
-
-func gitRunWithStderrWriter(
-	ctx context.Context,
-	repoPath string,
-	config RepoSyncConfig,
-	token string,
-	stderrWriter io.Writer,
-	args ...string,
-) (string, error) {
-	commandArgs := make([]string, 0, len(args)+2)
-	commandArgs = append(commandArgs, "-C", repoPath)
-	commandArgs = append(commandArgs, args...)
-	command := newGitCommand(ctx, commandArgs...)
-	command.Env = gitCommandEnv(config, token)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	command.Stdout = &stdout
-	if stderrWriter != nil {
-		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
-	} else {
-		command.Stderr = &stderr
-	}
-	if err := command.Run(); err != nil {
-		flushProgressWriter(stderrWriter)
-		return "", fmt.Errorf(
-			"git %s: %w: %s",
-			strings.Join(args, " "),
-			err,
-			sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())),
-		)
-	}
-	flushProgressWriter(stderrWriter)
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-func flushProgressWriter(writer io.Writer) {
-	flusher, ok := writer.(interface{ Flush() })
-	if ok {
-		flusher.Flush()
-	}
 }

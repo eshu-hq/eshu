@@ -6,11 +6,16 @@ package git
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -156,6 +161,52 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
 }
 
+// resolveRepoRefsIsolated calls remoteGitRefs for one repository and isolates
+// a per-repository failure (DNS timeout, auth, transient network) from the
+// rest of the sync cycle (#7001): it logs and meters the failure via
+// logGitSyncFailed/recordGitRepoSyncFailure and returns ok=false so the
+// caller skips only this repository for the cycle, retrying it naturally on
+// the next poll. Parent-context cancellation (shutdown already in flight) is
+// NOT isolated — fatalErr is non-nil so the caller propagates it, matching
+// syncGitRepositoriesWithLogger's existing top-of-iteration ctx.Err() check.
+func resolveRepoRefsIsolated(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repoPath string,
+	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
+	instruments *telemetry.Instruments,
+) (refs []GitRef, ok bool, fatalErr error) {
+	refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+	if refsErr == nil {
+		return refs, true, nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, false, ctxErr
+	}
+	logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+	recordGitRepoSyncFailure(ctx, instruments, "list_refs")
+	return nil, false, nil
+}
+
+// recordGitRepoSyncFailure increments the bounded per-repository git sync
+// failure counter (#7001) so an operator can see the isolated-failure rate
+// without scraping logs. A nil instruments is a no-op (unwired in tests and
+// some callers). A canceled ctx is also a no-op: shutdown killing an
+// in-flight clone/fetch/list_refs is not a sync failure, and counting it
+// would add teardown noise to a signal meant to surface remote/DNS/auth
+// trouble. Repository identity never becomes a metric label; it stays in the
+// paired logGitSyncFailed log line.
+func recordGitRepoSyncFailure(ctx context.Context, instruments *telemetry.Instruments, operation string) {
+	if instruments == nil || instruments.GitRepoSyncFailures == nil || ctx.Err() != nil {
+		return
+	}
+	instruments.GitRepoSyncFailures.Add(ctx, 1, metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionOperation, operation),
+	))
+}
+
 func (e gitSyncLogEvent) eventAttrs(now time.Time) []any {
 	attrs := []any{
 		log.CollectorKind("git"),
@@ -213,6 +264,52 @@ func gitProgressLineIsTerminal(message string) bool {
 		strings.HasPrefix(lower, "error:") ||
 		strings.HasPrefix(lower, "fatal authentication failed") ||
 		strings.HasPrefix(lower, "authentication failed")
+}
+
+// gitRunWithStderrWriter runs a git command scoped to repoPath, teeing stderr
+// through stderrWriter (a *gitProgressWriter, or nil) so long-running
+// operations can log progress while still returning the sanitized error text
+// on failure. Colocated with the rest of this file's progress/stderr
+// plumbing rather than in selection_cli.go's clone/fetch control flow.
+func gitRunWithStderrWriter(
+	ctx context.Context,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	stderrWriter io.Writer,
+	args ...string,
+) (string, error) {
+	commandArgs := make([]string, 0, len(args)+2)
+	commandArgs = append(commandArgs, "-C", repoPath)
+	commandArgs = append(commandArgs, args...)
+	command := newGitCommand(ctx, commandArgs...)
+	command.Env = gitCommandEnv(config, token)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	if stderrWriter != nil {
+		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
+	} else {
+		command.Stderr = &stderr
+	}
+	if err := command.Run(); err != nil {
+		flushProgressWriter(stderrWriter)
+		return "", fmt.Errorf(
+			"git %s: %w: %s",
+			strings.Join(args, " "),
+			err,
+			sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())),
+		)
+	}
+	flushProgressWriter(stderrWriter)
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func flushProgressWriter(writer io.Writer) {
+	flusher, ok := writer.(interface{ Flush() })
+	if ok {
+		flusher.Flush()
+	}
 }
 
 // sanitizeGitProgressMessage redacts URL userinfo from git stderr before the
