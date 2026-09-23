@@ -5,8 +5,10 @@ telemetry.
 
 - Never import this package from `querycontract`; the parent is imported here
   for `TruthEnvelope`, so the reverse import is a cycle.
-- `query/visualization` is a different package with the same name. Alias the
-  import only where both meet in one file.
+- `query/visualization` and `codequery/visualization` are different packages
+  with the same name, and both import this one as `contractviz` so their
+  `contractviz.VisualizationPacket` never reads as a self-reference. Any other
+  package named `visualization` that imports this one should do the same.
 - The exported names keep their `Visualization` prefix from the move out of
   `querycontract` (#6597), as `evidence` kept `EvidenceCitation*`. Renaming
   them is a separate change that must repoint every caller in one PR.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+	contractviz "github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -56,8 +56,8 @@ func TestBuildGraphQueryVisualizationPacketScalarRowsAreUnsupported(t *testing.T
 	if packet.Supported {
 		t.Fatalf("scalar-only rows produced a supported packet: %+v", packet)
 	}
-	if packet.View != visualization.VisualizationViewUnsupported {
-		t.Fatalf("packet view = %q, want %q", packet.View, visualization.VisualizationViewUnsupported)
+	if packet.View != contractviz.VisualizationViewUnsupported {
+		t.Fatalf("packet view = %q, want %q", packet.View, contractviz.VisualizationViewUnsupported)
 	}
 	if len(packet.Nodes) != 0 || len(packet.Edges) != 0 {
 		t.Fatalf("unsupported packet carried a subgraph: %d nodes, %d edges", len(packet.Nodes), len(packet.Edges))
@@ -322,7 +322,7 @@ func TestBuildGraphQueryVisualizationPacketMergesDuplicateNodeIndependentOfColum
 // assertSameGraphQueryPacketShape fails unless two packets agree on node and
 // edge count and on every rendered identity and label, which is what a caller
 // re-running the same query relies on.
-func assertSameGraphQueryPacketShape(t *testing.T, first, second visualization.VisualizationPacket) {
+func assertSameGraphQueryPacketShape(t *testing.T, first, second contractviz.VisualizationPacket) {
 	t.Helper()
 
 	if len(first.Nodes) != len(second.Nodes) || len(first.Edges) != len(second.Edges) {

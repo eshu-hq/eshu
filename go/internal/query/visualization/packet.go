@@ -6,7 +6,7 @@ package visualization
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+	contractviz "github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
 )
 
 // The visualization-packet builder implementation lives in
@@ -21,50 +21,50 @@ import (
 const (
 	// MaxNodes bounds the number of nodes a visualization packet
 	// may carry.
-	MaxNodes = visualization.VisualizationMaxNodes
+	MaxNodes = contractviz.VisualizationMaxNodes
 	// MaxEdges bounds the number of edges a visualization packet
 	// may carry.
-	MaxEdges = visualization.VisualizationMaxEdges
+	MaxEdges = contractviz.VisualizationMaxEdges
 )
 
 // View names the derived-view family a packet was built from.
-type View = visualization.VisualizationView
+type View = contractviz.VisualizationView
 
 const (
 	// ViewServiceStory is the service-story dossier subgraph.
-	ViewServiceStory = visualization.VisualizationViewServiceStory
+	ViewServiceStory = contractviz.VisualizationViewServiceStory
 	// ViewEvidenceCitation is the evidence-citation subgraph.
-	ViewEvidenceCitation = visualization.VisualizationViewEvidenceCitation
+	ViewEvidenceCitation = contractviz.VisualizationViewEvidenceCitation
 	// ViewIncidentContext is the incident-context subgraph.
-	ViewIncidentContext = visualization.VisualizationViewIncidentContext
+	ViewIncidentContext = contractviz.VisualizationViewIncidentContext
 	// ViewGraphQuery is the executed-Cypher-result subgraph.
-	ViewGraphQuery = visualization.VisualizationViewGraphQuery
+	ViewGraphQuery = contractviz.VisualizationViewGraphQuery
 	// ViewUnsupported marks a packet with no derivable subgraph.
-	ViewUnsupported = visualization.VisualizationViewUnsupported
+	ViewUnsupported = contractviz.VisualizationViewUnsupported
 )
 
 // Node is one bounded node in a visualization packet.
-type Node = visualization.VisualizationNode
+type Node = contractviz.VisualizationNode
 
 // Edge is one bounded edge in a visualization packet.
-type Edge = visualization.VisualizationEdge
+type Edge = contractviz.VisualizationEdge
 
 // Limits states a packet's payload bounds and retained counts.
-type Limits = visualization.VisualizationLimits
+type Limits = contractviz.VisualizationLimits
 
 // Truncation records what a packet dropped to stay within bounds.
-type Truncation = visualization.VisualizationTruncation
+type Truncation = contractviz.VisualizationTruncation
 
 // Packet is a compact, bounded, derived view of an existing
 // story, evidence-citation, or incident-context query response.
-type Packet = visualization.VisualizationPacket
+type Packet = contractviz.VisualizationPacket
 
 // visualizationBuilder accumulates nodes and edges before a packet is
-// finalized. See visualization.VisualizationBuilder for the full contract.
-type visualizationBuilder = visualization.VisualizationBuilder
+// finalized. See contractviz.VisualizationBuilder for the full contract.
+type visualizationBuilder = contractviz.VisualizationBuilder
 
 func newVisualizationBuilder(view View, title string) *visualizationBuilder {
-	return visualization.NewVisualizationBuilder(view, title)
+	return contractviz.NewVisualizationBuilder(view, title)
 }
 
 // unsupportedVisualizationPacket returns an explicit unsupported packet.
@@ -74,10 +74,10 @@ func unsupportedVisualizationPacket(
 	limitations []string,
 	nextCalls []map[string]any,
 ) Packet {
-	return visualization.UnsupportedVisualizationPacket(view, truth, limitations, nextCalls)
+	return contractviz.UnsupportedVisualizationPacket(view, truth, limitations, nextCalls)
 }
 
 // visualizationNodeID derives a stable, opaque node ID.
 func visualizationNodeID(kind string, parts ...string) string {
-	return visualization.VisualizationNodeID(kind, parts...)
+	return contractviz.VisualizationNodeID(kind, parts...)
 }
