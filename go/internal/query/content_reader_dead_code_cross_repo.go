@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
@@ -239,8 +239,8 @@ func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
 		ctx,
 		deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery,
 		producerRepoID,
-		pgarray.Array(entityIDs),
-		pgarray.Array(grantRepositoryIDs),
+		array.Of(entityIDs),
+		array.Of(grantRepositoryIDs),
 		len(entityIDs),
 	)
 	if err != nil {
@@ -270,7 +270,7 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 	if len(allowedRepositoryIDs) == 0 {
 		return args, ""
 	}
-	args = append(args, pgarray.Array(allowedRepositoryIDs))
+	args = append(args, array.Of(allowedRepositoryIDs))
 	return args, fmt.Sprintf("\n  AND row.repository_id = ANY($%d)", len(args))
 }
 

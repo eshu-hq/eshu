@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // Filter narrows a table read. Labels is the already-resolved subset of Labels
@@ -158,7 +158,7 @@ func dimensionBucketSQL(dimension Dimension, allCategories bool) (string, error)
 // whereClause renders the label restriction plus every non-empty filter as
 // bound parameters. Nothing caller-supplied is interpolated.
 func (f Filter) whereClause() (string, []any) {
-	args := []any{pgarray.StringArray(f.Labels)}
+	args := []any{array.StringArray(f.Labels)}
 	clauses := []string{"label = ANY($1::text[])"}
 	param := func(value string) string {
 		args = append(args, value)
@@ -194,7 +194,7 @@ func (f Filter) whereClause() (string, []any) {
 		clauses = append(clauses, "resource_category = "+param(f.ResourceCategory))
 	}
 	if len(f.repoIDs) > 0 {
-		args = append(args, pgarray.StringArray(f.repoIDs))
+		args = append(args, array.StringArray(f.repoIDs))
 		clauses = append(clauses, "repo_id = ANY($"+strconv.Itoa(len(args))+"::text[])")
 	}
 	return strings.Join(clauses, "\n  AND "), args

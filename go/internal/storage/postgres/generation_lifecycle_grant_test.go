@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // grantBindPositions names where the grant predicate reads its arguments from.
@@ -47,13 +47,13 @@ func assertGrantBinds(t *testing.T, args []any, want grantBindPositions) {
 		t.Fatalf("arg[%d] = false, want true; a false flag short-circuits the grant predicate and admits every row", want.scopedIdx)
 	}
 
-	wantRepos := pgarray.Array(want.wantRepos)
+	wantRepos := array.Of(want.wantRepos)
 	if got := args[want.repoIdx]; !reflect.DeepEqual(got, wantRepos) {
 		t.Fatalf("arg[%d] = %#v, want %#v; a nil or wrong repository array gives the predicate nothing to match",
 			want.repoIdx, got, wantRepos)
 	}
 
-	wantScopes := pgarray.Array(want.wantScopes)
+	wantScopes := array.Of(want.wantScopes)
 	if got := args[want.scopeIdx]; !reflect.DeepEqual(got, wantScopes) {
 		t.Fatalf("arg[%d] = %#v, want %#v; a nil or wrong scope array gives the predicate nothing to match",
 			want.scopeIdx, got, wantScopes)

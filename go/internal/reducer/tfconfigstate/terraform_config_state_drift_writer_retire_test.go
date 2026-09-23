@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -61,9 +61,9 @@ func (f *fakeTerraformDriftFactStore) ExecContext(
 		if !ok {
 			return nil, fmt.Errorf("retire generation_id arg type = %T, want string", args[2])
 		}
-		keepArr, ok := args[3].(pgarray.StringArray)
+		keepArr, ok := args[3].(array.StringArray)
 		if !ok {
-			return nil, fmt.Errorf("retire keep_fact_ids arg type = %T, want pgarray.StringArray", args[3])
+			return nil, fmt.Errorf("retire keep_fact_ids arg type = %T, want array.StringArray", args[3])
 		}
 		keep := map[string]bool{}
 		for _, id := range keepArr {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package rebuildreset
+package reset
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // Execer is the narrow write surface this package needs from a transaction.
 //
 // It is declared here rather than imported from the parent postgres package so
-// the dependency runs one way only: postgres imports rebuildreset, never the
+// the dependency runs one way only: postgres imports rebuild/reset, never the
 // reverse. db.Transaction satisfies it through its Executor embed.
 type Execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)

@@ -146,7 +146,7 @@ move. No metric was added, renamed, or removed, and no log key changed.
 
 ## Dependencies
 
-The Go standard library, `database/sql`, `go/internal/storage/postgres/pgarray`,
+The Go standard library, `database/sql`, `go/internal/storage/postgres/array`,
 `sdk/go/factschema` (and its `reducerderived/v1` package), `go/internal/scope`,
 `go/internal/telemetry`, and these `internal/query` leaf packages:
 

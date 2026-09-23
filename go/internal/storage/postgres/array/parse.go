@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package pgarray
+package array
 
 import "fmt"
 
@@ -24,10 +24,10 @@ type element struct {
 // failure says which column shape did not fit.
 func parseLinearArray(src, typ string) ([]element, error) {
 	if len(src) < 1 || src[0] != '{' {
-		return nil, fmt.Errorf("pgarray: unable to parse array; expected %q at offset %d", '{', 0)
+		return nil, fmt.Errorf("array: unable to parse array; expected %q at offset %d", '{', 0)
 	}
 	if len(src) >= 2 && src[1] == '{' {
-		return nil, fmt.Errorf("pgarray: cannot convert a multidimensional array to %s", typ)
+		return nil, fmt.Errorf("array: cannot convert a multidimensional array to %s", typ)
 	}
 	i := 1
 	if i < len(src) && src[i] == '}' {
@@ -110,9 +110,9 @@ func parseQuoted(src string, start int) (text string, next int, ok bool) {
 }
 
 func unexpectedAt(src string, i int) error {
-	return fmt.Errorf("pgarray: unable to parse array; unexpected %q at offset %d", src[i], i)
+	return fmt.Errorf("array: unable to parse array; unexpected %q at offset %d", src[i], i)
 }
 
 func expectedCloseAt(i int) error {
-	return fmt.Errorf("pgarray: unable to parse array; expected %q at offset %d", '}', i)
+	return fmt.Errorf("array: unable to parse array; expected %q at offset %d", '}', i)
 }

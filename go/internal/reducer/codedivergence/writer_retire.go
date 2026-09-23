@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // driftedRetireQuery deletes every code drifted finding fact under one
@@ -38,7 +38,7 @@ func retireDriftedFindings(
 ) error {
 	if _, err := db.ExecContext(
 		ctx, driftedRetireQuery,
-		facts.ReducerCodeDriftedFindingFactKind, scopeID, generationID, pgarray.StringArray(keepFactIDs),
+		facts.ReducerCodeDriftedFindingFactKind, scopeID, generationID, array.StringArray(keepFactIDs),
 	); err != nil {
 		return fmt.Errorf("retire stale code drifted findings: %w", err)
 	}

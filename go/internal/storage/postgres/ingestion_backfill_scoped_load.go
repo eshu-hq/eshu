@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -445,13 +445,13 @@ func buildDeferredScopedFactLoadTasks(
 				end = len(repoIDValues)
 			}
 			taskParams := deferredScopedFactQueryParams{
-				repoIDValues:       pgarray.StringArray(repoIDValues[start:end]),
-				repoIDReferenceKey: pgarray.StringArray(repoIDReferenceKeys[start:end]),
+				repoIDValues:       array.StringArray(repoIDValues[start:end]),
+				repoIDReferenceKey: array.StringArray(repoIDReferenceKeys[start:end]),
 			}
 			if start == 0 {
 				taskParams.nonRepoIDLike = params.nonRepoIDLike
 			} else {
-				taskParams.nonRepoIDLike = pgarray.StringArray{}
+				taskParams.nonRepoIDLike = array.StringArray{}
 			}
 			tasks = append(tasks, deferredScopedFactLoadTask{
 				partition: partition,

@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -159,7 +159,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	}
 	grantColumn := ""
 	if len(allowedRepositoryIDs) > 0 {
-		args = append(args, pgarray.Array(allowedRepositoryIDs))
+		args = append(args, array.Of(allowedRepositoryIDs))
 		grantColumn = fmt.Sprintf(", (row.repository_id = ANY($%d)) AS consumer_in_grant", len(args))
 	}
 	// #nosec G202 -- concatenates only $N parameter placeholders (generated from len(args)) into the IN list; entity ID values are bound args, not SQL text

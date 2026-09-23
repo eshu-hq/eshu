@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // WinnersReadEnv is the operator gate (#3389 Phase 2) that
@@ -425,8 +425,8 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		SuppressionReadAt(s.Now),
 	)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // The candidate CTE is deliberately materialized and the aggregate remains
@@ -110,10 +110,10 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery,
-		pgarray.Array(digests),
-		pgarray.Array(environments),
-		pgarray.Array(allowedRepositoryIDs),
-		pgarray.Array(allowedScopeIDs),
+		array.Of(digests),
+		array.Of(environments),
+		array.Of(allowedRepositoryIDs),
+		array.Of(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime environment evidence: %w", err)

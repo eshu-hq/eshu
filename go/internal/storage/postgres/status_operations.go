@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -194,9 +194,9 @@ func buildLiveActivityQuery(limit int, allScopes bool, allowedRepositoryIDs, all
 		return liveActivityQueryPrefix + liveActivityQuerySuffix, args
 	}
 
-	args = append(args, pgarray.Array(allowedRepositoryIDs))
+	args = append(args, array.Of(allowedRepositoryIDs))
 	repoArg := len(args)
-	args = append(args, pgarray.Array(allowedScopeIDs))
+	args = append(args, array.Of(allowedScopeIDs))
 	scopeArg := len(args)
 
 	var builder strings.Builder

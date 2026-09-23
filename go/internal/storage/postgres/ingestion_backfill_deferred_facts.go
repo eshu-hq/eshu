@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -20,7 +20,7 @@ import (
 // of listOnboardedRepoScopedRelationshipFactRecordsQuery used exclusively by the
 // corpus-wide deferred backfill (issue #3659). It accepts seven parameters:
 //
-//	$1 pgarray.StringArray — LIKE terms derived from non-repo_id aliases (name,
+//	$1 array.StringArray — LIKE terms derived from non-repo_id aliases (name,
 //	   slug tokens) and the unconditional ArgoCD over-select markers. This arm is
 //	   intentionally guarded by deferredRelationshipFamilyCandidatePredicateSQL:
 //	   a content/file fact must first look like a relationship extractor family
@@ -30,7 +30,7 @@ import (
 //	   loaded only because they contain noisy short aliases such as "s3" or
 //	   "robots".
 //
-//	$2 pgarray.StringArray — raw lowercase repo_id values. The primary repo_id arm
+//	$2 array.StringArray — raw lowercase repo_id values. The primary repo_id arm
 //	   loads a fact only when its precomputed reference keys contain a catalog
 //	   repo_id value that is not the row's own repo_id. Facts without precomputed
 //	   reference keys retain the payload fallback. The values stay raw so both
@@ -54,7 +54,7 @@ import (
 //	   scopes included) resolves to "". $6 is NOT a correctness input — see the
 //	   "$5/$6 performance-hint" section below.
 //
-//	$7 pgarray.StringArray — boundary-aware token keys corresponding 1:1 with $2.
+//	$7 array.StringArray — boundary-aware token keys corresponding 1:1 with $2.
 //	   The precomputed relationship_reference_candidate_keys table stores each
 //	   accepted content/file/GCP fact's payload as the same delimiter-wrapped token
 //	   stream. Joining $7 against that stream replaces the steady-state
@@ -303,9 +303,9 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // catalog and reused across partitions, so the per-scope fan-out does not rebuild
 // them per query.
 type deferredScopedFactQueryParams struct {
-	nonRepoIDLike      pgarray.StringArray
-	repoIDValues       pgarray.StringArray
-	repoIDReferenceKey pgarray.StringArray
+	nonRepoIDLike      array.StringArray
+	repoIDValues       array.StringArray
+	repoIDReferenceKey array.StringArray
 	// remoteURLs is NOT bound to any query. It is a fingerprint-only input
 	// (issue #5483 C2): the strict cross-repo Flux resolver
 	// (relationships.discoverStructuredFluxEvidence) matches a manifest's
@@ -317,7 +317,7 @@ type deferredScopedFactQueryParams struct {
 	// change invalidate the partition memo, exactly as a rename already does,
 	// so the deferred backfill re-discovers the manifest's evidence instead of
 	// memo-skipping it.
-	remoteURLs pgarray.StringArray
+	remoteURLs array.StringArray
 }
 
 // buildDeferredScopedFactQueryParams derives the shared $1/$2 parameters from the
@@ -359,10 +359,10 @@ func buildDeferredScopedFactQueryParams(
 	}
 
 	return deferredScopedFactQueryParams{
-		nonRepoIDLike:      pgarray.StringArray(nonRepoIDLike),
-		repoIDValues:       pgarray.StringArray(repoIDRaw),
-		repoIDReferenceKey: pgarray.StringArray(repoIDReferenceKeys),
-		remoteURLs:         pgarray.StringArray(remoteURLs),
+		nonRepoIDLike:      array.StringArray(nonRepoIDLike),
+		repoIDValues:       array.StringArray(repoIDRaw),
+		repoIDReferenceKey: array.StringArray(repoIDReferenceKeys),
+		remoteURLs:         array.StringArray(remoteURLs),
 	}, true
 }
 
@@ -441,7 +441,7 @@ func loadDeferredScopedRelationshipFactsForPartition(
 	return loaded, nil
 }
 
-func deferredRepoIDReferenceKeys(repoIDValues, repoIDReferenceKeys pgarray.StringArray) pgarray.StringArray {
+func deferredRepoIDReferenceKeys(repoIDValues, repoIDReferenceKeys array.StringArray) array.StringArray {
 	if len(repoIDReferenceKeys) == len(repoIDValues) {
 		return repoIDReferenceKeys
 	}
@@ -449,5 +449,5 @@ func deferredRepoIDReferenceKeys(repoIDValues, repoIDReferenceKeys pgarray.Strin
 	for _, value := range repoIDValues {
 		keys = append(keys, relationships.CatalogReferenceKey(value))
 	}
-	return pgarray.StringArray(keys)
+	return array.StringArray(keys)
 }

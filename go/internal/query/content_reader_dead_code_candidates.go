@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -54,7 +54,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	args := []any{repoID, entityType, language}
 	grant := ""
 	if len(query.AllowedRepositoryIDs) > 0 {
-		args = append(args, pgarray.Array(query.AllowedRepositoryIDs))
+		args = append(args, array.Of(query.AllowedRepositoryIDs))
 		grant = fmt.Sprintf("\n\t\t  AND repo_id = ANY($%d)", len(args))
 	}
 	args = append(args, limit, offset)

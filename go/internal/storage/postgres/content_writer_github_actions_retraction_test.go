@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 func TestContentWriterReapsStaleWorkflowEntityAgainstFreshIdentity(t *testing.T) {
@@ -34,9 +34,9 @@ func TestContentWriterReapsStaleWorkflowEntityAgainstFreshIdentity(t *testing.T)
 		t.Fatalf("Write() error = %v, want nil", err)
 	}
 	_, args := findReapExec(t, db)
-	freshIDs, ok := args[2].(pgarray.StringArray)
+	freshIDs, ok := args[2].(array.StringArray)
 	if !ok {
-		t.Fatalf("fresh entity ids type = %T, want pgarray.StringArray", args[2])
+		t.Fatalf("fresh entity ids type = %T, want array.StringArray", args[2])
 	}
 	wantID := content.CanonicalEntityID(repoID, path, "File", "ci", 1)
 	mustContain(t, freshIDs, wantID)
@@ -86,9 +86,9 @@ func TestContentWriterWorkflowRenameTombstonesOldPathAndKeepsFreshPath(t *testin
 	}
 	assertContentEntityPathDelete(t, db, oldPath)
 	_, args := findReapExec(t, db)
-	paths, ok := args[1].(pgarray.StringArray)
+	paths, ok := args[1].(array.StringArray)
 	if !ok {
-		t.Fatalf("reap paths type = %T, want pgarray.StringArray", args[1])
+		t.Fatalf("reap paths type = %T, want array.StringArray", args[1])
 	}
 	if len(paths) != 1 || paths[0] != newPath {
 		t.Fatalf("reap paths = %v, want [%s]", []string(paths), newPath)

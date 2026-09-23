@@ -6,7 +6,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // TestDeferredCatalogFingerprintStable asserts the fingerprint is a pure,
@@ -17,13 +17,13 @@ func TestDeferredCatalogFingerprintStable(t *testing.T) {
 	t.Parallel()
 
 	a := deferredScopedFactQueryParams{
-		nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%", "%gamma%"},
-		repoIDValues:  pgarray.StringArray{"repo-a", "repo-b", "repo-c"},
+		nonRepoIDLike: array.StringArray{"%alpha%", "%beta%", "%gamma%"},
+		repoIDValues:  array.StringArray{"repo-a", "repo-b", "repo-c"},
 	}
 	// Same content, different order.
 	b := deferredScopedFactQueryParams{
-		nonRepoIDLike: pgarray.StringArray{"%gamma%", "%alpha%", "%beta%"},
-		repoIDValues:  pgarray.StringArray{"repo-c", "repo-a", "repo-b"},
+		nonRepoIDLike: array.StringArray{"%gamma%", "%alpha%", "%beta%"},
+		repoIDValues:  array.StringArray{"repo-c", "repo-a", "repo-b"},
 	}
 
 	fpA := deferredCatalogFingerprint(a)
@@ -45,46 +45,46 @@ func TestDeferredCatalogFingerprintChangesOnCatalogEdit(t *testing.T) {
 	t.Parallel()
 
 	baseline := deferredScopedFactQueryParams{
-		nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%"},
-		repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
-		remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+		nonRepoIDLike: array.StringArray{"%alpha%", "%beta%"},
+		repoIDValues:  array.StringArray{"repo-a", "repo-b"},
+		remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 	}
 	baselineFP := deferredCatalogFingerprint(baseline)
 
 	cases := map[string]deferredScopedFactQueryParams{
 		"added_non_repo_id_term": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%", "%gamma%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%", "%beta%", "%gamma%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"removed_non_repo_id_term": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"added_repo_id_value": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b", "repo-c"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%", "%beta%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b", "repo-c"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"removed_repo_id_value": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%"},
-			repoIDValues:  pgarray.StringArray{"repo-a"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%", "%beta%"},
+			repoIDValues:  array.StringArray{"repo-a"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"renamed_repo_id_value": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b-renamed"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%", "%beta%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b-renamed"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		// #5483 C2: a repository's remote_url change (a mirror migration) moves
 		// neither the alias LIKE terms nor the repo_id values, but MUST still
 		// flip the fingerprint so the strict Flux cross-repo resolver's
 		// changed input re-triggers deferred re-discovery.
 		"changed_remote_url": {
-			nonRepoIDLike: pgarray.StringArray{"%alpha%", "%beta%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
-			remoteURLs:    pgarray.StringArray{"https://github.com/acme/alpha", "https://gitlab.example.com/acme/beta"},
+			nonRepoIDLike: array.StringArray{"%alpha%", "%beta%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    array.StringArray{"https://github.com/acme/alpha", "https://gitlab.example.com/acme/beta"},
 		},
 	}
 
@@ -113,7 +113,7 @@ func TestDeferredCatalogFingerprintEmptyParams(t *testing.T) {
 	}
 
 	nonEmpty := deferredScopedFactQueryParams{
-		repoIDValues: pgarray.StringArray{"repo-a"},
+		repoIDValues: array.StringArray{"repo-a"},
 	}
 	if deferredCatalogFingerprint(nonEmpty) == fp {
 		t.Fatal("empty and non-empty params must not collide")

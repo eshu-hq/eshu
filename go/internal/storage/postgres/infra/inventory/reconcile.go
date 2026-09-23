@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // Reconcile outcomes, one per repository checked. They are the bounded values
@@ -299,7 +299,7 @@ func (d digest) matches() bool {
 }
 
 func readDigest(ctx context.Context, queryer db.Queryer, repoID string) (digest, error) {
-	rows, err := queryer.QueryContext(ctx, reconcileDigestSQL, repoID, pgarray.StringArray(Labels))
+	rows, err := queryer.QueryContext(ctx, reconcileDigestSQL, repoID, array.StringArray(Labels))
 	if err != nil {
 		return digest{}, fmt.Errorf("digest: %w", err)
 	}
@@ -396,7 +396,7 @@ func repairIfStillDrifted(ctx context.Context, database db.ExecQueryer, repoID s
 	if err != nil {
 		return false, d, Stats{}, fmt.Errorf("delete: %w", err)
 	}
-	inserted, err := tx.ExecContext(ctx, mirrorRepoInsertSQL, repoID, pgarray.StringArray(Labels), "", "")
+	inserted, err := tx.ExecContext(ctx, mirrorRepoInsertSQL, repoID, array.StringArray(Labels), "", "")
 	if err != nil {
 		return false, d, Stats{}, fmt.Errorf("insert: %w", err)
 	}

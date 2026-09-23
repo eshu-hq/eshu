@@ -172,7 +172,7 @@ func crossRepoDeadCodeProbeQuoteLiteral(value string) string {
 }
 
 // crossRepoDeadCodeProbeTextArray renders a Postgres text[] literal for the
-// helper statements above. The probe itself binds pgarray.Array; this exists so
+// helper statements above. The probe itself binds array.Of; this exists so
 // the reference query and the EXPLAIN take the same values without depending on
 // the encoder under test.
 func crossRepoDeadCodeProbeTextArray(values []string) string {

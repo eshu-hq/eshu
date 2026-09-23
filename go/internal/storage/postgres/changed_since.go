@@ -10,7 +10,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // ComputeChangedSinceDelta computes one bounded changed-since summary for a
@@ -156,8 +156,8 @@ func (s StatusStore) resolveChangedSinceScope(
 		filter.ScopeID,
 		filter.Repository,
 		filter.Scoped,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return changedSinceScope{}, false, fmt.Errorf("resolve changed-since scope: %w", err)

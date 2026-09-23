@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -86,7 +86,7 @@ func refreshRelationshipReferenceCandidateKeys(
 	if len(factIDs) == 0 {
 		return nil
 	}
-	if _, err := database.ExecContext(ctx, deleteRelationshipReferenceCandidateKeysSQL, pgarray.StringArray(factIDs)); err != nil {
+	if _, err := database.ExecContext(ctx, deleteRelationshipReferenceCandidateKeysSQL, array.StringArray(factIDs)); err != nil {
 		return fmt.Errorf("delete relationship reference candidate keys: %w", err)
 	}
 

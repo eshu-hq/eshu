@@ -12,7 +12,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // These three kinds are GOVERNED reducer-derived facts per the #4784 ADR
@@ -154,10 +154,10 @@ func (s PostgresCorrelationStore) ListPackageRegistryCorrelations(
 		filter.RelationshipKind,
 		filter.AfterCorrelationID,
 		fetchLimit,
-		pgarray.Array(filter.AllowedRepositoryIDs),
-		pgarray.Array(filter.AllowedScopeIDs),
-		pgarray.Array(filter.PackageIDs),
-		pgarray.Array(filter.RelationshipKinds),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
+		array.Of(filter.PackageIDs),
+		array.Of(filter.RelationshipKinds),
 	)
 	if err != nil {
 		return CorrelationPage{}, fmt.Errorf("list package registry correlations: %w", err)

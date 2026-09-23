@@ -15,5 +15,5 @@ still apply.
   a fresh `EXPLAIN (ANALYZE, BUFFERS)` at a representative scope count, per the
   root Prove-The-Theory-First rule, and the numbers in README.md updated.
 - This package imports `internal/facts`, `reducer/iamcan`, `postgres/db`, and
-  `postgres/pgarray` only. It must not import the parent `postgres` package;
+  `postgres/array` only. It must not import the parent `postgres` package;
   the fact read comes in through the `FactLister` interface.

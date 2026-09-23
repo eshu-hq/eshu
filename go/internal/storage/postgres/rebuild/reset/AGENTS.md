@@ -1,4 +1,4 @@
-# AGENTS.md — internal/storage/postgres/rebuildreset guidance for LLM assistants
+# AGENTS.md — internal/storage/postgres/rebuild/reset guidance for LLM assistants
 
 ## Read first
 

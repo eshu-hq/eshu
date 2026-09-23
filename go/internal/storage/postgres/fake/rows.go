@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 var _ db.Rows = (*Rows)(nil)
@@ -48,7 +48,7 @@ func (r *Rows) Next() bool {
 // Scan copies the current row's columns into dest, in order, converting
 // each column to the concrete type dest[i] points at. It supports the same
 // destination types database/sql callers in this package use: the Go
-// primitives, []byte, time.Time, pgarray.Float64Array and its underlying
+// primitives, []byte, time.Time, array.Float64Array and its underlying
 // []float64, and the sql.Null* wrapper types. An unsupported destination
 // type, a column/destination count mismatch, or a Scan call before Next
 // each return a descriptive error rather than panicking.
@@ -114,7 +114,7 @@ func (r *Rows) Scan(dest ...any) error {
 				return fmt.Errorf("fake: row[%d] type = %T, want []float64", i, row[i])
 			}
 			*target = append((*target)[:0], value...)
-		case *pgarray.Float64Array:
+		case *array.Float64Array:
 			value, ok := row[i].([]float64)
 			if !ok {
 				return fmt.Errorf("fake: row[%d] type = %T, want []float64", i, row[i])

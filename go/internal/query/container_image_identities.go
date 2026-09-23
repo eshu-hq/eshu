@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 type containerImageIdentityQueryer interface {
@@ -54,7 +54,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		filter.Outcome,
 		filter.AfterIdentityID,
 		filter.Limit,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list container image identities: %w", err)

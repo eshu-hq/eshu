@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func TestRowsScanConvertsEachSupportedDestinationType(t *testing.T) {
@@ -42,7 +42,7 @@ func TestRowsScanConvertsEachSupportedDestinationType(t *testing.T) {
 		gotInt64     int64
 		gotFloat64   float64
 		gotFloatSl   []float64
-		gotPgArray   pgarray.Float64Array
+		gotPgArray   array.Float64Array
 		gotNullStr   sql.NullString
 		gotNullBool  sql.NullBool
 		gotNullInt64 sql.NullInt64
@@ -86,7 +86,7 @@ func TestRowsScanConvertsEachSupportedDestinationType(t *testing.T) {
 		t.Errorf("[]float64 = %v, want [1 2]", gotFloatSl)
 	}
 	if len(gotPgArray) != 2 || gotPgArray[0] != 3 || gotPgArray[1] != 4 {
-		t.Errorf("pgarray.Float64Array = %v, want [3 4]", gotPgArray)
+		t.Errorf("array.Float64Array = %v, want [3 4]", gotPgArray)
 	}
 	if !gotNullStr.Valid || gotNullStr.String != "ns" {
 		t.Errorf("sql.NullString = %+v, want {ns true}", gotNullStr)

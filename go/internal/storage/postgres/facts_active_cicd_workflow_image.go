@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -76,7 +76,7 @@ func (s FactStore) ListActiveCICDWorkflowImageFacts(
 	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveCICDWorkflowImageFactsQuery,
-		pgarray.Array(repositoryIDs),
+		array.Of(repositoryIDs),
 		maxActiveCICDWorkflowImageFacts+1,
 	)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 type workItemEvidenceQueryer interface {
@@ -58,7 +58,7 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listWorkItemEvidenceQuery,
-		pgarray.Array(EvidenceFactKinds),
+		array.Of(EvidenceFactKinds),
 		filter.ScopeID,
 		filter.WorkItemKey,
 		filter.ProviderWorkItemID,
@@ -66,7 +66,7 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 		filter.URLFingerprint,
 		nullableWorkItemEvidenceTime(filter.ObservedAfter),
 		filter.AfterFactID,
-		pgarray.Array(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedRepositoryIDs),
 		filter.Limit,
 	)
 	if err != nil {

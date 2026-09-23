@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -77,12 +77,12 @@ func quiescentScopes(scopeIDs ...string) []stubProducerScope {
 	return scopes
 }
 
-// collectorKindArgument unwraps the pgarray.StringArray the probe binds to $1.
+// collectorKindArgument unwraps the array.StringArray the probe binds to $1.
 func collectorKindArgument(args []any) []string {
 	if len(args) == 0 {
 		return nil
 	}
-	kinds, ok := args[0].(pgarray.StringArray)
+	kinds, ok := args[0].(array.StringArray)
 	if !ok {
 		return nil
 	}

@@ -17,7 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
@@ -413,7 +413,7 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 				return fmt.Errorf("row[%d] type = %T, want []float64", i, row[i])
 			}
 			*target = append((*target)[:0], value...)
-		case *pgarray.Float64Array:
+		case *array.Float64Array:
 			value, ok := row[i].([]float64)
 			if !ok {
 				return fmt.Errorf("row[%d] type = %T, want []float64", i, row[i])

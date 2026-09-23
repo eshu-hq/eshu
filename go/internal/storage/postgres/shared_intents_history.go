@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const hasCompletedAcceptanceUnitDomainIntentsSQL = `
@@ -365,7 +365,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 		key.AcceptanceUnitID,
 		key.SourceRunID,
 		domain,
-		pgarray.Array(filePaths),
+		array.Of(filePaths),
 	)
 	if err != nil {
 		return false, fmt.Errorf("query completed source-run refresh shared projection history: %w", err)
@@ -431,7 +431,7 @@ func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 		filePartitionPrefix+"%",
 		rowCanBeCoveredByFileRefresh,
 		rowCanBeCoveredByFileRefreshByPath,
-		pgarray.Array(rowFiles),
+		array.Of(rowFiles),
 	)
 }
 

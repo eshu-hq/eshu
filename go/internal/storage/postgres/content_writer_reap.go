@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
@@ -197,7 +197,7 @@ func (w ContentWriter) reapStaleContentEntities(ctx context.Context, repoID stri
 
 		if _, err := w.database.ExecContext(
 			ctx, reapStaleContentEntitiesSQL,
-			repoID, pgarray.StringArray(chunkPaths), pgarray.StringArray(freshIDs),
+			repoID, array.StringArray(chunkPaths), array.StringArray(freshIDs),
 		); err != nil {
 			return fmt.Errorf("reap stale content_entities batch (%d paths): %w", len(chunkPaths), err)
 		}

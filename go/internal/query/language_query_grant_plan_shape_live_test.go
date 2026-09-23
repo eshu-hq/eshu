@@ -41,7 +41,7 @@ import (
 	"time"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -206,7 +206,7 @@ func captureShippedZeroMatchStatement(ctx context.Context, t *testing.T) (string
 
 // captureShippedGrantStatement runs the production content read against a
 // recording driver and returns the statement it actually sent, with the grant
-// argument re-wrapped through pgarray.Array so a real backend can bind it.
+// argument re-wrapped through array.Of so a real backend can bind it.
 // Everything else is the recorder's own value.
 func captureShippedGrantStatement(ctx context.Context, t *testing.T, grant []string) (string, []any) {
 	t.Helper()
@@ -234,10 +234,10 @@ func captureShippedGrantStatement(ctx context.Context, t *testing.T, grant []str
 		args := make([]any, 0, len(recorder.args[i]))
 		for _, recorded := range recorder.args[i] {
 			// The grant reaches the driver already serialized by
-			// pgarray.Array's Value(). Re-wrap that one argument; a backend
+			// array.Of's Value(). Re-wrap that one argument; a backend
 			// binds text[] from the wrapper, not from its rendering.
 			if text, ok := recorded.(string); ok && strings.HasPrefix(text, "{") && strings.HasSuffix(text, "}") {
-				args = append(args, pgarray.Array(grant))
+				args = append(args, array.Of(grant))
 				continue
 			}
 			args = append(args, recorded)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package pgarray
+package array
 
 import (
 	"go/ast"
@@ -109,7 +109,7 @@ func TestPackageStaysStdlibAndReflectionFree(t *testing.T) {
 			"table would creep in")
 
 	// A scan that read no files, or walked no selectors, is not evidence.
-	// Three non-test sources today: doc.go, pgarray.go, parse.go. The floors
+	// Three non-test sources today: doc.go, array.go, parse.go. The floors
 	// sit under the current counts so ordinary edits do not trip them, but
 	// high enough that a walk reaching only the package clause fails.
 	if scanned < 3 {

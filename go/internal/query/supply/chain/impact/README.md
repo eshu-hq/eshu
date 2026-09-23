@@ -103,7 +103,7 @@ Internal packages, all of them leaves that never import root package `query`:
   copied source-fact wrappers return via `decode.New`, the same
   constructor root's `newQueryDecodeError` forwards to (advisory and
   the registry family's precedent).
-- `internal/storage/postgres/pgarray` — the array scan/build surface
+- `internal/storage/postgres/array` — the array scan/build surface
   the stores read through.
 - `internal/storage/postgres` — the suppression-mutation storage
   adapter.

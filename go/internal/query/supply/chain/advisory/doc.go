@@ -13,7 +13,7 @@
 // read, tested, and changed without pulling in the rest of the query surface.
 // It depends only on dependency-neutral leaves -- querycontract (row-value
 // decoders), decode (classified fact-decode failures), sdk/go/factschema
-// (the typed vulnerability decode seams), and pgarray -- never on root
+// (the typed vulnerability decode seams), and array -- never on root
 // package query itself, which would create an import cycle: root's
 // compat_supply_chain.go imports this package for the compatibility
 // aliases cmd/api and cmd/mcp-server still use.

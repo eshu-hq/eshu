@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package pgarray
+package array
 
 import (
 	"database/sql/driver"
@@ -133,12 +133,12 @@ func TestStringArrayValue(t *testing.T) {
 			if got != tc.want {
 				t.Fatalf("Value() = %#v, want %#v", got, tc.want)
 			}
-			viaArray, err := Array(tc.in).Value()
+			viaArray, err := Of(tc.in).Value()
 			if err != nil {
-				t.Fatalf("Array().Value() error = %v", err)
+				t.Fatalf("Of().Value() error = %v", err)
 			}
 			if viaArray != tc.want {
-				t.Fatalf("Array().Value() = %#v, want %#v", viaArray, tc.want)
+				t.Fatalf("Of().Value() = %#v, want %#v", viaArray, tc.want)
 			}
 		})
 	}
@@ -154,12 +154,12 @@ func TestFloat64ArrayValue(t *testing.T) {
 			if got != tc.want {
 				t.Fatalf("Value() = %#v, want %#v", got, tc.want)
 			}
-			viaArray, err := Array(tc.in).Value()
+			viaArray, err := Of(tc.in).Value()
 			if err != nil {
-				t.Fatalf("Array().Value() error = %v", err)
+				t.Fatalf("Of().Value() error = %v", err)
 			}
 			if viaArray != tc.want {
-				t.Fatalf("Array().Value() = %#v, want %#v", viaArray, tc.want)
+				t.Fatalf("Of().Value() = %#v, want %#v", viaArray, tc.want)
 			}
 		})
 	}
@@ -255,24 +255,24 @@ func TestFloat64ArrayScan(t *testing.T) {
 }
 
 // TestArrayPointerAliasesCaller pins the Scan-through-pointer contract the
-// read sites depend on: Array(&slice) writes into the caller's variable, and
+// read sites depend on: Of(&slice) writes into the caller's variable, and
 // scanning an empty array into a non-nil slice truncates rather than
 // reallocating.
 func TestArrayPointerAliasesCaller(t *testing.T) {
 	var strs []string
-	if err := Array(&strs).Scan(`{"x","y"}`); err != nil {
+	if err := Of(&strs).Scan(`{"x","y"}`); err != nil {
 		t.Fatalf("Scan error = %v", err)
 	}
 	if !reflect.DeepEqual(strs, []string{"x", "y"}) {
 		t.Fatalf("strs = %#v, want [x y]", strs)
 	}
-	if err := Array(&strs).Scan("{}"); err != nil {
+	if err := Of(&strs).Scan("{}"); err != nil {
 		t.Fatalf("Scan empty error = %v", err)
 	}
 	if strs == nil || len(strs) != 0 {
 		t.Fatalf("strs after empty scan = %#v, want non-nil empty", strs)
 	}
-	if err := Array(&strs).Scan(nil); err != nil {
+	if err := Of(&strs).Scan(nil); err != nil {
 		t.Fatalf("Scan nil error = %v", err)
 	}
 	if strs != nil {
@@ -280,7 +280,7 @@ func TestArrayPointerAliasesCaller(t *testing.T) {
 	}
 
 	var floats []float64
-	if err := Array(&floats).Scan("{0.5,1}"); err != nil {
+	if err := Of(&floats).Scan("{0.5,1}"); err != nil {
 		t.Fatalf("Scan error = %v", err)
 	}
 	if !reflect.DeepEqual(floats, []float64{0.5, 1}) {
@@ -293,12 +293,12 @@ func TestArrayPointerAliasesCaller(t *testing.T) {
 // producing a literal nobody verified.
 func TestArrayRejectsUnsupportedTypes(t *testing.T) {
 	for _, in := range []any{[]int64{1}, []bool{true}, "not a slice", nil, []any{"x"}} {
-		w := Array(in)
+		w := Of(in)
 		if _, err := w.Value(); err == nil || !strings.Contains(err.Error(), "unsupported array type") {
-			t.Fatalf("Array(%T).Value() error = %v, want unsupported-type error", in, err)
+			t.Fatalf("Of(%T).Value() error = %v, want unsupported-type error", in, err)
 		}
 		if err := w.Scan("{}"); err == nil || !strings.Contains(err.Error(), "unsupported array scan target") {
-			t.Fatalf("Array(%T).Scan() error = %v, want unsupported-target error", in, err)
+			t.Fatalf("Of(%T).Scan() error = %v, want unsupported-target error", in, err)
 		}
 	}
 }

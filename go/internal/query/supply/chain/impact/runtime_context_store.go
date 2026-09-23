@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // Runtime-context fact kinds read at query time (#5746).
@@ -134,10 +134,10 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		SelectRuntimeContextQuery,
-		pgarray.Array(RuntimeContextFactKinds),
-		pgarray.Array(repositoryIDs),
-		pgarray.Array(allowedRepositoryIDs),
-		pgarray.Array(allowedScopeIDs),
+		array.Of(RuntimeContextFactKinds),
+		array.Of(repositoryIDs),
+		array.Of(allowedRepositoryIDs),
+		array.Of(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)

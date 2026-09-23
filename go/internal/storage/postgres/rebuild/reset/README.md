@@ -1,4 +1,4 @@
-# internal/storage/postgres/rebuildreset
+# internal/storage/postgres/rebuild/reset
 
 Clears the Postgres dedup state a graph rebuild-from-facts has to get past
 (#4594).
@@ -55,7 +55,7 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
   `recover-generations` response.
 - `Execer` — the narrow `ExecContext` surface, declared here so the dependency
-  runs one way: `postgres` imports `rebuildreset`, never the reverse.
+  runs one way: `postgres` imports `reset`, never the reverse.
 
 ## Invariants
 

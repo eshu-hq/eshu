@@ -54,7 +54,7 @@ See `doc.go` for the contract.
 ## Dependencies
 
 - `storage/postgres/db` — `ExecQueryer`, `Beginner`, `Transaction`
-- `storage/postgres/pgarray` — text array arguments
+- `storage/postgres/array` — text array arguments
 
 The package must not import the parent `postgres` package. The parent imports
 this one.

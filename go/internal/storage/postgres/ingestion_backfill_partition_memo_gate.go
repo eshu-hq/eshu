@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -110,8 +110,8 @@ func loadArgoCDBearingPartitions(
 	rows, err := queryer.QueryContext(
 		ctx,
 		listArgoCDBearingPartitionsQuery,
-		pgarray.StringArray(scopeIDs),
-		pgarray.StringArray(generationIDs),
+		array.StringArray(scopeIDs),
+		array.StringArray(generationIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load argocd-bearing partitions for deferred backfill memo gate: %w", err)

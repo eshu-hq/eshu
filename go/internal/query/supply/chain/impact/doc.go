@@ -17,7 +17,7 @@
 // It depends only on dependency-neutral leaves -- querycontract (row-value
 // decoders, HTTP param/error writers), decode (classified fact-decode
 // failures), sdk/go/factschema (the typed source-fact decode seams),
-// pgarray, postgres (the suppression-mutation storage adapter), and truth --
+// array, postgres (the suppression-mutation storage adapter), and truth --
 // never on root package query itself, which would create an import cycle:
 // root's compat_supply_chain.go imports this package for the
 // compatibility aliases cmd/api, cmd/mcp-server, internal/serviceintelhttp,

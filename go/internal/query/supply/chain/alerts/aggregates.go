@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // PostgresAggregateStore reads aggregate counts directly from reducer-owned
@@ -67,14 +67,14 @@ func (s PostgresAggregateStore) CountSecurityAlertReconciliations(
 	}
 
 	args := []any{
-		pgarray.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, aggregateTotalQuery, args...)
@@ -159,14 +159,14 @@ func (s PostgresAggregateStore) SecurityAlertReconciliationInventory(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
-		pgarray.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		pgarray.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

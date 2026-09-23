@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -191,7 +191,7 @@ func loadOnboardedRepoScopedRelationshipFacts(
 	rows, err := queryer.QueryContext(
 		ctx,
 		listOnboardedRepoScopedRelationshipFactRecordsQuery,
-		pgarray.StringArray(likeTerms),
+		array.StringArray(likeTerms),
 	)
 	if err != nil {
 		return nil, err

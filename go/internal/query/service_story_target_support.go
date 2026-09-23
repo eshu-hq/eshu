@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -113,7 +113,7 @@ func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (
 	}
 	args := []any{}
 	factKinds := serviceStoryTargetSupportFactKinds()
-	args = append(args, pgarray.Array(factKinds))
+	args = append(args, array.Of(factKinds))
 	clauses := []string{
 		"fact.is_tombstone = FALSE",
 	}

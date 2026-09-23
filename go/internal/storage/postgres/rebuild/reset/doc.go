@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package rebuildreset clears the Postgres dedup state that would otherwise stop
+// Package reset clears the Postgres dedup state that would otherwise stop
 // a graph rebuild-from-facts at source-local structure (#4594).
 //
 // Eshu's graph is a projection: throw it away, keep Postgres, and a refinalize
@@ -59,4 +59,4 @@
 // fact_work_items_container_image_identity_v2_status_check, which ties status to
 // container_image_identity_v2_authorized_status, so a blind status rewrite fails
 // on exactly the rows that carry that coupled column family.
-package rebuildreset
+package reset

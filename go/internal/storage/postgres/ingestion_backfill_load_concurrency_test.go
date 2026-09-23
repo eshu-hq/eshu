@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -194,12 +194,12 @@ func (q *chunkProbeQueryer) QueryContext(
 	q.calls++
 	call := q.calls
 	if len(args) >= 1 {
-		if nonRepoID, ok := args[0].(pgarray.StringArray); ok && len(nonRepoID) > 0 {
+		if nonRepoID, ok := args[0].(array.StringArray); ok && len(nonRepoID) > 0 {
 			q.nonRepoIDArgCalls++
 		}
 	}
 	if len(args) >= 2 {
-		if repoIDs, ok := args[1].(pgarray.StringArray); ok && len(repoIDs) > q.maxRepoIDArgs {
+		if repoIDs, ok := args[1].(array.StringArray); ok && len(repoIDs) > q.maxRepoIDArgs {
 			q.maxRepoIDArgs = len(repoIDs)
 		}
 	}
@@ -236,8 +236,8 @@ func TestLoadDeferredScopedFactsChunksRepoIDArm(t *testing.T) {
 		repoIDs = append(repoIDs, "repo-"+itoa(i))
 	}
 	params := deferredScopedFactQueryParams{
-		nonRepoIDLike: pgarray.StringArray{"%external-config%"},
-		repoIDValues:  pgarray.StringArray(repoIDs),
+		nonRepoIDLike: array.StringArray{"%external-config%"},
+		repoIDValues:  array.StringArray(repoIDs),
 	}
 	probe := &chunkProbeQueryer{}
 	store := NewIngestionStore(nil)
@@ -297,8 +297,8 @@ func TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask(t *testing.T
 		repoIDs = append(repoIDs, "repo-"+itoa(i))
 	}
 	params := deferredScopedFactQueryParams{
-		nonRepoIDLike: pgarray.StringArray{"%external-config%"},
-		repoIDValues:  pgarray.StringArray(repoIDs),
+		nonRepoIDLike: array.StringArray{"%external-config%"},
+		repoIDValues:  array.StringArray(repoIDs),
 	}
 	probe := &chunkProbeQueryer{}
 	store := NewIngestionStore(nil)
@@ -345,8 +345,8 @@ func TestLoadDeferredScopedFactsCanceledContextReturnsError(t *testing.T) {
 		ctx,
 		probe,
 		deferredScopedFactQueryParams{
-			nonRepoIDLike: pgarray.StringArray{"%external-config%"},
-			repoIDValues:  pgarray.StringArray{"repo-a", "repo-b"},
+			nonRepoIDLike: array.StringArray{"%external-config%"},
+			repoIDValues:  array.StringArray{"repo-a", "repo-b"},
 		},
 		[]scopeGenerationPartition{{ScopeID: "scope-large", GenerationID: "gen-large"}},
 		nil,

@@ -1,12 +1,12 @@
-# AGENTS.md — internal/storage/postgres/pgarray guidance for LLM assistants
+# AGENTS.md — internal/storage/postgres/array guidance for LLM assistants
 
 ## Read first
 
 1. `README.md` in this directory — why `lib/pq` was removed and how the
    byte-identical encoding was proven
-2. `pgarray.go` — `StringArray`, `Float64Array`, `Array`, `QuoteIdentifier`
+2. `array.go` — `StringArray`, `Float64Array`, `Of`, `QuoteIdentifier`
 3. `parse.go` — the one-dimensional text-array parser `Scan` uses
-4. `pgarray_test.go` — the frozen encoding, identifier and scan tables; the
+4. `array_test.go` — the frozen encoding, identifier and scan tables; the
    literals there were captured from `lib/pq` v1.10.9 and are the contract
 
 ## Invariants you must not break
@@ -16,7 +16,7 @@
   data-format migration, not a refactor.
 - **Never quote selectively.** Every string element is quoted. A "smart" quoter
   needs a table of special characters that can drift from the server's parser.
-- **Never accept a new element type silently.** `Array` returns an erroring
+- **Never accept a new element type silently.** `Of` returns an erroring
   wrapper for anything but `[]string`, `*[]string`, `[]float64`, `*[]float64`.
   Add a type by adding a typed array with its own table rows, never by
   reflection.
@@ -26,7 +26,7 @@
   `doc_lockstep_test.go` pins the import set. Reaching for `pgtype` or any
   third-party array helper defeats the reason the package exists.
 - **Do not import the parent `postgres` package.** The dependency runs one
-  way: `postgres`, `query`, `reducer` import `pgarray`.
+  way: `postgres`, `query`, `reducer` import `array`.
 
 ## When you change the encoder or parser
 
@@ -38,9 +38,9 @@ vacuously.
 ## Verification expected on any change here
 
 ```bash
-cd go && go test ./internal/storage/postgres/pgarray -count=1
+cd go && go test ./internal/storage/postgres/array -count=1
 cd go && go test ./internal/storage/postgres/... ./internal/query/... -count=1
 ```
 
-The second line is the blast radius: every `pgarray.Array` call site in
+The second line is the blast radius: every `array.Of` call site in
 storage and query. Run it, do not reason about it.

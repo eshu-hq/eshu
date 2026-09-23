@@ -12,8 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // BackfillMarker names the completion marker row. Readers trust the table
@@ -160,7 +160,7 @@ func (b Backfiller) Run(ctx context.Context) (BackfillResult, error) {
 }
 
 func (b Backfiller) repositories(ctx context.Context) ([]string, error) {
-	rows, err := b.DB.QueryContext(ctx, backfillRepositoriesSQL, pgarray.StringArray(Labels))
+	rows, err := b.DB.QueryContext(ctx, backfillRepositoriesSQL, array.StringArray(Labels))
 	if err != nil {
 		return nil, fmt.Errorf("list infra inventory backfill repositories: %w", err)
 	}

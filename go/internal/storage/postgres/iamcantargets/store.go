@@ -10,8 +10,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // candidateScopesQuery samples the readiness of every AWS
@@ -156,8 +156,8 @@ func (s Store) listCandidateScopes(
 		ctx,
 		candidateScopesQuery,
 		request.AccountID,
-		pgarray.StringArray(serviceKinds),
-		pgarray.StringArray(regions),
+		array.StringArray(serviceKinds),
+		array.StringArray(regions),
 		request.ExcludeScopeID,
 	)
 	if err != nil {

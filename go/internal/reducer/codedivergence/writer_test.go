@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -213,9 +213,9 @@ func assertDriftedRetireCall(t *testing.T, call testutil.ExecCall, scopeID, gene
 	if got, want := call.Args[2], generationID; got != want {
 		t.Fatalf("retire call generation_id = %v, want %v", got, want)
 	}
-	kept, ok := call.Args[3].(pgarray.StringArray)
+	kept, ok := call.Args[3].(array.StringArray)
 	if !ok {
-		t.Fatalf("retire keep arg type = %T, want pgarray.StringArray", call.Args[3])
+		t.Fatalf("retire keep arg type = %T, want array.StringArray", call.Args[3])
 	}
 	if len(kept) != len(keepFactIDs) {
 		t.Fatalf("retire keep ids = %v, want %v", kept, keepFactIDs)

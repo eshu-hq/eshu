@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 // TestContentWriterReapsStaleLineKeyedDependencyIDForFivefivezerosevenFormats
@@ -103,17 +103,17 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDForFivefivezerosevenFormats
 		t.Fatalf("reap query = %q, want a DELETE FROM content_entities", reapQuery)
 	}
 
-	paths, ok := reapArgs[1].(pgarray.StringArray)
+	paths, ok := reapArgs[1].(array.StringArray)
 	if !ok {
-		t.Fatalf("reap path arg type = %T, want pgarray.StringArray", reapArgs[1])
+		t.Fatalf("reap path arg type = %T, want array.StringArray", reapArgs[1])
 	}
 	if len(paths) != 2 {
 		t.Fatalf("reap paths = %v, want both Cargo.toml and pom.xml", []string(paths))
 	}
 
-	freshIDs, ok := reapArgs[2].(pgarray.StringArray)
+	freshIDs, ok := reapArgs[2].(array.StringArray)
 	if !ok {
-		t.Fatalf("reap fresh-id arg type = %T, want pgarray.StringArray", reapArgs[2])
+		t.Fatalf("reap fresh-id arg type = %T, want array.StringArray", reapArgs[2])
 	}
 
 	mustContain(t, freshIDs, freshCargoID)

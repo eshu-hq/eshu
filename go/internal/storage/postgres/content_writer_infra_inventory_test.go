@@ -17,8 +17,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -132,7 +132,7 @@ func TestContentWriterWriteDerivesInfraInventoryForEveryTouchedPath(t *testing.T
 	if !strings.Contains(idDelete.query, "entity_id = ANY") {
 		t.Fatalf("tombstone statement = %q, want delete by entity_id", idDelete.query)
 	}
-	if got, want := []string(idDelete.args[1].(pgarray.StringArray)), []string{"e2"}; !reflect.DeepEqual(got, want) {
+	if got, want := []string(idDelete.args[1].(array.StringArray)), []string{"e2"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("tombstoned ids = %v, want %v", got, want)
 	}
 	database.txExecs = database.txExecs[2:]
@@ -140,7 +140,7 @@ func TestContentWriterWriteDerivesInfraInventoryForEveryTouchedPath(t *testing.T
 	if !strings.Contains(deleteCall.query, "DELETE FROM infra_resource_entities") {
 		t.Fatalf("second derive statement = %q, want the chunk delete", deleteCall.query)
 	}
-	if got, want := []string(deleteCall.args[1].(pgarray.StringArray)), []string{"a.tf", "b.tf", "c.tf", "d.tf"}; !reflect.DeepEqual(got, want) {
+	if got, want := []string(deleteCall.args[1].(array.StringArray)), []string{"a.tf", "b.tf", "c.tf", "d.tf"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("derived paths = %v, want every touched record and entity path %v", got, want)
 	}
 	insertCall := database.txExecs[2]

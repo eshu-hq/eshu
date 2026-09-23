@@ -57,7 +57,7 @@ pack), `internal/relationships/tfstatebackend` (backend-owner resolution),
 primitives), `internal/reducer/payloadcore` (the nil-to-empty-slice
 substitution), `internal/facts` and the generated `sdk/go/factschema`
 packages (fact-kind identity and payload encoding), and
-`internal/storage/postgres/pgarray` (the retire query's array binding). No
+`internal/storage/postgres/array` (the retire query's array binding). No
 dependency on the reducer root, and none of the root's other family
 subpackages.
 

@@ -332,7 +332,7 @@ Prerequisites:
 - [x] D6: `fake/` package added (injectable routes); root's test-only fake retires as its tests move
 - [x] Hoists into `db/` and `scalars/` (the `db/` and `scalars/` rows of the table above)
 - [x] D2: `migrations/embed.go` leaf
-- [ ] `pgarray/` -> `array/`; `rebuildreset/` -> `rebuild/reset/`
+- [x] `pgarray/` -> `array/`; `rebuildreset/` -> `rebuild/reset/`
 
 Domains, dependency-first, smaller first at each step (non-test files moved):
 
