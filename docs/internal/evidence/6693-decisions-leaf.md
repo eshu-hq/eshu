@@ -25,8 +25,11 @@ moving out of the root; `LastInsertId`/`RowsAffected` behavior is identical
 (0, 1), so this is not a behavior change.
 
 Root `README.md`'s two mermaid diagrams named `postgres.DecisionStore`
-literally; both are updated to `decisionsstore.DecisionStore`. No other root
-doc (`doc.go`, `AGENTS.md`) named this file or symbol by path.
+literally; both are updated to `decisionsstore.DecisionStore`. Root
+`exported-surface-guide.md` listed `DecisionStore`, `NewDecisionStore`,
+`DecisionFilter` and `DecisionSchemaSQL` as root symbols; those entries now
+use the `decisionsstore.` qualifier. Root `doc.go` and `AGENTS.md` do not
+name them.
 
 Test repoints, checked with exact-name assertions on base `3ab7d6934`: for each of the seven moved tests (`TestDecisionStoreUpsertAndList`, `TestDecisionStoreUpsertOverwrites`, `TestDecisionStoreFilterByType`, `TestDecisionStoreEvidenceInsertAndList`, `TestDecisionStoreEmptyEvidenceInsert`, `TestDecisionStoreListDecisionsDefaultLimit`, `TestDecisionStoreSchemaSQL`), `go test ./internal/storage/postgres/decisions/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
 

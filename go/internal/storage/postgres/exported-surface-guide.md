@@ -212,8 +212,10 @@ the concrete adapters stay here.
 
 **Decision store**
 
-- `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
-  `projection_decision_evidence`; `DecisionFilter` for scoped reads
+- `decisionsstore.DecisionStore` / `decisionsstore.NewDecisionStore`
+  (`storage/postgres/decisions`) — upserts `projection_decisions` and
+  `projection_decision_evidence`; `decisionsstore.DecisionFilter` for scoped
+  reads
 - `AdmissionDecisionStore` / `NewAdmissionDecisionStore` — upserts
   `admission_decisions` and `admission_decision_evidence`; reads require
   domain, scope, and generation bounds before optional state/anchor filters.
@@ -319,7 +321,7 @@ the concrete adapters stay here.
 - `BootstrapDefinitions`, `ApplyBootstrap`,
   `ApplyBootstrapWithoutContentSearchIndexes`, `EnsureContentSearchIndexes`,
   `ValidateDefinitions`, `ApplyDefinitions`, `ApplyDefinitionsWithLockTimeout`
-- Per-table DDL helpers: `DecisionSchemaSQL`, `RelationshipSchemaSQL`,
+- Per-table DDL helpers: `decisionsstore.DecisionSchemaSQL`, `RelationshipSchemaSQL`,
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
