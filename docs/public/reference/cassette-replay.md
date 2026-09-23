@@ -235,7 +235,7 @@ slipping past a blocklist:
 
 | Alternative | Allowed forms |
 | --- | --- |
-| `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) and loopback |
+| `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), loopback, and exactly the unspecified address `0.0.0.0` (the `0.0.0.0/0` "any address" CIDR of a security-group rule, which record mode keeps) |
 | `nodeip` | EKS-style `ip-A-B-C-D` node names only in those documentation ranges or loopback |
 | `ipv6` | RFC 3849 `2001:db8::/32` and `::1`; six-group MAC addresses also land here, and only the RFC 7042 documentation block (`00:00:5e:00:53:xx`) and the all-zero MAC pass |
 | `account12` | `123456789012`, zero-prefixed `00000000000N`, repdigits, and the reserved `0000` + 8-digit range that record-mode pseudonymization mints accounts into (the recorder's own belt checks that a run minted them; here it is a shape check); twelve digits inside a hex digest are not a candidate |

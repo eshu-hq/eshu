@@ -184,7 +184,11 @@ cassette_private_data_patterns() {
 	# vendor namespaces, which end in a TLD without being hosts), a single
 	# service label under googleapis.com, ECR under a documentation account,
 	# and the corpus's own synthetic zones.
-	_cpd_allow[ipv4]='^(?:192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
+	# 0.0.0.0 is the unspecified address, and 0.0.0.0/0 the "any address"
+	# CIDR of a security-group rule (the detector takes the quad without its
+	# prefix). Record mode keeps it; it names no host. Exact, so 0.0.0.1 is
+	# still a finding.
+	_cpd_allow[ipv4]='^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
 	# The ipv6 detector also sees six-group MAC addresses. A real MAC is a
 	# hardware identifier and stays a finding; the RFC 7042 documentation block
 	# (00:00:5e:00:53:xx) and the all-zero MAC are what a redacted recording
@@ -210,6 +214,7 @@ cassette_private_data_patterns() {
 		'hostname vault.service''.consul'
 		'ipv4 reachable at 172.16''.9.4.'
 		'nodeip ip-10''-0-1-5'
+		'ipv4 0.0.0''.1'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -219,6 +224,7 @@ cassette_private_data_patterns() {
 		'ipv4 198.51''.100.7'
 		'ipv4 203.0''.113.9'
 		'ipv4 127.0''.0.1'
+		'ipv4 0.0.0''.0/0'
 		'nodeip ip-192''-0-2-10'
 		'ipv6 2001:db8::1'
 		'ipv6 2001:db8:85a3::8a2e:370:7334'
@@ -246,17 +252,18 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 7 alternatives, 12 planted samples (hostname carries five: a
+	# patterns: 7 alternatives, 13 planted samples (hostname carries five: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
-	# host and a Consul name; ipv4 carries two: a bare address and one ending
-	# a sentence), 29 allowed samples. Adding an alternative or an allowed form means adding
+	# host and a Consul name; ipv4 carries three: a bare address, one ending
+	# a sentence, and the neighbour of the unspecified address), 30 allowed
+	# samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 12 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 12 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 29 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 29 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#planted[@]}" -eq 13 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 13 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#allowed[@]}" -eq 30 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 30 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

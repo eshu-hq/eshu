@@ -28,7 +28,7 @@ var (
 	hostnameCand    = regexp.MustCompile(`(?i)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.(?:` + hostnameTLDs + `)(?:[^a-z0-9_-]|\z)`)
 	docAccountRe    = regexp.MustCompile(`^(?:12345678901[2]|0{11}[0-9])$`)
 	pseudoAccountRe = regexp.MustCompile(`^0000[0-9]{8}$`)
-	ipv4AllowRe     = regexp.MustCompile(`^(?:192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$`)
+	ipv4AllowRe     = regexp.MustCompile(`^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$`)
 	nodeIPAllowRe   = regexp.MustCompile(`^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$`)
 	ipv6AllowRe     = regexp.MustCompile(`^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$`)
 	reservedHostRe  = regexp.MustCompile(`^(?:(?:[a-z0-9-]+\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\.)*example\.(?:com|net|org))$`)

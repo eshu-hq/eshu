@@ -144,6 +144,19 @@ run_scan "${reserveddir}" "${scratch}/reserved-account.out" rc
 	|| fail "the reserved 0000 account form was flagged; record-mode output would fail the gate: $(cat "${scratch}/reserved-account.out")"
 printf 'GREEN reserved account form: exit %s\n' "${rc}"
 
+# 0.0.0.0 is the unspecified address; 0.0.0.0/0 is a security-group rule's
+# "any address" CIDR, which record mode keeps. It is not private data, so it
+# passes; the allow is exact, so a neighbouring address stays a finding.
+plant_red ipv4 '0.0.0.1/32' ipv4-unspecified-neighbour
+anydir="${scratch}/unspecified-ipv4"
+mkdir -p "${anydir}"
+printf '{"source_value":"0.0.0.0/0","bind":"0.0.0.0"}\n' >"${anydir}/any.json"
+rc=0
+run_scan "${anydir}" "${scratch}/unspecified-ipv4.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "the unspecified address 0.0.0.0 was flagged; a recorded security-group rule would fail the gate: $(cat "${scratch}/unspecified-ipv4.out")"
+printf 'GREEN unspecified ipv4: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -244,12 +257,12 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 11 sample(s), expected 12"
+	"positive control carries 12 sample(s), expected 13"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 29 goes red, so the form cannot be dropped from
+# it and the hand count of 30 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 28 sample(s), expected 29"
+	"negative control carries 29 sample(s), expected 30"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an
