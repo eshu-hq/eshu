@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package payloadstore encodes and decodes the JSONB fact payload column
-// shared by facts, both queues, relationships, and the collector.
 package payloadstore
 
 import (

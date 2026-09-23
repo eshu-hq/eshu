@@ -437,7 +437,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `db/` | 3 | 2 | ok |
 | `decisions/` | 1 | 1 | ok |
 | `facts/` | 36 | 69 | ok |
-| `facts/payload/` | 1 | 2 | ok |
+| `facts/payload/` | 1 | 1 | ok |
 | `facts/schema/` | 7 | 8 | ok |
 | `freshness/` | 2 | 4 | ok |
 | `freshness/aws/` | 3 | 2 | ok |

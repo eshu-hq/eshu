@@ -87,6 +87,7 @@ proof_domain_harness_test.go -> proof_domain_harness_test.go   # SPLIT: reads pr
 proof_domain_retirement_support_test.go -> proof_domain_retirement_support_test.go   # no production references
 proof_domain_state_test.go -> proof_domain_state_test.go   # no production references
 proof_domain_support_test.go -> proof_domain_support_test.go   # no production references
+proof_domain_terraform_support_test.go -> proof_domain_terraform_support_test.go   # root proof-harness helpers over root-private evidenceRecord and proofState (found in the facts/payload/ move)
 provenance_edge_identity_upgrade_performance_live_test.go -> provenance_edge_identity_upgrade_performance_live_test.go
 readiness_wait_cost_after_perf_test.go -> readiness_wait_cost_after_perf_test.go
 readiness_wait_cost_perf_test.go -> readiness_wait_cost_perf_test.go
