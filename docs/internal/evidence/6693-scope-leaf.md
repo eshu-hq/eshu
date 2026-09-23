@@ -37,7 +37,7 @@ edit, from `go/`: `go build ./...` and `go vet ./...` exit 0; `go vet -tags
 "integration perf5854_ack perf5740_completion perf6785_wait"
 ./internal/storage/postgres/...` exits 0; `go test
 ./internal/storage/postgres/... ./internal/collector/repo/git/... -race
--count=1` passes, including the three moved tests in `scope/`.
+-count=1` passes, including the three moved tests in `scope/`. `go test ./internal/storage/postgres/scope/... -list '^<name>$' -count=1 | rg -q '^<name>$'` exits 0 for `TestRepoIDFromScopeID`, `TestSourceKeyUsesMetadataSourceKeyForRepositoryScope` and `TestSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing`, and the same assertion against `./internal/storage/postgres` exits 1 for the three old root names (`TestDeferredScopedFactOwnRepoIDFromScope`, `TestScopeSourceKey...`), so the tests moved rather than being duplicated or dropped.
 
 No-Observability-Change: both helpers are pure string derivations with no
 metric, span or log of their own; no metric, span, log key or status field is

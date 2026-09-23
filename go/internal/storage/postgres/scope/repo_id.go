@@ -6,7 +6,7 @@ package scopestore
 import "strings"
 
 // gitRepositoryScopePrefix is the scope_id prefix the git collector writes for
-// repository scopes (git_source_processing.go).
+// repository scopes (go/internal/collector/repo/git/source_processing.go).
 const gitRepositoryScopePrefix = "git-repository-scope:"
 
 // RepoIDFromScopeID derives the own-repo_id performance hint ($6) from a

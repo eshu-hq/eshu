@@ -469,6 +469,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `queue/reducer/` | 13 | 99 | ok |
 | `recovery/` | 1 | 7 | ok |
 | `relationship/` | 6 | 9 | ok |
+| `scope/` | 2 | 2 | ok |
 | `scope/completion/` | 4 | 6 | ok |
 | `search/document/` | 6 | 7 | ok |
 | `search/index/` | 1 | 4 | ok |
