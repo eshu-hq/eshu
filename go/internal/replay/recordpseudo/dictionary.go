@@ -61,7 +61,7 @@ type entry struct {
 // and Unknown never learn and rank lowest.
 func classRank(class Class) int {
 	switch class {
-	case ClassKeep, ClassOpaque, ClassUnknown:
+	case ClassKeep, ClassEnum, ClassOpaque, ClassUnknown:
 		return 0
 	case ClassTagValue:
 		return 1
@@ -179,7 +179,7 @@ func (d *dictionary) learn(class Class, raw string) {
 	case ClassImageTag:
 		d.learnImageTag(raw)
 	default:
-		// Keep, Opaque and Unknown learn nothing: Keep values are structural,
+		// Keep, Enum, Opaque and Unknown learn nothing: Keep and Enum values are structural,
 		// the other two are replaced wholesale at rewrite time.
 	}
 }
@@ -269,6 +269,18 @@ func (d *dictionary) learnARN(raw string) {
 		d.unlistedARNTypes[service+":"+components[0]]++
 	}
 	for i, component := range components[skip:] {
+		if strings.Contains(component, " ") {
+			// AWS writes some principals as a fixed phrase plus an issued
+			// ID ("CloudFront Origin Access Identity E1ABCD23EFGH4I"). The
+			// whole component is never learned, so learn each ID-shaped
+			// token (letters and digits) and keep the phrase readable.
+			for _, field := range strings.Fields(component) {
+				if len(field) >= minSubstituteLen && spacedIDTokenRe.MatchString(field) {
+					d.learnIdent(field)
+				}
+			}
+			continue
+		}
 		if i == 0 && numericRe.MatchString(component) {
 			// The component at index skip is the resource name, not a
 			// qualifier, so a numeric name seen only in an ARN is learned
@@ -280,6 +292,12 @@ func (d *dictionary) learnARN(raw string) {
 		d.learnARNComponent(component)
 	}
 }
+
+// spacedIDTokenRe is an ID-shaped token inside a spaced ARN component: it
+// mixes letters and digits, or it is an uppercase run of eight or more.
+// AWS's fixed phrase words ("CloudFront Origin Access Identity") are
+// title-case and digit-free, so they never match.
+var spacedIDTokenRe = regexp.MustCompile(`^(?:[A-Za-z0-9]*[0-9][A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*|[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*[0-9][A-Za-z0-9]*|[A-Z0-9]{8,})$`)
 
 // arnComponents splits an ARN resource part on "/" and ":".
 func arnComponents(resource string) []string {

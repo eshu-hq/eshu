@@ -60,6 +60,11 @@ const (
 	// (v1.2.3, 1.2.3) are structural and kept, every other tag is a
 	// customer-chosen name and takes the name form.
 	ClassImageTag
+	// ClassEnum passes the value through verbatim and never substitutes into
+	// it: collector-defined enum values (resource_type, relationship_type,
+	// ...) carry no customer data, and a learned token equal to one of their
+	// words must not rewrite them.
+	ClassEnum
 )
 
 var classNames = map[Class]string{
@@ -78,6 +83,7 @@ var classNames = map[Class]string{
 	ClassEmail:    "email",
 	ClassOpaque:   "opaque",
 	ClassImageTag: "image_tag",
+	ClassEnum:     "enum",
 }
 
 // String returns the class's log label.

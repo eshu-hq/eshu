@@ -145,6 +145,8 @@ func (w *walker) rewriteString(path string, class Class, v string) string {
 	case ClassOpaque:
 		w.opaque[path]++
 		return w.opaqueValue(v)
+	case ClassEnum:
+		return v
 	case ClassKeep:
 		// Keep values are substituted by substitutable tokens only: an
 		// exact-only short or numeric token never rewrites one.

@@ -18,13 +18,14 @@ import "github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 // reads; opaque is the right answer and its path is expected in the record
 // report.
 func Policy() recordpseudo.Policy {
-	fields := make(map[string]recordpseudo.Class, len(accountKeys)+len(arnKeys)+len(identKeys)+len(awsIDKeys)+len(hostKeys)+len(imageRefKeys)+len(ipv4Keys)+len(keepKeys)+len(opaqueKeys)+2)
+	fields := make(map[string]recordpseudo.Class, len(accountKeys)+len(arnKeys)+len(identKeys)+len(awsIDKeys)+len(hostKeys)+len(imageRefKeys)+len(ipv4Keys)+len(keepKeys)+len(enumKeys)+len(opaqueKeys)+2)
 	set := func(keys []string, class recordpseudo.Class) {
 		for _, key := range keys {
 			fields[key] = class
 		}
 	}
 	set(keepKeys, recordpseudo.ClassKeep)
+	set(enumKeys, recordpseudo.ClassEnum)
 	set(accountKeys, recordpseudo.ClassAccount)
 	set(arnKeys, recordpseudo.ClassARN)
 	set(identKeys, recordpseudo.ClassIdent)
@@ -82,6 +83,11 @@ var imageRefKeys = []string{"image", "image_uri", "resolved_image_uri", "uri"}
 // ipv4Keys carry a single IPv4 address.
 var ipv4Keys = []string{"private_ipv4_address", "public_ip_address"}
 
+// enumKeys hold collector-defined enum values that carry no customer data;
+// they pass through verbatim so a learned token equal to one of their words
+// (a tag value "queue") cannot rewrite aws_sqs_queue.
+var enumKeys = []string{"resource_type", "target_type", "relationship_type", "service_kind"}
+
 // opaqueKeys are free text that no consumer parses: replaced wholesale.
 var opaqueKeys = []string{"description", "message", "unsupported_key"}
 
@@ -90,7 +96,7 @@ var opaqueKeys = []string{"description", "message", "unsupported_key"}
 // are Keep at the object key: the engine recurses and classifies each child
 // by its own key.
 var keepKeys = []string{
-	"region", "service_kind", "resource_type", "state", "relationship_type", "target_type", "principal_type",
+	"region", "state", "principal_type",
 	"principal_types", "provider", "policy_source", "effect", "actions", "not_actions", "package_type", "version",
 	"launch_type", "desired_status", "image_tag_mutability", "tenancy", "redaction_policy_version", "warning_kind",
 	"source_state", "environment", "image_digest", "manifest_digest", "code_sha256", "started_at", "cpu",
