@@ -23,8 +23,8 @@ import (
 // both pairings are excused independently (stale-allowlist enforcement is
 // unchanged per pairing) and only divergences reproducing across pairings —
 // same fingerprint and kind — fail the gate. Pairing-local noise and
-// reproduced execution-count noise stay visible as advisory findings, never
-// as a failure.
+// reproduced scheduling noise (execution counts or row totals with agreeing
+// results) stay visible as advisory findings, never as a failure.
 func runBackendDiff(o options, stdout io.Writer, r *Report) error {
 	left := strings.TrimSpace(o.diffLeft)
 	right := strings.TrimSpace(o.diffRight)
@@ -81,21 +81,29 @@ func unexcusedPairing(leftDir, rightDir string, allow *capture.Allowlist) ([]bac
 }
 
 // runBackendDiffQuorum compares two leg pairings and fails the gate only on
-// reproduced divergences of a required kind. Non-reproducing divergences
-// and reproduced execution-count noise are each reported as an advisory
-// finding so a genuine regression stays visible while scheduling noise —
-// leg-local or systematic — cannot red the gate on its own.
+// reproduced divergences of a required kind. Non-reproducing divergences,
+// reproduced scheduling noise (execution counts or row totals with
+// agreeing results), and divergences on registered transient reads are
+// each reported as an advisory finding so a genuine regression stays
+// visible while scheduling noise — leg-local or systematic — and
+// timing-dependent reads cannot red the gate on their own.
 func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer, r *Report) error {
 	pairs := [][2]string{
 		{strings.TrimSpace(o.diffLeft), strings.TrimSpace(o.diffRight)},
 		{strings.TrimSpace(o.diffLeft2), strings.TrimSpace(o.diffRight2)},
 	}
 	unexcused := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
+	transientByPairing := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
 	for i, pair := range pairs {
 		remaining, err := unexcusedPairing(pair[0], pair[1], allow)
 		if err != nil {
 			return fmt.Errorf("pairing %d: %w", i+1, err)
 		}
+		// Registered transient reads are excluded per pairing like the
+		// allowlist, before quorum intersection: an orphan page diverging
+		// in both pairings is timing in both, never reproduced truth.
+		remaining, excluded := allow.ExcludeTransient(remaining)
+		transientByPairing = append(transientByPairing, excluded)
 		if _, err := fmt.Fprintf(stdout, "pairing %d: %d unexcused divergence(s)\n", i+1, len(remaining)); err != nil {
 			return fmt.Errorf("report pairing %d: %w", i+1, err)
 		}
@@ -115,6 +123,9 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		unexcused = append(unexcused, remaining)
 	}
 	reproduced := backendconformance.QuorumIntersection(unexcused[0], unexcused[1])
+	// Reproduced transient exclusions count toward the ceiling below,
+	// symmetric with the reproduced advisory total.
+	reproducedTransient := backendconformance.QuorumIntersection(transientByPairing[0], transientByPairing[1])
 	kept, advisory := backendconformance.SplitAdvisory(reproduced)
 	detail := "nornicdb and neo4j recordings agree across both pairings"
 	if len(kept) != 0 {
@@ -122,29 +133,59 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		detail = fmt.Sprintf("differential comparison found %d reproduced divergence(s), first: %s: %s", len(kept), first.Fingerprint.Statement, first.Detail)
 	}
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_quorum", len(kept) == 0, true, detail)
-	// Reproduced execution-count noise is reported, never failed: the two
-	// backends drain at systematically different speeds, so pass counts
-	// reproduce across pairings and quorum cannot filter them (#6782
-	// permanent disposition; see backendconformance.AdvisoryKind). The detail
-	// names the top statements by reproduced-divergence count, not only the
-	// first recorded, so a systemic regression concentrated on a handful of
+	// Reproduced scheduling noise is reported, never failed: the two backends
+	// drain at systematically different speeds, so pass counts reproduce
+	// across pairings, and one leg observes a converged row in one more poll
+	// iteration than the other, so row totals reproduce too — quorum cannot
+	// filter either (#6782 permanent disposition as extended by the option-2
+	// slice; see backendconformance.AdvisoryKind). The detail names the top
+	// statements by reproduced-divergence count, not only the first
+	// recorded, so a systemic regression concentrated on a handful of
 	// statements is visible without reading the full pairing dump (#6941).
-	advisoryDetail := "no reproduced execution-count divergences"
+	advisoryDetail := "no reproduced scheduling-noise divergences"
 	if len(advisory) != 0 {
 		top := backendconformance.TopAdvisoryStatementReports(advisory, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
-		advisoryDetail = fmt.Sprintf("%d reproduced execution-count divergence(s) with agreeing results held advisory (scheduling noise), top: %s", len(advisory), strings.Join(top, "; "))
+		advisoryDetail = fmt.Sprintf("%d reproduced scheduling-noise divergence(s) with agreeing results held advisory (execution counts or row totals), top: %s", len(advisory), strings.Join(top, "; "))
 	}
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions", len(advisory) == 0, false, advisoryDetail)
 	// The advisory total is otherwise unbounded (#6941): a backend regression
 	// that triples drain passes would still report as an advisory WARN and
 	// pass the gate. -diff-executions-advisory-max is a systemic-regression
 	// tripwire, not a tuning target — see the golden-corpus-gate README for
-	// the observed-count calibration.
-	if o.diffExecutionsAdvisoryMax > 0 && len(advisory) > o.diffExecutionsAdvisoryMax {
-		top := backendconformance.TopAdvisoryStatementReports(advisory, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
-		ceilingDetail := fmt.Sprintf("%d reproduced execution-count divergence(s) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", len(advisory), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+	// the observed-count calibration. Reproduced transient-read exclusions
+	// count toward the same ceiling, so a systematic divergence on a
+	// registered statement cannot hide behind timing noise indefinitely
+	// (#6971 review): with no transient divergences the total is exactly
+	// the advisory total, preserving the calibrated #6941 contract.
+	ceilingTotal := len(advisory) + len(reproducedTransient)
+	if o.diffExecutionsAdvisoryMax > 0 && ceilingTotal > o.diffExecutionsAdvisoryMax {
+		topSource := make([]backendconformance.DifferentialDifference, 0, len(advisory)+len(reproducedTransient))
+		topSource = append(topSource, advisory...)
+		topSource = append(topSource, reproducedTransient...)
+		top := backendconformance.TopAdvisoryStatementReports(topSource, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+		ceilingDetail := fmt.Sprintf("%d reproduced scheduling-noise divergence(s) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", len(advisory), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		if len(reproducedTransient) != 0 {
+			ceilingDetail = fmt.Sprintf("%d reproduced advisory divergence(s) (%d scheduling-noise + %d transient-read) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", ceilingTotal, len(advisory), len(reproducedTransient), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		}
 		r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions_ceiling", false, true, ceilingDetail)
 	}
+	// Transient-read exclusions report as their own advisory finding, not
+	// inside the executions advisory: their digests disagree, so the
+	// "agreeing results" wording would be false. Non-required, always
+	// visible: a real regression on an orphan page must stay readable in
+	// the CI log (#6782 option 1). The finding counts every per-pairing
+	// exclusion; the ceiling below counts reproduced transient
+	// divergences, symmetric with the reproduced advisory total.
+	var transient []backendconformance.DifferentialDifference
+	for _, excluded := range transientByPairing {
+		transient = append(transient, excluded...)
+	}
+	transientDetail := "no transient-read divergences excluded"
+	if len(transient) != 0 {
+		top := backendconformance.TopAdvisoryStatementReports(transient, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+		transientDetail = fmt.Sprintf("%d transient-read divergence(s) excluded by registration (timing-dependent state), top: %s", len(transient), strings.Join(top, "; "))
+	}
+	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_transient", len(transient) == 0, false, transientDetail)
 	dropped := len(unexcused[0]) + len(unexcused[1]) - 2*len(reproduced)
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_nonreproducing", true, false,
 		fmt.Sprintf("%d pairing-local divergence(s) did not reproduce across pairings (quorum dropped, see pairing reports above)", dropped))

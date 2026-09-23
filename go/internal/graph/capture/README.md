@@ -54,12 +54,16 @@ and `.github/workflows/golden-corpus-gate.yml`.
 - `ParseAllowlist` — parses `specs/backend-divergence-allowlist.v1.yaml`;
   missing reason, missing/unknown tier, missing/non-issue upstream, and
   stale entries fail. The tier scopes each entry to one divergence kind
-  (`missing`, `results`, `failures`, `rowcount`) or to the whole
-  statement. There is no `executions` tier: execution-count divergences
-  with agreeing results are advisory at the gate
+  (`missing`, `results`, `failures`) or to the whole
+  statement. There is no `executions` or `rowcount` tier: execution-count
+  and row-total divergences with agreeing results are advisory at the gate
   (`backendconformance.AdvisoryKind`, #6782), `Compare` prints them as
-  advisory lines and returns nil for them, and the parser rejects the tier
-  so retired entries cannot linger.
+  advisory lines and returns nil for them, and the parser rejects both
+  tiers so retired entries cannot linger. Beside entries, a
+  `transient_reads` section registers transient-state reads (guarded by a
+  transient-state marker in the statement); `ExcludeTransient` holds their
+  observed-noise divergences out of the required set without stale
+  checking, and `Compare` prints them as transient lines.
 - `OpenDir` / `LoadDir` — JSONL sink and loader; unknown backends fail on
   both sides.
 - `MaxReportedDiffs` — the per-report line cap (20) shared by `Compare`

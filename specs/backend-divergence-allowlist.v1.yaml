@@ -17,14 +17,17 @@ design: >
   Every divergence fails the gate until an entry names it with a reason, a
   tier, and an upstream issue link (enforced by ParseAllowlist — a missing
   reason, tier, or non-issue upstream link fails the parse). The tier scopes
-  the excuse to one divergence kind (missing, results, failures, rowcount)
-  or to the whole statement. There is no executions tier: execution-count
-  differences with agreeing result sets are scheduling noise by the
-  classifier's own definition (drain passes, retries, regrouped batches),
-  the two backends drain at systematically different speeds so they
-  reproduce across quorum pairings, and the gate holds them advisory
+  the excuse to one divergence kind (missing, results, failures)
+  or to the whole statement. There is no executions or rowcount tier:
+  execution-count and row-total differences with agreeing result sets are
+  scheduling noise by the
+  classifier's own definition (drain passes, retries, regrouped batches,
+  extra poll iterations observing converged rows), the two backends drain
+  at systematically different speeds so they reproduce across quorum
+  pairings, and the gate holds them advisory
   (backendconformance.AdvisoryKind, #6782 permanent disposition
-  2026-09-21) instead of excusing them one statement at a time. An entry
+  2026-09-21, extended to row totals by the option-2 slice) instead of
+  excusing them one statement at a time. An entry
   must match at least one divergence in the run, so a fixed bug cannot
   linger as a permanent exemption (enforced by Excuse — a stale entry fails
   even a green run). Excuse narrowly: name the exact
@@ -32,6 +35,18 @@ design: >
   binding-specific, and link the issue tracking the fix — #6906 for
   dialect-divergent reads, #6782 for oracle dispositions (by-design phased
   emission, scheduling noise, run-scoped lineage) that need no backend fix.
+  Beside entries, a transient_reads section registers transient-state reads
+  (orphan scans over uid IS NULL, orphan-sweep pages on
+  eshu_orphan_observed_at_unix) whose digest may disagree across legs
+  because the result depends on where the drain is when the page is read
+  (#6782 option 1). A transient entry takes no tier and is never
+  stale-checked — the read agrees on most runs by design — but the parse
+  guard requires a transient-state marker in the statement, the same
+  reason and upstream-issue accountability as an entry, and the exclusion
+  covers only the observed-noise kinds: a backend error or a one-sided
+  recording on a transient read still fails (enforced by ExcludeTransient).
+  Excluded transient divergences report in the visible
+  nornicdb_vs_neo4j_transient advisory finding, never silently.
 
 entries:
 - statement: "MATCH (anchor {uid: $entity_id})-[rel:IMPORTS]->(target) OPTIONAL MATCH (anchor)<-[:CONTAINS]-(sourceFile:File) OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile) OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File) OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile) RETURN 'outgoing' as direction, 'IMPORTS' as type, 'direct_code_edge' as edge_origin, rel.call_kind as call_kind, rel.reason as reason, rel.confidence as confidence, rel.resolution_method as resolution_method, rel.evidence_source as evidence_source, rel.why_trail_json as why_trail_json, rel.why_trail_truncated as why_trail_truncated, anchor.id as source_legacy_id, anchor.uid as source_uid, anchor.name as source_name, anchor.repo_id as source_node_repo_id, sourceRepo.id as source_repo_fallback_id, sourceRepo.name as source_repo_name, sourceFile.relative_path as source_file_path, anchor.language as source_language_value, anchor.lang as source_lang_value, sourceFile.language as source_file_language, target.id as target_legacy_id, target.uid as target_uid, target.name as target_name, target.repo_id as target_node_repo_id, targetRepo.id as target_repo_fallback_id, targetRepo.name as target_repo_name, targetFile.relative_path as target_file_path, target.language as target_language_value, target.lang as target_lang_value, targetFile.language as target_file_language ORDER BY target.name, target.id, target.uid SKIP $offset LIMIT $limit"
@@ -279,3 +294,13 @@ entries:
   reason: "Full graph objects embed run-scoped bare-hex generation ids that cannot be blinded safely (hex collides with content SHAs); all other cells agree. #6782 disposition."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: query
+
+transient_reads:
+- statement: "MATCH (n:Module) WHERE n.evidence_source IS NOT NULL AND n.uid IS NULL AND (n.name > $cursor_0 OR (n.name = $cursor_0 AND coalesce(n.lang, '<absent>') > $cursor_1)) WITH n.name AS key_0, coalesce(n.lang, '<absent>') AS key_1, n.eshu_orphan_observed_at_unix AS observed_at RETURN key_0, key_1, observed_at ORDER BY key_0, key_1 LIMIT $limit"
+  reason: "Uid-less Module orphan scan pages: Modules not yet resolved to a uid are transient state, so each page depends on where the parse/resolution drain is when it is read and digests disagree across legs (quorum-reproduced on PR #6971). The fingerprint is the paginated template, so every page is covered."
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+- statement: "MATCH (n:EvidenceArtifact) WHERE n.evidence_source IS NOT NULL AND n.id > $cursor RETURN n.id AS key, n.eshu_orphan_observed_at_unix AS observed_at ORDER BY n.id LIMIT $limit"
+  reason: "EvidenceArtifact orphan-sweep pages on the orphan-observation timestamp: the observed set depends on wall-clock drain progress, so digests disagree across legs. The fingerprint is the paginated template, so every page is covered."
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph

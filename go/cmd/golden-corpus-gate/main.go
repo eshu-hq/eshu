@@ -101,7 +101,7 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.diffAllowlist, "diff-allowlist", "specs/backend-divergence-allowlist.v1.yaml", "path to the backend-divergence allowlist excusing known NornicDB-vs-Neo4j divergences (#6782)")
 	fs.StringVar(&o.diffLeft2, "diff-left2", "", "second-pairing nornicdb capture directory for multi-leg quorum mode (#6782): with -diff-right2, the gate fails only on divergences reproducing across both pairings")
 	fs.StringVar(&o.diffRight2, "diff-right2", "", "second-pairing neo4j capture directory for multi-leg quorum mode (#6782): with -diff-left2, the gate fails only on divergences reproducing across both pairings")
-	fs.IntVar(&o.diffExecutionsAdvisoryMax, "diff-executions-advisory-max", 0, "quorum mode only (#6941): ceiling on the reproduced advisory execution-count divergence total; above it the gate adds a required failing nornicdb_vs_neo4j_executions_ceiling finding instead of leaving the total unbounded. 0 (default) disables the ceiling; the existing nornicdb_vs_neo4j_executions advisory finding is unchanged either way")
+	fs.IntVar(&o.diffExecutionsAdvisoryMax, "diff-executions-advisory-max", 0, "quorum mode only (#6941): ceiling on the reproduced advisory divergence total (scheduling-noise execution counts or row totals with agreeing results, plus reproduced transient-read exclusions); above it the gate adds a required failing nornicdb_vs_neo4j_executions_ceiling finding instead of leaving the total unbounded. 0 (default) disables the ceiling; the existing nornicdb_vs_neo4j_executions advisory finding is unchanged either way")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

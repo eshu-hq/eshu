@@ -71,22 +71,32 @@ as a required finding; a run that recorded only one backend fails closed.
 With `-diff-left2`/`-diff-right2` the phase runs multi-leg quorum instead:
 both pairings are excused independently and only divergences reproducing
 across pairings (same fingerprint and kind) fail as required; pairing-local
-noise is reported as an advisory finding. Reproduced execution-count
-divergences with agreeing results (`executions` kind) are also advisory
-(`nornicdb_vs_neo4j_executions`, #6782 permanent disposition): the two
-backends drain at systematically different speeds, so pass counts reproduce
-across pairings and quorum cannot filter them, while row truth is still
-compared through the `results` and `missing` kinds on every read. The
+noise is reported as an advisory finding. Reproduced execution-count and
+row-total divergences with agreeing results (`executions` and `rowcount`
+kinds) are also advisory (`nornicdb_vs_neo4j_executions`, #6782 permanent
+disposition as extended by the option-2 slice): the two backends drain at
+systematically different speeds, so pass counts reproduce across pairings,
+and one leg observes a converged row in one more poll iteration than the
+other, so row totals reproduce too, while row truth is still compared
+through the `results` and `missing` kinds on every read. The
 advisory finding's detail names the top 3 statements by reproduced-divergence
 count (`backendconformance.TopAdvisoryStatementReports`), not only the first
 recorded, so a regression concentrated on a handful of statements is visible
-without reading the full pairing dump.
+without reading the full pairing dump. Divergences on registered
+transient-state reads (`transient_reads` in the allowlist spec, #6782
+option 1 — orphan scans whose digest disagrees across legs because the
+result depends on the drain point) report in their own advisory finding
+(`nornicdb_vs_neo4j_transient`), never in the executions advisory whose
+"agreeing results" wording would be false, and never as a failure.
 
 That advisory total is otherwise unbounded (#6941): a backend regression that
 triples drain passes would still report as an advisory `WARN` and pass the
 gate. `-diff-executions-advisory-max` (quorum mode only; 0 disables it, the
-default) puts a ceiling on the reproduced advisory total — above it the phase
-adds a required, failing `nornicdb_vs_neo4j_executions_ceiling` finding naming
+default) puts a ceiling on the reproduced advisory total — the reproduced
+scheduling-noise count plus reproduced transient-read exclusions, so a
+systematic divergence on a registered statement cannot hide behind timing
+noise indefinitely. Above it the phase adds a required, failing
+`nornicdb_vs_neo4j_executions_ceiling` finding naming
 the observed count, the ceiling, and the top statements, instead of leaving
 the total to grow silently. CI passes `-diff-executions-advisory-max=200`:
 observed advisory totals on this corpus were 12-70 across nine CI runs and
@@ -223,7 +233,8 @@ scans an entire response.
   differential capture directories against the divergence allowlist (#6782),
   with multi-leg quorum across two pairings via `-diff-left2`/`-diff-right2`,
   and a `-diff-executions-advisory-max` ceiling on the reproduced advisory
-  execution-count total in quorum mode (#6941).
+  scheduling-noise total (execution counts or row totals) in quorum mode
+  (#6941, extended by the #6782 option-2 slice).
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
 ## SQL relationship and CODEOWNERS query coverage (#5410)

@@ -199,6 +199,26 @@ func TestAllowlistRejectsExecutionsTier(t *testing.T) {
 	}
 }
 
+// TestAllowlistRejectsRowcountTier pins the #6782 option-2 disposition:
+// row-total noise with agreeing results is advisory at the gate, so it
+// needs no excuse and a rowcount-tier entry is a parse error rather than
+// a silent no-op that would accumulate as dead weight in the spec.
+func TestAllowlistRejectsRowcountTier(t *testing.T) {
+	_, err := ParseAllowlist([]byte(`entries:
+- statement: "MATCH (n:Repository) RETURN n"
+  tier: rowcount
+  reason: row totals vary run to run with agreeing results
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want rowcount-tier rejection")
+	}
+	if !strings.Contains(err.Error(), "rowcount") {
+		t.Fatalf("ParseAllowlist() error = %v, want it to name the retired rowcount tier", err)
+	}
+}
+
 // TestAllowlistStatementTierMatchesAdvisoryKind keeps a statement-tier entry
 // honest under the advisory disposition: an executions-only divergence still
 // counts as a match, so the entry is neither stale nor silently widened.
@@ -227,6 +247,122 @@ func TestAllowlistStatementTierMatchesAdvisoryKind(t *testing.T) {
 
 // TestEmptyAllowlistExcusesNothing pins the default: an empty allowlist file
 // parses clean and excuses no divergence.
+// TestParseTransientReadsRejectsNonTransientStatement is the seeded RED
+// case for the option-1 guard (#6782): a transient_reads entry whose
+// statement is not a transient-state read must fail the parse, otherwise
+// any divergence could be excluded without proving it reads transient
+// state. RED: transient_reads is not parsed yet, so this parses clean.
+func TestParseTransientReadsRejectsNonTransientStatement(t *testing.T) {
+	raw := []byte(`transient_reads:
+- statement: "MATCH (n:Repository) RETURN n"
+  reason: not actually transient
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want non-transient-statement rejection")
+	}
+}
+
+// TestParseTransientReadsRejectsTier pins that transient exclusions take
+// no tier: the exclusion is kind-agnostic within the observed-noise family
+// by design, so a tier key would be a silent no-op inviting confusion
+// with the allowlist tiers.
+func TestParseTransientReadsRejectsTier(t *testing.T) {
+	raw := []byte(`transient_reads:
+- statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+  tier: results
+  reason: orphan scan over uid IS NULL
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`)
+	if _, err := ParseAllowlist(raw); err == nil {
+		t.Fatal("ParseAllowlist() error = nil, want transient-tier rejection")
+	}
+}
+
+// TestExcludeTransientHoldsOrphanDigestDiffer pins the option-1
+// disposition: a results-kind divergence on a registered transient read
+// (the Module orphan page whose digest disagrees across legs) is
+// excluded from the required set. RED: ExcludeTransient does not exist.
+func TestExcludeTransientHoldsOrphanDigestDiffer(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`transient_reads:
+- statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+  reason: orphan scan over uid IS NULL, result depends on drain point
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	orphan := backendconformance.DifferentialDifference{
+		Fingerprint: backendconformance.DifferentialFingerprint{Statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"},
+		Kind:        backendconformance.DivergenceResults,
+		Detail:      "row digest differs",
+	}
+	remaining, excluded := allow.ExcludeTransient([]backendconformance.DifferentialDifference{orphan})
+	if len(remaining) != 0 {
+		t.Fatalf("ExcludeTransient() remaining = %v, want the orphan digest differ excluded", remaining)
+	}
+	if len(excluded) != 1 {
+		t.Fatalf("ExcludeTransient() excluded = %v, want the orphan divergence reported as excluded", excluded)
+	}
+}
+
+// TestExcludeTransientKeepsFailuresAndMissing pins the exclusion's kind
+// scope: a backend error or a one-sided recording on a transient read
+// stays required, so the exclusion can never mask a real breakage.
+func TestExcludeTransientKeepsFailuresAndMissing(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`transient_reads:
+- statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+  reason: orphan scan over uid IS NULL, result depends on drain point
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	diffs := []backendconformance.DifferentialDifference{
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"},
+			Kind:        backendconformance.DivergenceFailures,
+			Detail:      "backend error",
+		},
+		{
+			Fingerprint: backendconformance.DifferentialFingerprint{Statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"},
+			Kind:        backendconformance.DivergenceMissing,
+			Detail:      "recorded on one backend only",
+		},
+	}
+	remaining, excluded := allow.ExcludeTransient(diffs)
+	if len(remaining) != 2 {
+		t.Fatalf("ExcludeTransient() remaining = %v, want failures and missing kept required", remaining)
+	}
+	if len(excluded) != 0 {
+		t.Fatalf("ExcludeTransient() excluded = %v, want nothing excluded", excluded)
+	}
+}
+
+// TestExcludeTransientIsNotStaleChecked pins the option-1 contract
+// against the allowlist rule: a transient entry that matches no
+// divergence in the run is not an error, because transient reads agree
+// on most runs by design.
+func TestExcludeTransientIsNotStaleChecked(t *testing.T) {
+	allow, err := ParseAllowlist([]byte(`transient_reads:
+- statement: "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+  reason: orphan scan over uid IS NULL, result depends on drain point
+  upstream: https://github.com/eshu-hq/eshu/issues/6782
+  owner: graph
+`))
+	if err != nil {
+		t.Fatalf("ParseAllowlist() error = %v", err)
+	}
+	remaining, excluded := allow.ExcludeTransient(nil)
+	if len(remaining) != 0 || len(excluded) != 0 {
+		t.Fatalf("ExcludeTransient(nil) = %v, %v, want no error and empty sets", remaining, excluded)
+	}
+}
+
 func TestEmptyAllowlistExcusesNothing(t *testing.T) {
 	allow, err := ParseAllowlist([]byte(`entries: []`))
 	if err != nil {

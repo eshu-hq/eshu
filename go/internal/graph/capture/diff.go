@@ -18,11 +18,14 @@ const MaxReportedDiffs = 20
 
 // Compare diffs the NornicDB and Neo4j recordings in left and right and
 // reports the divergences the allowlist does not excuse to w. It returns
-// nil when the two sides agree; execution-count divergences with agreeing
-// results are printed as advisory and do not fail the comparison. Either directory may hold either backend:
-// sides are identified by the backend labels inside the recordings, not by
-// argument order. A side with no recordings fails the comparison instead
-// of passing vacuously, so a half-finished run can never look green.
+// nil when the two sides agree; execution-count and row-total divergences
+// with agreeing results are printed as advisory and do not fail the
+// comparison, and divergences on registered transient reads print as
+// transient and do not fail it either. Either directory may hold either
+// backend: sides are identified by the backend labels inside the
+// recordings, not by argument order. A side with no recordings fails the
+// comparison instead of passing vacuously, so a half-finished run can
+// never look green.
 func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	leftByBackend, err := LoadDir(left)
 	if err != nil {
@@ -49,13 +52,17 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("apply divergence allowlist: %w", err)
 	}
-	remaining, advisory := backendconformance.SplitAdvisory(unexcused)
+	remaining, transient := allow.ExcludeTransient(unexcused)
+	if err := reportTransient(w, transient); err != nil {
+		return err
+	}
+	remaining, advisory := backendconformance.SplitAdvisory(remaining)
 	if err := reportAdvisory(w, advisory); err != nil {
 		return err
 	}
 	if len(remaining) == 0 {
-		return report(w, "differential comparison clean: %d nornicdb records, %d neo4j records, %d allowlisted, %d advisory\n",
-			len(nornic), len(neo), len(diffs)-len(unexcused), len(advisory))
+		return report(w, "differential comparison clean: %d nornicdb records, %d neo4j records, %d allowlisted, %d transient, %d advisory\n",
+			len(nornic), len(neo), len(diffs)-len(unexcused), len(transient), len(advisory))
 	}
 	if err := report(w, "differential comparison found %d unexcused divergence(s) (%d nornicdb records, %d neo4j records):\n",
 		len(remaining), len(nornic), len(neo)); err != nil {
@@ -75,15 +82,37 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	return fmt.Errorf("%d unexcused backend divergence(s), first: %s", len(remaining), summarizeDiff(remaining[0]))
 }
 
-// reportAdvisory prints the execution-count divergences the gate holds
-// advisory (see [backendconformance.AdvisoryKind]): named so a doubled
-// write stays visible in the CI log, bounded like the failure report, never
-// an error. Nothing prints when there are none.
+// reportTransient prints the divergences registered transient reads
+// explain (see ExcludeTransient): named so a timing-dependent page stays
+// visible in the CI log, bounded like the failure report, never an
+// error. Nothing prints when there are none.
+func reportTransient(w io.Writer, transient []backendconformance.DifferentialDifference) error {
+	if len(transient) == 0 {
+		return nil
+	}
+	if err := report(w, "differential comparison: %d transient-read divergence(s) excluded by registration (timing-dependent state, not gate-failing):\n", len(transient)); err != nil {
+		return err
+	}
+	for i, diff := range transient {
+		if i >= MaxReportedDiffs {
+			return report(w, "... and %d more transient (see recording artifacts)\n", len(transient)-MaxReportedDiffs)
+		}
+		if err := report(w, "- transient: %s [%s]: %s\n", diff.Fingerprint.Statement, diff.Fingerprint.Parameters, diff.Detail); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reportAdvisory prints the execution-count and row-total divergences the
+// gate holds advisory (see [backendconformance.AdvisoryKind]): named so a
+// doubled write stays visible in the CI log, bounded like the failure
+// report, never an error. Nothing prints when there are none.
 func reportAdvisory(w io.Writer, advisory []backendconformance.DifferentialDifference) error {
 	if len(advisory) == 0 {
 		return nil
 	}
-	if err := report(w, "differential comparison: %d advisory execution-count divergence(s) with agreeing results (scheduling noise, not gate-failing):\n", len(advisory)); err != nil {
+	if err := report(w, "differential comparison: %d advisory scheduling-noise divergence(s) with agreeing results (execution counts or row totals, not gate-failing):\n", len(advisory)); err != nil {
 		return err
 	}
 	for i, diff := range advisory {
