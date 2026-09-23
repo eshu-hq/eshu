@@ -72,9 +72,7 @@ exits 0; `go test ./internal/storage/postgres/... -race -count=1` passes,
 including the moved package (`ok
 github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state`); `go
 test -list '.*' ./internal/storage/postgres/terraform/state/` shows all 5
-moved test names. For each moved test, `go test
-./internal/storage/postgres/terraform/state/... -list '^<name>$' -count=1 |
-rg -q '^<name>$'` exits 0, and the same assertion against
+moved test names. For each moved test, `for n in TestListTerraformStateLastSerialsParsesGenerationID TestListTerraformStateRecentWarningsBoundsLimit TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings TestListTerraformStateRecentWarningsAppliesContractDefaultLimit TestListTerraformStateLastSerialsSkipsMalformedRows; do go test ./internal/storage/postgres/terraform/state/... -list "^$n\$" -count=1 | rg -q "^$n\$" || echo "missing $n"; done` exits 0, and the same assertion against
 `./internal/storage/postgres` exits 1, for all five:
 `TestListTerraformStateLastSerialsParsesGenerationID`,
 `TestListTerraformStateRecentWarningsBoundsLimit`,
