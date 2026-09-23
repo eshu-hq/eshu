@@ -201,9 +201,12 @@ func (s *Source) drain(ctx context.Context) error {
 	return nil
 }
 
+// learnGeneration feeds scope metadata (in sorted key order, like payload
+// keys, so a probed pseudonym never depends on map iteration) and every
+// payload to the walker.
 func (s *Source) learnGeneration(raw rawGeneration) {
-	for key, value := range raw.gen.Scope.Metadata {
-		s.walker.learn(key, value, ClassUnknown)
+	for _, key := range sortedMapKeys(raw.gen.Scope.Metadata) {
+		s.walker.learn(key, raw.gen.Scope.Metadata[key], ClassUnknown)
 	}
 	for _, env := range raw.envelopes {
 		s.walker.learn("", env.Payload, ClassUnknown)
