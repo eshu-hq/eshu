@@ -286,17 +286,17 @@ the families that have moved, `playbook`, `secrets`, `incident`,
 `impact` holds three, `service` two, `semanticsearch` two. A family's capability
 row travels with the family; that is established practice here, not a proposal.
 
-So today's `contract/` empties itself completely as the family moves land: 34 of
-its rows go to the families listed in the arithmetic table, 3 more
-(`capabilities.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go`)
-go to `capability/`, and `capability_matrix.go` and `registry.go` follow them
-there as `capability/matrix.go` and `capability/registry.go`. Its `doc.go` is
-deleted with the directory. 34 + 5 + 1 = 40, the whole package.
+End state, not a PR: today's `contract/` empties as the family moves land. 34
+rows go to the families in the arithmetic table, 3 (`capabilities.go`,
+`capability_matrix_ext.go`, `capability_matrix_terraform.go`) go to
+`capability/`, and `capability_matrix.go` and `registry.go` follow as
+`capability/matrix.go` and `capability/registry.go`. Its `doc.go` is deleted
+with the directory. 34 + 5 + 1 = 40, the whole package.
 
 To keep `capability/registry.go` unambiguous, root's `capability_registry.go`
 lands as `capability/lookup.go` rather than `capability/registry.go` — the
 mapping is updated to match, and the collision a reviewer caught here does not
-arise. `capability/` totals 4 root files + 5 from `contract/` = 9.
+arise. `capability/` has 2 root files today (#6985); `contract/`'s 5 make it 7.
 The consequence for sequencing is that the `querycontract` rename goes **late**,
 after the families have drained the name, rather than second.
 

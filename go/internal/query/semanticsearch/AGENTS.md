@@ -15,11 +15,11 @@ Read `doc.go` and `README.md` first.
   `tracing.HandlerTracer()` inline at a handler call site. The var is the
   seam a test swaps a recording provider into; bypassing it compiles clean and
   silently emits zero spans to the test's recorder.
-- The capability is registered in `query/contract`
-  (`capability_matrix.go`), not here — root blank-imports that package from
-  `capability_registry.go` and always links into production, so its `init()`s
-  always run there. `go test ./internal/query/semanticsearch` never
-  runs root's `init()` functions (the cycle above), so `main_test.go`'s
+- The capability is registered in `query/contract` (`capability_matrix.go`),
+  not here — `capability/lookup.go` blank-imports that package and root
+  imports `capability`, so it always links into production and its `init()`s
+  always run there. `go test ./internal/query/semanticsearch` never runs
+  root's `init()` functions (the cycle above), so `main_test.go`'s
   `TestMain` registers it for this package's tests.
 - `Support()` (`capability.go`) is the ONLY declaration of the support row. Both
   registrations above read that one var. MUST NOT re-inline the five fields on

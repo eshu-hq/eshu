@@ -40,7 +40,7 @@ order is the shared spine: nothing moves before PR 1.
 | 32 | `repository/`: move the 12 zero-outbound files into `repository/readmodel`, export the 34 names the parent calls; plus `repository/artifacts` ← `repositoryartifacts` | 65 | 15 queryplan `file:` keys re-key |
 | 33 | **Part B.** `content/` ← `contentread`, `content/read/` (the `ContentReader` unit, with the four merges and the `semantic_evidence.go` split), `content/relationship/` | 56 moved, 52 after merges | the issue puts it last; it is the only big-bang |
 | 34 | The alias sweep: delete all 21 root `*_alias.go` and migrate 1,420 external references | −21 | each family's aliases can only die after that family has moved |
-| 35 | hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
+| 35 | move the 5 shared rows out of today's `contract/` into `capability/` (`capabilities.go`, `capability_matrix_ext.go`, `capability_matrix_terraform.go`, plus `capability_matrix.go` as `matrix.go` and `registry.go` as `registry.go`); hand the free `contract/` name to #6818 once today's `contract/` is down to `doc.go`; root reduction to five files; re-pin the dirgate row; retire the `internal/query` ledger row | — | definition of done |
 
 ### PR 2 is a hoist, not a move (measured)
 
@@ -51,7 +51,10 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
 `capability_keys.go` count below needed `go test -c` to see all of them:
 
 - It is **8 files** — 3 from root and 5 from `contract/`. Both the earlier
-  "7" here and the cost page's "4 root + 5 = 9" were wrong.
+  "7" here and the cost page's "4 root + 5 = 9" were wrong. As landed,
+  #6985 moved 2 root files and dissolved `permission_catalog.go`, and none
+  of the 5 `contract/` files: they wait for PR 35, so `capability/` holds 2
+  today and 7 at the end.
   `capability_keys.go` does not move: it holds the five capability-id
   constants root's own handlers name, and its own doc comment says they
   stayed at root "because the routes did". Moving it strands all five
@@ -271,7 +274,7 @@ Updated as each PR lands.
 
 - [x] PR 1a — envelope spine repoint ([#6977](https://github.com/eshu-hq/eshu/pull/6977), merged `a42ad3788`). 0 files moved.
 - [x] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), merged `a07ee93bf`). 0 files moved. The spine is now clear.
-- [ ] PR 2 — `capability/` ([#6985](https://github.com/eshu-hq/eshu/pull/6985), open). 2 files moved, `permission_catalog.go` dissolved.
+- [x] PR 2 — `capability/` ([#6985](https://github.com/eshu-hq/eshu/pull/6985), merged `2d68f1cbb`). 2 files moved, `permission_catalog.go` dissolved.
 - [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
 - [ ] PR 4 — `testutil/` ← `querytestutil`
 - [ ] PR 6 — `auth/`

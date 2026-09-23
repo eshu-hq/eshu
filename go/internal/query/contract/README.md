@@ -18,9 +18,9 @@ constants.
 ## How a row reaches production
 
 Each `init()` calls `register`, which calls
-`querycontract.RegisterCapabilities`. Package `query` blank-imports this
-package (`capability_registry.go`) so those `init()`s link into every binary
-that serves the query surface. Root reads the assembled registry through
+`querycontract.RegisterCapabilities`. Package `query/capability` blank-imports
+this package (`capability/lookup.go`), and root imports `capability`, so those
+`init()`s link into every binary that serves the query surface. Root reads the assembled registry through
 `querycontract.CompatibilityCapabilityMatrix()`; it no longer writes it.
 
 That indirection is why this package can exist at all. It does not import

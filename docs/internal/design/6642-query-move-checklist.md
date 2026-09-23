@@ -21,7 +21,7 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | --- | --- | ---: | --- | --- | ---: |
 | 1 | `capability/` | 2 | [#6985](https://github.com/eshu-hq/eshu/pull/6985) | **merged** `2d68f1cbb` | — |
 | 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
-| 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | open | 52 |
+| 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
 | 5 | `querycontract/entity` | 2–3 | — | not started | |
 | 6 | `querycontract/evidence` | 3 | — | not started | |
