@@ -3,7 +3,11 @@
 
 package visualization
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+)
 
 // The visualization-packet builder implementation lives in querycontract
 // (#6060), so this leaf (#6642 Part A) can build a Packet
@@ -16,50 +20,50 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 const (
 	// MaxNodes bounds the number of nodes a visualization packet
 	// may carry.
-	MaxNodes = querycontract.VisualizationMaxNodes
+	MaxNodes = visualization.VisualizationMaxNodes
 	// MaxEdges bounds the number of edges a visualization packet
 	// may carry.
-	MaxEdges = querycontract.VisualizationMaxEdges
+	MaxEdges = visualization.VisualizationMaxEdges
 )
 
 // View names the derived-view family a packet was built from.
-type View = querycontract.VisualizationView
+type View = visualization.VisualizationView
 
 const (
 	// ViewServiceStory is the service-story dossier subgraph.
-	ViewServiceStory = querycontract.VisualizationViewServiceStory
+	ViewServiceStory = visualization.VisualizationViewServiceStory
 	// ViewEvidenceCitation is the evidence-citation subgraph.
-	ViewEvidenceCitation = querycontract.VisualizationViewEvidenceCitation
+	ViewEvidenceCitation = visualization.VisualizationViewEvidenceCitation
 	// ViewIncidentContext is the incident-context subgraph.
-	ViewIncidentContext = querycontract.VisualizationViewIncidentContext
+	ViewIncidentContext = visualization.VisualizationViewIncidentContext
 	// ViewGraphQuery is the executed-Cypher-result subgraph.
-	ViewGraphQuery = querycontract.VisualizationViewGraphQuery
+	ViewGraphQuery = visualization.VisualizationViewGraphQuery
 	// ViewUnsupported marks a packet with no derivable subgraph.
-	ViewUnsupported = querycontract.VisualizationViewUnsupported
+	ViewUnsupported = visualization.VisualizationViewUnsupported
 )
 
 // Node is one bounded node in a visualization packet.
-type Node = querycontract.VisualizationNode
+type Node = visualization.VisualizationNode
 
 // Edge is one bounded edge in a visualization packet.
-type Edge = querycontract.VisualizationEdge
+type Edge = visualization.VisualizationEdge
 
 // Limits states a packet's payload bounds and retained counts.
-type Limits = querycontract.VisualizationLimits
+type Limits = visualization.VisualizationLimits
 
 // Truncation records what a packet dropped to stay within bounds.
-type Truncation = querycontract.VisualizationTruncation
+type Truncation = visualization.VisualizationTruncation
 
 // Packet is a compact, bounded, derived view of an existing
 // story, evidence-citation, or incident-context query response.
-type Packet = querycontract.VisualizationPacket
+type Packet = visualization.VisualizationPacket
 
 // visualizationBuilder accumulates nodes and edges before a packet is
-// finalized. See querycontract.VisualizationBuilder for the full contract.
-type visualizationBuilder = querycontract.VisualizationBuilder
+// finalized. See visualization.VisualizationBuilder for the full contract.
+type visualizationBuilder = visualization.VisualizationBuilder
 
 func newVisualizationBuilder(view View, title string) *visualizationBuilder {
-	return querycontract.NewVisualizationBuilder(view, title)
+	return visualization.NewVisualizationBuilder(view, title)
 }
 
 // unsupportedVisualizationPacket returns an explicit unsupported packet.
@@ -69,10 +73,10 @@ func unsupportedVisualizationPacket(
 	limitations []string,
 	nextCalls []map[string]any,
 ) Packet {
-	return querycontract.UnsupportedVisualizationPacket(view, truth, limitations, nextCalls)
+	return visualization.UnsupportedVisualizationPacket(view, truth, limitations, nextCalls)
 }
 
 // visualizationNodeID derives a stable, opaque node ID.
 func visualizationNodeID(kind string, parts ...string) string {
-	return querycontract.VisualizationNodeID(kind, parts...)
+	return visualization.VisualizationNodeID(kind, parts...)
 }

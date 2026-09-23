@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package visualization
 
 import (
 	"crypto/sha1" // #nosec G505 -- non-cryptographic stable node/edge ID digest for visualization identity, not a security primitive
@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
@@ -196,7 +198,7 @@ type VisualizationPacket struct {
 	Edges []VisualizationEdge `json:"edges"`
 	// Truth is a copy of the source response's TruthEnvelope, when one was
 	// provided. It is the canonical truth metadata for the subgraph.
-	Truth *TruthEnvelope `json:"truth,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth,omitempty"`
 	// Limits states the payload bounds and retained counts.
 	Limits VisualizationLimits `json:"limits"`
 	// Truncation records what was dropped to stay within bounds.
@@ -215,7 +217,7 @@ type VisualizationPacket struct {
 type VisualizationBuilder struct {
 	view     VisualizationView
 	title    string
-	truth    *TruthEnvelope
+	truth    *querycontract.TruthEnvelope
 	nodes    map[string]VisualizationNode
 	edges    map[string]VisualizationEdge
 	nodeKeys []string
@@ -240,7 +242,7 @@ func NewVisualizationBuilder(view VisualizationView, title string) *Visualizatio
 // the builder lived in their own package, so each of them takes SetTruth now
 // (#6060). The graph-query builder additionally read the node and edge maps to
 // decide emptiness, which is what Empty and EdgeCount below replace.
-func (b *VisualizationBuilder) SetTruth(truth *TruthEnvelope) {
+func (b *VisualizationBuilder) SetTruth(truth *querycontract.TruthEnvelope) {
 	b.truth = truth
 }
 
@@ -398,7 +400,7 @@ func (b *VisualizationBuilder) Finalize() VisualizationPacket {
 // supplied one.
 func UnsupportedVisualizationPacket(
 	view VisualizationView,
-	truth *TruthEnvelope,
+	truth *querycontract.TruthEnvelope,
 	limitations []string,
 	nextCalls []map[string]any,
 ) VisualizationPacket {
@@ -451,7 +453,7 @@ func VisualizationEdgeID(source, target, relationship string) string {
 // have pulled unrelated root files into this package's compatibility surface
 // for no benefit. Mirrors the registry family's derefString/derefBool
 // precedent (#6060).
-func cloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
+func cloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil
 	}

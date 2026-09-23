@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/contentread"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
@@ -231,20 +233,20 @@ func resolveExactGraphEntityCandidates(
 }
 
 // VisualizationView names the derived-view family a packet was built from.
-type VisualizationView = querycontract.VisualizationView
+type VisualizationView = visualization.VisualizationView
 
 // VisualizationViewGraphQuery is the executed-Cypher-result subgraph.
-const VisualizationViewGraphQuery = querycontract.VisualizationViewGraphQuery
+const VisualizationViewGraphQuery = visualization.VisualizationViewGraphQuery
 
 // VisualizationNode is one bounded node in a visualization packet.
-type VisualizationNode = querycontract.VisualizationNode
+type VisualizationNode = visualization.VisualizationNode
 
 // VisualizationEdge is one bounded edge in a visualization packet.
-type VisualizationEdge = querycontract.VisualizationEdge
+type VisualizationEdge = visualization.VisualizationEdge
 
 // VisualizationPacket is a compact, bounded, derived view of an executed
 // read-only Cypher query.
-type VisualizationPacket = querycontract.VisualizationPacket
+type VisualizationPacket = visualization.VisualizationPacket
 
 // deadCodeIncomingEdge is the strongest incoming reachability edge observed for
 // a dead-code candidate.

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package visualization
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
@@ -174,11 +176,11 @@ func strongerVisualizationTruthLabel(left, right string) string {
 
 func visualizationTruthLabelRank(label string) int {
 	switch label {
-	case string(TruthLevelExact):
+	case string(querycontract.TruthLevelExact):
 		return 3
-	case string(TruthLevelDerived):
+	case string(querycontract.TruthLevelDerived):
 		return 2
-	case string(TruthLevelFallback):
+	case string(querycontract.TruthLevelFallback):
 		return 1
 	default:
 		return 0
