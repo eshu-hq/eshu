@@ -225,7 +225,7 @@ already dead before this PR, in a table row whose bytes anchor another
 citation's LINE-ledger authority (repointing it would invalidate that
 authority); and comments in `go/internal/query/language_query_graph_error_test.go`
 (bare `entity_content_types.go`), `go/internal/query/language/metadata.go`
-and `go/internal/query/querycontract/language_query_metadata.go` (bare
+and `go/internal/query/querycontract/taxonomy/search.go` (bare
 `entity_metadata.go`) keep the old names, because any edit to a `*language*`
 file trips `scripts/verify-parser-relationship-kit.sh`, which then demands
 an unrelated Language Query DSL doc update. All become fixable when their

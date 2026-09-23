@@ -14,14 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// graphBackedEntityTypes forwards to querycontract.GraphBackedEntityTypes.
+// graphBackedEntityTypes forwards to taxonomy.GraphBackedEntityTypes.
 var graphBackedEntityTypes = taxonomy.GraphBackedEntityTypes
 
-// contentBackedEntityTypes forwards to querycontract.ContentBackedEntityTypes.
+// contentBackedEntityTypes forwards to taxonomy.ContentBackedEntityTypes.
 var contentBackedEntityTypes = taxonomy.ContentBackedEntityTypes
 
 // graphFirstContentBackedEntityTypes forwards to
-// querycontract.GraphFirstContentBackedEntityTypes.
+// taxonomy.GraphFirstContentBackedEntityTypes.
 var graphFirstContentBackedEntityTypes = taxonomy.GraphFirstContentBackedEntityTypes
 
 // buildLanguageResult converts a Neo4j result row into the response shape.
@@ -72,7 +72,7 @@ func buildLanguageResult(row map[string]any, label string) map[string]any {
 	return result
 }
 
-// graphResultMetadata forwards to querycontract.GraphResultMetadata.
+// graphResultMetadata forwards to taxonomy.GraphResultMetadata.
 func graphResultMetadata(row map[string]any) map[string]any {
 	return taxonomy.GraphResultMetadata(row)
 }
@@ -85,7 +85,7 @@ func graphSemanticMetadataProjection() string {
 }
 
 // graphLabelToContentEntityType forwards to
-// querycontract.GraphLabelToContentEntityType.
+// taxonomy.GraphLabelToContentEntityType.
 func graphLabelToContentEntityType(label string) string {
 	return taxonomy.GraphLabelToContentEntityType(label)
 }

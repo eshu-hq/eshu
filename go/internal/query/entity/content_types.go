@@ -247,7 +247,7 @@ func (h *Handler) resolveEntityFromContent(
 }
 
 // contentEntityTypeForResolve forwards to
-// querycontract.ContentEntityTypeForResolve. The implementation moved to
+// taxonomy.ContentEntityTypeForResolve. The implementation moved to
 // querycontract for #6060; this wrapper keeps root callers unchanged.
 func contentEntityTypeForResolve(typeName string) string {
 	return taxonomy.ContentEntityTypeForResolve(typeName)
@@ -281,7 +281,7 @@ func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 }
 
 // resolveContentBackedEntityTypes forwards to
-// querycontract.ResolveContentBackedEntityTypes. The implementation moved to
+// taxonomy.ResolveContentBackedEntityTypes. The implementation moved to
 // querycontract for #6060; this alias keeps root callers unchanged.
 var resolveContentBackedEntityTypes = taxonomy.ResolveContentBackedEntityTypes
 

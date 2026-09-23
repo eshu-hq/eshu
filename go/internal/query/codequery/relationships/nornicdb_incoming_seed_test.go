@@ -299,7 +299,7 @@ func TestNornicDBGraphLabelForContentEntityTypeStaysAlignedWithGraphLabels(t *te
 			t.Parallel()
 
 			// graphLabelToContentEntityType in package query is a thin
-			// forwarder for querycontract.GraphLabelToContentEntityType,
+			// forwarder for taxonomy.GraphLabelToContentEntityType,
 			// which this package cannot name through the root.
 			if got, want := relationships.NornicDBGraphLabelForContentEntityType(label), taxonomy.GraphLabelToContentEntityType(label); got != want {
 				t.Fatalf("relationships.NornicDBGraphLabelForContentEntityType(%q) = %q, want shared graph label %q", label, got, want)

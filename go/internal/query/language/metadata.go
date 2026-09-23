@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// EntitySearch aliases querycontract.LanguageEntitySearch. Package query's
+// EntitySearch aliases taxonomy.LanguageEntitySearch. Package query's
 // content_reader_entity_search.go names this type as languageEntitySearch
 // through a forwarding alias in language_alias.go (#6642); this is the
 // leaf's canonical spelling, exported at its declaration because that root
@@ -22,7 +22,7 @@ import (
 type EntitySearch = taxonomy.LanguageEntitySearch
 
 // languageEntityContentSearcher aliases
-// querycontract.LanguageEntityContentSearcher. *ContentReader (package
+// taxonomy.LanguageEntityContentSearcher. *ContentReader (package
 // query) implements it; a store that does not gets the per-repository
 // fallback in searchLanguageEntities below, which is bound but issues one
 // statement per granted repository. package query's language_alias.go keeps
@@ -126,7 +126,7 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 // entity_metadata.go, search_metadata.go), which anchor their own reads
 // differently, so this route adds the repository through the wrapper below
 // rather than changing the shared shape.
-// languageResultMatchKey forwards to querycontract.LanguageResultMatchKey.
+// languageResultMatchKey forwards to taxonomy.LanguageResultMatchKey.
 func languageResultMatchKey(filePath string, entityType string, name string, startLine int) string {
 	return taxonomy.LanguageResultMatchKey(filePath, entityType, name, startLine)
 }

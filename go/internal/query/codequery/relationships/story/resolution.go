@@ -220,7 +220,7 @@ func ExactCandidatesPerRepository(
 // either side changes alone.
 //
 // The three branches are the store's, not this route's. A store that satisfies
-// querycontract.LanguageEntityContentSearcher takes the grant into its own statement, so one
+// taxonomy.LanguageEntityContentSearcher takes the grant into its own statement, so one
 // read serves the whole granted set and the LIMIT page is taken from it. A
 // store that does not -- a test fake, or an older implementation -- can only be
 // asked about one repository at a time, so a corpus-wide scoped search iterates
@@ -265,7 +265,7 @@ func SearchEntitiesForGrant(
 	// that fix for the two no-language branches, which have a read of their own
 	// to change; this loop keeps the substring rows its twin's callers need.
 	// Its reach today is nil -- *ContentReader satisfies
-	// querycontract.LanguageEntityContentSearcher and takes the branch above, so this loop
+	// taxonomy.LanguageEntityContentSearcher and takes the branch above, so this loop
 	// runs only for a fake or an older store.
 	entities := make([]querycontract.EntityContent, 0, search.Limit)
 	for _, repoID := range search.AllowedRepositoryIDs {

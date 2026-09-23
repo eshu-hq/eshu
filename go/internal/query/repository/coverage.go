@@ -141,7 +141,7 @@ func (h *Handler) queryRepositoryGraphCoverageStatsWithTimeout(
 	return h.queryRepositoryGraphCoverageStats(graphCtx, repoID)
 }
 
-// coverageLanguageMaps forwards to querycontract.CoverageLanguageMaps, which
+// coverageLanguageMaps forwards to taxonomy.CoverageLanguageMaps, which
 // this implementation moved to (#6060) so a handler-family subpackage can
 // reach it without importing this package.
 func coverageLanguageMaps(languages []querycontract.RepositoryLanguageCount) []map[string]any {

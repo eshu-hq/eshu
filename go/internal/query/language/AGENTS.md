@@ -67,7 +67,7 @@ Move evidence.
   `content_reader_structural_inventory.go`, and
   `content_reader_symbol_search.go` (all Part B, not moved) call it through
   the `normalizedLanguageVariants` forwarder in `language_alias.go`.
-- The `var _ querycontract.LanguageEntityContentSearcher = (*ContentReader)(nil)`
+- The `var _ taxonomy.LanguageEntityContentSearcher = (*ContentReader)(nil)`
   compile-time pin lives in root's `language_alias.go`, not here: `ContentReader`
   is a later lane's family (Part B) and this leaf must never name it.
 

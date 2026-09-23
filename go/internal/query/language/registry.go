@@ -23,7 +23,7 @@ func canonicalLanguage(language string) string {
 	return taxonomy.CanonicalLanguage(language)
 }
 
-// NormalizedVariants forwards to querycontract.NormalizedLanguageVariants.
+// NormalizedVariants forwards to taxonomy.NormalizedLanguageVariants.
 // Package query keeps a normalizedLanguageVariants forwarder in
 // language_alias.go so its content_reader_*.go callers compile unchanged
 // (#6642).
