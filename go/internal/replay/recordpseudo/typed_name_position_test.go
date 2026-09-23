@@ -4,7 +4,9 @@
 package recordpseudo_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -47,4 +49,38 @@ func TestNumericNameAfterTypedColonIsAName(t *testing.T) {
 	mustMatch(t, "stable_fact_key", env.StableFactKey, `^aws:lambda:`+pseudoAcct+`:us-east-1:function:`+hexName+`$`)
 	mustMatch(t, "source_uri", env.SourceRef.SourceURI, `^aws://lambda/`+pseudoAcct+`/function/`+hexName+`$`)
 	mustMatch(t, "source_record_id", env.SourceRef.SourceRecordID, `^`+hexName+`$`)
+}
+
+// TestNumericNameSeenOnlyInAnARNIsLearned (round 7): a numeric resource name
+// that appears only inside an ARN, never in a name field, sits in the name
+// position right after the type token and must be learned from the ARN
+// itself. Qualifiers after the name ($LATEST) and the type tokens stay.
+func TestNumericNameSeenOnlyInAnARNIsLearned(t *testing.T) {
+	key := mustKey(t, keyA)
+	gen := generation("aws:"+acct+":us-east-1:lambda", nil, map[string]any{
+		"account_id": acct,
+		"name":       "img-resizer",
+		"arn":        "arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer",
+		"resources": []any{
+			"arn:aws:lambda:us-east-1:" + acct + ":function:77123:$LATEST",
+			"arn:aws:elasticache:us-east-1:" + acct + ":cluster:99123",
+			"arn:aws:rds:us-east-1:" + acct + ":db:66123",
+		},
+	})
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	raw, err := json.Marshal(envs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(raw)
+	for _, leak := range []string{"77123", "99123", "66123"} {
+		if strings.Contains(out, leak) {
+			t.Errorf("numeric name %q seen only in an ARN survived raw", leak)
+		}
+	}
+	for _, keep := range []string{":$LATEST", "us-east-1", ":function:", ":db:", ":cluster:"} {
+		if !strings.Contains(out, keep) {
+			t.Errorf("structure %q lost", keep)
+		}
+	}
 }

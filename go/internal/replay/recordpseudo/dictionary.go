@@ -256,7 +256,15 @@ func (d *dictionary) learnARN(raw string) {
 		// name, which is never reported).
 		d.unlistedARNTypes[service+":"+components[0]]++
 	}
-	for _, component := range components[skip:] {
+	for i, component := range components[skip:] {
+		if i == 0 && numericRe.MatchString(component) {
+			// The component at index skip is the resource name, not a
+			// qualifier, so a numeric name seen only in an ARN is learned
+			// here; learnIdent keeps the four-digit floor and the account
+			// rule for a 12-digit name.
+			d.learnIdent(component)
+			continue
+		}
 		d.learnARNComponent(component)
 	}
 }
@@ -285,10 +293,9 @@ func arnTypeSkip(service string, components []string) int {
 // learnARNComponent learns one ARN resource component. A 12-digit
 // component is an account (a foreign account in an S3 log key path, the
 // member account of an organizations ARN) and is learned as one. Any other
-// purely numeric component is a qualifier (a task-definition revision, a
-// function version, a date in an S3 key) and is never learned from the
-// ARN; a numeric resource name is learned from its name field and then
-// rewrites the matching component whole.
+// purely numeric component past the name is a qualifier (a task-definition
+// revision, a function version, a date in an S3 key) and is never learned;
+// learnARN learns a numeric name in the name position itself.
 func (d *dictionary) learnARNComponent(component string) {
 	if account12Re.MatchString(component) {
 		d.learnAccount(component)
