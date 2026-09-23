@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -35,7 +36,7 @@ type TruthBasis = querycontract.TruthBasis
 type ErrorCode = querycontract.ErrorCode
 
 // DeadCodeIncomingEdge is one resolved incoming edge of a candidate.
-type DeadCodeIncomingEdge = querycontract.DeadCodeIncomingEdge
+type DeadCodeIncomingEdge = code.DeadCodeIncomingEdge
 
 // EntityContent is one entity's content payload.
 type EntityContent = querycontract.EntityContent

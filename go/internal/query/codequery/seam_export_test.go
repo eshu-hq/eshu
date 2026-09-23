@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // TestCodeSeamExportsForward is the tripwire for the #6060 code seam export:
@@ -126,16 +126,16 @@ func TestCodeSeamExportsForward(t *testing.T) {
 
 	// A stronger edge overwrites a weaker one's confidence but unions the
 	// earlier HiddenConsumer marker rather than dropping it.
-	incoming := map[string]querycontract.DeadCodeIncomingEdge{
+	incoming := map[string]code.DeadCodeIncomingEdge{
 		"e1": {HiddenConsumer: true},
 	}
-	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", querycontract.DeadCodeIncomingEdge{MaxConfidence: 0.9, Method: "graph_call"})
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", code.DeadCodeIncomingEdge{MaxConfidence: 0.9, Method: "graph_call"})
 	if got := incoming["e1"]; got.MaxConfidence != 0.9 || got.Method != "graph_call" || !got.HiddenConsumer {
 		t.Fatalf("deadcode.MergeStrongestDeadCodeIncomingEdge result = %+v, want confidence 0.9 method graph_call HiddenConsumer true", got)
 	}
 	// A weaker edge merged in afterward must not downgrade the stored
 	// confidence, proving "strongest" rather than "latest" wins.
-	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", querycontract.DeadCodeIncomingEdge{MaxConfidence: 0.2, Method: "legacy"})
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", code.DeadCodeIncomingEdge{MaxConfidence: 0.2, Method: "legacy"})
 	if got := incoming["e1"]; got.MaxConfidence != 0.9 || got.Method != "graph_call" {
 		t.Fatalf("deadcode.MergeStrongestDeadCodeIncomingEdge downgraded the strongest edge: %+v", got)
 	}

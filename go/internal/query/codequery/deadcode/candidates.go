@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // deadCodeWeakIncomingResultKey marks a kept candidate whose only incoming
@@ -106,8 +107,8 @@ func DeadCodeCandidateLabelsForLanguage(language string) []string {
 		return []string{"SqlFunction"}
 	}
 	if language != "" {
-		labels := make([]string, 0, len(querycontract.DeadCodeCandidateLabels)-1)
-		for _, label := range querycontract.DeadCodeCandidateLabels {
+		labels := make([]string, 0, len(code.DeadCodeCandidateLabels)-1)
+		for _, label := range code.DeadCodeCandidateLabels {
 			if label == "SqlFunction" || (label == "Trait" && language != "scala") {
 				continue
 			}
@@ -115,7 +116,7 @@ func DeadCodeCandidateLabelsForLanguage(language string) []string {
 		}
 		return labels
 	}
-	return querycontract.DeadCodeCandidateLabels
+	return code.DeadCodeCandidateLabels
 }
 
 func normalizeDeadCodeLanguage(language string) string {

@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,11 +28,11 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
 	entityIDs []string,
-) (map[string]querycontract.DeadCodeIncomingEdge, error) {
+) (map[string]code.DeadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
-		return map[string]querycontract.DeadCodeIncomingEdge{}, nil
+		return map[string]code.DeadCodeIncomingEdge{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -95,7 +95,7 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	}
 	defer func() { _ = rows.Close() }()
 
-	incoming := make(map[string]querycontract.DeadCodeIncomingEdge)
+	incoming := make(map[string]code.DeadCodeIncomingEdge)
 	for rows.Next() {
 		var (
 			entityID string
@@ -134,11 +134,11 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	repoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
-) (map[string]querycontract.DeadCodeIncomingEdge, error) {
+) (map[string]code.DeadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
-		return map[string]querycontract.DeadCodeIncomingEdge{}, nil
+		return map[string]code.DeadCodeIncomingEdge{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -182,7 +182,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	}
 	defer func() { _ = rows.Close() }()
 
-	incoming := make(map[string]querycontract.DeadCodeIncomingEdge)
+	incoming := make(map[string]code.DeadCodeIncomingEdge)
 	for rows.Next() {
 		var entityID string
 		var method sql.NullString
@@ -197,7 +197,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 			return nil, fmt.Errorf("scan code reachability incoming entity id: %w", err)
 		}
 		if !inGrant {
-			deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, querycontract.DeadCodeIncomingEdge{HiddenConsumer: true})
+			deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, code.DeadCodeIncomingEdge{HiddenConsumer: true})
 			continue
 		}
 		mergeDeadCodeIncomingEdge(incoming, entityID, method.String)
@@ -342,8 +342,8 @@ func (cr *ContentReader) CodeReachabilityCoverage(
 // through deadcode.MergeStrongestDeadCodeIncomingEdge so a granted edge arriving after an
 // out-of-grant one keeps the hidden marker: the caller has both a consumer they
 // can see and one they cannot, and only the second decides the answer.
-func mergeDeadCodeIncomingEdge(incoming map[string]querycontract.DeadCodeIncomingEdge, entityID, method string) {
-	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, querycontract.DeadCodeIncomingEdge{
+func mergeDeadCodeIncomingEdge(incoming map[string]code.DeadCodeIncomingEdge, entityID, method string) {
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, code.DeadCodeIncomingEdge{
 		MaxConfidence: codeprovenance.Confidence(method),
 		Method:        method,
 	})

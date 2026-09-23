@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // code_seam.go is the exported seam of the code handler family (#6060 lane A
@@ -57,8 +57,8 @@ import (
 //     guard is right and stays untouched; the fix belongs on our side of it.
 //
 // deadCodeIncomingEdge needs no entry here: it already aliases
-// querycontract.DeadCodeIncomingEdge (codequery/aliases.go), so a staying
-// caller across the future move names querycontract directly.
+// code.DeadCodeIncomingEdge (codequery/aliases.go), so a staying
+// caller across the future move names querycontract/code directly.
 //
 // ContentReader.crossRepoDeadCodeUngrantedConsumers needs no entry here
 // either: its only outside-the-move-set reader,
@@ -250,13 +250,13 @@ func LanguageQueryGrantFor(ctx context.Context, repoID string) (LanguageQueryGra
 // deadcode.MergeStrongestDeadCodeIncomingEdge, which content_reader_dead_code.go calls
 // from outside the code move set. It forwards so the code family can move
 // without touching callers. deadCodeIncomingEdge already aliases
-// querycontract.DeadCodeIncomingEdge (codequery/aliases.go), so the
+// code.DeadCodeIncomingEdge (codequery/aliases.go), so the
 // signature names that exported type directly rather than the local
 // unexported alias. See #6060.
 func MergeStrongestDeadCodeIncomingEdge(
-	incoming map[string]querycontract.DeadCodeIncomingEdge,
+	incoming map[string]code.DeadCodeIncomingEdge,
 	entityID string,
-	edge querycontract.DeadCodeIncomingEdge,
+	edge code.DeadCodeIncomingEdge,
 ) {
 	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
 }

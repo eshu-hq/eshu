@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package code
 
 // CrossRepoDeadCodeConsumerReads says how one cross-repo consumer-evidence
 // lookup is bounded. The handler builds it; the reader does what it says.

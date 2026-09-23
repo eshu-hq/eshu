@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -168,13 +169,13 @@ func TestHandleDeadCodePagesCandidatesFromContentReadModel(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := content.candidateCalls, len(querycontract.DeadCodeCandidateLabels); got != want {
+	if got, want := content.candidateCalls, len(code.DeadCodeCandidateLabels); got != want {
 		t.Fatalf("candidate content calls = %d, want %d", got, want)
 	}
 	if got, want := content.candidateRepoID, "repo-1"; got != want {
 		t.Fatalf("candidate repo id = %q, want %q", got, want)
 	}
-	if got, want := content.candidateLabels, querycontract.DeadCodeCandidateLabels; !slices.Equal(got, want) {
+	if got, want := content.candidateLabels, code.DeadCodeCandidateLabels; !slices.Equal(got, want) {
 		t.Fatalf("candidate labels = %#v, want %#v", got, want)
 	}
 }
@@ -379,7 +380,7 @@ func TestHandleDeadCodeContinuesCandidateScanAfterPolicyExclusions(t *testing.T)
 	if got, want := resp["candidate_scan_truncated"], false; got != want {
 		t.Fatalf("resp[candidate_scan_truncated] = %#v, want %#v", got, want)
 	}
-	if got, want := resp["candidate_scan_pages"], float64(len(querycontract.DeadCodeCandidateLabels)+1); got != want {
+	if got, want := resp["candidate_scan_pages"], float64(len(code.DeadCodeCandidateLabels)+1); got != want {
 		t.Fatalf("resp[candidate_scan_pages] = %#v, want %#v", got, want)
 	}
 	if got, want := resp["candidate_scan_rows"], float64(pageLimit+1); got != want {

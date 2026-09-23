@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -382,13 +383,13 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerEvidence(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
-	_ querycontract.CrossRepoDeadCodeConsumerReads,
-) (map[string][]deadcode.CrossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, error) {
+	_ code.CrossRepoDeadCodeConsumerReads,
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error) {
 	result := make(map[string][]deadcode.CrossRepoDeadCodeEvidence)
 	for _, entityID := range entityIDs {
 		result[entityID] = append([]deadcode.CrossRepoDeadCodeEvidence(nil), s.evidenceByEntity[entityID]...)
 	}
-	hidden := querycontract.CrossRepoDeadCodeHiddenConsumers{}
+	hidden := code.CrossRepoDeadCodeHiddenConsumers{}
 	for _, entityID := range s.hiddenConsumers {
 		hidden[entityID] = struct{}{}
 	}

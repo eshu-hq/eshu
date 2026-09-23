@@ -20,8 +20,8 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | # | destination | files | PR | state | `querycontract` after |
 | --- | --- | ---: | --- | --- | ---: |
 | 1 | `capability/` | 2 | [#6985](https://github.com/eshu-hq/eshu/pull/6985) | **merged** `2d68f1cbb` | — |
-| 2 | `querycontract/kubernetes` | 2 | — | open | 54 |
-| 3 | `querycontract/code` | 2–3 | — | not started | |
+| 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
+| 3 | `querycontract/code` | 2 | — | open | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
 | 5 | `querycontract/entity` | 2–3 | — | not started | |
 | 6 | `querycontract/evidence` | 3 | — | not started | |
@@ -98,3 +98,30 @@ Why it is safe: `go vet ./...` exit 0; `go test ./internal/query/... -count=1`
 exit 0 across 54 packages; `go test -list` still discovers all 44 `K8s`-named
 tests in `internal/query` and `internal/query/impact`, so the suite that covers
 this path still runs rather than merely still compiling.
+
+## Performance and observability evidence for the `code` leaf
+
+No-Regression Evidence: two files move from `querycontract/` to
+`querycontract/code/` and 22 caller files repoint `querycontract.DeadCode*` and
+`querycontract.CrossRepoDeadCode*` to `code.*`. Normalising every changed `.go`
+file through that rename (qualifier, package clause, import lines; comments
+excluded) and comparing line multisets against `2c7f91f87` leaves **0 residual
+lines** across all 24 files. The check is not blind: seeding
+`strings.TrimSpace` to `strings.ToLower` into the pre-move
+`DeadCodeRootKindsFromMetadata` leaves 2. No call site, argument, allocation,
+loop bound, batch size or query text changes, so baseline and after are the
+same program and a timed comparison would measure identical instructions.
+
+The diff adds no Cypher: added `.go` lines match none of `MATCH `, `MERGE `,
+`UNWIND `, `CREATE (`, `DETACH DELETE` or a property `SET`. No graph write,
+claim, lease, batching knob or runtime setting is touched.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and three pure helpers and
+emits nothing.
+
+Why it is safe: `go build`, `go vet` and `go test -count=1` over
+`./internal/query/...` exit 0. `go test -list` discovers 191 `DeadCode`- or
+`CrossRepo`-named tests across `internal/query`, `impact`, `codequery` and
+`codequery/deadcode`, the same 191 as at `2c7f91f87`, so the suite still runs
+rather than only still compiling.

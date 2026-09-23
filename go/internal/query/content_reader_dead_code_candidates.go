@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -130,8 +130,9 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 }
 
 // deadCodeCandidateEntityType forwards to
-// querycontract.DeadCodeCandidateEntityType. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
+// code.DeadCodeCandidateEntityType. The implementation moved to
+// querycontract for #6060 and on to querycontract/code for #6597; this
+// wrapper keeps root callers unchanged.
 func deadCodeCandidateEntityType(label string) (string, bool) {
-	return querycontract.DeadCodeCandidateEntityType(label)
+	return code.DeadCodeCandidateEntityType(label)
 }

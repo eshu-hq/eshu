@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/exposure"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // exposurePathCapability gates the trace-exposure-path tool on authoritative
@@ -152,7 +153,7 @@ func (h *Handler) resolveExposureSource(ctx context.Context, req exposurePathReq
 	}
 
 	node := exposure.PathNode{EntityID: entity.EntityID, Name: entity.EntityName, Labels: []string{"Function"}}
-	spec, ok := exposure.ClassifySource(querycontract.DeadCodeRootKindsFromMetadata(entity.Metadata))
+	spec, ok := exposure.ClassifySource(code.DeadCodeRootKindsFromMetadata(entity.Metadata))
 	if !ok {
 		return node, exposure.SourceSpec{}, false, "source is not a taint source (no untrusted-input handler/root classification); only handlers, consumers, and CLI commands are sources", nil
 	}

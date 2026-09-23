@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // FakeDeadCodeContentStore is the dead-code content-read double.
@@ -61,11 +62,11 @@ func (f FakeDeadCodeContentStore) DeadCodeIncomingEntityIDs(
 	_ context.Context,
 	_ string,
 	entityIDs []string,
-) (map[string]querycontract.DeadCodeIncomingEdge, error) {
-	incoming := make(map[string]querycontract.DeadCodeIncomingEdge)
+) (map[string]code.DeadCodeIncomingEdge, error) {
+	incoming := make(map[string]code.DeadCodeIncomingEdge)
 	for _, entityID := range entityIDs {
 		if f.IncomingEntityIDs[entityID] {
-			incoming[entityID] = querycontract.DeadCodeIncomingEdge{
+			incoming[entityID] = code.DeadCodeIncomingEdge{
 				MaxConfidence: codeprovenance.LegacyConfidence,
 				Method:        codeprovenance.MethodUnspecified,
 			}

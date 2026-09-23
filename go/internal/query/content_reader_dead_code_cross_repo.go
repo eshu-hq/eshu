@@ -14,25 +14,27 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 
 // crossRepoDeadCodeConsumerReads aliases
-// querycontract.CrossRepoDeadCodeConsumerReads. The implementation moved to
-// querycontract for #6060; this alias keeps root callers unchanged.
-type crossRepoDeadCodeConsumerReads = querycontract.CrossRepoDeadCodeConsumerReads
+// code.CrossRepoDeadCodeConsumerReads. The implementation moved to
+// querycontract for #6060 and on to querycontract/code for #6597; this
+// alias keeps root callers unchanged.
+type crossRepoDeadCodeConsumerReads = code.CrossRepoDeadCodeConsumerReads
 
 // crossRepoDeadCodeHiddenConsumers aliases
-// querycontract.CrossRepoDeadCodeHiddenConsumers. The implementation moved to
-// querycontract for #6060; this alias keeps root callers unchanged. Its
+// code.CrossRepoDeadCodeHiddenConsumers. The implementation moved to
+// querycontract for #6060 and on to querycontract/code for #6597; this
+// alias keeps root callers unchanged. Its
 // former unexported `has` method has no Go equivalent for an aliased type
 // (methods cannot be added to a type declared in another package), so
-// callers use the exported querycontract.CrossRepoDeadCodeHiddenConsumers.Has
+// callers use the exported code.CrossRepoDeadCodeHiddenConsumers.Has
 // method the alias already carries.
-type crossRepoDeadCodeHiddenConsumers = querycontract.CrossRepoDeadCodeHiddenConsumers
+type crossRepoDeadCodeHiddenConsumers = code.CrossRepoDeadCodeHiddenConsumers
 
 // CrossRepoDeadCodeConsumerEvidence returns active-generation consumer evidence
 // for producer candidates using a bounded entity-id lookup. It never performs a

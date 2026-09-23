@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // TestCodeSeamCrossPackageAccess proves the #6060 code seam is usable from
@@ -130,9 +130,9 @@ func TestCodeSeamCrossPackageAccess(t *testing.T) {
 	// deadcode.MergeStrongestDeadCodeIncomingEdge: content_reader_dead_code.go's
 	// mergeDeadCodeIncomingEdge forwards to this from outside the code move
 	// set once the family moves.
-	incoming := map[string]querycontract.DeadCodeIncomingEdge{}
-	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", querycontract.DeadCodeIncomingEdge{MaxConfidence: 0.5, Method: "graph_call"})
-	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", querycontract.DeadCodeIncomingEdge{HiddenConsumer: true})
+	incoming := map[string]code.DeadCodeIncomingEdge{}
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", code.DeadCodeIncomingEdge{MaxConfidence: 0.5, Method: "graph_call"})
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, "e1", code.DeadCodeIncomingEdge{HiddenConsumer: true})
 	if got := incoming["e1"]; got.MaxConfidence != 0.5 || !got.HiddenConsumer {
 		t.Fatalf("deadcode.MergeStrongestDeadCodeIncomingEdge result = %+v, want confidence 0.5 retained plus HiddenConsumer merged in", got)
 	}
