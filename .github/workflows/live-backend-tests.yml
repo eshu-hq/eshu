@@ -7,11 +7,11 @@ name: Live Backend Tests
 # a fresh single-service backend (down -v + up per file) because several
 # tests assert exact whole-graph counts against an empty database.
 #
-# This row lands non-blocking: required-gates judges a PR with main's
-# registry, so a new blocking check_name cannot be introduced in the PR
-# that first produces it (see the golden-corpus-gate-neo4j row comment in
-# specs/ci-gates.v1.yaml). Flip blocking to true in a follow-up once main
-# is green on this job.
+# This row is blocking: required-gates judges a PR with main's registry,
+# so the new blocking check_name could not be introduced in the PR that
+# first produced it (see the golden-corpus-gate-neo4j row comment in
+# specs/ci-gates.v1.yaml). Blocking flipped to true in the follow-up once
+# main went green on this job.
 
 on:
   push:
