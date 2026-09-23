@@ -26,7 +26,7 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
 | 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
 | 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | **merged** `957772254` | 44 |
-| 8 | `querycontract/answer` | 3 | — | open | 41 |
+| 8 | `querycontract/answer` | 3 | [#7025](https://github.com/eshu-hq/eshu/pull/7025) | **merged** `1d119f391` | 41 |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
