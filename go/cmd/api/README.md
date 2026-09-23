@@ -131,7 +131,8 @@ See `doc.go` for the full godoc contract.
   credentials
 - `internal/status` — `Reader` port consumed by `internalruntime.NewStatusAdminMux`
 - `internal/storage/postgres` — `NewStatusStore`, `NewRecoveryStore`,
-  `NewStatusRequestStore`, `NewBrowserSessionStore`, `NewSAMLSSOStore`
+  `NewBrowserSessionStore`, `NewSAMLSSOStore`
+- `internal/storage/postgres/maintenance` — `NewStatusRequestStore`
 - `internal/telemetry` — `NewBootstrap`, `NewProviders`, `EventAttr`,
   `NewLoggerWithWriter`
 

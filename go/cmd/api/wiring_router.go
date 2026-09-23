@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -290,7 +291,7 @@ func newRouterWithSemanticEmbedding(
 	if err != nil {
 		return nil, fmt.Errorf("new recovery handler: %w", err)
 	}
-	reindexer, err := internalruntime.NewStatusRequestHandler(pgstatus.NewStatusRequestStore(pgstatus.SQLDB{DB: db}))
+	reindexer, err := internalruntime.NewStatusRequestHandler(maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: db}))
 	if err != nil {
 		return nil, fmt.Errorf("new status request handler: %w", err)
 	}
