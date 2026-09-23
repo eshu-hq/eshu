@@ -27,22 +27,15 @@
 // run the probe and attaching the result to a response body stays in package
 // query, because that is request-time orchestration rather than contract.
 //
-// It also owns sixteen handler seams promoted out of root for #6060, so a
-// future family package can reach them without an import cycle. The ten lane-B
-// B2 seams (answer metadata, edge-materialization coverage, entity resolution,
-// evidence boundaries, hostname environment, infra labels, k8s SELECTS match,
-// story-collection and story-row helpers, scoped workload WHERE clause) are
-// listed in the README promoted-seam table. The
-// visualization-packet contract covers VisualizationPacket and its node, edge,
-// limits and truncation types, plus VisualizationBuilder with
-// NewVisualizationBuilder, AddNode, AddEdge, SetTruth, Empty, EdgeCount and
-// Finalize, the stable VisualizationNodeID and VisualizationEdgeID hashers, and
-// UnsupportedVisualizationPacket. EvidenceCitationHandle and its dedup key are
-// the citation handles those packets carry, and EvidenceCitationResponse,
-// EvidenceCitation, EvidenceCitationCoverage and EvidenceCitationProvenance
-// are the citation packet those handles resolve into. Entity-name search, exact
-// graph entity resolution and the #6408 projection-placeholder scrubber moved
-// to the entity subpackage (#6597).
+// It also owns the handler seams promoted out of root for #6060 that have not
+// yet moved to their own leaf, so a family package can reach them without an
+// import cycle; the README promoted-seam table says where each one lives now.
+// The #6597 split has moved these to subpackages: the k8s SELECTS
+// matcher (kubernetes), row-value decoding (rowvalue), the dead-code
+// contract types (code), entity-name search, exact graph entity resolution and the #6408
+// projection-placeholder scrubber (entity), the evidence-citation handles,
+// citation packet and evidence boundaries (evidence), and the
+// visualization-packet contract and its builder (visualization).
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
 // WriteContentSubstringIndexUnavailable. The language taxonomy covers
 // CanonicalLanguage, NormalizedLanguageVariants and CoverageLanguageMaps over

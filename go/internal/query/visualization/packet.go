@@ -9,8 +9,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
 )
 
-// The visualization-packet builder implementation lives in querycontract
-// (#6060), so this leaf (#6642 Part A) can build a Packet
+// The visualization-packet builder implementation lives in
+// querycontract/visualization (#6060, moved out of querycontract by #6597), so
+// this leaf (#6642 Part A) can build a Packet
 // without importing the query root, which it cannot do without an import
 // cycle through root's compatibility aliases in visualization_alias.go. What
 // follows are plain type aliases and thin function forwarders this family's

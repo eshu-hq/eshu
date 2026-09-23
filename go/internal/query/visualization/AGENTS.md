@@ -6,7 +6,7 @@ Scope: `go/internal/query/visualization/` (package `visualization`).
 
 This leaf owns the visualization-packet derivation route (#6642 Part A):
 `handler.go` (`Handler`, `Mount`, dispatch), `packet.go` (the `Visualization*`
-type aliases and builder forwarders onto `querycontract`), `decode.go` (the
+type aliases and builder forwarders onto `querycontract/visualization`), `decode.go` (the
 `FromMap` adapters), `evidence.go`
 (`BuildEvidenceCitationPacket`,
 `BuildIncidentContextPacket`), `story.go`
@@ -19,8 +19,10 @@ Move evidence), `handler_test.go`, and `main_test.go`.
 
 - MUST NOT import root package `query` -- root would import this package
   back for the compatibility aliases in `visualization_alias.go`, cycling.
-  Reach root-only helpers through `querycontract` (the visualization builder
-  implementation, content model, row/string/HTTP helpers) or `incident/model`
+  Reach root-only helpers through `querycontract/visualization` (the
+  visualization builder implementation), `querycontract/evidence` (the
+  evidence-citation content model), `querycontract` (truth envelope,
+  row/string/HTTP helpers) or `incident/model`
   (the incident-context read model the third builder consumes); if neither
   has what you need, it does not belong here -- ask before adding a new
   shared home.
@@ -98,9 +100,9 @@ no `visualization/visualization_packet.go`, `VisualizationHandler` renamed to
 `Handler` at its declaration. The `Visualization*` type aliases in
 `packet.go` keep their pre-move spelling despite the package-name stutter
 that spelling now carries (`visualization.Packet`): they are
-plain forwarders onto `querycontract`'s identically-named types with zero
+plain forwarders onto `querycontract/visualization`'s identically-named types with zero
 external consumers besides the root aliases named above, so renaming them
 would only rename the query-root's own compatibility-alias RHS and every
-`querycontract` cross-reference in this family's comments, for no reader
+`querycontract/visualization` cross-reference in this family's comments, for no reader
 benefit. The root `visualization_alias.go` keeps every old exported spelling
 for staying callers.

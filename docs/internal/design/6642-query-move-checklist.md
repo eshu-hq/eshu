@@ -183,3 +183,23 @@ removed or renamed. The moved package holds types and pure helpers.
 Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1` (55 ok), `verify-dirgate.sh --all` (root
 re-pinned 273 -> 272) and `verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `visualization` leaf
+
+No-Regression Evidence: two files move from `querycontract/` to
+`querycontract/visualization/` (`visualization_packet.go` -> `packet.go`,
+`visualization_packet_merge.go` -> `packet_merge.go`), and five files repoint
+`querycontract.Visualization*` to `visualization.Visualization*`. Root has no
+alias for these symbols to delete: root's `visualization_alias.go` aliases the
+`query/visualization` handler package, which keeps its own forwarders. In every
+touched Go file the diff changes only an import line, a package qualifier or a
+comment. No SQL, Cypher, call site, argument, allocation or loop bound
+changes, and the queryplan source-hash pins still match.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and a pure in-memory
+builder.
+
+Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
+`verify-moved-file-refs.sh` all exit 0.
