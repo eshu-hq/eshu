@@ -17,20 +17,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestDeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel(t *testing.T) {
 	t.Parallel()
 
-	for _, label := range querycontract.DeadCodeCandidateLabels {
+	for _, label := range code.DeadCodeCandidateLabels {
 		label := label
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := querycontract.DeadCodeCandidateEntityType(label)
+			got, ok := code.DeadCodeCandidateEntityType(label)
 			if !ok || got != label {
-				t.Fatalf("deadCodeCandidateEntityType(%q) = %q, %v; want %q, true", label, got, ok, label)
+				t.Fatalf("code.DeadCodeCandidateEntityType(%q) = %q, %v; want %q, true", label, got, ok, label)
 			}
 		})
 	}

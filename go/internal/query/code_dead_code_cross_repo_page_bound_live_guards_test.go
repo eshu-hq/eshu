@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // The guards TestCrossRepoDeadCodeConsumerEvidencePageBoundLive runs, and the
@@ -59,7 +61,7 @@ func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 		reader := NewContentReader(db)
 		evidence, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
 			ctx, "repo-producer", page,
-			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: crossRepoDeadCodeConsumerPageHotRepositories},
+			code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: crossRepoDeadCodeConsumerPageHotRepositories},
 		)
 		if err != nil {
 			t.Fatalf("read cross-repo consumer evidence: %v", err)

@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -119,7 +119,7 @@ func (s *deadCodeSaturationProbeStore) recordIncoming(entityIDs []string) map[st
 }
 
 func deadCodeProbeLabel(id string) string {
-	for _, label := range querycontract.DeadCodeCandidateLabels {
+	for _, label := range code.DeadCodeCandidateLabels {
 		if len(id) > len(label) && id[:len(label)] == label {
 			return label
 		}
@@ -139,8 +139,8 @@ type deadCodeSaturationOutcome struct {
 }
 
 func TestDeadCodeRoundRobinSaturationProof(t *testing.T) {
-	originalLabels := append([]string(nil), querycontract.DeadCodeCandidateLabels...)
-	t.Cleanup(func() { querycontract.DeadCodeCandidateLabels = originalLabels })
+	originalLabels := append([]string(nil), code.DeadCodeCandidateLabels...)
+	t.Cleanup(func() { code.DeadCodeCandidateLabels = originalLabels })
 
 	for _, scanner := range []string{"dead-code", "investigate", "cross-repo"} {
 		t.Run(scanner, func(t *testing.T) {
@@ -179,11 +179,11 @@ func runDeadCodeSaturationShape(
 	started := time.Now()
 	if perLabel {
 		for _, label := range labels {
-			querycontract.DeadCodeCandidateLabels = []string{label}
+			code.DeadCodeCandidateLabels = []string{label}
 			runDeadCodeSaturationScanner(t, scanner, store)
 		}
 	} else {
-		querycontract.DeadCodeCandidateLabels = append([]string(nil), labels...)
+		code.DeadCodeCandidateLabels = append([]string(nil), labels...)
 		runDeadCodeSaturationScanner(t, scanner, store)
 	}
 	return deadCodeSaturationOutcome{

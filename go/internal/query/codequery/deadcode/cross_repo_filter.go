@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
@@ -62,25 +63,25 @@ func (a *Analyzer) filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdg
 func CrossRepoDeadCodeConsumerReadPlan(
 	access querycontract.RepositoryAccessFilter,
 	consumerRepoIDs []string,
-) (querycontract.CrossRepoDeadCodeConsumerReads, bool) {
+) (code.CrossRepoDeadCodeConsumerReads, bool) {
 	if len(consumerRepoIDs) > 0 {
 		page := consumerRepoIDs
 		if access.Scoped() {
 			page = grantedCrossRepoDeadCodeConsumerIDs(access, consumerRepoIDs)
 			if len(page) == 0 {
-				return querycontract.CrossRepoDeadCodeConsumerReads{}, false
+				return code.CrossRepoDeadCodeConsumerReads{}, false
 			}
 		}
-		return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
+		return code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
 	}
 	if !access.Scoped() {
-		return querycontract.CrossRepoDeadCodeConsumerReads{}, true
+		return code.CrossRepoDeadCodeConsumerReads{}, true
 	}
 	grant := access.RepositorySearchIDs()
 	if len(grant) == 0 {
-		return querycontract.CrossRepoDeadCodeConsumerReads{}, false
+		return code.CrossRepoDeadCodeConsumerReads{}, false
 	}
-	return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
+	return code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
 }
 
 // grantedCrossRepoDeadCodeConsumerIDs keeps the requested consumers the grant

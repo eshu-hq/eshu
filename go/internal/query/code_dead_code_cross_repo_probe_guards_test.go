@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // Cross-repo dead-code ContentReader proofs that live in package query: they
@@ -37,7 +38,7 @@ func TestCrossRepoDeadCodeProbeRefusesAnEmptyGrant(t *testing.T) {
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}},
+			code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: []string{codeGrantConsumerRepo}},
 		)
 		if err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
@@ -98,7 +99,7 @@ func TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-early", "producer-late"},
-		crossRepoDeadCodeConsumerReads{
+		code.CrossRepoDeadCodeConsumerReads{
 			PageRepositoryIDs: []string{codeGrantConsumerRepo},
 			SignalGrant:       []string{codeGrantConsumerRepo},
 		},

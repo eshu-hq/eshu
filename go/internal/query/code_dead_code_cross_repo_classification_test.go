@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // Cross-repo dead-code ContentReader proofs that live in package query: they
@@ -46,7 +47,7 @@ func TestCrossRepoDeadCodeCompletesTheEntityTheSentinelMovedPast(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"producer-complete", "producer-next"},
-		crossRepoDeadCodeConsumerReads{},
+		code.CrossRepoDeadCodeConsumerReads{},
 	)
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)

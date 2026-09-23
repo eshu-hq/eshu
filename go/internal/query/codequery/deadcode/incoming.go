@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 func (a *Analyzer) DeadCodeIncomingEntityIDs(
@@ -227,7 +228,7 @@ func deadCodeIsCandidateEntityType(entityType string) bool {
 // candidate query, so an unrecognised label falls back to Function rather than
 // rendering caller text into Cypher.
 func IsDeadCodeCandidateLabel(label string) bool {
-	for _, candidate := range querycontract.DeadCodeCandidateLabels {
+	for _, candidate := range code.DeadCodeCandidateLabels {
 		if label == candidate {
 			return true
 		}

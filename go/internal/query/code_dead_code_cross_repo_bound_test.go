@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // POST /api/v0/code/dead-code/cross-repo bounds its consumer reads by what the
@@ -58,7 +59,7 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 		context.Background(),
 		codeGrantGrantedRepo,
 		[]string{"entity-1", "entity-2"},
-		crossRepoDeadCodeConsumerReads{
+		code.CrossRepoDeadCodeConsumerReads{
 			PageRepositoryIDs: []string{codeGrantConsumerRepo},
 			SignalGrant:       []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
 		},
@@ -191,7 +192,7 @@ func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
 			context.Background(),
 			codeGrantGrantedRepo,
 			entityIDs,
-			crossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant},
+			code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant},
 		); err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}

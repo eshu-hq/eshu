@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -61,8 +62,8 @@ type crossRepoDeadCodeEvidenceStore interface {
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
-		reads querycontract.CrossRepoDeadCodeConsumerReads,
-	) (map[string][]CrossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, error)
+		reads code.CrossRepoDeadCodeConsumerReads,
+	) (map[string][]CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error)
 }
 
 type CrossRepoDeadCodeScan struct {
@@ -274,7 +275,7 @@ func (a *Analyzer) ScanCrossRepoDeadCodeCandidates(
 // it did, and the probe cannot report one if it never runs.
 type crossRepoDeadCodeConsumerEvidenceSet struct {
 	Evidence        map[string][]CrossRepoDeadCodeEvidence
-	HiddenConsumers querycontract.CrossRepoDeadCodeHiddenConsumers
+	HiddenConsumers code.CrossRepoDeadCodeHiddenConsumers
 	Boundary        []CrossRepoDeadCodeEvidence
 	Available       bool
 }
@@ -284,10 +285,10 @@ func (a *Analyzer) crossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	consumerRepoIDs []string,
-) (map[string][]CrossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, bool, error) {
+) (map[string][]CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, bool, error) {
 	store, ok := a.deps.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
-		return map[string][]CrossRepoDeadCodeEvidence{}, querycontract.CrossRepoDeadCodeHiddenConsumers{}, false, nil
+		return map[string][]CrossRepoDeadCodeEvidence{}, code.CrossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
 	// The consumer side takes the caller's own grant, not the producer anchor:
 	// producerRepoID is already grant-resolved by the selector, but the
@@ -298,7 +299,7 @@ func (a *Analyzer) crossRepoDeadCodeConsumerEvidence(
 		// an unbounded read is not the fallback. Reporting the evidence as
 		// unavailable keeps every candidate at unknown_needs_evidence instead
 		// of letting an unread consumer become "dead".
-		return map[string][]CrossRepoDeadCodeEvidence{}, querycontract.CrossRepoDeadCodeHiddenConsumers{}, false, nil
+		return map[string][]CrossRepoDeadCodeEvidence{}, code.CrossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
 	evidence, hidden, err := store.CrossRepoDeadCodeConsumerEvidence(
 		ctx,

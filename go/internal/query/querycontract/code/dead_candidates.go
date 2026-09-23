@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package code
 
 import "strings"
 
 // DeadCodeCandidateLabels names every graph label a dead-code candidate scan
 // treats as a symbol worth checking.
 //
-// This is the ONLY declaration of the set. Root package query's P0 shim
-// (family_code_shim.go) aliases it so the code-family scan files that have not
-// moved yet keep compiling unchanged; the openAPI contract test names this
-// package directly so the advertised candidate_kind enum stays pinned to the
+// This is the ONLY declaration of the set. The scan in codequery/deadcode
+// reads it directly, and the openAPI contract test in package query names this
+// package directly and requires the advertised candidate_kind enum to equal the
 // same set the scan reads. A second literal in root would compile and drift
 // silently, changing either what the scan checks or what the contract
 // advertises with nothing failing.
@@ -24,7 +23,7 @@ var DeadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface
 // It lives here beside DeadCodeCandidateLabels rather than in root because
 // the code-family contract proofs in codequery name it directly, and a
 // _test.go symbol in root is not importable across that package boundary
-// (#6060). Root keeps an unexported wrapper, so its callers are unchanged.
+// (#6060). Root's reader calls it directly; #6597 deleted the old root wrapper.
 func DeadCodeCandidateEntityType(label string) (string, bool) {
 	switch label {
 	case "Function", "Class", "Struct", "Interface", "Trait", "SqlFunction":
@@ -37,10 +36,8 @@ func DeadCodeCandidateEntityType(label string) (string, bool) {
 // DeadCodeRootKindsFromMetadata reads the content-store dead_code_root_kinds
 // classification off an entity's metadata map.
 //
-// This is the ONLY declaration of the projection. Root package query's P0 shim
-// (family_code_shim.go) forwards to it so the code-family dead-code root
-// readers that have not moved yet keep compiling unchanged; the staying
-// exposure-path reader names this package directly. It accepts both the
+// This is the ONLY declaration of the projection. The exposure-path reader in
+// query/impact names this package directly. It accepts both the
 // []string and the []any a driver hands back for a list value, copies on the
 // []string path so callers cannot mutate shared state through the result, and
 // reports nil for a missing key, a nil map, or any other type.
@@ -77,7 +74,8 @@ func DeadCodeRootKindsFromMetadata(metadata map[string]any) []string {
 // ContentStore read that a shared test double must satisfy (#6060). A double
 // promoted to querytestutil cannot name an unexported root type, so the type
 // has to be reachable from outside package query before the double can move.
-// Root keeps an unexported alias, so its callers are unchanged.
+// codequery/deadcode re-exports it as an alias and codequery/aliases.go keeps
+// an unexported one, so the handlers there name it without this import.
 type DeadCodeIncomingEdge struct {
 	// MaxConfidence is the highest codeprovenance.Confidence across the
 	// candidate's incoming edges.

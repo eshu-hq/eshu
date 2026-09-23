@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -101,7 +102,7 @@ func TestHandleDeadCodeCandidateLabelsIncludeSQLRoutines(t *testing.T) {
 	if !deadcode.IsDeadCodeCandidateLabel("SqlFunction") {
 		t.Fatal("SqlFunction is not a dead-code candidate label")
 	}
-	if entityType, ok := querycontract.DeadCodeCandidateEntityType("SqlFunction"); !ok || entityType != "SqlFunction" {
+	if entityType, ok := code.DeadCodeCandidateEntityType("SqlFunction"); !ok || entityType != "SqlFunction" {
 		t.Fatalf("DeadCodeCandidateEntityType(SqlFunction) = %q, %v; want SqlFunction, true", entityType, ok)
 	}
 }

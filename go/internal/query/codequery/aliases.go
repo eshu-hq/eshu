@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/contentread"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // The codemodel.RubyRailsControllerActionRootKind constant split to
@@ -63,11 +64,11 @@ type repositoryAccessFilter = querycontract.RepositoryAccessFilter
 
 // crossRepoDeadCodeConsumerReads names the consumer repositories a cross-repo
 // dead-code evidence page is bound to.
-type crossRepoDeadCodeConsumerReads = querycontract.CrossRepoDeadCodeConsumerReads
+type crossRepoDeadCodeConsumerReads = code.CrossRepoDeadCodeConsumerReads
 
 // crossRepoDeadCodeHiddenConsumers reports producer entities with a consumer
 // outside the caller's grant.
-type crossRepoDeadCodeHiddenConsumers = querycontract.CrossRepoDeadCodeHiddenConsumers
+type crossRepoDeadCodeHiddenConsumers = code.CrossRepoDeadCodeHiddenConsumers
 
 // ProfileLocalAuthoritative is a supported query runtime profile.
 const ProfileLocalAuthoritative = querycontract.ProfileLocalAuthoritative
@@ -247,12 +248,12 @@ type VisualizationPacket = querycontract.VisualizationPacket
 // deadCodeIncomingEdge is the strongest incoming reachability edge observed for
 // a dead-code candidate.
 //
-// It is an alias onto querycontract rather than a declaration: the type appears
+// It is an alias onto querycontract/code rather than a declaration: the type appears
 // in a ContentStore read's signature, and a shared double promoted to
 // querytestutil for #6060 cannot name an unexported root type. An alias
 // preserves type identity, so every existing caller and every composite literal
 // is unchanged.
-type deadCodeIncomingEdge = querycontract.DeadCodeIncomingEdge
+type deadCodeIncomingEdge = code.DeadCodeIncomingEdge
 
 // deadCodeCandidateQuery is the pre-move spelling of
 // codeshaping.DeadCodeCandidateQuery, kept for the digest-pinned

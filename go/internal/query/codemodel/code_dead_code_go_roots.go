@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // DeadCodePolicyStats carries dead-code scan counters the staying orchestrator threads through.
@@ -108,14 +109,14 @@ func deadCodeNormalizedSource(entity *querycontract.EntityContent) string {
 
 func deadCodeRootKinds(result map[string]any, entity *querycontract.EntityContent) []string {
 	if metadata, ok := result["metadata"].(map[string]any); ok {
-		if kinds := querycontract.DeadCodeRootKindsFromMetadata(metadata); len(kinds) > 0 {
+		if kinds := code.DeadCodeRootKindsFromMetadata(metadata); len(kinds) > 0 {
 			return kinds
 		}
 	}
 	if entity == nil {
 		return nil
 	}
-	return querycontract.DeadCodeRootKindsFromMetadata(entity.Metadata)
+	return code.DeadCodeRootKindsFromMetadata(entity.Metadata)
 }
 
 var deadCodeGoSemanticRootKinds = map[string]struct{}{

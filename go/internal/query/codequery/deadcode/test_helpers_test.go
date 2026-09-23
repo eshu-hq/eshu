@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 func assertQueryTestStringSliceEqual(t *testing.T, got any, want []string) {
@@ -160,12 +161,12 @@ func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerEvidence(
 	_ context.Context,
 	producerRepoID string,
 	entityIDs []string,
-	reads querycontract.CrossRepoDeadCodeConsumerReads,
-) (map[string][]deadcode.CrossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, error) {
+	reads code.CrossRepoDeadCodeConsumerReads,
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error) {
 	s.boundConsumerGrant = append([]string(nil), reads.PageRepositoryIDs...)
 	s.signalRead = len(reads.SignalGrant) > 0
 	evidence := make(map[string][]deadcode.CrossRepoDeadCodeEvidence, len(entityIDs))
-	hidden := querycontract.CrossRepoDeadCodeHiddenConsumers{}
+	hidden := code.CrossRepoDeadCodeHiddenConsumers{}
 	for _, entityID := range entityIDs {
 		for _, consumerRepoID := range []string{codeGrantConsumerRepo, codeGrantOtherRepo} {
 			if consumerRepoID == producerRepoID {
