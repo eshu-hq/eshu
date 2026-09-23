@@ -1,6 +1,6 @@
 # #6693 checklist step 6: `incident/` (1 file)
 
-Baseline: `origin/main` `957772254` (rebased after #7017). Change: move
+Baseline: `origin/main` `8fd319051` (rebased after #7026). Change: move
 `incident_repository_correlation_loader.go` (and
 its test) to the new non-root package
 `go/internal/storage/postgres/incident` (package clause `incidentstore`), no
