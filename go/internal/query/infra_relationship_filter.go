@@ -22,6 +22,14 @@ import (
 // its Cypher to the requested edges instead of returning every relationship
 // regardless of the argument (#3492).
 
+// impactRelationshipAnchorLabels is impacttrace.ImpactAnchorLabelDisjunction's
+// labels, split for one-label-per-MATCH iteration. getRelationships must NOT
+// interpolate the disjunction string directly into a MATCH label position: on
+// the pinned NornicDB build that silently matches zero rows for an id a
+// single-label MATCH resolves correctly (issue #7006, live-proven with a real
+// Workload id).
+var impactRelationshipAnchorLabels = strings.Split(impacttrace.ImpactAnchorLabelDisjunction, "|")
+
 // getRelationships returns the relationships for a given entity, optionally
 // filtered to a single relationship kind.
 // POST /api/v0/infra/relationships
@@ -88,13 +96,21 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	typeFilter := infraRelationshipTypeClause(relationshipTypes)
 	// The bare `MATCH (n)` anchor scanned every node in the graph on every
 	// call regardless of scope -- proven live on ops-qa (issue #7006) to blow
-	// the 10s bounded-read deadline. This route only ever resolves the
-	// infra/platform entities the by-id impact reads already anchor on, so it
-	// seeds the same label disjunction (impacttrace.ImpactAnchorLabelDisjunction)
-	// for a per-label index seek instead of a whole-graph scan. See
-	// docs/public/reference/cypher-performance.md.
-	cypher := `
-		MATCH (n:` + impacttrace.ImpactAnchorLabelDisjunction + `) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
+	// the 10s bounded-read deadline.
+	//
+	// A single-clause label DISJUNCTION (`MATCH (n:A|B) WHERE n.id = $id`,
+	// impacttrace.ImpactAnchorLabelDisjunction interpolated directly) looked
+	// like the fix, but is live-proven unsafe on this NornicDB pin: it
+	// silently returns ZERO rows for an id a single-label MATCH resolves
+	// correctly (reproduced with a real Workload id). A many-branch
+	// `CALL{UNION}` (impacttrace's own by-id resolver shape) is also
+	// live-proven unsafe here -- 28 branches did not return before a 15s
+	// timeout even though the target existed. The only shape proven both
+	// correct and bounded is one label per MATCH: try each of
+	// impactRelationshipAnchorLabels in turn and use the first match.
+	buildCypher := func(label string) string {
+		return `
+		MATCH (n:` + label + `) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
 		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + infraRelationshipNeighborClause(access, "target") + `
 		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + infraRelationshipNeighborClause(access, "source") + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
@@ -113,13 +129,22 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		           source_labels: labels(source)
 		       }) as incoming
 	`
+	}
 
 	params := map[string]any{
 		"entity_id": req.EntityID,
 	}
 	access.GraphParams(params)
 
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
+	ctx := querycontract.WithGraphQueryName(r.Context(), "platform_impact.deployment_chain")
+	var row map[string]any
+	var err error
+	for _, label := range impactRelationshipAnchorLabels {
+		row, err = h.Neo4j.RunSingle(ctx, buildCypher(label), params)
+		if err != nil || row != nil {
+			break
+		}
+	}
 	if err != nil {
 		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 			return

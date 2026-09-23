@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	codechain "github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -309,24 +308,55 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// for every call regardless of scope -- the classic all-node-scan shape
 	// (docs/public/reference/cypher-performance.md, "unlabeled anchor"),
 	// proven live on ops-qa (issue #7006) to blow the 10s bounded-read
-	// deadline on every request. This route only ever resolves content
-	// entities (the graph-miss fallback below reads the content store, not
-	// another graph label), so it anchors on the same code-entity label
-	// disjunction the call-chain builder already uses
-	// (codequery/chain.AnchorLabelDisjunction), seeding a per-label index
-	// seek instead of a whole-graph scan.
-	cypher := `
-		MATCH (e:` + codechain.AnchorLabelDisjunction + `) WHERE e.id = $entity_id
+	// deadline on every request.
+	//
+	// A single `MATCH (e:A|B|C)` label DISJUNCTION looks like the fix, and is
+	// the shape codequery/chain.AnchorLabelDisjunction and
+	// impacttrace.ImpactAnchorLabelDisjunction use -- but both of those only
+	// ever render on the Neo4j-compat path (BuildCallChainCypher's own NornicDB
+	// branch bypasses it entirely, and the impact family never uses the raw
+	// disjunction in a MATCH at all, only Go-side via strings.Split for its
+	// CALL{UNION} resolver below). Proven live on ops-qa (issue #7006): on
+	// this NornicDB pin, `MATCH (n:A|B) WHERE n.id = $id` -- and the inline-map
+	// form `MATCH (n:A|B {id: $id})` -- both silently return ZERO rows for an
+	// id a single-label `MATCH (n:A) WHERE n.id = $id` resolves correctly,
+	// reproduced for both a code-entity id and an infra-entity id. Shipping
+	// that shape would have converted the timeout into an always-wrong
+	// not-found. A many-branch `CALL{UNION}` resolver (impacttrace's own
+	// pattern) is also live-proven unsafe here: 28 branches did not return
+	// before a 15s timeout even though the target existed and an 8-branch
+	// subset resolved it in 0.67s -- badly non-linear, not just slower.
+	//
+	// The only shape proven both correct and bounded is a single label per
+	// MATCH. EntityContextAnchorLabels tries each candidate label in turn,
+	// most-common-first, stopping at the first match; a genuinely absent
+	// entity pays the full label count (14 reads, each individually proven
+	// sub-second live), never a whole-graph or many-branch scan.
+	//
+	// The file/repo enrichment also changed shape, for a second, independent
+	// reason: chaining a SECOND hop onto the (already fast, single-bound-node)
+	// `OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)` -- reaching for `r:Repository`
+	// via `<-[:REPO_CONTAINS]-` -- is itself live-proven catastrophic on this
+	// NornicDB pin: it did not return before a 10s timeout even anchored on a
+	// real Function id whose File parent exists and resolves instantly alone.
+	// The reverse `(f)<-[:REPO_CONTAINS]-(r)` hop is unreliable even as a
+	// REQUIRED (non-optional) single hop from an indexed, bound File node: it
+	// returned zero rows for a File whose containing Repository is real and
+	// resolves correctly via the forward direction
+	// (`(r:Repository {id:...})-[:REPO_CONTAINS]->(f:File)`). So the fix
+	// drops the graph-side Repository hop entirely: `e`/`f` already carry a
+	// direct `repo_id` property (the canonical writer sets it on every
+	// code-entity and File node), and the handler's existing
+	// hydrateResolvedEntityRepoIdentity call below already backfills
+	// repo_name from the content store once repo_id is set -- no second graph
+	// round trip needed. A Repository entity's own id/name backfill the same
+	// way, via that function's resolvedEntityIsRepository branch.
+	buildCypher := func(label string) string {
+		cypher := `
+		MATCH (e:` + label + `) WHERE e.id = $entity_id
 	`
-	cypher += `
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-	`
-	if access.Scoped() {
 		cypher += `
-		WHERE ` + access.GraphCondition("r") + `
-	`
-	}
-	cypher += `
+		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)
 		OPTIONAL MATCH (e)-[rel]->(target)
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,
@@ -334,15 +364,23 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + rows.GraphSemanticMetadataProjection() + `
-		       ,r.id as repo_id, r.name as repo_name,
+		       ,coalesce(e.repo_id, f.repo_id) as repo_id,
 		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
 	`
+		return cypher
+	}
 
 	params := access.GraphParams(map[string]any{"entity_id": entityID})
 	var row map[string]any
 	var err error
 	if h.Neo4j != nil {
-		row, err = h.Neo4j.RunSingle(r.Context(), cypher, params)
+		ctx := querycontract.WithGraphQueryName(r.Context(), "code_search.fuzzy_symbol")
+		for _, label := range EntityContextAnchorLabels {
+			row, err = h.Neo4j.RunSingle(ctx, buildCypher(label), params)
+			if err != nil || row != nil {
+				break
+			}
+		}
 		if err != nil {
 			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
 				return

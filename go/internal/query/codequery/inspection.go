@@ -52,7 +52,8 @@ func (h *CodeHandler) handleCodeQualityInspection(w http.ResponseWriter, r *http
 		return
 	}
 
-	rows, err := quality.Inspect(r.Context(), h.Neo4j, req, codeGrantAccessFilter(r.Context()))
+	ctx := querycontract.WithGraphQueryName(r.Context(), codeQualityCapability)
+	rows, err := quality.Inspect(ctx, h.Neo4j, req, codeGrantAccessFilter(ctx))
 	if err != nil {
 		if WriteGraphReadError(w, r, err, codeQualityCapability) {
 			return

@@ -7,7 +7,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
@@ -20,15 +19,16 @@ func TestGetEntityContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 	t.Parallel()
 
 	reader := graph.FakeGraphReader{
-		RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-			if !strings.Contains(cypher, "allowed_repository_ids") {
-				t.Fatalf("entity context query missing scoped repository predicate:\n%s", cypher)
-			}
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+			// #7006: the scoped grant is no longer embedded in this query's
+			// Cypher (chaining a second hop onto the file/repo OPTIONAL MATCH
+			// to reach a Repository node to filter is itself live-proven
+			// catastrophic on the pinned NornicDB build). The real,
+			// unchanged security boundary is the Go-side
+			// access.AllowsRepositoryID(repo_id) check after this read
+			// returns, covered by TestGetEntityContextGrantDeniedEmitsTelemetry
+			// and the not-found path it drives.
 			graph.AssertCypherHasNoBrokenAndOr(t, cypher)
-			allowed, ok := params["allowed_repository_ids"].([]string)
-			if !ok || len(allowed) != 1 || allowed[0] != "repo-team-a" {
-				t.Fatalf("allowed_repository_ids = %#v, want repo-team-a", params["allowed_repository_ids"])
-			}
 			return map[string]any{
 				"id":            "entity-a",
 				"labels":        []any{"Function"},

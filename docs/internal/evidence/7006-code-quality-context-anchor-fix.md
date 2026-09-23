@@ -165,3 +165,136 @@ two typed `non_hot` source-hash pins stale after their anchor-order edits
 (`complexity_queries.go` `listMostComplexFunctions`, `entity/handler.go`
 `GetEntityContext`) -- both would have failed the gate in CI. Both are
 corrected in the same commit as this addendum.
+
+## Wave 3 Addendum — Critical Correctness Fix: Label Disjunctions Are Unsafe On This NornicDB Pin
+
+Live-proving `get_entity_context` on a real Function/Class id (requested in
+review) surfaced a severe defect in the label-disjunction anchor shape shipped
+in the original fix above and in the Wave 2 `infra/relationships` fix:
+`MATCH (n:A|B|C) WHERE n.id = $id` (and its inline-map form
+`MATCH (n:A|B|C {id: $id})`) **silently returns zero rows** on this pin
+(`fix-500-e022384c`) for an id a single-label `MATCH (n:A) WHERE n.id = $id`
+resolves correctly. Reproduced side-by-side in one transaction batch (ruling
+out caching) for both a code-entity id (label `Function`) and an infra-entity
+id (label `Workload`).
+
+Accuracy Evidence: this is the documented NornicDB pitfall
+`impact_anchor_resolve.go` already names ("a label disjunction matches zero
+rows on the pinned NornicDB build, #5286") -- the shape shipped here matched
+`codequery/chain.AnchorLabelDisjunction`'s text by false analogy: that
+constant's `MATCH (start:A|B|C)` usage is Neo4j-only dead code on this
+deployment (`BuildCallChainCypher` early-returns to a separate NornicDB
+builder for `GraphBackendNornicDB`), so it was never proven against NornicDB
+in production despite looking identical. Both affected handlers
+(`entity/handler.go` `GetEntityContext`, `infra_relationship_filter.go`
+`getRelationships`) now issue one single-label `MATCH` per candidate label in
+a Go-side loop (`EntityContextAnchorLabels`, `impactRelationshipAnchorLabels`),
+stopping at the first match; a genuinely absent entity now pays the full
+label count in sequential single-label reads rather than a whole-graph scan,
+a many-branch `CALL{UNION}` (see below), or a silently-wrong empty result.
+
+A second, independent defect surfaced while proving the replacement's file/repo
+enrichment hop: chaining a second hop onto an already-fast, single-bound-node
+`OPTIONAL MATCH` -- `OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)`
+-- did not return before a 10s timeout for either a structurally-empty first
+hop (`e`=Repository) or a genuinely-matching one (`e`=Function, whose File
+parent resolves instantly alone). A single REQUIRED reverse `:REPO_CONTAINS`
+hop from a bound File node also returned zero rows, fast, for a File whose
+Repository provably exists and resolves via the forward direction -- the
+reverse direction of this relationship type is unreliable on this pin
+regardless of `OPTIONAL`. `GetEntityContext` now resolves `repo_id` from the
+entity/File node's own direct `repo_id` property (confirmed present, no extra
+hop) and relies on its pre-existing `hydrateResolvedEntityRepoIdentity` call
+to backfill `repo_name` from the content store, exactly as it already did for
+other repo-name gaps; the Go-side `access.AllowsRepositoryID` check after
+hydration is unchanged and remains the real scoped-access boundary (the
+removed in-Cypher `WHERE` on the Repository hop was defense-in-depth on top
+of it, not the gate itself).
+
+Performance Evidence (clean, uncontended measurements): the final shape
+(single-label anchor + two independent single-hop `OPTIONAL MATCH`es, no
+chaining) resolved a real `Function` id in 0.14s (correct file_path,
+language, line span, repo_id) and a real `Repository` id in 0.37s (correct
+own `CONTAINS` relationships). Both are new lows for this route; no case
+observed above 0.4s once the chained-hop pattern was removed.
+
+No-Observability-Change: unchanged from the original entry above; the
+handler keeps the same `GraphQuery.RunSingle` adapter and query-duration
+telemetry, now additionally carrying `eshu.graph_read.query_name` (see the
+Wave 3 telemetry entry below).
+
+## Wave 3 Addendum — Telemetry: Bounded Query Name
+
+Implements the issue's telemetry ask.
+`querycontract.WithGraphQueryName`/`GraphQueryNameFromContext` threads a
+bounded, low-cardinality query name (default `"unnamed"`) through the request
+context into `recordGraphReadTelemetry` (`neo4j_read_policy.go`), which now
+sets `eshu.graph_read.query_name` on the `neo4j.query` span and
+`graph_query_name` on the `query.graph_read.warning` log. No `GraphQuery`
+interface change -- every existing `Run`/`RunSingle` call site is unaffected;
+only the four handlers this PR touches set a name, each reusing its own
+existing `BuildTruthEnvelope` capability string: `code_quality.complexity`,
+`code_quality.refactoring`, `code_search.fuzzy_symbol`,
+`platform_impact.deployment_chain`.
+
+No-Observability-Change does not apply here -- this IS the observability
+change. New span attribute `eshu.graph_read.query_name`
+(`internal/telemetry/contract/graph_read.go`) and log field
+`graph_query_name`; no new metric, span name, or runtime knob.
+
+## Wave 3 Addendum — Complexity/Quality: Root Cause Beyond The Anchor Fix
+
+Re-measured the shipped Repository-first anchor (first entry above) on five
+repos after the lead flagged the earlier numbers as contaminated by a
+still-draining prior probe. Clean numbers: 0.37s-4.20s for four repos; the
+fifth (function-dense: 3599 functions over 392 files, vs. 1307/419 for a
+comparable repo) measured unstable across three separate runs -- 4.20s, a
+12s timeout, and 9.11s -- none reaching the <1s target.
+
+Performance Evidence (staged breakdown, one statement at a time, same
+repository): Repository->File count 0.53s; +File->Function traversal +2.02s
+(cumulative 2.55s); +`WHERE coalesce(cyclomatic_complexity,0)>0` filter
++0.43s (2.98s); +full `RETURN`/`ORDER BY`/`LIMIT` (shipped shape) +0.83s
+(3.81s). The complexity filter is NOT the dominant cost (0.43s of 3.81s);
+the File->Function traversal itself dominates (+2.02s), before any filter
+runs. `Function.cyclomatic_complexity` has no index (`SHOW INDEXES`
+confirmed), but adding one would only attack the smaller 0.43s slice.
+
+The unstable repo's `ORDER BY complexity DESC, ...` sorts on a non-indexed
+projected property -- the requested ranking itself, which (unlike the
+historical `relationshipEdgesCypher` fix in this same doc) cannot be
+redirected to an indexed tie-breaker without changing the answer. NornicDB
+must materialize and sort the full per-repo Function population before
+`LIMIT` applies; cost scales with function count, consistent with the
+unstable repo's 2.7x higher function density.
+
+Disposition: not fixed this wave. Options recorded for the owner: (1) add an
+index on `Function.cyclomatic_complexity` and verify NornicDB can use it for
+an ordered/descending scan, not just equality (unverified; needs an isolated
+environment, cannot test schema DDL on ops-qa); (2) precompute a per-repo
+complexity ranking at reducer write time (schema/pipeline design decision);
+(3) accept the measured floor (reliably sub-1s to ~4s for sparse repos,
+occasionally 9-12s+ for dense ones) and document the residual risk, matching
+the disposition already accepted for the Wave 2 `relationships/edges`
+IMPORTS/File residual.
+
+## Wave 3 Addendum — explain_dependency_path / trace_resource_to_code: Root Cause Found, Not Fixed
+
+Reproduced the exact statement `impactAnchorResolveCypher` issues: a
+`CALL{...UNION...}` of 14 labels x 2 properties (id, name) = 28 branches, for
+a real, confirmed-existing `CloudResource` id. **Did not return before a
+15.0s client timeout** -- badly non-linear (an 8-branch subset of the same
+statement resolved the same id correctly in 0.67s; 3.5x more branches did not
+complete in 22x the time). This, not the bounded traversal that follows it
+(measured 0.11-0.17s separately), is the statement that consumes the 10s
+deadline; `explain_dependency_path` calls it twice per request
+(source+target), `trace_resource_to_code` once, consistent with the audit's
+reproduced 10.0-10.1s on 4/4 calls.
+
+Not fixed this wave: the obvious replacement (a single-label-per-MATCH loop,
+the same pattern now proven for `get_entity_context` and
+`infra_relationship_filter.go`) is very likely correct given this session's
+findings, but was not proven against these specific 14 impact labels before
+the remaining ops-qa budget ran out on the correctness fixes above. Flagged
+as the concrete next step: replace `impactAnchorResolveCypher`'s
+`CALL{UNION}` with the same per-label-loop shape.

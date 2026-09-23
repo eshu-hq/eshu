@@ -431,7 +431,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: a0b59cdcdaa89916b4bea3d2b7d4728ed9da1a175eca30d5e5f2969841873813
+          source_sha256: 9bafe3e115251f68e0b9eb290e0e9d51329041187f931ba9ea1bebd4d51fc05e
           key_bound: single_key
           max_results: 1
   - file: infra_resource_aggregates.go

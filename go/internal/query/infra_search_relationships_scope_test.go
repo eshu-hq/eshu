@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -305,8 +304,11 @@ func TestInfraRelationshipsScopedOutOfGrantReturnsNotFound(t *testing.T) {
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if graph.singleN != 1 {
-		t.Fatalf("graph RunSingle calls = %d, want 1", graph.singleN)
+	// #7006: a genuine miss now tries every candidate label (one MATCH per
+	// label, never a disjunction), so a not-found result pays the full label
+	// count instead of one call.
+	if want := len(impactRelationshipAnchorLabels); graph.singleN != want {
+		t.Fatalf("graph RunSingle calls = %d, want %d", graph.singleN, want)
 	}
 	if !strings.Contains(graph.lastSingle.Cypher, "n.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped relationships Cypher missing anchor predicate:\n%s", graph.lastSingle.Cypher)
@@ -393,8 +395,15 @@ func TestInfraRelationshipsUnscopedCypherUnchanged(t *testing.T) {
 	if strings.Contains(cypher, "scopeRepo") {
 		t.Fatalf("unscoped relationships Cypher must not traverse repositories:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $entity_id") {
-		t.Fatalf("unscoped relationships Cypher must keep the labeled anchor (#7006):\n%s", cypher)
+	// #7006: one label per MATCH, never the disjunction string -- a
+	// disjunction silently matches zero rows on the pinned NornicDB build.
+	// The fake answers on the first label tried
+	// (impactRelationshipAnchorLabels[0]).
+	if strings.Contains(cypher, "|") {
+		t.Fatalf("unscoped relationships Cypher contains a label disjunction, which silently matches zero rows on the pinned NornicDB build:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (n:"+impactRelationshipAnchorLabels[0]+") WHERE n.id = $entity_id") {
+		t.Fatalf("unscoped relationships Cypher must keep a single-label anchor (#7006):\n%s", cypher)
 	}
 }
 

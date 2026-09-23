@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/attribute"
@@ -212,6 +213,68 @@ func TestNeo4jReaderSlowSuccessEmitsBoundedWarning(t *testing.T) {
 	if got := logs.String(); !strings.Contains(got, `"failure_class":"slow"`) ||
 		!strings.Contains(got, `"event_name":"query.graph_read.warning"`) {
 		t.Fatalf("slow warning = %s, want bounded outcome and event", got)
+	}
+}
+
+// TestNeo4jReaderDefaultsQueryNameWhenCallerSetNone pins the #7006 telemetry
+// fix's default: a read whose context carries no querycontract.WithGraphQueryName
+// value still gets a bounded, present (never blank/absent) query-name
+// attribute and log field, so the operator signal is never silently missing.
+func TestNeo4jReaderDefaultsQueryNameWhenCallerSetNone(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	var logs bytes.Buffer
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{}}}
+	})
+	reader.tracer = provider.Tracer("neo4j-read-policy-test")
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	reader.policy.slowThreshold = time.Nanosecond
+
+	if _, err := reader.Run(context.Background(), "RETURN 1", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	if got := graphReadSpanString(spans[0].Attributes(), telemetry.SpanAttrGraphReadQueryName); got != querycontract.DefaultGraphQueryName {
+		t.Fatalf("span query name = %q, want %q", got, querycontract.DefaultGraphQueryName)
+	}
+	if got := logs.String(); !strings.Contains(got, `"graph_query_name":"`+querycontract.DefaultGraphQueryName+`"`) {
+		t.Fatalf("warning log = %s, want the default graph_query_name field", got)
+	}
+}
+
+// TestNeo4jReaderRecordsCallerSuppliedQueryName pins the positive case: a
+// caller-set querycontract.WithGraphQueryName value reaches both the span
+// attribute and the bounded warning log.
+func TestNeo4jReaderRecordsCallerSuppliedQueryName(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	var logs bytes.Buffer
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{}}}
+	})
+	reader.tracer = provider.Tracer("neo4j-read-policy-test")
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+	reader.policy.slowThreshold = time.Nanosecond
+
+	ctx := querycontract.WithGraphQueryName(context.Background(), "code_quality.complexity")
+	if _, err := reader.Run(ctx, "RETURN 1", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	if got := graphReadSpanString(spans[0].Attributes(), telemetry.SpanAttrGraphReadQueryName); got != "code_quality.complexity" {
+		t.Fatalf("span query name = %q, want %q", got, "code_quality.complexity")
+	}
+	if got := logs.String(); !strings.Contains(got, `"graph_query_name":"code_quality.complexity"`) {
+		t.Fatalf("warning log = %s, want the caller-supplied graph_query_name field", got)
 	}
 }
 

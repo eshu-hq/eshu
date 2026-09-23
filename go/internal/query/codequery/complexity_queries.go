@@ -303,7 +303,7 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ctx := r.Context()
+	ctx := querycontract.WithGraphQueryName(r.Context(), "code_quality.complexity")
 	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_quality.complexity") {
 		return
 	}

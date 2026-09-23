@@ -431,10 +431,12 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 	statementFingerprint string,
 	cypher string,
 ) {
+	queryName := querycontract.GraphQueryNameFromContext(ctx)
 	span.SetAttributes(
 		attribute.String(telemetry.SpanAttrGraphReadOutcome, string(outcome)),
 		attribute.Int(telemetry.SpanAttrGraphReadAttempts, attempts),
 		attribute.String(telemetry.SpanAttrGraphReadStatementFingerprint, statementFingerprint),
+		attribute.String(telemetry.SpanAttrGraphReadQueryName, queryName),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -469,5 +471,6 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		slog.Float64("duration_seconds", duration.Seconds()),
 		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
 		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
+		slog.String("graph_query_name", queryName),
 	)
 }

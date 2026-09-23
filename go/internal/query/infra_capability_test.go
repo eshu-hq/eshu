@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestInfraRelationshipsLocalAuthoritativeUsesGraphInsteadOfCapabilityGate(t *testing.T) {
@@ -22,13 +22,24 @@ func TestInfraRelationshipsLocalAuthoritativeUsesGraphInsteadOfCapabilityGate(t 
 	handler := &InfraHandler{
 		Profile: ProfileLocalAuthoritative,
 		Neo4j: fakeRepoGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+			runSingle: func(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				graphCalled = true
-				if !strings.Contains(cypher, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $entity_id") {
-					t.Fatalf("cypher = %q, want the labeled entity relationship anchor (#7006)", cypher)
+				// #7006: one label per MATCH, never the disjunction string --
+				// a disjunction silently matches zero rows on the pinned
+				// NornicDB build. The fake answers on the first label tried
+				// (Repository, impactRelationshipAnchorLabels[0]).
+				if strings.Contains(cypher, "|") {
+					t.Fatalf("cypher contains a label disjunction, which silently matches zero rows on the pinned NornicDB build:\n%s", cypher)
+				}
+				if !strings.Contains(cypher, "MATCH (n:"+impactRelationshipAnchorLabels[0]+") WHERE n.id = $entity_id") {
+					t.Fatalf("cypher = %q, want a single-label entity relationship anchor (#7006)", cypher)
 				}
 				if got, want := params["entity_id"], "workload:eshu"; got != want {
 					t.Fatalf("entity_id param = %#v, want %#v", got, want)
+				}
+				// #7006 telemetry fix: bounded query name must reach the read.
+				if got, want := querycontract.GraphQueryNameFromContext(ctx), "platform_impact.deployment_chain"; got != want {
+					t.Fatalf("graph query name = %q, want %q", got, want)
 				}
 				return map[string]any{
 					"id":       "workload:eshu",
