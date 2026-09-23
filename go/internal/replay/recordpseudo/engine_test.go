@@ -198,7 +198,8 @@ func TestARNGrammar(t *testing.T) {
 	pseudoAcct := `0000[0-9]{8}`
 	cases := []struct{ arn, want string }{
 		{"arn:aws:s3:::payments-bucket", `^arn:aws:s3:::` + hexName + `$`},
-		{"arn:aws:s3:::payments-bucket/some/object", `^arn:aws:s3:::` + hexName + `/some/object$`},
+		{"arn:aws:s3:::payments-bucket/some/object", `^arn:aws:s3:::` + hexName + `/` + hexName + `/` + hexName + `$`},
+		{"arn:aws:s3:::payments-bucket/home/jdoe/*", `^arn:aws:s3:::` + hexName + `/` + hexName + `/` + hexName + `/\*$`},
 		{"arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer", `^arn:aws:lambda:us-east-1:` + pseudoAcct + `:function:` + hexName + `$`},
 		{"arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer:$LATEST", `^arn:aws:lambda:us-east-1:` + pseudoAcct + `:function:` + hexName + `:\$LATEST$`},
 		{"arn:aws:ecs:us-east-1:" + acct + ":task/demo-cluster/0123456789abcdef0123456789abcdef", `^arn:aws:ecs:us-east-1:` + pseudoAcct + `:task/` + hexName + `/[0-9a-f]{32}$`},

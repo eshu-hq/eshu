@@ -185,7 +185,12 @@ func (d *dictionary) learnARN(raw string) {
 	}
 	service, resource := parts[2], parts[5]
 	if service == "s3" {
-		d.learnIdent(strings.SplitN(resource, "/", 2)[0])
+		// bucket/key/path/*: the bucket and every key-path component are
+		// customer names; "*" and empty components are structural and
+		// ignored by learnIdent, so the path shape survives.
+		for _, component := range strings.Split(resource, "/") {
+			d.learnIdent(component)
+		}
 		return
 	}
 	components := strings.FieldsFunc(resource, func(r rune) bool { return r == '/' || r == ':' })
