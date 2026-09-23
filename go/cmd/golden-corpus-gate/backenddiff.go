@@ -83,10 +83,11 @@ func unexcusedPairing(leftDir, rightDir string, allow *capture.Allowlist) ([]bac
 // runBackendDiffQuorum compares two leg pairings and fails the gate only on
 // reproduced divergences of a required kind. Non-reproducing divergences,
 // reproduced scheduling noise (execution counts or row totals with
-// agreeing results), and divergences on registered transient reads are
-// each reported as an advisory finding so a genuine regression stays
-// visible while scheduling noise — leg-local or systematic — and
-// timing-dependent reads cannot red the gate on their own.
+// agreeing results), and divergences on registered transient or
+// tie-order reads are each reported as an advisory finding so a genuine
+// regression stays visible while scheduling noise — leg-local or
+// systematic — and timing-dependent or order-undefined reads cannot red
+// the gate on their own.
 func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer, r *Report) error {
 	pairs := [][2]string{
 		{strings.TrimSpace(o.diffLeft), strings.TrimSpace(o.diffRight)},
@@ -94,6 +95,7 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 	}
 	unexcused := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
 	transientByPairing := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
+	tieOrderByPairing := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
 	for i, pair := range pairs {
 		remaining, err := unexcusedPairing(pair[0], pair[1], allow)
 		if err != nil {
@@ -104,7 +106,16 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		// in both pairings is timing in both, never reproduced truth.
 		remaining, excluded := allow.ExcludeTransient(remaining)
 		transientByPairing = append(transientByPairing, excluded)
-		if _, err := fmt.Fprintf(stdout, "pairing %d: %d unexcused divergence(s)\n", i+1, len(remaining)); err != nil {
+		// Registered tie-order reads are excluded the same way: tied
+		// delivery order disagreeing in both pairings is still just
+		// order, never reproduced truth.
+		remaining, excluded = allow.ExcludeTieOrder(remaining)
+		tieOrderByPairing = append(tieOrderByPairing, excluded)
+		// Pre-advisory-split count: the advisory, transient, and
+		// tie-order findings below partition these divergences, so this
+		// header alone is not the failure (it prints before the split) —
+		// the parenthesized counts say where the rest went.
+		if _, err := fmt.Fprintf(stdout, "pairing %d: %d pre-advisory-split divergence(s) (%d transient + %d tie-order held advisory separately)\n", i+1, len(remaining), len(transientByPairing[i]), len(tieOrderByPairing[i])); err != nil {
 			return fmt.Errorf("report pairing %d: %w", i+1, err)
 		}
 		// Bounded like every other gate report: the full recordings persist
@@ -123,9 +134,10 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		unexcused = append(unexcused, remaining)
 	}
 	reproduced := backendconformance.QuorumIntersection(unexcused[0], unexcused[1])
-	// Reproduced transient exclusions count toward the ceiling below,
-	// symmetric with the reproduced advisory total.
+	// Reproduced transient and tie-order exclusions count toward the
+	// ceiling below, symmetric with the reproduced advisory total.
 	reproducedTransient := backendconformance.QuorumIntersection(transientByPairing[0], transientByPairing[1])
+	reproducedTieOrder := backendconformance.QuorumIntersection(tieOrderByPairing[0], tieOrderByPairing[1])
 	kept, advisory := backendconformance.SplitAdvisory(reproduced)
 	detail := "nornicdb and neo4j recordings agree across both pairings"
 	if len(kept) != 0 {
@@ -152,20 +164,22 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 	// that triples drain passes would still report as an advisory WARN and
 	// pass the gate. -diff-executions-advisory-max is a systemic-regression
 	// tripwire, not a tuning target — see the golden-corpus-gate README for
-	// the observed-count calibration. Reproduced transient-read exclusions
-	// count toward the same ceiling, so a systematic divergence on a
-	// registered statement cannot hide behind timing noise indefinitely
-	// (#6971 review): with no transient divergences the total is exactly
-	// the advisory total, preserving the calibrated #6941 contract.
-	ceilingTotal := len(advisory) + len(reproducedTransient)
+	// the observed-count calibration. Reproduced transient-read and
+	// tie-order exclusions count toward the same ceiling, so a systematic
+	// divergence on a registered statement cannot hide behind timing or
+	// ordering noise indefinitely (#6971 review): with neither present the
+	// total is exactly the advisory total, preserving the calibrated
+	// #6941 contract.
+	ceilingTotal := len(advisory) + len(reproducedTransient) + len(reproducedTieOrder)
 	if o.diffExecutionsAdvisoryMax > 0 && ceilingTotal > o.diffExecutionsAdvisoryMax {
-		topSource := make([]backendconformance.DifferentialDifference, 0, len(advisory)+len(reproducedTransient))
+		topSource := make([]backendconformance.DifferentialDifference, 0, ceilingTotal)
 		topSource = append(topSource, advisory...)
 		topSource = append(topSource, reproducedTransient...)
+		topSource = append(topSource, reproducedTieOrder...)
 		top := backendconformance.TopAdvisoryStatementReports(topSource, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
 		ceilingDetail := fmt.Sprintf("%d reproduced scheduling-noise divergence(s) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", len(advisory), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
-		if len(reproducedTransient) != 0 {
-			ceilingDetail = fmt.Sprintf("%d reproduced advisory divergence(s) (%d scheduling-noise + %d transient-read) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", ceilingTotal, len(advisory), len(reproducedTransient), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		if len(reproducedTransient)+len(reproducedTieOrder) != 0 {
+			ceilingDetail = fmt.Sprintf("%d reproduced advisory divergence(s) (%d scheduling-noise + %d transient-read + %d tie-order) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", ceilingTotal, len(advisory), len(reproducedTransient), len(reproducedTieOrder), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
 		}
 		r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions_ceiling", false, true, ceilingDetail)
 	}
@@ -186,6 +200,24 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		transientDetail = fmt.Sprintf("%d transient-read divergence(s) excluded by registration (timing-dependent state), top: %s", len(transient), strings.Join(top, "; "))
 	}
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_transient", len(transient) == 0, false, transientDetail)
+	// Tie-order exclusions report as their own advisory finding, not
+	// inside the transient one: their digests disagree over delivery
+	// order, not drain timing, so the transient wording would be false.
+	// Non-required, always visible: tied keys that stop tying (a real
+	// content change underneath) must stay readable in the CI log. The
+	// finding counts every per-pairing exclusion; the ceiling above
+	// counts reproduced tie-order divergences, symmetric with the
+	// reproduced advisory and transient totals.
+	var tieOrder []backendconformance.DifferentialDifference
+	for _, excluded := range tieOrderByPairing {
+		tieOrder = append(tieOrder, excluded...)
+	}
+	tieOrderDetail := "no tie-order divergences excluded"
+	if len(tieOrder) != 0 {
+		top := backendconformance.TopAdvisoryStatementReports(tieOrder, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+		tieOrderDetail = fmt.Sprintf("%d tie-order divergence(s) excluded by registration (ORDER BY over tied keys, backend-undefined delivery order), top: %s", len(tieOrder), strings.Join(top, "; "))
+	}
+	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_tie_order", len(tieOrder) == 0, false, tieOrderDetail)
 	dropped := len(unexcused[0]) + len(unexcused[1]) - 2*len(reproduced)
 	r.AddCheck("backend-diff", "nornicdb_vs_neo4j_nonreproducing", true, false,
 		fmt.Sprintf("%d pairing-local divergence(s) did not reproduce across pairings (quorum dropped, see pairing reports above)", dropped))

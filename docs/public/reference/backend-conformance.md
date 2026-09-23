@@ -142,7 +142,11 @@ backends drain at systematically different speeds); the
 trips a required finding if that total ever explodes. Divergences on
 registered transient-state reads — orphan scans whose result depends on the
 drain point — are excluded by `transient_reads` registration and report in
-their own advisory finding, never silently. Everything else that reproduces and the allowlist does not excuse —
+their own advisory finding, never silently. Divergences on registered
+tie-order reads — `ORDER BY` over tied keys with no truncation, where only
+delivery order can differ — are excluded by `tie_order_reads`
+registration (never stale-checked: tied order agrees on most runs) and
+report in their own advisory finding, never silently. Everything else that reproduces and the allowlist does not excuse —
 digest disagreements, one-sided recordings, backend errors — fails. The full
 contract, finding table, and local replay commands are in the
 [Golden Corpus Gate](local-testing/golden-corpus-gate.md#differential-oracle-nornicdb-vs-neo4j).

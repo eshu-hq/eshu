@@ -20,12 +20,12 @@ const MaxReportedDiffs = 20
 // reports the divergences the allowlist does not excuse to w. It returns
 // nil when the two sides agree; execution-count and row-total divergences
 // with agreeing results are printed as advisory and do not fail the
-// comparison, and divergences on registered transient reads print as
-// transient and do not fail it either. Either directory may hold either
-// backend: sides are identified by the backend labels inside the
-// recordings, not by argument order. A side with no recordings fails the
-// comparison instead of passing vacuously, so a half-finished run can
-// never look green.
+// comparison, and divergences on registered transient or tie-order reads
+// print as transient or tie-order and do not fail it either. Either
+// directory may hold either backend: sides are identified by the backend
+// labels inside the recordings, not by argument order. A side with no
+// recordings fails the comparison instead of passing vacuously, so a
+// half-finished run can never look green.
 func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	leftByBackend, err := LoadDir(left)
 	if err != nil {
@@ -56,13 +56,17 @@ func Compare(left, right string, allow *Allowlist, w io.Writer) error {
 	if err := reportTransient(w, transient); err != nil {
 		return err
 	}
+	remaining, tieOrder := allow.ExcludeTieOrder(remaining)
+	if err := reportTieOrder(w, tieOrder); err != nil {
+		return err
+	}
 	remaining, advisory := backendconformance.SplitAdvisory(remaining)
 	if err := reportAdvisory(w, advisory); err != nil {
 		return err
 	}
 	if len(remaining) == 0 {
-		return report(w, "differential comparison clean: %d nornicdb records, %d neo4j records, %d allowlisted, %d transient, %d advisory\n",
-			len(nornic), len(neo), len(diffs)-len(unexcused), len(transient), len(advisory))
+		return report(w, "differential comparison clean: %d nornicdb records, %d neo4j records, %d allowlisted, %d transient, %d tie-order, %d advisory\n",
+			len(nornic), len(neo), len(diffs)-len(unexcused), len(transient), len(tieOrder), len(advisory))
 	}
 	if err := report(w, "differential comparison found %d unexcused divergence(s) (%d nornicdb records, %d neo4j records):\n",
 		len(remaining), len(nornic), len(neo)); err != nil {
@@ -98,6 +102,28 @@ func reportTransient(w io.Writer, transient []backendconformance.DifferentialDif
 			return report(w, "... and %d more transient (see recording artifacts)\n", len(transient)-MaxReportedDiffs)
 		}
 		if err := report(w, "- transient: %s [%s]: %s\n", diff.Fingerprint.Statement, diff.Fingerprint.Parameters, diff.Detail); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reportTieOrder prints the divergences registered tie-order reads
+// explain (see ExcludeTieOrder): named so an ORDER BY tie that delivers
+// in a different order stays visible in the CI log, bounded like the
+// failure report, never an error. Nothing prints when there are none.
+func reportTieOrder(w io.Writer, tieOrder []backendconformance.DifferentialDifference) error {
+	if len(tieOrder) == 0 {
+		return nil
+	}
+	if err := report(w, "differential comparison: %d tie-order divergence(s) excluded by registration (ORDER BY over tied keys, not gate-failing):\n", len(tieOrder)); err != nil {
+		return err
+	}
+	for i, diff := range tieOrder {
+		if i >= MaxReportedDiffs {
+			return report(w, "... and %d more tie-order (see recording artifacts)\n", len(tieOrder)-MaxReportedDiffs)
+		}
+		if err := report(w, "- tie-order: %s [%s]: %s\n", diff.Fingerprint.Statement, diff.Fingerprint.Parameters, diff.Detail); err != nil {
 			return err
 		}
 	}

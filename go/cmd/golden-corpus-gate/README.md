@@ -88,14 +88,20 @@ option 1 — orphan scans whose digest disagrees across legs because the
 result depends on the drain point) report in their own advisory finding
 (`nornicdb_vs_neo4j_transient`), never in the executions advisory whose
 "agreeing results" wording would be false, and never as a failure.
+Divergences on registered tie-order reads (`tie_order_reads` in the
+allowlist spec, #6782 entry-44 flap — ORDER BY over tied keys with no
+truncation, where delivery order is backend-undefined but the row
+multiset agrees) report in their own advisory finding
+(`nornicdb_vs_neo4j_tie_order`) for the same reason, and never as a
+failure.
 
 That advisory total is otherwise unbounded (#6941): a backend regression that
 triples drain passes would still report as an advisory `WARN` and pass the
 gate. `-diff-executions-advisory-max` (quorum mode only; 0 disables it, the
 default) puts a ceiling on the reproduced advisory total — the reproduced
-scheduling-noise count plus reproduced transient-read exclusions, so a
-systematic divergence on a registered statement cannot hide behind timing
-noise indefinitely. Above it the phase adds a required, failing
+scheduling-noise count plus reproduced transient-read and tie-order
+exclusions, so a systematic divergence on a registered statement cannot
+hide behind timing or ordering noise indefinitely. Above it the phase adds a required, failing
 `nornicdb_vs_neo4j_executions_ceiling` finding naming
 the observed count, the ceiling, and the top statements, instead of leaving
 the total to grow silently. CI passes `-diff-executions-advisory-max=200`:

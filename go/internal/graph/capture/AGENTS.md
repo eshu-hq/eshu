@@ -44,7 +44,13 @@
   whose digest disagrees across legs belongs in `transient_reads`, not in
   `entries`: it takes no tier, skips stale checking, and must carry a
   transient-state marker (`uid IS NULL`,
-  `eshu_orphan_observed_at_unix`) — the parser rejects anything else.
+  `eshu_orphan_observed_at_unix`) — the parser rejects anything else. An
+  ORDER BY read with no `LIMIT` or `SKIP` whose keys can tie (order-only
+  delivery nondeterminism, never a row-multiset difference) belongs in
+  `tie_order_reads`, not in `entries`: it takes no tier, skips stale
+  checking, and must carry `ORDER BY` with no truncation — the parser
+  rejects anything else, because with truncation tied keys change which
+  rows return.
 - **Richer diff output** → keep `MaxReportedDiffs` bounded (the gate's quorum phase shares it for its per-pairing dump); the full
   recordings stay in the CI artifact for the unbounded case.
 - **New capture tier** → open the session once at binary startup with

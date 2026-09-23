@@ -167,7 +167,8 @@ while a systematic backend divergence reproduces and still fails.
 | `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing. (Reproduced advisory divergences stay advisory here; the ceiling below is their tripwire.) |
 | `nornicdb_vs_neo4j_executions` | Reproduced execution-count or row-total divergences with agreeing results (scheduling noise: drain passes, retries, extra poll iterations). Advisory. |
 | `nornicdb_vs_neo4j_transient` | Divergences on registered transient-state reads, whose digests disagree because the result depends on the drain point. Advisory, always visible. |
-| `nornicdb_vs_neo4j_executions_ceiling` | Required tripwire: the reproduced advisory total (scheduling-noise plus transient) exceeded `-diff-executions-advisory-max` (CI passes 200). |
+| `nornicdb_vs_neo4j_tie_order` | Divergences on registered tie-order reads: ORDER BY over tied keys with no truncation, where delivery order is backend-undefined but the row multiset agrees. Advisory, always visible. |
+| `nornicdb_vs_neo4j_executions_ceiling` | Required tripwire: the reproduced advisory total (scheduling-noise plus transient-read plus tie-order) exceeded `-diff-executions-advisory-max` (CI passes 200). |
 | `nornicdb_vs_neo4j_nonreproducing` | Pairing-local divergences the quorum dropped. Informational. |
 
 Known, accepted divergences live in
@@ -183,7 +184,14 @@ orphan-sweep pages on `eshu_orphan_observed_at_unix`): fingerprint-keyed with
 the same reason and upstream accountability, no tier, never stale-checked, but
 the parse guard requires a transient-state marker in the statement, and only
 the observed-noise kinds are held — a backend error or a one-sided recording
-on a transient read still fails.
+on a transient read still fails. A `tie_order_reads` section registers
+ORDER BY reads with no `LIMIT` or `SKIP` whose keys can tie
+(fingerprint-keyed with the same reason and upstream accountability, no
+tier, never stale-checked): tied delivery order agrees on most runs by
+design, so stale-checking it fails the gate on exactly the runs where both
+backends agree. The parse guard requires `ORDER BY` and rejects `LIMIT` /
+`SKIP` — with truncation, tied keys change which rows return, and that is
+row truth that must stay required — and only the `results` kind is held.
 
 Replay a CI capture locally with the committed allowlist (single-pair mode,
 which reports under the `nornicdb_vs_neo4j` finding name rather than the
