@@ -56,8 +56,12 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
   constants root's own handlers name, and its own doc comment says they
   stayed at root "because the routes did". Moving it strands all five
   under `go test -c -gcflags=-e`; a plain `go build` sees only three.
-- The move breaks **42 files with 57 distinct undefined symbols, across two
-  packages** — root `query` and `contract`. `registry.go` holds `register`,
+- The move breaks **at least 42 files with 57 distinct undefined symbols,
+  across two packages** — root `query` and `contract`. Read both figures as
+  floors: they come from the `go build` above, which compiles no test file.
+  Re-measuring the same move shape with `go test -c -gcflags=-e` moved a
+  reconstruction of it from 35 files to 43, so the test-only callers are a
+  real share of the breakage, not a rounding error. `registry.go` holds `register`,
   `capabilitySupport`, `truthExact` and `truthDerived`, which all 36 remaining
   `contract/` capability rows call.
 - There is **no import cycle**, which the first draft of this note assumed there
