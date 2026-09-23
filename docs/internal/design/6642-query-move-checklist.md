@@ -207,7 +207,7 @@ Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
 ## Performance and observability evidence for the `answer` leaf
 
 No-Regression Evidence: three files move from `querycontract/` to
-`querycontract/answer/`, and 16 non-test files import the leaf. Root's
+`querycontract/answer/`, and 17 non-test and 2 test files import the leaf. Root's
 unexported `attachAnswerMetadata`, `serviceStoryAnswerData`,
 `cloneTruthEnvelope` and `freshnessReason` forwarders and its exported
 `BuildAnswerMetadata` and `AnswerMetadataFromData` wrappers are deleted,

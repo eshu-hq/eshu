@@ -19,7 +19,7 @@ The class mapping is documented in `docs/public/reference/answer-packets.md`.
 
 ## Dependencies
 
-Inbound: 16 non-test files and one test file import this package, all under
+Inbound: 17 non-test files and 2 test files import this package, all under
 `go/internal/query`. Packages outside it (`ask/engine`, `serviceintel`, `mcp`,
 `cli`, `answerquality`, `answernarration`, `askwiring`) still name the root
 aliases in `query/answer_packet.go` and `query/answer_metadata_alias.go`.
