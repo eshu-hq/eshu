@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -85,7 +87,7 @@ func developerChangePlanData(req preChangeImpactRequest, impactData map[string]a
 	data["patch_guidance"] = developerPlanPatchGuidance(data)
 	data["blocked"] = len(querycontract.MapSliceValue(data, "missing_evidence")) > 0
 	data["truncated"] = querycontract.BoolVal(impactData, "truncated")
-	return querycontract.AttachAnswerMetadata(data)
+	return answer.AttachAnswerMetadata(data)
 }
 
 func developerPlanActions(req preChangeImpactRequest, plan map[string]any) []map[string]any {

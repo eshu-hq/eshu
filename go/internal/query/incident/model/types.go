@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // Capability is the query capability gating incident-context reads. Its home
@@ -135,7 +135,7 @@ type IncidentContextResponse struct {
 	MissingEvidence   []IncidentMissingEvidence        `json:"missing_evidence"`
 	AmbiguousEvidence []IncidentContextEvidenceEdge    `json:"ambiguous_evidence"`
 	Truncated         bool                             `json:"truncated"`
-	AnswerMetadata    querycontract.AnswerMetadata     `json:"answer_metadata"`
+	AnswerMetadata    answer.AnswerMetadata            `json:"answer_metadata"`
 }
 
 // IncidentContextIncident is the provider-reported incident anchor.

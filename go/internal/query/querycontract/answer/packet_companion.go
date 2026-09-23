@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package answer
 
 import (
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
@@ -35,7 +37,7 @@ type AnswerPacketCompanionInput struct {
 // root.
 func WithAnswerPacketCompanion(
 	data map[string]any,
-	truth *TruthEnvelope,
+	truth *querycontract.TruthEnvelope,
 	in AnswerPacketCompanionInput,
 ) map[string]any {
 	if data == nil {
@@ -45,7 +47,7 @@ func WithAnswerPacketCompanion(
 	for key, value := range data {
 		out[key] = value
 	}
-	envelope := &ResponseEnvelope{Data: data, Truth: truth, Error: nil}
+	envelope := &querycontract.ResponseEnvelope{Data: data, Truth: truth, Error: nil}
 	out["answer_packet"] = NewAnswerPacket(AnswerPacketInput{
 		PromptFamily:         in.PromptFamily,
 		Question:             in.Question,
@@ -69,7 +71,7 @@ func WithAnswerPacketCompanion(
 // answer_packet_routes.go for #6060 so the code family can build the same
 // summary without importing root.
 func CodeTopicAnswerSummary(data map[string]any) string {
-	count := IntVal(data, "count")
+	count := querycontract.IntVal(data, "count")
 	if count <= 0 {
 		return ""
 	}
@@ -81,7 +83,7 @@ func CodeTopicAnswerSummary(data map[string]any) string {
 // moved from root's answer_packet_routes.go for #6060 so the code family can
 // build the same limitations without importing root.
 func CodeTopicAnswerLimitations(data map[string]any) []string {
-	if !BoolVal(data, "truncated") {
+	if !querycontract.BoolVal(data, "truncated") {
 		return nil
 	}
 	return []string{"result truncated; inspect additional pages before treating the evidence set as complete"}
@@ -92,19 +94,19 @@ func CodeTopicAnswerLimitations(data map[string]any) []string {
 // root's answer_packet_routes.go for #6060 so the code family can build the
 // same handles without importing root.
 func CodeTopicEvidenceHandles(data map[string]any) []evidence.EvidenceCitationHandle {
-	groups := MapSliceValue(data, "evidence_groups")
+	groups := querycontract.MapSliceValue(data, "evidence_groups")
 	handles := make([]evidence.EvidenceCitationHandle, 0, len(groups))
 	for _, group := range groups {
-		handle := MapValue(group, "source_handle")
+		handle := querycontract.MapValue(group, "source_handle")
 		if len(handle) == 0 {
 			continue
 		}
 		handles = append(handles, evidence.EvidenceCitationHandle{
 			Kind:         "source",
-			RepoID:       StringVal(handle, "repo_id"),
-			RelativePath: StringVal(handle, "relative_path"),
-			StartLine:    IntVal(handle, "start_line"),
-			EndLine:      IntVal(handle, "end_line"),
+			RepoID:       querycontract.StringVal(handle, "repo_id"),
+			RelativePath: querycontract.StringVal(handle, "relative_path"),
+			StartLine:    querycontract.IntVal(handle, "start_line"),
+			EndLine:      querycontract.IntVal(handle, "end_line"),
 		})
 	}
 	return handles
@@ -114,15 +116,15 @@ func CodeTopicEvidenceHandles(data map[string]any) []evidence.EvidenceCitationHa
 // to a service-story response body. The implementation moved from root's
 // answer_packet_routes.go for #6060 so a handler-family subpackage can
 // build the same companion without importing root.
-func ServiceStoryAnswerData(serviceName string, data map[string]any, truth *TruthEnvelope) map[string]any {
+func ServiceStoryAnswerData(serviceName string, data map[string]any, truth *querycontract.TruthEnvelope) map[string]any {
 	return WithAnswerPacketCompanion(data, truth, AnswerPacketCompanionInput{
 		PromptFamily: "service.story",
 		Question:     fmt.Sprintf("Tell the story for service %s.", serviceName),
 		PrimaryTool:  "get_service_story",
 		PrimaryRoute: "/api/v0/services/{service_name}/story",
-		Summary:      StringVal(data, "story"),
+		Summary:      querycontract.StringVal(data, "story"),
 		ResultRef:    "eshu://api-result/services/" + serviceName + "/story",
-		Limitations:  StringSliceValue(data, "limitations"),
-		Truncated:    BoolVal(MapValue(data, "result_limits"), "truncated"),
+		Limitations:  querycontract.StringSliceValue(data, "limitations"),
+		Truncated:    querycontract.BoolVal(querycontract.MapValue(data, "result_limits"), "truncated"),
 	})
 }

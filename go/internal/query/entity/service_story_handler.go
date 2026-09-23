@@ -6,6 +6,8 @@ package entity
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
@@ -27,7 +29,7 @@ func (h *Handler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteErrorEnvelope(w, r, status, errEnv)
 		return
 	}
-	querycontract.WriteSuccess(w, r, status, querycontract.ServiceStoryAnswerData(serviceName, data, truth), truth)
+	querycontract.WriteSuccess(w, r, status, answer.ServiceStoryAnswerData(serviceName, data, truth), truth)
 }
 
 func writeServiceStoryEnvelopeError(

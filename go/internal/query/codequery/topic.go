@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -218,7 +220,7 @@ func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEviden
 			"empty":               len(rows) == 0,
 		},
 	}
-	return querycontract.AttachAnswerMetadata(data)
+	return answer.AttachAnswerMetadata(data)
 }
 
 func CodeTopicEvidenceGroup(row CodeTopicEvidenceRow, rank int) map[string]any {
@@ -433,17 +435,17 @@ var codeTopicStopWords = map[string]bool{
 // make querycontract import the code family -- the cycle in reverse. It
 // moves here instead, once those callees are in place.
 func codeTopicAnswerData(req CodeTopicInvestigationRequest, data map[string]any, truth *TruthEnvelope) map[string]any {
-	return querycontract.WithAnswerPacketCompanion(data, truth, querycontract.AnswerPacketCompanionInput{
+	return answer.WithAnswerPacketCompanion(data, truth, answer.AnswerPacketCompanionInput{
 		PromptFamily:         "code.topic",
 		Question:             req.Topic,
 		PrimaryTool:          "investigate_code_topic",
 		PrimaryRoute:         "/api/v0/code/topics/investigate",
-		Summary:              querycontract.CodeTopicAnswerSummary(data),
+		Summary:              answer.CodeTopicAnswerSummary(data),
 		ResultRef:            "eshu://api-result/code/topics/investigate",
-		Limitations:          querycontract.CodeTopicAnswerLimitations(data),
+		Limitations:          answer.CodeTopicAnswerLimitations(data),
 		Truncated:            BoolVal(data, "truncated"),
 		NoEvidence:           IntVal(data, "count") == 0,
-		EvidenceHandles:      querycontract.CodeTopicEvidenceHandles(data),
+		EvidenceHandles:      answer.CodeTopicEvidenceHandles(data),
 		RecommendedNextCalls: querycontract.MapSliceValue(data, "recommended_next_calls"),
 	})
 }

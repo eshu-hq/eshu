@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -197,7 +199,7 @@ func BuildRepositoryStoryResponseWithCoverage(
 		"summary": fmt.Sprintf("%d dependency link(s) and remote=%t", dependencyCount, repo.HasRemote),
 	})
 	response["story_sections"] = storySections
-	return querycontract.AttachAnswerMetadata(response)
+	return answer.AttachAnswerMetadata(response)
 }
 
 func repositoryDeploymentSurfaceKnown(

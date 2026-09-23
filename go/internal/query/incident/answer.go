@@ -6,6 +6,8 @@ package incident
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -20,12 +22,12 @@ import (
 // its answer packet companion.
 type incidentContextAnswerResponse struct {
 	model.IncidentContextResponse
-	AnswerPacket querycontract.AnswerPacket `json:"answer_packet"`
+	AnswerPacket answer.AnswerPacket `json:"answer_packet"`
 }
 
 func incidentContextAnswerData(incidentID string, response model.IncidentContextResponse, truth *querycontract.TruthEnvelope) incidentContextAnswerResponse {
 	envelope := &querycontract.ResponseEnvelope{Data: response, Truth: truth, Error: nil}
-	packet := querycontract.NewAnswerPacket(querycontract.AnswerPacketInput{
+	packet := answer.NewAnswerPacket(answer.AnswerPacketInput{
 		PromptFamily: "incident.context",
 		Question:     fmt.Sprintf("Build incident context for %s.", incidentID),
 		PrimaryTool:  "get_incident_context",

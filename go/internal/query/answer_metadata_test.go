@@ -6,8 +6,9 @@ package query
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -64,8 +65,8 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		},
 		Truncated: true,
 	})
-	if incident.AnswerMetadata.SchemaVersion != querycontract.AnswerMetadataSchemaVersion {
-		t.Fatalf("incident answer_metadata schema_version = %q, want %q", incident.AnswerMetadata.SchemaVersion, querycontract.AnswerMetadataSchemaVersion)
+	if incident.AnswerMetadata.SchemaVersion != answer.AnswerMetadataSchemaVersion {
+		t.Fatalf("incident answer_metadata schema_version = %q, want %q", incident.AnswerMetadata.SchemaVersion, answer.AnswerMetadataSchemaVersion)
 	}
 	if !incident.AnswerMetadata.Truncated {
 		t.Fatal("incident answer_metadata.truncated = false, want true")
@@ -94,7 +95,7 @@ func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
 
 	data := map[string]any{
 		"answer_metadata": AnswerMetadata{
-			SchemaVersion: querycontract.AnswerMetadataSchemaVersion,
+			SchemaVersion: answer.AnswerMetadataSchemaVersion,
 			EvidenceHandles: []map[string]any{{
 				"kind":          "entity",
 				"entity_id":     "entity-auth",
