@@ -1,0 +1,16 @@
+go/internal/queryplan/statement_builders.go
+  h_78a442cba0b3e6 1-282
+go/internal/queryplan/statement_builders_test.go
+  h_78a442cba0b3e6 1-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d6c1a9b94cf65d84a354397b4dd7bb73753584d2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
