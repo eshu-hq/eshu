@@ -220,7 +220,14 @@ type Instruments struct {
 	PoisonLivenessRecovered metric.Int64Counter
 	// PoisonLivenessFailures counts poison-recovery sweep failures by bounded
 	// reason (#4740).
-	PoisonLivenessFailures         metric.Int64Counter
+	PoisonLivenessFailures metric.Int64Counter
+	// GitRepoSyncFailures counts per-repository git sync operations (clone,
+	// fetch, list_refs) that failed and were isolated to that one repository
+	// for the cycle rather than aborting collection for the rest of the fleet
+	// (#7001). Labels: operation (bounded: clone, fetch, list_refs).
+	// Repository identity is never a label (unbounded cardinality); it stays
+	// in the paired git_sync_failure log line.
+	GitRepoSyncFailures            metric.Int64Counter
 	DeltaBaselineFallbacks         metric.Int64Counter
 	ReconciliationFullSnapshots    metric.Int64Counter
 	ReconciliationDriftRetractions metric.Int64Counter
@@ -2027,6 +2034,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PoisonLivenessFailures counter: %w", err)
+	}
+
+	inst.GitRepoSyncFailures, err = meter.Int64Counter(
+		"eshu_dp_git_repo_sync_failures_total",
+		metric.WithDescription("Total per-repository git sync operations (clone, fetch, list_refs) that failed and were isolated to that repository for the cycle, by bounded operation"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GitRepoSyncFailures counter: %w", err)
 	}
 
 	inst.DeltaBaselineFallbacks, err = meter.Int64Counter(

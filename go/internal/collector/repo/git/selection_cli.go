@@ -67,34 +67,36 @@ func syncGitRepositoriesWithLogger(
 		if !hasGitMarker(repoPath) {
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
-				selected = append(selected, repoPath)
-				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-				if refsErr != nil {
-					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-					return GitSyncSelection{}, refsErr
+				refs, ok, fatalErr := resolveRepoRefsIsolated(ctx, config, repoPath, token, logger, event, baseline.Instruments)
+				if fatalErr != nil {
+					return GitSyncSelection{}, fatalErr
 				}
-				refsByRepoPath[repoPath] = refs
+				if ok {
+					selected = append(selected, repoPath)
+					refsByRepoPath[repoPath] = refs
+				}
 			}
 		} else {
 			forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
 				baseline.reconcileDue(ctx, config, repoPath)
 			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
 			if updateErr == nil && updated {
-				selected = append(selected, repoPath)
-				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-				if refsErr != nil {
-					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-					return GitSyncSelection{}, refsErr
+				refs, ok, fatalErr := resolveRepoRefsIsolated(ctx, config, repoPath, token, logger, event, baseline.Instruments)
+				if fatalErr != nil {
+					return GitSyncSelection{}, fatalErr
 				}
-				refsByRepoPath[repoPath] = refs
-				if !delta.IsEmpty() {
-					deltaByRepoPath[repoPath] = delta
-				}
-				sourceSHAByRepoPath[repoPath] = sourceSHA
-				if forceReconcile {
-					reconcileByRepoPath[repoPath] = true
-					reconciledThisCycle++
-					baseline.recordReconciliation(ctx)
+				if ok {
+					selected = append(selected, repoPath)
+					refsByRepoPath[repoPath] = refs
+					if !delta.IsEmpty() {
+						deltaByRepoPath[repoPath] = delta
+					}
+					sourceSHAByRepoPath[repoPath] = sourceSHA
+					if forceReconcile {
+						reconcileByRepoPath[repoPath] = true
+						reconciledThisCycle++
+						baseline.recordReconciliation(ctx)
+					}
 				}
 			}
 		}

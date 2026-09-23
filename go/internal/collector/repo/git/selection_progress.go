@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -154,6 +157,49 @@ func logGitSyncFailed(ctx context.Context, logger *slog.Logger, event gitSyncLog
 		telemetry.FailureClassAttr("git_sync_failure"),
 	)
 	logger.ErrorContext(ctx, "git repository sync failed", attrs...)
+}
+
+// resolveRepoRefsIsolated calls remoteGitRefs for one repository and isolates
+// a per-repository failure (DNS timeout, auth, transient network) from the
+// rest of the sync cycle (#7001): it logs and meters the failure via
+// logGitSyncFailed/recordGitRepoSyncFailure and returns ok=false so the
+// caller skips only this repository for the cycle, retrying it naturally on
+// the next poll. Parent-context cancellation (shutdown already in flight) is
+// NOT isolated — fatalErr is non-nil so the caller propagates it, matching
+// syncGitRepositoriesWithLogger's existing top-of-iteration ctx.Err() check.
+func resolveRepoRefsIsolated(
+	ctx context.Context,
+	config RepoSyncConfig,
+	repoPath string,
+	token string,
+	logger *slog.Logger,
+	event gitSyncLogEvent,
+	instruments *telemetry.Instruments,
+) (refs []GitRef, ok bool, fatalErr error) {
+	refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+	if refsErr == nil {
+		return refs, true, nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, false, ctxErr
+	}
+	logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+	recordGitRepoSyncFailure(ctx, instruments, "list_refs")
+	return nil, false, nil
+}
+
+// recordGitRepoSyncFailure increments the bounded per-repository git sync
+// failure counter (#7001) so an operator can see the isolated-failure rate
+// without scraping logs. A nil instruments is a no-op (unwired in tests and
+// some callers). Repository identity never becomes a metric label; it stays
+// in the paired logGitSyncFailed log line.
+func recordGitRepoSyncFailure(ctx context.Context, instruments *telemetry.Instruments, operation string) {
+	if instruments == nil || instruments.GitRepoSyncFailures == nil {
+		return
+	}
+	instruments.GitRepoSyncFailures.Add(ctx, 1, metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionOperation, operation),
+	))
 }
 
 func (e gitSyncLogEvent) eventAttrs(now time.Time) []any {
