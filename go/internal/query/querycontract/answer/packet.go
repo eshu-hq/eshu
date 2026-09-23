@@ -268,8 +268,7 @@ func markAnswerPacketPartial(packet *AnswerPacket, truth *querycontract.TruthEnv
 // one is present, keeping the base text intact when the cause is unset. It
 // never invents a cause; an empty or invalid cause leaves the base reason
 // unchanged. The implementation moved from root's answer_packet.go for
-// #6060; root's own freshnessReason (used directly by
-// investigation_packet_build.go) now forwards here.
+// #6060; root's investigation_packet_build.go calls it directly (#6597).
 func FreshnessReason(base string, cause querycontract.FreshnessCause) string {
 	if !querycontract.ValidFreshnessCause(cause) {
 		return base
@@ -351,8 +350,7 @@ func answerPacketEnvelopeTruth(env *querycontract.ResponseEnvelope) *querycontra
 
 // CloneTruthEnvelope returns a shallow copy of truth, or nil when truth is
 // nil. The implementation moved from root's answer_packet.go for #6060;
-// root's own cloneTruthEnvelope (used directly by
-// investigation_packet_build.go) now forwards here.
+// root's investigation_packet_build.go calls it directly (#6597).
 func CloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil

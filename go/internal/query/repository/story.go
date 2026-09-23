@@ -40,7 +40,7 @@ func BuildRepositoryStoryResponse(
 // response. extraLimitations carries limitation reasons the caller already
 // discovered before this function runs (for example
 // infrastructureReadDegradedReason, #5764) -- they are merged into the
-// computed limitations slice before attachAnswerMetadata derives
+// computed limitations slice before answer.AttachAnswerMetadata derives
 // answer_metadata.partial_reasons, so a degraded auxiliary read is visible in
 // both the top-level limitations field and the answer metadata. storyRowsTruncated
 // (P1 review follow-up to #5764) reports whether the workload_names/
@@ -48,7 +48,7 @@ func BuildRepositoryStoryResponse(
 // repositoryStoryStringRowLimit, OR'd by the caller (handler.go, P3 review
 // follow-up) with the infrastructure panel's own truncation so either bound
 // being exceeded sets the response's top-level "truncated" field; this makes
-// attachAnswerMetadata's BuildAnswerMetadata (which reads data["truncated"]
+// answer.AttachAnswerMetadata's BuildAnswerMetadata (which reads data["truncated"]
 // directly, not the limitations slice) stop answering
 // answer_metadata.truncated=false when either read was actually clipped.
 func BuildRepositoryStoryResponseWithCoverage(

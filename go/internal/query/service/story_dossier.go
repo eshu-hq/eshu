@@ -302,9 +302,10 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// workloadContext["limitations"] when the infrastructure read lands past
 	// repositoryInfrastructureEntityLimit, but that reason previously reached
 	// only answer_metadata.partial_reasons -- never this "truncated" field,
-	// so BuildAnswerMetadata (which falls back to result_limits.truncated
-	// when no top-level "truncated"/"coverage" key exists) and
-	// serviceStoryAnswerData (which reads result_limits.truncated directly)
+	// so answer.BuildAnswerMetadata (which falls back to
+	// result_limits.truncated when no top-level "truncated"/"coverage" key
+	// exists) and answer.ServiceStoryAnswerData (which reads
+	// result_limits.truncated directly)
 	// both reported answer_metadata.truncated/answer_packet.truncated as
 	// false for a service whose infrastructure evidence was clipped.
 	infrastructureTruncated := querycontract.ContainsString(querycontract.StringSliceVal(workloadContext, "limitations"), repository.InfrastructureTruncatedReason)
