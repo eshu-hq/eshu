@@ -193,10 +193,13 @@ func resolveRepoRefsIsolated(
 // recordGitRepoSyncFailure increments the bounded per-repository git sync
 // failure counter (#7001) so an operator can see the isolated-failure rate
 // without scraping logs. A nil instruments is a no-op (unwired in tests and
-// some callers). Repository identity never becomes a metric label; it stays
-// in the paired logGitSyncFailed log line.
+// some callers). A canceled ctx is also a no-op: shutdown killing an
+// in-flight clone/fetch/list_refs is not a sync failure, and counting it
+// would add teardown noise to a signal meant to surface remote/DNS/auth
+// trouble. Repository identity never becomes a metric label; it stays in the
+// paired logGitSyncFailed log line.
 func recordGitRepoSyncFailure(ctx context.Context, instruments *telemetry.Instruments, operation string) {
-	if instruments == nil || instruments.GitRepoSyncFailures == nil {
+	if instruments == nil || instruments.GitRepoSyncFailures == nil || ctx.Err() != nil {
 		return
 	}
 	instruments.GitRepoSyncFailures.Add(ctx, 1, metric.WithAttributes(
@@ -263,8 +266,6 @@ func gitProgressLineIsTerminal(message string) bool {
 		strings.HasPrefix(lower, "authentication failed")
 }
 
-// sanitizeGitProgressMessage redacts URL userinfo from git stderr before the
-// text appears in logs or wrapped errors.
 // gitRunWithStderrWriter runs a git command scoped to repoPath, teeing stderr
 // through stderrWriter (a *gitProgressWriter, or nil) so long-running
 // operations can log progress while still returning the sanitized error text
@@ -311,6 +312,8 @@ func flushProgressWriter(writer io.Writer) {
 	}
 }
 
+// sanitizeGitProgressMessage redacts URL userinfo from git stderr before the
+// text appears in logs or wrapped errors.
 func sanitizeGitProgressMessage(message string) string {
 	fields := strings.Fields(message)
 	for i, field := range fields {
