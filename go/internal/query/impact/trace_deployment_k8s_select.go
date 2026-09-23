@@ -33,7 +33,8 @@ const k8sSelectCandidatePoolTruncationReason = "k8s_select_candidate_pool_trunca
 // anchoredDeploymentTarget pairs a prepared match target with the entity ID of
 // the anchored Deployment it was built from, so a mixed-vintage drop during the
 // directed scan can name the workload in its Debug diagnostic (see
-// logK8sSelectMixedVintageDrop). The k8sWorkloadMatchTarget itself stays pure
+// logK8sSelectMixedVintageDrop). The kubernetes.WorkloadMatchTarget itself
+// stays pure
 // (it holds only the matcher input plus the once-parsed pod-template labels).
 type anchoredDeploymentTarget struct {
 	entityID string
@@ -42,7 +43,7 @@ type anchoredDeploymentTarget struct {
 
 // k8sResourceWireRow builds the surfaced-pool map[string]any for one
 // K8sResource content row. selector/pod_template_labels presence carries
-// tri-state meaning for k8sSelectMatch (see content_relationships_k8s_match.go):
+// tri-state meaning for kubernetes.SelectMatch (see querycontract/kubernetes/select_match.go):
 // the key is omitted entirely, never set to "", when the source content row
 // lacks it. Shared by the name-anchored phase and the matched-by-ID hydration
 // phase so both surfaced-row shapes are byte-identical.

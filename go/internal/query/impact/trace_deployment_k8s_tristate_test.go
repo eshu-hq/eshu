@@ -32,8 +32,8 @@ func (f fetchK8sResourcesContentStore) SearchEntitiesByName(
 // with hand-made maps) and proves it carries the selector/pod_template_labels
 // keys through to the returned resource row IFF the source content entity's
 // metadata carries them, and never defaults an absent key to "". This is the
-// comma-ok tri-state k8sSelectMatch depends on (see
-// content_relationships_k8s_match.go): a defaulted "" would be
+// comma-ok tri-state kubernetes.SelectMatch depends on (see
+// querycontract/kubernetes/select_match.go): a defaulted "" would be
 // indistinguishable from a genuinely empty/selectorless value.
 func TestFetchK8sResourcesPreservesSelectorPodTemplateLabelsNamespaceTriState(t *testing.T) {
 	t.Parallel()

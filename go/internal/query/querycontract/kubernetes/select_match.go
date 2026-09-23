@@ -33,7 +33,8 @@ const (
 // SelectMatchInput carries the fields needed to evaluate the Service ->
 // workload SELECTS relationship, independent of whether the caller holds an
 // querycontract.EntityContent row (content_relationships.go) or a flattened
-// map[string]any row (impact_trace_deployment_k8s.go). selectorPresent and
+// map[string]any row (impact/trace_deployment_k8s_select.go). selectorPresent
+// and
 // podTemplateLabelsPresent distinguish "key absent" (pre-upgrade data, truth
 // unknown) from "key present but empty" (a known, empty value) -- the
 // tri-state distinction the matcher depends on.
@@ -78,9 +79,9 @@ type SelectMatchInput struct {
 //
 // Namespace scoping is strict in both the fallback and authoritative cases.
 //
-// k8sSelectMatch is the shared single-call entry point used by the
+// SelectMatch is the shared single-call entry point used by the
 // entity-context relationship builders (content_relationships_k8s.go) and the
-// impact-trace all-pairs builder (impact_trace_deployment_k8s.go). Its
+// impact-trace all-pairs builder (impact/trace_deployment_k8s_select.go). Its
 // signature and behavior are frozen: callers that evaluate one Service against
 // one workload rely on it unchanged. It is now a thin wrapper that constructs
 // a WorkloadMatchTarget and delegates to the single tri-state decision tree
@@ -88,7 +89,7 @@ type SelectMatchInput struct {
 // the tri-state semantics. A caller that evaluates MANY Services against the
 // SAME workload (the #5363 impact-trace directed candidate scan) must build one
 // WorkloadMatchTarget per workload and reuse it, because the target parses
-// the workload's pod-template labels ONCE; calling k8sSelectMatch per candidate
+// the workload's pod-template labels ONCE; calling SelectMatch per candidate
 // re-parses that label map on every call (measured 16.13 ms/op vs 5.57 ms/op on
 // a 5000-candidate worst case -- see evidence-5363-impact-trace-k8s-fetch.md).
 func SelectMatch(service, workload SelectMatchInput) (matched bool, reason string, mixedVintageDrop bool) {
@@ -124,7 +125,7 @@ func NewWorkloadMatchTarget(workload SelectMatchInput) WorkloadMatchTarget {
 // Match evaluates whether service SELECTS this prepared workload, returning the
 // same (matched, reason, mixedVintageDrop) triple as the historical
 // k8sSelectMatch. This is the single tri-state decision tree; see the
-// k8sSelectMatch doc comment above for the full selector-present/empty/absent
+// SelectMatch doc comment above for the full selector-present/empty/absent
 // and mixed-vintage semantics. Behavior is byte-for-byte identical to the
 // pre-#5363 k8sSelectMatch body: the only change is that the workload's
 // pod-template labels come from the once-parsed t.ParsedPodTemplateLabels
@@ -162,7 +163,7 @@ func (t WorkloadMatchTarget) Match(service SelectMatchInput) (matched bool, reas
 // (Eshu's sorted "k=v,k=v" encoding) is present with an equal value in
 // labels. An empty selector is never a subset of anything -- callers must
 // gate on a non-empty, known selector before calling this (see
-// k8sSelectMatch); this guard exists so the emptiness rule holds even if a
+// SelectMatch); this guard exists so the emptiness rule holds even if a
 // future caller forgets.
 func SelectorSubsetOf(selector, labels string) bool {
 	if selector == "" {
@@ -261,7 +262,8 @@ func LogSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, service
 }
 
 // SelectMatchInputFromRow adapts a flattened map[string]any row (the
-// shape used by impact_trace_deployment_k8s.go and its resource builders)
+// shape used by impact/trace_deployment_k8s_select.go and its resource
+// builders)
 // into SelectMatchInput. Presence of the "selector"/"pod_template_labels"
 // keys in the row carries the same tri-state meaning as the metadata map
 // keys on querycontract.EntityContent -- callers that build these rows must omit the key

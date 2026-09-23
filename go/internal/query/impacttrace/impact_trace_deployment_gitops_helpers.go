@@ -243,7 +243,8 @@ func CollectDeploymentSourceK8sResources(
 			"api_version": MetadataNonEmptyStringValue(entity.Metadata, "api_version"),
 		}
 		// selector/pod_template_labels presence carries tri-state meaning
-		// for k8sSelectMatch (see content_relationships_k8s_match.go): the
+		// for kubernetes.SelectMatch (see
+		// querycontract/kubernetes/select_match.go): the
 		// key must be omitted entirely, not set to "", when the source
 		// content row lacks it.
 		if selector, ok := entity.Metadata["selector"].(string); ok {
