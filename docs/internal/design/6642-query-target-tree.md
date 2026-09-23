@@ -342,7 +342,7 @@ to any of them fails CI.
 | `query/auth/session` | 4 |
 | `query/auth/setup` | 5 |
 | `query/auth/signin` | 9 |
-| `query/capability` | 9 |
+| `query/capability` | 7 |
 | `query/cicd` | 7 |
 | `query/cloud` | 6 |
 | `query/cloud/drift` | 7 |
