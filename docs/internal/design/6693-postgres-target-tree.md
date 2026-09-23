@@ -300,9 +300,9 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 376 | it only needs its own package and packages below it |
+| in-package test | 375 | it only needs its own package and packages below it |
 | external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
-| external test package plus `export_test.go` shim | 87 | as above, and it also reads its subject's private symbols |
+| external test package plus `export_test.go` shim | 88 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
 | stays in root | 72 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 

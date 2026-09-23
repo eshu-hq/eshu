@@ -139,7 +139,7 @@ status_requests.go -> maintenance/requests.go
 <details><summary>Tests</summary>
 
 ```text
-status_requests_test.go -> maintenance/requests_test.go
+status_requests_test.go -> maintenance/requests_test.go   # external test package + export_test.go shim: imports root (BootstrapDefinitions); found in the maintenance/ move
 ```
 
 </details>
