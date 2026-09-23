@@ -56,13 +56,14 @@ Eshu pins the same eshu-hq build of NornicDB image by digest for
 Compose, Helm, and R-5 graph startup. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; `fix-6915-c4de1c5c` is the pinned eshu-hq
+preserved in later releases; `fix-6915-f2163176` is the pinned eshu-hq
 ghcr.io image, an eshu-hq build of plain upstream orneryd/NornicDB main at
-`c4de1c5c`, built after
+`f2163176`, built after
 [orneryd/NornicDB#492](https://github.com/orneryd/NornicDB/pull/492) (parser
-refactor, TCK 100%) and
-[#512](https://github.com/orneryd/NornicDB/pull/512), carrying the merged
-Close-versus-commit fix
+refactor, TCK 100%),
+[#512](https://github.com/orneryd/NornicDB/pull/512), and
+[#519](https://github.com/orneryd/NornicDB/issues/519) (a LIMIT-after-join
+row-drop regression fix), carrying the merged Close-versus-commit fix
 ([orneryd/NornicDB#501](https://github.com/orneryd/NornicDB/pull/501)), the
 numID counter floor
 ([#498](https://github.com/orneryd/NornicDB/pull/498)), the conjunct

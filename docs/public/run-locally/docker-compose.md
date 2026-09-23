@@ -172,11 +172,11 @@ or document id to logs or metric labels.
 ### Immutable NornicDB default
 
 The default Compose NornicDB service uses the eshu-hq build multi-architecture image
-`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a`.
-That exact artifact is plain upstream orneryd/NornicDB main at `c4de1c5c`, built after #492 (parser refactor, TCK 100%)
-and #512, carrying the Close-versus-commit fix (#501, numID counter floor #498 for the restart cell #6162, conjunct
-index-seek fix #491), and the #500 ORDER BY key fix. The default pull policy `missing` downloads the immutable artifact
-once and reuses it without requiring registry access on every start.
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be`.
+That exact artifact is plain upstream orneryd/NornicDB main at `f2163176`, built after #492 (parser refactor, TCK 100%),
+#512, and #519 (a LIMIT-after-join row-drop regression fix), carrying the Close-versus-commit fix (#501, numID counter
+floor #498 for the restart cell #6162, conjunct index-seek fix #491), and the #500 ORDER BY key fix. The default pull
+policy `missing` downloads the immutable artifact once and reuses it without requiring registry access on every start.
 
 Controlled backend comparisons retain the image override contract. Set
 `NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` when a run
@@ -200,11 +200,11 @@ Confirm the configured digest and the backend's reported version before treating
 the stack as evidence:
 
 ```bash
-docker compose config --images | rg 'nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b'
+docker compose config --images | rg 'nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912'
 docker compose exec nornicdb /app/nornicdb version
 ```
 
-The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the fix-6915-c4de1c5c tag and immutable
+The version command reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file reporting `NornicDB v1.3.1`, and v1.3.3 corrects it. Verify the fix-6915-f2163176 tag and immutable
 digest above; the binary string alone cannot identify this release. The pinned image likewise carries no OCI source-revision label, so the tag plus digest,
 selected platform child, and honest binary self-report form the provenance contract.
 

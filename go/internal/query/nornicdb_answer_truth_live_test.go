@@ -18,7 +18,7 @@
 //
 //	docker run -d --name eshu-answer-truth -e NORNICDB_NO_AUTH=true \
 //	  -e NORNICDB_EMBEDDING_ENABLED=false -p 127.0.0.1:27687:7687 \
-//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a
+//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27687 go test ./internal/query \
 //	  -tags live_nornicdb_answer_truth -run TestLiveNornicDBAnswerTruth -count=1 -v
 package query

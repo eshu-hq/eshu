@@ -270,3 +270,83 @@ from the registry's single co-run, so this entry is reported as a
 remains unmodified in this change. Retiring it should wait for a clean,
 single-invocation paired differential run once the mutualPing regression no
 longer blocks the NornicDB leg from completing.
+
+## Root cause and upstream fix: orneryd/NornicDB#519, repin to `f2163176`
+
+**Root cause identified.** The mutualPing regression above is
+[orneryd/NornicDB#519](https://github.com/orneryd/NornicDB/issues/519), "LIMIT
+after a MATCH that joins an earlier variable drops rows": since `7bccfec5`
+("fix: converge list executor", part of the #492 parser-refactor line), a
+query whose last `MATCH` reuses a variable bound by an earlier `MATCH` and
+ends in `RETURN ... LIMIT n` (no `ORDER BY`) can return fewer rows than it
+should, down to none — exactly the shape of the name+repo_id-anchored CALLS
+lookup used by `POST /api/v0/code/relationships` and
+`find_function_call_chain`. `6ac958a9` (the prior `fix-500-e022384c` pin's
+base) returns the right rows, and so does Neo4j, matching the RED-on-`c4de1c5c`
+finding above.
+
+Upstream fixed #519 in main at `f2163176`. Independently verified (by the
+session that built and published the new image, not re-verified live in this
+worktree): the regression test goes RED on the parent commit and GREEN on the
+fix, the full `pkg/cypher` suite passes, and a local arm64 build of `f2163176`
+runs the Eshu golden-corpus gate GREEN — `569 pass, 0 required-fail, 3
+advisory-warn`, `PASS: B-7 golden corpus gate green (elapsed 288s, budget
+ceiling 1800s)`, log at `$SP/nornic519/golden.log`
+(`SP=/private/tmp/claude-501/-Users-allen-personal-repos-eshu/568182cc-70e6-429c-9430-67d47808073b/scratchpad`),
+with the same 5 previously-failing assertions now passing:
+
+```
+[PASS] POST /api/v0/code/relationships?assert=direct-callees: "outgoing" has 1 results; item fields [] present; json paths [], values [name repo_id], object matches [outgoing[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=direct-callers: "incoming" has 1 results; item fields [] present; json paths [], values [name repo_id], object matches [incoming[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=transitive-callees: "outgoing" has 1 results; item fields [] present; json paths [], values [], object matches [outgoing[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=transitive-callers: "incoming" has 1 results; item fields [] present; json paths [], values [], object matches [incoming[]], and mutual-exclusion checks 0 present
+[PASS] mcp:find_function_call_chain: "chains" has 1 results; item fields [] present; json paths [], values [chains[].chain[].name cross_repo end repo_id start], object matches [], and mutual-exclusion checks 0 present
+```
+
+**Repin.** The default pin moves from
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-c4de1c5c@sha256:76dd5f9b016db047ba867b69b13e4b2dd0f7b90c2764059476821ba4ce52274a`
+(amd64 `79a171850c586fb495a2d7cc66916c200bff8d27a15ab798fdc83f15e41720fb`, arm64
+`3a4649d64116f410d10729091b1e94e05e03e94c01339c7eb1ec12e366d5c372`) to
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-6915-f2163176@sha256:a41fa912b0ac85aa8383d3095237347201fa66bc5c8ab644ce869a6c799c44be`
+(amd64 `7cabadf4380389b27d96129ae79dd548cb17021010ff1a30bf7c87d231c76f21`,
+arm64 `67e3c82c6ff4f3389903a0dd69488a95253379ba44851d669fe94882fa1602e8`), an
+eshu-hq build of plain upstream orneryd/NornicDB main at `f2163176` (post
+#492/#512/#519, still carrying #491/#498/#501 and the #500 ORDER BY fix; self-
+reports 1.3.3). The same 41 files moved together, swept with a copy of the
+repin helper (`old_*` pointed at the `c4de1c5c` values). Two truncated
+digest-prefix occurrences the sweep cannot catch by design (an `rg` example in
+`docker-compose.md` and the `wrong-index` mutation in
+`test-verify-k8s-two-team-governance-proof.sh`, kept tag-only per the same
+precedent as the fix-500 repin) were fixed by hand. `rg -n "c4de1c5c" .`
+outside `docs/internal/evidence/` returns nothing.
+
+Prose in `deploy/helm/eshu/values.yaml`, `docs/public/run-locally/docker-compose.md`,
+`docs/public/deploy/kubernetes/storage.md`,
+`docs/public/deploy/kubernetes/helm-routing-and-storage-values.md`, and
+`docs/internal/design/430-nornicdb-graph-search-split.md` now name the pinned
+commit as `f2163176` and cite #519.
+
+**Post-repin local proof (this worktree, non-live):**
+
+- `cd go && env -u GOROOT go test ./internal/runtime/ -run NornicDB -count=1` — PASS.
+- `bash scripts/test-verify-replay-tier.sh` — PASS.
+- `bash scripts/test-verify-k8s-two-team-governance-proof.sh` — PASS (confirms the hand-fixed `wrong-index` mutation still rejects invalid provenance).
+- `bash scripts/test-k8s-two-team-governance-provenance.sh` — PASS.
+- `bash scripts/test-verify-ifa-fault-injection.sh` — PASS: "49 cells, 4 shards, exact cover proven", 28 pin-helper checks, "test-verify-ifa-fault-injection: pass".
+- `cd go && env -u GOROOT go vet -tags integration` across the packages holding the 13 live-test image pins — clean.
+- `cd go && env -u GOROOT go test ./cmd/golden-corpus-gate/ -count=1` — PASS.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` — PASS (same pre-existing unrelated nav warning).
+- `git diff --check` — clean.
+
+No live gate was run in this worktree for the repin itself (not requested this
+round; the golden-corpus GREEN evidence above comes from the separate session
+that built and validated the `f2163176` image, cited by log path, not
+reproduced live here).
+
+No-Observability-Change: no metric, span, log field, or status contract
+changes from the repin itself.
+
+No-Regression Evidence: the upstream fix was benchmarked/proven by the
+publishing session (RED-on-parent/GREEN-on-fix regression test, full
+`pkg/cypher` suite, golden-corpus gate); this worktree's own proof is the
+focused non-live suite above, unchanged in shape and green on the new pin.
