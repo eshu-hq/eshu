@@ -4,9 +4,11 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -270,6 +272,63 @@ func TestConcurrentIndexBuildOutlivesOlderTransactionLive(t *testing.T) {
 	}
 	if valid := proofIndexValidity(t, ctx, applyDB, indexName); !valid {
 		t.Fatalf("index %s is invalid after the build, want valid", indexName)
+	}
+}
+
+// TestSQLDBLogsConcurrentIndexBuildLive pins the #7004 review fix (thread
+// 4085764522): the unlocked ApplyDefinitionsWithLockTimeout path on a raw
+// SQLDB (used outside the tracked bootstrap-lock executor, e.g. by direct
+// callers of this package) must emit the same
+// bootstrap.postgres.migration.concurrent_index_build.starting/.finished
+// pair the bootstrap-lock executor logs, not silently skip it.
+func TestSQLDBLogsConcurrentIndexBuildLive(t *testing.T) {
+	if os.Getenv(schemaLockTimeoutProofEnv) != "1" {
+		t.Skip("set ESHU_SCHEMA_LOCK_TIMEOUT_PROOF=1 and ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Not parallel: swaps the process-wide default logger, the same
+	// pattern TestGovernanceAuditStoreListWarnsThroughDefaultLoggerWhenUnset
+	// uses, since SQLDB carries no logger field of its own.
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	applyDB := openSchemaLockTimeoutProofDB(t, dsn)
+	tableName := fmt.Sprintf("schema_cic_sqldb_log_proof_%d", time.Now().UnixNano())
+	indexName := tableName + "_id_idx"
+	t.Cleanup(func() {
+		if _, err := applyDB.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+tableName); err != nil {
+			t.Errorf("cleanup: drop %s: %v", tableName, err)
+		}
+	})
+
+	if _, err := applyDB.ExecContext(ctx, "CREATE TABLE "+tableName+" (id INTEGER NOT NULL)"); err != nil {
+		t.Fatalf("create proof table: %v", err)
+	}
+
+	exec := SQLDB{DB: applyDB}
+	if err := ApplyDefinitionsWithLockTimeout(ctx, exec, []Definition{
+		{
+			Name: "proof_index",
+			Path: "schema_cic_sqldb_log_proof_index.sql",
+			SQL:  "CREATE INDEX CONCURRENTLY " + indexName + " ON " + tableName + " (id)",
+		},
+	}, 5*time.Second); err != nil {
+		t.Fatalf("ApplyDefinitionsWithLockTimeout() with concurrent index error = %v, want nil", err)
+	}
+
+	text := logs.String()
+	if !strings.Contains(text, "bootstrap.postgres.migration.concurrent_index_build.starting") ||
+		!strings.Contains(text, "bootstrap.postgres.migration.concurrent_index_build.finished") {
+		t.Fatalf("want concurrent-index-build starting/finished events on the SQLDB path, got:\n%s", text)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -132,40 +133,44 @@ func (database SQLDB) execContextWithLockTimeout(
 	}
 	// #7004: a bare CREATE/DROP INDEX CONCURRENTLY statement runs with
 	// lock_timeout disabled instead of the caller's bound; see
-	// coordination.ConcurrentIndexBuildLockTimeout's doc comment for why
-	// that never blocks writers.
-	lockTimeout = coordination.ConcurrentIndexBuildLockTimeout(query, lockTimeout)
-	conn, err := database.DB.Conn(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("open schema connection: %w", err)
-	}
-	closeConn := true
-	defer func() {
-		if closeConn {
-			_ = conn.Close()
+	// coordination.ConcurrentIndexBuildPlan's doc comment for why that
+	// never blocks writers. This unlocked path carries no logger of its
+	// own, so RunWithConcurrentIndexBuildLogging reports through
+	// slog.Default, the same fallback ApplyBootstrapWithOptions uses.
+	effectiveTimeout, concurrentIndexBuild := coordination.ConcurrentIndexBuildPlan(query, lockTimeout)
+	return coordination.RunWithConcurrentIndexBuildLogging(ctx, slog.Default(), concurrentIndexBuild, func() (sql.Result, error) {
+		conn, err := database.DB.Conn(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("open schema connection: %w", err)
 		}
-	}()
+		closeConn := true
+		defer func() {
+			if closeConn {
+				_ = conn.Close()
+			}
+		}()
 
-	if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", coordination.LockTimeoutSetting(lockTimeout)); err != nil {
-		return nil, fmt.Errorf("set schema lock timeout: %w", err)
-	}
-	if err := database.dropInvalidConcurrentIndexes(ctx, conn, concurrentIndexNamesForInvalidCleanup(query)); err != nil {
+		if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", coordination.LockTimeoutSetting(effectiveTimeout)); err != nil {
+			return nil, fmt.Errorf("set schema lock timeout: %w", err)
+		}
+		if err := database.dropInvalidConcurrentIndexes(ctx, conn, concurrentIndexNamesForInvalidCleanup(query)); err != nil {
+			resetErr := resetSchemaLockTimeout(conn)
+			closeErr := conn.Close()
+			if closeErr != nil {
+				closeErr = fmt.Errorf("close schema connection: %w", closeErr)
+			}
+			closeConn = false
+			return nil, errors.Join(err, resetErr, closeErr)
+		}
+		result, execErr := conn.ExecContext(ctx, query)
 		resetErr := resetSchemaLockTimeout(conn)
 		closeErr := conn.Close()
 		if closeErr != nil {
 			closeErr = fmt.Errorf("close schema connection: %w", closeErr)
 		}
 		closeConn = false
-		return nil, errors.Join(err, resetErr, closeErr)
-	}
-	result, execErr := conn.ExecContext(ctx, query)
-	resetErr := resetSchemaLockTimeout(conn)
-	closeErr := conn.Close()
-	if closeErr != nil {
-		closeErr = fmt.Errorf("close schema connection: %w", closeErr)
-	}
-	closeConn = false
-	return result, errors.Join(execErr, resetErr, closeErr)
+		return result, errors.Join(execErr, resetErr, closeErr)
+	})
 }
 
 func resetSchemaLockTimeout(conn *sql.Conn) error {

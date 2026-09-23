@@ -98,10 +98,21 @@ func stripWholeLineSQLComments(sql string) string {
 // next run's invalid-index cleanup drops (also without lock_timeout; see
 // dropInvalidConcurrentIndexes in the root package) before rebuilding it.
 func ConcurrentIndexBuildLockTimeout(query string, requested time.Duration) time.Duration {
+	lockTimeout, _ := ConcurrentIndexBuildPlan(query, requested)
+	return lockTimeout
+}
+
+// ConcurrentIndexBuildPlan classifies query once and returns both the
+// effective lock_timeout (see ConcurrentIndexBuildLockTimeout) and whether
+// query is a bare CIC/DIC statement. Callers that need both values -- the
+// timeout to apply and whether to run RunWithConcurrentIndexBuildLogging --
+// use this instead of calling IsSoleConcurrentIndexStatement a second time
+// (#7004 review thread 4085764532).
+func ConcurrentIndexBuildPlan(query string, requested time.Duration) (lockTimeout time.Duration, isConcurrentIndexBuild bool) {
 	if IsSoleConcurrentIndexStatement(query) {
-		return 0
+		return 0, true
 	}
-	return requested
+	return requested, false
 }
 
 // LockTimeoutSetting renders d for `SELECT set_config('lock_timeout', $1,
