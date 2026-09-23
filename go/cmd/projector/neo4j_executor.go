@@ -57,6 +57,7 @@ func (e projectorNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 				return nil, consumeErr
 			}
 			counts = append(counts, statementRetractionCounts(stmt, summary))
+			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 		}
 		return counts, nil
 	}, e.transactionConfigurers()...)
@@ -95,6 +96,7 @@ func (e projectorNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
+		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 	}
 	return err
 }
@@ -136,6 +138,10 @@ func (e projectorNeo4jExecutor) RunWrite(
 	if err != nil {
 		return storagenornicdb.DrainWriteResult{}, err
 	}
+	// No ReportWriteCounts here: RunWrite serves the drain reader, whose
+	// rewritten bounded cypher never matches the recorder's statement
+	// fingerprint, so entries would join nowhere. Drain iterations that
+	// run through Execute report at that seam instead.
 	return storagenornicdb.DrainWriteResult{
 		Rows:                 rows,
 		NodesDeleted:         int64(summary.Counters().NodesDeleted()),

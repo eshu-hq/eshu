@@ -187,6 +187,11 @@ func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 // DifferentialRecord is one captured statement execution. Error carries the
 // run, fingerprint, or digest error text when Failed is true, so a
 // failures-kind divergence names the failure instead of only counting it.
+//
+// Counters carries Bolt summary counters for write executions (issue #6783).
+// The slice-3 comparison never reads it: execution, digest, row-count, and
+// failure kinds are computed from the older fields only, so counters ride
+// along without moving the closed gate's verdicts.
 type DifferentialRecord struct {
 	Fingerprint DifferentialFingerprint
 	Backend     string
@@ -194,6 +199,7 @@ type DifferentialRecord struct {
 	Digest      string
 	Failed      bool
 	Error       string
+	Counters    sourcecypher.WriteCounters
 }
 
 // DifferentialRecorder collects records in execution order. It is safe for
@@ -296,8 +302,8 @@ var errDifferentialNoExecutePhaseGroup = errors.New("differential inner executor
 var errDifferentialNoExecuteProbe = errors.New("differential inner executor does not support ExecuteProbe")
 
 func (e differentialExecutorRecorder) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
-	return e.recorded(stmt, func() error {
-		return e.inner.Execute(ctx, stmt)
+	return e.recorded(ctx, stmt, func(call context.Context) error {
+		return e.inner.Execute(call, stmt)
 	})
 }
 
@@ -306,8 +312,8 @@ func (e differentialGroupRecorder) ExecuteGroup(ctx context.Context, stmts []sou
 	if !ok {
 		return errDifferentialNoExecuteGroup
 	}
-	return e.recordedAll(stmts, func() error {
-		return grouped.ExecuteGroup(ctx, stmts)
+	return e.recordedAll(ctx, stmts, func(call context.Context) error {
+		return grouped.ExecuteGroup(call, stmts)
 	})
 }
 
@@ -316,8 +322,8 @@ func (e differentialGroupRecorder) ExecutePhaseGroup(ctx context.Context, stmts 
 	if !ok {
 		return errDifferentialNoExecutePhaseGroup
 	}
-	return e.recordedAll(stmts, func() error {
-		return phased.ExecutePhaseGroup(ctx, stmts)
+	return e.recordedAll(ctx, stmts, func(call context.Context) error {
+		return phased.ExecutePhaseGroup(call, stmts)
 	})
 }
 
@@ -346,18 +352,68 @@ func (e differentialGroupRecorder) recordedProbe(stmt sourcecypher.Statement, ru
 // recorded and recordedAll capture write executions and pass the inner
 // result through untouched, under the same transparency rule as the read
 // recorded helper above.
-func (e differentialExecutorRecorder) recorded(stmt sourcecypher.Statement, run func() error) error {
-	err := run()
-	e.recorder.Add(captureWrite(stmt, err, e.backend))
+//
+// Each call stashes a fresh write-counts collector in the context the inner
+// executor runs with, then joins the Bolt-reported entries back to the
+// call's statements by fingerprint (issue #6783). The collector is per-call,
+// so concurrent calls never share entries; the join sums duplicate and
+// retry-surplus entries and never creates records, keeping the
+// execution-count comparison stable.
+func (e differentialExecutorRecorder) recorded(ctx context.Context, stmt sourcecypher.Statement, run func(context.Context) error) error {
+	collector := sourcecypher.NewWriteCountsCollector()
+	err := run(sourcecypher.WithWriteCountsCollector(ctx, collector))
+	record := captureWrite(stmt, err, e.backend)
+	record.Counters = joinWriteCounters([]DifferentialFingerprint{record.Fingerprint}, collector.Entries())[0]
+	e.recorder.Add(record)
 	return err
 }
 
-func (e differentialGroupRecorder) recordedAll(stmts []sourcecypher.Statement, run func() error) error {
-	err := run()
+func (e differentialGroupRecorder) recordedAll(ctx context.Context, stmts []sourcecypher.Statement, run func(context.Context) error) error {
+	collector := sourcecypher.NewWriteCountsCollector()
+	err := run(sourcecypher.WithWriteCountsCollector(ctx, collector))
+	fps := make([]DifferentialFingerprint, 0, len(stmts))
+	records := make([]DifferentialRecord, 0, len(stmts))
 	for _, stmt := range stmts {
-		e.recorder.Add(captureWrite(stmt, err, e.backend))
+		record := captureWrite(stmt, err, e.backend)
+		fps = append(fps, record.Fingerprint)
+		records = append(records, record)
+	}
+	counters := joinWriteCounters(fps, collector.Entries())
+	for i := range records {
+		records[i].Counters = counters[i]
+		e.recorder.Add(records[i])
 	}
 	return err
+}
+
+// joinWriteCounters aligns one call's Bolt-reported entries with the call's
+// statement fingerprints. Entries match by fingerprint; duplicates and
+// retry-surplus entries sum into the first matching statement, and entries
+// with no matching statement attach nowhere: every Bolt execution is either
+// attributed to the statement the recorder saw or left out, never invented
+// as a new record.
+func joinWriteCounters(fps []DifferentialFingerprint, entries []sourcecypher.WriteCountEntry) []sourcecypher.WriteCounters {
+	out := make([]sourcecypher.WriteCounters, len(fps))
+	consumed := make([]bool, len(entries))
+	entryFP := make([]DifferentialFingerprint, len(entries))
+	for i, entry := range entries {
+		fp, err := FingerprintStatement(entry.Cypher, entry.Parameters)
+		if err != nil {
+			consumed[i] = true
+			continue
+		}
+		entryFP[i] = fp
+	}
+	for i, fp := range fps {
+		for j, entry := range entries {
+			if consumed[j] || entryFP[j] != fp {
+				continue
+			}
+			consumed[j] = true
+			out[i] = out[i].Add(entry.Counters)
+		}
+	}
+	return out
 }
 
 func captureWrite(stmt sourcecypher.Statement, execErr error, backend string) DifferentialRecord {

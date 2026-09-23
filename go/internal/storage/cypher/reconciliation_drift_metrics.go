@@ -212,3 +212,33 @@ func WriteCountsCollectorFromContext(ctx context.Context) *WriteCountsCollector 
 func ReportWriteCounts(ctx context.Context, cypher string, params map[string]any, counters WriteCounters) {
 	WriteCountsCollectorFromContext(ctx).Add(WriteCountEntry{Cypher: cypher, Parameters: params, Counters: counters})
 }
+
+// WriteSummaryCounters is the Bolt summary-counter surface
+// WriteCountersFromSummary reads. It matches the driver's Counters shape
+// for the graph-object counters, so seams pass summary.Counters() directly;
+// the test fake implements it without a driver.
+type WriteSummaryCounters interface {
+	NodesCreated() int
+	NodesDeleted() int
+	RelationshipsCreated() int
+	RelationshipsDeleted() int
+	PropertiesSet() int
+	LabelsAdded() int
+	LabelsRemoved() int
+}
+
+// WriteCountersFromSummary converts one Bolt summary's graph-object
+// counters to WriteCounters. Schema counters (indexes, constraints) stay
+// out: production writers never change schema, so they carry no statement
+// truth.
+func WriteCountersFromSummary(counters WriteSummaryCounters) WriteCounters {
+	return WriteCounters{
+		NodesCreated:         int64(counters.NodesCreated()),
+		NodesDeleted:         int64(counters.NodesDeleted()),
+		RelationshipsCreated: int64(counters.RelationshipsCreated()),
+		RelationshipsDeleted: int64(counters.RelationshipsDeleted()),
+		PropertiesSet:        int64(counters.PropertiesSet()),
+		LabelsAdded:          int64(counters.LabelsAdded()),
+		LabelsRemoved:        int64(counters.LabelsRemoved()),
+	}
+}

@@ -56,6 +56,38 @@ func TestWriteCountsCollectorIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
+// stubWriteSummaryCounters is a fake Bolt summary-counter surface with a
+// distinct value per field, so the mapping test catches swaps.
+type stubWriteSummaryCounters struct{}
+
+func (stubWriteSummaryCounters) NodesCreated() int         { return 1 }
+func (stubWriteSummaryCounters) NodesDeleted() int         { return 2 }
+func (stubWriteSummaryCounters) RelationshipsCreated() int { return 3 }
+func (stubWriteSummaryCounters) RelationshipsDeleted() int { return 4 }
+func (stubWriteSummaryCounters) PropertiesSet() int        { return 5 }
+func (stubWriteSummaryCounters) LabelsAdded() int          { return 6 }
+func (stubWriteSummaryCounters) LabelsRemoved() int        { return 7 }
+
+func TestWriteCountersFromSummaryMapsAllFields(t *testing.T) {
+	got := WriteCountersFromSummary(stubWriteSummaryCounters{})
+	want := WriteCounters{
+		NodesCreated: 1, NodesDeleted: 2,
+		RelationshipsCreated: 3, RelationshipsDeleted: 4,
+		PropertiesSet: 5, LabelsAdded: 6, LabelsRemoved: 7,
+	}
+	if got != want {
+		t.Fatalf("WriteCountersFromSummary() = %+v, want %+v", got, want)
+	}
+}
+
+func TestWriteCountersAddSums(t *testing.T) {
+	got := WriteCounters{NodesCreated: 1, LabelsRemoved: 2}.Add(WriteCounters{NodesCreated: 3, PropertiesSet: 4})
+	want := WriteCounters{NodesCreated: 4, LabelsRemoved: 2, PropertiesSet: 4}
+	if got != want {
+		t.Fatalf("Add() = %+v, want %+v", got, want)
+	}
+}
+
 func TestWriteCountsCollectorEntriesSnapshotIsCopy(t *testing.T) {
 	collector := NewWriteCountsCollector()
 	ctx := WithWriteCountsCollector(context.Background(), collector)
