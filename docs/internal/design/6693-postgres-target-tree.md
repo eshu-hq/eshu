@@ -341,7 +341,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 3. [x] `decisions/` (1 file)
 4. [x] `facts/payload/` (1 file)
 5. [x] `iac/` (1 file)
-6. [ ] `incident/` (1 file)
+6. [x] `incident/` (1 file)
 7. [ ] `maintenance/` (1 file)
 8. [ ] `search/index/` (1 file)
 9. [ ] `terraform/state/` (1 file)

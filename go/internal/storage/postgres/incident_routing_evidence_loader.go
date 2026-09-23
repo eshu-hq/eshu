@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:dirgate // #6693 checklist step 39 moves this file to facts/incident_routing_evidence.go; not yet executed
 
 import (
 	"context"

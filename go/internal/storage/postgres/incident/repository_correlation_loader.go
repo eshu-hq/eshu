@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package incidentstore
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
 
-// listAppliedPagerDutyServiceRoutingQuery selects the applied PagerDuty service
+// ListAppliedPagerDutyServiceRoutingQuery selects the applied PagerDuty service
 // routing facts for one scope generation. Only resource_class='service' rows are
 // edge-anchorable: they carry the real PagerDuty provider service id
 // (provider_object_id) plus the Terraform backend (kind, locator_hash) the
@@ -43,7 +43,7 @@ import (
 // TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared
 // (incident_routing_sql_schema_lockstep_test.go), not a future migration onto
 // the typed decode seam.
-const listAppliedPagerDutyServiceRoutingQuery = `
+const ListAppliedPagerDutyServiceRoutingQuery = `
 SELECT
     fact.fact_id,
     fact.stable_fact_key,
@@ -87,7 +87,7 @@ func (l PostgresAppliedPagerDutyServiceRoutingLoader) LoadAppliedPagerDutyServic
 		return nil, fmt.Errorf("scope id and generation id must not be blank")
 	}
 
-	rows, err := l.DB.QueryContext(ctx, listAppliedPagerDutyServiceRoutingQuery, scopeID, generationID)
+	rows, err := l.DB.QueryContext(ctx, ListAppliedPagerDutyServiceRoutingQuery, scopeID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("list applied pagerduty service routing: %w", err)
 	}

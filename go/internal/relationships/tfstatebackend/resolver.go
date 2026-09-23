@@ -109,7 +109,7 @@ var ErrAmbiguousBackendOwner = errors.New("ambiguous backend owner")
 // errors.Is(err, ErrAmbiguousBackendOwner) still reports true via Unwrap, so
 // every pre-existing caller that only checks the sentinel (
 // go/internal/storage/postgres/aws_cloud_runtime_drift_evidence.go,
-// go/internal/storage/postgres/incident_repository_correlation_loader.go) is
+// go/internal/storage/postgres/incident/repository_correlation_loader.go) is
 // unaffected.
 type AmbiguousBackendOwnerError struct {
 	// Candidates holds every distinct-repo row that matched the requested
