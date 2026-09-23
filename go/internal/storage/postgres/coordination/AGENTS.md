@@ -17,9 +17,15 @@
 - Every loop is bounded by its policy and by the caller's context. Never add
   an unbounded wait, and never sleep without the injected `Sleeper`.
 - Log events are operator contracts (`bootstrap.postgres.ownership.waiting`,
-  `.acquired`, `bootstrap.postgres.migration.lock_wait`, `.lock_recovered`);
-  keep their names and attributes stable and document changes in
+  `.acquired`, `bootstrap.postgres.migration.lock_wait`, `.lock_recovered`,
+  `.concurrent_index_build.starting`, `.finished`); keep their names and
+  attributes stable and document changes in
   `docs/public/observability/telemetry-coverage.md`.
+- `IsSoleConcurrentIndexStatement` must stay conservative (#7004): a
+  statement it cannot prove is a lone bare CREATE/DROP INDEX CONCURRENTLY —
+  combined with any other statement, or anything unrecognized — keeps the
+  caller's `lock_timeout`. A false positive would silently disable
+  `lock_timeout` on an ordinary DDL statement.
 - No import of the postgres root package: the dependency is root ->
   coordination only, so `SQLDB.withSchemaBootstrapLock` keeps satisfying the
   root's package-private locker contract.

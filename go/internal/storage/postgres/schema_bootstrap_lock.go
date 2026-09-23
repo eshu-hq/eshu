@@ -419,9 +419,9 @@ func (executor schemaConnectionExecutor) ExecContext(
 // execContextWithLockTimeout applies lockTimeout, then query, on the shared
 // bootstrap connection. #7004: a bare CREATE/DROP INDEX CONCURRENTLY
 // statement runs with lock_timeout disabled instead of the caller's bound
-// (concurrentIndexBuildLockTimeout's doc comment explains why that never
-// blocks writers); runWithConcurrentIndexBuildLogging reports that
-// statement's start/finish for operator visibility.
+// (coordination.ConcurrentIndexBuildLockTimeout's doc comment explains why
+// that never blocks writers); coordination.RunWithConcurrentIndexBuildLogging
+// reports that statement's start/finish for operator visibility.
 func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	ctx context.Context,
 	query string,
@@ -430,12 +430,12 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	if lockTimeout <= 0 {
 		return executor.ExecContext(ctx, query)
 	}
-	effectiveTimeout := concurrentIndexBuildLockTimeout(query, lockTimeout)
-	return runWithConcurrentIndexBuildLogging(ctx, executor.logger, isSoleConcurrentIndexStatement(query), func() (sql.Result, error) {
+	effectiveTimeout := coordination.ConcurrentIndexBuildLockTimeout(query, lockTimeout)
+	return coordination.RunWithConcurrentIndexBuildLogging(ctx, executor.logger, coordination.IsSoleConcurrentIndexStatement(query), func() (sql.Result, error) {
 		if _, err := executor.conn.ExecContext(
 			ctx,
 			"SELECT set_config('lock_timeout', $1, false)",
-			lockTimeoutSetting(effectiveTimeout),
+			coordination.LockTimeoutSetting(effectiveTimeout),
 		); err != nil {
 			return nil, fmt.Errorf("set schema lock timeout: %w", err)
 		}

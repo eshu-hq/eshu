@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/jackc/pgx/v5"
@@ -131,9 +132,9 @@ func (database SQLDB) execContextWithLockTimeout(
 	}
 	// #7004: a bare CREATE/DROP INDEX CONCURRENTLY statement runs with
 	// lock_timeout disabled instead of the caller's bound; see
-	// concurrentIndexBuildLockTimeout's doc comment for why that never
-	// blocks writers.
-	lockTimeout = concurrentIndexBuildLockTimeout(query, lockTimeout)
+	// coordination.ConcurrentIndexBuildLockTimeout's doc comment for why
+	// that never blocks writers.
+	lockTimeout = coordination.ConcurrentIndexBuildLockTimeout(query, lockTimeout)
 	conn, err := database.DB.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("open schema connection: %w", err)
@@ -145,7 +146,7 @@ func (database SQLDB) execContextWithLockTimeout(
 		}
 	}()
 
-	if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", lockTimeoutSetting(lockTimeout)); err != nil {
+	if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", coordination.LockTimeoutSetting(lockTimeout)); err != nil {
 		return nil, fmt.Errorf("set schema lock timeout: %w", err)
 	}
 	if err := database.dropInvalidConcurrentIndexes(ctx, conn, concurrentIndexNamesForInvalidCleanup(query)); err != nil {

@@ -234,7 +234,7 @@ func holdAdvisoryKeyInAnotherDatabase(ctx context.Context, t *testing.T, databas
 // ShareUpdateExclusiveLock, as an anti-wraparound autovacuum holds (the
 // production shape, migration 118, and the one non-transactional
 // statement kind), must wait for that lock to release rather than hit
-// lock_timeout and retry from scratch. concurrentIndexBuildLockTimeout
+// lock_timeout and retry from scratch. coordination.ConcurrentIndexBuildLockTimeout
 // exempts a bare CREATE/DROP INDEX CONCURRENTLY statement from the
 // per-statement lock_timeout entirely, so this wait is bounded only by the
 // run's context, never by lock_timeout -- on a steadily busy database

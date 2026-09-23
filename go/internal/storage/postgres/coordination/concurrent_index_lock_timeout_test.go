@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package coordination
 
 import (
 	"testing"
@@ -10,9 +10,9 @@ import (
 
 // TestIsSoleConcurrentIndexStatement pins the #7004 statement classifier: it
 // must recognize a bare CREATE/DROP INDEX CONCURRENTLY statement (including
-// the leading SQL comments every migrations/*.sql file that uses one
-// carries, per 113/114's header convention) and stay conservative about
-// everything else, since a false positive would silently disable
+// the leading SQL comments every root package migrations/*.sql file that
+// uses one carries, per 113/114's header convention) and stay conservative
+// about everything else, since a false positive would silently disable
 // lock_timeout on an ordinary DDL statement.
 func TestIsSoleConcurrentIndexStatement(t *testing.T) {
 	t.Parallel()
@@ -84,8 +84,8 @@ func TestIsSoleConcurrentIndexStatement(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := isSoleConcurrentIndexStatement(tc.sql); got != tc.want {
-				t.Fatalf("isSoleConcurrentIndexStatement(%q) = %v, want %v", tc.sql, got, tc.want)
+			if got := IsSoleConcurrentIndexStatement(tc.sql); got != tc.want {
+				t.Fatalf("IsSoleConcurrentIndexStatement(%q) = %v, want %v", tc.sql, got, tc.want)
 			}
 		})
 	}
@@ -97,23 +97,23 @@ func TestIsSoleConcurrentIndexStatement(t *testing.T) {
 func TestConcurrentIndexBuildLockTimeout(t *testing.T) {
 	t.Parallel()
 	const requested = 5 * time.Second
-	if got := concurrentIndexBuildLockTimeout("CREATE INDEX CONCURRENTLY t_v_idx ON t (v)", requested); got != 0 {
+	if got := ConcurrentIndexBuildLockTimeout("CREATE INDEX CONCURRENTLY t_v_idx ON t (v)", requested); got != 0 {
 		t.Fatalf("concurrent index build lock timeout = %s, want disabled (0)", got)
 	}
-	if got := concurrentIndexBuildLockTimeout("ALTER TABLE t ADD COLUMN w INT", requested); got != requested {
+	if got := ConcurrentIndexBuildLockTimeout("ALTER TABLE t ADD COLUMN w INT", requested); got != requested {
 		t.Fatalf("non-concurrent-index statement lock timeout = %s, want unchanged %s", got, requested)
 	}
 }
 
 // TestLockTimeoutSetting pins the literal Postgres GUC value sent for a
-// disabled lock_timeout: "0", matching resetSchemaLockTimeout's literal,
-// never time.Duration's "0s" string form.
+// disabled lock_timeout: "0", matching the root package's
+// resetSchemaLockTimeout literal, never time.Duration's "0s" string form.
 func TestLockTimeoutSetting(t *testing.T) {
 	t.Parallel()
-	if got := lockTimeoutSetting(0); got != "0" {
-		t.Fatalf("lockTimeoutSetting(0) = %q, want %q", got, "0")
+	if got := LockTimeoutSetting(0); got != "0" {
+		t.Fatalf("LockTimeoutSetting(0) = %q, want %q", got, "0")
 	}
-	if got := lockTimeoutSetting(5 * time.Second); got != "5s" {
-		t.Fatalf("lockTimeoutSetting(5s) = %q, want %q", got, "5s")
+	if got := LockTimeoutSetting(5 * time.Second); got != "5s" {
+		t.Fatalf("LockTimeoutSetting(5s) = %q, want %q", got, "5s")
 	}
 }

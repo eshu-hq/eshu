@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package coordination
 
 import (
 	"context"
@@ -21,19 +21,19 @@ var concurrentIndexOnlyStatementPattern = regexp.MustCompile(
 	`(?is)^(?:CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY|DROP\s+INDEX\s+CONCURRENTLY)\s`,
 )
 
-// isSoleConcurrentIndexStatement reports whether query, once its SQL line
+// IsSoleConcurrentIndexStatement reports whether query, once its SQL line
 // comments are stripped, holds exactly one statement and that statement is a
 // bare CREATE INDEX CONCURRENTLY or DROP INDEX CONCURRENTLY (#7004).
 //
 // Postgres refuses to run CONCURRENTLY inside a multi-statement simple-query
 // string, so every migration file that uses it already holds exactly one
-// such statement and nothing else (see migrations/113_..._v2_idx.sql and
-// 114_drop_..._legacy.sql, whose header comments record that constraint).
-// This check stays conservative rather than relying on that convention
-// holding forever: a statement it cannot prove is a lone CIC/DIC — combined
-// with any other statement, or anything unrecognized — keeps the caller's
-// lock_timeout.
-func isSoleConcurrentIndexStatement(query string) bool {
+// such statement and nothing else (see the root package's
+// migrations/113_..._v2_idx.sql and 114_drop_..._legacy.sql, whose header
+// comments record that constraint). This check stays conservative rather
+// than relying on that convention holding forever: a statement it cannot
+// prove is a lone CIC/DIC — combined with any other statement, or anything
+// unrecognized — keeps the caller's lock_timeout.
+func IsSoleConcurrentIndexStatement(query string) bool {
 	trimmed := strings.TrimSpace(stripWholeLineSQLComments(query))
 	trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, ";"))
 	if trimmed == "" || strings.Contains(trimmed, ";") {
@@ -43,10 +43,11 @@ func isSoleConcurrentIndexStatement(query string) bool {
 }
 
 // stripWholeLineSQLComments drops every line that is entirely a `--` comment
-// once trimmed, matching the migrations/ convention of whole-line header
-// comments ahead of a statement (schema_index_replay_test.go's
-// stripSQLLineComments does the same for test-only callers; this production
-// copy exists because a _test.go symbol is not linkable from non-test code).
+// once trimmed, matching the root package's migrations/ convention of
+// whole-line header comments ahead of a statement (root package's
+// schema_index_replay_test.go carries its own test-only copy of the same
+// logic under a different name; a _test.go symbol there is not linkable from
+// this production package either way).
 func stripWholeLineSQLComments(sql string) string {
 	lines := strings.Split(sql, "\n")
 	kept := make([]string, 0, len(lines))
@@ -59,7 +60,7 @@ func stripWholeLineSQLComments(sql string) string {
 	return strings.Join(kept, "\n")
 }
 
-// concurrentIndexBuildLockTimeout returns the effective lock_timeout applied
+// ConcurrentIndexBuildLockTimeout returns the effective lock_timeout applied
 // while query runs: disabled (0) for a bare CREATE/DROP INDEX CONCURRENTLY
 // statement, the caller's requested bound for everything else (#7004).
 //
@@ -78,33 +79,34 @@ func stripWholeLineSQLComments(sql string) string {
 // a completed table scan and restart from zero the moment any transaction in
 // the database has been open longer than the timeout, which a busy database
 // can make true continuously (see issue #7004's evidence).
-func concurrentIndexBuildLockTimeout(query string, requested time.Duration) time.Duration {
-	if isSoleConcurrentIndexStatement(query) {
+func ConcurrentIndexBuildLockTimeout(query string, requested time.Duration) time.Duration {
+	if IsSoleConcurrentIndexStatement(query) {
 		return 0
 	}
 	return requested
 }
 
-// lockTimeoutSetting renders d for `SELECT set_config('lock_timeout', $1,
+// LockTimeoutSetting renders d for `SELECT set_config('lock_timeout', $1,
 // false)`. Zero is sent as the literal Postgres GUC value "0" (disabled)
-// rather than time.Duration's "0s" string form, matching the literal
-// resetSchemaLockTimeout already sends.
-func lockTimeoutSetting(d time.Duration) string {
+// rather than time.Duration's "0s" string form, matching the literal the
+// root package's resetSchemaLockTimeout already sends.
+func LockTimeoutSetting(d time.Duration) string {
 	if d <= 0 {
 		return "0"
 	}
 	return d.String()
 }
 
-// runWithConcurrentIndexBuildLogging invokes run, and when concurrentIndexBuild
-// is true logs its start and finish (with duration_ms and whether it failed)
-// as bootstrap.postgres.migration.concurrent_index_build.starting/finished
+// RunWithConcurrentIndexBuildLogging invokes run, and when
+// concurrentIndexBuild is true logs its start and finish (with duration_ms
+// and whether it failed) as
+// bootstrap.postgres.migration.concurrent_index_build.starting/finished
 // (#7004). A concurrent index build has no lock_timeout to retry after, so
 // it never gets the generic migration.lock_wait/lock_recovered pair; without
 // this, an operator watching the bootstrap Job would see it stall with no
 // signal that a specific statement is legitimately running long. Non-CIC
 // statements pass through unlogged, unchanged from before #7004.
-func runWithConcurrentIndexBuildLogging(
+func RunWithConcurrentIndexBuildLogging(
 	ctx context.Context,
 	logger *slog.Logger,
 	concurrentIndexBuild bool,
