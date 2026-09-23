@@ -64,10 +64,7 @@ implementation, and needed no change.
 
 ## dirgate
 
-`internal/storage/postgres` non-test file count: 362 -> 361. Re-pinned
-`scripts/lib/dirgate-grandfather.tsv`: count 361, digest
-`0cc6df743706cea74b4dadd82cae2a1be17949dd3748e5ed5e9adb86418849ca` (from
-`bash scripts/verify-dirgate.sh --digest internal/storage/postgres`).
+One non-test file leaves root, so the `internal/storage/postgres` row in `scripts/lib/dirgate-grandfather.tsv` is re-pinned to what `bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for the rebased tree (each rebase onto a sibling move re-derives it).
 Regenerated `tools/golangci-lint-dirgate/grandfather.go` via
 `bash scripts/generate-dirgate-grandfather-go.sh`.
 
