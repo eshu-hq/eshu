@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -158,7 +159,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		return statuspkg.RawSnapshot{}, err
 	}
 	q, done = s.read(ctx, statusReadVulnerabilitySources)
-	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, q)
+	vulnerabilitySources, err := vulnerabilitystore.ReadVulnerabilitySourceStates(ctx, q)
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}

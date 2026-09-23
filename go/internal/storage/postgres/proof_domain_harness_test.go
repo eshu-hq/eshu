@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	semanticstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 )
 
 type recordingCanonicalWriter struct {
@@ -237,7 +238,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows([][]any{{float64(0)}}), nil
 	case isInfraInventoryStatusQuery(query):
 		return newProofRows([][]any{{false, int64(0), float64(0)}}), nil
-	case query == vulnerabilitySourceStatusQuery:
+	case query == vulnerabilitystore.VulnerabilitySourceStatusQuery:
 		return newProofRows(nil), nil
 	case query == registryMetadataTargetStatusQuery:
 		return newProofRows(nil), nil
