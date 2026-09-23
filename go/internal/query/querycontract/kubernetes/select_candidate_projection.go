@@ -29,8 +29,8 @@ func Namespace(metadata map[string]any) string {
 	return strings.TrimSpace(value)
 }
 
-// SelectCandidateFromEntity projects an querycontract.EntityContent into the narrow
-// querycontract.K8sSelectCandidate.
+// SelectCandidateFromEntity projects a querycontract.EntityContent into the
+// narrow querycontract.K8sSelectCandidate.
 //
 // It is the in-memory equivalent of the ListRepoK8sSelectCandidates SQL
 // projection. The comma-ok reads on selector and pod_template_labels are what

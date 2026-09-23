@@ -209,8 +209,8 @@ func parseLabelPairs(encoded string) map[string]string {
 	return pairs
 }
 
-// SelectMatchInputFromEntity adapts an querycontract.EntityContent row (the shape used
-// by content_relationships.go) into SelectMatchInput.
+// SelectMatchInputFromEntity adapts a querycontract.EntityContent row (the
+// shape used by content_relationships.go) into SelectMatchInput.
 func SelectMatchInputFromEntity(entity querycontract.EntityContent) SelectMatchInput {
 	kind, _ := entity.Metadata["kind"].(string)
 	selector, selectorPresent := entity.Metadata["selector"].(string)
