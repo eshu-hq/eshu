@@ -68,13 +68,15 @@ type options struct {
 	diffLeft2                   string
 	diffRight2                  string
 	diffExecutionsAdvisoryMax   int
+	coverageManifest            string
+	coverageDirs                string
 }
 
 func parseFlags(args []string) (options, error) {
 	fs := flag.NewFlagSet("golden-corpus-gate", flag.ContinueOnError)
 	var o options
 	fs.StringVar(&o.snapshotPath, "snapshot", "testdata/golden/e2e-20repo-snapshot.json", "path to the B-12 golden snapshot")
-	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,backend-diff,all (backend-diff is opt-in and excluded from all: it needs two backends' capture directories, #6782)")
+	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,backend-diff,statement-coverage,all (backend-diff and statement-coverage are opt-in and excluded from all: they need capture directories, #6782, #6783)")
 	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
 	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
@@ -102,6 +104,8 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.diffLeft2, "diff-left2", "", "second-pairing nornicdb capture directory for multi-leg quorum mode (#6782): with -diff-right2, the gate fails only on divergences reproducing across both pairings")
 	fs.StringVar(&o.diffRight2, "diff-right2", "", "second-pairing neo4j capture directory for multi-leg quorum mode (#6782): with -diff-left2, the gate fails only on divergences reproducing across both pairings")
 	fs.IntVar(&o.diffExecutionsAdvisoryMax, "diff-executions-advisory-max", 0, "quorum mode only (#6941): ceiling on the reproduced advisory divergence total (scheduling-noise execution counts or row totals with agreeing results, plus reproduced transient-read and tie-order exclusions); above it the gate adds a required failing nornicdb_vs_neo4j_executions_ceiling finding instead of leaving the total unbounded. 0 (default) disables the ceiling; the existing nornicdb_vs_neo4j_executions advisory finding is unchanged either way")
+	fs.StringVar(&o.coverageManifest, "coverage-manifest", "go/internal/queryplan/testdata/statement-builders.yaml", "path to the checked-in statement builders manifest joined against capture recordings (#6783)")
+	fs.StringVar(&o.coverageDirs, "coverage-dirs", "", "comma-separated directories of differential capture recordings to cover, one per leg (recordings merge by backend)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
