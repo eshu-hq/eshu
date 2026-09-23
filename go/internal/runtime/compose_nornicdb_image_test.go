@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const nornicDBPinnedImage = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
+const nornicDBPinnedImage = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"
 
 func TestNornicDBComposeDefaultPinsPublishedImage(t *testing.T) {
 	t.Parallel()
@@ -45,7 +45,7 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 		"NORNICDB_IMAGE",
 		"NORNICDB_PULL_POLICY",
 		"pull policy `missing`",
-		"fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555",
+		"fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26",
 		"fresh graph volume",
 		"Never start an older NornicDB binary on a volume modified by v1.3.3",
 		"reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file",

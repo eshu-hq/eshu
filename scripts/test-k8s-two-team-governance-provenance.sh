@@ -7,8 +7,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 helper="${repo_root}/scripts/lib/k8s-two-team-governance-provenance.sh"
 driver="${repo_root}/scripts/run-k8s-two-team-governance-proof.sh"
-expected_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
-expected_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:75ab7efc167b254a4d2e191b4dc4279a196c593539a72b9a756f88afa84b3f46"
+expected_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"
+expected_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:a1fc8d7256d78a5cbe512f2bfaa2da607e0a453a555d3c0e14bb7bd546c20c9d"
 
 die() {
 	printf 'test-k8s-two-team-governance-provenance: %s\n' "$*" >&2
@@ -98,8 +98,8 @@ shopt -u nullglob
 
 for case_name in tag-only wrong-digest missing-container; do
 	case "${case_name}" in
-		tag-only) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468' ;;
-		wrong-digest) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
+		tag-only) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9' ;;
+		wrong-digest) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
 		missing-container) configured_image='' ;;
 	esac
 	case_dir="${tmp_root}/${case_name}"
