@@ -11,7 +11,7 @@ graphify at /local/graphify
 
 ### Eshu code evidence
 
-go/internal/query/capabilities.go serves the catalog
+go/internal/query/capability/handler.go serves the catalog
 
 ### Eshu docs evidence
 

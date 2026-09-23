@@ -57,7 +57,7 @@ func CorrelationID(r *http.Request) string {
 
 // RequirePermissionFeature enforces the permission-catalog feature gate for
 // an admin route. Repointed from requirePermissionFeature
-// (internal/query/permission_catalog.go): the decision stays canonical in
+// (querycontract, which owns the permission catalog since #6642): the decision stays canonical in
 // queryauth.AllowsPermissionFeature, and the denial envelope keeps the root
 // shape through querycontract.
 func RequirePermissionFeature(w http.ResponseWriter, r *http.Request, capability string, feature string) bool {
@@ -70,7 +70,7 @@ func RequirePermissionFeature(w http.ResponseWriter, r *http.Request, capability
 
 // WritePermissionDeniedEnvelope writes the stable permission-denied error
 // envelope. Repointed from writePermissionDeniedEnvelope
-// (internal/query/permission_catalog.go) through querycontract, which owns
+// (querycontract, which owns the permission catalog since #6642) through querycontract, which owns
 // the envelope structs.
 func WritePermissionDeniedEnvelope(w http.ResponseWriter, capability string) {
 	querycontract.WriteJSON(w, http.StatusForbidden, querycontract.ResponseEnvelope{Error: &querycontract.ErrorEnvelope{
