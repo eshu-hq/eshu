@@ -6,6 +6,7 @@ package recordpseudo
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 )
 
@@ -138,4 +139,13 @@ func (c Config) Validate() error {
 		return errors.New("recordpseudo: recording key is required")
 	}
 	return c.Policy.Validate()
+}
+
+// LogValue renders a Config for slog as the key fingerprint and the policy
+// size; never the key material.
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("key_fingerprint", c.Key.Fingerprint()),
+		slog.Int("policy_fields", len(c.Policy.Fields)),
+	)
 }

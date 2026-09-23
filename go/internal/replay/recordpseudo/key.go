@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 )
 
 // MinKeyBytes is the shortest key material NewKey accepts. A recording key is
@@ -81,4 +82,23 @@ func (k Key) hexOf(raw string, n int) string {
 		n = len(encoded)
 	}
 	return encoded[:n]
+}
+
+// String renders the key as its fingerprint only, so a %v or %s of a Key,
+// or of any struct that carries one, can never print the material.
+func (k Key) String() string {
+	if k.IsZero() {
+		return "recordpseudo.Key(unset)"
+	}
+	return "recordpseudo.Key(fingerprint=" + k.Fingerprint() + ")"
+}
+
+// GoString renders the key for %#v the same way.
+func (k Key) GoString() string {
+	return k.String()
+}
+
+// LogValue renders the key for slog as its fingerprint only.
+func (k Key) LogValue() slog.Value {
+	return slog.StringValue(k.Fingerprint())
 }
