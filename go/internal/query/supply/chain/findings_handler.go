@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+// supplyChainImpactFindingsOperation names the log.Operation attribute on
+// every stage event this route emits (query_timing.go).
+const supplyChainImpactFindingsOperation = "supply_chain_impact_findings_list"
 
 func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -126,7 +131,12 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// #7007: stage-level timing for each backing read this route issues, so
+	// an operator can attribute request latency to a specific Postgres query
+	// or graph probe instead of seeing only the route's total duration.
+	findingsTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "impact_findings_query")
 	rows, err := h.ImpactFindings.ListSupplyChainImpactFindings(r.Context(), filter)
+	findingsTimer.Done(r.Context(), slog.Int("rows_fetched", len(rows)))
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -142,15 +152,21 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	// or cross-scope resources never promote a finding) and bounded to the
 	// page's digests. A probe error fails the request rather than serving a
 	// false config_only tier for a vulnerability that is actually running.
-	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
+	cloudRuntimeTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "cloud_runtime_evidence")
+	cloudRuntimeErr := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows)
+	cloudRuntimeTimer.Done(r.Context(), slog.Bool("error", cloudRuntimeErr != nil))
+	if cloudRuntimeErr != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
 	// #5834: independently probe exact RUNS_IMAGE digest edges and gate each
 	// graph candidate through current, caller-authorized workload-owner and edge
 	// generations before allowing it to become live deployment evidence.
-	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
+	k8sRuntimeTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "kubernetes_runtime_evidence")
+	k8sRuntimeErr := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows)
+	k8sRuntimeTimer.Done(r.Context(), slog.Bool("error", k8sRuntimeErr != nil))
+	if k8sRuntimeErr != nil {
+		if querycontract.WriteGraphReadError(w, r, k8sRuntimeErr, ImpactFindingsCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
@@ -166,8 +182,11 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	// Postgres store errors fall to a plain 500 — serving an empty context
 	// after a failed read would be indistinguishable from "nothing runs this"
 	// on a security surface, so no failure path returns a false empty.
-	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
+	runtimeContextTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "runtime_context")
+	runtimeContextErr := h.applySupplyChainRuntimeContext(r.Context(), rows, access)
+	runtimeContextTimer.Done(r.Context(), slog.Bool("error", runtimeContextErr != nil))
+	if runtimeContextErr != nil {
+		if querycontract.WriteGraphReadError(w, r, runtimeContextErr, ImpactFindingsCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
@@ -204,7 +223,9 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		Severity:      filter.Severity,
 		Status:        filter.Status,
 	}
+	readinessTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "readiness_snapshot")
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
+	readinessTimer.Done(r.Context(), slog.Bool("error", readinessErr != nil), slog.Int("evidence_source_count", len(snapshot.EvidenceSources)))
 	var readiness impact.ReadinessEnvelope
 	if readinessErr != nil {
 		// Readiness lookup failed (transient Postgres error, statement
