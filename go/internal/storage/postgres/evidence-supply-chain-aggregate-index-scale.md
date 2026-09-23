@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS fact_records_<kind>_active_scan_idx
 | `fact_records_vulnerability_affected_package_active_scan_idx` | `vulnerability.affected_package` | `schema_fact_records_vulnerability_indexes.go` |
 | `fact_records_vulnerability_known_exploited_active_scan_idx` | `vulnerability.known_exploited` | `schema_fact_records_vulnerability_indexes.go` |
 | `fact_records_supply_chain_impact_active_scan_idx` | `reducer_supply_chain_impact_finding` | `schema_fact_records.go` |
-| `fact_records_sbom_attestation_attachments_active_scan_idx` | `reducer_sbom_attestation_attachment` | `schema_fact_records_sbom.go` |
+| `fact_records_sbom_attestation_attachments_active_scan_idx` | `reducer_sbom_attestation_attachment` | `migrations/003a_fact_record_sbom_attestation_indexes.sql` |
 
 A *partial* index differs from a *covering* index here: the partial `WHERE`
 clause is baked into the index contents, so the index physically holds only the

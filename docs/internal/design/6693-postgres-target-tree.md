@@ -328,7 +328,7 @@ Landed:
 Prerequisites:
 
 - [x] This target-tree doc: #6973; owner answers and corrections: this PR
-- [ ] D5: delete the 9 empty files (368 -> 359)
+- [x] D5: delete the six empty files (368 -> 362); the other three (notes-carrying) go in the `service/` and `supply/chain/impact/` moves
 - [ ] D6: shared test fakes into `fake/`
 - [ ] Hoists into `db/` and `scalars/` (table above)
 - [ ] D2: `migrations/embed.go` leaf
