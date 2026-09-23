@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -32,16 +33,17 @@ const k8sSelectCandidatePoolTruncationReason = "k8s_select_candidate_pool_trunca
 // anchoredDeploymentTarget pairs a prepared match target with the entity ID of
 // the anchored Deployment it was built from, so a mixed-vintage drop during the
 // directed scan can name the workload in its Debug diagnostic (see
-// logK8sSelectMixedVintageDrop). The k8sWorkloadMatchTarget itself stays pure
+// logK8sSelectMixedVintageDrop). The kubernetes.WorkloadMatchTarget itself
+// stays pure
 // (it holds only the matcher input plus the once-parsed pod-template labels).
 type anchoredDeploymentTarget struct {
 	entityID string
-	target   querycontract.K8sWorkloadMatchTarget
+	target   kubernetes.WorkloadMatchTarget
 }
 
 // k8sResourceWireRow builds the surfaced-pool map[string]any for one
 // K8sResource content row. selector/pod_template_labels presence carries
-// tri-state meaning for k8sSelectMatch (see content_relationships_k8s_match.go):
+// tri-state meaning for kubernetes.SelectMatch (see querycontract/kubernetes/select_match.go):
 // the key is omitted entirely, never set to "", when the source content row
 // lacks it. Shared by the name-anchored phase and the matched-by-ID hydration
 // phase so both surfaced-row shapes are byte-identical.
@@ -67,7 +69,7 @@ func k8sResourceWireRow(row querycontract.EntityContent) map[string]any {
 		"qualified_name":   qualifiedName,
 		"relative_path":    row.RelativePath,
 		"container_images": images,
-		"namespace":        querycontract.K8sNamespace(row.Metadata),
+		"namespace":        kubernetes.Namespace(row.Metadata),
 		"api_version":      impacttrace.MetadataNonEmptyStringValue(row.Metadata, "api_version"),
 	}
 	if selector, ok := row.Metadata["selector"].(string); ok {
@@ -128,7 +130,7 @@ func (h *Handler) fetchK8sSelectMatchedServiceIDs(
 		if _, ok := seen[candidate.EntityID]; ok {
 			continue
 		}
-		input := querycontract.K8sSelectMatchInputFromCandidate(candidate)
+		input := kubernetes.SelectMatchInputFromCandidate(candidate)
 		matchedTarget := false
 		mixedVintageWorkloadID := ""
 		for _, target := range targets {
@@ -144,7 +146,7 @@ func (h *Handler) fetchK8sSelectMatchedServiceIDs(
 			}
 		}
 		if !matchedTarget && mixedVintageWorkloadID != "" {
-			querycontract.LogK8sSelectMixedVintageDrop(ctx, h.Logger, candidate.EntityID, mixedVintageWorkloadID)
+			kubernetes.LogSelectMixedVintageDrop(ctx, h.Logger, candidate.EntityID, mixedVintageWorkloadID)
 		}
 	}
 

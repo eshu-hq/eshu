@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // CloudResourceResult is the bounded cloud-resource read for one repo: the
@@ -184,7 +185,7 @@ func (h *Handler) FetchK8sResourceResult(
 		if querycontract.IsK8sResourceKind(row, "Deployment") {
 			targets = append(targets, anchoredDeploymentTarget{
 				entityID: row.EntityID,
-				target:   querycontract.NewK8sWorkloadMatchTarget(querycontract.K8sSelectMatchInputFromEntity(row)),
+				target:   kubernetes.NewWorkloadMatchTarget(kubernetes.SelectMatchInputFromEntity(row)),
 			})
 		}
 	}

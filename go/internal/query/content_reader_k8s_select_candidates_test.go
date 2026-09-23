@@ -7,15 +7,18 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // TestContentReaderListRepoK8sSelectCandidatesScansTriState proves the narrow
 // projection scan maps its eight positional columns into K8sSelectCandidate
-// correctly: the namespace text is trimmed to mirror k8sNamespace, and the
+// correctly: the namespace text is trimmed to mirror kubernetes.Namespace,
+// and the
 // jsonb_typeof presence booleans drive SelectorPresent / PodTemplateLabelsPresent
 // independently of the (possibly empty) value column, preserving the tri-state
 // the matcher depends on. Converting through matchInput yields the same
-// k8sSelectMatchInput the EntityContent path would produce.
+// kubernetes.SelectMatchInput the EntityContent path would produce.
 func TestContentReaderListRepoK8sSelectCandidatesScansTriState(t *testing.T) {
 	t.Parallel()
 
@@ -68,11 +71,11 @@ func TestContentReaderListRepoK8sSelectCandidatesScansTriState(t *testing.T) {
 		t.Fatalf("dep-1 pod_template_labels tri-state = (%v, %q), want (true, app=web,tier=api)", dep1.PodTemplateLabelsPresent, dep1.PodTemplateLabels)
 	}
 
-	// matchInput mirrors k8sSelectMatchInputFromEntity for the equivalent row:
+	// matchInput mirrors kubernetes.SelectMatchInputFromEntity for the equivalent row:
 	// svc-1 SELECTS dep-1 by selector subset, strictly namespace-scoped.
-	target := newK8sWorkloadMatchTarget(k8sSelectMatchInputFromCandidate(dep1))
+	target := kubernetes.NewWorkloadMatchTarget(k8sSelectMatchInputFromCandidate(dep1))
 	matched, reason, _ := target.Match(k8sSelectMatchInputFromCandidate(svc1))
-	if !matched || reason != k8sSelectReasonSelectorMatch {
-		t.Fatalf("svc-1 -> dep-1 match = (%v, %q), want (true, %q)", matched, reason, k8sSelectReasonSelectorMatch)
+	if !matched || reason != kubernetes.SelectReasonSelectorMatch {
+		t.Fatalf("svc-1 -> dep-1 match = (%v, %q), want (true, %q)", matched, reason, kubernetes.SelectReasonSelectorMatch)
 	}
 }

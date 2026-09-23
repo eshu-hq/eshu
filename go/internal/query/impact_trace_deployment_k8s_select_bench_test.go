@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // BenchmarkK8sWorkloadMatchTargetDirectedScan is the committed enforcement of
@@ -14,10 +16,10 @@ import (
 // (one 20-label workload, 5000 candidate Services, all in the same namespace so
 // there is no early namespace short-circuit -- the matcher worst case) must
 // stay well under 10 ms/op. It measures the design's load-bearing property: the
-// workload's pod-template labels are parsed ONCE per op (newK8sWorkloadMatchTarget
+// workload's pod-template labels are parsed ONCE per op (kubernetes.NewWorkloadMatchTarget
 // outside the candidate loop), so each candidate parses only its own selector.
 // The prove-the-theory shim measured 5.57 ms/op for this shape versus 16.13
-// ms/op when k8sSelectMatch re-parsed the workload labels per candidate; see
+// ms/op when kubernetes.SelectMatch re-parsed the workload labels per candidate; see
 // evidence-5363-impact-trace-k8s-fetch.md. There is no CI wall-clock assert
 // (that would be a flake generator); the recorded ns/op is the enforcement.
 func BenchmarkK8sWorkloadMatchTargetDirectedScan(b *testing.B) {
@@ -25,7 +27,7 @@ func BenchmarkK8sWorkloadMatchTargetDirectedScan(b *testing.B) {
 	for i := range 20 {
 		labels = append(labels, fmt.Sprintf("k%02d=v%02d", i, i))
 	}
-	workload := k8sSelectMatchInput{
+	workload := kubernetes.SelectMatchInput{
 		Kind:                     "Deployment",
 		Name:                     "web",
 		Namespace:                "ns-0",
@@ -53,7 +55,7 @@ func BenchmarkK8sWorkloadMatchTargetDirectedScan(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		target := newK8sWorkloadMatchTarget(workload)
+		target := kubernetes.NewWorkloadMatchTarget(workload)
 		matched := 0
 		for _, candidate := range candidates {
 			if ok, _, _ := target.Match(k8sSelectMatchInputFromCandidate(candidate)); ok {

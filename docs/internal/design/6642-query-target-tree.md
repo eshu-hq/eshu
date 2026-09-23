@@ -13,6 +13,9 @@ Nothing has moved. These four pages are the whole of the first PR.
 [The file mapping](6642-query-file-mapping.md) ·
 [Sequencing and open questions](6642-query-move-sequence.md)
 
+Landing progress per PR is tracked in
+[the landing checklist](6642-query-move-checklist.md).
+
 ## How the numbers were taken
 
 ```bash

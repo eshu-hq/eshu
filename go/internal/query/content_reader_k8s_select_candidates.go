@@ -9,13 +9,14 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // K8sSelectCandidate is the narrow, matcher-only projection of a K8sResource
 // content entity used by the impact-trace directed SELECTS candidate scan
-// (#5363). It carries ONLY the fields k8sSelectMatch needs -- never the wide
+// (#5363). It carries ONLY the fields kubernetes.SelectMatch needs -- never the wide
 // metadata JSONB -- so the repository-wide candidate fetch does not pay the
 // top-N heapsort cost of carrying every row's metadata through the ORDER BY
 // (measured ~25 ms wide vs ~12.5 ms narrow at the 5001-row cap on a 6000-K8s
@@ -25,42 +26,43 @@ import (
 // EntityContent path (ListRepoEntitiesByIDs) before it joins the surfaced pool.
 //
 // SelectorPresent and PodTemplateLabelsPresent preserve the key-absent vs
-// key-present-but-empty tri-state that k8sSelectMatch depends on (see
-// k8sSelectMatchInput). They are true only when the JSON value is a string,
+// key-present-but-empty tri-state that kubernetes.SelectMatch depends on (see
+// kubernetes.SelectMatchInput). They are true only when the JSON value is a string,
 // exactly mirroring the Go comma-ok `metadata[key].(string)` used on the
-// EntityContent path (k8sSelectMatchInputFromEntity), so a candidate converts
-// losslessly to the same k8sSelectMatchInput the entity path would produce.
+// EntityContent path (kubernetes.SelectMatchInputFromEntity), so a candidate converts
+// losslessly to the same kubernetes.SelectMatchInput the entity path would produce.
 type K8sSelectCandidate = querycontract.K8sSelectCandidate
 
 // k8sSelectMatchInputFromCandidate adapts a K8sSelectCandidate into the shared
-// k8sSelectMatchInput. The implementation moved to querycontract for #6060;
+// kubernetes.SelectMatchInput. The implementation moved to querycontract for #6060;
 // this wrapper keeps root callers unchanged.
-func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) k8sSelectMatchInput {
-	return querycontract.K8sSelectMatchInputFromCandidate(c)
+func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) kubernetes.SelectMatchInput {
+	return kubernetes.SelectMatchInputFromCandidate(c)
 }
 
 // The EntityContent -> K8sSelectCandidate projection this file used to declare
-// moved to querycontract.K8sSelectCandidateFromEntity (#6060). Its only caller
+// moved to kubernetes.SelectCandidateFromEntity (#6060). Its only caller
 // is the shared ContentStore double, which now lives in querytestutil and
 // cannot reach an unexported symbol here. It still uses the same comma-ok
 // tri-state and the same namespace normalization as
-// k8sSelectMatchInputFromEntity below.
+// kubernetes.SelectMatchInputFromEntity below.
 
 // ListRepoK8sSelectCandidates returns the narrow, matcher-only projection of
 // every K8sResource in repoID, up to limit rows, ordered deterministically by
 // relative_path, start_line, entity_id so a truncated fetch drops a
 // reproducible tail (truncation honesty; #5367 keyset pagination reuses the
-// same order). It projects only the fields k8sSelectMatch needs and never the
+// same order). It projects only the fields kubernetes.SelectMatch needs and never the
 // wide metadata JSONB, so the ORDER BY sorts narrow rows.
 //
 // The selector/pod_template_labels presence columns use
 // jsonb_typeof(metadata->'key') = 'string' rather than the key-exists operator
 // so presence is true only for a JSON string value -- byte-for-byte with the
 // Go comma-ok `metadata[key].(string)` on the EntityContent path
-// (k8sSelectMatchInputFromEntity). A present-but-null or non-string value is
+// (kubernetes.SelectMatchInputFromEntity). A present-but-null or non-string value is
 // treated as absent by both paths, preserving the tri-state the matcher's
 // anti-false-positive-masking logic depends on. namespace is trimmed in Go to
-// mirror k8sNamespace exactly (namespace equality is a correctness gate).
+// mirror kubernetes.Namespace exactly (namespace equality is a correctness
+// gate).
 //
 // There is intentionally no SQL kind filter: candidacy (kind == "Service") is
 // decided in Go by the caller. #5490 measured a SQL-level

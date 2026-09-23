@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // k8s SELECTS relationship building (Service -> Deployment and its incoming
@@ -25,10 +26,10 @@ func buildOutgoingK8sSelectRelationships(
 		return nil, false, false, nil
 	}
 
-	serviceInput := k8sSelectMatchInputFromEntity(entity)
+	serviceInput := kubernetes.SelectMatchInputFromEntity(entity)
 	// A Service with a known, empty selector is genuinely selectorless
 	// (ExternalName/manual Endpoints): no SELECTS edge is possible and no
-	// fallback applies (see k8sSelectMatch), so skip the query entirely.
+	// fallback applies (see kubernetes.SelectMatch), so skip the query entirely.
 	if serviceInput.SelectorPresent && serviceInput.Selector == "" {
 		return nil, true, false, nil
 	}
@@ -54,7 +55,7 @@ func buildOutgoingK8sSelectRelationships(
 		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Deployment") {
 			continue
 		}
-		matched, reason, mixedVintageDrop := k8sSelectMatch(serviceInput, k8sSelectMatchInputFromEntity(match))
+		matched, reason, mixedVintageDrop := kubernetes.SelectMatch(serviceInput, kubernetes.SelectMatchInputFromEntity(match))
 		if mixedVintageDrop {
 			logK8sSelectMixedVintageDrop(ctx, logger, entity.EntityID, match.EntityID)
 		}
@@ -87,7 +88,7 @@ func buildIncomingK8sSelectRelationships(
 		return nil, false, false, nil
 	}
 
-	workloadInput := k8sSelectMatchInputFromEntity(entity)
+	workloadInput := kubernetes.SelectMatchInputFromEntity(entity)
 
 	// A matching Service can have any name, so candidates come from a typed
 	// repo-wide entity scan (see buildOutgoingK8sSelectRelationships for the
@@ -105,7 +106,7 @@ func buildIncomingK8sSelectRelationships(
 		if match.EntityID == entity.EntityID || !isK8sResourceKind(match, "Service") {
 			continue
 		}
-		matched, reason, mixedVintageDrop := k8sSelectMatch(k8sSelectMatchInputFromEntity(match), workloadInput)
+		matched, reason, mixedVintageDrop := kubernetes.SelectMatch(kubernetes.SelectMatchInputFromEntity(match), workloadInput)
 		if mixedVintageDrop {
 			logK8sSelectMixedVintageDrop(ctx, logger, match.EntityID, entity.EntityID)
 		}
@@ -129,7 +130,7 @@ func buildIncomingK8sSelectRelationships(
 }
 
 // logK8sSelectMixedVintageDrop fires the Debug-level operator diagnostic for
-// a k8sSelectMatch mixed-vintage drop (see k8sSelectMatch's doc comment): the
+// a kubernetes.SelectMatch mixed-vintage drop (see kubernetes.SelectMatch's doc comment): the
 // Service has a known, matching-eligible selector but the candidate
 // Deployment row predates pod_template_labels capture, so no SELECTS edge is
 // produced even though one may well exist once the workload is re-ingested.
@@ -140,7 +141,7 @@ func buildIncomingK8sSelectRelationships(
 // implementation moved to querycontract for #6060; this wrapper keeps root
 // callers unchanged.
 func logK8sSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, serviceEntityID, workloadEntityID string) {
-	querycontract.LogK8sSelectMixedVintageDrop(ctx, logger, serviceEntityID, workloadEntityID)
+	kubernetes.LogSelectMixedVintageDrop(ctx, logger, serviceEntityID, workloadEntityID)
 }
 
 // fetchK8sResourceCandidates lists up to repositorySemanticEntityLimit+1
@@ -171,7 +172,7 @@ func isK8sResourceKind(entity EntityContent, kind string) bool {
 }
 
 // The namespace normalization this file used to declare moved to
-// querycontract.K8sNamespace, because K8sSelectCandidateFromEntity needs it
+// kubernetes.Namespace, because SelectCandidateFromEntity needs it
 // from there (#6060). Call sites in this package call it directly rather than
 // through a wrapper; a second copy would be free to drift, and namespace
 // equality gates SELECTS matching.

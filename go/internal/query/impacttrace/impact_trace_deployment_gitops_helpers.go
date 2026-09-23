@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 // ControllerEntityTypes maps controller entity types to their trace kinds.
@@ -232,7 +233,7 @@ func CollectDeploymentSourceK8sResources(
 			"controller_kind":      querycontract.StringVal(controller, "controller_kind"),
 			"controller_entity_id": querycontract.StringVal(controller, "entity_id"),
 			"controller_path":      querycontract.StringVal(controller, "relative_path"),
-			"namespace":            querycontract.K8sNamespace(entity.Metadata),
+			"namespace":            kubernetes.Namespace(entity.Metadata),
 			// api_version is the resource's raw apiVersion string ("apps/v1",
 			// "v1", ...), captured from the parsed K8sResource content row
 			// (go/internal/parser/yaml/semantics.go) so query-time ArgoCD
@@ -242,7 +243,8 @@ func CollectDeploymentSourceK8sResources(
 			"api_version": MetadataNonEmptyStringValue(entity.Metadata, "api_version"),
 		}
 		// selector/pod_template_labels presence carries tri-state meaning
-		// for k8sSelectMatch (see content_relationships_k8s_match.go): the
+		// for kubernetes.SelectMatch (see
+		// querycontract/kubernetes/select_match.go): the
 		// key must be omitted entirely, not set to "", when the source
 		// content row lacks it.
 		if selector, ok := entity.Metadata["selector"].(string); ok {

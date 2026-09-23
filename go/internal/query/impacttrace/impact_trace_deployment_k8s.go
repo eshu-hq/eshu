@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 )
 
 func BuildK8sRelationships(k8sResources []map[string]any) []map[string]any {
@@ -22,14 +23,14 @@ func BuildK8sRelationships(k8sResources []map[string]any) []map[string]any {
 		}
 
 		if strings.EqualFold(sourceKind, "Service") {
-			serviceInput := querycontract.K8sSelectMatchInputFromRow(source)
+			serviceInput := kubernetes.SelectMatchInputFromRow(source)
 			for _, target := range k8sResources {
 				targetID := querycontract.SafeStr(target, "entity_id")
 				targetName := querycontract.SafeStr(target, "entity_name")
 				if targetID == "" || targetName == "" || targetID == sourceID {
 					continue
 				}
-				matched, reason, _ := querycontract.K8sSelectMatch(serviceInput, querycontract.K8sSelectMatchInputFromRow(target))
+				matched, reason, _ := kubernetes.SelectMatch(serviceInput, kubernetes.SelectMatchInputFromRow(target))
 				if !matched {
 					continue
 				}

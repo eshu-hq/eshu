@@ -51,7 +51,7 @@ func recordAttr(record slog.Record, key string) (string, bool) {
 }
 
 // TestBuildOutgoingK8sSelectRelationshipsLogsMixedVintageDropAtDebug proves
-// the k8sSelectMatch mixed-vintage drop (Service selector known and
+// the kubernetes.SelectMatch mixed-vintage drop (Service selector known and
 // non-empty, candidate Deployment row predates pod_template_labels capture)
 // fires a Debug-level structured log carrying both entity IDs, so an
 // operator can diagnose the transient missing SELECTS edge without reading

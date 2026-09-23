@@ -70,11 +70,11 @@
 // RepositoryDeploymentEvidenceReadModel, RelationshipEvidenceReadModel,
 // RepositoryReadModelSummary, RepositoryRelationshipReadModel, RepositoryRef,
 // CatalogWorkloadIdentityEntry, ServiceStoryTargetSupportFilter and
-// ServiceStoryTargetSupportReadModel. K8sSelectCandidateFromEntity and
-// K8sNamespace came along because the double's candidate projection needs them
-// and a second copy of the namespace trim would be free to drift from the one
-// namespace equality gates SELECTS matching on. Root aliases every type, so its
-// call sites are unchanged.
+// ServiceStoryTargetSupportReadModel. The candidate projection the double needs
+// moved on to the kubernetes/ subpackage with the rest of the SELECTS matcher;
+// K8sSelectCandidate itself stays here, because it is a ContentStore read model
+// that the projection returns rather than part of the matching decision. Root
+// aliases every type, so its call sites are unchanged.
 //
 // The Available field several of these carry is a fallback signal, not an
 // emptiness one. A caller that reads a zero-value read model as "nothing
@@ -99,4 +99,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: B2 promotes 10 seams here, and lane A direction-B added its own (56 non-test files vs the 40-file cap) because root, impact/, and upcoming families must share them without an import cycle; the split is tracked in #6597, not done mid-move.
+package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/ and rowvalue/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.

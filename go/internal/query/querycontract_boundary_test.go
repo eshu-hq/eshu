@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -60,14 +62,14 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 	tests := []struct {
 		name      string
 		candidate K8sSelectCandidate
-		want      k8sSelectMatchInput
+		want      kubernetes.SelectMatchInput
 	}{
 		{
 			name: "absent",
 			candidate: K8sSelectCandidate{
 				Kind: "Service", EntityName: "api", Namespace: "apps",
 			},
-			want: k8sSelectMatchInput{Kind: "Service", Name: "api", Namespace: "apps"},
+			want: kubernetes.SelectMatchInput{Kind: "Service", Name: "api", Namespace: "apps"},
 		},
 		{
 			name: "present empty",
@@ -75,7 +77,7 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 				Kind: "Service", EntityName: "api", Namespace: "apps",
 				SelectorPresent: true, PodTemplateLabelsPresent: true,
 			},
-			want: k8sSelectMatchInput{
+			want: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "api", Namespace: "apps",
 				SelectorPresent: true, PodTemplateLabelsPresent: true,
 			},
@@ -87,7 +89,7 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 				Selector: "app=api", SelectorPresent: true,
 				PodTemplateLabels: "app=api", PodTemplateLabelsPresent: true,
 			},
-			want: k8sSelectMatchInput{
+			want: kubernetes.SelectMatchInput{
 				Kind: "Service", Name: "api", Namespace: "apps",
 				Selector: "app=api", SelectorPresent: true,
 				PodTemplateLabels: "app=api", PodTemplateLabelsPresent: true,
