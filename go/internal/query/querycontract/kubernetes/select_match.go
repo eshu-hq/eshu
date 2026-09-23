@@ -31,13 +31,12 @@ const (
 )
 
 // SelectMatchInput carries the fields needed to evaluate the Service ->
-// workload SELECTS relationship, independent of whether the caller holds an
+// workload SELECTS relationship, independent of whether the caller holds a
 // querycontract.EntityContent row (content_relationships.go) or a flattened
-// map[string]any row (impact/trace_deployment_k8s_select.go). selectorPresent
-// and
-// podTemplateLabelsPresent distinguish "key absent" (pre-upgrade data, truth
-// unknown) from "key present but empty" (a known, empty value) -- the
-// tri-state distinction the matcher depends on.
+// map[string]any row (impact/trace_deployment_k8s_select.go).
+// selectorPresent and podTemplateLabelsPresent distinguish "key absent"
+// (pre-upgrade data, truth unknown) from "key present but empty" (a known,
+// empty value) -- the tri-state distinction the matcher depends on.
 type SelectMatchInput struct {
 	Kind                     string
 	Name                     string

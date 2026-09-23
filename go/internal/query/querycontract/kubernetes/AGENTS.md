@@ -24,7 +24,7 @@ including anything written here. Measured at `2d68f1cbb`:
 rg -l 'k8s_service_name_namespace|k8s_service_selector_match' .
 ```
 
-Seven files, and one of them is `apps/console/src/api/eshuGraphDeployment.truth.test.ts`
+Six files, and one of them is `apps/console/src/api/eshuGraphDeployment.truth.test.ts`
 -- a TypeScript test asserting the value on the wire. Changing a constant breaks
 a console test as well as four Go ones.
 
