@@ -24,8 +24,8 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
-| 6 | `querycontract/evidence` | 3 | — | open | 46 |
-| 7 | `querycontract/visualization` | 2 | — | not started | |
+| 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
+| 7 | `querycontract/visualization` | 2 | — | open | 44 |
 | 8 | `querycontract/answer` | 3 | — | not started | |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
