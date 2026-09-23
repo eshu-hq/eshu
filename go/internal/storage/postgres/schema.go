@@ -6,27 +6,19 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"errors"
 	"fmt"
 	"log/slog"
-	"path"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 )
 
-// Definition describes one ordered bootstrap SQL payload.
-type Definition struct {
-	Name string
-	Path string
-	SQL  string
-
-	variant      string
-	fullChecksum string
-}
+// Definition describes one ordered bootstrap SQL payload. It is an alias for
+// migrations.Definition, which owns the //go:embed (#6693 decision D2).
+type Definition = migrations.Definition
 
 // BootstrapOptions controls deferred content indexes, migration progress
 // logs, and how the migrator waits on other sessions (#6956).
@@ -53,49 +45,11 @@ type schemaBootstrapLocker interface {
 
 const defaultSchemaLockTimeout = 5 * time.Second
 
-//go:embed migrations/*.sql
-var embeddedMigrations embed.FS
-
 // BootstrapDefinitions returns the ordered Wave 2 bootstrap layout, sourced
-// from embed.FS so the migrations/ directory is the single source of truth.
+// from the migrations package's embed.FS so that directory stays the single
+// source of truth (#6693 decision D2).
 func BootstrapDefinitions() []Definition {
-	entries, err := embeddedMigrations.ReadDir("migrations")
-	if err != nil {
-		panic("postgres: read embedded migrations dir: " + err.Error())
-	}
-	defs := make([]Definition, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		data, err := embeddedMigrations.ReadFile(path.Join("migrations", name))
-		if err != nil {
-			panic("postgres: read embedded migration " + name + ": " + err.Error())
-		}
-		// Derive definition name: strip numeric prefix and .sql extension.
-		// e.g. "001_ingestion_scopes.sql" → "ingestion_scopes".
-		// Skip files without the expected NNN_ prefix (a human should rename them).
-		parts := strings.SplitN(name, "_", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		defName := strings.TrimSuffix(parts[1], ".sql")
-
-		// Path reflects the real embed location for callers that read files
-		// from disk (e.g. the bootstrap mirror test).
-		fspath := path.Join("go", "internal", "storage", "postgres", "migrations", name)
-
-		defs = append(defs, Definition{
-			Name: defName,
-			Path: fspath,
-			SQL:  string(data),
-		})
-	}
-	sort.SliceStable(defs, func(i, j int) bool {
-		return defs[i].Path < defs[j].Path
-	})
-	return defs
+	return migrations.BootstrapDefinitions()
 }
 
 // BootstrapDefinitionsWithoutContentSearchIndexes returns the bootstrap layout
@@ -109,8 +63,8 @@ func BootstrapDefinitionsWithoutContentSearchIndexes() []Definition {
 		// the full pass must revisit them after content_store builds the indexes.
 		switch defs[i].Name {
 		case "content_store", "content_substring_index_state", "content_entity_name_trgm_index":
-			defs[i].fullChecksum = migrationChecksum(defs[i].SQL)
-			defs[i].variant = "deferred"
+			defs[i].FullChecksum = migrationChecksum(defs[i].SQL)
+			defs[i].Variant = "deferred"
 			if defs[i].Name == "content_store" {
 				defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
 			}

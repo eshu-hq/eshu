@@ -26,12 +26,7 @@ func TestSupplyChainSuppressionExpiryMigrationUpgradeLive(t *testing.T) {
 	}
 	seedSuppressionExpiryMigrationRows(t, ctx, db)
 
-	migrationSQL, err := embeddedMigrations.ReadFile(
-		"migrations/083_supply_chain_suppression_expiry.sql",
-	)
-	if err != nil {
-		t.Fatalf("read migration 083: %v", err)
-	}
+	migrationSQL := []byte(MigrationSQL("supply_chain_suppression_expiry"))
 
 	blocker, err := db.BeginTx(ctx, nil)
 	if err != nil {
