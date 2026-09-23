@@ -161,7 +161,8 @@ func scanARNs(text string, produced Set, refuse refusal) {
 // scanHostnames: a dotted name ending in a listed TLD, not preceded by a
 // label character or by "label." and not followed by a label character or
 // underscore (that right boundary is part of hostnameCand); the allow forms
-// are the gate's, plus ECR under a produced account.
+// are the gate's, with ECR under a produced account and a record-mode AWS
+// endpoint (awsEndpointRe) admitted only when this run produced the host.
 func scanHostnames(text string, produced Set, refuse refusal) {
 	for _, loc := range hostnameCand.FindAllStringIndex(text, -1) {
 		start, end := loc[0], loc[1]
