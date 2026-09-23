@@ -279,6 +279,7 @@ nav:
       - NornicDB Tuning: reference/nornicdb-tuning.md
       - NornicDB Tuning Evidence: reference/nornicdb-tuning-evidence.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
+      - NornicDB Upstream Defects: reference/nornicdb-upstream-defects.md
       - NornicDB Query-Shape Pitfalls: reference/nornicdb-query-pitfalls.md
       - NornicDB Path-Predicate Pitfalls: reference/nornicdb-path-predicate-pitfalls.md
       - NornicDB Write-Shape Pitfalls: reference/nornicdb-write-shape-pitfalls.md
