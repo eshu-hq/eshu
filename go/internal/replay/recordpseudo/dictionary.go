@@ -264,12 +264,18 @@ func (d *dictionary) learnARN(raw string) {
 	}
 }
 
-// learnARNComponent learns one ARN resource component. A purely numeric
-// component is a qualifier (a task-definition revision, a function
-// version, a date in an S3 key) and is never learned from the ARN; a
-// numeric resource name is learned from its name field and then rewrites
-// the matching component whole.
+// learnARNComponent learns one ARN resource component. A 12-digit
+// component is an account (a foreign account in an S3 log key path, the
+// member account of an organizations ARN) and is learned as one. Any other
+// purely numeric component is a qualifier (a task-definition revision, a
+// function version, a date in an S3 key) and is never learned from the
+// ARN; a numeric resource name is learned from its name field and then
+// rewrites the matching component whole.
 func (d *dictionary) learnARNComponent(component string) {
+	if account12Re.MatchString(component) {
+		d.learnAccount(component)
+		return
+	}
 	if numericRe.MatchString(component) {
 		return
 	}
