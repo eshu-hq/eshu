@@ -6,6 +6,7 @@ package querytestutil
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // Visualization-packet test fixtures shared by root's staying
@@ -56,10 +57,10 @@ func StoryResponseWithUpstream(sourceRepoIDs []string) map[string]any {
 
 // CitationResponse builds an evidence-citation response with one resolved
 // citation per entity id, in the given order.
-func CitationResponse(entityIDs []string) querycontract.EvidenceCitationResponse {
-	citations := make([]querycontract.EvidenceCitation, 0, len(entityIDs))
+func CitationResponse(entityIDs []string) evidence.EvidenceCitationResponse {
+	citations := make([]evidence.EvidenceCitation, 0, len(entityIDs))
 	for i, id := range entityIDs {
-		citations = append(citations, querycontract.EvidenceCitation{
+		citations = append(citations, evidence.EvidenceCitation{
 			CitationID:     "citation:" + id,
 			Rank:           i + 1,
 			Kind:           "entity",
@@ -69,7 +70,7 @@ func CitationResponse(entityIDs []string) querycontract.EvidenceCitationResponse
 			Excerpt:        "secret excerpt body",
 		})
 	}
-	return querycontract.EvidenceCitationResponse{Question: "why?", Citations: citations}
+	return evidence.EvidenceCitationResponse{Question: "why?", Citations: citations}
 }
 
 // IncidentResponse builds an incident-context response with one anchor

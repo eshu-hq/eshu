@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // This file, and its sibling visualization_packet_merge.go, moved here from
@@ -106,10 +108,10 @@ type VisualizationNode struct {
 	// EvidenceHandle is an optional reference back to an evidence_citation
 	// handle, so a rendered node maps to the citation that hydrates it. It is
 	// populated only when the source response already carried the handle fields.
-	EvidenceHandle *EvidenceCitationHandle `json:"evidence_handle,omitempty"`
+	EvidenceHandle *evidence.EvidenceCitationHandle `json:"evidence_handle,omitempty"`
 	// EvidenceHandles preserves every supported observation handle when several
 	// repository observations reconcile to one canonical visualization node.
-	EvidenceHandles []EvidenceCitationHandle `json:"evidence_handles,omitempty"`
+	EvidenceHandles []evidence.EvidenceCitationHandle `json:"evidence_handles,omitempty"`
 }
 
 // VisualizationEdge is one bounded edge in a visualization packet. Source and
@@ -132,10 +134,10 @@ type VisualizationEdge struct {
 	TruthLabel string `json:"truth_label,omitempty"`
 	// EvidenceHandle is an optional reference back to an evidence_citation
 	// handle for the relationship, when the source response carried one.
-	EvidenceHandle *EvidenceCitationHandle `json:"evidence_handle,omitempty"`
+	EvidenceHandle *evidence.EvidenceCitationHandle `json:"evidence_handle,omitempty"`
 	// EvidenceHandles preserves every supported relationship handle when
 	// canonical endpoint reconciliation collapses duplicate evidence edges.
-	EvidenceHandles []EvidenceCitationHandle `json:"evidence_handles,omitempty"`
+	EvidenceHandles []evidence.EvidenceCitationHandle `json:"evidence_handles,omitempty"`
 }
 
 // VisualizationLimits states the payload bounds and observed counts for a

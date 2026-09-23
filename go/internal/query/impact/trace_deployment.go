@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -326,6 +328,6 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := impacttrace.BuildDeploymentTraceResponse(req.ServiceName, ctx, h.traceContext().BuildServiceDeploymentOverview(ctx))
-	querycontract.AttachEvidenceBoundaries(response, "trace_deployment_chain")
+	evidence.AttachEvidenceBoundaries(response, "trace_deployment_chain")
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", querycontract.TruthBasisHybrid, "resolved from deployment topology and service evidence"))
 }

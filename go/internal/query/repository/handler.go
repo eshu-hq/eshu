@@ -10,6 +10,8 @@ import (
 	"math"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
@@ -450,7 +452,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		response["support_overview"] = supportOverview
 	}
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
-	querycontract.AttachEvidenceBoundaries(response, "get_repo_story")
+	evidence.AttachEvidenceBoundaries(response, "get_repo_story")
 
 	querycontract.WriteSuccess(
 		w,

@@ -7,14 +7,15 @@ import (
 	"math"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// evidenceCitationProvenance aliases querycontract.EvidenceCitationProvenance
+// evidenceCitationProvenance aliases evidence.EvidenceCitationProvenance
 // (moved for #6642); it is the wire shape of the canonical truth.Provenance
 // carried on every citation (issue #3489).
-type evidenceCitationProvenance = querycontract.EvidenceCitationProvenance
+type evidenceCitationProvenance = evidence.EvidenceCitationProvenance
 
 // excerptByteWindow locates the byte offset and length of an excerpt inside the
 // original content. boundedLineExcerpt drops a single trailing newline before
@@ -72,7 +73,7 @@ func citationProvenance(reason string) evidenceCitationProvenance {
 // truth.Evidence record, proving the citation packet carries BOTH confidence
 // and a byte-level citation under one contract (issue #3489). It is a free
 // function rather than a method because evidenceCitation is now an alias of
-// querycontract.EvidenceCitation (#6642) and an alias cannot carry methods
+// evidence.EvidenceCitation (#6642) and an alias cannot carry methods
 // declared in another package.
 func citationToCanonical(c evidenceCitation) truth.Evidence {
 	basis := truth.ProvenanceBasis(c.Provenance.Basis)

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 func normalizeVisualizationNode(node VisualizationNode) VisualizationNode {
@@ -125,12 +127,12 @@ func firstNonEmptyVisualizationString(values ...string) string {
 }
 
 func mergeVisualizationEvidenceHandles(
-	left []EvidenceCitationHandle,
-	right []EvidenceCitationHandle,
-	extra ...*EvidenceCitationHandle,
-) []EvidenceCitationHandle {
-	merged := make(map[EvidenceCitationHandleKey]EvidenceCitationHandle, len(left)+len(right)+len(extra))
-	for _, handle := range append(append([]EvidenceCitationHandle{}, left...), right...) {
+	left []evidence.EvidenceCitationHandle,
+	right []evidence.EvidenceCitationHandle,
+	extra ...*evidence.EvidenceCitationHandle,
+) []evidence.EvidenceCitationHandle {
+	merged := make(map[evidence.EvidenceCitationHandleKey]evidence.EvidenceCitationHandle, len(left)+len(right)+len(extra))
+	for _, handle := range append(append([]evidence.EvidenceCitationHandle{}, left...), right...) {
 		merged[handle.EvidenceCitationHandleKey()] = handle
 	}
 	for _, handle := range extra {
@@ -138,7 +140,7 @@ func mergeVisualizationEvidenceHandles(
 			merged[handle.EvidenceCitationHandleKey()] = *handle
 		}
 	}
-	result := make([]EvidenceCitationHandle, 0, len(merged))
+	result := make([]evidence.EvidenceCitationHandle, 0, len(merged))
 	for _, handle := range merged {
 		result = append(result, handle)
 	}
@@ -148,7 +150,7 @@ func mergeVisualizationEvidenceHandles(
 	return result
 }
 
-func visualizationEvidenceHandleSortKey(handle EvidenceCitationHandle) string {
+func visualizationEvidenceHandleSortKey(handle evidence.EvidenceCitationHandle) string {
 	return strings.Join([]string{
 		handle.Kind,
 		handle.RepoID,

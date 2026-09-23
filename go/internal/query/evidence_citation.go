@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -31,24 +33,24 @@ type evidenceCitationRequest struct {
 	Limit    int                      `json:"limit,omitempty"`
 }
 
-// evidenceCitationHandle aliases querycontract.EvidenceCitationHandle, which
+// evidenceCitationHandle aliases evidence.EvidenceCitationHandle, which
 // this type moved to (#6060) alongside the visualization-packet builder, so a
 // handler-family subpackage can build a VisualizationPacket without importing
 // this package. Every field stays exported and unchanged.
-type evidenceCitationHandle = querycontract.EvidenceCitationHandle
+type evidenceCitationHandle = evidence.EvidenceCitationHandle
 
-// evidenceCitationResponse aliases querycontract.EvidenceCitationResponse,
+// evidenceCitationResponse aliases evidence.EvidenceCitationResponse,
 // which this type moved to (#6642) with evidenceCitation and
 // evidenceCitationCoverage so the visualization and evidence families can
 // build citation packets without importing this package.
-type evidenceCitationResponse = querycontract.EvidenceCitationResponse
+type evidenceCitationResponse = evidence.EvidenceCitationResponse
 
-// evidenceCitation aliases querycontract.EvidenceCitation (moved for #6642).
-type evidenceCitation = querycontract.EvidenceCitation
+// evidenceCitation aliases evidence.EvidenceCitation (moved for #6642).
+type evidenceCitation = evidence.EvidenceCitation
 
-// evidenceCitationCoverage aliases querycontract.EvidenceCitationCoverage
+// evidenceCitationCoverage aliases evidence.EvidenceCitationCoverage
 // (moved for #6642).
-type evidenceCitationCoverage = querycontract.EvidenceCitationCoverage
+type evidenceCitationCoverage = evidence.EvidenceCitationCoverage
 
 type evidenceCitationFileLookup struct {
 	RepoID       string
@@ -60,9 +62,9 @@ type evidenceCitationFileKey struct {
 	relativePath string
 }
 
-// evidenceCitationHandleKey aliases querycontract.EvidenceCitationHandleKey,
+// evidenceCitationHandleKey aliases evidence.EvidenceCitationHandleKey,
 // which moved alongside evidenceCitationHandle (#6060).
-type evidenceCitationHandleKey = querycontract.EvidenceCitationHandleKey
+type evidenceCitationHandleKey = evidence.EvidenceCitationHandleKey
 
 type evidenceCitationFileStore interface {
 	EvidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)

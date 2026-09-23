@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package evidence
 
 // EvidenceCitationHandle is a caller-supplied reference to one piece of
 // evidence (a file location or a graph entity) that an evidence-citation or

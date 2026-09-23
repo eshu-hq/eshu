@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package evidence
 
 // EvidenceCitationResponse is the wire shape of an evidence-citation packet:
 // the citations resolved for the caller's handles, the handles that resolved

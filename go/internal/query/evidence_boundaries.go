@@ -4,7 +4,7 @@
 package query
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // This file held the Postgres-only evidence-boundary disclosures. They moved
@@ -13,21 +13,21 @@ import (
 
 // PostgresOnlyBoundary records a gap between a Postgres-only reducer domain
 // and a graph-sourced story surface. See
-// querycontract.PostgresOnlyBoundary.
-type PostgresOnlyBoundary = querycontract.PostgresOnlyBoundary
+// evidence.PostgresOnlyBoundary.
+type PostgresOnlyBoundary = evidence.PostgresOnlyBoundary
 
-const boundaryReasonPostgresOnly = querycontract.BoundaryReasonPostgresOnly
+const boundaryReasonPostgresOnly = evidence.BoundaryReasonPostgresOnly
 
 // attachEvidenceBoundaries adds a non-nil evidence_boundaries field to the
 // response map when boundaries exist for the read surface. The implementation
 // moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func attachEvidenceBoundaries(data map[string]any, readSurface string) {
-	querycontract.AttachEvidenceBoundaries(data, readSurface)
+	evidence.AttachEvidenceBoundaries(data, readSurface)
 }
 
 // evidenceBoundariesFor returns the static Postgres-only boundaries for the
 // named read surface. The implementation moved to querycontract for #6060;
 // this wrapper keeps root callers unchanged.
 func evidenceBoundariesFor(readSurface string) []PostgresOnlyBoundary {
-	return querycontract.EvidenceBoundariesFor(readSurface)
+	return evidence.EvidenceBoundariesFor(readSurface)
 }

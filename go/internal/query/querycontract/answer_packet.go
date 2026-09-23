@@ -6,6 +6,8 @@ package querycontract
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // AnswerPacket is an evidence-backed, user-ready response plan composed from
@@ -58,10 +60,10 @@ type AnswerPacket struct {
 	// Truncated mirrors result-set truncation from the underlying query.
 	Truncated bool `json:"truncated,omitempty"`
 	// MissingEvidence lists evidence handles requested but not resolved.
-	MissingEvidence []EvidenceCitationHandle `json:"missing_evidence,omitempty"`
+	MissingEvidence []evidence.EvidenceCitationHandle `json:"missing_evidence,omitempty"`
 	// EvidenceHandles are addressable handles to the evidence behind the answer,
 	// in the evidence_citation handle shape.
-	EvidenceHandles []EvidenceCitationHandle `json:"evidence_handles,omitempty"`
+	EvidenceHandles []evidence.EvidenceCitationHandle `json:"evidence_handles,omitempty"`
 	// CitationRef references a citation packet that hydrates the handles.
 	CitationRef string `json:"citation_ref,omitempty"`
 	// RecommendedNextCalls lists bounded follow-up calls, in the same shape as
@@ -105,9 +107,9 @@ type AnswerPacketInput struct {
 	// confident summary rather than presenting "no rows" as a definitive answer.
 	NoEvidence bool
 	// EvidenceHandles are addressable handles to the supporting evidence.
-	EvidenceHandles []EvidenceCitationHandle
+	EvidenceHandles []evidence.EvidenceCitationHandle
 	// MissingEvidence lists requested-but-unresolved evidence handles.
-	MissingEvidence []EvidenceCitationHandle
+	MissingEvidence []evidence.EvidenceCitationHandle
 	// CitationRef references a citation packet that hydrates the handles.
 	CitationRef string
 	// RecommendedNextCalls lists bounded follow-up calls to surface.

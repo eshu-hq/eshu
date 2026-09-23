@@ -6,6 +6,8 @@ package visualization
 import (
 	"encoding/json"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -19,13 +21,13 @@ func BuildEvidenceCitationPacketFromMap(
 	response map[string]any,
 	truth *querycontract.TruthEnvelope,
 ) Packet {
-	var decoded querycontract.EvidenceCitationResponse
+	var decoded evidence.EvidenceCitationResponse
 	if err := decodeVisualizationResponseMap(response, &decoded); err != nil {
 		return unsupportedVisualizationPacket(
 			ViewEvidenceCitation,
 			truth,
 			[]string{"evidence citation response could not be decoded for visualization"},
-			evidenceCitationVisualizationNextCalls(querycontract.EvidenceCitationResponse{}),
+			evidenceCitationVisualizationNextCalls(evidence.EvidenceCitationResponse{}),
 		)
 	}
 	return BuildEvidenceCitationPacket(decoded, truth)
