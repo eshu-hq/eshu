@@ -12,13 +12,40 @@ Time: 2172.253 ms
 t_v_idx | indisvalid = f
 ```
 
-An idle-in-transaction holder (`BEGIN; SELECT 1;` with no further statement,
-no `pg_sleep`) does **not** reproduce the cancellation: a concurrent build
-started behind it with `lock_timeout='1s'` completes immediately. Only an
-actively running statement on the other session holds back the snapshot
-horizon `CREATE INDEX CONCURRENTLY`'s internal wait blocks on. This matches
-production: ops-qa's blockers are ordinary in-flight application queries,
-not idle sessions.
+Idle-in-transaction holders do not uniformly avoid the cancellation; it
+depends on isolation level and whether the holder wrote to the target table,
+not merely on "idle vs. active":
+
+- (A) a `REPEATABLE READ` idle-in-transaction session holding a snapshot
+  (`BEGIN ISOLATION LEVEL REPEATABLE READ; SELECT 1;`, no further statement)
+  **blocks** a concurrent `lock_timeout='1s'` build behind it, canceling it.
+- (B) a `READ COMMITTED` idle-in-transaction session that wrote to the
+  target table (`BEGIN; UPDATE t SET v = v;` or similar, then idle)
+  **blocks** it the same way.
+- (C) a `READ COMMITTED` idle-in-transaction session that only ran
+  `BEGIN; SELECT 1;` -- no write, no isolation-level snapshot pin, and never
+  touching the target table -- does **not** block it: a concurrent build
+  started behind it with `lock_timeout='1s'` completes immediately.
+  (`TestConcurrentIndexBuildOutlivesOlderTransactionLive`'s blocker uses an
+  actively running `SELECT pg_sleep(n)` instead of relying on this
+  distinction, so it reproduces the cancellation regardless of isolation
+  level or table touched.)
+
+ops-qa's own samples (3 of 3, 20 s apart, 2026-09-23 12:04Z, longest 84.2 s)
+showed client transactions older than 5 s; that observation was never
+classified into (A)/(B)/(C) shapes above, so it is cited only as "a
+transaction was open," not as evidence for which shape it was.
+
+Operator implication: because the fix leaves this wait unbounded except by
+however long Postgres takes (and, per the Safety section below, an orphaned
+server-side build survives the bootstrap Job's death), a leaked
+idle-in-transaction writer left open against the target table (shape B, or
+any `REPEATABLE READ` holder, shape A) would hold that wait open
+indefinitely -- through the current run and through any orphan left running
+after the Job's `activeDeadlineSeconds` kills the client. `pg_stat_activity`
+filtered to `state = 'idle in transaction'` against the target table's
+database, cross-referenced with `xact_start` age, is the signal an operator
+should check if a concurrent index build looks stuck.
 
 ## Baseline (before fix, origin/main 874012542e)
 
