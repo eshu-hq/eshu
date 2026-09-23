@@ -456,3 +456,19 @@ func (r *codeReachabilityRows) Scan(dest ...any) error {
 
 func (r *codeReachabilityRows) Err() error   { return nil }
 func (r *codeReachabilityRows) Close() error { return nil }
+
+// decodeStringArrayJSON is duplicated from the IaC reachability store's test
+// file (moved to internal/storage/postgres/iac in #6693): Go cannot import
+// one package's test files from another, so this small helper is copied
+// rather than shared.
+func decodeStringArrayJSON(raw any) ([]string, error) {
+	bytes, ok := raw.([]byte)
+	if !ok {
+		return nil, fmt.Errorf("json arg type = %T, want []byte", raw)
+	}
+	var out []string
+	if err := json.Unmarshal(bytes, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

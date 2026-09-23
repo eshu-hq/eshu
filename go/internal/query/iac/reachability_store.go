@@ -8,18 +8,19 @@ import (
 	"database/sql"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iac"
 )
 
 // PostgresIaCReachabilityStore adapts reducer-materialized Postgres rows to
 // the query package's stable IaC response contract.
 type PostgresIaCReachabilityStore struct {
-	store *postgres.IaCReachabilityStore
+	store *iacstore.IaCReachabilityStore
 }
 
 // NewPostgresIaCReachabilityStore creates a query adapter over the reducer's
 // IaC reachability table.
 func NewPostgresIaCReachabilityStore(db *sql.DB) *PostgresIaCReachabilityStore {
-	return &PostgresIaCReachabilityStore{store: postgres.NewIaCReachabilityStore(postgres.SQLDB{DB: db})}
+	return &PostgresIaCReachabilityStore{store: iacstore.NewIaCReachabilityStore(postgres.SQLDB{DB: db})}
 }
 
 // ListLatestCleanupFindings returns active-generation cleanup rows for the
