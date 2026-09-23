@@ -268,6 +268,29 @@ gates:
     ci_only_reason: ""
     hook_id: go-package-docs
 
+  - id: migration-immutability
+    name: Shipped Postgres migration immutability
+    category: hygiene
+    tier: pre-push
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/migrations/*.sql"
+      - "scripts/test-verify-migration-immutability.sh"
+      - "scripts/verify-migration-immutability.sh"
+    self_test_triggers:
+      - "scripts/test-verify-migration-immutability.sh"
+      - "scripts/verify-migration-immutability.sh"
+    local:
+      command: "bash scripts/verify-migration-immutability.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-migration-immutability.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
   - id: agent-canon
     name: Agent canon check
     category: hygiene

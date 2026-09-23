@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 115 gates. Local execution runs the primary
+The registry currently defines 116 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -36,6 +36,7 @@ Advisory rows remain visible but do not block merge.
 | `go-dir-gate` | Go directory-size and naming gate | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh dirgate-all`<br>then self-test: `bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh` | test.yml / go-core | 8 path(s): go/**, scripts/dev/precommit-go.sh, scripts/verify-dirgate.sh, … |
 | `markdown-file-cap` | Markdown 500-line file cap (go/ and docs/) | hygiene | pre-commit | true | `bash scripts/verify-markdown-line-cap.sh --all`<br>then self-test: `bash scripts/test-verify-markdown-line-cap.sh` | test.yml / markdown-file-cap | 9 path(s): go/**/*.md, docs/**/*.md, .github/workflows/test.yml, … |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
+| `migration-immutability` | Shipped Postgres migration immutability | hygiene | pre-push | true | `bash scripts/verify-migration-immutability.sh`<br>then self-test: `bash scripts/test-verify-migration-immutability.sh` | test.yml / verify-contracts | 3 path(s): go/internal/storage/postgres/migrations/*.sql, scripts/test-verify-migration-immutability.sh, scripts/verify-migration-immutability.sh |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 27 path(s): go/**, .agents/**, .claude/skills/**, … |
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `filename-stutter` | No filename or directory stutter in added/renamed paths | hygiene | pre-commit | true | `bash scripts/verify-filename-stutter.sh`<br>then self-test: `bash scripts/test-verify-filename-stutter.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
