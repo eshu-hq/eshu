@@ -22,8 +22,11 @@
   ARN grammar must keep partition/service/region/type token, AWS-issued ids
   keep their prefix, digests are kept, customer image tags are
   pseudonymized. Substitution is structure-aware (ARNs by position,
-  regions protected, short free-text tokens exact-only); a change to it
-  must keep `TestShortTokensNeverRewriteStructure` green. The reducer
+  regions protected, short or numeric free-text tokens exact-only but
+  looked up whole per composite component); a change to it must keep
+  `TestShortTokensNeverRewriteStructure`,
+  `TestShortWholeNamesAreRewrittenInComposites` and
+  `TestNumericNamesAreLearned` green. The reducer
   extractors are
   the judge: `TestAWSCorpusShapePreserved` compares raw and pseudonymized
   rows and must stay at the design's exact numbers.

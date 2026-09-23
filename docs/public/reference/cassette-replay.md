@@ -190,10 +190,13 @@ Declared limits of the pilot:
   written; the `collector.record.pseudonymized` event reports
   `ipv4_addresses` so an operator can see how close a recording is;
 - a name or tag value shorter than four characters, or a purely numeric
-  tag value, is rewritten only where it is a whole field value or a whole
-  ARN component, never inside longer text (otherwise a tag value `1`
-  would rewrite every `us-east-1`). Such a token inside a composite that
-  is not an ARN (`source_uri`, a stable key) stays raw.
+  name or tag value, is rewritten only where it is a whole field value or
+  a whole `/`- or `:`-delimited component of a composite (an ARN, a stable
+  key, a source uri), never inside longer text (otherwise a tag value `1`
+  would rewrite every `us-east-1`); one glued into a longer word without
+  such a boundary stays raw;
+- a name that exactly matches the AWS region or availability-zone grammar
+  (`us-east-1`, `eu-central-1a`) is AWS vocabulary and is kept.
 
 Before committing a refreshed cassette:
 

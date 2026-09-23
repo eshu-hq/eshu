@@ -50,7 +50,8 @@ match inside one is skipped, a match covering one is kept). Remaining text
 is rewritten longest token first on alphanumeric boundaries by tokens of at
 least four characters that are not purely numeric; a shorter or numeric
 name or tag value is rewritten only as a whole classified value or a whole
-ARN component.
+`/`- or `:`-delimited component of a composite (an ARN, a stable key, a
+source uri, a scope id).
 
 Learning visits map keys in sorted order and the dictionary gives classes
 an explicit precedence (structured shapes beat tag values), so the output
@@ -111,9 +112,12 @@ Declared limits:
   networks; the 763rd is a returned `ErrIPv4Exhausted` and
   `Report.IPv4Addresses` shows the count;
 - a name or tag value shorter than four characters, or a purely numeric
-  tag value, is exact-only: rewritten as a whole classified value or a
-  whole ARN component, never inside longer text, so such a token inside a
-  non-ARN composite (`source_uri`, a stable key) stays raw;
+  name or tag value, is exact-only: rewritten as a whole classified value
+  or a whole component of a composite, never inside longer text, so one
+  glued into a longer word without a `/` or `:` boundary stays raw;
+- a name that exactly matches the AWS region or availability-zone grammar
+  (`us-east-1`, `eu-central-1a`) is AWS vocabulary and is kept, never
+  pseudonymized;
 - an ARN of a service that has a type vocabulary but leads with a token
   outside it learns that token as a name; `Report.UnlistedARNTypes` names
   each `service:token` so the vocabulary gap is visible.

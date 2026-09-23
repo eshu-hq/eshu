@@ -64,9 +64,11 @@ image tags are pseudonymized (only `latest`, pure semver and digests are
 kept). One recording holds at most 762 distinct IPv4 addresses and CIDR
 networks; the 763rd is `ErrIPv4Exhausted` from `Next`, and
 `Report.IPv4Addresses` shows the count. A name or tag value shorter than
-four characters, or a purely numeric tag value, is rewritten only as a
-whole classified value or a whole ARN component, so one inside a non-ARN
-composite stays raw. The composite envelope fields (`scope_id`,
+four characters, or a purely numeric name or tag value, is rewritten only
+as a whole classified value or a whole `/`- or `:`-delimited component of
+a composite, so one glued into a longer word without such a boundary
+stays raw; a name exactly matching the region or availability-zone
+grammar is AWS vocabulary and is kept. The composite envelope fields (`scope_id`,
 `partition_key`, `stable_fact_key`, `source_record_id`, `source_uri`) are
 substitution-only by design; scope metadata is classified per key like a
 payload.
@@ -122,6 +124,20 @@ scenario as the test; `TestAWSCorpusShapePreserved` and
 - P2, unlisted ARN types (`arn_unlisted_type_test.go`):
   `Report.UnlistedARNTypes` names each `service:token` miss for a service
   with a vocabulary; a service without one is never reported.
+
+## Review round 4 (verdict-p3-r3.md on 0389a7f62)
+
+F2: non-ARN composites are rewritten component-wise (delimiter-carrying
+tokens first, then each `/`- or `:`-delimited component looked up whole),
+so a whole-value short name no longer survives in `stable_fact_key`,
+`source_uri` or `source_record_id` (`composite_component_test.go`). F4: a
+purely numeric name is learned as an exact-only name; numeric ARN
+components are still never learned from the ARN (`numeric_name_test.go`).
+F3: a drain failure is sticky across `Next` (`ipv4_limit_test.go`). F7:
+scope metadata is learned in sorted key order (`metadata_order_internal_test.go`,
+a forced IPv4 slot collision across two metadata keys, 41 runs). F5: the
+gate-test comments name go-race and macos only. F6: the region/AZ-grammar
+limit is declared. Each landed RED-first; corpus tests unchanged.
 
 ## Runtime impact
 
