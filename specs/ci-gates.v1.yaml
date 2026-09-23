@@ -2654,11 +2654,23 @@ gates:
       - go
       - docker
     ci_only_reason: "needs two live graph backends (NornicDB and Neo4j) side by side; the static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
-    # #6782: the differential oracle, blocking. It replays the same B-7
+    # #6965 phase 5: the comparison step ("Compare backend recordings") is
+    # advisory discovery -- continue-on-error, a warning annotation and step
+    # summary, and the capture upload when it fails. This row stays blocking
+    # for the rest of the job: the four B-7 capture legs, the check that
+    # every leg wrote recordings (which keeps a one-sided capture loss
+    # failing closed now that Compare's own check is advisory), and the
+    # #6783 statement coverage check. Per-backend truth is asserted by blocking
+    # gates (golden-corpus-gate on NornicDB, and the backendconformance
+    # WantRows the e2e-tests live lanes run on both backends), so a reproduced
+    # divergence is filed as an issue (e.g. #6968), not a merge blocker.
+    # #6782: the differential oracle. It replays the same B-7
     # corpus on both backends with differential capture on and fails on any
-    # divergence the committed allowlist does not excuse. A silently dropped
-    # capture cannot false-green: empty recording dirs fail closed in Compare
-    # (both backends required), and the failure upload carries the recordings.
+    # divergence the committed allowlist does not excuse (advisory since #6965
+    # phase 5, above). A silently dropped capture cannot false-green: the
+    # capture-leg step fails closed on any leg without recordings (Compare's
+    # own both-backends check is advisory now), and the failure upload
+    # carries the recordings.
     # Multi-leg quorum (owner direction 2026-09-21): CI runs two
     # pairings (-diff-left2/-diff-right2) and fails only on divergences
     # reproducing across both; pairing-local scheduling noise is advisory.

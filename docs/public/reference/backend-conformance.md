@@ -130,9 +130,20 @@ The per-backend snapshot cannot catch a statement that returns wrong rows on
 one backend while every snapshot shape still passes. The differential oracle
 closes that gap: CI replays the same corpus on both backends with statement
 capture on and diffs the recordings statement by statement
-(`differential nornicdb vs neo4j`, blocking). Two leg pairings run, and only
+(`differential nornicdb vs neo4j`). Two leg pairings run, and only
 divergences reproducing across both fail — pairing-local scheduling noise
 drops out of the quorum.
+
+The comparison is discovery, not a merge gate (#6965). Per-backend truth is
+asserted by blocking gates: B-7 on NornicDB (`corpus-gate (nornicdb)`) and the
+`WantRows` above, which the blocking `test (nornicdb)` and `test (neo4j)` live
+lanes in `e2e-tests.yml` run on each backend. A comparison failure turns into
+a warning annotation and step summary on the job, and the `differential-capture`
+artifact carries the recordings. File an issue for the owning package, as
+#6968 was, instead of blocking an unrelated PR. The rest of the job still
+blocks through `golden-corpus-differential`: its four B-7 capture legs, a
+check that every leg wrote recordings (so a lost capture still fails closed),
+and the statement coverage check.
 
 Two divergence classes report advisory instead of failing, and pairing-local
 noise drops out of the quorum entirely. Reproduced execution-count or

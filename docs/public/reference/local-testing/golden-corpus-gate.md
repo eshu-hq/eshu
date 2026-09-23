@@ -150,7 +150,11 @@ other on one host.
 Beyond the per-backend snapshot, CI runs a **differential** job that replays
 the same corpus on both backends with statement capture on, then diffs the two
 recordings (`differential nornicdb vs neo4j` in `golden-corpus-gate.yml`,
-blocking via `golden-corpus-differential` in `specs/ci-gates.v1.yaml`). Every
+registered as `golden-corpus-differential` in `specs/ci-gates.v1.yaml`). The
+comparison step is advisory discovery (#6965): a divergence becomes a warning
+and uploads the recordings, and it is filed as an issue rather than blocking
+the PR. The job's B-7 capture legs, its check that every leg wrote
+recordings, and its statement coverage check still block. Every
 executed graph statement is fingerprinted (normalized text plus bound
 parameters) with a digest of its result rows; the gate fails on any statement
 whose digest differs, naming the statement so the failure points at its

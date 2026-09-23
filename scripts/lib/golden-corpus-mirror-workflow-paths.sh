@@ -363,3 +363,14 @@ require_workflow_path "Neo4j compose image digest (#6782 P3-4)" "docker-compose.
 # pins the pre-existing entry the same deadlock would have taken with it.
 require_workflow_path "gate registry definition (#6988)" "specs/ci-gates.v1.yaml"
 require_workflow_path "backend divergence allowlist (#6988)" "specs/backend-divergence-allowlist.v1.yaml"
+
+# --- #6965 phase 5 ------------------------------------------------------------
+# The differential job's capture-leg step is the blocking fail-closed check now
+# that Compare is advisory; its seeded RED/GREEN cases run the step's own text.
+capture_leg_cases_lib="${repo_root}/scripts/lib/golden-corpus-capture-leg-cases.sh"
+[[ -f "${capture_leg_cases_lib}" ]] || fail "missing capture leg cases lib: ${capture_leg_cases_lib}"
+bash -n "${capture_leg_cases_lib}" || fail "golden-corpus-capture-leg-cases.sh has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-capture-leg-cases.sh
+. "${capture_leg_cases_lib}"
+[[ "${capture_leg_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-capture-leg-cases.sh did not run to completion (gutted, or returned early)"
