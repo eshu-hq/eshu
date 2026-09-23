@@ -34,14 +34,14 @@ func TestCapabilityMatrixMatchesYAMLContract(t *testing.T) {
 	specsDir := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs"))
 	parsed := loadCapabilityMatrixYAML(t, specsDir)
 
-	if got, want := len(capabilityMatrix), len(parsed.Capabilities); got != want {
-		t.Fatalf("capabilityMatrix size = %d, want %d", got, want)
+	if got, want := len(querycontract.CompatibilityCapabilityMatrix()), len(parsed.Capabilities); got != want {
+		t.Fatalf("querycontract.CompatibilityCapabilityMatrix() size = %d, want %d", got, want)
 	}
 
 	for _, capability := range parsed.Capabilities {
-		support, ok := capabilityMatrix[capability.Capability]
+		support, ok := querycontract.CompatibilityCapabilityMatrix()[capability.Capability]
 		if !ok {
-			t.Fatalf("capability %q missing from Go capabilityMatrix", capability.Capability)
+			t.Fatalf("capability %q missing from Go querycontract.CompatibilityCapabilityMatrix()", capability.Capability)
 		}
 
 		assertProfileTruthMatch(t, capability.Capability, "local_lightweight", support.LocalLightweightMax, capability.Profiles["local_lightweight"].MaxTruthLevel)
@@ -50,7 +50,7 @@ func TestCapabilityMatrixMatchesYAMLContract(t *testing.T) {
 		assertProfileTruthMatch(t, capability.Capability, "production", support.ProductionMax, capability.Profiles["production"].MaxTruthLevel)
 	}
 
-	for capability := range capabilityMatrix {
+	for capability := range querycontract.CompatibilityCapabilityMatrix() {
 		found := false
 		for _, entry := range parsed.Capabilities {
 			if entry.Capability == capability {
@@ -59,7 +59,7 @@ func TestCapabilityMatrixMatchesYAMLContract(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Fatalf("Go capabilityMatrix has extra capability %q not present in YAML", capability)
+			t.Fatalf("Go querycontract.CompatibilityCapabilityMatrix() has extra capability %q not present in YAML", capability)
 		}
 	}
 }

@@ -60,15 +60,15 @@ type investigationWorkflowResolveResponse struct {
 func (h *InvestigationWorkflowHandler) list(w http.ResponseWriter, r *http.Request) {
 	catalog := InvestigationWorkflowCatalog()
 
-	limit, ok := parseBoundedLimit(w, r, investigationWorkflowDefaultLimit, investigationWorkflowMaxLimit)
+	limit, ok := querycontract.ParseBoundedLimit(w, r, investigationWorkflowDefaultLimit, investigationWorkflowMaxLimit)
 	if !ok {
 		return
 	}
-	offset, ok := parseOffset(w, r)
+	offset, ok := querycontract.ParseOffset(w, r)
 	if !ok {
 		return
 	}
-	full, ok := parseCatalogView(w, r)
+	full, ok := querycontract.ParseCatalogView(w, r)
 	if !ok {
 		return
 	}
@@ -96,7 +96,7 @@ func (h *InvestigationWorkflowHandler) list(w http.ResponseWriter, r *http.Reque
 		Limit:         limit,
 		Offset:        offset,
 		Truncated:     truncated,
-		NextOffset:    nextOffset(offset, limit, truncated),
+		NextOffset:    querycontract.NextOffset(offset, limit, truncated),
 	}, h.truth("deterministic guided investigation workflow catalog; no live backend read"))
 }
 

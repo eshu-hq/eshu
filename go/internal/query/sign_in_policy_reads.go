@@ -6,6 +6,9 @@ package query
 import (
 	"log/slog"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // SignInPolicyReadHandler serves the tenant sign-in policy read routes
@@ -84,7 +87,7 @@ func (h *SignInPolicyReadHandler) handleAdminGet(w http.ResponseWriter, r *http.
 	if !h.storeReady(w) {
 		return
 	}
-	if !requirePermissionFeature(w, r, "identity_admin.sign_in_policy_read", permissionFeatureIdentityAdmin) {
+	if !querycontract.RequirePermissionFeature(w, r, "identity_admin.sign_in_policy_read", queryauth.PermissionFeatureIdentityAdmin) {
 		return
 	}
 	tenantID, ok := signInPolicyAdminScope(w, r)

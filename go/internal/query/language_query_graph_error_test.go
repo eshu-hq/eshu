@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -187,26 +188,26 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 // is unsupported today; this test proves the gate mechanism itself by
 // temporarily forcing the matrix entry unsupported and restoring it after.
 // This test deliberately does not call t.Parallel(): it mutates the
-// package-level capabilityMatrix map in place for the duration of the test
+// package-level querycontract.CompatibilityCapabilityMatrix() map in place for the duration of the test
 // (restored via t.Cleanup), and other tests in this package read that same
 // map concurrently through BuildTruthEnvelope and querycontract.CapabilityUnsupported. That
 // is only safe because this test runs serially -- running it in parallel
-// with any test that reads capabilityMatrix would be a data race, and could
+// with any test that reads querycontract.CompatibilityCapabilityMatrix() would be a data race, and could
 // also let another test observe the temporarily-cleared entry and fail for
 // the wrong reason. Do not add t.Parallel() here without giving
-// capabilityMatrix its own synchronization.
+// querycontract.CompatibilityCapabilityMatrix() its own synchronization.
 func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T) {
 	// languageQueryCapability is an unexported family constant; the map key
 	// below is its wire value (languageQueryCapabilityWire) rather than a
 	// reference to the constant, so this test does not reach behind the
 	// language family's own package boundary.
 	const capability = languageQueryCapabilityWire
-	original, ok := capabilityMatrix[capability]
+	original, ok := querycontract.CompatibilityCapabilityMatrix()[capability]
 	if !ok {
-		t.Fatalf("capabilityMatrix missing %q", capability)
+		t.Fatalf("querycontract.CompatibilityCapabilityMatrix() missing %q", capability)
 	}
-	capabilityMatrix[capability] = capabilitySupport{}
-	t.Cleanup(func() { capabilityMatrix[capability] = original })
+	querycontract.CompatibilityCapabilityMatrix()[capability] = capabilitySupport{}
+	t.Cleanup(func() { querycontract.CompatibilityCapabilityMatrix()[capability] = original })
 
 	handler := &LanguageQueryHandler{
 		Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {

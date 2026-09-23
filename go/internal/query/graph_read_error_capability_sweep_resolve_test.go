@@ -6,6 +6,8 @@ package query
 import (
 	"go/ast"
 	"go/token"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // capabilitySweep and its resolvers are split out of
@@ -187,7 +189,7 @@ func (s *capabilitySweep) collectDecls(file *ast.File) {
 
 // findCallSites returns one failure message per WriteGraphReadError call site
 // in file whose capability argument could not be resolved to only-known-good
-// capabilityMatrix keys, plus the total count of WriteGraphReadError call
+// querycontract.CompatibilityCapabilityMatrix() keys, plus the total count of WriteGraphReadError call
 // sites matched in file (by callee name and 4-argument arity), regardless of
 // whether resolution succeeded. The caller sums that count across every file
 // so the test can distinguish "examined N call sites and found them clean"
@@ -211,7 +213,7 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 			// and the handler families into subpackages, so a family calls
 			// querycontract.WriteGraphReadError(...) -- a SelectorExpr. Matching
 			// only *ast.Ident would let every one of those call sites skip the
-			// capabilityMatrix check while this sweep still reported clean,
+			// querycontract.CompatibilityCapabilityMatrix() check while this sweep still reported clean,
 			// which is the regression this gate exists to catch.
 			capIdx, swept := callsWriteGraphReadError(node.Fun)
 			if !swept || len(node.Args) <= capIdx {
@@ -240,14 +242,14 @@ func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
 				break
 			}
 			for _, value := range values {
-				if _, ok := capabilityMatrix[value]; ok {
+				if _, ok := querycontract.CompatibilityCapabilityMatrix()[value]; ok {
 					continue
 				}
 				if _, documented := capabilitySweepDocumentedExceptions[value]; documented {
 					continue
 				}
 				findings = append(findings, "WriteGraphReadError capability "+value+
-					" is not a capabilityMatrix key at "+s.fset.Position(node.Pos()).String())
+					" is not a querycontract.CompatibilityCapabilityMatrix() key at "+s.fset.Position(node.Pos()).String())
 			}
 		}
 		return true

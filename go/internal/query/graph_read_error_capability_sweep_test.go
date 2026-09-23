@@ -49,7 +49,7 @@ func referencesIdentifierByName(fset *token.FileSet, filename string, contents [
 
 // TestWriteGraphReadErrorCapabilitiesExistInMatrix is the #5761 F5 gate:
 // nothing previously bound the capability id an error envelope reports to the
-// capabilityMatrix that BuildTruthEnvelope panics against, so a call site could
+// querycontract.CompatibilityCapabilityMatrix() that BuildTruthEnvelope panics against, so a call site could
 // pass a capability that exists nowhere in the catalog and no test would catch
 // it -- the string only surfaces inside an error envelope, which no other test
 // validates against the matrix.
@@ -57,7 +57,7 @@ func referencesIdentifierByName(fset *token.FileSet, filename string, contents [
 // This AST-parses every non-test .go file in this package, finds every
 // WriteGraphReadError(w, r, err, <capability>) call site, statically resolves
 // <capability> to its set of possible string-literal values, and asserts each
-// one is a real capabilityMatrix key. Resolution handles the three shapes this
+// one is a real querycontract.CompatibilityCapabilityMatrix() key. Resolution handles the three shapes this
 // package actually uses:
 //   - a string literal directly (e.g. "code_quality.complexity"),
 //   - a package-level const identifier (e.g. catalogCapability), and
@@ -306,7 +306,7 @@ func findModuleRoot(t *testing.T, start string) string {
 }
 
 // capabilitySweepDocumentedExceptions lists capability strings that are
-// deliberately absent from capabilityMatrix, with the reason, so the sweep
+// deliberately absent from querycontract.CompatibilityCapabilityMatrix(), with the reason, so the sweep
 // does not misreport a documented design choice as a gap. Adding an entry here
 // requires the same justification a reviewer would want in the source: why the
 // route bypasses the matrix's BuildTruthEnvelope panic-guard. It lives here,
@@ -315,7 +315,7 @@ func findModuleRoot(t *testing.T, start string) string {
 var capabilitySweepDocumentedExceptions = map[string]string{
 	"repository_freshness.status": "repository/freshness.go's repositoryFreshnessTruth builds its " +
 		"TruthEnvelope directly from Postgres runtime state rather than through " +
-		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
+		"querycontract.CompatibilityCapabilityMatrix()/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
 }
 
 // maxCapabilitySweepDocumentedExceptions is the #5761 F6 gate, pinning

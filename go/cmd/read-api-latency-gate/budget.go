@@ -93,7 +93,7 @@ var RouteCapability = map[string]string{
 	// go/internal/query/status.go: the capability-matrix tool string for
 	// operations.status is literally "GET /api/v0/status/operations".
 	"GET /api/v0/status/operations": "operations.status",
-	// go/internal/query/capabilities.go-family: capability_catalog.list's
+	// go/internal/query/capability/handler.go-family: capability_catalog.list's
 	// tool string is literally the route itself.
 	"GET /api/v0/capabilities": "capability_catalog.list",
 }

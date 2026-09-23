@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/secrets"
 )
 
@@ -142,8 +143,8 @@ func TestSecretsIAMCapabilitiesHaveMatrixAndOpenAPI(t *testing.T) {
 
 	spec := OpenAPISpec()
 	for _, ep := range secretsIAMEndpoints {
-		if _, ok := capabilityMatrix[ep.capability]; !ok {
-			t.Errorf("capability %q missing from capabilityMatrix", ep.capability)
+		if _, ok := querycontract.CompatibilityCapabilityMatrix()[ep.capability]; !ok {
+			t.Errorf("capability %q missing from querycontract.CompatibilityCapabilityMatrix()", ep.capability)
 		}
 		if !strings.Contains(spec, `"`+ep.path+`"`) {
 			t.Errorf("OpenAPI spec missing path %q", ep.path)
