@@ -1,0 +1,100 @@
+name: Live Backend Tests
+
+# Issue #6784 (epic #6788): every CI-class row from specs/live-tests.v1.yaml
+# runs against NornicDB and Neo4j. The ledger (specs/live-tests.v1.yaml)
+# decides what is blocking: promoting a test is a ledger edit, not a
+# workflow edit. scripts/run-live-backend-tests.sh gives each ledger file
+# a fresh single-service backend (down -v + up per file) because several
+# tests assert exact whole-graph counts against an empty database.
+#
+# This row lands non-blocking: required-gates judges a PR with main's
+# registry, so a new blocking check_name cannot be introduced in the PR
+# that first produces it (see the golden-corpus-gate-neo4j row comment in
+# specs/ci-gates.v1.yaml). Flip blocking to true in a follow-up once main
+# is green on this job.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'go/**'
+      - 'specs/live-tests.v1.yaml'
+      - 'scripts/run-live-backend-tests.sh'
+      - 'scripts/test-run-live-backend-tests.sh'
+      - 'scripts/verify-live-tests-ledger.sh'
+      - 'scripts/test-verify-live-tests-ledger.sh'
+      - 'scripts/lib/live_backend_test_targets.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/lib/live-gate-lock.sh'
+      - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - 'docker-compose.live-backend-nornicdb.yml'
+      - 'docker-compose.live-backend-neo4j.yml'
+      - '.github/workflows/live-backend-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # The ledger validator, both seed harnesses, and the runner's static
+  # probes are cheap and need no Docker, so a broken gate fails here in
+  # seconds instead of after the heavy job below.
+  static-mirror:
+    name: static-mirror (ledger and runner probes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Validate the live-test ledger
+        run: bash scripts/verify-live-tests-ledger.sh
+
+      - name: Test the ledger validator
+        run: bash scripts/test-verify-live-tests-ledger.sh
+
+      - name: Test the live-backend runner
+        run: bash scripts/test-run-live-backend-tests.sh
+
+  live-backend:
+    name: live-backend (nornicdb and neo4j)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # CI runners are isolated: no sibling worktree contends for the
+      # fixed host ports, so the cross-run mutex is bypassed.
+      ESHU_SKIP_LIVE_GATE_LOCK: 1
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run live-backend tests on both backends
+        run: bash scripts/run-live-backend-tests.sh --backend both
+
+      - name: Tear down backend stacks
+        if: always()
+        run: |
+          docker compose -p eshu-live-backend -f docker-compose.live-backend-nornicdb.yml down -v || true
+          docker compose -p eshu-live-backend -f docker-compose.live-backend-neo4j.yml down -v || true

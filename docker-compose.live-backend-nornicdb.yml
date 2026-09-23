@@ -1,0 +1,42 @@
+# Bare NornicDB service for scripts/run-live-backend-tests.sh (#6784).
+#
+# One service, no eshu services: the CI live tests only speak Bolt and
+# several assert exact whole-graph counts against an empty database, so
+# each ledger file gets `up` on a fresh volume and `down -v` after.
+# The pinned image MUST match docker-compose.yaml (the canonical pin);
+# scripts/test-run-live-backend-tests.sh fails on drift.
+services:
+  nornicdb:
+    # Immutable pinned NornicDB image, mirroring docker-compose.yaml.
+    image: ${NORNICDB_IMAGE:-ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1}
+    pull_policy: ${NORNICDB_PULL_POLICY:-missing}
+    platform: ${NORNICDB_PLATFORM:-linux/amd64}
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NORNICDB_NO_AUTH: "true"
+      NORNICDB_DATA_DIR: /data
+      NORNICDB_HTTP_PORT: "7474"
+      NORNICDB_BOLT_PORT: "7687"
+      NORNICDB_ASYNC_WRITES_ENABLED: "false"
+      NORNICDB_HEIMDALL_ENABLED: "false"
+      NORNICDB_QDRANT_GRPC_ENABLED: "false"
+      NORNICDB_EMBEDDING_ENABLED: "false"
+      NORNICDB_EMBEDDING_PROVIDER: local
+      NORNICDB_SEARCH_BM25_ENABLED: "false"
+      NORNICDB_SEARCH_VECTOR_ENABLED: "false"
+      NORNICDB_SEARCH_BM25_WARMING: lazy
+      NORNICDB_SEARCH_VECTOR_WARMING: lazy
+      NORNICDB_PERSIST_SEARCH_INDEXES: "false"
+    volumes:
+      - nornicdb_live_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:7474/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  nornicdb_live_data:

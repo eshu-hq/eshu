@@ -1,0 +1,23 @@
+# Bare Neo4j service for scripts/run-live-backend-tests.sh (#6784).
+#
+# One service, no eshu services: the CI live tests only speak Bolt and
+# several assert exact whole-graph counts against an empty database, so
+# each ledger file gets `up` on a fresh volume and `down -v` after.
+# The pinned image MUST match docker-compose.neo4j.yml (the canonical
+# pin); scripts/test-run-live-backend-tests.sh fails on drift.
+services:
+  neo4j:
+    # Immutable pinned Neo4j image, mirroring docker-compose.neo4j.yml.
+    image: ${NEO4J_IMAGE:-neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f}
+    pull_policy: ${NEO4J_PULL_POLICY:-missing}
+    platform: ${NEO4J_PLATFORM:-linux/amd64}
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: none
+    volumes:
+      - neo4j_live_data:/data
+
+volumes:
+  neo4j_live_data:
