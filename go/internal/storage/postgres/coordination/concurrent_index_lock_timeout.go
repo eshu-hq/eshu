@@ -29,10 +29,18 @@ var concurrentIndexOnlyStatementPattern = regexp.MustCompile(
 // string, so every migration file that uses it already holds exactly one
 // such statement and nothing else (see the root package's
 // migrations/113_..._v2_idx.sql and 114_drop_..._legacy.sql, whose header
-// comments record that constraint). This check stays conservative rather
-// than relying on that convention holding forever: a statement it cannot
-// prove is a lone CIC/DIC — combined with any other statement, or anything
-// unrecognized — keeps the caller's lock_timeout.
+// comments record that constraint). This check stays conservative for any SQL
+// text Postgres would actually execute rather than relying on that
+// convention holding forever: a statement it cannot prove is a lone CIC/DIC
+// -- combined with any other statement, or anything unrecognized -- keeps
+// the caller's lock_timeout. Line-comment stripping can be fooled by a `--`
+// or `$$...$$` string/dollar-quoted literal that happens to hide a
+// following `;` from view, classifying a combined statement as sole; that
+// false positive is inert, because Postgres itself refuses to run
+// CONCURRENTLY inside the resulting multi-statement string ("cannot run
+// inside a transaction block"), so no non-concurrent DDL ever executes
+// without lock_timeout as a result. See TestIsSoleConcurrentIndexStatement's
+// "comment-like text inside a string literal" case.
 func IsSoleConcurrentIndexStatement(query string) bool {
 	trimmed := strings.TrimSpace(stripWholeLineSQLComments(query))
 	trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, ";"))
@@ -68,17 +76,27 @@ func stripWholeLineSQLComments(sql string) string {
 // mode does not conflict with the RowExclusiveLock ordinary INSERT/UPDATE/
 // DELETE statements take, so a build waiting on either of its two phases --
 // acquiring that initial lock, or its internal wait for transactions with an
-// older snapshot to finish -- never blocks application writers. It only
-// delays the schema bootstrap Job itself, which Kubernetes already bounds by
-// killing the pod at schemaBootstrap.activeDeadlineSeconds
-// (deploy/helm/eshu/values.yaml). ShareUpdateExclusiveLock DOES conflict with
-// another session's DDL or VACUUM holding the same or a stronger lock, so a
-// queued build can still wait behind those; that wait is left unbounded here
-// too, on the same reasoning -- the Job deadline is the backstop, not a
-// per-statement lock_timeout that would otherwise force the build to abandon
-// a completed table scan and restart from zero the moment any transaction in
-// the database has been open longer than the timeout, which a busy database
-// can make true continuously (see issue #7004's evidence).
+// older snapshot to finish -- never blocks application writers. Disabling
+// lock_timeout avoids the alternative failure mode: a per-statement timeout
+// would cancel the build the moment any transaction in the database has been
+// open longer than the timeout, which a busy database can make true
+// continuously, and every retry restarts the table scan from zero and never
+// converges (see issue #7004's evidence).
+//
+// This is NOT bounded by the schema bootstrap Job's activeDeadlineSeconds
+// (deploy/helm/eshu/values.yaml): that deadline kills the bootstrap CLIENT
+// process only. Both bootstrap binaries (eshu-bootstrap-data-plane,
+// bootstrap-index) run with a background context and no signal handling, so
+// killing the pod does not cancel the statement on the Postgres server -- the
+// backend keeps building (or waiting on a conflicting DDL/VACUUM lock) to
+// completion or error, still holding the session schema advisory lock the
+// whole time. A build that completes leaves a VALID index and releases that
+// lock; the NEXT bootstrap run then waits on the same advisory lock (the
+// ownership wait WaitForOwnership already covers) and can itself need
+// retrying or investigating if the orphan ran unusually long. A build that is
+// canceled, terminated, or errors leaves an INVALID index instead, which the
+// next run's invalid-index cleanup drops (also without lock_timeout; see
+// dropInvalidConcurrentIndexes in the root package) before rebuilding it.
 func ConcurrentIndexBuildLockTimeout(query string, requested time.Duration) time.Duration {
 	if IsSoleConcurrentIndexStatement(query) {
 		return 0

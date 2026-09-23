@@ -44,12 +44,15 @@ schemaBootstrap:
   # A CREATE/DROP INDEX CONCURRENTLY migration statement is exempt from the
   # schema lock_timeout and waits out a conflicting lock or older
   # transaction instead of retrying (#7004; see docs/public/deployment/
-  # service-runtimes-bootstrap.md). That wait is bounded only by this
-  # deadline. On a database with a large target table or routinely
-  # long-running transactions, that single statement can need most of a
-  # 600 s budget by itself; raise this value for that upgrade rather than
-  # assuming the default always fits (not bumped here without a measured
-  # case to size it against).
+  # service-runtimes-bootstrap.md). This deadline does NOT bound that wait:
+  # it only kills the bootstrap client pod. The Postgres backend runs the
+  # statement to completion or error regardless, still holding the schema
+  # advisory lock, and a subsequent run waits on that lock in turn. On a
+  # database with a large target table or routinely long-running
+  # transactions, raise this value so the Job's own status reflects how
+  # long that build actually takes, rather than reporting a timeout while
+  # the build keeps running unattended on the server (not bumped here
+  # without a measured case to size it against).
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 86400
   serviceAccountName: ""

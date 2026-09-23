@@ -57,6 +57,22 @@ func TestIsSoleConcurrentIndexStatement(t *testing.T) {
 			want: false,
 		},
 		{
+			// A `--` that happens to fall inside a string literal is a
+			// known, accepted false positive of line-comment stripping: it
+			// hides the trailing `;` and the ALTER, so this classifies as
+			// a sole statement even though it is not one. It stays inert
+			// because Postgres itself refuses to run CONCURRENTLY inside
+			// the resulting multi-statement simple-query string ("cannot
+			// run inside a transaction block"), so the ALTER never
+			// actually executes without lock_timeout (verified live). This
+			// pins the classifier's current, accepted answer -- not the
+			// ideal one -- so a change to that answer is a deliberate,
+			// reviewed decision.
+			name: "comment-like text inside a string literal",
+			sql:  "CREATE INDEX CONCURRENTLY a ON t (v) WHERE s = '\n--'; ALTER TABLE t ADD COLUMN w INT",
+			want: true,
+		},
+		{
 			name: "plain create index without concurrently",
 			sql:  "CREATE INDEX t_v_idx ON t (v)",
 			want: false,
