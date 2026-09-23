@@ -460,7 +460,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `identity/session/` | 4 | 5 | ok |
 | `identity/signin/` | 3 | 4 | ok |
 | `incident/` | 1 | 1 | ok |
-| `ingestion/` | 31 | 78 | ok |
+| `ingestion/` | 31 | 77 | ok |
 | `intent/` | 11 | 20 | ok |
 | `lock/` | 3 | 3 | ok |
 | `maintenance/` | 1 | 1 | ok |
