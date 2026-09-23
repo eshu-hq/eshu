@@ -3,6 +3,16 @@
 
 package migrations
 
+// checksumAliasEntry pins the aliases accepted for path to the exact shipped
+// bytes they were carved out for: an alias is only ever valid while the file
+// on disk still checksums to shipped. If path is edited again, shipped no
+// longer matches and every alias for it stops working, instead of silently
+// covering the new drift too.
+type checksumAliasEntry struct {
+	shipped string
+	aliases map[string]bool
+}
+
 // supersededChecksums lists narrow checksum aliases accepted in place of a
 // shipped migration's current checksum, keyed by the migration's
 // Definition.Path.
@@ -28,16 +38,6 @@ package migrations
 // new guarded migration instead. An alias is only ever warranted when a
 // migration was, like this one, already edited-in-place and applied to real
 // databases before the mistake was caught.
-// checksumAliasEntry pins the aliases accepted for path to the exact shipped
-// bytes they were carved out for: an alias is only ever valid while the file
-// on disk still checksums to shipped. If path is edited again, shipped no
-// longer matches and every alias for it stops working, instead of silently
-// covering the new drift too.
-type checksumAliasEntry struct {
-	shipped string
-	aliases map[string]bool
-}
-
 var supersededChecksums = map[string]checksumAliasEntry{
 	"go/internal/storage/postgres/migrations/093_cross_scope_completion_queue.sql": {
 		shipped: "c95cae2762bd4d0d42da4720eb0ad5545d2d032914bded15a65ab01acb92ce42",
