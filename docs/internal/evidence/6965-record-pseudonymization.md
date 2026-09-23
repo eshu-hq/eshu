@@ -197,3 +197,22 @@ independently written sweep.
 No-Regression Evidence: record mode only. The claimed-live service path is unchanged, and the record-time learner changes are two: region detection in AWS hosts now uses the exact region grammar (closing a leak of region-shaped customer labels such as `db-main-1`), and labels directly under `amazonaws.com` are protected spans so service principals stay verbatim. The `*` and `cloudfront` account rule lives in `Verify` and the gate, not the learner. `go test ./internal/replay/... ./internal/collector/awscloud/... ./cmd/collector-aws-cloud -count=1` passes (428 ok), and `TestAWSCorpusShapePreserved` keeps its numbers.
 
 No-Observability-Change: no new metric, span or log key. The existing `collector.record.pseudonymized` event already reports counts and opaque paths, and `Verify` still names offsets and alternatives, never values.
+
+## Follow-up: CloudFront OAI IDs, alarm names in ARNs, enum fields
+
+Reviewing a real pseudonymized recording, by shape only with no values
+published, found three gaps. The account-issued CloudFront origin access
+identity ID sat raw inside the spaced principal
+`arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity <ID>`. A
+customer's free-text CloudWatch alarm name inside an alarm ARN was not
+learned. And collector enum fields (`resource_type`, `target_type`,
+`relationship_type`, `service_kind`) were Keep, so a learned tag value
+rewrote `aws_sqs_queue`. Three independent review rounds then shaped the
+final rules. Words from spaced ARN names are pseudonymized everywhere except
+Keep values outside an ARN. The CloudFront phrase is protected only in the
+AWS-owned principal. Enum values are verbatim unless they are a
+customer-named `::` type outside `AWS::` and `Alexa::`.
+
+No-Regression Evidence: record mode only. The claimed-live collection path is unchanged; every edit is in the record-time pseudonymizer and its aws policy table. Those edits are: a new `ClassEnum` (the recordpolicy table moves the four enum keys to it, and `learn` pseudonymizes customer `::` types per component); the spaced-component learner in `arn_spaced.go`; an `arnOnly` entry flag, with `settled()` and `set()` letting a classified field widen it; `substituteComponent` gaining an in-ARN parameter and `substituteFree` an `exact` parameter that together keep ARN-name words out of Keep values; `rewrite` routing a whole-value ARN through `wholeARN` into `substituteARN` (one prefix check per rewritten string); and the CloudFront principal branch in `substituteARN`. `go test ./internal/replay/... ./internal/collector/awscloud/... ./cmd/collector-aws-cloud -count=1` passes (428 ok), and `TestAWSCorpusShapePreserved` keeps its numbers.
+
+No-Observability-Change: no new metric, span or log key. The `collector.record.pseudonymized` event already reports class counts and opaque paths. Components learned from a customer `::` type count under `ident`, and enum values that pass through verbatim are not counted, so `enum` does not appear in `learned_by_class`.

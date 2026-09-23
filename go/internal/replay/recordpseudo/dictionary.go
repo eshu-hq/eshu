@@ -52,6 +52,12 @@ func structural(raw string) bool {
 type entry struct {
 	pseudonym string
 	class     Class
+	// arnOnly marks a word learned only from a customer's spaced ARN name
+	// (a CloudWatch alarm name). It is substituted everywhere except a Keep
+	// value outside an ARN, so a common word there ("running") never
+	// rewrites a Keep field such as state. A classified field that learns
+	// the same word clears the mark.
+	arnOnly bool
 }
 
 // classRank orders classes for precedence when one raw token is met under
@@ -61,7 +67,7 @@ type entry struct {
 // and Unknown never learn and rank lowest.
 func classRank(class Class) int {
 	switch class {
-	case ClassKeep, ClassOpaque, ClassUnknown:
+	case ClassKeep, ClassEnum, ClassOpaque, ClassUnknown:
 		return 0
 	case ClassTagValue:
 		return 1
@@ -120,7 +126,9 @@ func (d *dictionary) set(class Class, raw, pseudonym string) {
 		return
 	}
 	if existing, ok := d.entries[raw]; ok {
-		if classRank(existing.class) >= classRank(class) {
+		// A word first met only inside a spaced ARN name widens to every
+		// field once a classified field learns it on its own.
+		if classRank(existing.class) >= classRank(class) && !existing.arnOnly {
 			return
 		}
 		d.learned[existing.class]--
@@ -142,7 +150,8 @@ func (d *dictionary) pseudonym(raw string) string {
 // equals the class asking to learn it.
 func (d *dictionary) settled(class Class, raw string) bool {
 	existing, ok := d.entries[raw]
-	return ok && classRank(existing.class) >= classRank(class)
+	// An arnOnly entry is never settled, so a classified field can widen it.
+	return ok && !existing.arnOnly && classRank(existing.class) >= classRank(class)
 }
 
 // learn classifies one raw value and records its pseudonym. Empty values,
@@ -178,8 +187,18 @@ func (d *dictionary) learn(class Class, raw string) {
 		d.learnEmail(raw)
 	case ClassImageTag:
 		d.learnImageTag(raw)
+	case ClassEnum:
+		if customerTypeName(raw) {
+			// A customer-named type (Custom::<name>, <Org>::Svc::Res):
+			// learn every component but the structural Custom and AWS.
+			for _, component := range strings.Split(raw, "::") {
+				if component != "" && component != "Custom" && component != "AWS" {
+					d.learnIdent(component)
+				}
+			}
+		}
 	default:
-		// Keep, Opaque and Unknown learn nothing: Keep values are structural,
+		// Keep, Enum, Opaque and Unknown learn nothing: Keep and Enum values are structural,
 		// the other two are replaced wholesale at rewrite time.
 	}
 }
@@ -269,6 +288,10 @@ func (d *dictionary) learnARN(raw string) {
 		d.unlistedARNTypes[service+":"+components[0]]++
 	}
 	for i, component := range components[skip:] {
+		if strings.Contains(component, " ") {
+			d.learnSpacedComponent(component, service == "iam" && account == "cloudfront")
+			continue
+		}
 		if i == 0 && numericRe.MatchString(component) {
 			// The component at index skip is the resource name, not a
 			// qualifier, so a numeric name seen only in an ARN is learned

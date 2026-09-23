@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 )
 
 // Class is the pseudonym shape a field's string values take. The policy
@@ -60,7 +61,23 @@ const (
 	// (v1.2.3, 1.2.3) are structural and kept, every other tag is a
 	// customer-chosen name and takes the name form.
 	ClassImageTag
+	// ClassEnum passes a collector or AWS enum value through verbatim and
+	// never substitutes into it, so a learned token equal to one of its words
+	// cannot rewrite it. A customer-named type (Custom::<name>,
+	// <Org>::Svc::Res) is pseudonymized per :: component; see
+	// customerTypeName.
+	ClassEnum
 )
+
+// customerTypeName reports whether an enum-field value is a customer-named
+// resource type. CloudFormation reserves the AWS:: and Alexa:: namespaces and requires
+// Org::Service::Resource for private and Custom::<name> for custom types,
+// so a customer-named type is exactly a "::" value not owned by AWS. Every
+// other spelling (aws_sqs_queue, lambda.function, ORGANIZATIONAL_UNIT,
+// direct-connect-gateway) is a collector or AWS enum and stays verbatim.
+func customerTypeName(v string) bool {
+	return strings.Contains(v, "::") && !strings.HasPrefix(v, "AWS::") && !strings.HasPrefix(v, "Alexa::")
+}
 
 var classNames = map[Class]string{
 	ClassUnknown:  "unknown",
@@ -78,6 +95,7 @@ var classNames = map[Class]string{
 	ClassEmail:    "email",
 	ClassOpaque:   "opaque",
 	ClassImageTag: "image_tag",
+	ClassEnum:     "enum",
 }
 
 // String returns the class's log label.
