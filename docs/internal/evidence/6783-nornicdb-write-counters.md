@@ -113,3 +113,34 @@ Salient results:
 - `ResetRepositorySubtreeInGraph` / `DeleteRepositoryFromGraph` (#6783
   acceptance): absent from all `*.go` on origin/main (only evidence docs
   mention them) — resolved by deletion, nothing to inventory.
+
+## Hot-path evidence markers
+
+No-Regression Evidence: the write-counts collector (slice B) and its join
+into differential records add recording only; no statement text, parameter,
+routing, retry, lease, batching, or concurrency behavior changes. Baseline:
+before this branch, differential records carried no Bolt counters.
+After: per-call `WriteCountsCollector` records NodesCreated,
+RelationshipsCreated, PropertiesSet, and LabelsAdded per execution and the
+join preserves the original fingerprints — comparisons are unaffected
+(counters are advisory-only, never compared). Backends/versions: NornicDB
+v1.3.3 (loopback :27921) and Neo4j 2026.01 (loopback :27931). Input shape:
+Sept-21 B-7 differential captures (2712 nornicdb / 2658 neo4j records)
+plus the live conformance corpus (2 write cases x 2 attempts, 10 read
+cases per backend). Row counts: NodesCreated and RelationshipsCreated
+match on both backends for every captured write row; PropertiesSet and
+LabelsAdded read 0 on NornicDB (the backend does not report them — known
+#6786 fidelity gap, node properties read back to confirm the writes
+landed) versus nonzero on Neo4j. Telemetry/log evidence:
+`/tmp/6783-live-counters.log` (fidelity table),
+`/tmp/6783-live-nornicdb.log` + `/tmp/6783-live-neo4j.log`
+(TestLiveBackendConformance green on both backends),
+`/tmp/6783-coverage-green2.log` ([PASS] statements_executed). Safe
+because: the recorder is a nil-safe passthrough (WrapExecutor is a no-op
+unless ESHU_DIFFERENTIAL_CAPTURE opts in), the collector allocates only
+when a capture session is open, and the coverage computation runs in the
+offline gate binary, never in the serving path.
+
+No-Observability-Change: this branch adds no metrics, spans, or serving-path
+logs; the only new output is the gate binary's stdout coverage report and
+unit-test logs.
