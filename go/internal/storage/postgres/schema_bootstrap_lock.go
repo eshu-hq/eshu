@@ -5,9 +5,7 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -141,15 +140,14 @@ const schemaMigrationsTableSQL = `CREATE TABLE IF NOT EXISTS %s (
 )`
 
 func migrationChecksum(statement string) string {
-	sum := sha256.Sum256([]byte(statement))
-	return hex.EncodeToString(sum[:])
+	return migrations.Checksum(statement)
 }
 
 func migrationVariant(def Definition) string {
-	if def.variant == "" {
+	if def.Variant == "" {
 		return "full"
 	}
-	return def.variant
+	return def.Variant
 }
 
 func (executor schemaConnectionExecutor) invalidConcurrentIndexNames(
@@ -266,8 +264,8 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 			return fmt.Errorf("duplicate migration path %q", def.Path)
 		}
 		seenPaths[def.Path] = struct{}{}
-		if def.variant != "" && def.fullChecksum == "" {
-			return fmt.Errorf("migration %q variant %q lacks a full checksum", def.Path, def.variant)
+		if def.Variant != "" && def.FullChecksum == "" {
+			return fmt.Errorf("migration %q variant %q lacks a full checksum", def.Path, def.Variant)
 		}
 	}
 
@@ -286,12 +284,12 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		checksum := migrationChecksum(def.SQL)
 		variant := migrationVariant(def)
 		fullApplied := false
-		if def.fullChecksum != "" {
+		if def.FullChecksum != "" {
 			fullKey := schemaMigrationKey{path: def.Path, variant: "full"}
 			if recorded, exists := ledger.applied[fullKey]; exists {
-				if recorded != def.fullChecksum {
+				if recorded != def.FullChecksum {
 					return fmt.Errorf("schema migration %q full checksum changed: recorded %s, current %s",
-						def.Path, recorded, def.fullChecksum)
+						def.Path, recorded, def.FullChecksum)
 				}
 				fullApplied = true
 			}
