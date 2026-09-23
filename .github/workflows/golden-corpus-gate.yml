@@ -351,7 +351,41 @@ jobs:
       - name: Build golden-corpus-gate
         run: go -C go build -o "${{ runner.temp }}/golden-corpus-gate" ./cmd/golden-corpus-gate
 
+      # #6965 phase 5: with the comparison advisory below, its fail-closed
+      # check on a missing side no longer blocks, and statement coverage only
+      # fails when every dir is empty. This step keeps a one-sided capture
+      # loss blocking: each leg must have written at least one non-empty
+      # recording file.
+      - name: Require recordings from every capture leg
+        run: |
+          missing=0
+          for leg in pair1/nornicdb pair1/neo4j pair2/nornicdb pair2/neo4j; do
+            dir="${{ runner.temp }}/diff-capture/${leg}"
+            files=0
+            for f in "${dir}"/*.jsonl; do
+              [ -s "${f}" ] && files=$((files + 1))
+            done
+            if [ "${files}" -eq 0 ]; then
+              echo "::error title=Missing differential capture::no non-empty *.jsonl recording in ${dir}; the ${leg} leg captured nothing"
+              missing=1
+            else
+              echo "${leg}: ${files} recording file(s)"
+            fi
+          done
+          exit "${missing}"
+
+      # #6965 phase 5: the comparison is discovery, not a merge gate. Per-backend
+      # truth is asserted by blocking gates (B-7 on NornicDB, and the
+      # backendconformance WantRows the e2e-tests live lanes run on both
+      # backends), so a reproduced divergence is filed as an issue (e.g. #6968)
+      # instead of blocking an unrelated PR. continue-on-error keeps the job
+      # green on a divergence; the step below turns it into a visible warning
+      # and the upload keeps the recordings. The B-7 legs and the capture
+      # check above and the statement coverage check below still fail the
+      # job.
       - name: Compare backend recordings
+        id: compare
+        continue-on-error: true
         run: >
           "${{ runner.temp }}/golden-corpus-gate" -phase=backend-diff
           "-diff-left=${{ runner.temp }}/diff-capture/pair1/nornicdb"
@@ -372,8 +406,20 @@ jobs:
           -coverage-manifest=go/internal/queryplan/testdata/statement-builders.yaml
           "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/nornicdb,${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/nornicdb,${{ runner.temp }}/diff-capture/pair2/neo4j"
 
+      - name: Report an advisory backend divergence
+        if: steps.compare.outcome == 'failure'
+        run: |
+          echo "::warning title=Backend divergence (advisory)::Compare backend recordings found a divergence. It does not block this PR (#6965); file an issue for the owning package. The differential-capture artifact holds the recordings."
+          {
+            echo "### Backend divergence (advisory)"
+            echo
+            echo "\`Compare backend recordings\` failed. It is discovery, not a merge gate (#6965)."
+            echo "Read its step log for the diverging statements, and file an issue for the owning package."
+            echo "The \`differential-capture\` artifact holds the recordings."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload capture recordings on failure
-        if: failure()
+        if: failure() || steps.compare.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: differential-capture

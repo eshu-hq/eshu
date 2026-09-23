@@ -130,9 +130,20 @@ The per-backend snapshot cannot catch a statement that returns wrong rows on
 one backend while every snapshot shape still passes. The differential oracle
 closes that gap: CI replays the same corpus on both backends with statement
 capture on and diffs the recordings statement by statement
-(`differential nornicdb vs neo4j`, blocking). Two leg pairings run, and only
+(`differential nornicdb vs neo4j`). Two leg pairings run, and only
 divergences reproducing across both fail — pairing-local scheduling noise
 drops out of the quorum.
+
+The comparison is discovery, not a merge gate (#6965). Per-backend truth is
+asserted by blocking gates: B-7 on NornicDB (`corpus-gate (nornicdb)`) and the
+`WantRows` above, which the blocking `test (nornicdb)` and `test (neo4j)` live
+lanes in `e2e-tests.yml` run on each backend. A comparison failure turns into
+a warning annotation and step summary on the job, and the `differential-capture`
+artifact carries the recordings. File an issue for the owning package, as
+#6968 was, instead of blocking an unrelated PR. The rest of the job still
+blocks through `golden-corpus-differential`: its four B-7 capture legs, a
+check that every leg wrote recordings (so a lost capture still fails closed),
+and the statement coverage check.
 
 Two divergence classes report advisory instead of failing, and pairing-local
 noise drops out of the quorum entirely. Reproduced execution-count or
@@ -147,7 +158,12 @@ tie-order reads — `ORDER BY` over tied keys with no truncation, where only
 delivery order can differ — are excluded by `tie_order_reads`
 registration (never stale-checked: tied order agrees on most runs) and
 report in their own advisory finding, never silently. Everything else that reproduces and the allowlist does not excuse —
-digest disagreements, one-sided recordings, backend errors — fails. The full
+digest disagreements, one-sided recordings, backend errors — fails the
+comparison step. In CI that is the advisory outcome described above, not a
+failed job, and that includes a reproduced one-sided recording (a statement
+recorded on only one backend). Only a leg that captured nothing at all fails
+the job, through the capture-leg check; that check works per directory, not
+per statement. The full
 contract, finding table, and local replay commands are in the
 [Golden Corpus Gate](local-testing/golden-corpus-gate.md#differential-oracle-nornicdb-vs-neo4j).
 
