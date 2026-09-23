@@ -12,6 +12,7 @@
 // its truth came from a narrower source, such as PostgresOnlyBoundary.
 //
 // The package imports nothing from its parent querycontract. The parent
-// imports it: its visualization and answer packets carry
-// EvidenceCitationHandle, which is why this leaf lands before theirs.
+// imports it because its answer packets carry EvidenceCitationHandle, and the
+// sibling querycontract/visualization imports it because visualization nodes
+// do; that is why this leaf landed before theirs.
 package evidence

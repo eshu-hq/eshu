@@ -8,8 +8,9 @@ package evidence
 // visualization-packet response resolves and cites back.
 //
 // This type moved here from root package query's evidence_citation.go
-// (#6060) and on into this leaf (#6597). The parent querycontract's
-// visualization and answer packets carry it, so it sits below them. Root still
+// (#6060) and on into this leaf (#6597). The parent querycontract's answer
+// packets and the querycontract/visualization nodes carry it, so it sits
+// below both. Root still
 // publishes the exported alias query.EvidenceCitationHandle in
 // evidence_citation_public.go for serviceintel; every field stays exported and
 // unchanged.
