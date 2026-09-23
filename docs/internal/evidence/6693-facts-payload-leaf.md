@@ -1,6 +1,6 @@
 # #6693 checklist step 4: `facts/payload/`
 
-Baseline: `origin/main` `aa7cc0d1d`. Change: move the JSON payload codec and
+Baseline: `origin/main` `44b557438` (written against `aa7cc0d1d`, rebased after #7005 and #7012). Change: move the JSON payload codec and
 empty-string SQL-binding helpers out of the `storage/postgres` root into a
 new leaf package, `go/internal/storage/postgres/facts/payload` (package
 `payloadstore`), per
@@ -90,7 +90,7 @@ sibling move re-derives it), and
 `bash scripts/generate-dirgate-grandfather-go.sh` regenerates
 `tools/golangci-lint-dirgate/grandfather.go` from it.
 
-Test repoints, checked with exact-name assertions after the rebase onto `ebe632a56`: for `TestMarshalPayloadSanitizesForPostgresJSONB` and `BenchmarkMarshalPayloadSourceText`, `go test ./internal/storage/postgres/facts/payload/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
+Test repoints, checked with exact-name assertions after the rebase onto `44b557438`: for `TestMarshalPayloadSanitizesForPostgresJSONB` and `BenchmarkMarshalPayloadSourceText`, `go test ./internal/storage/postgres/facts/payload/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
 
 No-Regression Evidence: this is a byte-identical move plus symbol export —
 `MarshalPayload`, `UnmarshalPayload`, `EmptyToNil`, and `EmptyToDefault`
