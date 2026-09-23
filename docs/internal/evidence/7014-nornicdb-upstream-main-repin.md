@@ -93,47 +93,104 @@ Focused, non-live proof (all green, captured 2026-09-23):
   only).
 - `git diff --check` — clean.
 
-## Deferred: live golden-corpus gate and backend-divergence differential
+## Live golden-corpus gate: RED — real regression, reproduced 3x
 
-**Not run.** Two `ci-gates` processes were already live on this machine when
-this drive checked (`pgrep -x ci-gates`: PID 17616, running since 13:09:40,
-and PID 56974, running since 13:17:37), and worktree
-`eshu-worktrees/6843-graph-only-labels` held the default gate ports
-(Postgres 15432, NornicDB Bolt 7687/HTTP 7474) via its `par6843-battery`
-compose project. The repo's own `guard-live-gate.sh` pre-tool hook blocked
-`bash scripts/verify-golden-corpus-gate.sh` and even the hermetic
-`bash scripts/test-verify-golden-corpus-gate.sh` on the `ci-gates`-running
-check before evaluating ports. Per the binding cross-worktree live-gate-lock
-rule (ceiling is 1 concurrent live gate; port relocation does not make a
-second run safe, it still contends for CPU and Docker I/O), this drive did
-not override the block and did not run:
+**`bash scripts/verify-golden-corpus-gate.sh` FAILS against `fix-6915-c4de1c5c`.**
+The default gate ports (Postgres 15432, NornicDB Bolt 7687/HTTP 7474) were held
+by a foreign, unrelated stack the whole drive (worktree
+`eshu-worktrees/6843-graph-only-labels`'s `par6843-battery` compose project,
+and separately a long-lived `eshu-6820-pg` container on 15432), and at times a
+genuine concurrent `ci-gates` process was live elsewhere on the machine
+(`pgrep -x ci-gates` matched real, short-lived processes from other sessions
+more than once). Waiting did not clear the port hold (it is a persistent
+container, not a finishing gate run), so every run below used the sanctioned
+isolated lane: `ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788
+NEO4J_HTTP_PORT=7575 GATE_API_PORT=18081 GATE_MCP_PORT=18092` (all five
+verified free with `lsof` immediately before each run),
+`ESHU_LIVE_GATE_LOCK_DIR` pointed at a private scratch directory, and a
+unique `COMPOSE_PROJECT_NAME` per run so nothing touched another session's
+stack. Never used `ESHU_SKIP_LIVE_GATE_LOCK` or `CLAUDE_HOOK_ALLOW`. Every
+run's own compose project was confirmed torn down (`docker compose ls`)
+before the next one started; `par6843-battery` was never touched.
 
-- `bash scripts/verify-golden-corpus-gate.sh` (B-7 golden-corpus gate, full
-  live run against the new image).
-- The `golden-corpus-differential` gate (`specs/ci-gates.v1.yaml` id
-  `golden-corpus-differential`): replays the B-7 corpus on both NornicDB and
-  Neo4j with differential capture, then diffs against
-  `specs/backend-divergence-allowlist.v1.yaml` via
-  `go run ./cmd/golden-corpus-gate -phase=backend-diff`, plus the
-  `-phase=statement-coverage` check. This is the gate that would retire the
-  two #6915 allowlist entries or surface a new divergence; it needs both
-  backends live and was not attempted inside the 60-minute drive window
-  because the port/process conflict never cleared.
+Three independent runs, same tested commit (`2d4cb9ad6f60e2dc0042307113c89ab5bbddcc97`),
+same result each time — this is a stable regression, not a flake:
 
-**Divergence disposition: not yet assessed.** No allowlist entry has been
-retired and no new divergence has been recorded in this change. The
-allowlist file (`specs/backend-divergence-allowlist.v1.yaml`) is unmodified.
-Whoever runs the deferred differential gate next should follow the
-#6991/#6984 precedent: retire any entry the #492 parser refactor now makes
-stale, and treat any new divergence or golden failure as a regression to
-report, not paper over.
+1. `env -u GOROOT ESHU_POSTGRES_PASSWORD=*** ESHU_NEO4J_PASSWORD=*** ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575 GATE_API_PORT=18081 GATE_MCP_PORT=18092 ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh` — exit 1, `566 pass, 5 required-fail, 1 advisory-warn`.
+2. Same command plus `ESHU_LIVE_GATE_LOCK_DIR=<scratch>/live-gate-lock-7014 COMPOSE_PROJECT_NAME=gate7014b7` (isolated lane) — exit 1, `565 pass, 5 required-fail, 2 advisory-warn`.
+3. The `golden-corpus-differential` gate's own local command (`specs/ci-gates.v1.yaml` id `golden-corpus-differential`, `COMPOSE_PROJECT_NAME=gate7014diff`): `rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && ... (neo4j leg) && ... (backend-diff, statement-coverage)` — exit 1, `565 pass, 5 required-fail, 2 advisory-warn` on the NornicDB leg (the `&&` chain short-circuited there: **the Neo4j leg and the `-phase=backend-diff`/`-phase=statement-coverage` steps never ran**).
+
+Every run failed on the identical 5 required checks, all one symptom — a
+Dart mutual-recursion CALLS-relationship name lookup (function `mutualPing`,
+repo `dart_comprehensive` / `repository:r_ed3a9bab`) that comes back empty or
+404 through the API/MCP query layer, while the underlying graph write is
+correct:
+
+```
+[FAIL] POST /api/v0/code/relationships?assert=direct-callees: "outgoing" has 0 results, want >= 1
+[FAIL] POST /api/v0/code/relationships?assert=direct-callers: "incoming" has 0 results, want >= 1
+[FAIL] POST /api/v0/code/relationships?assert=transitive-callees: HTTP 404 from /api/v0/code/relationships?assert=transitive-callees
+[FAIL] POST /api/v0/code/relationships?assert=transitive-callers: HTTP 404 from /api/v0/code/relationships?assert=transitive-callers
+[FAIL] mcp:find_function_call_chain: "chains" has 0 results, want >= 1
+```
+
+Evidence this is a query-resolution regression, not data loss: in the same
+run, `rc-11: (Function)-[:CALLS]->(Function) count=25, want >= 1` PASSED,
+`edge_count_CALLS: 29, snapshot range [29,200000]` PASSED, and
+`sl-dart-calls-recursion: (Function {language="dart"})-[:CALLS]->(self)
+count=2, want [2,2]` PASSED — the CALLS edges exist and the Dart
+self-recursion count is exactly right. Only the name+repo_id-anchored lookup
+(`ResolveRelationshipsNameTarget` /
+`go/internal/query/codemodel/code_relationships_resolution.go`, calling
+`reader.SearchEntitiesByName`) and the transitive/MCP call-chain paths that
+depend on it come back empty. The direct and transitive requests hit the
+same anchor resolution but fail two different ways (200/empty vs 404),
+consistent with a single upstream anchor-match miss surfacing through two
+different response-shaping code paths, not two independent bugs.
+
+Advisory-only, not blocking: `phase_maintenance_drains` ran 80s against a
+25s baseline / 30s ceiling in both non-differential runs — plausibly this
+machine's sustained background load (multiple foreign compose stacks and
+intermittent sibling `ci-gates` runs throughout the drive), not evidence of
+a NornicDB regression on its own.
+
+**Not proven:** whether this same golden-corpus-gate assertion passed on the
+prior `fix-500-e022384c` pin. The assertion entries were added to
+`testdata/golden/e2e-20repo-snapshot.json` in `15134de7a1` (the only commit
+touching those lines, already an ancestor of this branch) as a *required*
+check, so it should have been green in CI before this repin; that was not
+independently re-verified against the old image in this drive to avoid
+spending more shared-machine gate time chasing a confirmed regression.
+
+## Divergence disposition: REGRESSION, not a stale-allowlist retirement
+
+**This is not a backend-divergence-allowlist item.** It is a same-run,
+same-backend required-fail against the golden snapshot, orthogonal to the
+`specs/backend-divergence-allowlist.v1.yaml` NornicDB-vs-Neo4j comparison
+mechanism. No allowlist entry has been retired and no new divergence entry
+has been added — the allowlist file is unmodified — because the
+`golden-corpus-differential` gate's own chain never reached its
+`-phase=backend-diff`/`-phase=statement-coverage` steps (run 3 above stopped
+at the NornicDB leg). The two #6915 allowlist entries this repin was
+expected to retire remain unretired; that retirement cannot happen until the
+call-chain regression above is fixed and the differential gate can actually
+run to completion.
+
+Per the binding disposition rule, this is recorded as a regression to fix,
+not suppressed, papered over, or worked around by relaxing an assertion.
+**#7014/#6915 is NOT gate-proven and this pin should not roll out until the
+call-chain query regression is root-caused and fixed** (most likely
+candidate given the timing: the orneryd/NornicDB#492 parser rewrite changing
+entity/property-match or Cypher planning behavior in a way that breaks
+`SearchEntitiesByName`-style anchor lookups; not independently confirmed in
+this drive).
 
 No-Observability-Change: no metric, span, log field, or status contract
 changes. The image swap is observable through the existing backend image
-assertions and the (deferred) differential gate.
+assertions and the (blocked) differential gate.
 
-No-Regression Evidence: the focused Go, replay-tier, k8s governance, and Ifá
-fault-injection fixture suites above are unchanged in shape and green on the
-new pin; no timing or resource claim is made pending the deferred live
-differential/golden-corpus run, which is the authoritative accuracy proof for
-this backend swap.
+No-Regression Evidence: N/A for this section — the live golden-corpus gate
+is RED, not green; see above. The focused Go, replay-tier, k8s governance,
+and Ifá fault-injection fixture suites in the previous section are unchanged
+in shape and still green on the new pin; that is a narrower proof than the
+live golden-corpus/differential gates and does not substitute for them.
