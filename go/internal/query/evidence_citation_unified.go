@@ -64,12 +64,12 @@ func citationProvenance(reason string) evidence.EvidenceCitationProvenance {
 	}
 }
 
-// citationToCanonical projects one wire evidenceCitation into the unified
+// citationToCanonical projects one wire evidence.EvidenceCitation into the unified
 // truth.Evidence record, proving the citation packet carries BOTH confidence
 // and a byte-level citation under one contract (issue #3489). It is a free
-// function rather than a method because evidenceCitation is now an alias of
-// evidence.EvidenceCitation (#6642) and an alias cannot carry methods
-// declared in another package.
+// function rather than a method because EvidenceCitation is declared in
+// querycontract/evidence (#6597), and Go cannot add methods to a type from
+// another package.
 func citationToCanonical(c evidence.EvidenceCitation) truth.Evidence {
 	basis := truth.ProvenanceBasis(c.Provenance.Basis)
 	if basis.Validate() != nil {

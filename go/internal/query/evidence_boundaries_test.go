@@ -29,7 +29,7 @@ func evidenceBoundariesFromMap(data map[string]any) []evidence.PostgresOnlyBound
 // claimed (ci_cd_run_correlation, container_image_identity) are served
 // through sibling top-level response fields (ci_cd_evidence and
 // code_to_runtime_trace's image_package segment, respectively), so there is
-// nothing left to disclose. See the audit note atop evidenceBoundariesFor.
+// nothing left to disclose. See the audit note atop evidence.EvidenceBoundariesFor.
 func TestEvidenceBoundariesForServiceStoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +132,7 @@ func TestEvidenceBoundariesDeterministicOrder(t *testing.T) {
 
 // TestBuildServiceStoryResponseOmitsEvidenceBoundariesField asserts the
 // get_service_story response has no evidence_boundaries key at all (not an
-// empty array — the field is omitted, matching attachEvidenceBoundaries'
+// empty array — the field is omitted, matching evidence.AttachEvidenceBoundaries'
 // nil/omitted contract) once every candidate domain is genuinely absent.
 func TestBuildServiceStoryResponseOmitsEvidenceBoundariesField(t *testing.T) {
 	t.Parallel()
@@ -254,7 +254,7 @@ func TestAttachEvidenceBoundariesSliceUsesPostgresOnlyBoundary(t *testing.T) {
 // regression test for the arbitrated #5472 review finding: get_service_story
 // wrongly disclosed a ci_cd_run_correlation boundary even though the response
 // already serves that domain through the top-level ci_cd_evidence field. The
-// pre-fix declaration in evidenceBoundariesFor contradicted the response it
+// pre-fix declaration in evidence.EvidenceBoundariesFor contradicted the response it
 // described. querytestutil.SampleServiceDossierContext() never set ci_cd_evidence, which is
 // why TestBuildServiceStoryResponseIncludesEvidenceBoundaries above did not
 // catch the contradiction; this test populates it explicitly.

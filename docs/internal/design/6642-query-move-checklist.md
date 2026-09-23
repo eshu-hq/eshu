@@ -161,3 +161,23 @@ Why it is safe: `go vet` over every `//go:build` tag in `internal/query`,
 `go test ./internal/query/... -count=1` (54 ok),
 `go test ./internal/queryplan/... -count=1` and `verify-dirgate.sh --all` all
 exit 0.
+
+## Performance and observability evidence for the `evidence` leaf
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/evidence/`, 17 files repoint `querycontract.X` to `evidence.X`,
+root's `evidence_boundaries.go` shim is deleted, and root's seven
+evidence-citation aliases are removed with their callers naming `evidence.*`.
+The perf-evidence gate selects hot files including `repository/handler.go`;
+in each the diff changes only an import line and a package qualifier. No SQL,
+Cypher, call site, argument, allocation or loop bound changes.
+`getRepositoryStory`'s pin in
+`go/internal/queryplan/testdata/query-source-coverage.yaml` is refreshed for
+the same reason.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and pure helpers.
+
+Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1` (55 ok), `verify-dirgate.sh --all` (root
+re-pinned 273 -> 272) and `verify-moved-file-refs.sh` all exit 0.
