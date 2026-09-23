@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 const contentEntityIDPrefix = "content-entity:"
@@ -87,21 +88,21 @@ func GlobalContentEntityNameFilter(typeName string) (GlobalContentEntityFilter, 
 }
 
 func (h *Handler) resolveGlobalContentEntities(ctx context.Context, name, typeName string, limit int) ([]map[string]any, error) {
-	searcher, ok := h.Content.(querycontract.EntityNameSearcher)
+	searcher, ok := h.Content.(entity.EntityNameSearcher)
 	if !ok {
-		return nil, querycontract.ErrEntityNameSearchUnavailable
+		return nil, entity.ErrEntityNameSearchUnavailable
 	}
 	filter, ok := GlobalContentEntityNameFilter(typeName)
 	if !ok {
 		return nil, fmt.Errorf("unsupported global entity type %q", typeName)
 	}
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
-	search := querycontract.EntityNameSearch{
-		Name: name, Match: querycontract.EntityNameMatchExact, Scope: querycontract.EntityNameScopeAll,
+	search := entity.EntityNameSearch{
+		Name: name, Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll,
 		EntityType: filter.EntityType, MetadataKey: filter.MetadataKey, MetadataValue: filter.MetadataValue, Limit: limit,
 	}
 	if access.Scoped() {
-		search.Scope = querycontract.EntityNameScopeRepositories
+		search.Scope = entity.EntityNameScopeRepositories
 		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	rows, err := searcher.SearchEntityNames(ctx, search)

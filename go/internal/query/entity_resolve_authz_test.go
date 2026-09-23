@@ -12,6 +12,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -267,8 +269,8 @@ type recordingEntityResolveContentStore struct {
 	anyRepoNameCalls int
 }
 
-func (s *recordingEntityResolveContentStore) SearchEntityNames(_ context.Context, search EntityNameSearch) ([]EntityContent, error) {
-	if search.Scope == EntityNameScopeAll {
+func (s *recordingEntityResolveContentStore) SearchEntityNames(_ context.Context, search entity.EntityNameSearch) ([]EntityContent, error) {
+	if search.Scope == entity.EntityNameScopeAll {
 		s.anyRepoNameCalls++
 		return limitEntityContent(s.anyRepo, search.Limit), nil
 	}

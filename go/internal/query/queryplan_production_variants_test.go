@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/language"
@@ -25,7 +27,7 @@ const (
 	handlerQueryplanSafeVariantFamilySHA256       = "1c7c8a1993f41ee4fcbe6e4266dbafb84ef367c12a3fa10b7b079a2ff714be45"
 	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
-	entityNameSearchQueryplanBuilderSourceSHA256  = "4f1efb580b0f39b622d1c7c2cc3b75f7c1bf7649fc57981541f8c6fd02d3dc45"
+	entityNameSearchQueryplanBuilderSourceSHA256  = "2f4738bd6dd5067e7a97d8ac0968941c99412da5f75d4060f59ca9ca9af0fc03"
 	entityNameSearchQueryplanExpectedVariantCount = 17
 	// resourceSelectorQueryplanExpectedVariantCount dropped by 24 (issue
 	// #5478): CrossplaneClaim's removal from resourceInvestigationDefaultLabels
@@ -109,13 +111,13 @@ func entityNameSearchQueryplanVariants(t *testing.T) map[string]string {
 	variants := make(map[string]string, entityNameSearchQueryplanExpectedVariantCount)
 	for _, scope := range []struct {
 		name          string
-		value         EntityNameScope
+		value         entity.EntityNameScope
 		repositoryIDs []string
 	}{
-		{name: "all", value: EntityNameScopeAll},
-		{name: "scoped", value: EntityNameScopeRepositories, repositoryIDs: []string{"proof-repository"}},
+		{name: "all", value: entity.EntityNameScopeAll},
+		{name: "scoped", value: entity.EntityNameScopeRepositories, repositoryIDs: []string{"proof-repository"}},
 	} {
-		addVariant := func(name string, search EntityNameSearch) {
+		addVariant := func(name string, search entity.EntityNameSearch) {
 			search.Name = "proof"
 			search.Scope = scope.value
 			search.RepositoryIDs = scope.repositoryIDs
@@ -139,18 +141,18 @@ func entityNameSearchQueryplanVariants(t *testing.T) map[string]string {
 			{name: "entity/module", entityType: "Module", metadataKey: "module_kind", metadataValue: "protocol_implementation"},
 			{name: "entity/attribute", entityType: "Variable", metadataKey: "attribute_kind", metadataValue: "module_attribute"},
 		} {
-			addVariant(entityType.name, EntityNameSearch{
-				Match: EntityNameMatchExact, EntityType: entityType.entityType,
+			addVariant(entityType.name, entity.EntityNameSearch{
+				Match: entity.EntityNameMatchExact, EntityType: entityType.entityType,
 				MetadataKey: entityType.metadataKey, MetadataValue: entityType.metadataValue,
 			})
 		}
 
 		for _, match := range []struct {
 			name  string
-			value EntityNameMatch
+			value entity.EntityNameMatch
 		}{
-			{name: "exact", value: EntityNameMatchExact},
-			{name: "substring", value: EntityNameMatchSubstring},
+			{name: "exact", value: entity.EntityNameMatchExact},
+			{name: "substring", value: entity.EntityNameMatchSubstring},
 		} {
 			for _, language := range []struct {
 				name  string
@@ -159,15 +161,15 @@ func entityNameSearchQueryplanVariants(t *testing.T) map[string]string {
 				{name: "any-language"},
 				{name: "language", value: []string{"go"}},
 			} {
-				addVariant(fmt.Sprintf("code/%s/%s", match.name, language.name), EntityNameSearch{
+				addVariant(fmt.Sprintf("code/%s/%s", match.name, language.name), entity.EntityNameSearch{
 					Match: match.value, Languages: language.value,
 				})
 			}
 		}
 	}
 
-	_, empty, err := normalizeEntityNameSearch(EntityNameSearch{
-		Name: "proof", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories, Limit: 10,
+	_, empty, err := normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: "proof", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories, Limit: 10,
 	})
 	if err != nil || !empty {
 		t.Fatalf("normalize empty grants: empty=%v err=%v", empty, err)

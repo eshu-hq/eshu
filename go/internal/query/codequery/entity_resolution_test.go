@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -70,7 +71,7 @@ func TestResolveExactGraphEntityCandidatePrefersUniqueNonTestMatch(t *testing.T)
 		},
 	}
 
-	got, err := querycontract.ResolveExactGraphEntityCandidate(context.Background(), reader, "repo-1", "handleRelationships")
+	got, err := entity.ResolveExactGraphEntityCandidate(context.Background(), reader, "repo-1", "handleRelationships")
 	if err != nil {
 		t.Fatalf("resolveExactGraphEntityCandidate() error = %v, want nil", err)
 	}
@@ -106,7 +107,7 @@ func TestResolveExactGraphEntityCandidateRejectsAmbiguousNonTestMatches(t *testi
 		},
 	}
 
-	_, err := querycontract.ResolveExactGraphEntityCandidate(context.Background(), reader, "repo-1", "handleRelationships")
+	_, err := entity.ResolveExactGraphEntityCandidate(context.Background(), reader, "repo-1", "handleRelationships")
 	if err == nil {
 		t.Fatal("resolveExactGraphEntityCandidate() error = nil, want non-nil")
 	}

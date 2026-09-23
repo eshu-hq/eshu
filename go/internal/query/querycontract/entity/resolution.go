@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package entity
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // Exact graph-entity resolution shared by the query root and the
@@ -28,10 +30,10 @@ const GraphEntityResolutionLimit = 50
 // rejecting ambiguous names.
 func ResolveExactGraphEntityCandidate(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentStore,
 	repoID string,
 	name string,
-) (*EntityContent, error) {
+) (*querycontract.EntityContent, error) {
 	exact, err := ResolveExactGraphEntityCandidates(ctx, reader, repoID, name)
 	if err != nil {
 		return nil, err
@@ -43,10 +45,10 @@ func ResolveExactGraphEntityCandidate(
 // one repository.
 func ResolveExactGraphEntityCandidates(
 	ctx context.Context,
-	reader ContentStore,
+	reader querycontract.ContentStore,
 	repoID string,
 	name string,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	if reader == nil {
 		return nil, nil
 	}
@@ -60,7 +62,7 @@ func ResolveExactGraphEntityCandidates(
 	// the read was reached on a selector-free path; the candidate rows become an
 	// ambiguity error that names entity ids, so it must not be that path's job
 	// alone to keep them in grant.
-	if !RepositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories().AllowsRepositoryID(repoID) {
+	if !querycontract.RepositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories().AllowsRepositoryID(repoID) {
 		return nil, nil
 	}
 
@@ -73,7 +75,7 @@ func ResolveExactGraphEntityCandidates(
 
 // SelectExactGraphEntityCandidate picks the single candidate, preferring a
 // lone non-test match and rejecting ambiguity with an error.
-func SelectExactGraphEntityCandidate(repoID string, name string, exact []EntityContent) (*EntityContent, error) {
+func SelectExactGraphEntityCandidate(repoID string, name string, exact []querycontract.EntityContent) (*querycontract.EntityContent, error) {
 	switch len(exact) {
 	case 0:
 		return nil, nil
@@ -97,8 +99,8 @@ func SelectExactGraphEntityCandidate(repoID string, name string, exact []EntityC
 }
 
 // ExactEntityNameMatches keeps only whitespace-exact name matches.
-func ExactEntityNameMatches(matches []EntityContent, name string) []EntityContent {
-	filtered := make([]EntityContent, 0, len(matches))
+func ExactEntityNameMatches(matches []querycontract.EntityContent, name string) []querycontract.EntityContent {
+	filtered := make([]querycontract.EntityContent, 0, len(matches))
 	for _, match := range matches {
 		if strings.TrimSpace(match.EntityName) != name {
 			continue
@@ -109,8 +111,8 @@ func ExactEntityNameMatches(matches []EntityContent, name string) []EntityConten
 }
 
 // NonTestEntityMatches drops matches from test files.
-func NonTestEntityMatches(matches []EntityContent) []EntityContent {
-	filtered := make([]EntityContent, 0, len(matches))
+func NonTestEntityMatches(matches []querycontract.EntityContent) []querycontract.EntityContent {
+	filtered := make([]querycontract.EntityContent, 0, len(matches))
 	for _, match := range matches {
 		if IsTestEntityPath(match.RelativePath) {
 			continue
@@ -130,7 +132,7 @@ func IsTestEntityPath(path string) bool {
 }
 
 // FormatAmbiguousEntityMatches renders candidates for an ambiguity error.
-func FormatAmbiguousEntityMatches(matches []EntityContent) string {
+func FormatAmbiguousEntityMatches(matches []querycontract.EntityContent) string {
 	items := make([]string, 0, len(matches))
 	for _, match := range matches {
 		location := strings.TrimSpace(match.RelativePath)

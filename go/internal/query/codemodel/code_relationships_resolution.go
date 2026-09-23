@@ -81,8 +81,8 @@ func AmbiguousRelationshipsResponse(req RelationshipsRequest, resolution Relatio
 	}
 }
 
-// The exact-entity resolution chain below is a family-local copy of root's
-// entity_resolution.go helpers of the same names. The name-target resolver
+// The exact-entity resolution chain below is a family-local copy of the
+// querycontract/entity resolution.go helpers of the same names. The name-target resolver
 // above needs them, and the staying entity, exposure-path, and call-chain
 // readers that share them cannot cross the package boundary, so the leaf
 // carries these byte-identical copies instead of importing root. Keep them

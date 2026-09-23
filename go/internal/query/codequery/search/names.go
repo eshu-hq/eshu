@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // SearchGlobalEntityNames runs a global entity-name lookup over the
@@ -26,16 +27,16 @@ func SearchGlobalEntityNames(
 	if access.Empty() {
 		return []map[string]any{}, nil
 	}
-	searcher, ok := store.(querycontract.EntityNameSearcher)
+	searcher, ok := store.(entity.EntityNameSearcher)
 	if !ok {
-		return nil, querycontract.ErrEntityNameSearchUnavailable
+		return nil, entity.ErrEntityNameSearchUnavailable
 	}
-	search := querycontract.EntityNameSearch{Name: name, Match: querycontract.EntityNameMatchSubstring, Scope: querycontract.EntityNameScopeAll, Limit: limit}
+	search := entity.EntityNameSearch{Name: name, Match: entity.EntityNameMatchSubstring, Scope: entity.EntityNameScopeAll, Limit: limit}
 	if exact {
-		search.Match = querycontract.EntityNameMatchExact
+		search.Match = entity.EntityNameMatchExact
 	}
 	if access.Scoped() {
-		search.Scope = querycontract.EntityNameScopeRepositories
+		search.Scope = entity.EntityNameScopeRepositories
 		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	if strings.TrimSpace(language) != "" {

@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -52,8 +54,8 @@ func TestIssue5318SameLogicalCorpusOldGraphAndNewContentRoute(t *testing.T) {
 	oldDuration := time.Since(oldStarted)
 
 	newStarted := time.Now()
-	newRows, err := NewContentReader(db).SearchEntityNames(ctx, EntityNameSearch{
-		Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeAll, Limit: 50,
+	newRows, err := NewContentReader(db).SearchEntityNames(ctx, entity.EntityNameSearch{
+		Name: "Target", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll, Limit: 50,
 	})
 	if err != nil {
 		t.Fatalf("run accepted content route: %v", err)
@@ -69,8 +71,8 @@ func TestIssue5318SameLogicalCorpusOldGraphAndNewContentRoute(t *testing.T) {
 		t.Fatalf("same-corpus identity diff: old=%v new=%v", oldIDs, newIDs)
 	}
 
-	search, _, err := normalizeEntityNameSearch(EntityNameSearch{
-		Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeAll, Limit: 50,
+	search, _, err := normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: "Target", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll, Limit: 50,
 	})
 	if err != nil {
 		t.Fatalf("normalize accepted plan query: %v", err)
@@ -160,14 +162,14 @@ func TestIssue5318SameLogicalCorpusOldResolveEntityGraphAndNewContentIndex(t *te
 	tests := []struct {
 		name      string
 		access    querycontract.RepositoryAccessFilter
-		search    EntityNameSearch
+		search    entity.EntityNameSearch
 		wantCount int
 	}{
 		{
 			name:   "all-scope typed semantic",
 			access: querycontract.RepositoryAccessFilter{AllScopes: true},
-			search: EntityNameSearch{
-				Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
+			search: entity.EntityNameSearch{
+				Name: "Target", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll,
 				EntityType: "Function", MetadataKey: "semantic_kind", MetadataValue: "guard", Limit: 50,
 			},
 			wantCount: 6,
@@ -175,8 +177,8 @@ func TestIssue5318SameLogicalCorpusOldResolveEntityGraphAndNewContentIndex(t *te
 		{
 			name:   "scoped typed semantic",
 			access: issue5318ScopedRepositoryAccess(scopedRepositoryIDs),
-			search: EntityNameSearch{
-				Name: "Target", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories,
+			search: entity.EntityNameSearch{
+				Name: "Target", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories,
 				RepositoryIDs: scopedRepositoryIDs, EntityType: "Function",
 				MetadataKey: "semantic_kind", MetadataValue: "guard", Limit: 50,
 			},

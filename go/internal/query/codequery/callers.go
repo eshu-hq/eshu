@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // This file holds the *CodeHandler methods of the call-chain family.
@@ -135,11 +136,11 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	if strings.TrimSpace(req.StartEntityID) == "" && strings.TrimSpace(req.Start) != "" {
 		var err error
 		startRepoID := chain.StartRepoID(req)
-		startCandidates, err = querycontract.ResolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
+		startCandidates, err = entity.ResolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
 		if err != nil {
 			return err
 		}
-		resolved, err := querycontract.SelectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
+		resolved, err := entity.SelectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
 		startErr = err
 		if resolved != nil {
 			req.StartEntityID = resolved.EntityID
@@ -148,11 +149,11 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	if strings.TrimSpace(req.EndEntityID) == "" && strings.TrimSpace(req.End) != "" {
 		var err error
 		endRepoID := chain.EndRepoID(req)
-		endCandidates, err = querycontract.ResolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
+		endCandidates, err = entity.ResolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
 		if err != nil {
 			return err
 		}
-		resolved, err := querycontract.SelectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
+		resolved, err := entity.SelectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
 		endErr = err
 		if resolved != nil {
 			req.EndEntityID = resolved.EntityID

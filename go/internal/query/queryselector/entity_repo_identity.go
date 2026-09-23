@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // HydrateResolvedEntityRepoIdentity fills in a resolved entity's repo_id and
@@ -30,7 +31,7 @@ func HydrateResolvedEntityRepoIdentity(
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 
 	for _, entity := range entities {
-		querycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
+		entitycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
 		if resolvedEntityIsRepository(entity) {
 			if EntityString(entity, "repo_id") == "" {
 				entity["repo_id"] = EntityString(entity, "id")

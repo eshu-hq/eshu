@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // CodeHandler provides HTTP routes for code-level queries: search, relationships,
@@ -129,8 +130,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 50
 	}
-	if req.Limit > querycontract.EntityNameSearchMaxLimit {
-		req.Limit = querycontract.EntityNameSearchMaxLimit
+	if req.Limit > entity.EntityNameSearchMaxLimit {
+		req.Limit = entity.EntityNameSearchMaxLimit
 	}
 	probeLimit := codemodel.CodeSearchProbeLimit(req.Limit)
 	if req.RepoID == "" && !req.Exact && len([]rune(req.Query)) < 3 {
@@ -149,7 +150,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID == "" {
 		results, err := h.searchGlobalEntityNames(r.Context(), req.Query, req.Language, probeLimit, req.Exact)
 		if err != nil {
-			if errors.Is(err, querycontract.ErrEntityNameSearchUnavailable) {
+			if errors.Is(err, entity.ErrEntityNameSearchUnavailable) {
 				WriteError(w, http.StatusServiceUnavailable, err.Error())
 				return
 			}
@@ -231,7 +232,7 @@ func buildSearchGraphEntitiesQuery(repoID, query, language string, limit int, ex
 
 func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, query, language string, limit int, exact bool) ([]map[string]any, error) {
 	if strings.TrimSpace(repoID) == "" {
-		return nil, querycontract.ErrGlobalGraphEntitySearchUnsupported
+		return nil, entity.ErrGlobalGraphEntitySearchUnsupported
 	}
 	if h == nil || h.Neo4j == nil {
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)

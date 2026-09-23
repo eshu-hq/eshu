@@ -15,7 +15,7 @@ against the graph under authorization bounds, so treat changes as security work.
   client-supplied; interpolating it into the Cypher is an injection.
 - The ordered-then-fallback pair is deliberate. Do not collapse it.
 - `HydrateResolvedEntityRepoIdentity` MUST call
-  `querycontract.ClearResolvedEntityRepoProjectionPlaceholders` on every
+  `entity.ClearResolvedEntityRepoProjectionPlaceholders` on every
   entity before any other hydration path runs (#6408). Skipping it lets a
   leaked backend projection expression stand in as a real repository id.
 - The workload-backfill query's two access splices

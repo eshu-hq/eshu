@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 func TestDirectGlobalGraphSearchDoesNotCallGraph(t *testing.T) {
@@ -18,7 +18,7 @@ func TestDirectGlobalGraphSearchDoesNotCallGraph(t *testing.T) {
 		return nil, nil
 	}}
 	_, err := (&CodeHandler{Neo4j: graph}).searchGraphEntitiesWithExact(context.Background(), "", "proof", "", 10, true)
-	if !errors.Is(err, querycontract.ErrGlobalGraphEntitySearchUnsupported) {
+	if !errors.Is(err, entity.ErrGlobalGraphEntitySearchUnsupported) {
 		t.Fatalf("error = %v, want fail-closed global graph error", err)
 	}
 }

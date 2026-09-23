@@ -23,7 +23,7 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
-| 5 | `querycontract/entity` | 2–3 | — | not started | |
+| 5 | `querycontract/entity` | 3 | — | open | 49 |
 | 6 | `querycontract/evidence` | 3 | — | not started | |
 | 7 | `querycontract/visualization` | 2 | — | not started | |
 | 8 | `querycontract/answer` | 3 | — | not started | |
@@ -134,3 +134,30 @@ Why it is safe: `go build`, `go vet` and `go test -count=1` over
 `CrossRepo`-named tests across `internal/query`, `impact`, `codequery` and
 `codequery/deadcode`, the same 191 as at `aa7cc0d1d`, so the suite still runs
 rather than only still compiling.
+
+## Performance and observability evidence for the `entity` leaf
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/entity/`, 20 files repoint `querycontract.X` to `entity.X`, and
+root's #6060 entity-name alias block is deleted with its callers naming
+`entity.*`. The perf-evidence gate selects hot files including `codequery/callers.go`,
+`codequery/relationship_handlers.go`, `entity/handler.go`,
+`querycontract/entity/repo_identity.go` and
+`queryselector/entity_repo_identity.go` and `impact/exposure_path.go` because
+they contain Cypher or worker tokens elsewhere; in each the diff changes only an import line and a package
+qualifier. No SQL, Cypher, call site, argument, allocation or loop bound
+changes. `buildEntityNameSearchQuery`'s body changes only type and constant
+qualifiers, so its pinned queryplan source hash is refreshed while its SQL text
+is byte-identical. Three hot-callsite `source_sha256` pins in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`
+(`searchGraphEntitiesWithExact`, `ResolveEntity`,
+`HydrateResolvedEntityRepoIdentity`) are refreshed for the same reason: each
+body changes only an import and a qualifier.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The reader that owns the entity-name spans did not move.
+
+Why it is safe: `go vet` over every `//go:build` tag in `internal/query`,
+`go test ./internal/query/... -count=1` (54 ok),
+`go test ./internal/queryplan/... -count=1` and `verify-dirgate.sh --all` all
+exit 0.

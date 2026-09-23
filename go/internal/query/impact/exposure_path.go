@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/exposure"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // exposurePathCapability gates the trace-exposure-path tool on authoritative
@@ -169,11 +170,11 @@ func (h *Handler) resolveExposureSourceEntity(ctx context.Context, req exposureP
 	if id := strings.TrimSpace(req.SourceEntityID); id != "" {
 		return h.Content.GetEntityContent(ctx, id)
 	}
-	candidates, err := querycontract.ResolveExactGraphEntityCandidates(ctx, h.Content, req.RepoID, req.Source)
+	candidates, err := entity.ResolveExactGraphEntityCandidates(ctx, h.Content, req.RepoID, req.Source)
 	if err != nil {
 		return nil, err
 	}
-	return querycontract.SelectExactGraphEntityCandidate(req.RepoID, req.Source, candidates)
+	return entity.SelectExactGraphEntityCandidate(req.RepoID, req.Source, candidates)
 }
 
 // exposurePathCandidates runs the bounded CALLS traversal from the source handler

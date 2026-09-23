@@ -74,7 +74,7 @@ unchanged. Only identifiers changed.
 placeholder before doing anything else (#6408).** A backend bug can return its
 own unresolved expression text (e.g. `"coalesce(repo.id, repoViaInstance.id)"`)
 as if it were a real `repo_id`/`repo_name` value; the scrub
-(`querycontract.ClearResolvedEntityRepoProjectionPlaceholders`) clears exactly
+(`entity.ClearResolvedEntityRepoProjectionPlaceholders`) clears exactly
 those four known shapes before any other hydration path runs, so a still-open
 backend bug never gets treated as resolved identity.
 
