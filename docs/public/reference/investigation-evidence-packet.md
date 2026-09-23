@@ -265,8 +265,8 @@ fact payloads, secrets, hostnames, keys, or transport metadata. This mirrors the
 
 The v2 packet does not duplicate existing shapes. It reuses:
 
-- `TruthEnvelope`, `TruthFreshness`, and `AnswerTruthClass` from `contract.go`
-  and `answer_packet.go`.
+- `TruthEnvelope`, `TruthFreshness`, and `AnswerTruthClass` from
+  `querycontract/truth.go`.
 - The evidence-handle shape from
   [evidence citation handles](evidence-citation-handles.md).
 - The schema-versioned, validated, redaction-aware artifact pattern from the
