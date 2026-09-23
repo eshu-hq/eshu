@@ -69,7 +69,14 @@ func (s Set) Has(token string) bool {
 }
 
 // Source is a collector.Source that pseudonymizes every generation of the
-// wrapped source before a recorder sees it. The first Next drains the inner
+// wrapped source before a recorder sees it. Payload fields and scope metadata
+// are classified per key by the Policy. The composite envelope fields --
+// scope_id, partition_key, stable_fact_key, source_record_id, source_uri --
+// are substitution-only by design: they are built by the collector from
+// tokens that also appear in classified fields (account, region, service,
+// resource ids), from one-way hashes (facts.StableID), or from structural
+// URI text, and a table keyed by field name has no key to classify them by.
+// Verify's shape scan over the canonical bytes is the belt for them. The first Next drains the inner
 // source completely, learns the dictionary from every generation, and only
 // then rewrites -- so a token learned late is still rewritten in an earlier
 // scope's structural fields.
@@ -173,9 +180,12 @@ func (s *Source) rewriteGeneration(raw rawGeneration) collector.CollectedGenerat
 	sc.ScopeID = s.dict.substitute(sc.ScopeID)
 	sc.PartitionKey = s.dict.substitute(sc.PartitionKey)
 	if raw.gen.Scope.Metadata != nil {
+		// Metadata is a keyed map like a payload, so it goes through the
+		// policy: a classified key is substituted, an unlisted one is made
+		// opaque and reported as scope.metadata.<key>.
 		sc.Metadata = make(map[string]string, len(raw.gen.Scope.Metadata))
 		for key, value := range raw.gen.Scope.Metadata {
-			sc.Metadata[key] = s.dict.substitute(value)
+			sc.Metadata[key] = s.walker.rewriteString("scope.metadata."+key, s.walker.policy.classOf(key), value)
 		}
 	}
 	gen := raw.gen.Generation
