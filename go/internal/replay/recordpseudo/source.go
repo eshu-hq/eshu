@@ -45,6 +45,9 @@ type Report struct {
 	// IPv4Addresses counts the distinct IPv4 addresses and CIDR networks that
 	// took a slot, against the declared limit of 762 (ErrIPv4Exhausted).
 	IPv4Addresses int
+	// AccountCollisions counts linear-probe steps in the reserved account
+	// pseudonym space, the account counterpart of IPv4Collisions.
+	AccountCollisions int
 	// Produced is the set of pseudonym tokens this run emitted, for Verify.
 	Produced Set
 }
@@ -66,6 +69,7 @@ func (r Report) LogAttrs() []any {
 		"unclassified_paths", r.UnclassifiedPaths,
 		"ipv4_collisions", r.IPv4Collisions,
 		"ipv4_addresses", r.IPv4Addresses,
+		"account_collisions", r.AccountCollisions,
 	}
 }
 
@@ -229,6 +233,7 @@ func (s *Source) fillReport(scopes int) {
 	}
 	s.report.IPv4Collisions = s.dict.ipCollisions
 	s.report.IPv4Addresses = len(s.dict.ipSlots)
+	s.report.AccountCollisions = s.dict.accountCollisions
 	s.report.OpaquePaths = sortedKeys(s.walker.opaque)
 	s.report.UnclassifiedPaths = sortedKeys(s.walker.unclassified)
 	for _, learned := range s.dict.entries {

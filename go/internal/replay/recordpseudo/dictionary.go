@@ -74,6 +74,12 @@ type dictionary struct {
 	entries      map[string]entry
 	ipSlots      map[int]string
 	ipCollisions int
+	// accountSlots and accountCollisions are the account counterpart of
+	// ipSlots/ipCollisions: the 10^8 pseudonym space is linear-probed so two
+	// raw accounts never share a pseudonym within one recording.
+	accountSlots      map[uint64]string
+	accountByRaw      map[string]uint64
+	accountCollisions int
 	// failure is the first limit the recording exceeded (ErrIPv4Exhausted);
 	// learn cannot return it, so the source reads it after the learning pass.
 	failure error
@@ -83,10 +89,12 @@ type dictionary struct {
 
 func newDictionary(key Key) *dictionary {
 	return &dictionary{
-		key:     key,
-		entries: map[string]entry{},
-		ipSlots: map[int]string{},
-		learned: map[Class]int{},
+		key:          key,
+		entries:      map[string]entry{},
+		ipSlots:      map[int]string{},
+		accountSlots: map[uint64]string{},
+		accountByRaw: map[string]uint64{},
+		learned:      map[Class]int{},
 	}
 }
 
@@ -161,8 +169,30 @@ func (d *dictionary) learn(class Class, raw string) {
 	}
 }
 
+// accountSlotCount is the size of the reserved 0000xxxxxxxx pseudonym space.
+const accountSlotCount = 100000000
+
+// account maps a raw account into the reserved 0000+8-digit form by HMAC,
+// linear-probing past a slot already owned by a different raw account so
+// two accounts never merge onto one pseudonym; every probe step is counted.
+// The same raw account always returns the slot it owns without re-walking
+// the probe, so a second mint (account field, then ECR host label) never
+// counts the same collision twice.
 func (d *dictionary) account(raw string) string {
-	return fmt.Sprintf("0000%08d", binary.BigEndian.Uint64(d.key.mac(raw))%100000000)
+	if idx, ok := d.accountByRaw[raw]; ok {
+		return fmt.Sprintf("0000%08d", idx)
+	}
+	idx := binary.BigEndian.Uint64(d.key.mac(raw)) % accountSlotCount
+	for tries := 0; tries < accountSlotCount; tries++ {
+		if _, used := d.accountSlots[idx]; !used {
+			break
+		}
+		d.accountCollisions++
+		idx = (idx + 1) % accountSlotCount
+	}
+	d.accountSlots[idx] = raw
+	d.accountByRaw[raw] = idx
+	return fmt.Sprintf("0000%08d", idx)
 }
 
 func (d *dictionary) name(raw string) string { return "n" + d.key.hexOf(raw, 11) }
