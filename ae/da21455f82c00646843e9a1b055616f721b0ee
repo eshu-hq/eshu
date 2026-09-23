@@ -1,0 +1,14 @@
+go/cmd/golden-corpus-gate/statementcoverage_test.go
+  h_78a442cba0b3e6 142-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aeda21455f82c00646843e9a1b055616f721b0ee",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
