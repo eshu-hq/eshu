@@ -2621,7 +2621,7 @@ gates:
     # executions and rowcount kinds) are advisory even when reproduced
     # (#6782 permanent dispositions, 2026-09-21/22): the backends drain at
     # different speeds, so per-statement allowlist excuses were open-ended;
-    # results/missing still fail on reads. Divergences on registered
+    # results/missing still fail unless allowlisted. Divergences on registered
     # transient-state reads (transient_reads, #6782 option 1) are excluded
     # into their own advisory finding, and reproduced transient exclusions
     # count toward the ceiling below.

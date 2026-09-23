@@ -153,7 +153,8 @@ recordings (`differential nornicdb vs neo4j` in `golden-corpus-gate.yml`,
 blocking via `golden-corpus-differential` in `specs/ci-gates.v1.yaml`). Every
 executed graph statement is fingerprinted (normalized text plus bound
 parameters) with a digest of its result rows; the gate fails on any statement
-whose digest differs, naming the statement's production source. A side with no
+whose digest differs, naming the statement so the failure points at its
+production source. A side with no
 recordings fails instead of passing vacuously, so a half-finished run can never
 look green.
 
@@ -163,7 +164,7 @@ while a systematic backend divergence reproduces and still fails.
 
 | Finding | Meaning |
 | --- | --- |
-| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. The only failing finding. |
+| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing, unless the ceiling below also trips. |
 | `nornicdb_vs_neo4j_executions` | Reproduced execution-count or row-total divergences with agreeing results (scheduling noise: drain passes, retries, extra poll iterations). Advisory. |
 | `nornicdb_vs_neo4j_transient` | Divergences on registered transient-state reads, whose digests disagree because the result depends on the drain point. Advisory, always visible. |
 | `nornicdb_vs_neo4j_executions_ceiling` | Required tripwire: the reproduced advisory total (scheduling-noise plus transient) exceeded `-diff-executions-advisory-max` (CI passes 200). |
@@ -184,8 +185,9 @@ the parse guard requires a transient-state marker in the statement, and only
 the observed-noise kinds are held — a backend error or a one-sided recording
 on a transient read still fails.
 
-Replay a CI capture locally with the committed allowlist (single-pair mode;
-quorum needs two pairing dirs):
+Replay a CI capture locally with the committed allowlist (single-pair mode,
+which reports under the `nornicdb_vs_neo4j` finding name rather than the
+quorum table above; quorum needs two pairing dirs):
 
 ```bash
 cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff \
