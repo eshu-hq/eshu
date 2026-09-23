@@ -194,3 +194,79 @@ is RED, not green; see above. The focused Go, replay-tier, k8s governance,
 and Ifá fault-injection fixture suites in the previous section are unchanged
 in shape and still green on the new pin; that is a narrower proof than the
 live golden-corpus/differential gates and does not substitute for them.
+
+## Neo4j leg: the same 5 assertions PASS
+
+At the owner's request, ran the golden-corpus gate's Neo4j leg (same isolated
+lane: `ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575
+GATE_API_PORT=18081 GATE_MCP_PORT=18092`, `ESHU_LIVE_GATE_LOCK_DIR` under a
+private scratch directory, `COMPOSE_PROJECT_NAME=gate7014neo4j`):
+
+```
+env -u GOROOT ESHU_POSTGRES_PASSWORD=*** ESHU_NEO4J_PASSWORD=*** \
+  ESHU_POSTGRES_PORT=15532 NEO4J_BOLT_PORT=7788 NEO4J_HTTP_PORT=7575 \
+  GATE_API_PORT=18081 GATE_MCP_PORT=18092 \
+  ESHU_LIVE_GATE_LOCK_DIR=<scratch>/live-gate-lock-7014 \
+  COMPOSE_PROJECT_NAME=gate7014neo4j \
+  ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j \
+  ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j \
+  bash scripts/verify-golden-corpus-gate.sh
+```
+
+Exit 0. `summary: 568 pass, 0 required-fail, 4 advisory-warn`,
+`PASS: B-7 golden corpus gate green (elapsed 327s, budget ceiling 1800s)`.
+The 5 assertions that fail on the NornicDB leg all pass on Neo4j, verbatim:
+
+```
+[PASS] POST /api/v0/code/relationships?assert=direct-callees: "outgoing" has 1 results; item fields [] present; json paths [], values [name repo_id], object matches [outgoing[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=direct-callers: "incoming" has 1 results; item fields [] present; json paths [], values [name repo_id], object matches [incoming[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=transitive-callees: "outgoing" has 1 results; item fields [] present; json paths [], values [], object matches [outgoing[]], and mutual-exclusion checks 0 present
+[PASS] POST /api/v0/code/relationships?assert=transitive-callers: "incoming" has 1 results; item fields [] present; json paths [], values [], object matches [incoming[]], and mutual-exclusion checks 0 present
+[PASS] mcp:find_function_call_chain: "chains" has 1 results; item fields [] present; json paths [], values [chains[].chain[].name cross_repo end repo_id start], object matches [], and mutual-exclusion checks 0 present
+```
+
+This confirms the regression is NornicDB-specific (the `c4de1c5c` build, not
+a fixture or Eshu-side bug): the same golden corpus, the same Dart
+mutual-recursion fixture, the same API/MCP handlers behave correctly against
+Neo4j and incorrectly against the new NornicDB pin. Compose project
+`gate7014neo4j` was torn down cleanly by the gate script; confirmed via
+`docker compose ls` afterward (only the unrelated, foreign `par6843-battery`
+project remains).
+
+### `-phase=backend-diff` attempt: ran, surfaced one signal, one caveat
+
+Ran `cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff
+-diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j
+-diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml` against the
+NornicDB capture from the earlier `golden-corpus-differential` attempt
+(captured before that run's NornicDB leg failed, `/tmp/diff-capture/nornicdb`)
+paired with this run's fresh Neo4j capture. Exit 1:
+`summary: 0 pass, 1 required-fail, 0 advisory-warn`,
+`gate failed: 1 required check(s) did not pass`.
+
+The one failure is the stale-allowlist guard, not a new divergence:
+
+```
+[FAIL] nornicdb_vs_neo4j: apply divergence allowlist: divergence allowlist entry 12
+("MATCH (e:Function {uid: $entity_id})-[rel:CALLS]->(target) RETURN 'outgoing' as direction, ...
+ORDER BY target.uid LIMIT $row_limit"): matched no divergence in this run (stale)
+```
+
+That entry (`specs/backend-divergence-allowlist.v1.yaml` line 126, tier
+`missing`, owner `query`, tracked under #6906 — a NornicDB uid-anchored CALLS
+enrichment strategy vs Neo4j's transitive-path strategy, unrelated to #6915's
+ORDER BY issue or to the mutualPing regression above) no longer shows a
+divergence in this comparison.
+
+**Caveat, and why this is reported but not acted on:** this pairing is NOT
+the registry's intended paired run — the NornicDB capture came from a
+separate, earlier gate invocation (a different container instance, corpus
+staging, and generation ids) than the Neo4j capture, stitched together
+after the fact because the registry's own chained command cannot get past
+its failing NornicDB leg (see above). A `-phase=backend-diff` result built
+from two independently-staged captures is weaker evidence than one built
+from the registry's single co-run, so this entry is reported as a
+**candidate** stale entry, not retired. `specs/backend-divergence-allowlist.v1.yaml`
+remains unmodified in this change. Retiring it should wait for a clean,
+single-invocation paired differential run once the mutualPing regression no
+longer blocks the NornicDB leg from completing.
