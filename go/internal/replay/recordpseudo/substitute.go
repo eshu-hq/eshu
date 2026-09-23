@@ -63,7 +63,8 @@ func exactOnly(raw string, class Class) bool {
 
 // substitute rewrites a composite value (scope id, stable key, source uri,
 // Keep field): a whole-value match of a substitutable token, then ARN spans
-// component by component and the remaining text on alphanumeric boundaries.
+// component by component and the remaining text as a composite (each "/"-
+// or ":"-delimited component looked up whole, then free text).
 func (d *dictionary) substitute(s string) string { return d.rewrite(s, false) }
 
 // rewrite is substitute with the whole-value rule made explicit: with whole
@@ -80,11 +81,44 @@ func (d *dictionary) rewrite(s string, whole bool) string {
 		if start < i || !boundedLeft(s, start) {
 			continue
 		}
-		b.WriteString(d.substituteFree(s[i:start]))
+		b.WriteString(d.substituteComposite(s[i:start]))
 		b.WriteString(d.substituteARN(s[start:end]))
 		i = end
 	}
-	b.WriteString(d.substituteFree(s[i:]))
+	b.WriteString(d.substituteComposite(s[i:]))
+	return b.String()
+}
+
+// substituteComposite rewrites non-ARN text that may be a composite (a
+// stable key, a source uri, a scope id). Tokens that themselves carry a
+// delimiter (a CIDR, an IPv6 address, a repository path, a path:tag
+// composite) are substituted first so the split below cannot break them;
+// then every "/"- or ":"-delimited component is looked up whole, so an
+// exact-only short or numeric name that is a whole component is rewritten,
+// and what remains is free text.
+func (d *dictionary) substituteComposite(s string) string {
+	if s == "" {
+		return s
+	}
+	s = d.substituteTokens(s, func(raw string, _ Class) bool { return strings.ContainsAny(raw, "/:") })
+	return d.forEachComponent(s, d.substituteComponent)
+}
+
+// forEachComponent applies fn to every "/"- or ":"-delimited component of
+// s, keeping the delimiters in place.
+func (d *dictionary) forEachComponent(s string, fn func(string) string) string {
+	var b strings.Builder
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i < len(s) && s[i] != '/' && s[i] != ':' {
+			continue
+		}
+		b.WriteString(fn(s[start:i]))
+		if i < len(s) {
+			b.WriteByte(s[i])
+		}
+		start = i + 1
+	}
 	return b.String()
 }
 
@@ -99,20 +133,7 @@ func (d *dictionary) substituteARN(arn string) string {
 		return d.substituteFree(arn)
 	}
 	parts[4] = d.pseudonym(parts[4])
-	var b strings.Builder
-	resource := parts[5]
-	start := 0
-	for i := 0; i <= len(resource); i++ {
-		if i < len(resource) && resource[i] != '/' && resource[i] != ':' {
-			continue
-		}
-		b.WriteString(d.substituteComponent(resource[start:i]))
-		if i < len(resource) {
-			b.WriteByte(resource[i])
-		}
-		start = i + 1
-	}
-	parts[5] = b.String()
+	parts[5] = d.forEachComponent(parts[5], d.substituteComponent)
 	return strings.Join(parts, ":")
 }
 
@@ -132,12 +153,19 @@ func (d *dictionary) substituteComponent(component string) string {
 // token adjacent to another letter or digit is left alone so "app" never
 // rewrites "application".
 func (d *dictionary) substituteFree(s string) string {
+	return d.substituteTokens(s, func(string, Class) bool { return true })
+}
+
+// substituteTokens is substituteFree restricted to the tokens keep admits;
+// exact-only tokens are never substituted as free text.
+func (d *dictionary) substituteTokens(s string, keep func(raw string, class Class) bool) string {
 	if s == "" {
 		return s
 	}
 	protected := regionSpans(s)
 	for _, raw := range d.tokens() {
-		if !strings.Contains(s, raw) || exactOnly(raw, d.entries[raw].class) {
+		class := d.entries[raw].class
+		if !strings.Contains(s, raw) || exactOnly(raw, class) || !keep(raw, class) {
 			continue
 		}
 		s = replaceBounded(s, raw, d.pseudonym(raw), protected)
