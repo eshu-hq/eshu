@@ -2,7 +2,7 @@
 
 ## Theory being proved
 
-`cicd_run_watermarks` (`go/internal/storage/postgres/cicd_run_watermark.go`)
+`cicd_run_watermarks` (`go/internal/storage/postgres/cicd/watermark.go`)
 is a new table backing `runwatermark.Store`. The claim: point `Load`/`Save`
 queries scoped by the `(scope_id, repository)` primary key use an index
 lookup, not a sequential scan, at a representative row count, and the

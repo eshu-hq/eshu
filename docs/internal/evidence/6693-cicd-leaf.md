@@ -7,11 +7,11 @@ group file `docs/internal/design/6693-postgres-target-tree/control-plane.md`.
 
 ## What moved
 
-- `git mv go/internal/storage/postgres/cicd_run_watermark.go
-  go/internal/storage/postgres/cicd/watermark.go` (package `postgres` ->
+- Root's `cicd_run_watermark.go` moved (`git mv`) to
+  `go/internal/storage/postgres/cicd/watermark.go` (package `postgres` ->
   `cicdstore`).
-- `git mv go/internal/storage/postgres/cicd_run_watermark_test.go
-  go/internal/storage/postgres/cicd/watermark_test.go` (package `postgres`
+- Root's `cicd_run_watermark_test.go` moved (`git mv`) to
+  `go/internal/storage/postgres/cicd/watermark_test.go` (package `postgres`
   -> `cicdstore`, in-package test; it defines its own fake `ExecQueryer`
   and uses only exported symbols, so no root private symbol or
   `storage/postgres/fake` dependency was needed).
