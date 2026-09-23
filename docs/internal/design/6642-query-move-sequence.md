@@ -56,14 +56,34 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
   constants root's own handlers name, and its own doc comment says they
   stayed at root "because the routes did". Moving it strands all five
   under `go test -c -gcflags=-e`; a plain `go build` sees only three.
-- The move breaks **at least 42 files with 57 distinct undefined symbols,
-  across two packages** — root `query` and `contract`. Read both figures as
-  floors: they come from the `go build` above, which compiles no test file.
-  Re-measuring the same move shape with `go test -c -gcflags=-e` moved a
-  reconstruction of it from 35 files to 43, so the test-only callers are a
-  real share of the breakage, not a rounding error. `registry.go` holds `register`,
-  `capabilitySupport`, `truthExact` and `truthDerived`, which all 36 remaining
-  `contract/` capability rows call.
+- The move breaks **roughly 40 files and 14-17 distinct undefined symbols,
+  across three packages** — root `query`, `contract`, and `capability` itself.
+  This supersedes an earlier "42 files with 57 distinct undefined symbols,
+  across two packages" that no reconstruction has reproduced. Two independent
+  ones, off different bases and by different methods, landed at 14 symbols / 35
+  files and 14 symbols / 37 files under `go build`, and 17 / 43 and 16 / 43
+  under `go test -c`. The file count was about right; **57 overstated the
+  symbol count by three to four times**, and the package count missed one.
+- The missed package is the move's own destination. Separated from `contract`'s
+  unexported helpers, `capability` does not compile either. It loses nine
+  symbols: `register`, `capabilitySupport`, `semanticSearchCapability`,
+  `TruthLevelExact`, `TruthLevelDerived`, `ProfileLocalAuthoritative`,
+  `ProfileLocalLightweight`, `CapabilityQueryPlaybooks` and
+  `CapabilityInvestigationWorkflows`. So PR 2 is a hoist in both directions,
+  not just a repoint of the callers it leaves behind.
+- **A single combined run cannot measure this move.** Once `contract` fails to
+  compile, Go's build graph stops type-checking everything that imports it, so
+  root `query` and `capability` report nothing at all — which reads as "no
+  further breakage" rather than "not measured". Each layer has to be unmasked
+  separately, by stubbing the missing symbols back in, before its count means
+  anything. Any future figure for a move of this shape needs that method
+  stated beside it.
+- `registry.go` holds `register` and `capabilitySupport`, which all 36
+  remaining `contract/` capability rows call, so it stays. But `truthExact`
+  and `truthDerived` are **not** in `registry.go` — they are in
+  `capability_matrix.go`, one of the five files this move takes. That is why
+  29 `contract/` files break on the move even though `registry.go` stays, and
+  an earlier draft of this bullet attributed all four symbols to `registry.go`.
 - There is **no import cycle**, which the first draft of this note assumed there
   would be. The ~45 capability-id constants are *duplicated* per package: root's
   `capability_keys.go` and each `contract/` row each declare the same name with
