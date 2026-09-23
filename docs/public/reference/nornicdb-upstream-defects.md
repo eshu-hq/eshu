@@ -1,7 +1,9 @@
 # NornicDB Upstream Defects `#400`–`#409`
 
 The ten confirmed upstream defects (`orneryd/NornicDB#400`–`#409`) Eshu pins
-around on `nornicdb-cpu-bge:v1.3.3`, with the shape to avoid and the safe
+around on `timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf4…` (see
+[NornicDB Pitfalls](nornicdb-pitfalls.md#which-build-the-pinned-build-means-here)
+for build identification), with the shape to avoid and the safe
 shape. Companion to [NornicDB Pitfalls](nornicdb-pitfalls.md): none of the
 ten matches an existing `## Pitfall:` section there or on the query,
 write-shape, path-predicate, or order-limit companions, so this index is the
@@ -22,5 +24,6 @@ Eshu-found shapes outside `#400`–`#409` and are tracked there.
 | [#408](https://github.com/orneryd/NornicDB/issues/408) | `UNWIND … AS v WITH v …` | rest of the statement ignored | `MATCH`-seeded `WITH` is safe with the schema applied: canonical File update-existing, the Language Directory branch, and the orphan sweep all match Neo4j. |
 | [#409](https://github.com/orneryd/NornicDB/issues/409) | `MATCH … WHERE … STARTS WITH/ENDS WITH … CREATE` | nothing written | Avoid the shape; no Eshu production statement uses it. |
 
-When upstream fixes any of these, re-prove the row against the new pin
-before simplifying a workaround ([#6787](https://github.com/eshu-hq/eshu/issues/6787)).
+Upstream has since closed all ten as completed (2026-09-18, after the v1.3.3 pin);
+re-prove each row against the new pin before simplifying a workaround
+([#6787](https://github.com/eshu-hq/eshu/issues/6787)).
