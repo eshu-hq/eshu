@@ -1,6 +1,6 @@
 # #6693 db/scalars prerequisite hoists
 
-Baseline: `origin/main` `c31655edede`. Change: the `db/` and `scalars/` rows
+Baseline: `origin/main` `e05b67e99`. Change: the `db/` and `scalars/` rows
 of the "Prerequisite hoists" table in
 `docs/internal/design/6693-postgres-target-tree.md`. Seven private helpers
 move byte-identically out of `go/internal/storage/postgres` (package
@@ -76,3 +76,16 @@ No metric, span, log key, or status field is added, removed, or renamed.
 `db.query.summary` span attribute and the same
 `eshu_dp_status_snapshot_read_duration_seconds` read labels; only their
 package qualifier changed for callers outside `internal/storage/postgres`.
+
+No-Regression Evidence: the seven function bodies are byte-identical before
+and after the move (each old body diffed against its new body), so no
+statement, query, lock, lease, batch size, worker count or graph write
+changes. `go build ./...`, `go vet ./internal/storage/postgres/...` and
+`go test ./internal/storage/postgres/... -race -count=1` pass, and
+`scripts/verify-dirgate.sh --digest internal/storage/postgres` still reports
+362 root files.
+
+No-Observability-Change: the query-summary context key moved with its setter
+and getter, so every query label that `InstrumentedDB` and the status reads
+attach is unchanged; no metric, span, log key or status field is added,
+removed or renamed.
