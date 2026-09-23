@@ -3,7 +3,29 @@
 
 package recordpseudo
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+// semverTagRe is the structural image-tag grammar that is kept: an optional
+// v and dotted digits. Anything else in a tag is a customer-chosen word.
+var semverTagRe = regexp.MustCompile(`^v?[0-9]+(?:\.[0-9]+)*$`)
+
+// structuralImageTag reports a tag that carries no customer data.
+func structuralImageTag(tag string) bool {
+	return tag == "" || tag == "latest" || semverTagRe.MatchString(tag)
+}
+
+// learnImageTag pseudonymizes a customer-chosen image tag to the name form
+// (class-free HMAC, so the tag field and the tag inside an image reference
+// agree); structural tags are kept.
+func (d *dictionary) learnImageTag(tag string) {
+	if structuralImageTag(tag) {
+		return
+	}
+	d.set(ClassIdent, tag, d.name(tag))
+}
 
 // awsHostSuffixes are the AWS-owned DNS suffixes whose tail labels are kept
 // (count = labels kept from the right, before the region search).
@@ -134,9 +156,12 @@ func (d *dictionary) awsHostLabels(labels []string, tail int) []string {
 
 // learnImageRef splits scheme, host, repository path, tag and digest. The
 // host is a ClassHost value, the repository path is learned whole as an
-// identifier, the tag and digest are structural and kept. It never hands a
-// string it received back to learnIdent unchanged: learnIdent routes every
-// ".dkr.ecr." string here, so each branch below must make progress or stop.
+// identifier, the tag per learnImageTag, and the digest is structural and
+// kept. A customer tag is also learned as the "path:tag" composite so a
+// tag below the free-text length floor is still rewritten inside the
+// reference. It never hands a string it received back to learnIdent
+// unchanged: learnIdent routes every ".dkr.ecr." string here, so each
+// branch below must make progress or stop.
 func (d *dictionary) learnImageRef(raw string) {
 	ref := raw
 	if i := strings.Index(ref, "://"); i >= 0 {
@@ -146,7 +171,8 @@ func (d *dictionary) learnImageRef(raw string) {
 	ref = strings.TrimLeft(ref, "/")
 	host, path, hasPath := strings.Cut(ref, "/")
 	if !hasPath {
-		hostOnly, _, _ := strings.Cut(ref, ":")
+		hostOnly, tag, _ := strings.Cut(ref, ":")
+		d.learnImageTag(tag)
 		if hostShapeRe.MatchString(hostOnly) && lastLabelAlphabetic(hostOnly) {
 			d.learnHost(hostOnly)
 		} else if hostOnly != "" {
@@ -161,15 +187,22 @@ func (d *dictionary) learnImageRef(raw string) {
 		d.learnIdent(host)
 		path = host + "/" + path
 	}
+	tag := ""
 	if i := strings.LastIndex(path, ":"); i >= 0 && !strings.Contains(path[i:], "/") {
-		path = path[:i]
+		path, tag = path[:i], path[i+1:]
+		d.learnImageTag(tag)
 	}
-	if path == "" || d.settled(ClassIdent, path) {
+	if path == "" {
 		return
 	}
-	if strings.Contains(path, ".dkr.ecr.") {
-		d.set(ClassIdent, path, d.name(path))
-		return
+	if !d.settled(ClassIdent, path) {
+		if strings.Contains(path, ".dkr.ecr.") {
+			d.set(ClassIdent, path, d.name(path))
+		} else {
+			d.learnIdent(path)
+		}
 	}
-	d.learnIdent(path)
+	if !structuralImageTag(tag) {
+		d.set(ClassIdent, path+":"+tag, d.pseudonym(path)+":"+d.pseudonym(tag))
+	}
 }

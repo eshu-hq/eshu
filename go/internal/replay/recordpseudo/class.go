@@ -41,7 +41,7 @@ const (
 	// suffix collapses to .example, AWS-owned suffixes are kept.
 	ClassHost
 	// ClassECRRef is a container image reference: host per ClassHost,
-	// repository path per ClassIdent, tag and digest kept.
+	// repository path per ClassIdent, tag per ClassImageTag, digest kept.
 	ClassECRRef
 	// ClassIPv4 maps an address into the RFC 5737 documentation ranges.
 	ClassIPv4
@@ -56,6 +56,10 @@ const (
 	ClassEmail
 	// ClassOpaque replaces the value with o+11hex and reports the path.
 	ClassOpaque
+	// ClassImageTag is a container image tag: "latest" and pure semver
+	// (v1.2.3, 1.2.3) are structural and kept, every other tag is a
+	// customer-chosen name and takes the name form.
+	ClassImageTag
 )
 
 var classNames = map[Class]string{
@@ -73,6 +77,7 @@ var classNames = map[Class]string{
 	ClassTagValue: "tag_value",
 	ClassEmail:    "email",
 	ClassOpaque:   "opaque",
+	ClassImageTag: "image_tag",
 }
 
 // String returns the class's log label.

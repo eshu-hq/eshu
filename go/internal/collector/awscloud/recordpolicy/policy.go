@@ -34,6 +34,7 @@ func Policy() recordpseudo.Policy {
 	set(ipv4Keys, recordpseudo.ClassIPv4)
 	set(opaqueKeys, recordpseudo.ClassOpaque)
 	fields["tags"] = recordpseudo.ClassTagValue
+	fields["tag"] = recordpseudo.ClassImageTag       // ECR image tag: latest/semver kept, customer tags become names
 	fields["source_value"] = recordpseudo.ClassIdent // CIDR, security-group id or prefix-list id: shape-sniffed
 	return recordpseudo.Policy{Fields: fields}
 }
@@ -92,7 +93,7 @@ var keepKeys = []string{
 	"region", "service_kind", "resource_type", "state", "relationship_type", "target_type", "principal_type",
 	"principal_types", "provider", "policy_source", "effect", "actions", "not_actions", "package_type", "version",
 	"launch_type", "desired_status", "image_tag_mutability", "tenancy", "redaction_policy_version", "warning_kind",
-	"source_state", "environment", "tag", "image_digest", "manifest_digest", "code_sha256", "started_at", "cpu",
+	"source_state", "environment", "image_digest", "manifest_digest", "code_sha256", "started_at", "cpu",
 	"memory", "web_identity_subject_fingerprints", "web_identity_subject_wildcard", "schema_version",
 	"resource_scope", "error_class", "status", "record_type", "routing_policy", "direction", "ip_protocol",
 	"from_port", "to_port", "principal_kind", "principal_partition", "principal_service", "grant_outcome",

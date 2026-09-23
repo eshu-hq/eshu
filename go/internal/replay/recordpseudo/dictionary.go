@@ -153,6 +153,8 @@ func (d *dictionary) learn(class Class, raw string) {
 		d.learnTagValue(raw)
 	case ClassEmail:
 		d.learnEmail(raw)
+	case ClassImageTag:
+		d.learnImageTag(raw)
 	default:
 		// Keep, Opaque and Unknown learn nothing: Keep values are structural,
 		// the other two are replaced wholesale at rewrite time.
