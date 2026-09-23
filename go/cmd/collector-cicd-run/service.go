@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/cicd"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -82,10 +83,10 @@ func buildClaimedService(
 		// durable store, gap detection would reset on every process restart and
 		// be invisible across collector replicas (an in-memory store only
 		// narrows the window within one process's lifetime). See
-		// go/internal/storage/postgres/cicd_run_watermark.go and
+		// go/internal/storage/postgres/cicd/watermark.go and
 		// go/internal/collector/cicdrun/runwatermark. GitLab has no watermark
 		// counterpart in v1 -- see gitlabciruntime's doc.go.
-		config.GitHubSource.Watermarks = postgres.NewCICDRunWatermarkStore(database)
+		config.GitHubSource.Watermarks = cicdstore.NewCICDRunWatermarkStore(database)
 		githubSource, err := ghactionsruntime.NewClaimedSource(config.GitHubSource)
 		if err != nil {
 			return collector.ClaimedService{}, err

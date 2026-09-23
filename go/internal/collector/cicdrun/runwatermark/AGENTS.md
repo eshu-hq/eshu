@@ -7,7 +7,7 @@
 3. `../ghactionsruntime/run_watermark.go` - gap-detection logic and wiring.
 4. `../../awscloud/checkpoint/types.go` - the pattern this contract mirrors
    (fencing semantics, `Store` interface shape).
-5. `../../../storage/postgres/cicd_run_watermark.go` - durable storage
+5. `../../../storage/postgres/cicd/watermark.go` - durable storage
    implementation.
 
 ## Invariants

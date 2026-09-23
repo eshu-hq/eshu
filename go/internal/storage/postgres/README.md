@@ -587,15 +587,6 @@ Primary groups:
 - `FunctionSummaryStore`, `FunctionSourceStore`, `FunctionGraphIDStore`, and
   `ValueFlowFixpointComponentStore` persist the durable value-flow inputs and
   solved component results used by the reducer's post-summary fixpoint.
-- `CICDRunWatermarkStore` (#5429) persists the newest GitHub Actions run ID
-  each claim cycle observed for one `(scope_id, repository)` target, closing
-  a cross-cycle run-collection gap in `ghactionsruntime` across process
-  restarts and collector replicas. It implements
-  `internal/collector/cicdrun/runwatermark.Store`. Unlike
-  `AWSPaginationCheckpointStore`'s `Load` (scoped to one generation's resume
-  state), `Load` here has NO generation/fencing predicate: a watermark must
-  be readable by a LATER generation to detect a gap against an EARLIER
-  generation's progress.
 
 ## Dependencies
 
@@ -610,9 +601,6 @@ Primary groups:
 - `internal/status` — status store interface contracts
 - `internal/telemetry` — `telemetry.Instruments` for `InstrumentedDB`
 - `internal/workflow` — `workflow.ClaimSelector`, `workflow.ClaimMutation`
-- `internal/collector/cicdrun/runwatermark` — `runwatermark.Key`,
-  `runwatermark.Watermark`, `runwatermark.Store`, `runwatermark.ErrStaleFence`
-  for `CICDRunWatermarkStore`
 - `database/sql` — standard library
 
 ## Telemetry
@@ -728,15 +716,6 @@ described above; the value-suppression case surfaces through #5837's existing
 added here. The terraform-state collector already counts every redaction at
 emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
 
-- `CICDRunWatermarkStore` emits no metrics or spans of its own. Gap
-  detection is observed through `ghactionsruntime`'s existing
-  `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}`
-  and `ci_cd_run.observe` span error recording, which cover both a
-  detected gap and a store I/O failure (a failed Load/Save fails the claim
-  and records on the observe span). A dedicated load/save/stale-fence event
-  counter mirroring `eshu_dp_aws_pagination_checkpoint_events_total` was
-  scoped out of #5429; wire one if per-store-operation telemetry becomes
-  necessary.
 - `cloudObservedValueAttributes`/`stateDeclaredValueAttributes`
   (`aws_cloud_runtime_drift_value_attributes.go`, reused by
   `multi_cloud_runtime_drift_evidence.go`) normalize the bounded,
