@@ -198,7 +198,11 @@ cassette_private_data_patterns() {
 	# writes, so they pass.
 	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$'
 	_cpd_allow[account12]="^${doc_account}\$"
-	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
+	# The account field may also be exactly `*` (an IAM policy resource such
+	# as arn:aws:iam::*:role/*) or exactly `cloudfront` (the legacy origin
+	# access identity principal arn:aws:iam::cloudfront:user/...): both are
+	# written by AWS, not by a customer. No other word is allowed.
+	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|\\*|cloudfront|${doc_account}):\$"
 	# A customer endpoint under amazonaws.com as record mode writes it: one or
 	# more h+10hex pseudonym labels, then only AWS-owned labels -- the region
 	# grammar or a host service word record mode keeps (awsHostServiceLabels
@@ -230,6 +234,7 @@ cassette_private_data_patterns() {
 		'ipv4 0.0.0''.1'
 		'hostname orders-api.team-b.amazonaws''.com'
 		'hostname payments-lb-1234.us-east-1.elb.amazonaws''.com'
+		'arn arn:aw''s:iam::acmecorp:user/example'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -254,6 +259,8 @@ cassette_private_data_patterns() {
 		'arn arn:aw''s:iam::aws:policy/example'
 		'arn arn:aw''s:iam::123456789012:role/example'
 		'arn arn:aw''s:iam::000000000000:role/example'
+		'arn arn:aw''s:iam::*:role/*'
+		'arn arn:aw''s:iam::cloudfront:user/example'
 		'hostname registry.example''.invalid'
 		'hostname registry.local''host'
 		'hostname registry.example''.com'
@@ -269,19 +276,20 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 7 alternatives, 15 planted samples (hostname carries seven: a
+	# patterns: 7 alternatives, 16 planted samples (arn carries two: a raw
+	# account and a word that is not `cloudfront`; hostname carries seven: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host, a Consul name, two raw labels under amazonaws.com and a raw ELB
 	# endpoint; ipv4 carries three: a bare address, one ending
-	# a sentence, and the neighbour of the unspecified address), 32 allowed
+	# a sentence, and the neighbour of the unspecified address), 34 allowed
 	# samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 15 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 15 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 32 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 32 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#planted[@]}" -eq 16 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 16 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#allowed[@]}" -eq 34 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 34 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

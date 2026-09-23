@@ -184,6 +184,20 @@ run_scan "${endpointdir}" "${scratch}/aws-endpoint.out" rc
 	|| fail "a pseudonymized AWS endpoint was flagged; a record-mode recording would fail the gate: $(cat "${scratch}/aws-endpoint.out")"
 printf 'GREEN pseudonymized AWS endpoint: exit %s\n' "${rc}"
 
+# An ARN account field that is exactly `*` (an IAM policy resource) or
+# exactly `cloudfront` (the legacy origin access identity principal) is
+# AWS's own and passes; a raw account and any other word stay findings.
+plant_red arn 'arn:aws:iam::987654321098:role/*' arn-raw-account-wildcard-resource
+plant_red arn 'arn:aws:iam::acmecorp:user/example' arn-word-account
+wildarndir="${scratch}/arn-special-account"
+mkdir -p "${wildarndir}"
+printf '{"resources":["arn:aws:iam::*:role/*","arn:aws:logs:us-east-1:*:log-group:*"],"principal_arns":["arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity E2EXAMPLE1ABC"]}\n' >"${wildarndir}/policy.json"
+rc=0
+run_scan "${wildarndir}" "${scratch}/arn-special-account.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "an ARN with a wildcard or cloudfront account field was flagged: $(cat "${scratch}/arn-special-account.out")"
+printf 'GREEN wildcard and cloudfront ARN accounts: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -284,12 +298,12 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 14 sample(s), expected 15"
+	"positive control carries 15 sample(s), expected 16"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 32 goes red, so the form cannot be dropped from
+# it and the hand count of 34 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 31 sample(s), expected 32"
+	"negative control carries 33 sample(s), expected 34"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

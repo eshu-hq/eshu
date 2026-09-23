@@ -151,7 +151,10 @@ func scanARNs(text string, produced Set, refuse refusal) {
 	for _, loc := range arnCand.FindAllStringIndex(text, -1) {
 		parts := strings.SplitN(text[loc[0]:loc[1]], ":", 6)
 		account := parts[4]
-		if account == "" || account == "aws" || accountAllowed(account, produced) {
+		// "*" (a policy resource) and "cloudfront" (the legacy origin
+		// access identity principal) are account fields AWS writes; the
+		// gate admits exactly these two words.
+		if account == "" || account == "aws" || account == "*" || account == "cloudfront" || accountAllowed(account, produced) {
 			continue
 		}
 		refuse(loc[0], "arn")
