@@ -210,6 +210,29 @@ proof (no Docker):
 cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff' -count=1
 ```
 
+### Statement coverage (NornicDB execution proof)
+
+Beyond result parity, CI joins the same pair captures against the checked-in
+statement-builder manifest (`go/internal/queryplan/testdata/statement-builders.yaml`)
+and fails when an inventoried, unexempted builder never executed on a backend,
+or when a recorded read returned zero rows on every execution without a
+reasoned read exemption (`statement-coverage` in `golden-corpus-gate.yml`,
+same blocking row as the differential oracle in `specs/ci-gates.v1.yaml`).
+Unmatched executions are advisory (`unattributed`); writes that never carried
+Bolt counters are advisory (`write-without-counters`), since NornicDB does not
+report `PropertiesSet`/`LabelsAdded`. An exemption excuses execution proof,
+never drift: templates, fragments, and the source digest still pin the symbol,
+and the manifest validator rejects any drift in them.
+
+Run it over local captures (single pair is enough; CI merges both pairings by
+backend):
+
+```bash
+cd go && go run ./cmd/golden-corpus-gate -phase=statement-coverage \
+  -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml \
+  -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j
+```
+
 ### The cross-run lock
 
 The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project
