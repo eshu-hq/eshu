@@ -234,6 +234,31 @@ The credentialed refresh workflow is separate from ordinary proof. It may use
 provider secrets to re-record artifacts, but the resulting PR still needs
 offline replay validation before merge.
 
+### Committed Recordings
+
+`testdata/cassettes/awscloud/recorded-pseudonymized.json` is a real
+`collector-aws-cloud -mode=record` capture of one account and region: 14
+services, 517 facts, recorded through record-mode pseudonymization. It is
+not replayed by the B-7 gate, which reads `supply-chain-demo.json`. It exists
+to give replay, conformance and cardinality work input at realistic scale.
+EC2, IAM and ECR were left out to stay under the repository's 1 MB file
+limit.
+
+Before it was committed, it passed three independent validations:
+
+1. The `cassette-author` gate, with a private organisation-identifier list
+   and `ESHU_PRIVATE_IDENTIFIERS_REQUIRED=1`.
+2. A separately written sweep that shares no code or patterns with the gate
+   (IANA TLD list, structural JSON walk over keys and values, identifier
+   substring match).
+3. A human review of every value that is not purely a pseudonym or a
+   structural token.
+
+The file carries `pseudonym_key_fingerprint`. Recorded cassettes are
+Verify-checked at record time with the recording's own produced set, so the
+committed-corpus agreement test in `recordpseudo` checks only the
+hand-authored cassettes.
+
 ## Private-Data Gate
 
 Cassettes carry synthetic or redacted values only, and the `cassette-author`
