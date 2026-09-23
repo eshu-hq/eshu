@@ -82,7 +82,7 @@ func (d *dictionary) substitute(s string) string { return d.rewrite(s, true) }
 // field) only substitutable tokens apply, so a Keep value equal to a short
 // name or tag value is kept.
 func (d *dictionary) rewrite(s string, exact bool) string {
-	if learned, ok := d.entries[s]; ok && !learned.arnOnly && (exact || !exactOnly(s, learned.class)) {
+	if learned, ok := d.entries[s]; ok && (exact || !learned.arnOnly) && (exact || !exactOnly(s, learned.class)) {
 		return learned.pseudonym
 	}
 	if wholeARN(s) {
@@ -159,12 +159,22 @@ func (d *dictionary) forEachComponent(s string, fn func(component string, prev b
 func (d *dictionary) substituteARN(arn string, exact bool) string {
 	parts := strings.SplitN(arn, ":", 6)
 	if len(parts) < 6 {
-		return d.substituteFree(arn)
+		return d.substituteFree(arn, exact)
 	}
 	parts[4] = d.pseudonym(parts[4])
 	// The component at index skip is the resource name even when a ":"
 	// joins it to its type token (lambda function:NAME, rds db:NAME, logs
 	// log-group:NAME); a qualifier is a ":"-joined component after it.
+	if parts[2] == "iam" && parts[4] == "cloudfront" {
+		// The AWS-owned CloudFront principal: its phrase is never rewritten,
+		// only the issued ID after it.
+		for _, phrase := range awsSpacedPhrases {
+			if tail, ok := strings.CutPrefix(parts[5], "user/"+phrase); ok {
+				parts[5] = "user/" + phrase + d.substituteComponent(tail, exact, false, true)
+				return strings.Join(parts, ":")
+			}
+		}
+	}
 	skip := arnTypeSkip(parts[2], arnComponents(parts[5]))
 	index := -1
 	parts[5] = d.forEachComponent(parts[5], func(component string, prev byte) string {
@@ -183,7 +193,7 @@ func (d *dictionary) substituteARN(arn string, exact bool) string {
 // name never rewrites the ":"-qualifier position of an ARN (a Lambda
 // version, a task-definition revision), which qualifier reports.
 func (d *dictionary) substituteComponent(component string, exact, qualifier, inARN bool) string {
-	if learned, ok := d.entries[component]; ok && (inARN || !learned.arnOnly) && (exact || !exactOnly(component, learned.class)) {
+	if learned, ok := d.entries[component]; ok && (inARN || exact || !learned.arnOnly) && (exact || !exactOnly(component, learned.class)) {
 		if numericRe.MatchString(component) && learned.class != ClassAccount {
 			if learned.class == ClassTagValue || qualifier {
 				return component
@@ -194,7 +204,7 @@ func (d *dictionary) substituteComponent(component string, exact, qualifier, inA
 	if inARN {
 		return d.substituteTokens(component, func(string, Class) bool { return true })
 	}
-	return d.substituteFree(component)
+	return d.substituteFree(component, exact)
 }
 
 // substituteFree rewrites every substitutable dictionary token in s on
@@ -202,8 +212,8 @@ func (d *dictionary) substituteComponent(component string, exact, qualifier, inA
 // lies inside a region or availability-zone span without covering it. A
 // token adjacent to another letter or digit is left alone so "app" never
 // rewrites "application".
-func (d *dictionary) substituteFree(s string) string {
-	return d.substituteTokens(s, func(raw string, _ Class) bool { return !d.entries[raw].arnOnly })
+func (d *dictionary) substituteFree(s string, exact bool) string {
+	return d.substituteTokens(s, func(raw string, _ Class) bool { return exact || !d.entries[raw].arnOnly })
 }
 
 // substituteTokens is substituteFree restricted to the tokens keep admits;

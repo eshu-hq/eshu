@@ -52,9 +52,11 @@ func structural(raw string) bool {
 type entry struct {
 	pseudonym string
 	class     Class
-	// arnOnly marks a word learned from a customer's spaced ARN name (a
-	// CloudWatch alarm name): it is substituted inside ARNs only, so a
-	// common word there never rewrites a Keep field or any other value.
+	// arnOnly marks a word learned only from a customer's spaced ARN name
+	// (a CloudWatch alarm name). It is substituted everywhere except a Keep
+	// value outside an ARN, so a common word there ("running") never
+	// rewrites a Keep field such as state. A classified field that learns
+	// the same word clears the mark.
 	arnOnly bool
 }
 
@@ -148,7 +150,8 @@ func (d *dictionary) pseudonym(raw string) string {
 // equals the class asking to learn it.
 func (d *dictionary) settled(class Class, raw string) bool {
 	existing, ok := d.entries[raw]
-	return ok && classRank(existing.class) >= classRank(class)
+	// An arnOnly entry is never settled, so a classified field can widen it.
+	return ok && !existing.arnOnly && classRank(existing.class) >= classRank(class)
 }
 
 // learn classifies one raw value and records its pseudonym. Empty values,

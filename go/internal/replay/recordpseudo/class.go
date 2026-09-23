@@ -70,13 +70,13 @@ const (
 )
 
 // customerTypeName reports whether an enum-field value is a customer-named
-// resource type. CloudFormation reserves the AWS:: namespace and requires
+// resource type. CloudFormation reserves the AWS:: and Alexa:: namespaces and requires
 // Org::Service::Resource for private and Custom::<name> for custom types,
 // so a customer-named type is exactly a "::" value not owned by AWS. Every
 // other spelling (aws_sqs_queue, lambda.function, ORGANIZATIONAL_UNIT,
 // direct-connect-gateway) is a collector or AWS enum and stays verbatim.
 func customerTypeName(v string) bool {
-	return strings.Contains(v, "::") && !strings.HasPrefix(v, "AWS::")
+	return strings.Contains(v, "::") && !strings.HasPrefix(v, "AWS::") && !strings.HasPrefix(v, "Alexa::")
 }
 
 var classNames = map[Class]string{
