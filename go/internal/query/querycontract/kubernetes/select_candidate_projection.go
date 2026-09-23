@@ -13,10 +13,17 @@ import (
 // trims it.
 //
 // Namespace equality gates SELECTS matching, so every path that derives a
-// namespace has to derive it the same way. The trim lives here, called by both
-// the match-input adapter in package query and SelectCandidateFromEntity
-// below, rather than being written out twice where the two copies could drift
-// apart without anything failing.
+// namespace has to derive it the same way. This helper covers the paths that
+// hold a metadata map: the match-input adapter in package query and
+// SelectCandidateFromEntity below.
+//
+// It does not cover all of them. The SQL scan path writes the same
+// strings.TrimSpace inline, because it holds a scanned string rather than a
+// map and cannot call this signature -- see
+// internal/query/content_reader_k8s_select_candidates.go, where
+// candidate.Namespace is trimmed directly. The two agree today. They are the
+// pair to keep in step, and the earlier claim here that the trim was not
+// "written out twice" was wrong: it is.
 func Namespace(metadata map[string]any) string {
 	value, _ := metadata["namespace"].(string)
 	return strings.TrimSpace(value)

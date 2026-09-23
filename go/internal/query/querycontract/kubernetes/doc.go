@@ -27,9 +27,12 @@
 // edge is dropped rather than guessed, and [LogSelectMixedVintageDrop] records
 // it at debug so an operator can see why an expected edge is missing.
 //
-// [Namespace] exists so that every path deriving a namespace derives it
-// identically. Namespace equality gates matching, so two copies of the trim
-// could drift apart without anything failing.
+// [Namespace] exists so that the paths holding a metadata map derive a
+// namespace identically, because namespace equality gates matching and two
+// trims that disagree produce two different graphs from one input. It is not
+// the only site: the SQL scan path in package query trims inline, since it
+// holds a scanned string this signature cannot take. Both apply the same
+// strings.TrimSpace today and are the pair to keep in step.
 //
 // The package depends on its parent for three shared types and nothing else,
 // and the parent does not depend on it. Callers name these identifiers
