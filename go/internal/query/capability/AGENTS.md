@@ -11,14 +11,26 @@ exits 0. What breaks is the first request, at run time:
 `query capability "capability_catalog.list" missing from capability matrix`,
 which `TestHandlerListServesCatalogAtItsOwnRoute` catches.
 
-It is a blank import and must stay one. Read the assembled registry through
-`querycontract.CompatibilityCapabilityMatrix`, never by naming a `contract`
-symbol: the registry is the seam, and a symbol reference would put this
-package's read path on registration's internals.
+Keep it blank by convention, not because the compiler forces it. Naming an
+exported `contract` symbol from here does compile -- measured, `go build`
+exits 0 on a file that references `contract.CapabilityQueryPlaybooks`. The
+reason to read the assembled registry through
+`querycontract.CompatibilityCapabilityMatrix` instead is that the registry is
+the intended seam: a direct symbol reference would put this package's read
+path on registration's internals, and the next `contract/` reshuffle would
+then reach in here. Treat that as a design call you may argue with, not as a
+constraint the build enforces.
 
 There is no cycle in either direction -- nothing under `contract/` or
-`querycontract/` imports this package. Check before claiming otherwise:
-`go list -deps ./internal/query/contract/ | grep query/capability` is empty.
+`querycontract/` imports this package, and that holds for their test binaries
+too, which is the check worth running because a test-only back-edge is exactly
+what a plain `go list -deps` would miss:
+
+    go list -deps -test ./internal/query/contract/      | grep query/capability
+    go list -deps -test ./internal/query/querycontract/ | grep query/capability
+
+Both are empty. Run them before claiming a cycle here; the claim they replace
+was in this file, in `README.md` and in `doc.go`, and was wrong in all three.
 
 ## Registration belongs to contract, not here
 
