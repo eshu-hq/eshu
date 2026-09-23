@@ -134,3 +134,25 @@ Why it is safe: `go build`, `go vet` and `go test -count=1` over
 `CrossRepo`-named tests across `internal/query`, `impact`, `codequery` and
 `codequery/deadcode`, the same 191 as at `aa7cc0d1d`, so the suite still runs
 rather than only still compiling.
+
+## Performance and observability evidence for the `entity` leaf
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/entity/`, 20 files repoint `querycontract.X` to `entity.X`, and
+root's #6060 entity-name alias block is deleted with its callers naming
+`entity.*`. The perf-evidence gate selects `codequery/callers.go`,
+`codequery/relationship_handlers.go`, `entity/handler.go`,
+`querycontract/entity/repo_identity.go` and
+`queryselector/entity_repo_identity.go` because they contain Cypher or worker
+tokens elsewhere; in each the diff changes only an import line and a package
+qualifier. No SQL, Cypher, call site, argument, allocation or loop bound
+changes. `buildEntityNameSearchQuery`'s body changes only type and constant
+qualifiers, so its pinned queryplan source hash is refreshed while its SQL text
+is byte-identical.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The reader that owns the entity-name spans did not move.
+
+Why it is safe: `go vet` over every `//go:build` tag in `internal/query`,
+`go test ./internal/query/... -count=1` (54 ok) and `verify-dirgate.sh --all`
+all exit 0.

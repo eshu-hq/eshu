@@ -261,3 +261,9 @@ docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/int
 # temp repo to keep covering the gate's still-supported flat contract_*.go arm;
 # the nested contract/thirdparty/jira.go case sits beside it.
 scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_jira.go
+
+# The #6060 seam-promotion evidence note lists the files that PR promoted into
+# querycontract, as the tree stood then. #6597 later moved this one into
+# querycontract/entity/repo_identity.go; repointing would misstate what #6060
+# promoted.
+docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal/query/querycontract/entity_repo_identity.go

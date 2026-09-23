@@ -15,7 +15,7 @@ import (
 
 // The story route resolves a target name by reading candidates a granted
 // repository at a time, then keeping only the EXACT name matches
-// (exactEntityNameMatches in entity_resolution.go). The content read behind it
+// (ExactEntityNameMatches in querycontract/entity/resolution.go). The content read behind it
 // is a substring search -- entity_name ILIKE '%name%' in
 // ContentReader.SearchEntitiesByName -- so a repository full of near-misses can
 // fill the caller's budget with rows that are all discarded a moment later.
@@ -182,7 +182,7 @@ func storyBudgetSingleRepoStore() *storyBudgetContentStore {
 // One granted repository holds three substring near-misses and the exact
 // symbol. The read the route issues is `entity_name ILIKE '%PaymentGateway%'`
 // bounded by LIMIT, so the page comes back as the three near-misses;
-// exactEntityNameMatches then discards all three and the caller is told a
+// ExactEntityNameMatches then discards all three and the caller is told a
 // symbol that exists in its own granted repository is not_found.
 //
 // Reading one repository at a time does not help here -- there is only one --
