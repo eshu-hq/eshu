@@ -157,6 +157,19 @@ run_scan "${anydir}" "${scratch}/unspecified-ipv4.out" rc
 	|| fail "the unspecified address 0.0.0.0 was flagged; a recorded security-group rule would fail the gate: $(cat "${scratch}/unspecified-ipv4.out")"
 printf 'GREEN unspecified ipv4: exit %s\n' "${rc}"
 
+# A single label directly under amazonaws.com is an AWS service principal
+# (a customer cannot register one) and passes; two raw labels there are a
+# customer name and stay a finding.
+plant_red hostname 'billing-api.team-c.amazonaws.com' hostname-raw-under-amazonaws
+principaldir="${scratch}/service-principal"
+mkdir -p "${principaldir}"
+printf '{"principal_service":"states.amazonaws.com","assume_principals":["ecs-tasks.amazonaws.com","monitoring.amazonaws.com"]}\n' >"${principaldir}/principal.json"
+rc=0
+run_scan "${principaldir}" "${scratch}/service-principal.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "an AWS service principal was flagged; a recorded trust policy would fail the gate: $(cat "${scratch}/service-principal.out")"
+printf 'GREEN service principal: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -257,12 +270,12 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 12 sample(s), expected 13"
+	"positive control carries 13 sample(s), expected 14"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 30 goes red, so the form cannot be dropped from
+# it and the hand count of 31 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 29 sample(s), expected 30"
+	"negative control carries 30 sample(s), expected 31"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

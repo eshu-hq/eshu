@@ -28,6 +28,12 @@ var (
 	// structural, is never learned, and is a protected span in free text.
 	awsRegionRe      = regexp.MustCompile(`(?:us|eu|ap|ca|sa|me|af|il|mx|cn)(?:-gov|-iso[a-z]?)?-(?:east|west|north|south|central|northeast|southeast|northwest|southwest)-[0-9]{1,2}[a-z]?`)
 	awsRegionExactRe = regexp.MustCompile(`^` + awsRegionRe.String() + `$`)
+	// awsOwnedLabelRe is the label directly under amazonaws.com. A customer
+	// cannot register a name there, so the label is AWS-owned: a service
+	// principal (states.amazonaws.com, ecs-tasks.amazonaws.com) or the
+	// service tail of an AWS endpoint. It is a protected span in free text,
+	// so a customer name equal to the word never rewrites it.
+	awsOwnedLabelRe = regexp.MustCompile(`[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.amazonaws\.com`)
 )
 
 // tokens returns the learned raw tokens longest first (ties lexicographic),
@@ -190,26 +196,35 @@ func (d *dictionary) substituteTokens(s string, keep func(raw string, class Clas
 	if s == "" {
 		return s
 	}
-	protected := regionSpans(s)
+	protected := protectedSpans(s)
 	for _, raw := range d.tokens() {
 		class := d.entries[raw].class
 		if !strings.Contains(s, raw) || exactOnly(raw, class) || !keep(raw, class) {
 			continue
 		}
 		s = replaceBounded(s, raw, d.pseudonym(raw), protected)
-		protected = regionSpans(s)
+		protected = protectedSpans(s)
 	}
 	return s
 }
 
-// regionSpans returns the [start, end) offsets of every AWS region or
-// availability zone in s that sits on alphanumeric boundaries.
-func regionSpans(s string) [][2]int {
+// protectedSpans returns the [start, end) offsets of every span in s whose
+// grammar is AWS-owned: an AWS region or availability zone on alphanumeric
+// boundaries, and a whole label directly under amazonaws.com with the
+// suffix (a service principal, or an endpoint's service tail).
+func protectedSpans(s string) [][2]int {
 	var out [][2]int
 	for _, loc := range awsRegionRe.FindAllStringIndex(s, -1) {
 		if boundedLeft(s, loc[0]) && boundedRight(s, loc[1]) {
 			out = append(out, [2]int{loc[0], loc[1]})
 		}
+	}
+	for _, loc := range awsOwnedLabelRe.FindAllStringIndex(s, -1) {
+		start, end := loc[0], loc[1]
+		if (start > 0 && (isAlnum(s[start-1]) || s[start-1] == '-')) || (end < len(s) && (isAlnum(s[end]) || s[end] == '-')) {
+			continue
+		}
+		out = append(out, [2]int{start, end})
 	}
 	return out
 }

@@ -182,8 +182,11 @@ cassette_private_data_patterns() {
 	# and each one carries the namespace out), an exact list of public service hosts the
 	# committed corpus uses (including the google.cloud and Microsoft.<Provider>
 	# vendor namespaces, which end in a TLD without being hosts), a single
-	# service label under googleapis.com, ECR under a documentation account,
-	# and the corpus's own synthetic zones.
+	# service label under googleapis.com, a single label under amazonaws.com
+	# (an AWS service principal such as states.amazonaws.com: a customer
+	# cannot register a name directly under amazonaws.com, so the label is
+	# AWS-owned), ECR under a documentation account, and the corpus's own
+	# synthetic zones.
 	# 0.0.0.0 is the unspecified address, and 0.0.0.0/0 the "any address"
 	# CIDR of a security-group rule (the detector takes the quad without its
 	# prefix). Record mode keeps it; it names no host. Exact, so 0.0.0.1 is
@@ -196,7 +199,7 @@ cassette_private_data_patterns() {
 	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$'
 	_cpd_allow[account12]="^${doc_account}\$"
 	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
-	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
+	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
 	_cpd_allow[nodeip]='(?i)^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$'
 
@@ -215,6 +218,7 @@ cassette_private_data_patterns() {
 		'ipv4 reachable at 172.16''.9.4.'
 		'nodeip ip-10''-0-1-5'
 		'ipv4 0.0.0''.1'
+		'hostname orders-api.team-b.amazonaws''.com'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -244,6 +248,7 @@ cassette_private_data_patterns() {
 		'hostname registry.example''.com'
 		'hostname github''.com'
 		'hostname compute.googleapis''.com'
+		'hostname states.amazonaws''.com'
 		'hostname Microsoft.Ap''p'
 		'hostname 123456789012.dkr.ecr.us-east-1.amazonaws''.com'
 		'hostname vault.supply-chain-demo''.internal'
@@ -252,18 +257,18 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 7 alternatives, 13 planted samples (hostname carries five: a
+	# patterns: 7 alternatives, 14 planted samples (hostname carries six: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
-	# host and a Consul name; ipv4 carries three: a bare address, one ending
-	# a sentence, and the neighbour of the unspecified address), 30 allowed
+	# host, a Consul name and two raw labels under amazonaws.com; ipv4 carries three: a bare address, one ending
+	# a sentence, and the neighbour of the unspecified address), 31 allowed
 	# samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 13 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 13 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 30 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 30 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#planted[@]}" -eq 14 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 14 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#allowed[@]}" -eq 31 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 31 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

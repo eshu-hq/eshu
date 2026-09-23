@@ -43,6 +43,11 @@ var (
 	}
 )
 
+// servicePrincipalRe is exactly one label under amazonaws.com: a label
+// there is AWS-owned (a customer cannot register one), so it is an AWS
+// service principal such as states.amazonaws.com.
+var servicePrincipalRe = regexp.MustCompile(`^[a-z0-9-]+\.amazonaws\.com$`)
+
 // accountAllowed admits the AWS documentation account, the zero-prefixed
 // forms, repdigits, and the reserved pseudonym form only when this run minted
 // it.
@@ -70,7 +75,7 @@ func nodeIPAllowed(token string) bool { return nodeIPAllowRe.MatchString(token) 
 func ipv6Allowed(token string) bool   { return ipv6AllowRe.MatchString(token) }
 
 func hostnameAllowed(host string, produced Set) bool {
-	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
+	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
 		return true
 	}
 	if _, ok := publicHostsList[host]; ok {
