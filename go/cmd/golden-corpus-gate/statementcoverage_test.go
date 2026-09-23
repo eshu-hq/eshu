@@ -139,3 +139,31 @@ func TestRunStatementCoverageNeverExecuted(t *testing.T) {
 		t.Errorf("unexecuted builder passed the gate")
 	}
 }
+
+// An empty capture must fail the gate with the fail-closed finding:
+// passing with zero recordings would prove nothing. Asserting the
+// recorded check (not just the phase error) pins the total == 0 branch:
+// without it the empty report fails opaquely via Report.Failed, so a
+// phase-level assertion cannot tell the branch apart from no checks.
+func TestRunStatementCoverageEmptyCaptureFails(t *testing.T) {
+	manifest := writeCoverageManifest(t)
+	empty := t.TempDir()
+	var stdout bytes.Buffer
+	var r Report
+	o := options{coverageManifest: manifest, coverageDirs: empty}
+	if err := runStatementCoverage(o, &stdout, &r); err != nil {
+		t.Fatalf("runStatementCoverage: %v", err)
+	}
+	found := false
+	for _, f := range r.Findings {
+		if f.Phase == "statement-coverage" && f.Check == "statements_executed" {
+			found = true
+			if f.OK || !f.Required {
+				t.Errorf("empty capture finding = %+v, want required fail", f)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("empty capture recorded no statements_executed check (findings: %+v)", r.Findings)
+	}
+}
