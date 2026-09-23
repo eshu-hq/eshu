@@ -9,9 +9,9 @@ relationship builder in `internal/query`, the deployment trace in
 `internal/query/impact`, the GitOps helpers in `internal/query/impacttrace`,
 and the port fake in `internal/query/querytestutil`. Before the move they
 reached one implementation in `querycontract` through a set of unexported
-wrappers in package `query` (`k8s_match_alias.go`, added by #6060). The wrappers
-were compatibility only; #6642 retires aliases, so the implementation now has a
-name callers use directly.
+wrappers on package `query`, added for #6060 compatibility and deleted with
+this move. #6642 retires aliases, so the implementation now has a name callers
+use directly.
 
 Keeping one implementation is the point. Namespace equality gates matching, so
 two derivations of a namespace that disagree by a trailing space produce two

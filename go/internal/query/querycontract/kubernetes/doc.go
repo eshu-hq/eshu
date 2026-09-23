@@ -34,8 +34,9 @@
 // holds a scanned string this signature cannot take. Both apply the same
 // strings.TrimSpace today and are the pair to keep in step.
 //
-// The package depends on its parent for three shared types and nothing else,
-// and the parent does not depend on it. Callers name these identifiers
-// directly: the compatibility wrappers that once carried them on package query
-// were removed with the move (#6642 retains no aliases).
+// The package depends on its parent for three shared symbols and nothing
+// else -- the types EntityContent and K8sSelectCandidate, and the function
+// SafeStr -- and the parent does not depend on it. Callers name these
+// identifiers directly: the compatibility wrappers that once carried them on
+// package query were removed with the move (#6642 retains no aliases).
 package kubernetes
