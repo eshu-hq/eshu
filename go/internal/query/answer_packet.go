@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -29,20 +30,21 @@ const (
 	AnswerTruthUnsupported         = querycontract.AnswerTruthUnsupported
 )
 
-// AnswerPacket aliases querycontract.AnswerPacket. The implementation moved
-// to querycontract for #6060; this alias keeps root callers unchanged.
-type AnswerPacket = querycontract.AnswerPacket
+// AnswerPacket aliases answer.AnswerPacket. The implementation moved to
+// querycontract for #6060 and on to querycontract/answer for #6597; this alias
+// keeps root callers and the packages outside go/internal/query unchanged.
+type AnswerPacket = answer.AnswerPacket
 
-// AnswerPacketInput aliases querycontract.AnswerPacketInput. The
-// implementation moved to querycontract for #6060; this alias keeps root
-// callers unchanged.
-type AnswerPacketInput = querycontract.AnswerPacketInput
+// AnswerPacketInput aliases answer.AnswerPacketInput. The implementation
+// moved to querycontract for #6060 and on to querycontract/answer for #6597;
+// this alias keeps root callers unchanged.
+type AnswerPacketInput = answer.AnswerPacketInput
 
-// NewAnswerPacket forwards to querycontract.NewAnswerPacket. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
+// NewAnswerPacket forwards to answer.NewAnswerPacket. The implementation
+// moved to querycontract for #6060 and on to querycontract/answer for #6597;
+// this wrapper keeps root callers unchanged.
 func NewAnswerPacket(in AnswerPacketInput) AnswerPacket {
-	return querycontract.NewAnswerPacket(in)
+	return answer.NewAnswerPacket(in)
 }
 
 // NewAnswerPacketFromCitations composes an AnswerPacket from an evidence
@@ -68,28 +70,15 @@ func NewAnswerPacketFromCitations(in AnswerPacketInput, citation evidence.Eviden
 	return NewAnswerPacket(in)
 }
 
-// ClassifyAnswerTruth forwards to querycontract.ClassifyAnswerTruth. It lets
+// ClassifyAnswerTruth forwards to answer.ClassifyAnswerTruth. It lets
 // sibling packages (for example the answer-quality scorecard) re-derive the
 // prompt-facing AnswerTruthClass a TruthEnvelope should map to, so they can
 // detect a section whose serialized truth class was upgraded relative to its
 // envelope without duplicating the mapping. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
+// querycontract for #6060 and on to querycontract/answer for #6597; this
+// wrapper keeps root callers unchanged.
 func ClassifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
-	return querycontract.ClassifyAnswerTruth(truth)
-}
-
-// cloneTruthEnvelope forwards to querycontract.CloneTruthEnvelope. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers (investigation_packet_build.go) unchanged.
-func cloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
-	return querycontract.CloneTruthEnvelope(truth)
-}
-
-// freshnessReason forwards to querycontract.FreshnessReason. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers (investigation_packet_build.go) unchanged.
-func freshnessReason(base string, cause FreshnessCause) string {
-	return querycontract.FreshnessReason(base, cause)
+	return answer.ClassifyAnswerTruth(truth)
 }
 
 // appendReason forwards to querycontract.AppendReason. The implementation

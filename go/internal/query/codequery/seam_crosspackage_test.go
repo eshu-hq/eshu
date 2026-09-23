@@ -24,8 +24,8 @@ import (
 // language/handler.go, language/metadata.go, entity/metadata.go,
 // content_reader_dead_code.go, content_reader_dead_code_cross_repo.go,
 // content_reader_security_secrets.go, content_reader.go,
-// content_reader_code_topic.go, answer_packet_routes.go, and
-// family_impact_change_surface_code.go) will be in once the 39-file code
+// content_reader_code_topic.go, and family_impact_change_surface_code.go)
+// will be in once the 39-file code
 // family moves to its own subpackage. It exercises the same reads those
 // files make today through the unexported originals. If any accessor stops
 // delegating, this fails; if any seam name is removed, it fails to compile.
@@ -93,9 +93,8 @@ func TestCodeSeamCrossPackageAccess(t *testing.T) {
 		t.Fatal("CodeTopicSearchTerms(locking synchronization, ...) = empty, want at least one term")
 	}
 
-	// CodeTopicInvestigationRequest: answer_packet_routes.go and
-	// content_reader_code_topic.go both build and read this request shape
-	// from outside the code move set.
+	// CodeTopicInvestigationRequest: content_reader_code_topic.go builds and
+	// reads this request shape from outside the code move set.
 	investigation := codequery.CodeTopicInvestigationRequest{
 		Topic:                "auth flow",
 		RepoID:               "r1",

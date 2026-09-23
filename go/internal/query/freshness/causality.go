@@ -5,6 +5,7 @@ package freshness
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // Cause is the closed reason a truth response is not fresh.
@@ -45,5 +46,5 @@ func WithCause(truth *querycontract.TruthEnvelope, cause Cause) {
 // (StatusHandler.getFreshnessCausality) renders it through the
 // freshnessNextCheckAsRecommendedCall forwarder in freshness_alias.go.
 func NextCheckAsRecommendedCall(next NextCheck) map[string]any {
-	return querycontract.FreshnessNextCheckAsRecommendedCall(next)
+	return answer.FreshnessNextCheckAsRecommendedCall(next)
 }

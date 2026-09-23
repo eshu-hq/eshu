@@ -6,7 +6,7 @@ package model
 import (
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 var incidentEvidenceSlotOrder = []IncidentEvidenceSlot{
@@ -225,7 +225,7 @@ func defaultIncidentContextExplanation(
 // an already-built response payload. It moved here from the query root's
 // answer_metadata_alias.go with the incident-context response assembly
 // (#6060, lane B S2): BuildIncidentContextResponse above is its only caller.
-func incidentContextAnswerMetadata(response IncidentContextResponse) querycontract.AnswerMetadata {
+func incidentContextAnswerMetadata(response IncidentContextResponse) answer.AnswerMetadata {
 	missing := make([]map[string]any, 0, len(response.MissingEvidence))
 	for _, item := range response.MissingEvidence {
 		missing = append(missing, map[string]any{
@@ -260,7 +260,7 @@ func incidentContextAnswerMetadata(response IncidentContextResponse) querycontra
 			"truncated":            response.Truncated,
 		},
 	}
-	return querycontract.BuildAnswerMetadata(data)
+	return answer.BuildAnswerMetadata(data)
 }
 
 func orderedIncidentContextEdges(

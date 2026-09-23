@@ -86,9 +86,9 @@ type CodeTopicContentInvestigator = codequery.CodeTopicContentInvestigator
 type CodeTopicEvidenceRow = codequery.CodeTopicEvidenceRow
 
 // CodeTopicInvestigationRequest is the exported seam for
-// codeTopicInvestigationRequest, which answer_packet_routes.go,
-// content_reader_code_topic.go, and family_impact_change_surface_code.go read
-// from outside the code move set. See #6060.
+// codeTopicInvestigationRequest, which content_reader_code_topic.go and
+// family_impact_change_surface_code.go read from outside the code move set.
+// See #6060.
 type CodeTopicInvestigationRequest = codequery.CodeTopicInvestigationRequest
 
 // CrossRepoDeadCodeEvidence is the exported seam for crossRepoDeadCodeEvidence,

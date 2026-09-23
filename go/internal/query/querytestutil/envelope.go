@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // ArgoCDControllerFixture builds a minimal argocd_application controller map
@@ -47,12 +48,12 @@ func AssertAnswerMetadata(t *testing.T, name string, data map[string]any) {
 	if !ok {
 		t.Fatalf("%s missing answer_metadata: %#v", name, data)
 	}
-	metadata, ok := raw.(querycontract.AnswerMetadata)
+	metadata, ok := raw.(answer.AnswerMetadata)
 	if !ok {
 		t.Fatalf("%s answer_metadata type = %T, want AnswerMetadata", name, raw)
 	}
-	if metadata.SchemaVersion != querycontract.AnswerMetadataSchemaVersion {
-		t.Fatalf("%s schema_version = %q, want %q", name, metadata.SchemaVersion, querycontract.AnswerMetadataSchemaVersion)
+	if metadata.SchemaVersion != answer.AnswerMetadataSchemaVersion {
+		t.Fatalf("%s schema_version = %q, want %q", name, metadata.SchemaVersion, answer.AnswerMetadataSchemaVersion)
 	}
 	if metadata.Coverage == nil {
 		t.Fatalf("%s coverage is nil", name)

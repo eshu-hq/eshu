@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
-
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -36,7 +36,7 @@ func BuildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
 	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, InvestigationOptions{})
 	evidence.AttachEvidenceBoundaries(response, "get_service_story")
-	return querycontract.AttachAnswerMetadata(response)
+	return answer.AttachAnswerMetadata(response)
 }
 
 type serviceStoryBuildContext struct {

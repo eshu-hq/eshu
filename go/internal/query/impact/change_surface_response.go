@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // ErrChangeSurfaceRepoNotGranted is returned by changeSurfaceCodeSurface when
@@ -182,7 +183,7 @@ func (h *Handler) changeSurfaceResponse(
 	if req.Environment != "" {
 		resp["environment"] = req.Environment
 	}
-	return querycontract.AttachAnswerMetadata(resp)
+	return answer.AttachAnswerMetadata(resp)
 }
 
 func splitImpactRows(rows []map[string]any) ([]map[string]any, []map[string]any) {

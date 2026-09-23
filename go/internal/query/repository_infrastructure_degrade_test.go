@@ -141,7 +141,7 @@ func TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing
 // at all -- but ListRepoEntities returns no rows, so
 // queryRepoInfrastructureRows falls through to the graph read that then
 // fails. Asserts all three: 200 with the story response intact, the
-// limitations entry present (which attachAnswerMetadata converts into
+// limitations entry present (which answer.AttachAnswerMetadata converts into
 // answer_metadata.partial_reasons), and the stage log failure_class.
 func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) {
 	t.Parallel()

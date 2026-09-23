@@ -8,24 +8,25 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // The incident-context answer-packet companion (#6060, lane B S2). These
 // declarations moved here verbatim from the query root's
 // answer_packet_routes.go with the incident handler: the handler above is
-// their only caller, and the service-story companion that shared that file
-// stays at the root.
+// their only caller. The service-story companion that shared that file now
+// lives in querycontract/answer, and the file itself is gone (#6597).
 
 // incidentContextAnswerResponse pairs one incident-context response with
 // its answer packet companion.
 type incidentContextAnswerResponse struct {
 	model.IncidentContextResponse
-	AnswerPacket querycontract.AnswerPacket `json:"answer_packet"`
+	AnswerPacket answer.AnswerPacket `json:"answer_packet"`
 }
 
 func incidentContextAnswerData(incidentID string, response model.IncidentContextResponse, truth *querycontract.TruthEnvelope) incidentContextAnswerResponse {
 	envelope := &querycontract.ResponseEnvelope{Data: response, Truth: truth, Error: nil}
-	packet := querycontract.NewAnswerPacket(querycontract.AnswerPacketInput{
+	packet := answer.NewAnswerPacket(answer.AnswerPacketInput{
 		PromptFamily: "incident.context",
 		Question:     fmt.Sprintf("Build incident context for %s.", incidentID),
 		PrimaryTool:  "get_incident_context",

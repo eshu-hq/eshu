@@ -28,8 +28,8 @@ import (
 // copy that reason into answer_metadata.partial_reasons -- but before this
 // fix buildServiceResultLimitsWithContext computed result_limits.truncated
 // from endpoint/upstream/dependent/consumer counts only, never looking at
-// "limitations". BuildAnswerMetadata (answer_metadata.go) and
-// serviceStoryAnswerData (answer_packet_routes.go) both read truncation from
+// "limitations". answer.BuildAnswerMetadata and answer.ServiceStoryAnswerData
+// (both in querycontract/answer) read truncation from
 // data["truncated"] (absent on the story response) or
 // result_limits.truncated, neither of which included the infrastructure cap,
 // so answer_metadata.truncated and the answer_packet's own "truncated" field

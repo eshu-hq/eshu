@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package answer
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const answerMetadataSchemaVersion = AnswerMetadataSchemaVersion
@@ -33,8 +35,9 @@ type AnswerMetadata struct {
 
 // AttachAnswerMetadata derives the normalized answer companion from an
 // already-built response payload and stores it under "answer_metadata".
-// Exported because the impact handler-family subpackage (#6060 lane B2) and
-// package query both attach it from outside this package.
+// Exported because the handler families (impact, codequery, repository,
+// service) and root package query attach it from outside this package
+// (#6060, #6597).
 func AttachAnswerMetadata(data map[string]any) map[string]any {
 	if data == nil {
 		return data
@@ -47,7 +50,7 @@ func AttachAnswerMetadata(data map[string]any) map[string]any {
 // response payload. It does not fetch, infer, or mutate source truth.
 func BuildAnswerMetadata(data map[string]any) AnswerMetadata {
 	coverage := answerMetadataCoverage(data)
-	truncated := BoolVal(data, "truncated") || BoolVal(coverage, "truncated")
+	truncated := querycontract.BoolVal(data, "truncated") || querycontract.BoolVal(coverage, "truncated")
 	metadata := AnswerMetadata{
 		SchemaVersion:        answerMetadataSchemaVersion,
 		EvidenceHandles:      answerMetadataEvidenceHandles(data),
@@ -76,13 +79,13 @@ func answerMetadataFromRaw(raw any) (AnswerMetadata, bool) {
 		return typed.WithDefaults(), true
 	case map[string]any:
 		metadata := AnswerMetadata{
-			SchemaVersion:        StringVal(typed, "schema_version"),
+			SchemaVersion:        querycontract.StringVal(typed, "schema_version"),
 			EvidenceHandles:      metadataMapRows(typed["evidence_handles"]),
 			MissingEvidence:      metadataMapRows(typed["missing_evidence"]),
 			Limitations:          metadataMapRows(typed["limitations"]),
-			Truncated:            BoolVal(typed, "truncated"),
-			Coverage:             CopyMap(MapValue(typed, "coverage")),
-			PartialReasons:       StringSliceVal(typed, "partial_reasons"),
+			Truncated:            querycontract.BoolVal(typed, "truncated"),
+			Coverage:             querycontract.CopyMap(querycontract.MapValue(typed, "coverage")),
+			PartialReasons:       querycontract.StringSliceVal(typed, "partial_reasons"),
 			RecommendedNextCalls: metadataMapRows(typed["recommended_next_calls"]),
 		}
 		return metadata.WithDefaults(), metadata.SchemaVersion != ""
@@ -122,8 +125,8 @@ func (metadata AnswerMetadata) WithDefaults() AnswerMetadata {
 
 func answerMetadataCoverage(data map[string]any) map[string]any {
 	for _, key := range []string{"coverage", "coverage_summary", "result_limits"} {
-		if coverage := MapValue(data, key); len(coverage) > 0 {
-			return CopyMap(coverage)
+		if coverage := querycontract.MapValue(data, key); len(coverage) > 0 {
+			return querycontract.CopyMap(coverage)
 		}
 	}
 	return map[string]any{}
@@ -136,7 +139,7 @@ func answerMetadataEvidenceHandles(data map[string]any) []map[string]any {
 	handles = appendSourceHandles(handles, data["evidence_groups"])
 	handles = appendSourceHandles(handles, data["matched_files"])
 	handles = appendSourceHandles(handles, data["matched_symbols"])
-	handles = appendNestedSourceHandles(handles, MapValue(data, "code_surface"), "changed_files", "touched_symbols", "evidence_groups")
+	handles = appendNestedSourceHandles(handles, querycontract.MapValue(data, "code_surface"), "changed_files", "touched_symbols", "evidence_groups")
 	handles = appendEvidenceHandleFields(handles, data["direct_impact"])
 	handles = appendEvidenceHandleFields(handles, data["transitive_impact"])
 	return dedupeMetadataRows(handles, "kind", "repo_id", "relative_path", "entity_id", "start_line", "end_line", "reason")
@@ -180,12 +183,12 @@ func appendMetadataHandles(handles []map[string]any, raw any) []map[string]any {
 func normalizeMetadataHandle(row map[string]any) map[string]any {
 	handle := map[string]any{}
 	for _, key := range []string{"kind", "repo_id", "relative_path", "entity_id", "evidence_family", "reason"} {
-		if value := strings.TrimSpace(StringVal(row, key)); value != "" {
+		if value := strings.TrimSpace(querycontract.StringVal(row, key)); value != "" {
 			handle[key] = value
 		}
 	}
 	for _, key := range []string{"start_line", "end_line"} {
-		if value := IntVal(row, key); value > 0 {
+		if value := querycontract.IntVal(row, key); value > 0 {
 			handle[key] = value
 		}
 	}
@@ -213,7 +216,7 @@ func answerMetadataMissingEvidence(data map[string]any) []map[string]any {
 func nestedReasonRows(data map[string]any, keys ...string) []map[string]any {
 	current := data
 	for _, key := range keys[:len(keys)-1] {
-		current = MapValue(current, key)
+		current = querycontract.MapValue(current, key)
 		if current == nil {
 			return nil
 		}
@@ -223,8 +226,8 @@ func nestedReasonRows(data map[string]any, keys ...string) []map[string]any {
 
 func answerMetadataLimitations(data map[string]any) []map[string]any {
 	limitations := metadataReasonRows(data["limitations"])
-	limitations = append(limitations, metadataReasonRows(MapValue(data, "service_identity")["limitations"])...)
-	if BoolVal(data, "truncated") {
+	limitations = append(limitations, metadataReasonRows(querycontract.MapValue(data, "service_identity")["limitations"])...)
+	if querycontract.BoolVal(data, "truncated") {
 		limitations = append(limitations, map[string]any{
 			"kind":   "result_truncated",
 			"reason": "result truncated; not all evidence is included",
@@ -245,7 +248,7 @@ func answerMetadataPartialReasons(metadata AnswerMetadata) []string {
 	if len(metadata.MissingEvidence) > 0 {
 		reasons = appendUniqueReason(reasons, "missing_evidence")
 	}
-	if state := strings.TrimSpace(StringVal(metadata.Coverage, "state")); state != "" {
+	if state := strings.TrimSpace(querycontract.StringVal(metadata.Coverage, "state")); state != "" {
 		switch state {
 		case "complete", "exact", "fresh", "supported":
 		default:
@@ -253,9 +256,9 @@ func answerMetadataPartialReasons(metadata AnswerMetadata) []string {
 		}
 	}
 	for _, limitation := range metadata.Limitations {
-		reason := StringVal(limitation, "kind")
+		reason := querycontract.StringVal(limitation, "kind")
 		if reason == "" {
-			reason = StringVal(limitation, "reason")
+			reason = querycontract.StringVal(limitation, "reason")
 		}
 		reasons = appendUniqueReason(reasons, reason)
 	}
@@ -268,10 +271,10 @@ func metadataReasonRows(raw any) []map[string]any {
 		if len(row) == 0 {
 			continue
 		}
-		out := CopyMap(row)
+		out := querycontract.CopyMap(row)
 		if out["reason"] == nil {
 			for _, key := range []string{"explanation", "message", "slot", "kind"} {
-				if reason := strings.TrimSpace(StringVal(out, key)); reason != "" {
+				if reason := strings.TrimSpace(querycontract.StringVal(out, key)); reason != "" {
 					out["reason"] = reason
 					break
 				}
@@ -287,11 +290,11 @@ func metadataMapRows(raw any) []map[string]any {
 	case nil:
 		return []map[string]any{}
 	case map[string]any:
-		return []map[string]any{CopyMap(typed)}
+		return []map[string]any{querycontract.CopyMap(typed)}
 	case []map[string]any:
 		rows := make([]map[string]any, 0, len(typed))
 		for _, row := range typed {
-			rows = append(rows, CopyMap(row))
+			rows = append(rows, querycontract.CopyMap(row))
 		}
 		return rows
 	case []any:
@@ -299,7 +302,7 @@ func metadataMapRows(raw any) []map[string]any {
 		for _, item := range typed {
 			switch value := item.(type) {
 			case map[string]any:
-				rows = append(rows, CopyMap(value))
+				rows = append(rows, querycontract.CopyMap(value))
 			case string:
 				if text := strings.TrimSpace(value); text != "" {
 					rows = append(rows, map[string]any{"reason": text})

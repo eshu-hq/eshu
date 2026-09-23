@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package answer
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -34,7 +35,7 @@ type AnswerPacket struct {
 	// PrimaryRoute is the HTTP route that produced the result.
 	PrimaryRoute string `json:"primary_route,omitempty"`
 	// TruthClass is the derived prompt-facing truth classification.
-	TruthClass AnswerTruthClass `json:"truth_class"`
+	TruthClass querycontract.AnswerTruthClass `json:"truth_class"`
 	// Summary is the human-readable answer. It is empty whenever Supported is
 	// false or the answer is partial with no resolved evidence.
 	Summary string `json:"summary,omitempty"`
@@ -53,7 +54,7 @@ type AnswerPacket struct {
 	// Truth is a copy of the envelope's TruthEnvelope. It is the canonical truth
 	// metadata for the answer and is nil only for unsupported answers built from
 	// an error.
-	Truth *TruthEnvelope `json:"truth,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth,omitempty"`
 	// Limitations carries bounded, human-readable caveats (limit caps, scope
 	// bounds).
 	Limitations []string `json:"limitations,omitempty"`
@@ -116,7 +117,7 @@ type AnswerPacketInput struct {
 	RecommendedNextCalls []map[string]any
 	// Envelope is the canonical ResponseEnvelope. It supplies truth or error and
 	// is required; a nil envelope yields an unsupported packet.
-	Envelope *ResponseEnvelope
+	Envelope *querycontract.ResponseEnvelope
 }
 
 // NewAnswerPacket composes an AnswerPacket from an existing ResponseEnvelope.
@@ -151,8 +152,8 @@ func NewAnswerPacket(in AnswerPacketInput) AnswerPacket {
 
 	truth := answerPacketEnvelopeTruth(in.Envelope)
 	if truth == nil {
-		return finalizeUnsupportedAnswerPacket(packet, &ErrorEnvelope{
-			Code:    ErrorCodeInternalError,
+		return finalizeUnsupportedAnswerPacket(packet, &querycontract.ErrorEnvelope{
+			Code:    querycontract.ErrorCodeInternalError,
 			Message: "response envelope carried neither truth nor error",
 		})
 	}
@@ -183,40 +184,40 @@ func NewAnswerPacket(in AnswerPacketInput) AnswerPacket {
 // moved from root's answer_packet.go for #6060; root's own ClassifyAnswerTruth
 // (which sibling packages such as the answer-quality scorecard use to
 // re-derive a truth class) now forwards here.
-func ClassifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
+func ClassifyAnswerTruth(truth *querycontract.TruthEnvelope) querycontract.AnswerTruthClass {
 	if truth == nil {
-		return AnswerTruthUnsupported
+		return querycontract.AnswerTruthUnsupported
 	}
 	switch {
-	case truth.Basis == TruthBasisSemanticFacts && truth.Level == TruthLevelExact:
-		return AnswerTruthSemanticObservation
-	case truth.Basis == TruthBasisAuthoritativeGraph && truth.Level == TruthLevelExact:
-		return AnswerTruthDeterministic
-	case truth.Basis == TruthBasisNoBackendRead:
+	case truth.Basis == querycontract.TruthBasisSemanticFacts && truth.Level == querycontract.TruthLevelExact:
+		return querycontract.AnswerTruthSemanticObservation
+	case truth.Basis == querycontract.TruthBasisAuthoritativeGraph && truth.Level == querycontract.TruthLevelExact:
+		return querycontract.AnswerTruthDeterministic
+	case truth.Basis == querycontract.TruthBasisNoBackendRead:
 		// Stated ahead of the level rule below rather than left to it. The
 		// level is already fallback (basisLevel fixes it there), so this
 		// changes no outcome today -- it pins the outcome so a future level
 		// rule cannot promote a page that read nothing.
-		return AnswerTruthFallback
-	case truth.Basis == TruthBasisContentIndex && truth.Level != TruthLevelExact:
-		return AnswerTruthCodeHint
-	case truth.Level == TruthLevelFallback:
-		return AnswerTruthFallback
+		return querycontract.AnswerTruthFallback
+	case truth.Basis == querycontract.TruthBasisContentIndex && truth.Level != querycontract.TruthLevelExact:
+		return querycontract.AnswerTruthCodeHint
+	case truth.Level == querycontract.TruthLevelFallback:
+		return querycontract.AnswerTruthFallback
 	default:
-		return AnswerTruthDerived
+		return querycontract.AnswerTruthDerived
 	}
 }
 
 // finalizeUnsupportedAnswerPacket stamps an unsupported packet from an error
 // envelope: it clears the proposed summary, sets the unsupported truth
 // class, and records the error as an unsupported reason.
-func finalizeUnsupportedAnswerPacket(packet AnswerPacket, errEnv *ErrorEnvelope) AnswerPacket {
+func finalizeUnsupportedAnswerPacket(packet AnswerPacket, errEnv *querycontract.ErrorEnvelope) AnswerPacket {
 	packet.Supported = false
 	packet.Partial = false
 	packet.Summary = ""
 	packet.Truth = nil
-	packet.TruthClass = AnswerTruthUnsupported
-	packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons, unsupportedAnswerPacketReason(errEnv))
+	packet.TruthClass = querycontract.AnswerTruthUnsupported
+	packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons, unsupportedAnswerPacketReason(errEnv))
 	return packet
 }
 
@@ -227,27 +228,27 @@ func finalizeUnsupportedAnswerPacket(packet AnswerPacket, errEnv *ErrorEnvelope)
 // folded into the partial reasons and its bounded next check is surfaced as
 // a recommended next call, so the packet explains WHY the answer lags and
 // WHERE to drill in.
-func markAnswerPacketPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvidence bool, missingEvidence bool) {
+func markAnswerPacketPartial(packet *AnswerPacket, truth *querycontract.TruthEnvelope, hasEvidence bool, missingEvidence bool) {
 	if packet.Truncated {
 		packet.Partial = true
-		packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons,
+		packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons,
 			"result truncated; not all evidence is included")
 	}
 	if missingEvidence {
 		packet.Partial = true
-		packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons,
+		packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons,
 			"some requested evidence could not be resolved")
 	}
 	switch truth.Freshness.State {
-	case FreshnessStale:
+	case querycontract.FreshnessStale:
 		packet.Partial = true
-		packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons,
+		packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons,
 			FreshnessReason("underlying data is stale", truth.Freshness.Cause))
-	case FreshnessBuilding:
+	case querycontract.FreshnessBuilding:
 		packet.Partial = true
-		packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons,
+		packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons,
 			FreshnessReason("underlying index is still building", truth.Freshness.Cause))
-	case FreshnessFresh, FreshnessUnavailable:
+	case querycontract.FreshnessFresh, querycontract.FreshnessUnavailable:
 		// Neither adds a packet limitation. Fresh needs no caveat, and an
 		// unavailable freshness signal is already reported by the truth
 		// envelope itself rather than as an answer-packet reason. Listed
@@ -258,7 +259,7 @@ func markAnswerPacketPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvid
 	surfaceAnswerPacketFreshnessNextCheck(packet, truth.Freshness)
 	if !hasEvidence {
 		packet.Partial = true
-		packet.UnsupportedReasons = AppendReason(packet.UnsupportedReasons,
+		packet.UnsupportedReasons = querycontract.AppendReason(packet.UnsupportedReasons,
 			"no supporting evidence resolved for this question")
 	}
 }
@@ -267,10 +268,9 @@ func markAnswerPacketPartial(packet *AnswerPacket, truth *TruthEnvelope, hasEvid
 // one is present, keeping the base text intact when the cause is unset. It
 // never invents a cause; an empty or invalid cause leaves the base reason
 // unchanged. The implementation moved from root's answer_packet.go for
-// #6060; root's own freshnessReason (used directly by
-// investigation_packet_build.go) now forwards here.
-func FreshnessReason(base string, cause FreshnessCause) string {
-	if !ValidFreshnessCause(cause) {
+// #6060; root's investigation_packet_build.go calls it directly (#6597).
+func FreshnessReason(base string, cause querycontract.FreshnessCause) string {
+	if !querycontract.ValidFreshnessCause(cause) {
 		return base
 	}
 	return fmt.Sprintf("%s (cause: %s)", base, cause)
@@ -280,8 +280,8 @@ func FreshnessReason(base string, cause FreshnessCause) string {
 // the packet's recommended next calls when the freshness carries a proven
 // cause and check. It de-duplicates against existing calls so a
 // citation-derived call and a freshness drilldown do not collide.
-func surfaceAnswerPacketFreshnessNextCheck(packet *AnswerPacket, freshness TruthFreshness) {
-	if !ValidFreshnessCause(freshness.Cause) || freshness.NextCheck == nil {
+func surfaceAnswerPacketFreshnessNextCheck(packet *AnswerPacket, freshness querycontract.TruthFreshness) {
+	if !querycontract.ValidFreshnessCause(freshness.Cause) || freshness.NextCheck == nil {
 		return
 	}
 	call := FreshnessNextCheckAsRecommendedCall(*freshness.NextCheck)
@@ -313,7 +313,7 @@ func answerPacketRecommendedCallsEqual(a, b map[string]any) bool {
 // freshness_causality.go for #6060 so a handler-family subpackage can build
 // the same call without importing root; root's own copy later moved again to
 // freshness/causality.go (#6642), which forwards here unchanged.
-func FreshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any {
+func FreshnessNextCheckAsRecommendedCall(next querycontract.FreshnessNextCheck) map[string]any {
 	call := map[string]any{}
 	if tool := strings.TrimSpace(next.Tool); tool != "" {
 		call["tool"] = tool
@@ -334,14 +334,14 @@ func FreshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any
 	return call
 }
 
-func answerPacketEnvelopeError(env *ResponseEnvelope) *ErrorEnvelope {
+func answerPacketEnvelopeError(env *querycontract.ResponseEnvelope) *querycontract.ErrorEnvelope {
 	if env == nil {
 		return nil
 	}
 	return env.Error
 }
 
-func answerPacketEnvelopeTruth(env *ResponseEnvelope) *TruthEnvelope {
+func answerPacketEnvelopeTruth(env *querycontract.ResponseEnvelope) *querycontract.TruthEnvelope {
 	if env == nil {
 		return nil
 	}
@@ -350,9 +350,8 @@ func answerPacketEnvelopeTruth(env *ResponseEnvelope) *TruthEnvelope {
 
 // CloneTruthEnvelope returns a shallow copy of truth, or nil when truth is
 // nil. The implementation moved from root's answer_packet.go for #6060;
-// root's own cloneTruthEnvelope (used directly by
-// investigation_packet_build.go) now forwards here.
-func CloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
+// root's investigation_packet_build.go calls it directly (#6597).
+func CloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil
 	}
@@ -360,7 +359,7 @@ func CloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
 	return &cloned
 }
 
-func unsupportedAnswerPacketReason(errEnv *ErrorEnvelope) string {
+func unsupportedAnswerPacketReason(errEnv *querycontract.ErrorEnvelope) string {
 	if errEnv == nil {
 		return "answer unsupported"
 	}

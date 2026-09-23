@@ -27,7 +27,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Evidence-citation packet read models (#6642) | moved to `evidence/` (#6597) | callers name `evidence.EvidenceCitationHandle` and friends directly; root's unexported #6060 aliases were deleted with the move |
 | Language alias table and coverage maps | `language/registry.go` | unexported function forwarders |
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go` | 20 unexported type aliases in root, plus four exported ones |
-| `AnswerMetadata` attach helper | `answer_metadata.go` | exported type alias + wrapper in `answer_metadata_alias.go`; `AssertAnswerMetadata` pin in `impact/` test |
+| `AnswerMetadata` attach helper and the answer packet | moved to `answer/` (#6597) | callers name `answer.AttachAnswerMetadata`, `answer.NewAnswerPacket` and friends directly; root keeps the exported aliases in `answer_metadata_alias.go` and `answer_packet.go` that packages outside `go/internal/query` name; `AssertAnswerMetadata` pin in `impact/` test |
 | Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |
 | Evidence-boundary disclosures | moved to `evidence/` (#6597) | root's `evidence_boundaries.go` shim was deleted; callers name `evidence.AttachEvidenceBoundaries` directly |
 | Hostname environment inference | `hostname_environment.go` | root service-evidence callers reference directly |

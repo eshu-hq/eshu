@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 func TestServiceStoryAnswerDataAddsAnswerPacketCompanion(t *testing.T) {
@@ -23,7 +24,7 @@ func TestServiceStoryAnswerDataAddsAnswerPacketCompanion(t *testing.T) {
 		"result_limits": map[string]any{"truncated": false},
 	}
 
-	out := serviceStoryAnswerData("service-edge-api", data, truth)
+	out := answer.ServiceStoryAnswerData("service-edge-api", data, truth)
 	packet, ok := out["answer_packet"].(AnswerPacket)
 	if !ok {
 		t.Fatalf("answer_packet = %#v, want AnswerPacket", out["answer_packet"])

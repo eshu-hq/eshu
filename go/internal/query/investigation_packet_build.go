@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -111,7 +112,7 @@ func NewInvestigationEvidencePacket(in InvestigationPacketInput) (InvestigationE
 	packet := InvestigationEvidencePacket{
 		Schema:               InvestigationEvidencePacketSchema,
 		Identity:             buildPacketIdentity(in, basis),
-		Truth:                cloneTruthEnvelope(in.Truth),
+		Truth:                answer.CloneTruthEnvelope(in.Truth),
 		SourceFacts:          nonNilSlice(in.SourceFacts),
 		ReducerDecisions:     nonNilSlice(in.ReducerDecisions),
 		GraphAnswers:         nonNilSlice(in.GraphAnswers),
@@ -211,46 +212,46 @@ func buildPacketIdentity(in InvestigationPacketInput, basis PacketBasis) PacketI
 // AnswerPacket invariant: a confident summary survives only for a supported
 // answer that is either complete or still backed by resolved evidence.
 func buildPacketAnswer(in InvestigationPacketInput, packet *InvestigationEvidencePacket) PacketAnswer {
-	answer := PacketAnswer{
+	plan := PacketAnswer{
 		TruthClass:  ClassifyAnswerTruth(in.Truth),
 		Supported:   in.Truth != nil,
 		Limitations: dedupeStrings(in.Limitations),
 	}
-	if !answer.Supported {
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
+	if !plan.Supported {
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
 			"no truth envelope; the investigation resolved no answerable evidence")
-		return answer
+		return plan
 	}
 	if packet.Bounds.Truncated {
-		answer.Partial = true
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
+		plan.Partial = true
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
 			"packet truncated; not all evidence is included")
 	}
 	if len(packet.MissingEvidence) > 0 {
-		answer.Partial = true
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
+		plan.Partial = true
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
 			"some hops could not be resolved; see missing_evidence")
 	}
 	switch in.Truth.Freshness.State {
 	case FreshnessStale:
-		answer.Partial = true
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
-			freshnessReason("underlying data is stale", in.Truth.Freshness.Cause))
+		plan.Partial = true
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+			answer.FreshnessReason("underlying data is stale", in.Truth.Freshness.Cause))
 	case FreshnessBuilding:
-		answer.Partial = true
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
-			freshnessReason("underlying index is still building", in.Truth.Freshness.Cause))
+		plan.Partial = true
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
+			answer.FreshnessReason("underlying index is still building", in.Truth.Freshness.Cause))
 	}
 	hasEvidence := len(packet.SourceFacts) > 0 || len(packet.GraphAnswers) > 0 || len(packet.Citations) > 0
 	if !hasEvidence {
-		answer.Partial = true
-		answer.UnsupportedReasons = appendReason(answer.UnsupportedReasons,
+		plan.Partial = true
+		plan.UnsupportedReasons = appendReason(plan.UnsupportedReasons,
 			"no supporting evidence resolved for this investigation")
 	}
-	if !answer.Partial || hasEvidence {
-		answer.Summary = strings.TrimSpace(in.Summary)
+	if !plan.Partial || hasEvidence {
+		plan.Summary = strings.TrimSpace(in.Summary)
 	}
-	return answer
+	return plan
 }
 
 // applyPacketBounds caps each evidence layer and records truncation. It mutates

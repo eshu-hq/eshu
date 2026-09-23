@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -357,7 +358,7 @@ func preChangeImpactData(req preChangeImpactRequest, surface map[string]any) map
 	data["coverage"] = preChangeCoverage(req, surface)
 	data["truncated"] = boolMapValue(data["coverage"].(map[string]any), "truncated")
 	data["recommended_next_calls"] = preChangeNextCalls(data)
-	return querycontract.AttachAnswerMetadata(data)
+	return answer.AttachAnswerMetadata(data)
 }
 
 func preChangeMode(req preChangeImpactRequest) string {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 type environmentResourceComparison struct {
@@ -66,7 +67,7 @@ func environmentCompareResponse(
 		"recommended_next_calls": environmentCompareNextCalls(workload, req, comparison, leftTruncated || rightTruncated),
 		"coverage":               coverage,
 	}
-	return attachAnswerMetadata(resp)
+	return answer.AttachAnswerMetadata(resp)
 }
 
 func missingEnvironmentSnapshot(environment string) map[string]any {

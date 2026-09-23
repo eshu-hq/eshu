@@ -8,9 +8,10 @@ console answers) can present a short human answer while keeping the machine-
 readable envelope as the source of truth, the truth labels intact, and the
 evidence handles addressable.
 
-The implementation lives in `go/internal/query/answer_packet.go`. It builds on
-the truth, error, and evidence-citation contracts already defined in
-`go/internal/query/envelope_aliases.go` and `go/internal/query/evidence_citation.go`.
+The implementation lives in `go/internal/query/querycontract/answer/packet.go`.
+It builds on the truth and error contracts in
+`go/internal/query/querycontract/truth.go` and the evidence-citation contract in
+`go/internal/query/querycontract/evidence/citation.go`.
 Read the [Truth Label Protocol](truth-label-protocol.md) first: the answer
 packet does not redefine truth, it classifies and surfaces the truth the query
 layer already produced.

@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
@@ -15,7 +16,7 @@ import (
 // names the root AnswerPacket cluster, which cannot cross into the impact
 // subpackage. See #6060.
 func attachPreChangeImpactPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
-	metadata, _ := AnswerMetadataFromData(data)
+	metadata, _ := answer.AnswerMetadataFromData(data)
 	envelope := &querycontract.ResponseEnvelope{Data: data, Truth: truth, Error: nil}
 	data["answer_packet"] = NewAnswerPacketFromMetadata(AnswerPacketInput{
 		PromptFamily: "pre_change.impact",
@@ -35,7 +36,7 @@ func attachPreChangeImpactPacket(data map[string]any, summary string, truth *que
 // cluster, which cannot cross into that package. The plan summary stays
 // caller-built alongside the payload. See #6060.
 func attachDeveloperChangePlanPacket(data map[string]any, summary string, truth *querycontract.TruthEnvelope) map[string]any {
-	metadata, _ := AnswerMetadataFromData(data)
+	metadata, _ := answer.AnswerMetadataFromData(data)
 	envelope := &querycontract.ResponseEnvelope{Data: data, Truth: truth, Error: nil}
 	data["answer_packet"] = NewAnswerPacketFromMetadata(AnswerPacketInput{
 		PromptFamily: "developer.change_plan",
