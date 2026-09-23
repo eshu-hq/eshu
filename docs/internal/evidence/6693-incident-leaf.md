@@ -85,9 +85,8 @@ and `tools/golangci-lint-dirgate/grandfather.go` was regenerated.
   `./internal/storage/postgres` exits 1 for every name (test no longer
   registered at root).
 - From the repo root: `bash scripts/verify-dirgate.sh --all`: exit 0, no
-  output. `bash scripts/verify-package-docs.sh`: exit 0 (no committed diff yet
-  at check time; the doc trio was written by hand against the semantic/scope
-  template and reviewed manually). `bash scripts/verify-performance-evidence.sh
+  output. `bash scripts/verify-package-docs.sh`, run on the committed branch:
+  exit 0, "changed Go package docs present". `bash scripts/verify-performance-evidence.sh
   origin/main`: exit 0, "benchmark and observability markers found for
   hot-path changes". `git diff --check`: exit 0, no output.
 - `rg` for `incident_repository_correlation_loader` (old filename) and
