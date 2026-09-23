@@ -135,13 +135,61 @@ Before committing a refreshed cassette:
   small and readable
 - confirm volatile fields normalized instead of churning the whole file
 - confirm secrets, tokens, private URLs, hostnames, IP addresses, and real
-  account identifiers are absent
+  account identifiers are absent, and run `scripts/verify-cassette-author.sh`,
+  whose private-data scan is the gate behind that rule (see
+  [Private-Data Gate](#private-data-gate))
 - run the proof gate named by the manifest entry
 - regenerate any generated dashboard or report only through the owning gate
 
 The credentialed refresh workflow is separate from ordinary proof. It may use
 provider secrets to re-record artifacts, but the resulting PR still needs
 offline replay validation before merge.
+
+## Private-Data Gate
+
+Cassettes carry synthetic or redacted values only, and the `cassette-author`
+gate (`scripts/verify-cassette-author.sh`, blocking, in the pre-push floor)
+enforces it over every file under `testdata/cassettes/`. Seven alternatives are
+scanned; a match is a candidate, and it passes only when it matches that
+alternative's committed allowlist, so an unlisted value fails rather than
+slipping past a blocklist:
+
+| Alternative | Allowed forms |
+| --- | --- |
+| `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) and loopback |
+| `nodeip` | EKS-style `ip-A-B-C-D` node names only in those documentation ranges or loopback |
+| `ipv6` | RFC 3849 `2001:db8::/32` and `::1`; six-group MAC addresses also land here, and only the RFC 7042 documentation block (`00:00:5e:00:53:xx`) and the all-zero MAC pass |
+| `account12` | `123456789012`, zero-prefixed `00000000000N`, and repdigits; twelve digits inside a hex digest are not a candidate |
+| `arn` | an empty, `aws`, or documentation account field |
+| `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
+| `identifier` | nothing; the committed canary `eshu-canary-org` plus every literal in `ESHU_PRIVATE_IDENTIFIERS_FILE` |
+
+The hostname alternative is lexical: a dotted token is a candidate only when
+its last label is in the gate's TLD list. The list covers the reserved names,
+common generic TLDs, in-cluster `svc`, enterprise and infrastructure zones
+(`.corp`, `.lan`, `.home`, `.intranet`, `.private`, `.consul`, `.aws`,
+`.arpa`, `.edu`, `.gov`, `.mil`, `.int`), and the country TLDs that do not
+collide with a file extension or a dotted code path in the corpus. A label
+after a bare dot starts a candidate, so wildcard hosts such as
+`*.apps.<zone>` are scanned. A domain under any TLD outside the list is a
+blind spot of this scan. That includes the TLDs deliberately left out because
+they collide with the corpus (`.in`, `.it`, `.is`, `.at`, `.no`, `.es`,
+`.cc`, `.pl`, `.rs`, `.tf`, `.sh`, `.md`, `.ps`, `.pm`, `.so`, `.am`, `.mk`,
+`.zip`, `.name`, `.email`, `.run`) and any other TLD not listed. That is why
+recordings also pass through the collectors' redaction layer and an
+independent re-validation before they are committed.
+
+A finding is reported as `file:line:alternative`; the value is never printed.
+The alternatives, the allowlist, and the controls that prove each still
+detects its planted sample and still admits each allowed form live in
+`scripts/lib/cassette_private_data_pattern.sh`. Widening the allowlist is a
+reviewed edit to that file with a new negative-control sample.
+
+Organisation and product identifiers never live in git. Point
+`ESHU_PRIVATE_IDENTIFIERS_FILE` at a file of literals (one per line, `#`
+comments allowed) to add them; when it is unset the scan says so on stderr and
+runs with the canary alone, and `ESHU_PRIVATE_IDENTIFIERS_REQUIRED=1` turns
+that into a failure. A configured file that is missing or empty always fails.
 
 ## Validation Commands
 
