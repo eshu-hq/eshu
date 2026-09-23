@@ -1,0 +1,22 @@
+scripts/lib/verify-live-tests-ledger.py
+  h_78a442cba0b3e6 1-16,19-53,57-118
+  h_78a442cba0b3e6 17-18,54-56
+scripts/test-verify-live-tests-ledger.sh
+  h_78a442cba0b3e6 1-134,191-193
+  h_78a442cba0b3e6 135-190
+scripts/verify-live-tests-ledger.sh
+  h_78a442cba0b3e6 1-28
+specs/live-tests.v1.yaml
+  h_78a442cba0b3e6 1-1690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cc829f76bccadd806789796298afd4efd8c777f7",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
