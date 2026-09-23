@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -181,7 +182,7 @@ func scanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
 		return facts.Envelope{}, err
 	}
 
-	payload, err := unmarshalPayload(rawPayload)
+	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
 		return facts.Envelope{}, err
 	}
@@ -277,7 +278,7 @@ func validateFactEnvelope(envelope facts.Envelope) error {
 	if observedAt.IsZero() {
 		return fmt.Errorf("fact %q observed_at must not be zero", envelope.FactID)
 	}
-	if !schemaVersionPattern.MatchString(emptyToDefault(envelope.SchemaVersion, "0.0.0")) {
+	if !schemaVersionPattern.MatchString(payloadstore.EmptyToDefault(envelope.SchemaVersion, "0.0.0")) {
 		return fmt.Errorf("fact %q schema_version must be semantic version", envelope.FactID)
 	}
 	if envelope.SourceConfidence != "" {

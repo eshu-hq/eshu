@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -285,7 +286,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 		payload["reason"] = intent.Reason
 		payload["fact_id"] = intent.FactID
 		payload["source_system"] = intent.SourceSystem
-		payloadJSON, err := marshalPayload(payload)
+		payloadJSON, err := payloadstore.MarshalPayload(payload)
 		if err != nil {
 			return 0, fmt.Errorf("marshal reducer payload: %w", err)
 		}

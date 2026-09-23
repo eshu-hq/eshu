@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
 // evidenceInsertColumns is the number of columns bound per evidence row in the
@@ -75,10 +76,10 @@ func (s *RelationshipStore) insertEvidenceFactBatch(
 			generationID,
 			string(f.EvidenceKind),
 			string(f.RelationshipType),
-			emptyToNil(f.SourceRepoID),
-			emptyToNil(f.TargetRepoID),
-			emptyToNil(f.SourceEntityID),
-			emptyToNil(f.TargetEntityID),
+			payloadstore.EmptyToNil(f.SourceRepoID),
+			payloadstore.EmptyToNil(f.TargetRepoID),
+			payloadstore.EmptyToNil(f.SourceEntityID),
+			payloadstore.EmptyToNil(f.TargetEntityID),
 			f.Confidence,
 			f.Rationale,
 			detailsJSON,

@@ -21,8 +21,8 @@ import (
 // Root cause: the git collector emits these facts with NO SchemaVersion
 // (git_followup_facts.go factEnvelope). The Postgres persist layer stores a
 // version-less fact as the sentinel "0.0.0"
-// (go/internal/storage/postgres/facts.go, facts_streaming.go
-// emptyToDefault(SchemaVersion, "0.0.0")), so a fact LOADED at reducer time
+// (go/internal/storage/postgres/facts.go, facts_streaming.go, calling
+// payloadstore.EmptyToDefault(SchemaVersion, "0.0.0")), so a fact LOADED at reducer time
 // carries SchemaVersion="0.0.0", not "". decodeLatestMajor only accepts
 // major=="1" and major("0.0.0")=="0", so the fact hit the default branch and
 // dead-lettered as ErrUnsupportedSchemaMajor. factschemaEnvelope only

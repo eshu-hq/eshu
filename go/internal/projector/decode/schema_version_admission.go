@@ -41,7 +41,7 @@ func validateCodegraphFactSchemaVersion(fact facts.Envelope) error {
 	version := strings.TrimSpace(fact.SchemaVersion)
 	// "" is a collector-emitted version-less fact; projectorPersistedVersionlessSchemaVersion
 	// ("0.0.0") is the sentinel the Postgres persist layer stamps for one
-	// (emptyToDefault in facts_streaming.go). The git collector emits file and
+	// (payloadstore.EmptyToDefault, called from facts_streaming.go). The git collector emits file and
 	// repository facts with no SchemaVersion, so a fact LOADED for projection
 	// carries "0.0.0" — the admission gate must accept it, mirroring the decode
 	// adapter's factschemaEnvelope normalization and the reducer's #4753 fix.

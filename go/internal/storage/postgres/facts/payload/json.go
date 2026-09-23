@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package payloadstore
 
 import (
 	"bytes"
@@ -9,7 +9,9 @@ import (
 	"fmt"
 )
 
-func marshalPayload(payload map[string]any) ([]byte, error) {
+// MarshalPayload encodes payload as Postgres-JSONB-safe JSON. An empty or nil
+// payload marshals to the empty object "{}" rather than "null".
+func MarshalPayload(payload map[string]any) ([]byte, error) {
 	if len(payload) == 0 {
 		return []byte("{}"), nil
 	}
@@ -91,7 +93,9 @@ func stripUnescapedJSONNulls(data []byte) []byte {
 	return append(cleaned, data[copyStart:]...)
 }
 
-func unmarshalPayload(raw []byte) (map[string]any, error) {
+// UnmarshalPayload decodes a JSONB payload column into a map. Empty input, or
+// a decoded empty object, returns a nil map with no error.
+func UnmarshalPayload(raw []byte) (map[string]any, error) {
 	if len(raw) == 0 {
 		return nil, nil
 	}
@@ -107,7 +111,9 @@ func unmarshalPayload(raw []byte) (map[string]any, error) {
 	return payload, nil
 }
 
-func emptyToNil(value string) any {
+// EmptyToNil returns nil for an empty string, or value otherwise. Callers use
+// it to bind optional string columns as SQL NULL instead of "".
+func EmptyToNil(value string) any {
 	if value == "" {
 		return nil
 	}
@@ -115,7 +121,8 @@ func emptyToNil(value string) any {
 	return value
 }
 
-func emptyToDefault(value, fallback string) string {
+// EmptyToDefault returns fallback when value is empty, or value otherwise.
+func EmptyToDefault(value, fallback string) string {
 	if value == "" {
 		return fallback
 	}

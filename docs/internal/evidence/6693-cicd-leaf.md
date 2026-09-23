@@ -122,16 +122,7 @@ under this tree has one either.
   `rg -n 'postgres\.NewCICDRunWatermarkStore|postgres\.CICDRunWatermarkStore'`
   across the repo returns nothing.
 
-Test repoints, checked with exact-name assertions after the rebase onto
-`874012542`: for each of the seven moved tests (`TestCICDRunWatermarkSchemaSQL`,
-`TestCICDRunWatermarkStoreSaveThenLoadRoundTrips`,
-`TestCICDRunWatermarkStoreLoadMissReturnsNotFound`,
-`TestCICDRunWatermarkStoreSaveRejectsOlderFence`,
-`TestCICDRunWatermarkStoreSaveRejectsInvalidWatermark`,
-`TestCICDRunWatermarkStoreLoadRejectsInvalidKey`,
-`TestCICDRunWatermarkStoreRequiresDatabase`),
-`go test ./internal/storage/postgres/cicd/... -list '^Name$' -count=1 | rg -q '^Name$'`
-exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
+Test repoints, checked with exact-name `-list` patterns: `go test ./internal/storage/postgres/cicd/... -list '^(TestCICDRunWatermarkSchemaSQL|TestCICDRunWatermarkStoreSaveThenLoadRoundTrips|TestCICDRunWatermarkStoreLoadMissReturnsNotFound|TestCICDRunWatermarkStoreSaveRejectsOlderFence|TestCICDRunWatermarkStoreSaveRejectsInvalidWatermark|TestCICDRunWatermarkStoreLoadRejectsInvalidKey|TestCICDRunWatermarkStoreRequiresDatabase)$' -count=1` prints all 7 moved names (`TestCICDRunWatermarkSchemaSQL`, `TestCICDRunWatermarkStoreSaveThenLoadRoundTrips`, `TestCICDRunWatermarkStoreLoadMissReturnsNotFound`, `TestCICDRunWatermarkStoreSaveRejectsOlderFence`, `TestCICDRunWatermarkStoreSaveRejectsInvalidWatermark`, `TestCICDRunWatermarkStoreLoadRejectsInvalidKey`, `TestCICDRunWatermarkStoreRequiresDatabase`), and the same `-list` pattern against `./internal/storage/postgres` prints none of them.
 
 No-Regression Evidence: this is a package-path move with no SQL, query,
 lock, lease, batch, or concurrency change. `Save`'s

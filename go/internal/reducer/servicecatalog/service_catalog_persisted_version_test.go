@@ -15,7 +15,8 @@ import (
 // counterpart to S1's codegraph corpus-gate regression test (PR #4753 /
 // issue #4749): it locks in that a service_catalog fact loaded from Postgres
 // carrying the persisted version-less sentinel ("0.0.0",
-// go/internal/storage/postgres/facts.go emptyToDefault) still decodes as the
+// go/internal/storage/postgres/facts.go, calling
+// go/internal/storage/postgres/facts/payload payloadstore.EmptyToDefault) still decodes as the
 // latest major, not dead-letters.
 //
 // service_catalog.* carries a REAL SchemaVersion ("1.0.0") end to end today —

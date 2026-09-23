@@ -29,8 +29,9 @@ is on (`go/internal/collector/repo/git/snapshot_dataflow_function.go`,
 `specs/fact-kind-registry.v1.yaml` (deferred to issue #4752): they are
 version-less on the wire, so the Postgres persist layer stamps
 `SchemaVersion="0.0.0"` for every one of them
-(`go/internal/storage/postgres/facts_streaming.go`
-`emptyToDefault(SchemaVersion, "0.0.0")`), which the reducer's
+(`go/internal/storage/postgres/facts_streaming.go`, calling
+`go/internal/storage/postgres/facts/payload`
+`payloadstore.EmptyToDefault(SchemaVersion, "0.0.0")`), which the reducer's
 `factschemaEnvelope` adapter normalizes to the latest major exactly like the
 codegraph family's `file`/`repository` kinds.
 

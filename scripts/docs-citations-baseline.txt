@@ -447,7 +447,6 @@ LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/obse
 LINE go/internal/parser/hcl/terraform_resource_attributes.go go/internal/correlation/drift/tfconfigstate/classify.go:171
 LINE go/internal/parser/json/line_number_derived_test.go go/internal/content/writer.go:196
 LINE go/internal/parser/yaml/image_overrides_environment.go go/internal/query/repository_deployment_evidence_read_model.go:349
-LINE go/internal/reducer/codedataflow_input_invalid_test.go go/internal/storage/postgres/facts_streaming.go:123
 LINE go/internal/reducer/tfconfigstate/terraform_config_state_drift.go go/internal/scope/tfstate.go:33
 LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/collector/git_fact_builder.go:480
 LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/parser/shared/shared.go:340

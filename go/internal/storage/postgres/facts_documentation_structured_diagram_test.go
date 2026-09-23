@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
 func TestFactStoreRoundTripsStructuredDiagramDocumentationFacts(t *testing.T) {
@@ -114,11 +115,11 @@ func structuredDiagramEnvelope(t *testing.T, kind string, key string, payload an
 }
 
 func structuredDiagramPayloadMap(payload any) (map[string]any, error) {
-	encoded, err := marshalPayload(structuredDiagramAnyMap(payload))
+	encoded, err := payloadstore.MarshalPayload(structuredDiagramAnyMap(payload))
 	if err != nil {
 		return nil, err
 	}
-	return unmarshalPayload(encoded)
+	return payloadstore.UnmarshalPayload(encoded)
 }
 
 func structuredDiagramAnyMap(payload any) map[string]any {
@@ -161,9 +162,9 @@ func structuredDiagramFactRows(t *testing.T, envelopes []facts.Envelope) [][]any
 
 	rows := make([][]any, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		payload, err := marshalPayload(envelope.Payload)
+		payload, err := payloadstore.MarshalPayload(envelope.Payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("payloadstore.MarshalPayload() error = %v, want nil", err)
 		}
 		rows = append(rows, []any{
 			envelope.FactID,

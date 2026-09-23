@@ -18,8 +18,9 @@ const (
 
 // gcpRelationshipPersistedVersionlessSchemaVersion is the sentinel the Postgres
 // persist layer stamps for a fact whose collector emitted no SchemaVersion
-// (emptyToDefault(envelope.SchemaVersion, "0.0.0") in
-// go/internal/storage/postgres/facts.go). A gcp_cloud_relationship fact loaded
+// (payloadstore.EmptyToDefault(envelope.SchemaVersion, "0.0.0") in
+// go/internal/storage/postgres/facts.go, calling
+// go/internal/storage/postgres/facts/payload). A gcp_cloud_relationship fact loaded
 // back for evidence discovery therefore carries this value rather than the empty
 // string, so decodeGCPCloudRelationship normalizes it (and the empty string an
 // in-memory fact carries before persistence) to the family's real major-1 schema

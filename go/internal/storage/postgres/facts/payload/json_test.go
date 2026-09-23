@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package payloadstore
 
 import (
 	"encoding/json"
@@ -17,9 +17,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 	t.Run("strips null unicode escapes", func(t *testing.T) {
 		t.Parallel()
 		payload := map[string]any{"content": "hello\u0000world"}
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 		if strings.Contains(string(data), `\u0000`) {
 			t.Fatalf("output contains \\u0000: %s", data)
@@ -34,9 +34,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 		const sourceText = `const delimiter = "\u0000"`
 		payload := map[string]any{"content": sourceText}
 
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 
 		var decoded map[string]any
@@ -53,9 +53,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 		const sourceText = `literal \u0000 stays`
 		payload := map[string]any{"content": sourceText + "\u0000removed"}
 
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 
 		var decoded map[string]any
@@ -72,9 +72,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 		const sourcePrefix = `literal backslash \`
 		payload := map[string]any{"content": sourcePrefix + "\u0000removed"}
 
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 
 		var decoded map[string]any
@@ -89,9 +89,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 	t.Run("strips raw control bytes", func(t *testing.T) {
 		t.Parallel()
 		payload := map[string]any{"content": "before\x01\x02\x03after"}
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 		for _, b := range data {
 			if b < 0x20 && b != '\t' && b != '\n' && b != '\r' {
@@ -103,9 +103,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 	t.Run("clean payload passes through unchanged", func(t *testing.T) {
 		t.Parallel()
 		payload := map[string]any{"name": "eshu"}
-		data, err := marshalPayload(payload)
+		data, err := MarshalPayload(payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 		if !strings.Contains(string(data), "eshu") {
 			t.Fatalf("missing content: %s", data)
@@ -114,9 +114,9 @@ func TestMarshalPayloadSanitizesForPostgresJSONB(t *testing.T) {
 
 	t.Run("empty payload returns empty object", func(t *testing.T) {
 		t.Parallel()
-		data, err := marshalPayload(nil)
+		data, err := MarshalPayload(nil)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("MarshalPayload() error = %v, want nil", err)
 		}
 		if string(data) != "{}" {
 			t.Fatalf("got %s, want {}", data)
@@ -134,7 +134,7 @@ func BenchmarkMarshalPayloadSourceText(b *testing.B) {
 			payload := map[string]any{"content": sourceText}
 			b.ReportAllocs()
 			for b.Loop() {
-				data, err := marshalPayload(payload)
+				data, err := MarshalPayload(payload)
 				if err != nil {
 					b.Fatal(err)
 				}

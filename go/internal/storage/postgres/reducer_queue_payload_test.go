@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
 func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
@@ -35,7 +36,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 	if _, err := queue.enqueueReducerBatch(context.Background(), []runtime.ReducerIntent{intent}, now); err != nil {
 		t.Fatalf("enqueueReducerBatch error: %v", err)
 	}
-	payload, err := unmarshalPayload(db.execs[0].args[7].([]byte))
+	payload, err := payloadstore.UnmarshalPayload(db.execs[0].args[7].([]byte))
 	if err != nil {
 		t.Fatalf("unmarshal enqueue payload: %v", err)
 	}

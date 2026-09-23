@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ocrdoc"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
 func TestFactStoreUpsertFactsPersistsOCRDocumentationFacts(t *testing.T) {
@@ -145,9 +146,9 @@ func factRowsFromEnvelopes(t *testing.T, envelopes []facts.Envelope) [][]any {
 
 	rows := make([][]any, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		payload, err := marshalPayload(envelope.Payload)
+		payload, err := payloadstore.MarshalPayload(envelope.Payload)
 		if err != nil {
-			t.Fatalf("marshalPayload() error = %v, want nil", err)
+			t.Fatalf("payloadstore.MarshalPayload() error = %v, want nil", err)
 		}
 		rows = append(rows, []any{
 			envelope.FactID,

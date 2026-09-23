@@ -121,7 +121,7 @@ vulnerability_sql_schema_lockstep_test.go -> facts/vulnerability_sql_schema_lock
 
 </details>
 
-### `facts/payload/` (1 non-test, 2 test)
+### `facts/payload/` (1 non-test, 1 test)
 
 ```text
 facts_payload.go -> facts/payload/json.go
@@ -131,7 +131,6 @@ facts_payload.go -> facts/payload/json.go
 
 ```text
 facts_payload_test.go -> facts/payload/json_test.go
-proof_domain_terraform_support_test.go -> facts/payload/proof_domain_terraform_support_test.go
 ```
 
 </details>

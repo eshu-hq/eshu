@@ -300,11 +300,11 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 377 | it only needs its own package and packages below it |
+| in-package test | 376 | it only needs its own package and packages below it |
 | external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 87 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
-| stays in root | 71 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root | 72 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -339,7 +339,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 1. [x] `scope/` (new leaf; receives hoisted helpers only)
 2. [x] `cicd/` (1 file)
 3. [x] `decisions/` (1 file)
-4. [ ] `facts/payload/` (1 file)
+4. [x] `facts/payload/` (1 file)
 5. [ ] `iac/` (1 file)
 6. [ ] `incident/` (1 file)
 7. [ ] `maintenance/` (1 file)
@@ -419,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 110 | ok |
+| `storage/postgres` (root) | 4 | 111 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 1 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -437,7 +437,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `db/` | 3 | 2 | ok |
 | `decisions/` | 1 | 1 | ok |
 | `facts/` | 36 | 69 | ok |
-| `facts/payload/` | 1 | 2 | ok |
+| `facts/payload/` | 1 | 1 | ok |
 | `facts/schema/` | 7 | 8 | ok |
 | `freshness/` | 2 | 4 | ok |
 | `freshness/aws/` | 3 | 2 | ok |
@@ -460,7 +460,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `identity/session/` | 4 | 5 | ok |
 | `identity/signin/` | 3 | 4 | ok |
 | `incident/` | 1 | 1 | ok |
-| `ingestion/` | 31 | 78 | ok |
+| `ingestion/` | 31 | 77 | ok |
 | `intent/` | 11 | 20 | ok |
 | `lock/` | 3 | 3 | ok |
 | `maintenance/` | 1 | 1 | ok |

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -74,7 +75,7 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return nil, fmt.Errorf("projector work item not found for scope=%s generation=%s", args[1].(string), args[2].(string))
 	case strings.Contains(query, "INSERT INTO ingestion_scopes"):
 		metadata := map[string]string{}
-		if payload, err := unmarshalPayload(args[11].([]byte)); err == nil {
+		if payload, err := payloadstore.UnmarshalPayload(args[11].([]byte)); err == nil {
 			for key, value := range payload {
 				if text, ok := value.(string); ok && text != "" {
 					metadata[key] = text
@@ -200,7 +201,7 @@ func proofUpsertFactRecordsReturningAccepted(state map[string]facts.Envelope, ar
 	var accepted [][]any
 	for off := 0; off < len(args); off += columnsPerFactRow {
 		a := args[off : off+columnsPerFactRow]
-		payload, err := unmarshalPayload(a[16].([]byte))
+		payload, err := payloadstore.UnmarshalPayload(a[16].([]byte))
 		if err != nil {
 			return nil, err
 		}

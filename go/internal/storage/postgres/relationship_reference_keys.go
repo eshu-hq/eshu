@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 
@@ -39,7 +40,7 @@ func relationshipReferenceCandidateKeyRows(envelopes []facts.Envelope) []relatio
 		if envelope.IsTombstone || !relationshipReferenceFactKind(envelope.FactKind) {
 			continue
 		}
-		payloadJSON, err := marshalPayload(envelope.Payload)
+		payloadJSON, err := payloadstore.MarshalPayload(envelope.Payload)
 		if err != nil {
 			continue
 		}

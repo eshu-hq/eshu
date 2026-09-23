@@ -1914,8 +1914,8 @@ to #4752).
 SCHEMA-VERSION NORMALIZATION (corpus-gate P0, PR #4753): the git collector
 emits `file`/`repository` with NO `SchemaVersion`, but the Postgres persist
 layer stamps a version-less fact as the sentinel `"0.0.0"`
-(`go/internal/storage/postgres/facts.go`, `facts_streaming.go`:
-`emptyToDefault(SchemaVersion, "0.0.0")`). A fact LOADED for reduction
+(`go/internal/storage/postgres/facts.go`, `facts_streaming.go`, calling
+`facts/payload` `payloadstore.EmptyToDefault(SchemaVersion, "0.0.0")`). A fact LOADED for reduction
 therefore carries `SchemaVersion="0.0.0"`, not `""`. `decodeLatestMajor`
 accepts only `major=="1"` and `major("0.0.0")=="0"`, so before the fix EVERY
 real `file`/`repository` fact dead-lettered as an unsupported major and the

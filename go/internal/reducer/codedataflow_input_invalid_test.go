@@ -249,8 +249,8 @@ func TestDecodeCodeFunctionSourceQuarantinesMissingRequiredFields(t *testing.T) 
 // family's six fact kinds are version-less on the wire (never registered in
 // specs/fact-kind-registry.v1.yaml), so the Postgres persist layer stamps
 // SchemaVersion="0.0.0" for every one of them
-// (go/internal/storage/postgres/facts_streaming.go:123
-// emptyToDefault(SchemaVersion, "0.0.0")). A fact LOADED BACK from Postgres
+// (go/internal/storage/postgres/facts_streaming.go, calling
+// payloadstore.EmptyToDefault(SchemaVersion, "0.0.0")). A fact LOADED BACK from Postgres
 // for reduction therefore carries the literal string "0.0.0", NOT an absent/
 // empty SchemaVersion.
 //

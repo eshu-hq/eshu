@@ -205,8 +205,8 @@ func DecodeGCPCloudRelationship(env facts.Envelope) (gcpv1.Relationship, error) 
 // version. "Version-less" means either an empty string (what a fact carries
 // in-memory before persistence) OR the sentinel "0.0.0" that the Postgres
 // persist layer stamps for a fact its collector emitted with no version
-// (go/internal/storage/postgres/facts.go, facts_streaming.go:
-// emptyToDefault(SchemaVersion, "0.0.0")). A fact LOADED from Postgres for
+// (go/internal/storage/postgres/facts.go, facts_streaming.go, calling
+// payloadstore.EmptyToDefault(SchemaVersion, "0.0.0")). A fact LOADED from Postgres for
 // reduction therefore carries "0.0.0", not "", so both spellings of
 // "the collector emitted no version" must normalize identically — otherwise a
 // version-less family loaded from storage (the git code family: "file",
