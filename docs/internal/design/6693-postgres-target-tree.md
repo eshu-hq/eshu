@@ -300,11 +300,11 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 378 | it only needs its own package and packages below it |
+| in-package test | 377 | it only needs its own package and packages below it |
 | external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 87 | as above, and it also reads its subject's private symbols |
 | stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
-| stays in root | 70 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root | 71 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -337,7 +337,7 @@ Prerequisites:
 Domains, dependency-first, smaller first at each step (non-test files moved):
 
 1. [x] `scope/` (new leaf; receives hoisted helpers only)
-2. [ ] `cicd/` (1 file)
+2. [x] `cicd/` (1 file)
 3. [ ] `decisions/` (1 file)
 4. [ ] `facts/payload/` (1 file)
 5. [ ] `iac/` (1 file)
@@ -419,9 +419,9 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 109 | ok |
+| `storage/postgres` (root) | 4 | 110 | ok |
 | `admission/` | 3 | 4 | ok |
-| `cicd/` | 1 | 2 | ok |
+| `cicd/` | 1 | 1 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
 | `cloud/aws/drift/` | 9 | 14 | ok |
 | `cloud/inventory/` | 12 | 12 | ok |

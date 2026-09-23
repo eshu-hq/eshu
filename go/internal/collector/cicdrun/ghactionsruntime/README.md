@@ -155,9 +155,9 @@ labels.
   that currently exists was fetched).
 - `SourceConfig.Watermarks` left unset (nil) skips gap detection entirely; no
   error, no warning fact, no metric point. Production wiring uses a durable
-  `Store` (`postgres.CICDRunWatermarkStore`) so gap detection survives
+  `Store` (`cicdstore.CICDRunWatermarkStore`) so gap detection survives
   process restarts and works across collector replicas; see
-  `go/internal/storage/postgres/cicd_run_watermark.go`.
+  `go/internal/storage/postgres/cicd/watermark.go`.
 - `max_deployments` bounds the GitHub Deployments API window (#5425 STEP 3),
   mirroring `max_runs`: an omitted or zero value resolves to
   `defaultMaxDeployments` (10); the hard cap stays 100
@@ -342,7 +342,7 @@ latency), on the same 10-run fetched page:
 
 ~1.4µs added per claim (~0.9%), within run-to-run noise. For the
 Postgres-backed production store
-(`go/internal/storage/postgres/cicd_run_watermark.go`), the theory-proof in
+(`go/internal/storage/postgres/cicd/watermark.go`), the theory-proof in
 `docs/internal/evidence/5429-cicd-run-watermark.md` measured each point
 query (Load, Save) at ~0.02-0.03ms against 50,000 representative rows; two
 such queries per claim are negligible next to this package's own documented
