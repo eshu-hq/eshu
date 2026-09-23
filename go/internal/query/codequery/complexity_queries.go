@@ -162,46 +162,64 @@ func complexityCandidateProjection() string {
 }
 
 // complexityListAnchor picks the clause that binds the Repository side of the
-// complexity list scan.
+// complexity list scan, and the params (repo_id and/or the caller's grant
+// arrays) that WHERE clause needs.
 //
 // Every caller whose answer is restricted to some set of repositories -- a
-// scoped caller, and any caller that supplied a repo_id -- gets the
-// File/Repository hops as a required MATCH, because the alternative does not
-// filter. In Cypher a WHERE attached to an OPTIONAL MATCH constrains the
+// scoped caller, and any caller that supplied a repo_id -- seeds the walk
+// from Repository, a small id-indexed label, and only then required-MATCHes
+// forward through File to Function, because the alternative does not filter
+// cheaply. The predecessor shape kept the required MATCH direction
+// (Function-first, hops required rather than OPTIONAL) for correctness
+// (#5167 -- a WHERE attached to an OPTIONAL MATCH constrains only the
 // optional pattern, not the driving row set, so a grant predicate or a
 // repo.id equality appended there returns every Function in the corpus with
-// only the repository columns nulled -- name, language, line span, complexity
-// and the semantic metadata all still reach the caller. That was measured
-// against NornicDB v1.2.3, where the same shape additionally projected the
-// literal text "repo.id" into the repo_id column; both results are recorded in
-// docs/internal/evidence/5167-code-family-batch-1.md. With a required MATCH the
-// restriction sits in a MATCH-attached WHERE ahead of the ORDER BY and LIMIT,
-// so the page is drawn from the requested set, and a function with no
-// repository path at all is dropped -- the fail-closed answer for a row whose
-// repository cannot be determined.
+// only the repository columns nulled; see
+// docs/internal/evidence/5167-code-family-batch-1.md), but it still anchored
+// on Function first and filtered repo identity afterward, so every
+// repo-scoped or scoped-grant call paid a whole-corpus Function scan before
+// the repository filter ever applied. Proven live on ops-qa (issue #7006):
+// the Function-first shape timed out past the 10s bounded-read deadline for a
+// small, zero-match repository, while seeding the same repository from
+// Repository first returned in under 3s. A function with no repository path
+// at all is dropped by the repo-anchored shape -- the fail-closed answer for
+// a row whose repository cannot be determined, unchanged from #5167.
 //
 // Only the unscoped caller that names no repository keeps the long-standing
 // shape: a bare MATCH (e:Function) with the hops in an OPTIONAL MATCH, so a
 // function the graph has not attributed to a repository still ranks in a
-// corpus-wide list. That text is unchanged by #5167.
-func complexityListAnchor(access querycontract.RepositoryAccessFilter, repoID string) string {
-	if access.Scoped() || repoID != "" {
+// corpus-wide list. That text is unchanged by #5167 or this fix.
+func complexityListAnchor(access querycontract.RepositoryAccessFilter, repoID string) (string, map[string]any) {
+	if !access.Scoped() && repoID == "" {
 		return `
-		MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
-		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
-	`
-	}
-	return `
 		MATCH (e:Function)
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
-	`
+	`, nil
+	}
+	params := map[string]any{}
+	repoWhere := make([]string, 0, 2)
+	if repoID != "" {
+		repoWhere = append(repoWhere, "repo.id = $repo_id")
+		params["repo_id"] = repoID
+	}
+	if access.Scoped() {
+		repoWhere = append(repoWhere, access.GraphCondition("repo"))
+		params = access.GraphParams(params)
+	}
+	return `
+		MATCH (repo:Repository)
+		WHERE ` + strings.Join(repoWhere, " AND ") + `
+		MATCH (repo)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:Function)
+		WHERE coalesce(e.cyclomatic_complexity, 0) > 0
+	`, params
 }
 
 // listMostComplexFunctions ranks the most complex functions in scope. The
-// caller's grant, and any repo_id it supplied, land in the WHERE attached to
-// the clause complexityListAnchor chose -- required whenever either restricts
-// the answer, optional only for an unscoped corpus-wide ranking.
+// caller's grant, and any repo_id it supplied, land in the WHERE
+// complexityListAnchor attaches to its Repository anchor -- required whenever
+// either restricts the answer, optional only for an unscoped corpus-wide
+// ranking.
 func (h *CodeHandler) listMostComplexFunctions(
 	ctx context.Context,
 	repoID string,
@@ -209,14 +227,11 @@ func (h *CodeHandler) listMostComplexFunctions(
 	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, int, bool, error) {
 	limit = normalizeComplexityListLimit(limit)
-	cypher := complexityListAnchor(access, repoID)
+	cypher, anchorParams := complexityListAnchor(access, repoID)
 	params := map[string]any{"limit": limit + 1}
-	if repoID != "" {
-		cypher += " AND repo.id = $repo_id"
-		params["repo_id"] = repoID
+	for k, v := range anchorParams {
+		params[k] = v
 	}
-	cypher += access.GraphPredicate("repo")
-	params = access.GraphParams(params)
 	cypher += `
 		RETURN e.id as id, e.name as name, labels(e) as labels,
 		       f.relative_path as file_path,

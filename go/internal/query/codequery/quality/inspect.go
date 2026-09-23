@@ -36,6 +36,18 @@ func Inspect(
 // appends the caller's grant to the same MATCH-attached WHERE the optional
 // repo_id/language/entity filters use, so the grant lands before the
 // SKIP/LIMIT and the page is taken from the granted set.
+//
+// A known repo_id or a scoped grant seeds the walk from Repository -- a
+// small, id-indexed label -- instead of the broad Function label the
+// unscoped shape below still uses. The prior shape anchored on Function
+// unconditionally and only applied the repo_id/grant filter in a WHERE after
+// the full File/Repository traversal, so it paid a whole-corpus Function scan
+// on every repo-scoped or scoped-grant call regardless of how small the
+// target repository was: proven live on ops-qa (issue #7006), the
+// Function-first shape timed out past the 10s bounded-read deadline on a
+// repository with zero matching rows, while the Repository-first shape
+// anchored on the same repository returned in under 3s. See
+// docs/public/reference/cypher-performance.md.
 func BuildCypher(
 	req Request,
 	access querycontract.RepositoryAccessFilter,
@@ -47,35 +59,44 @@ func BuildCypher(
 		"min_lines":      req.MinLines,
 		"min_arguments":  req.MinArguments,
 	}
-	where := make([]string, 0, 5)
+
+	repoWhere := make([]string, 0, 2)
 	if req.RepoID != "" {
-		where = append(where, "repo.id = $repo_id")
+		repoWhere = append(repoWhere, "repo.id = $repo_id")
 		params["repo_id"] = req.RepoID
 	}
-	if req.Language != "" {
-		where = append(where, "(e.language = $language OR f.language = $language)")
-		params["language"] = req.Language
-	}
-	if req.EntityID != "" {
-		where = append(where, "e.id = $entity_id")
-		params["entity_id"] = req.EntityID
-	}
-	if req.FunctionName != "" {
-		where = append(where, "e.name = $function_name")
-		params["function_name"] = req.FunctionName
-	}
 	if access.Scoped() {
-		where = append(where, access.GraphCondition("repo"))
+		repoWhere = append(repoWhere, access.GraphCondition("repo"))
 		params = access.GraphParams(params)
 	}
 
+	entityWhere := make([]string, 0, 3)
+	if req.Language != "" {
+		entityWhere = append(entityWhere, "(e.language = $language OR f.language = $language)")
+		params["language"] = req.Language
+	}
+	if req.EntityID != "" {
+		entityWhere = append(entityWhere, "e.id = $entity_id")
+		params["entity_id"] = req.EntityID
+	}
+	if req.FunctionName != "" {
+		entityWhere = append(entityWhere, "e.name = $function_name")
+		params["function_name"] = req.FunctionName
+	}
+
 	var builder strings.Builder
-	builder.WriteString(`
+	if len(repoWhere) > 0 {
+		builder.WriteString("\nMATCH (repo:Repository)\nWHERE ")
+		builder.WriteString(strings.Join(repoWhere, " AND "))
+		builder.WriteString("\nMATCH (repo)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:Function)\n")
+	} else {
+		builder.WriteString(`
 MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 `)
-	if len(where) > 0 {
+	}
+	if len(entityWhere) > 0 {
 		builder.WriteString("WHERE ")
-		builder.WriteString(strings.Join(where, " AND "))
+		builder.WriteString(strings.Join(entityWhere, " AND "))
 		builder.WriteString("\n")
 	}
 	builder.WriteString(`

@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
-
+	codechain "github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
@@ -304,8 +304,19 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// e.id = $entity_id even if a future backend regresses that anchor, and
 	// the access.AllowsRepositoryID check after hydration (unchanged) is
 	// what actually fails a scoped, ungranted read closed to not-found.
+	//
+	// The bare, unlabeled `MATCH (e)` anchor scanned every node in the graph
+	// for every call regardless of scope -- the classic all-node-scan shape
+	// (docs/public/reference/cypher-performance.md, "unlabeled anchor"),
+	// proven live on ops-qa (issue #7006) to blow the 10s bounded-read
+	// deadline on every request. This route only ever resolves content
+	// entities (the graph-miss fallback below reads the content store, not
+	// another graph label), so it anchors on the same code-entity label
+	// disjunction the call-chain builder already uses
+	// (codequery/chain.AnchorLabelDisjunction), seeding a per-label index
+	// seek instead of a whole-graph scan.
 	cypher := `
-		MATCH (e) WHERE e.id = $entity_id
+		MATCH (e:` + codechain.AnchorLabelDisjunction + `) WHERE e.id = $entity_id
 	`
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)

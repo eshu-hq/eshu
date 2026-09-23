@@ -93,20 +93,37 @@ func assertGrantArraysBound(t *testing.T, params map[string]any) {
 
 // codeQualityGrantBuilder names one Repository-anchored builder by a marker
 // unique to its own Cypher, plus the request body that reaches it.
+//
+// scopedMarker overrides marker for the scoped case only, when a scoped
+// grant alone (with no repo_id) makes the builder switch from its unscoped
+// Function-first anchor to a Repository-first one (#7006): the Cypher text a
+// scoped grant actually produces differs from the unscoped text, so the two
+// tests below cannot share one literal marker for that builder.
 type codeQualityGrantBuilder struct {
-	name   string
-	path   string
-	body   map[string]any
-	marker string
+	name         string
+	path         string
+	body         map[string]any
+	marker       string
+	scopedMarker string
+}
+
+// grantMarker returns scopedMarker when set, else the shared marker -- see
+// the scopedMarker field doc.
+func (b codeQualityGrantBuilder) grantMarker() string {
+	if b.scopedMarker != "" {
+		return b.scopedMarker
+	}
+	return b.marker
 }
 
 func codeQualityGrantBuilders() []codeQualityGrantBuilder {
 	return []codeQualityGrantBuilder{
 		{
-			name:   "inspect_code_quality",
-			path:   "/api/v0/code/quality/inspect",
-			body:   map[string]any{"check": "complexity"},
-			marker: "MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)",
+			name:         "inspect_code_quality",
+			path:         "/api/v0/code/quality/inspect",
+			body:         map[string]any{"check": "complexity"},
+			marker:       "MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)",
+			scopedMarker: "MATCH (repo)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e:Function)",
 		},
 		{
 			name:   "complexity_list",
@@ -141,9 +158,10 @@ func TestCodeQualityAndComplexityBuildersBindTheGrant(t *testing.T) {
 			if status >= http.StatusInternalServerError {
 				t.Fatalf("status = %d, want a non-server-error response", status)
 			}
-			statement, params, ok := captured.matching(builder.marker)
+			marker := builder.grantMarker()
+			statement, params, ok := captured.matching(marker)
 			if !ok {
-				t.Fatalf("no captured statement contains %q; captured = %#v", builder.marker, captured.statements)
+				t.Fatalf("no captured statement contains %q; captured = %#v", marker, captured.statements)
 			}
 			if !strings.Contains(statement, codeGrantQualityPredicate) {
 				t.Fatalf("%s is missing %q; a scoped caller's grant is resolved but never applied:\n%s", builder.name, codeGrantQualityPredicate, statement)
