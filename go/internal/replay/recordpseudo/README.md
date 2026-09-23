@@ -36,10 +36,25 @@ inner source completely, then:
    generations, so a token first seen in a late scope still rewrites an
    early one);
 2. **rewrite** -- substitutes every learned token, longest first on
-   alphanumeric boundaries, in `scope_id`, `partition_key`, metadata,
-   `stable_fact_key`, `source_record_id`, `source_uri` and every payload
-   string; unclassified and opaque fields are replaced wholesale and their
-   paths reported.
+   alphanumeric boundaries, in every payload string, scope metadata value
+   and the composite envelope fields; unclassified and opaque payload and
+   metadata fields are replaced wholesale and their paths reported.
+
+Learning visits map keys in sorted order and the dictionary gives classes
+an explicit precedence (structured shapes beat tag values), so the output
+never depends on map iteration and a token that is both a name and a tag
+value is a name everywhere.
+
+Payload fields and scope metadata are classified per key. The composite
+envelope fields -- `scope_id`, `partition_key`, `stable_fact_key`,
+`source_record_id`, `source_uri` -- are substitution-only **by design**:
+the collector builds them from tokens that also appear in classified
+fields (account, region, service, resource ids), from one-way hashes
+(`facts.StableID`) or from structural URI text, and a table keyed by field
+name has nothing to classify them by. `Verify`'s shape scan over the
+canonical bytes is the belt for them, and a composite that carried an
+unlearned name would be a collector-side contract to fix, not a policy
+entry.
 
 Pseudonym material is `HMAC-SHA256(key, "recordpseudo/v1\0" + raw)`. The
 class is not in the input, only in the output shape, so an account seen as
@@ -61,9 +76,24 @@ collector gets one pseudonym and their join survives.
 | email | `<11 hex>@example.com` |
 | opaque / unclassified | `o` + 11 hex, path reported |
 
-Declared limitations: two private CIDRs lose their overlap relation; IPv4
-pseudonyms of the probed minority depend on learning order across separate
-recordings; names lose readability.
+Declared limits:
+
+- two private CIDRs lose their overlap relation;
+- IPv4 pseudonyms of the linear-probed minority depend on learning order
+  across separate recordings (no join reads an address today);
+- names lose readability;
+- a customer host under an AWS-owned suffix (an ELB DNS name, an RDS or
+  OpenSearch endpoint, a Route53 alias target) becomes
+  `h<hex>.<region>.<service>.amazonaws.com`, and the private-data gate has
+  no allow row for that form yet, so `Verify` refuses the whole recording
+  -- fail closed, not a leak -- until a reviewed row exists;
+- Keep-class free text (`environment`, `tag`, `version`, `engine`,
+  `status`, `device_name`, ...) is written verbatim when the value is not
+  also learned from a classified field, and `Verify` carries no
+  organisation-identifier list, so an org string in an environment name or
+  an image tag reaches the file. Run the gate with
+  `ESHU_PRIVATE_IDENTIFIERS_FILE` set before committing a recording; that
+  alternative is the check for this residual.
 
 ## Verify
 

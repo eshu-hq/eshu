@@ -159,12 +159,29 @@ A recorder that pseudonymizes refuses to run without the key and refuses to
 write a file the private-data gate would reject: `recordpseudo.Verify` scans
 the canonical bytes with the gate's own alternatives before the file exists,
 and admits the reserved `0000` account form only when that run minted it.
-Field paths the collector's policy does not classify are made opaque and
-listed in the `collector.record.pseudonymized` log event, never their values.
-Declared limits: two private CIDRs lose their overlap relation, resource
-names lose readability, and a recording that carries an AWS service
-principal hostname (`*.amazonaws.com`) is refused until a reviewed allow row
-exists for it.
+Payload field paths and scope metadata keys the collector's policy does not
+classify are made opaque and listed in the `collector.record.pseudonymized`
+log event, never their values. The composite envelope fields (`scope_id`,
+`partition_key`, `stable_fact_key`, `source_record_id`, `source_uri`) are
+rewritten by token substitution only, because the collector composes them
+from tokens that also appear in classified fields, from one-way hashes or
+from structural URI text; the recorder's `Verify` scan is the belt for them.
+
+Declared limits of the pilot:
+
+- two private CIDRs lose their overlap relation, and resource names lose
+  readability;
+- any customer host under an AWS-owned suffix -- an ELB DNS name, an RDS or
+  OpenSearch endpoint, a Route53 alias target, an AWS service principal --
+  is pseudonymized to a form (`h<hex>.<region>.<service>.amazonaws.com`) the
+  private-data gate has no allow row for, so the recording is refused, not
+  written, until a reviewed row exists;
+- Keep-class free text (an environment name, an image tag, an engine or
+  status string) is written verbatim when it is not also learned from a
+  classified field, and the recorder's belt carries no organisation
+  identifiers. Run `scripts/verify-cassette-author.sh` with
+  `ESHU_PRIVATE_IDENTIFIERS_FILE` set before committing a recording: that
+  alternative is the check for this residual.
 
 Before committing a refreshed cassette:
 

@@ -51,9 +51,31 @@ before any file exists.
 
 Two private CIDRs lose their overlap relation; IPv4 pseudonyms of the
 linear-probed minority depend on learning order across separate recordings
-(no join reads an address today); names lose readability; an AWS service
-principal hostname (`*.amazonaws.com`) has no gate allow row yet, so a
-recording carrying one is refused until that row is reviewed.
+(no join reads an address today); names lose readability. Any customer host
+under an AWS-owned suffix (ELB DNS names, RDS/OpenSearch endpoints, Route53
+alias targets, service principals) is pseudonymized to
+`h<hex>.<region>.<service>.amazonaws.com`, a form the gate has no allow row
+for, so `Verify` refuses such a recording -- fail closed -- until a reviewed
+row exists. Keep-class free text (environment, tag, version, engine, status)
+is written verbatim when not learned elsewhere and `Verify` has no
+organisation-identifier list; operators run the gate with
+`ESHU_PRIVATE_IDENTIFIERS_FILE` before committing a recording. The composite
+envelope fields (`scope_id`, `partition_key`, `stable_fact_key`,
+`source_record_id`, `source_uri`) are substitution-only by design; scope
+metadata is classified per key like a payload.
+
+## Review round 2 (verdict-p3.md on 40a4ac36e)
+
+F1 (P1): ARN type tokens are now a per-service vocabulary; unknown first
+components (SNS topics, SQS queues) are learned. F2 (P1): dictionary
+entries carry a class with explicit precedence and the walker learns in
+sorted key order; tag values are shape-sniffed. F3 (P2): scope metadata
+goes through the policy. F4: IPv6 in an ident field reaches the
+documentation block; limits widened above. F6: `Key` renders as its
+fingerprint under `%v`, `%+v`, `%#v` and slog. F7: `arn:aws:iam::A:root`
+keeps `root`. Each fix landed RED-first (arn_vocabulary_test.go,
+precedence_test.go, metadata_test.go, ident_ipv6_test.go,
+key_format_test.go); `TestAWSCorpusShapePreserved` numbers unchanged.
 
 ## Runtime impact
 

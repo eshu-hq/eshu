@@ -86,3 +86,15 @@ Two belts guard the write, pseudonymized or not:
 The cassette records the key's 8-hex fingerprint in
 `pseudonym_key_fingerprint` (never the key), so a gate can check that every
 cassette of one corpus was recorded under one key.
+
+What is classified and what is not: payload fields and scope metadata go
+through the collector's policy per key (an unlisted key is made opaque and
+its path reported). The composite envelope fields the recorder maps in
+`toScope`/`toFact` -- `scope_id`, `partition_key`, `stable_fact_key`,
+`source_record_id`, `source_uri` -- are substitution-only by design: the
+collector composes them from tokens that also appear in classified fields,
+from one-way hashes, or from structural URI text, so there is no field key
+to classify them by; `Verify` is the belt for them. The residuals that
+remain (Keep-class free text, AWS-suffixed customer hosts refused rather
+than admitted) are listed under "Declared limits" in
+`go/internal/replay/recordpseudo/README.md`.
