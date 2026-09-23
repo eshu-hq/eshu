@@ -222,9 +222,11 @@ func gateScan(t *testing.T, dir string) (int, string) {
 		t.Skip("no bash >= 4.3 available for the private-data gate library")
 	}
 	// The gate library shells out to ripgrep and reports a missing rg as a
-	// broken scan (exit 127), which this test then FAILS on: every CI lane
-	// that runs this package installs ripgrep (test.yml go-race and go-core,
-	// macos.yml), so an absent rg is a lane misconfiguration, not a skip.
+	// broken scan (exit 127), which this test then FAILS on. The CI lanes
+	// that run go test on this package are test.yml's go-race shards and
+	// macos.yml, and both install ripgrep (go-core also installs it but runs
+	// no go test on go/), so an absent rg is a lane misconfiguration, not a
+	// reason to skip.
 	script := `set -euo pipefail; fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; source "$1"; cassette_private_data_scan "$2"`
 	out, err := exec.Command(shell, "-c", script, "gate", lib, dir).CombinedOutput()
 	if err == nil {
