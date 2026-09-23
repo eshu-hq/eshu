@@ -89,6 +89,8 @@ Replaced the `internal/storage/postgres` row in
 `bash scripts/generate-dirgate-grandfather-go.sh` to regenerate
 `tools/golangci-lint-dirgate/grandfather.go`.
 
+Test repoints, checked with exact-name assertions after the rebase onto `ebe632a56`: for `TestMarshalPayloadSanitizesForPostgresJSONB` and `BenchmarkMarshalPayloadSourceText`, `go test ./internal/storage/postgres/facts/payload/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
+
 No-Regression Evidence: this is a byte-identical move plus symbol export —
 `MarshalPayload`, `UnmarshalPayload`, `EmptyToNil`, and `EmptyToDefault`
 retain the exact bodies of `marshalPayload`, `unmarshalPayload`,
