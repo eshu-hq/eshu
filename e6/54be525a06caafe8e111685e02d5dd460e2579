@@ -1,0 +1,148 @@
+go/internal/query/codequery/relationship_handlers.go
+  h_78a442cba0b3e6 16,257
+go/internal/query/codequery/repository_selector_test.go
+  h_78a442cba0b3e6 17,33-34,36
+go/internal/query/dead_iac_grant_test.go
+  h_78a442cba0b3e6 17
+go/internal/query/package/registry/doc.go
+  h_78a442cba0b3e6 15
+go/internal/query/contentread/AGENTS.md
+  h_78a442cba0b3e6 16
+go/internal/query/supply/chain/doc.go
+  h_78a442cba0b3e6 20
+go/internal/query/querycontract/README.md
+  h_78a442cba0b3e6 23
+go/internal/query/iac/handler.go
+  h_78a442cba0b3e6 14,366,384-385
+go/internal/query/repository_group_a_scoped_test.go
+  h_78a442cba0b3e6 17
+go/internal/query/supply/chain/AGENTS.md
+  h_78a442cba0b3e6 11
+go/internal/query/repository/stats.go
+  h_78a442cba0b3e6 15,109
+go/internal/query/supply/chain/evidence_handler.go
+  h_78a442cba0b3e6 12,50
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 93-145,152,154-164
+  h_78a442cba0b3e6 146-151,153
+go/internal/query/selector/AGENTS.md
+  h_78a442cba0b3e6 1
+go/internal/query/supply/chain/findings_scope.go
+  h_78a442cba0b3e6 10,26,30
+go/internal/query/querycontract/AGENTS.md
+  h_78a442cba0b3e6 104
+go/internal/query/querycontract/entity/README.md
+  h_78a442cba0b3e6 17-18
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 152-158
+go/internal/query/entity/service_story_seam.go
+  h_78a442cba0b3e6 14,131,145
+go/internal/query/entity/scoped_grant_live_test.go
+  h_78a442cba0b3e6 85,210
+go/internal/query/repository_selector.go
+  h_78a442cba0b3e6 10,13,23-24,32,36
+go/internal/query/supply/chain/repository_selector.go
+  h_78a442cba0b3e6 14,24,27-28,31,37,49,52-53,58,63,67,73,78-79,81
+go/internal/query/entity/service_investigation.go
+  h_78a442cba0b3e6 11,67,84
+go/internal/query/codequery/doc.go
+  h_78a442cba0b3e6 20
+go/internal/query/contentread/README.md
+  h_78a442cba0b3e6 22,56
+go/internal/query/contentread/doc.go
+  h_78a442cba0b3e6 12
+go/internal/query/contentread/content_handler.go
+  h_78a442cba0b3e6 13,338,341,456
+go/internal/query/selector/entity_repo_identity_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/package/registry/dependency_chains_handler.go
+  h_78a442cba0b3e6 10,74
+go/internal/query/repository/selectors.go
+  h_78a442cba0b3e6 12,51-52,76
+go/internal/query/service/catalog.go
+  h_78a442cba0b3e6 12,119
+go/internal/query/auth_scoped_language_query_empty_grant_test.go
+  h_78a442cba0b3e6 102,138
+go/internal/query/entity/handler.go
+  h_78a442cba0b3e6 16,166,172
+go/internal/query/supply/chain/sbom_attestation_attachment_scope.go
+  h_78a442cba0b3e6 10,25,29
+go/internal/query/entity/README.md
+  h_78a442cba0b3e6 35,86
+go/internal/query/package/registry/README.md
+  h_78a442cba0b3e6 116,158
+go/internal/query/selector/entity_repo_identity.go
+  h_78a442cba0b3e6 4
+go/internal/query/repository/README.md
+  h_78a442cba0b3e6 96
+go/internal/query/supply/chain/container_image_identity_scope.go
+  h_78a442cba0b3e6 10,26,30
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  h_78a442cba0b3e6 214,631
+  h_78a442cba0b3e6 196
+go/internal/query/codequery/search_authz_test.go
+  h_78a442cba0b3e6 18,257
+go/internal/query/iac/doc.go
+  h_78a442cba0b3e6 32,49
+go/internal/query/graph_read_error_capability_sweep_resolve_test.go
+  h_78a442cba0b3e6 378
+go/internal/query/selector/selector.go
+  h_78a442cba0b3e6 4
+go/internal/query/graph_read_error_capability_sweep_qualified_test.go
+  h_78a442cba0b3e6 23,111
+go/internal/query/entity/AGENTS.md
+  h_78a442cba0b3e6 16
+go/internal/query/entity/resolve_identity.go
+  h_78a442cba0b3e6 11,15-16,18,29
+go/internal/query/supply/chain/security_alert_reconciliation_scope.go
+  h_78a442cba0b3e6 11,38-39
+go/internal/query/codequery/repository_selector.go
+  h_78a442cba0b3e6 12,31,42,45,48,52,62,66-67,71,101,103,160
+go/internal/query/repository/authz_test.go
+  h_78a442cba0b3e6 19,260,262
+go/internal/query/codequery/relationships/doc.go
+  h_78a442cba0b3e6 22
+go/internal/query/package/registry/correlation_handler.go
+  h_78a442cba0b3e6 10,67
+go/internal/query/supply/chain/README.md
+  h_78a442cba0b3e6 81,113
+go/internal/query/entity/service_workload_resolution.go
+  h_78a442cba0b3e6 14,116
+go/internal/query/code_grant_test_fixtures_test.go
+  h_78a442cba0b3e6 33
+go/internal/query/codequery/auth_scoped_code_topic_grant_test.go
+  h_78a442cba0b3e6 42
+go/internal/query/package/registry/AGENTS.md
+  h_78a442cba0b3e6 21
+go/internal/query/querytestutil/scopedauthcontext.go
+  h_78a442cba0b3e6 94
+go/internal/query/package/registry/content_fake_test.go
+  h_78a442cba0b3e6 16
+docs/public/reference/source-layout.md
+  h_78a442cba0b3e6 130,200
+go/internal/query/entity/resolve_results.go
+  h_78a442cba0b3e6 10,121-122,125,128-129,132
+go/internal/query/selector/doc.go
+  h_78a442cba0b3e6 4,21
+go/internal/query/service/README.md
+  h_78a442cba0b3e6 56
+go/internal/query/auth_scoped_routes_repository.go
+  h_78a442cba0b3e6 46,56,65,75,84
+go/internal/query/language/handler.go
+  h_78a442cba0b3e6 198
+go/internal/query/auth_scoped_routes_iac.go
+  h_78a442cba0b3e6 29
+go/internal/query/graph_read_error_selector_test.go
+  h_78a442cba0b3e6 15,97,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e654be525a06caafe8e111685e02d5dd460e2579",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
