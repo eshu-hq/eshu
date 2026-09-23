@@ -132,6 +132,21 @@ func discoverFileStatementBuilders(path string, resolver *constResolver) ([]Stat
 		detail.variants = append(detail.variants, StatementVariant{Template: template, Fragments: fragments})
 		details[symbol] = detail
 	}
+	recordLiteral := func(symbol string, literal *ast.CompositeLit, scope *cypherScope) {
+		if isSourceCypherStatement(literal.Type, imports) {
+			record(symbol, literal, scope)
+			return
+		}
+		// Elements of a slice-of-Statement literal carry no explicit
+		// type; they inherit it from the slice.
+		if isSourceCypherStatementSlice(literal.Type, imports) {
+			for _, element := range literal.Elts {
+				if item, ok := element.(*ast.CompositeLit); ok && item.Type == nil {
+					record(symbol, item, scope)
+				}
+			}
+		}
+	}
 	for _, declaration := range file.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
 		if !ok || function.Body == nil {
@@ -155,23 +170,57 @@ func discoverFileStatementBuilders(path string, resolver *constResolver) ([]Stat
 				imports:  imports,
 				funcVars: visibleVars(assigns, node.Pos()),
 			}
-			if isSourceCypherStatement(literal.Type) {
-				record(symbol, literal, scope)
-				return true
-			}
-			// Elements of a []sourcecypher.Statement slice literal carry
-			// no explicit type; they inherit it from the slice.
-			if isSourceCypherStatementSlice(literal.Type) {
-				for _, element := range literal.Elts {
-					if item, ok := element.(*ast.CompositeLit); ok && item.Type == nil {
-						record(symbol, item, scope)
-					}
-				}
-			}
+			recordLiteral(symbol, literal, scope)
 			return true
 		})
 		if _, seen := counts[symbol]; seen {
 			digests[symbol] = fmt.Sprintf("%x", sha256.Sum256(source[start:end]))
+		}
+	}
+	for _, declaration := range file.Decls {
+		genDecl, ok := declaration.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for index, name := range valueSpec.Names {
+				if name.Name == "_" {
+					continue
+				}
+				value := singleVarValue(valueSpec, index)
+				if value == nil {
+					continue
+				}
+				symbol := "var " + name.Name
+				start := fileSet.Position(valueSpec.Pos()).Offset
+				end := fileSet.Position(valueSpec.End()).Offset
+				if start < 0 || end < start || end > len(source) {
+					return nil, fmt.Errorf("invalid source offsets for %s", symbol)
+				}
+				// Package-level initializers resolve against the file's
+				// imports and package constants; there are no function
+				// variables in scope.
+				scope := &cypherScope{
+					resolver: resolver,
+					fileDir:  fileDir,
+					imports:  imports,
+				}
+				ast.Inspect(value, func(node ast.Node) bool {
+					literal, ok := node.(*ast.CompositeLit)
+					if !ok {
+						return true
+					}
+					recordLiteral(symbol, literal, scope)
+					return true
+				})
+				if _, seen := counts[symbol]; seen {
+					digests[symbol] = fmt.Sprintf("%x", sha256.Sum256(source[start:end]))
+				}
+			}
 		}
 	}
 	result := make([]StatementBuilder, 0, len(counts))
@@ -192,27 +241,52 @@ func discoverFileStatementBuilders(path string, resolver *constResolver) ([]Stat
 	return result, nil
 }
 
+// cypherPackageSuffix is the import path suffix of the production Cypher
+// statement package. Discovery resolves the qualifier through the file's
+// own imports instead of matching a literal package name, so an aliased
+// import cannot silently evade the inventory.
+const cypherPackageSuffix = "/internal/storage/cypher"
+
 // isSourceCypherStatement reports whether the composite literal type is a
-// sourcecypher.Statement: a selector on the sourcecypher package name.
-// Any other Statement type (sql, test fakes) does not match, and a
-// rebound sourcecypher alias would surface in review of the manifest.
-func isSourceCypherStatement(expr ast.Expr) bool {
+// Statement from the production Cypher package: a selector for Statement
+// on any local name bound to that package path. Any other Statement type
+// (sql, test fakes, sbom, iam policy) does not match.
+func isSourceCypherStatement(expr ast.Expr, imports map[string]string) bool {
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != "Statement" {
 		return false
 	}
 	ident, ok := selector.X.(*ast.Ident)
-	return ok && ident.Name == "sourcecypher"
+	if !ok {
+		return false
+	}
+	path, ok := imports[ident.Name]
+	return ok && strings.HasSuffix(path, cypherPackageSuffix)
 }
 
 // isSourceCypherStatementSlice reports whether the type is a slice of
-// sourcecypher.Statement in any of its spellings.
-func isSourceCypherStatementSlice(expr ast.Expr) bool {
+// production Cypher Statements in any of its spellings.
+func isSourceCypherStatementSlice(expr ast.Expr, imports map[string]string) bool {
 	array, ok := expr.(*ast.ArrayType)
 	if !ok {
 		return false
 	}
-	return isSourceCypherStatement(array.Elt)
+	return isSourceCypherStatement(array.Elt, imports)
+}
+
+// singleVarValue resolves the initializer for one name in a package-level
+// var spec: the shared value when the spec carries one, the positional
+// value when names and values pair up, nil when the spec declares names
+// without values.
+func singleVarValue(spec *ast.ValueSpec, index int) ast.Expr {
+	switch {
+	case len(spec.Values) == 1:
+		return spec.Values[0]
+	case len(spec.Values) == len(spec.Names) && index < len(spec.Values):
+		return spec.Values[index]
+	default:
+		return nil
+	}
 }
 
 // describeStatementLiteral extracts what is statically known about one

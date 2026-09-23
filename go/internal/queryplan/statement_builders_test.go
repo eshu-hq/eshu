@@ -146,6 +146,87 @@ func buildReassigned(dynamic string) sourcecypher.Statement {
 	}
 }
 
+func TestDiscoverStatementBuildersResolvesAliasedCypherImport(t *testing.T) {
+	dir := t.TempDir()
+	source := `package writer
+
+import storagecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+
+func buildUpsert() storagecypher.Statement {
+	return storagecypher.Statement{
+		Operation: storagecypher.OperationCanonicalUpsert,
+		Cypher:    "MATCH (n) RETURN n",
+	}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "writer.go"), []byte(source), 0o600); err != nil {
+		t.Fatalf("write source fixture: %v", err)
+	}
+	got, err := DiscoverStatementBuilders(dir)
+	if err != nil {
+		t.Fatalf("DiscoverStatementBuilders() error = %v", err)
+	}
+	if len(got) != 1 || len(got[0].Builders) != 1 {
+		t.Fatalf("DiscoverStatementBuilders() = %#v, want one builder", got)
+	}
+	builder := got[0].Builders[0]
+	if builder.Symbol != "buildUpsert" || builder.Count != 1 {
+		t.Fatalf("builder = %#v, want buildUpsert count 1", builder)
+	}
+	if len(builder.Variants) != 1 || builder.Variants[0].Template != "MATCH (n) RETURN n" {
+		t.Fatalf("builder variants = %#v, want static template", builder.Variants)
+	}
+}
+
+func TestDiscoverStatementBuildersFindsPackageLevelVars(t *testing.T) {
+	dir := t.TempDir()
+	source := `package writer
+
+import sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+
+var sharedBuild = sourcecypher.Statement{
+	Operation: sourcecypher.OperationCanonicalUpsert,
+	Cypher:    "MATCH (n) RETURN n",
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "writer.go"), []byte(source), 0o600); err != nil {
+		t.Fatalf("write source fixture: %v", err)
+	}
+	got, err := DiscoverStatementBuilders(dir)
+	if err != nil {
+		t.Fatalf("DiscoverStatementBuilders() error = %v", err)
+	}
+	if len(got) != 1 || len(got[0].Builders) != 1 {
+		t.Fatalf("DiscoverStatementBuilders() = %#v, want one package-level builder", got)
+	}
+	builder := got[0].Builders[0]
+	if builder.Symbol != "var sharedBuild" || builder.Count != 1 {
+		t.Fatalf("builder = %#v, want var sharedBuild count 1", builder)
+	}
+}
+
+func TestDiscoverStatementBuildersIgnoresForeignStatementTypes(t *testing.T) {
+	dir := t.TempDir()
+	source := `package writer
+
+import iampolicy "example.com/iam/policy"
+
+func build() iampolicy.Statement {
+	return iampolicy.Statement{Permission: "read"}
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "writer.go"), []byte(source), 0o600); err != nil {
+		t.Fatalf("write source fixture: %v", err)
+	}
+	got, err := DiscoverStatementBuilders(dir)
+	if err != nil {
+		t.Fatalf("DiscoverStatementBuilders() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("DiscoverStatementBuilders() = %#v, want no builders", got)
+	}
+}
+
 func TestDiscoverStatementBuildersSkipsTestdataAndHelpers(t *testing.T) {
 	dir := t.TempDir()
 	source := `package writer
