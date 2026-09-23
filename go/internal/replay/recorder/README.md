@@ -69,8 +69,9 @@ not per recording.
 source, unless a usable key is configured: a collector that records real
 estates sets it so a missing key can never produce a raw cassette.
 `Options.OnPseudonymized` receives the `recordpseudo.Report` (counts, opaque
-and unclassified field paths, IPv4 slot collisions, key fingerprint -- never
-a value) for the collector to log.
+and unclassified field paths, IPv4 address and slot-collision counts,
+account collisions, unlisted ARN type tokens, key fingerprint -- never a
+value) for the collector to log.
 
 Two belts guard the write, pseudonymized or not:
 

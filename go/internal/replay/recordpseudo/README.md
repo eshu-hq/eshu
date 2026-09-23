@@ -35,10 +35,22 @@ inner source completely, then:
    records a pseudonym for each classified string (pass 1 over all
    generations, so a token first seen in a late scope still rewrites an
    early one);
-2. **rewrite** -- substitutes every learned token, longest first on
-   alphanumeric boundaries, in every payload string, scope metadata value
-   and the composite envelope fields; unclassified and opaque payload and
-   metadata fields are replaced wholesale and their paths reported.
+2. **rewrite** -- substitutes every learned token in every payload
+   string, scope metadata value and the composite envelope fields;
+   unclassified and opaque payload and metadata fields are replaced
+   wholesale and their paths reported.
+
+Substitution is structure-aware. An ARN found anywhere in a value is
+rewritten by position: partition, service and region are never touched,
+the account and every resource component (split on `/` and `:`) are looked
+up whole, and a numeric component (a revision or version) only ever takes
+an account pseudonym. AWS regions and availability zones are a finite AWS
+vocabulary: they are never learned and are protected spans in free text (a
+match inside one is skipped, a match covering one is kept). Remaining text
+is rewritten longest token first on alphanumeric boundaries by tokens of at
+least four characters that are not purely numeric; a shorter or numeric
+name or tag value is rewritten only as a whole classified value or a whole
+ARN component.
 
 Learning visits map keys in sorted order and the dictionary gives classes
 an explicit precedence (structured shapes beat tag values), so the output
@@ -63,13 +75,14 @@ collector gets one pseudonym and their join survives.
 
 | class | shape |
 | --- | --- |
-| account | `0000` + 8 decimal digits (stays 12 numeric digits) |
+| account | `0000` + 8 decimal digits (stays 12 numeric digits); linear probing on collision, collisions counted |
 | ARN | partition, service, region, leading type token and numeric qualifiers kept; account and every other component pseudonymized; `arn:aws:iam::aws:policy/...` kept whole |
 | resource name | `n` + 11 hex |
 | AWS-issued id | prefix kept, hex run replaced with HMAC hex of equal length; 32-hex ids stay 32 hex |
-| ECR host / image ref | `<pseudo-account>.dkr.ecr.<region>.amazonaws.com/<pseudo-repo>[:tag\|@digest]` |
+| ECR host / image ref | `<pseudo-account>.dkr.ecr.<region>.amazonaws.com/<pseudo-repo>[:<pseudo-tag>\|@digest]`; public registry hosts on the gate's list (`ghcr.io`, ...) kept |
+| image tag | `latest`, pure semver (`v1.2.3`, `1.2.3`) and digests kept; every other tag is a customer word and takes the name form, in the tag field and inside the reference |
 | other hostname | each customer label `h` + 10 hex, public suffix collapsed to `.example`; AWS-owned suffixes (`amazonaws.com`, `on.aws`, `cloudfront.net`) keep their structural tail and region; `*` and a trailing dot kept |
-| IPv4 | HMAC slot in RFC 5737 (762 slots), linear probing on collision, collisions counted; loopback, unspecified and documentation addresses kept |
+| IPv4 | HMAC slot in RFC 5737 (762 slots), linear probing on collision, collisions counted; loopback, unspecified and documentation addresses kept; the 763rd distinct address or network is `ErrIPv4Exhausted` from `Next`, not a cassette |
 | IPv6 | `2001:db8:` + 96 bits of HMAC |
 | CIDR | network address as above, prefix length kept; `0.0.0.0/0` and `::/0` kept |
 | tag value | `t` + 11 hex (well-known tag keys such as `Name` kept, other keys pseudonymized) |
@@ -87,13 +100,23 @@ Declared limits:
   `h<hex>.<region>.<service>.amazonaws.com`, and the private-data gate has
   no allow row for that form yet, so `Verify` refuses the whole recording
   -- fail closed, not a leak -- until a reviewed row exists;
-- Keep-class free text (`environment`, `tag`, `version`, `engine`,
-  `status`, `device_name`, ...) is written verbatim when the value is not
-  also learned from a classified field, and `Verify` carries no
-  organisation-identifier list, so an org string in an environment name or
-  an image tag reaches the file. Run the gate with
-  `ESHU_PRIVATE_IDENTIFIERS_FILE` set before committing a recording; that
-  alternative is the check for this residual.
+- Keep-class free text (`environment`, `version`, `engine`, `status`,
+  `device_name`, ...) is written verbatim when the value is not also
+  learned from a classified field, and `Verify` carries no
+  organisation-identifier list, so an org string in an environment name
+  reaches the file. Run the gate with `ESHU_PRIVATE_IDENTIFIERS_FILE` set
+  before committing a recording; that alternative is the check for this
+  residual;
+- one recording holds at most 762 distinct IPv4 addresses and CIDR
+  networks; the 763rd is a returned `ErrIPv4Exhausted` and
+  `Report.IPv4Addresses` shows the count;
+- a name or tag value shorter than four characters, or a purely numeric
+  tag value, is exact-only: rewritten as a whole classified value or a
+  whole ARN component, never inside longer text, so such a token inside a
+  non-ARN composite (`source_uri`, a stable key) stays raw;
+- an ARN of a service that has a type vocabulary but leads with a token
+  outside it learns that token as a name; `Report.UnlistedARNTypes` names
+  each `service:token` so the vocabulary gap is visible.
 
 ## Verify
 
@@ -119,7 +142,8 @@ holds the two together.
 No metrics: recording is a one-shot CLI run. The `Report` is what the
 collector command logs as `collector.record.pseudonymized` (key fingerprint,
 scope/fact/token counts, learned tokens per class, opaque and unclassified
-paths, IPv4 collision count). No value -- raw or pseudonymized -- is ever
+paths, IPv4 address and collision counts, account collision count, unlisted
+ARN type tokens). No value -- raw or pseudonymized -- is ever
 logged, returned in an error, or formatted by this package.
 
 ## Validation

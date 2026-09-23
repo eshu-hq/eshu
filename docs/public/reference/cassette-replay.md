@@ -176,12 +176,24 @@ Declared limits of the pilot:
   is pseudonymized to a form (`h<hex>.<region>.<service>.amazonaws.com`) the
   private-data gate has no allow row for, so the recording is refused, not
   written, until a reviewed row exists;
-- Keep-class free text (an environment name, an image tag, an engine or
-  status string) is written verbatim when it is not also learned from a
-  classified field, and the recorder's belt carries no organisation
-  identifiers. Run `scripts/verify-cassette-author.sh` with
-  `ESHU_PRIVATE_IDENTIFIERS_FILE` set before committing a recording: that
-  alternative is the check for this residual.
+- Keep-class free text (an environment name, an engine or status string)
+  is written verbatim when it is not also learned from a classified field,
+  and the recorder's belt carries no organisation identifiers. Run
+  `scripts/verify-cassette-author.sh` with `ESHU_PRIVATE_IDENTIFIERS_FILE`
+  set before committing a recording: that alternative is the check for
+  this residual. Container image tags are not in this class: a
+  customer-chosen tag is pseudonymized, and only `latest`, pure semver
+  (`v1.2.3`, `1.2.3`) and digests are kept;
+- one recording holds at most 762 distinct IPv4 addresses and CIDR
+  networks (the RFC 5737 slot space). The 763rd makes the record run fail
+  with `recording exceeds 762 distinct IPv4 addresses`, and no cassette is
+  written; the `collector.record.pseudonymized` event reports
+  `ipv4_addresses` so an operator can see how close a recording is;
+- a name or tag value shorter than four characters, or a purely numeric
+  tag value, is rewritten only where it is a whole field value or a whole
+  ARN component, never inside longer text (otherwise a tag value `1`
+  would rewrite every `us-east-1`). Such a token inside a composite that
+  is not an ARN (`source_uri`, a stable key) stays raw.
 
 Before committing a refreshed cassette:
 

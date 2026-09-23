@@ -9,7 +9,8 @@
 // puts a collector.Source between the live collector and the recorder: it
 // drains the run, learns every identifier from the fields a collector-owned
 // Policy classifies, and rewrites scope, envelope and payload strings by
-// boundary-aware, longest-first token substitution with keyed,
+// structure-aware token substitution (ARNs by position, regions protected,
+// free text longest-first on alphanumeric boundaries) with keyed,
 // structure-preserving pseudonyms. Equal raw tokens under one Key give equal
 // pseudonyms, so joins between facts and between sibling cassettes survive by
 // construction; the class of a token is deliberately not part of the HMAC

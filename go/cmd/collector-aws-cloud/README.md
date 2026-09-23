@@ -47,15 +47,18 @@ to write a file the private-data gate would reject (`recordpseudo.Verify`
 runs on the canonical bytes first). It logs three events:
 `collector.record.started`, `collector.record.pseudonymized` (scope, fact
 and token counts, learned tokens per class, opaque and unclassified field
-paths, IPv4 slot collisions, key fingerprint) and `collector.record.completed`.
-No raw or pseudonymized value and never the key reach a log. Two limits of
-the pilot: any customer host under an AWS-owned suffix (an ELB DNS name, an
-RDS endpoint, a Route53 alias target, a service principal such as
+paths, IPv4 address and slot-collision counts, account collisions, unlisted
+ARN type tokens, key fingerprint) and `collector.record.completed`. No raw
+or pseudonymized value and never the key reach a log. Limits of the pilot:
+any customer host under an AWS-owned suffix (an ELB DNS name, an RDS
+endpoint, a Route53 alias target, a service principal such as
 `ecs-tasks.amazonaws.com`) is pseudonymized to a form the private-data gate
 has no allow row for, so such a recording is refused rather than written
-until that row is reviewed; and Keep-class free text (environment names,
-image tags) is written verbatim, so run the gate with
-`ESHU_PRIVATE_IDENTIFIERS_FILE` set before committing a recording.
+until that row is reviewed; Keep-class free text (environment names) is
+written verbatim, so run the gate with `ESHU_PRIVATE_IDENTIFIERS_FILE` set
+before committing a recording; and one recording holds at most 762 distinct
+IPv4 addresses, after which the run fails naming the limit. The full list is
+in `go/internal/replay/recordpseudo/README.md`.
 
 ## Ownership boundary
 

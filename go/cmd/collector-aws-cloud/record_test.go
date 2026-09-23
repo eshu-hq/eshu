@@ -311,7 +311,7 @@ func TestRecordCassetteIsGateCleanAndLogsNoValue(t *testing.T) {
 	if pseudonymized["key_fingerprint"] != key.Fingerprint() {
 		t.Errorf("pseudonymized event fingerprint = %v", pseudonymized["key_fingerprint"])
 	}
-	for _, field := range []string{"scopes", "facts", "tokens", "opaque_paths", "unclassified_paths", "ipv4_collisions", "learned_by_class"} {
+	for _, field := range []string{"scopes", "facts", "tokens", "opaque_paths", "unclassified_paths", "ipv4_collisions", "ipv4_addresses", "account_collisions", "unlisted_arn_types", "unlisted_arn_type_count", "learned_by_class"} {
 		if _, ok := pseudonymized[field]; !ok {
 			t.Errorf("pseudonymized event lacks %s", field)
 		}

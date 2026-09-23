@@ -20,7 +20,11 @@
   "pass through unknown strings" mode.
 - **Shape before readability.** The account form must stay 12 digits, the
   ARN grammar must keep partition/service/region/type token, AWS-issued ids
-  keep their prefix, tags and digests are kept. The reducer extractors are
+  keep their prefix, digests are kept, customer image tags are
+  pseudonymized. Substitution is structure-aware (ARNs by position,
+  regions protected, short free-text tokens exact-only); a change to it
+  must keep `TestShortTokensNeverRewriteStructure` green. The reducer
+  extractors are
   the judge: `TestAWSCorpusShapePreserved` compares raw and pseudonymized
   rows and must stay at the design's exact numbers.
 - **Verify mirrors the gate.** The allow forms in `verify_forms.go` follow
