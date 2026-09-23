@@ -274,10 +274,10 @@ func assertRuntimeEnvironmentEvidenceIndexPlan(
 	if err := db.QueryRowContext(
 		ctx,
 		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query,
-		array.Array(digests),
-		array.Array(environments),
-		array.Array([]string{}),
-		array.Array([]string{}),
+		array.Of(digests),
+		array.Of(environments),
+		array.Of([]string{}),
+		array.Of([]string{}),
 	).Scan(&raw); err != nil {
 		t.Fatalf("explain runtime environment evidence query: %v", err)
 	}

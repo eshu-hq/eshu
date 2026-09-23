@@ -425,8 +425,8 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		SuppressionReadAt(s.Now),
 	)
 	if err != nil {

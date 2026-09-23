@@ -142,7 +142,7 @@ func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverage
 	}
 	if !filter.AllScopes {
 		query = listObservabilityCoverageCorrelationsScopedQuery
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
 	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {

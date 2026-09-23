@@ -138,7 +138,7 @@ func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
 	}
 	if !filter.AllScopes {
 		query = listKubernetesCorrelationsScopedQuery
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
 	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {

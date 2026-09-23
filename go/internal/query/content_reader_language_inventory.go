@@ -43,10 +43,10 @@ func (cr *ContentReader) CountRepositoriesByLanguage(
 		       MAX(indexed_at) AS last_indexed_at
 		FROM content_files
 		WHERE language = ANY($1)`
-	args := []any{array.Array(languages)}
+	args := []any{array.Of(languages)}
 	if !allScopes {
 		query += " AND (repo_id = ANY($2) OR repo_id = ANY($3))"
-		args = append(args, array.Array(allowedRepositoryIDs), array.Array(allowedScopeIDs))
+		args = append(args, array.Of(allowedRepositoryIDs), array.Of(allowedScopeIDs))
 	}
 	row := cr.db.QueryRowContext(ctx, query, args...)
 
@@ -94,13 +94,13 @@ func (cr *ContentReader) ListRepositoriesByLanguage(
 	defer span.End()
 
 	languageRowsWhere := "WHERE language = ANY($1)"
-	args := []any{array.Array(languages)}
+	args := []any{array.Of(languages)}
 	if !allScopes {
 		languageRowsWhere += " AND (repo_id = ANY($4) OR repo_id = ANY($5))"
 	}
 	args = append(args, limit, offset)
 	if !allScopes {
-		args = append(args, array.Array(allowedRepositoryIDs), array.Array(allowedScopeIDs))
+		args = append(args, array.Of(allowedRepositoryIDs), array.Of(allowedScopeIDs))
 	}
 
 	rows, err := cr.db.QueryContext(ctx, `
@@ -235,7 +235,7 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 	}
 	args = append(args, limit, offset)
 	if !allScopes {
-		args = append(args, array.Array(allowedRepositoryIDs), array.Array(allowedScopeIDs))
+		args = append(args, array.Of(allowedRepositoryIDs), array.Of(allowedScopeIDs))
 	}
 
 	rows, err := cr.db.QueryContext(ctx, `

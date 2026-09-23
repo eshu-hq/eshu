@@ -58,7 +58,7 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listWorkItemEvidenceQuery,
-		array.Array(EvidenceFactKinds),
+		array.Of(EvidenceFactKinds),
 		filter.ScopeID,
 		filter.WorkItemKey,
 		filter.ProviderWorkItemID,
@@ -66,7 +66,7 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 		filter.URLFingerprint,
 		nullableWorkItemEvidenceTime(filter.ObservedAfter),
 		filter.AfterFactID,
-		array.Array(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedRepositoryIDs),
 		filter.Limit,
 	)
 	if err != nil {

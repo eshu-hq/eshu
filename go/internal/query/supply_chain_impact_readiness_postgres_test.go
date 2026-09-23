@@ -403,7 +403,7 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 
 	// Regression for #5467: the store must bind the OS-package and
 	// scanner-worker-analysis fact-kind allowlists as two more positional
-	// array parameters ($15, $16), following the same array.Array pattern as
+	// array parameters ($15, $16), following the same array.Of pattern as
 	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
 	// would bind against the wrong (or a missing) parameter.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}

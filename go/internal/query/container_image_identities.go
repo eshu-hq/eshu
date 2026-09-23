@@ -54,7 +54,7 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		filter.Outcome,
 		filter.AfterIdentityID,
 		filter.Limit,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list container image identities: %w", err)

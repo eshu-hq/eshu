@@ -47,8 +47,8 @@ func (s StatusStore) ListGenerationLifecycle(
 		filter.Status,
 		fetch,
 		filter.Scoped,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return statuspkg.GenerationLifecyclePage{}, fmt.Errorf("list generation lifecycle: %w", err)

@@ -207,8 +207,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CountCICDRunCorrelations(
 		filter.ImageRef,
 		filter.Environment,
 		filter.Outcome,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
@@ -297,8 +297,8 @@ func (s PostgresCICDRunCorrelationAggregateStore) CICDRunCorrelationInventory(
 		filter.Outcome,
 		limit,
 		offset,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inventory ci/cd run correlations: %w", err)

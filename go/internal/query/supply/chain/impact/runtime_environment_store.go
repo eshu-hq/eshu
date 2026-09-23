@@ -110,10 +110,10 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery,
-		array.Array(digests),
-		array.Array(environments),
-		array.Array(allowedRepositoryIDs),
-		array.Array(allowedScopeIDs),
+		array.Of(digests),
+		array.Of(environments),
+		array.Of(allowedRepositoryIDs),
+		array.Of(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime environment evidence: %w", err)

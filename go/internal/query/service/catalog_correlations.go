@@ -106,8 +106,8 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 		filter.DriftStatus,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list service catalog correlations: %w", err)
@@ -154,7 +154,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 		ctx,
 		ListServiceCatalogLocalDescriptorEvidenceQuery,
 		serviceCatalogGitRepositoryScopeID(repositoryID),
-		array.Array(facts.ServiceCatalogFactKinds()),
+		array.Of(facts.ServiceCatalogFactKinds()),
 		limit,
 	)
 	if err != nil {

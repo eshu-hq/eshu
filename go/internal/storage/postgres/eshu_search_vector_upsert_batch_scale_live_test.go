@@ -230,7 +230,7 @@ func TestEshuSearchVectorUpsertBatchScaleLive(t *testing.T) {
 		  AND provider_profile_id = $2 AND source_class = $3
 		  AND embedding_model_id = $4 AND vector_index_version = $5`,
 		batchedValues[0].ScopeID, providerProfileID, sourceClass, modelID, vectorVersion,
-	).Scan(&scannedDocumentID, &scannedDimensions, array.Array(&scannedVector)); err != nil {
+	).Scan(&scannedDocumentID, &scannedDimensions, array.Of(&scannedVector)); err != nil {
 		t.Fatalf("query batched value row: %v", err)
 	}
 	if scannedDocumentID != "doc-0" {

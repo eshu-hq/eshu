@@ -194,9 +194,9 @@ func buildLiveActivityQuery(limit int, allScopes bool, allowedRepositoryIDs, all
 		return liveActivityQueryPrefix + liveActivityQuerySuffix, args
 	}
 
-	args = append(args, array.Array(allowedRepositoryIDs))
+	args = append(args, array.Of(allowedRepositoryIDs))
 	repoArg := len(args)
-	args = append(args, array.Array(allowedScopeIDs))
+	args = append(args, array.Of(allowedScopeIDs))
 	scopeArg := len(args)
 
 	var builder strings.Builder

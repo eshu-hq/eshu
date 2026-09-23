@@ -41,17 +41,17 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 	seedReadinessMutableRefProof(t, ctx, db)
 
 	args := []any{
-		array.Array(vulnerabilityAdvisoryFactKinds),
-		array.Array(vulnerabilityExploitabilityFactKinds),
-		array.Array(packageConsumptionCorrelationFactKinds),
-		array.Array(packageRegistryFactKinds),
-		array.Array(sbomComponentFactKinds),
-		array.Array(sbomAttestationFactKinds),
-		array.Array(containerImageIdentityFactKinds),
-		array.Array(vulnerabilitySourceSnapshotFactKinds),
+		array.Of(vulnerabilityAdvisoryFactKinds),
+		array.Of(vulnerabilityExploitabilityFactKinds),
+		array.Of(packageConsumptionCorrelationFactKinds),
+		array.Of(packageRegistryFactKinds),
+		array.Of(sbomComponentFactKinds),
+		array.Of(sbomAttestationFactKinds),
+		array.Of(containerImageIdentityFactKinds),
+		array.Of(vulnerabilitySourceSnapshotFactKinds),
 		"", "", "", "", "", readinessMutableRef,
-		array.Array(vulnerabilityOSPackageFactKinds),
-		array.Array(scannerWorkerAnalysisFactKinds),
+		array.Of(vulnerabilityOSPackageFactKinds),
+		array.Of(scannerWorkerAnalysisFactKinds),
 	}
 	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {

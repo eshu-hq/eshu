@@ -69,7 +69,7 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 }
 
 func buildDocumentationSourceOnlySQL(filter documentationFindingFilter) (string, []any) {
-	args := []any{array.Array(documentationSourceOnlyFactKindsList())}
+	args := []any{array.Of(documentationSourceOnlyFactKindsList())}
 	clauses := []string{
 		"fact.fact_kind = ANY($1::text[])",
 		"fact.is_tombstone = FALSE",

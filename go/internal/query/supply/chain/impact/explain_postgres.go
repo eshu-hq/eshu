@@ -151,7 +151,7 @@ func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		explainSupplyChainImpactEvidenceFactsQuery,
-		array.Array(factIDs),
+		array.Of(factIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
@@ -318,8 +318,8 @@ func supplyChainImpactExplanationQueryArgs(
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		SuppressionReadAt(now),
 	}
 }

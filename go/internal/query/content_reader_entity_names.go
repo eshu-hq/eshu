@@ -113,11 +113,11 @@ func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
 			  AND entity_name ` + operator
 	args := []any{nameArg}
 	if search.Scope == EntityNameScopeRepositories {
-		args = append(args, array.Array(search.RepositoryIDs))
+		args = append(args, array.Of(search.RepositoryIDs))
 		query += fmt.Sprintf(" AND repo_id = ANY($%d::text[])", len(args))
 	}
 	if len(search.Languages) > 0 {
-		args = append(args, array.Array(search.Languages))
+		args = append(args, array.Of(search.Languages))
 		query += fmt.Sprintf(" AND coalesce(language, '') = ANY($%d::text[])", len(args))
 	}
 	if search.EntityType != "" {

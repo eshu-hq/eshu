@@ -156,8 +156,8 @@ func (s StatusStore) resolveChangedSinceScope(
 		filter.ScopeID,
 		filter.Repository,
 		filter.Scoped,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return changedSinceScope{}, false, fmt.Errorf("resolve changed-since scope: %w", err)

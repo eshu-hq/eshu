@@ -239,8 +239,8 @@ func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
 		ctx,
 		deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery,
 		producerRepoID,
-		array.Array(entityIDs),
-		array.Array(grantRepositoryIDs),
+		array.Of(entityIDs),
+		array.Of(grantRepositoryIDs),
 		len(entityIDs),
 	)
 	if err != nil {
@@ -270,7 +270,7 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 	if len(allowedRepositoryIDs) == 0 {
 		return args, ""
 	}
-	args = append(args, array.Array(allowedRepositoryIDs))
+	args = append(args, array.Of(allowedRepositoryIDs))
 	return args, fmt.Sprintf("\n  AND row.repository_id = ANY($%d)", len(args))
 }
 

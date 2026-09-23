@@ -77,8 +77,8 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 		filter.Outcome,
 		filter.AfterCorrelationID,
 		filter.Limit,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list ci/cd run correlations: %w", err)

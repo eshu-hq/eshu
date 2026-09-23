@@ -58,7 +58,7 @@ func CodeGrantScopedAuthContext(allowedRepositoryIDs []string) queryauth.AuthCon
 // actually bound to the caller's id list, not left dangling: a predicate whose
 // parameter never arrives fails at execution, and a predicate bound to the
 // wrong list silently widens the scan. Shipped builders bind the list with
-// array.Array, so the assertion scans args for the *array.StringArray
+// array.Of, so the assertion scans args for the *array.StringArray
 // carrying want rather than demanding an exact string element.
 func AssertBoundRepositoryGrantArray(t *testing.T, args []any, want []string) {
 	t.Helper()

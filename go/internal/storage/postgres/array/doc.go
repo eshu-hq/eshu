@@ -17,7 +17,7 @@
 // froze live on in array_test.go.
 //
 // Only one-dimensional arrays are supported. Scan rejects a NULL element for
-// both types rather than dropping it, and Array rejects any element type other
+// both types rather than dropping it, and Of rejects any element type other
 // than []string, *[]string, []float64 and *[]float64 with a typed error at
 // Value/Scan time. This package depends on the standard library alone and does
 // no reflection.

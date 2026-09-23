@@ -12,7 +12,7 @@ Removing the dependency meant rewriting 348 call sites of `pq.Array`,
 in `internal/storage/postgres` files whose SQL contains `CREATE`/`MERGE`, so the
 content-based hot-path detector selects them. **The SQL text itself is
 unchanged.** The only edit in those files is the selector rename, e.g.
-`pq.Array(&ids)` to `array.Array(&ids)`.
+`pq.Array(&ids)` to `array.Of(&ids)`.
 
 ## No-Regression Evidence:
 

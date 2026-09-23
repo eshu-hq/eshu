@@ -158,11 +158,11 @@ func (s PostgresKubernetesPodTemplateStore) hasLiveDeclaredObjectIdentityMatch(
 		filter.Namespace,
 		filter.Name,
 		len(filter.ImageRefs) == 0,
-		array.Array(filter.ImageRefs),
+		array.Of(filter.ImageRefs),
 	}
 	if !filter.AllScopes {
 		query = hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
 	return queryLiveIdentityMatchExists(ctx, s.DB, query, args)
 }
@@ -181,11 +181,11 @@ func (s PostgresKubernetesPodTemplateStore) listLiveDeclaredObjectIdentityMatche
 		filter.Namespace,
 		filter.Name,
 		len(filter.ImageRefs) == 0,
-		array.Array(filter.ImageRefs),
+		array.Of(filter.ImageRefs),
 	}
 	if !filter.AllScopes {
 		query = listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
 	args = append(args, querycontract.ServiceStoryItemLimit)
 

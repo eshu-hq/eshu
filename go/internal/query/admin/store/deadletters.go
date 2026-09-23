@@ -68,9 +68,9 @@ WHERE work.status = 'dead_letter'
 		_, _ = fmt.Fprintf(&builder, " AND work.updated_at < $%d\n", len(args))
 	}
 	if len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0 {
-		args = append(args, array.Array(f.AllowedRepositoryIDs))
+		args = append(args, array.Of(f.AllowedRepositoryIDs))
 		repoArg := len(args)
-		args = append(args, array.Array(f.AllowedScopeIDs))
+		args = append(args, array.Of(f.AllowedScopeIDs))
 		scopeArg := len(args)
 		_, _ = fmt.Fprintf(&builder,
 			" AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY($%d)) OR work.scope_id = ANY($%d))\n",

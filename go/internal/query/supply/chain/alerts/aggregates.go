@@ -67,14 +67,14 @@ func (s PostgresAggregateStore) CountSecurityAlertReconciliations(
 	}
 
 	args := []any{
-		array.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, aggregateTotalQuery, args...)
@@ -159,14 +159,14 @@ func (s PostgresAggregateStore) SecurityAlertReconciliationInventory(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
-		array.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
 		filter.GHSAID,
 		filter.ProviderState,
 		filter.ReconciliationStatus,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

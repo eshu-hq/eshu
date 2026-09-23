@@ -49,7 +49,7 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 		scopeID,
 		generationID,
 		activationEpoch,
-		array.Array(imageRefs),
+		array.Of(imageRefs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query held container image identity supports: %w", err)
@@ -69,14 +69,14 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 			&support.SourceRevisionProvenance,
 			&support.Reason,
 			&support.CanonicalWrites,
-			array.Array(&support.SourceRepositoryIDs),
-			array.Array(&support.BuildProvenanceRepositoryIDs),
-			array.Array(&support.BaseImageForRepositoryIDs),
-			array.Array(&support.WorkloadIDs),
-			array.Array(&support.ServiceIDs),
-			array.Array(&support.SourceLayers),
-			array.Array(&support.EvidenceFactIDs),
-			array.Array(&support.MissingEvidence),
+			array.Of(&support.SourceRepositoryIDs),
+			array.Of(&support.BuildProvenanceRepositoryIDs),
+			array.Of(&support.BaseImageForRepositoryIDs),
+			array.Of(&support.WorkloadIDs),
+			array.Of(&support.ServiceIDs),
+			array.Of(&support.SourceLayers),
+			array.Of(&support.EvidenceFactIDs),
+			array.Of(&support.MissingEvidence),
 		); err != nil {
 			return nil, fmt.Errorf("scan held container image identity support: %w", err)
 		}

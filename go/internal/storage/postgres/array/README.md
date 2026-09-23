@@ -22,7 +22,7 @@ the replacement had to be a drop-in with the same bytes on the wire.
   and a `sql.Scanner` (parses the text form Postgres emits for `text[]`).
 - `Float64Array` -- the same pair for `double precision[]`, used by the
   semantic-search vector tables.
-- `Array(v any)` -- wraps `[]string`, `*[]string`, `[]float64` or `*[]float64`
+- `Of(v any)` -- wraps `[]string`, `*[]string`, `[]float64` or `*[]float64`
   in the matching type. A slice value is copied (so a nil slice still encodes
   as SQL NULL); a pointer is aliased so `Scan` writes through. Any other Go type
   gets a wrapper whose `Value`/`Scan` fail with a typed error naming it.

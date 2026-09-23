@@ -70,15 +70,15 @@ func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		ListEvidenceQuery,
-		array.Array(advisoryEvidenceFactKinds),
-		array.Array(EvidenceLookupIDs(filter)),
-		array.Array(advisoryEvidencePackageIDs(filter)),
+		array.Of(advisoryEvidenceFactKinds),
+		array.Of(EvidenceLookupIDs(filter)),
+		array.Of(advisoryEvidencePackageIDs(filter)),
 		filter.Source,
 		EvidenceMaxFactRows,
 		filter.RepositoryID,
 		filter.ServiceID,
 		filter.WorkloadID,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)

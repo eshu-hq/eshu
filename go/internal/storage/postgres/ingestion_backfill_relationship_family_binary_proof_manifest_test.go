@@ -143,7 +143,7 @@ FROM deferred_backfill_partition_memo`,
 	ids := relationshipFamilyBinaryProofSortedIDs(loadedIDs)
 	if _, err := db.ExecContext(ctx,
 		`INSERT INTO `+relationshipFamilyExpectedLoadedFactIDsTable+` (fact_id) SELECT unnest($1::text[])`,
-		array.Array(ids),
+		array.Of(ids),
 	); err != nil {
 		t.Fatalf(`write binary proof loaded fact IDs: %v`, err)
 	}

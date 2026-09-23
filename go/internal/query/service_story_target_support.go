@@ -113,7 +113,7 @@ func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (
 	}
 	args := []any{}
 	factKinds := serviceStoryTargetSupportFactKinds()
-	args = append(args, array.Array(factKinds))
+	args = append(args, array.Of(factKinds))
 	clauses := []string{
 		"fact.is_tombstone = FALSE",
 	}

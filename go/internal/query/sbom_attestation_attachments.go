@@ -80,7 +80,7 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		filter.ServiceID,
 		filter.AfterAttachmentID,
 		filter.Limit,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("list sbom attestation attachments: %w", err)
@@ -202,7 +202,7 @@ func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissing
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load sbom attestation attachment missing evidence: %w", err)

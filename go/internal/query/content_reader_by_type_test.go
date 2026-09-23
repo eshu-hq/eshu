@@ -75,9 +75,9 @@ func TestListRepoEntitiesByTypesIssuesTypeFilteredQuery(t *testing.T) {
 	t.Parallel()
 
 	entityTypes := []string{"K8sResource", "TerraformResource"}
-	wantTypesArg, err := array.Array(entityTypes).Value()
+	wantTypesArg, err := array.Of(entityTypes).Value()
 	if err != nil {
-		t.Fatalf("array.Array(entityTypes).Value() error = %v, want nil", err)
+		t.Fatalf("array.Of(entityTypes).Value() error = %v, want nil", err)
 	}
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{

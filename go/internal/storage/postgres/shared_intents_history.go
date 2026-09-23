@@ -365,7 +365,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 		key.AcceptanceUnitID,
 		key.SourceRunID,
 		domain,
-		array.Array(filePaths),
+		array.Of(filePaths),
 	)
 	if err != nil {
 		return false, fmt.Errorf("query completed source-run refresh shared projection history: %w", err)
@@ -431,7 +431,7 @@ func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 		filePartitionPrefix+"%",
 		rowCanBeCoveredByFileRefresh,
 		rowCanBeCoveredByFileRefreshByPath,
-		array.Array(rowFiles),
+		array.Of(rowFiles),
 	)
 }
 

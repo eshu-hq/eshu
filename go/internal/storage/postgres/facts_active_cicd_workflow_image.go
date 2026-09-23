@@ -76,7 +76,7 @@ func (s FactStore) ListActiveCICDWorkflowImageFacts(
 	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveCICDWorkflowImageFactsQuery,
-		array.Array(repositoryIDs),
+		array.Of(repositoryIDs),
 		maxActiveCICDWorkflowImageFacts+1,
 	)
 	if err != nil {

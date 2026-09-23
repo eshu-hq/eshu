@@ -47,7 +47,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
 	row := s.DB.QueryRowContext(ctx, containerImageIdentityAggregateTotalQuery, args...)
@@ -130,7 +130,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 		filter.SourceRepositoryID,
 		filter.RepositoryID,
 		filter.Outcome,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

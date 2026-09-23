@@ -154,10 +154,10 @@ func (s PostgresCorrelationStore) ListPackageRegistryCorrelations(
 		filter.RelationshipKind,
 		filter.AfterCorrelationID,
 		fetchLimit,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
-		array.Array(filter.PackageIDs),
-		array.Array(filter.RelationshipKinds),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
+		array.Of(filter.PackageIDs),
+		array.Of(filter.RelationshipKinds),
 	)
 	if err != nil {
 		return CorrelationPage{}, fmt.Errorf("list package registry correlations: %w", err)

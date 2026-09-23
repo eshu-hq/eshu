@@ -142,7 +142,7 @@ func buildCloudInventoryPreRolloutProbeSQL(filter cloudInventoryFilter) (string,
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'management_origin' = $%d", len(args)))
 	}
 	if !filter.AllScopes {
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 		clauses = append(clauses, fmt.Sprintf(
 			"(fact_records.scope_id = ANY($%d) OR fact_records.scope_id = ANY($%d))",
 			len(args)-1, len(args),

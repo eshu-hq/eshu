@@ -67,7 +67,7 @@ SELECT
    OR (jsonb_typeof(fact.payload->'linked_entities') = 'array' AND jsonb_array_length(fact.payload->'linked_entities') > 0)
   )`,
 	}) + `
-`, []any{array.Array(factKinds)}
+`, []any{array.Of(factKinds)}
 }
 
 func buildStoryTargetSupportWithSourceOnlySummary(

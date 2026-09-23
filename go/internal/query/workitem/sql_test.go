@@ -58,7 +58,7 @@ func TestWorkItemEvidenceQueryAvoidsRawURLMatching(t *testing.T) {
 func TestWorkItemEvidenceQueryTreatsNullGrantArrayAsUnscoped(t *testing.T) {
 	t.Parallel()
 
-	bound, err := array.Array([]string(nil)).Value()
+	bound, err := array.Of([]string(nil)).Value()
 	if err != nil {
 		t.Fatalf("nil grant array Value() error = %v", err)
 	}

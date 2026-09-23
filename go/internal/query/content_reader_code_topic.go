@@ -201,7 +201,7 @@ func appendRepositoryGrantFilter(
 		return filters, args, nextArg
 	}
 	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
-	args = append(args, array.Array(allowedRepositoryIDs))
+	args = append(args, array.Of(allowedRepositoryIDs))
 	return filters, args, nextArg + 1
 }
 
@@ -360,7 +360,7 @@ func (cr *ContentReader) DivergenceMembersByEntityID(
 	)
 	defer span.End()
 
-	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, array.Array(entityIDs))
+	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, array.Of(entityIDs))
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("divergence members by entity: %w", err)
@@ -449,7 +449,7 @@ func (cr *ContentReader) DivergenceMembers(
 
 	// #nosec G201 -- column is one of two literals; the rest is static SQL with $N args
 	membersQuery := fmt.Sprintf(divergenceMembersQuery, "f."+column, "f."+column, "f."+column)
-	rows, err := cr.db.QueryContext(ctx, membersQuery, repoID, array.Array(fingerprints))
+	rows, err := cr.db.QueryContext(ctx, membersQuery, repoID, array.Of(fingerprints))
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("divergence members: %w", err)

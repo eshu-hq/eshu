@@ -78,8 +78,8 @@ func suppressionListPlanArgs(
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		readAt,
 	}
 }
@@ -106,8 +106,8 @@ func suppressionAggregatePlanArgs(
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		readAt,
 	}
 }
@@ -124,8 +124,8 @@ func suppressionExplainPlanArgs(readAt time.Time) []any {
 		"",
 		"",
 		"",
-		array.Array([]string(nil)),
-		array.Array([]string(nil)),
+		array.Of([]string(nil)),
+		array.Of([]string(nil)),
 		readAt,
 	}
 }

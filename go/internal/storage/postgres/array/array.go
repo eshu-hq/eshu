@@ -136,7 +136,7 @@ func (a *Float64Array) Scan(src any) error {
 	return nil
 }
 
-// Array wraps a Go slice as a query argument or scan target for the matching
+// Of wraps a Go slice as a query argument or scan target for the matching
 // Postgres array type. It accepts []string, *[]string, []float64 and
 // *[]float64 -- the element types Eshu stores -- and mirrors the classic
 // lib/pq shape: a slice value is copied into a fresh typed array (so a nil
@@ -146,7 +146,7 @@ func (a *Float64Array) Scan(src any) error {
 // Any other type is not silently accepted. The returned wrapper fails at
 // Value or Scan time with a typed error naming the offending Go type, which
 // surfaces as the statement's error rather than as a wrong write.
-func Array(a any) interface {
+func Of(a any) interface {
 	driver.Valuer
 	sql.Scanner
 } {
@@ -163,7 +163,7 @@ func Array(a any) interface {
 	return unsupportedArray{value: a}
 }
 
-// unsupportedArray is what Array returns for an element type this package does
+// unsupportedArray is what Of returns for an element type this package does
 // not encode. Both methods fail loudly so an unsupported type can never reach
 // the wire as a wrong literal.
 type unsupportedArray struct{ value any }

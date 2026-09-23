@@ -95,7 +95,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 		ctx,
 		listQuery,
 		factKind,
-		array.Array(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
+		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
@@ -104,7 +104,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 		filter.ReconciliationStatus,
 		filter.AfterReconciliationID,
 		filter.Limit,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list security alert reconciliations: %w", err)

@@ -13,15 +13,15 @@ import (
 
 // arrayBoundSliceFactKinds scans every non-test .go file directly under dir
 // (expected: go/internal/query) for package-level `<name> = []string{"a",
-// "b", ...}` var/const declarations, then separately for `array.Array(<name>)`
+// "b", ...}` var/const declarations, then separately for `array.Of(<name>)`
 // call arguments referencing one of those identifiers, and returns the
 // union of literal kind strings from every slice actually passed to
-// array.Array.
+// array.Of.
 //
 // This closes a second round-2 #5474 blind spot:
 // vulnerabilitySourceSnapshotFactKinds (supply_chain_impact_readiness_families.go:39,
 // `[]string{"vulnerability.source_snapshot"}`) is bound via
-// `array.Array(vulnerabilitySourceSnapshotFactKinds)`
+// `array.Of(vulnerabilitySourceSnapshotFactKinds)`
 // (supply_chain_impact_readiness_postgres.go:76) into positional parameter
 // $8 of listSupplyChainImpactReadinessQuery, whose
 // `WHERE fact.fact_kind = ANY($8::text[])` (supply_chain_impact_readiness_postgres_query.go:179)
@@ -35,7 +35,7 @@ import (
 // (rawSQLFactKindReaders only matches literal quotes, not a `= ANY($N)`
 // parameterized array bind).
 //
-// The `array.Array(<name>)` requirement is what keeps this precise: a
+// The `array.Of(<name>)` requirement is what keeps this precise: a
 // same-shaped local slice that is declared but never bound into a query —
 // there is no such case in go/internal/query today, but the requirement is
 // deliberate so a future dead `*FactKinds` slice does not silently count as
@@ -88,7 +88,7 @@ func arrayBoundSliceFactKinds(dir string) (map[string]bool, error) {
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "Array" {
+			if !ok || sel.Sel.Name != "Of" {
 				return true
 			}
 			if pkgIdent, ok := sel.X.(*ast.Ident); !ok || pkgIdent.Name != "array" {

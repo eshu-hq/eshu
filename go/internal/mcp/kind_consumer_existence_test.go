@@ -234,7 +234,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 //     (cloud_identity_policy_evidence.go:85, cloud_resource_change_evidence.go:90).
 //
 // A third, independently-discovered blind spot during this round's
-// re-verification: a `array.Array(<kind-list-var>)`-bound `fact_kind = ANY($N)`
+// re-verification: a `array.Of(<kind-list-var>)`-bound `fact_kind = ANY($N)`
 // parameterized query — seeded with the PRODUCTION vulnerability.source_snapshot
 // entry (supply_chain_impact_readiness_postgres_query.go:179, reading
 // payload->>'source' and friends).
@@ -261,7 +261,7 @@ func TestKindConsumerExistenceBITES_RoundTwoBlindSpots(t *testing.T) {
 		{kind: "package_registry.source_hint", signal: "reducer != (skip-unless) dispatch"},
 		{kind: "azure_identity_observation", signal: "storage/postgres raw-JSON payload reader"},
 		{kind: "azure_resource_change", signal: "storage/postgres raw-JSON payload reader"},
-		{kind: "vulnerability.source_snapshot", signal: "array.Array-bound fact_kind = ANY($N) query"},
+		{kind: "vulnerability.source_snapshot", signal: "array.Of-bound fact_kind = ANY($N) query"},
 	}
 
 	for _, tc := range cases {

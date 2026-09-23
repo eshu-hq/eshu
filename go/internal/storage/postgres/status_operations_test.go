@@ -69,7 +69,7 @@ func TestBuildLiveActivityQueryAppliesScopePredicateForGrantedAccess(t *testing.
 		t.Fatalf("access-scope predicate must precede ORDER BY, got:\n%s", query)
 	}
 
-	wantArgs := []any{101, array.Array([]string{"repo-a"}), array.Array([]string{"scope-a"})}
+	wantArgs := []any{101, array.Of([]string{"repo-a"}), array.Of([]string{"scope-a"})}
 	if !reflect.DeepEqual(args, wantArgs) {
 		t.Fatalf("buildLiveActivityQuery(allScopes=false) args = %#v, want %#v", args, wantArgs)
 	}

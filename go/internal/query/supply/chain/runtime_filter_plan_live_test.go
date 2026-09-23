@@ -140,10 +140,10 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"runtime_context_200_candidates",
 		impact.SelectRuntimeContextQuery,
-		array.Array(impact.RuntimeContextFactKinds),
-		array.Array(contextCandidates),
-		array.Array(contextCandidates),
-		array.Array([]string{}),
+		array.Of(impact.RuntimeContextFactKinds),
+		array.Of(contextCandidates),
+		array.Of(contextCandidates),
+		array.Of([]string{}),
 	)
 
 	baseFilter := impact.FindingFilter{
@@ -438,8 +438,8 @@ func supplyChainRuntimeFilterListArgs(filter impact.FindingFilter) []any {
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 		// $24::timestamptz -- the suppression-expiry evaluation time. Production
 		// passes supplyChainImpactSuppressionReadAt(s.Now) as the 24th argument in
 		// ListSupplyChainImpactFindings, and this list is bound against that same
@@ -469,8 +469,8 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any 
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
 		filter.ImageRef,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	}
 }
 
@@ -486,7 +486,7 @@ func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any 
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
-		array.Array(filter.AllowedRepositoryIDs),
-		array.Array(filter.AllowedScopeIDs),
+		array.Of(filter.AllowedRepositoryIDs),
+		array.Of(filter.AllowedScopeIDs),
 	}
 }

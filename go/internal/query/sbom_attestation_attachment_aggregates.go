@@ -126,7 +126,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
 	rows, err := s.DB.QueryContext(ctx, sbomAttestationAttachmentAggregateRollupQuery, args...)
@@ -247,7 +247,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 		filter.RepositoryID,
 		filter.WorkloadID,
 		filter.ServiceID,
-		array.Array(filter.AllowedSourceRepositoryIDs),
+		array.Of(filter.AllowedSourceRepositoryIDs),
 		limit,
 		offset,
 	)

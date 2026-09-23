@@ -54,7 +54,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	args := []any{repoID, entityType, language}
 	grant := ""
 	if len(query.AllowedRepositoryIDs) > 0 {
-		args = append(args, array.Array(query.AllowedRepositoryIDs))
+		args = append(args, array.Of(query.AllowedRepositoryIDs))
 		grant = fmt.Sprintf("\n\t\t  AND repo_id = ANY($%d)", len(args))
 	}
 	args = append(args, limit, offset)

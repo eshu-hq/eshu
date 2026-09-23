@@ -134,10 +134,10 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		SelectRuntimeContextQuery,
-		array.Array(RuntimeContextFactKinds),
-		array.Array(repositoryIDs),
-		array.Array(allowedRepositoryIDs),
-		array.Array(allowedScopeIDs),
+		array.Of(RuntimeContextFactKinds),
+		array.Of(repositoryIDs),
+		array.Of(allowedRepositoryIDs),
+		array.Of(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)

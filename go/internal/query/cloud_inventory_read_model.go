@@ -120,7 +120,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 		addPayloadFilter("account_id", filter.AccountAliasValue)
 	}
 	if !filter.AllScopes {
-		args = append(args, array.Array(filter.AllowedRepositoryIDs), array.Array(filter.AllowedScopeIDs))
+		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 		clauses = append(clauses, fmt.Sprintf(
 			"(fact_records.scope_id = ANY($%d) OR fact_records.scope_id = ANY($%d))",
 			len(args)-1, len(args),

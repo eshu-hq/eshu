@@ -53,7 +53,7 @@ func (cr *ContentReader) ListRepoEntitiesByIDs(
 		  AND entity_id = ANY($2)
 		ORDER BY relative_path, start_line, entity_id
 		LIMIT $3
-	`, repoID, array.Array(ids), limit)
+	`, repoID, array.Of(ids), limit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("list repo entities by ids: %w", err)
