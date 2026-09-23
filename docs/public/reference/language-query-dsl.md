@@ -413,7 +413,7 @@ use) through a compatibility stanza in `language_alias.go`.
 
 The graph-row metadata projection that fills a language-query result's
 `metadata` object, and the entity-type mapping that decides which label a row
-resolves to, live in `internal/query/querycontract`. The graph-first
+resolves to, live in `internal/query/querycontract/taxonomy`. The graph-first
 content-backed map (`GraphFirstContentBackedEntityTypes`, with
 `internal/query/language`'s `entities.go` keeping a same-value alias) is
 canonical there too since the #6060 entity move; no mapping entry changed. The

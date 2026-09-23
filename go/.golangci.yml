@@ -474,9 +474,6 @@ linters:
       - path: 'internal/query/investigation_workflow_catalog\.go'
         linters:
           - funlen
-      - path: 'internal/query/language_query_entities\.go'
-        linters:
-          - funlen
       - path: 'internal/query/repository/handler\.go'
         linters:
           - funlen

@@ -12,8 +12,8 @@ import (
 )
 
 // LanguageResultMatchKey identifies one entity by where it sits in a file. It
-// is shared with the entity and code-search enrichments (root's
-// entity_metadata.go, code_search_metadata.go), which anchor their own reads
+// is shared with the entity and code-search enrichments (entity/metadata.go,
+// codequery/search/enrich.go), which anchor their own reads
 // differently, so a caller adding the repository to the key does so itself
 // rather than this shape changing. The implementation moved from root's
 // language_query_metadata.go for #6060 so a handler-family subpackage can
