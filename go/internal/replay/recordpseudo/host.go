@@ -132,25 +132,44 @@ func (d *dictionary) awsHostLabels(labels []string, tail int) []string {
 	return out
 }
 
-// learnImageRef splits host, repository path, tag and digest. The host is a
-// ClassHost value, the repository path is learned whole as an identifier,
-// the tag and digest are structural and kept.
+// learnImageRef splits scheme, host, repository path, tag and digest. The
+// host is a ClassHost value, the repository path is learned whole as an
+// identifier, the tag and digest are structural and kept. It never hands a
+// string it received back to learnIdent unchanged: learnIdent routes every
+// ".dkr.ecr." string here, so each branch below must make progress or stop.
 func (d *dictionary) learnImageRef(raw string) {
-	ref, _, _ := strings.Cut(raw, "@")
+	ref := raw
+	if i := strings.Index(ref, "://"); i >= 0 {
+		ref = ref[i+3:]
+	}
+	ref, _, _ = strings.Cut(ref, "@")
+	ref = strings.TrimLeft(ref, "/")
 	host, path, hasPath := strings.Cut(ref, "/")
 	if !hasPath {
-		d.learnIdent(ref)
+		hostOnly, _, _ := strings.Cut(ref, ":")
+		if hostShapeRe.MatchString(hostOnly) && lastLabelAlphabetic(hostOnly) {
+			d.learnHost(hostOnly)
+		} else if hostOnly != "" && !d.known(hostOnly) {
+			d.set(ClassIdent, hostOnly, d.name(hostOnly))
+		}
 		return
 	}
 	if strings.ContainsAny(host, ".:") || host == "localhost" {
 		hostOnly, _, _ := strings.Cut(host, ":")
 		d.learnHost(hostOnly)
-	} else {
+	} else if host != "" {
 		d.learnIdent(host)
 		path = host + "/" + path
 	}
 	if i := strings.LastIndex(path, ":"); i >= 0 && !strings.Contains(path[i:], "/") {
 		path = path[:i]
+	}
+	if path == "" || d.known(path) {
+		return
+	}
+	if strings.Contains(path, ".dkr.ecr.") {
+		d.set(ClassIdent, path, d.name(path))
+		return
 	}
 	d.learnIdent(path)
 }
