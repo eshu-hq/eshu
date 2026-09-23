@@ -24,12 +24,22 @@
 # keyed on the exact target checksum, not on the path alone, so it permits
 # only "land 093 back on precisely its shipped content" and nothing else.
 #
+# This gate always diffs against a resolved common-ancestor COMMIT, never a
+# branch tip: resolving to a concrete merge-base up front, then diffing
+# two-dot against that SHA, means the diff can never accidentally include
+# commits the base branch made AFTER this branch diverged (which would show up
+# as spurious deletions/modifications of migrations this PR never touched --
+# exactly wrong for a gate whose whole job is refusing D/M/R). A base that
+# cannot be resolved to a merge-base (shallow history, an orphan ref, a bogus
+# override) is a hard failure, never a silent pass -- see find_merge_base.
+#
 # Usage: scripts/verify-migration-immutability.sh
 # Exit codes:
 #   0 - no shipped migration was modified, deleted, or renamed since base
 #       (other than the allowed #7002 restore).
-#   1 - a shipped migration was modified, deleted, or renamed; details on
-#       stderr naming the exact file.
+#   1 - a shipped migration was modified, deleted, or renamed, OR the base
+#       could not be resolved to an actual common ancestor of HEAD; details on
+#       stderr naming the exact file or the resolution failure.
 set -euo pipefail
 
 repo_root="${ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT:-}"
@@ -45,28 +55,78 @@ fi
 
 migrations_dir="go/internal/storage/postgres/migrations"
 
-base="${ESHU_MIGRATION_IMMUTABILITY_BASE:-}"
-if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+# find_merge_base prints a concrete merge-base commit SHA between ref and HEAD
+# on stdout and returns 0, or prints nothing and returns 1. It first tries the
+# direct computation; if that fails and GITHUB_BASE_REF is set (a real CI PR
+# context, where the checkout's history can be genuinely too shallow to reach
+# a common ancestor), it makes a bounded number of attempts to deepen both
+# HEAD's own history and the fetched base ref before giving up. It never
+# treats "could not compute" as "nothing changed" -- that is the caller's job,
+# and the caller must fail loud on a 1 return, not skip.
+find_merge_base() {
+  local ref="$1" mb
+  if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
+    printf '%s\n' "$mb"
+    return 0
+  fi
+  if [ -z "${GITHUB_BASE_REF:-}" ]; then
+    return 1
+  fi
+  local depth=100
+  while [ "$depth" -le 3200 ]; do
+    git -C "$repo_root" fetch --no-tags --deepen="$depth" >/dev/null 2>&1 || true
+    git -C "$repo_root" fetch --no-tags --deepen="$depth" origin \
+      "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
+    if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
+      printf '%s\n' "$mb"
+      return 0
+    fi
+    depth=$((depth * 4))
+  done
+  return 1
+}
+
+base_ref="${ESHU_MIGRATION_IMMUTABILITY_BASE:-}"
+if [ -z "$base_ref" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
+  # An explicit destination refspec is required: `git fetch origin <branch>`
+  # with no `:<dst>` only ever updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch> (eshu-hq/eshu#5542). No --depth limit here:
+  # a shallow single-commit fetch of the base tip cannot reach a merge-base
+  # with HEAD once the branch has fallen behind, which is exactly the case
+  # this gate most needs to get right. find_merge_base deepens further if this
+  # still is not enough.
+  git -C "$repo_root" fetch --no-tags origin \
+    "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    base="origin/$GITHUB_BASE_REF"
+    base_ref="origin/$GITHUB_BASE_REF"
   fi
 fi
-if [ -z "$base" ]; then
-  # Local (non-CI) runs: diff against the branch's divergence point from
-  # origin/main, not HEAD~1 -- on a branch based on a squash-merge commit,
-  # HEAD~1 is the pre-merge commit and would sweep in files this branch never
-  # touched. CI keeps using GITHUB_BASE_REF above (see
-  # ci-diffs-main-tip-local-diffs-merge-base / stacked-pr-gates-diff-the-wrong-base).
+if [ -z "$base_ref" ]; then
+  # Local (non-CI) runs, and CI with no resolvable GITHUB_BASE_REF: fall back
+  # to origin/main if present, else HEAD~1, else there is nothing to diff
+  # against at all (a single-commit repo/fixture) -- that is a genuine
+  # absence of history, not an error, so it is the one case that still skips.
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
-    base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
+    base_ref="origin/main"
   elif git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    base="HEAD~1"
+    base_ref="HEAD~1"
   else
     printf 'verify-migration-immutability: no base commit available, skipping\n'
     exit 0
   fi
 fi
+
+base_commit="$(find_merge_base "$base_ref")" || {
+  {
+    printf 'verify-migration-immutability: could not resolve a common ancestor between %s and HEAD.\n' "$base_ref"
+    printf 'This is a hard failure, not a pass: a gate that cannot see the real diff must never\n'
+    printf 'silently accept an edit to a shipped migration. Likely causes: %s is an orphan ref\n' "$base_ref"
+    printf 'unrelated to this history, an invalid override, or (in CI) history too shallow to\n'
+    printf 'reach the divergence point even after deepening -- consider a deeper checkout for\n'
+    printf 'this job (fetch-depth: 0).\n'
+  } >&2
+  exit 1
+}
 
 # allowed_migration_fix is the sole standing exception: path + the exact
 # target sha256 the file's HEAD content must hash to. #7002 restored 093 to
@@ -88,9 +148,21 @@ allowed_migration_fix() {
   esac
 }
 
-rows="$(git -C "$repo_root" diff --name-status --find-renames "$base"...HEAD -- "$migrations_dir" 2>/dev/null || true)"
-if [ -z "$rows" ]; then
-  rows="$(git -C "$repo_root" diff --name-status --find-renames "$base" HEAD -- "$migrations_dir" 2>/dev/null || true)"
+# Two-dot diff against the already-resolved common-ancestor SHA: no further
+# merge-base computation happens here, so this cannot fail the way a "..."
+# diff can on an unreachable ancestor -- that possibility was already ruled
+# out above. A genuine failure here (corrupt object, race on the worktree) is
+# still not swallowed: capture the real exit status rather than `|| true`-ing
+# it away, and fail loud rather than treat an empty result as ambiguous with
+# "the command errored".
+diff_err="$(mktemp)"
+trap 'rm -f "$diff_err"' EXIT
+diff_status=0
+rows="$(git -C "$repo_root" diff --name-status --find-renames "$base_commit" HEAD -- "$migrations_dir" 2>"$diff_err")" || diff_status=$?
+if [ "$diff_status" -ne 0 ]; then
+  printf 'verify-migration-immutability: git diff against resolved base %s (%s) failed:\n' "$base_ref" "$base_commit" >&2
+  cat "$diff_err" >&2
+  exit 1
 fi
 
 violations=0
@@ -137,7 +209,7 @@ done <<<"$rows"
 
 if [ "$violations" -ne 0 ]; then
   {
-    printf '\nA shipped migration under %s changed relative to %s.\n' "$migrations_dir" "$base"
+    printf '\nA shipped migration under %s changed relative to %s (%s).\n' "$migrations_dir" "$base_ref" "$base_commit"
     printf 'Widen or fix its behavior through a NEW guarded migration file instead --\n'
     printf 'see %s/README.md and %s/checksum_alias.go for the pattern (#7002).\n' "$migrations_dir" "$migrations_dir"
   } >&2

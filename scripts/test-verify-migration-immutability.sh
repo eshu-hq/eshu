@@ -17,6 +17,11 @@ fi
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
+# Per-run output files live under this test's own mktemp -d, not a fixed
+# /tmp/... name, so two invocations of this self-test (e.g. two gates running
+# in parallel) never collide on the same path.
+out_file="${tmp_root}/verifier.out"
+err_file="${tmp_root}/verifier.err"
 
 init_repo() {
   local name="$1"
@@ -35,18 +40,26 @@ init_repo() {
   printf '%s\n' "${dir}"
 }
 
+# run_verifier invokes $verifier against $dir with the given base override
+# (default HEAD~1, the common case for a single-extra-commit fixture).
+# GITHUB_BASE_REF is always explicitly unset: these fixtures simulate the
+# non-CI resolution path (and the CI path's *symptoms* via an explicit base
+# override), never real network fetching.
 run_verifier() {
   local dir="$1"
-  ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${dir}" \
-    ESHU_MIGRATION_IMMUTABILITY_BASE=HEAD~1 \
-    "${verifier}" >/tmp/eshu-migration-immutability.out 2>/tmp/eshu-migration-immutability.err
+  local base="${2:-HEAD~1}"
+  env -u GITHUB_BASE_REF \
+    ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${dir}" \
+    ESHU_MIGRATION_IMMUTABILITY_BASE="${base}" \
+    "${verifier}" >"${out_file}" 2>"${err_file}"
 }
 
 expect_pass() {
   local dir="$1"
-  if ! run_verifier "${dir}"; then
-    printf 'expected verifier to pass in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-migration-immutability.err >&2
+  local base="${2:-HEAD~1}"
+  if ! run_verifier "${dir}" "${base}"; then
+    printf 'expected verifier to pass in %s (base=%s)\n' "${dir}" "${base}" >&2
+    sed -n '1,120p' "${err_file}" >&2
     exit 1
   fi
 }
@@ -54,14 +67,15 @@ expect_pass() {
 expect_fail() {
   local dir="$1"
   local want_substring="$2"
-  if run_verifier "${dir}"; then
-    printf 'expected verifier to fail in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-migration-immutability.out >&2
+  local base="${3:-HEAD~1}"
+  if run_verifier "${dir}" "${base}"; then
+    printf 'expected verifier to fail in %s (base=%s)\n' "${dir}" "${base}" >&2
+    sed -n '1,120p' "${out_file}" >&2
     exit 1
   fi
-  if ! grep -qF -- "${want_substring}" /tmp/eshu-migration-immutability.err; then
+  if ! grep -qF -- "${want_substring}" "${err_file}"; then
     printf 'expected verifier stderr in %s to mention %q, got:\n' "${dir}" "${want_substring}" >&2
-    sed -n '1,120p' /tmp/eshu-migration-immutability.err >&2
+    sed -n '1,120p' "${err_file}" >&2
     exit 1
   fi
 }
@@ -146,13 +160,13 @@ git -C "${gitdir_repo}" commit -q -m 'edit 001 in place (gitdir fixture)'
 if env -u ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT -u GITHUB_BASE_REF \
     GIT_DIR="${gitdir_repo}/.git" ESHU_MIGRATION_IMMUTABILITY_BASE=HEAD~1 \
     "${gitdir_repo}/scripts/verify-migration-immutability.sh" \
-    >/tmp/eshu-migration-immutability.out 2>/tmp/eshu-migration-immutability.err; then
+    >"${out_file}" 2>"${err_file}"; then
   printf 'expected verifier to resolve repo_root under GIT_DIR and fail\n' >&2
   exit 1
 fi
-if ! grep -qF -- "001_widgets.sql was modified" /tmp/eshu-migration-immutability.err; then
+if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
   printf 'expected GIT_DIR run to still name 001_widgets.sql, got:\n' >&2
-  sed -n '1,120p' /tmp/eshu-migration-immutability.err >&2
+  sed -n '1,120p' "${err_file}" >&2
   exit 1
 fi
 
@@ -173,14 +187,75 @@ git -C "${mergebase_repo}" add .
 git -C "${mergebase_repo}" commit -q -m 'C: unrelated change'
 if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
     ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${mergebase_repo}" \
-    "${verifier}" >/tmp/eshu-migration-immutability.out 2>/tmp/eshu-migration-immutability.err; then
+    "${verifier}" >"${out_file}" 2>"${err_file}"; then
   printf 'expected merge-base fallback to flag 001 (edited in commit B), but verifier passed\n' >&2
-  sed -n '1,40p' /tmp/eshu-migration-immutability.out >&2
+  sed -n '1,40p' "${out_file}" >&2
   exit 1
 fi
-if ! grep -qF -- "001_widgets.sql was modified" /tmp/eshu-migration-immutability.err; then
+if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
   printf 'expected merge-base run to name 001_widgets.sql, got:\n' >&2
-  sed -n '1,120p' /tmp/eshu-migration-immutability.err >&2
+  sed -n '1,120p' "${err_file}" >&2
+  exit 1
+fi
+
+# Regression (#7002 P1-a, false RED for a branch legitimately behind main):
+# origin/main advances with a NEW migration (121) after this branch diverged;
+# the branch itself only makes an unrelated change and never touches
+# migrations at all. The gate must PASS -- main's own later commits are not
+# this branch's diff. A base resolved to an unresolved ref name (origin/main,
+# not a pre-computed SHA) exercises exactly the CI shape (base="origin/$GITHUB_BASE_REF"),
+# where the old two-dot fallback compared the unrelated commit's tree directly
+# against origin/main's CURRENT tree and reported 121 as a spurious deletion.
+behind_main_repo="$(init_repo behind-main)"
+git -C "${behind_main_repo}" update-ref refs/remotes/origin/main HEAD
+divergence_point="$(git -C "${behind_main_repo}" rev-parse HEAD)"
+printf -- '-- 121 added on main after this branch diverged\nCREATE TABLE main_only (id INT);\n' \
+  >"${behind_main_repo}/${migrations_dir}/121_main_only.sql"
+git -C "${behind_main_repo}" add .
+git -C "${behind_main_repo}" commit -q -m 'main: add 121 after divergence'
+git -C "${behind_main_repo}" update-ref refs/remotes/origin/main HEAD
+git -C "${behind_main_repo}" reset -q --hard "${divergence_point}"
+printf 'package unrelated\n\n// unrelated commit while behind main\n' \
+  >"${behind_main_repo}/go/internal/unrelated/source.go"
+git -C "${behind_main_repo}" add .
+git -C "${behind_main_repo}" commit -q -m 'branch: unrelated change while behind main'
+expect_pass "${behind_main_repo}" "origin/main"
+
+# Regression (#7002 P1-b, vacuous pass on an unresolvable base): a base that
+# shares no history with HEAD at all (an orphan ref) must fail the gate
+# non-zero, never silently report "no shipped migration was modified" just
+# because the diff/merge-base computation itself failed.
+orphan_repo="$(init_repo orphan)"
+default_branch="$(git -C "${orphan_repo}" symbolic-ref --short HEAD)"
+git -C "${orphan_repo}" checkout -q --orphan unrelated-history
+git -C "${orphan_repo}" rm -q -rf . >/dev/null
+printf 'unrelated orphan content, no shared history with the real branch\n' >"${orphan_repo}/unrelated.txt"
+git -C "${orphan_repo}" add .
+git -C "${orphan_repo}" commit -q -m 'orphan: unrelated history'
+git -C "${orphan_repo}" update-ref refs/remotes/origin/orphan-base HEAD
+git -C "${orphan_repo}" checkout -q "${default_branch}"
+if run_verifier "${orphan_repo}" "origin/orphan-base"; then
+  printf 'expected verifier to FAIL non-zero when the base shares no history with HEAD, but it passed\n' >&2
+  sed -n '1,60p' "${out_file}" >&2
+  exit 1
+fi
+if ! grep -qF -- "could not resolve a common ancestor" "${err_file}"; then
+  printf 'expected the orphan-base run to explain the resolution failure, got:\n' >&2
+  sed -n '1,60p' "${err_file}" >&2
+  exit 1
+fi
+
+# Same failure mode, simpler trigger: a bogus override that does not resolve
+# to any object at all.
+bogus_repo="$(init_repo bogus-base)"
+if run_verifier "${bogus_repo}" "0000000000000000000000000000000000000000"; then
+  printf 'expected verifier to FAIL non-zero for a bogus base override, but it passed\n' >&2
+  sed -n '1,60p' "${out_file}" >&2
+  exit 1
+fi
+if ! grep -qF -- "could not resolve a common ancestor" "${err_file}"; then
+  printf 'expected the bogus-base run to explain the resolution failure, got:\n' >&2
+  sed -n '1,60p' "${err_file}" >&2
   exit 1
 fi
 
