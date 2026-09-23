@@ -34,6 +34,16 @@ var structuralWords = map[string]struct{}{
 	"$LATEST": {}, "aws": {}, "*": {}, "root": {},
 }
 
+// structural reports a token that is never learned: a structural word or an
+// AWS region / availability zone (awsRegionExactRe), whose grammar every
+// scope id, ARN and ECR host depends on.
+func structural(raw string) bool {
+	if _, ok := structuralWords[raw]; ok {
+		return true
+	}
+	return awsRegionExactRe.MatchString(raw)
+}
+
 // entry is one learned token: its pseudonym and the class that shaped it.
 type entry struct {
 	pseudonym string
@@ -114,10 +124,7 @@ func (d *dictionary) settled(class Class, raw string) bool {
 // higher-ranked class are ignored.
 func (d *dictionary) learn(class Class, raw string) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || d.settled(class, raw) {
-		return
-	}
-	if _, structural := structuralWords[raw]; structural {
+	if raw == "" || d.settled(class, raw) || structural(raw) {
 		return
 	}
 	switch class {
@@ -237,10 +244,7 @@ func structuredShape(raw string) bool {
 // learnIdent sniffs the shape of a name-like value and delegates.
 func (d *dictionary) learnIdent(raw string) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || d.settled(ClassIdent, raw) {
-		return
-	}
-	if _, structural := structuralWords[raw]; structural {
+	if raw == "" || d.settled(ClassIdent, raw) || structural(raw) {
 		return
 	}
 	switch {
