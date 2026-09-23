@@ -20,7 +20,12 @@ const hostnameTLDs = "com|net|org|io|dev|app|cloud|co|ai|us|internal|local|svc|e
 	"|uk|de|ca|jp|au|nl|fr|eu|ch|se|dk|be|fi|ie|pt|br|mx|ar|cn|kr|sg|hk|tw|nz|za|ru|ua|il|ae|sa|tr|gr|hu|ro|bg|sk|si|hr|lt|lv|ee|lu|cz"
 
 var (
-	hostnameCand    = regexp.MustCompile(`(?i)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.(?:` + hostnameTLDs + `)`)
+	// The right boundary is INSIDE the pattern: Go's RE2 has no lookahead,
+	// and with the boundary checked afterwards the TLD alternation settles on
+	// "co" for "corp" and the candidate is lost. With the boundary in the
+	// pattern the engine backtracks over the alternation as the gate's PCRE
+	// does. The trailing boundary byte is trimmed by scanHostnames.
+	hostnameCand    = regexp.MustCompile(`(?i)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.(?:` + hostnameTLDs + `)(?:[^a-z0-9_-]|\z)`)
 	docAccountRe    = regexp.MustCompile(`^(?:12345678901[2]|0{11}[0-9])$`)
 	pseudoAccountRe = regexp.MustCompile(`^0000[0-9]{8}$`)
 	ipv4AllowRe     = regexp.MustCompile(`^(?:192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$`)

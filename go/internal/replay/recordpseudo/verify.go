@@ -160,11 +160,14 @@ func scanARNs(text string, produced Set, refuse refusal) {
 
 // scanHostnames: a dotted name ending in a listed TLD, not preceded by a
 // label character or by "label." and not followed by a label character or
-// underscore; the allow forms are the gate's, plus ECR under a produced
-// account.
+// underscore (that right boundary is part of hostnameCand); the allow forms
+// are the gate's, plus ECR under a produced account.
 func scanHostnames(text string, produced Set, refuse refusal) {
 	for _, loc := range hostnameCand.FindAllStringIndex(text, -1) {
 		start, end := loc[0], loc[1]
+		if end > start && !isAlnum(text[end-1]) {
+			end-- // the boundary byte the pattern consumed
+		}
 		if start > 0 {
 			prev := text[start-1]
 			if isAlnum(prev) || prev == '-' {
@@ -173,9 +176,6 @@ func scanHostnames(text string, produced Set, refuse refusal) {
 			if prev == '.' && start > 1 && isAlnum(text[start-2]) {
 				continue
 			}
-		}
-		if end < len(text) && (isAlnum(text[end]) || text[end] == '_' || text[end] == '-') {
-			continue
 		}
 		if !hostnameAllowed(strings.ToLower(text[start:end]), produced) {
 			refuse(start, "hostname")
