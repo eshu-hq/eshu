@@ -57,6 +57,15 @@ builders:
             - {}
           source_sha256: e6f2c93b4d793040013c020da7efbc4c62cb3853420c3c23edebe0e6cdf885dd
           exempt: test-corpus helper forwarding its cypher param; exercised by conformance legs
+    - file: internal/backendconformance/corpus_semantic_module.go
+      builders:
+        - symbol: SemanticModuleWriteCases
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - template: 'MERGE (f:File {path: $file_path}) SET f.repo_id = $repo_id, f.language = $language, f.lang = $language'
+          source_sha256: e2c571e6b135b34e8be1df5b1cfb98db306f70c6b9241caea440b2b5df131862
+          exempt: test-corpus helper; the File seed for the semantic Module cases, whose other statements come from the production SemanticEntityWriter and the canonical Module upsert; exercised by TestLiveBackendConformance on nornicdb and neo4j
     - file: internal/backendconformance/corpus_value_flow.go
       builders:
         - symbol: valueFlowUpsert
