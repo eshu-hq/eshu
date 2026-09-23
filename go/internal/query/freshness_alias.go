@@ -29,8 +29,8 @@ type FreshnessHandler = freshness.Handler
 
 // FreshnessCause is the closed reason a truth response is not fresh. Its
 // home is freshness/ (itself an alias of querycontract.FreshnessCause);
-// answer_packet.go, metrics.go, and querycontract_boundary_test.go keep
-// spelling query.FreshnessCause unchanged.
+// querycontract_boundary_test.go and this file's own helpers keep spelling
+// query.FreshnessCause unchanged.
 type FreshnessCause = freshness.Cause
 
 // FreshnessNextCheck is a bounded follow-up call for one freshness cause.

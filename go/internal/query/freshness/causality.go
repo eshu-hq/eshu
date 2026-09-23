@@ -4,9 +4,8 @@
 package freshness
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 )
 
 // Cause is the closed reason a truth response is not fresh.

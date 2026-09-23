@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 

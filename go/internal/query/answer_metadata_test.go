@@ -6,9 +6,8 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
-
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -120,7 +119,7 @@ func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
 			}},
 		},
 	}
-	metadata, ok := AnswerMetadataFromData(data)
+	metadata, ok := answer.AnswerMetadataFromData(data)
 	if !ok {
 		t.Fatal("AnswerMetadataFromData ok = false, want true")
 	}

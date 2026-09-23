@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )

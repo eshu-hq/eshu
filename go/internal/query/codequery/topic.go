@@ -12,10 +12,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -430,9 +428,10 @@ var codeTopicStopWords = map[string]bool{
 // codeTopicAnswerData attaches the answer_packet companion onto a code-topic
 // investigation response. Moved from answer_packet_routes.go for #6060: it
 // takes CodeTopicInvestigationRequest, a code-family type, so hoisting it to
-// querycontract (as its withAnswerPacketCompanion/codeTopicAnswerSummary/
-// codeTopicAnswerLimitations/codeTopicEvidenceHandles callees were) would
-// make querycontract import the code family -- the cycle in reverse. It
+// querycontract/answer (as its WithAnswerPacketCompanion,
+// CodeTopicAnswerSummary, CodeTopicAnswerLimitations and
+// CodeTopicEvidenceHandles callees were) would make that package import the
+// code family -- the cycle in reverse. It
 // moves here instead, once those callees are in place.
 func codeTopicAnswerData(req CodeTopicInvestigationRequest, data map[string]any, truth *TruthEnvelope) map[string]any {
 	return answer.WithAnswerPacketCompanion(data, truth, answer.AnswerPacketCompanionInput{
