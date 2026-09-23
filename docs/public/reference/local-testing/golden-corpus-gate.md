@@ -156,19 +156,26 @@ and uploads the recordings, and it is filed as an issue rather than blocking
 the PR. The job's B-7 capture legs, its check that every leg wrote
 recordings, and its statement coverage check still block. Every
 executed graph statement is fingerprinted (normalized text plus bound
-parameters) with a digest of its result rows; the gate fails on any statement
-whose digest differs, naming the statement so the failure points at its
-production source. A side with no
-recordings fails instead of passing vacuously, so a half-finished run can never
-look green.
+parameters) with a digest of its result rows; the comparison step fails on
+any statement whose digest differs, naming the statement so the warning points
+at its production source. In CI that failure is the advisory outcome above, not
+a failed job. A side with no recordings fails the comparison too, but the
+blocking guard against a half-finished run is the capture-leg check: it fails
+the job when any leg wrote no recordings, so a lost capture can never look
+green.
 
-CI runs **two leg pairings** and fails only on divergences that reproduce
+CI runs **two leg pairings** and reports only divergences that reproduce
 across both (multi-leg quorum): pairing-local scheduling noise drops out,
-while a systematic backend divergence reproduces and still fails.
+while a systematic backend divergence reproduces as a comparison failure, the
+advisory finding to file as an issue.
+
+From here to the statement coverage section, "fails" and "required" describe
+the comparison step's own verdict. In CI that step is advisory, so none of them
+fails the job.
 
 | Finding | Meaning |
 | --- | --- |
-| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing. (Reproduced advisory divergences stay advisory here; the ceiling below is their tripwire.) |
+| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Fails the comparison step. (Reproduced advisory divergences stay advisory here; the ceiling below is their tripwire.) |
 | `nornicdb_vs_neo4j_executions` | Reproduced execution-count or row-total divergences with agreeing results (scheduling noise: drain passes, retries, extra poll iterations). Advisory. |
 | `nornicdb_vs_neo4j_transient` | Divergences on registered transient-state reads, whose digests disagree because the result depends on the drain point. Advisory, always visible. |
 | `nornicdb_vs_neo4j_tie_order` | Divergences on registered tie-order reads: ORDER BY over tied keys with no truncation, where delivery order is backend-undefined but the row multiset agrees. Advisory, always visible. |
