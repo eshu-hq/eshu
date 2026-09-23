@@ -11,10 +11,11 @@ Read `doc.go` and `README.md` first.
   (`querycontract`, `queryauth`, `tracing`) or it does not belong in
   this family; ask before adding one.
 - Capabilities are registered in `query/contract`
-  (`capability_matrix_ext.go`), not here -- root blank-imports that package
-  from `capability_registry.go` and always links into production. This package only declares the
-  `OwnershipSupport` constructor the TestMain registers. Do not register
-  in this package's non-test code.
+  (`capability_matrix_ext.go`), not here -- `capability/lookup.go`
+  blank-imports that package and root imports `capability`, so it always
+  links into production. This package only declares the `OwnershipSupport`
+  constructor the TestMain registers. Do not register in this package's
+  non-test code.
 - `queryHandlerTracer` MUST stay a package-local var seeded from
   `tracing.HandlerTracer`. The span guard test swaps it; a second
   tracer var, or seeding from anywhere else, breaks its isolation or

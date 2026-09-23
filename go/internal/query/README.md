@@ -1112,7 +1112,7 @@ live in [evidence-notes.md](evidence-notes.md).
   content index and intentionally avoid graph reads; resolved entity-id paths
   keep the existing graph query instrumentation unchanged.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`capability_registry.go`).
+  a capability string missing from `querycontract/capability.go`'s registry.
   Register missing capability IDs from `go/internal/query/contract/` first.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
@@ -1292,8 +1292,8 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 
 ## Gotchas / invariants
 
-- `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`capability_registry.go`). All capability strings used in handlers must be
+- `BuildTruthEnvelope` panics if `capability` is missing from the registry
+  (`querycontract/capability.go`). All capability strings used in handlers must be
   registered from `go/internal/query/contract/` before the handler runs.
 - `querycontract.CapabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
