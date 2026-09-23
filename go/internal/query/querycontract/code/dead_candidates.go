@@ -10,7 +10,7 @@ import "strings"
 //
 // This is the ONLY declaration of the set. The scan in codequery/deadcode
 // reads it directly, and the openAPI contract test in package query names this
-// package directly so the advertised candidate_kind enum stays pinned to the
+// package directly and requires the advertised candidate_kind enum to equal the
 // same set the scan reads. A second literal in root would compile and drift
 // silently, changing either what the scan checks or what the contract
 // advertises with nothing failing.
@@ -23,7 +23,7 @@ var DeadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface
 // It lives here beside DeadCodeCandidateLabels rather than in root because
 // the code-family contract proofs in codequery name it directly, and a
 // _test.go symbol in root is not importable across that package boundary
-// (#6060). Root keeps an unexported wrapper, so its callers are unchanged.
+// (#6060). Root's reader calls it directly; #6597 deleted the old root wrapper.
 func DeadCodeCandidateEntityType(label string) (string, bool) {
 	switch label {
 	case "Function", "Class", "Struct", "Interface", "Trait", "SqlFunction":

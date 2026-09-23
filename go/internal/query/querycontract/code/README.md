@@ -24,11 +24,11 @@ presence check. Anything that decides policy belongs in the caller.
 
 `DeadCodeCandidateLabels` is the only declaration of the candidate set. The
 OpenAPI contract test names this package directly, so the advertised
-`candidate_kind` enum stays pinned to the same set the scan reads.
+`candidate_kind` enum must equal, as a set, the labels the scan reads.
 
 ## Dependencies
 
-Inbound: 22 files across `internal/query`, `codequery`, `codequery/deadcode`,
+Inbound: 30 files across `internal/query`, `codequery`, `codequery/deadcode`,
 `codemodel`, `impact` and `querytestutil`.
 
 Outbound: `strings`, and nothing else. Not the parent `querycontract`, not any

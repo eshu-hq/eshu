@@ -28,7 +28,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
-	entityType, ok := deadCodeCandidateEntityType(label)
+	entityType, ok := code.DeadCodeCandidateEntityType(label)
 	if !ok {
 		return nil, fmt.Errorf("unsupported dead code candidate label %q", label)
 	}
@@ -127,12 +127,4 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 		return nil, err
 	}
 	return results, nil
-}
-
-// deadCodeCandidateEntityType forwards to
-// code.DeadCodeCandidateEntityType. The implementation moved to
-// querycontract for #6060 and on to querycontract/code for #6597; this
-// wrapper keeps root callers unchanged.
-func deadCodeCandidateEntityType(label string) (string, bool) {
-	return code.DeadCodeCandidateEntityType(label)
 }

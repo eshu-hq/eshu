@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -171,8 +172,8 @@ func (s *crossRepoDeadCodeSelectorStore) CrossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]deadcode.CrossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
+	reads code.CrossRepoDeadCodeConsumerReads,
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error) {
 	return s.reader.CrossRepoDeadCodeConsumerEvidence(ctx, producerRepoID, entityIDs, reads)
 }
 

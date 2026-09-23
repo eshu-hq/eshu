@@ -31,7 +31,7 @@ func TestDeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel(t *testing.T) {
 
 			got, ok := code.DeadCodeCandidateEntityType(label)
 			if !ok || got != label {
-				t.Fatalf("deadCodeCandidateEntityType(%q) = %q, %v; want %q, true", label, got, ok, label)
+				t.Fatalf("code.DeadCodeCandidateEntityType(%q) = %q, %v; want %q, true", label, got, ok, label)
 			}
 		})
 	}

@@ -4,8 +4,8 @@ Contract-only package. Types and pure helpers, no policy.
 
 ## Before changing anything here
 
-`DeadCodeCandidateLabels` is a wire contract, not an internal list. The
-OpenAPI `candidate_kind` enum is pinned to it by a contract test in
+`DeadCodeCandidateLabels` is a wire contract, not an internal list. The OpenAPI
+`candidate_kind` enum must equal it as a set, checked by a contract test in
 `internal/query`. Adding or removing a label changes what the API advertises
 and what the scan checks together; do both deliberately or neither.
 

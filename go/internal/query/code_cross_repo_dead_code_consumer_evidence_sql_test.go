@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
 // TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL moved out
@@ -32,7 +33,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			crossRepoDeadCodeConsumerReads{
+			code.CrossRepoDeadCodeConsumerReads{
 				PageRepositoryIDs: []string{codeGrantConsumerRepo},
 				SignalGrant:       []string{codeGrantConsumerRepo},
 			},
@@ -66,7 +67,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceBindsTheGrantInTheShippedSQL(t *testin
 			context.Background(),
 			codeGrantGrantedRepo,
 			[]string{"entity-1"},
-			crossRepoDeadCodeConsumerReads{},
+			code.CrossRepoDeadCodeConsumerReads{},
 		); err != nil {
 			t.Fatalf("CrossRepoDeadCodeConsumerEvidence() error = %v, want nil", err)
 		}

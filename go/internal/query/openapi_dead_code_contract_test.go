@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -33,8 +34,23 @@ func TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter(t *testing.T) {
 	requestJSON := querytestutil.MustMapField(t, requestBody, "application/json")
 	schema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, requestJSON, "schema"), "properties")
 	candidateKind := querytestutil.MustMapField(t, schema, "candidate_kind")
-	if got, ok := candidateKind["enum"].([]any); !ok || len(got) != len(code.DeadCodeCandidateLabels) {
-		t.Fatalf("code/dead-code candidate_kind enum = %#v, want %d advertised labels", candidateKind["enum"], len(code.DeadCodeCandidateLabels))
+	enum, ok := candidateKind["enum"].([]any)
+	if !ok {
+		t.Fatalf("code/dead-code candidate_kind enum = %T, want []any", candidateKind["enum"])
+	}
+	advertised := make([]string, 0, len(enum))
+	for _, value := range enum {
+		label, ok := value.(string)
+		if !ok {
+			t.Fatalf("code/dead-code candidate_kind enum value = %#v, want string", value)
+		}
+		advertised = append(advertised, label)
+	}
+	scanned := slices.Clone(code.DeadCodeCandidateLabels)
+	slices.Sort(advertised)
+	slices.Sort(scanned)
+	if !slices.Equal(advertised, scanned) {
+		t.Fatalf("code/dead-code candidate_kind enum = %v, want the scanned label set %v", advertised, scanned)
 	}
 	language := querytestutil.MustMapField(t, schema, "language")
 	languageDescription, ok := language["description"].(string)

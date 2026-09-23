@@ -20,22 +20,6 @@ import (
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 
-// crossRepoDeadCodeConsumerReads aliases
-// code.CrossRepoDeadCodeConsumerReads. The implementation moved to
-// querycontract for #6060 and on to querycontract/code for #6597; this
-// alias keeps root callers unchanged.
-type crossRepoDeadCodeConsumerReads = code.CrossRepoDeadCodeConsumerReads
-
-// crossRepoDeadCodeHiddenConsumers aliases
-// code.CrossRepoDeadCodeHiddenConsumers. The implementation moved to
-// querycontract for #6060 and on to querycontract/code for #6597; this
-// alias keeps root callers unchanged. Its
-// former unexported `has` method has no Go equivalent for an aliased type
-// (methods cannot be added to a type declared in another package), so
-// callers use the exported code.CrossRepoDeadCodeHiddenConsumers.Has
-// method the alias already carries.
-type crossRepoDeadCodeHiddenConsumers = code.CrossRepoDeadCodeHiddenConsumers
-
 // CrossRepoDeadCodeConsumerEvidence returns active-generation consumer evidence
 // for producer candidates using a bounded entity-id lookup. It never performs a
 // graph traversal; ambiguous or stale coverage must remain unknown at the
@@ -79,12 +63,12 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	ctx context.Context,
 	producerRepoID string,
 	entityIDs []string,
-	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]deadcode.CrossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
+	reads code.CrossRepoDeadCodeConsumerReads,
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, code.CrossRepoDeadCodeHiddenConsumers, error) {
 	producerRepoID = strings.TrimSpace(producerRepoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || producerRepoID == "" || len(entityIDs) == 0 {
-		return map[string][]deadcode.CrossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, nil
+		return map[string][]deadcode.CrossRepoDeadCodeEvidence{}, code.CrossRepoDeadCodeHiddenConsumers{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -103,7 +87,7 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 		span.RecordError(err)
 		return nil, nil, err
 	}
-	hidden := crossRepoDeadCodeHiddenConsumers{}
+	hidden := code.CrossRepoDeadCodeHiddenConsumers{}
 	if len(reads.SignalGrant) > 0 {
 		hidden, err = cr.crossRepoDeadCodeUngrantedConsumers(ctx, producerRepoID, entityIDs, reads.SignalGrant)
 		if err != nil {
@@ -232,8 +216,8 @@ func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
 	producerRepoID string,
 	entityIDs []string,
 	grantRepositoryIDs []string,
-) (crossRepoDeadCodeHiddenConsumers, error) {
-	hidden := crossRepoDeadCodeHiddenConsumers{}
+) (code.CrossRepoDeadCodeHiddenConsumers, error) {
+	hidden := code.CrossRepoDeadCodeHiddenConsumers{}
 	if len(entityIDs) == 0 || len(grantRepositoryIDs) == 0 {
 		return hidden, nil
 	}
