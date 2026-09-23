@@ -74,7 +74,7 @@ Regenerated `tools/golangci-lint-dirgate/grandfather.go` via
 ## Test-name repoint proof
 
 Every moved test name is discovered in the new package and absent from the
-old package (`go test -list '^Name$' -count=1`, exit 0 = found):
+old package (`for n in TestStatusRequestStoreRequestScanExecutesUpsert TestStatusRequestStoreClaimScanQueryReturnsScanRequest TestStatusRequestStoreClaimScanReturnsErrorWhenNoPending TestStatusRequestStoreCompleteScanExecutesUpdate TestStatusRequestStoreRequestReindexExecutesUpsert TestStatusRequestStoreClaimReindexQueryReturnsReindexRequest TestStatusRequestStoreClaimReindexReturnsErrorWhenNoPending TestStatusRequestStoreGetScanStateReturnsIdleWhenNotFound TestStatusRequestStoreGetReindexStateReturnsIdleWhenNotFound TestStatusRequestStoreRequiresDB TestStatusRequestStoreControlSchemaIncludesExpectedColumns TestStatusRequestStoreBootstrapDefinitionRegistered; do go test ./internal/storage/postgres/maintenance/... -list "^$n\$" -count=1 | rg -q "^$n\$" || echo "missing $n"; done`, exit 0 = found):
 
 | test | new pkg | old pkg |
 | --- | --- | --- |
