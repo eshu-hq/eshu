@@ -106,7 +106,7 @@ has_graph_endpoint_pins() {
 # would let Docker Hub retarget the proof without a repository change.
 has_nornicdb_image_pin() {
 	rg --quiet \
-		'^NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26"$' \
+		'^NORNICDB_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"$' \
 		"$1"
 }
 
@@ -248,7 +248,7 @@ has_provenance_tombstone_nonvacuity_guard "${script}" \
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
 has_nornicdb_image_pin "${script}" \
-	|| fail "gate must pin the exact validated NornicDB fix-499-6ac958a9 digest"
+	|| fail "gate must pin the exact validated NornicDB fix-500-e022384c digest"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -337,7 +337,7 @@ sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
 if has_nornicdb_image_pin "${tmp}/script-no-image-pin"; then
 	fail "a commented NornicDB image pin must not satisfy the guard"
 fi
-sed 's/@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26//' \
+sed 's/@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1//' \
 	"${script}" >"${tmp}/script-tag-only-image"
 if has_nornicdb_image_pin "${tmp}/script-tag-only-image"; then
 	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
