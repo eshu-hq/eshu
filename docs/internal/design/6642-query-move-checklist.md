@@ -26,7 +26,7 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
 | 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
 | 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | open | 44 |
-| 8 | `querycontract/answer` | 3 | — | not started | |
+| 8 | `querycontract/answer` | 3 | — | open | 41 |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
 Order is not free. `evidence` is a **base**, not a peer leaf: `answer` and
@@ -201,5 +201,27 @@ removed or renamed. The moved package holds types and a pure in-memory
 builder.
 
 Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
+`verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `answer` leaf
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/answer/`, and 16 non-test files import the leaf. Root's
+unexported `attachAnswerMetadata`, `serviceStoryAnswerData`,
+`cloneTruthEnvelope` and `freshnessReason` forwarders and its exported
+`BuildAnswerMetadata` and `AnswerMetadataFromData` wrappers are deleted,
+because nothing outside the query root calls them; `answer_packet_routes.go`
+held only one of them and is removed (root re-pinned 272 -> 271). The exported
+aliases that packages outside `go/internal/query` name stay, pointed at
+`answer.*`. In every touched Go file the diff changes an import line, a package
+qualifier, a comment, or (in `buildPacketAnswer`) the name of a local that
+shadowed the new import. No SQL, Cypher, call site, argument, allocation or
+loop bound changes, and the queryplan source-hash pins still match.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and pure builders.
+
+Why it is safe: `go vet ./...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
 `verify-moved-file-refs.sh` all exit 0.

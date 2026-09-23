@@ -445,12 +445,12 @@ func VisualizationEdgeID(source, target, relationship string) string {
 }
 
 // cloneTruthEnvelope and appendVisualizationReason are small, self-contained
-// copies of the parent querycontract's CloneTruthEnvelope and AppendReason.
+// copies of querycontract/answer's CloneTruthEnvelope and the parent
+// querycontract's AppendReason.
 // They were duplicated for #6060, when this file lived beside root's
 // originals and aliasing them would have pulled unrelated root files into
-// the builder's compatibility surface. This package now imports querycontract
-// and could call the parent's copies directly; the #6597 move keeps them so it
-// changes no code. Mirrors the registry family's derefString/derefBool
+// the builder's compatibility surface. This package could now call those
+// copies directly; the #6597 moves keep them so they change no code. Mirrors the registry family's derefString/derefBool
 // precedent (#6060).
 func cloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {

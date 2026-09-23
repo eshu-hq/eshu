@@ -11,8 +11,9 @@
 // AttachEvidenceBoundaries add the disclosures a response owes when part of
 // its truth came from a narrower source, such as PostgresOnlyBoundary.
 //
-// The package imports nothing from its parent querycontract. The parent
-// imports it because its answer packets carry EvidenceCitationHandle, and the
-// sibling querycontract/visualization imports it because visualization nodes
-// do; that is why this leaf landed before theirs.
+// The package imports nothing from its parent querycontract, and the parent
+// does not import it. The sibling leaves querycontract/answer and
+// querycontract/visualization import it because answer packets and
+// visualization nodes carry EvidenceCitationHandle; that is why this leaf
+// landed before theirs.
 package evidence

@@ -34,8 +34,9 @@
 // matcher (kubernetes), row-value decoding (rowvalue), the dead-code
 // contract types (code), entity-name search, exact graph entity resolution and the #6408
 // projection-placeholder scrubber (entity), the evidence-citation handles,
-// citation packet and evidence boundaries (evidence), and the
-// visualization-packet contract and its builder (visualization).
+// citation packet and evidence boundaries (evidence), the
+// visualization-packet contract and its builder (visualization), and the
+// answer packet and answer_metadata companion (answer).
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
 // WriteContentSubstringIndexUnavailable. The language taxonomy covers
 // CanonicalLanguage, NormalizedLanguageVariants and CoverageLanguageMaps over
@@ -89,4 +90,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/, rowvalue/, code/, entity/, evidence/ and visualization/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.
+package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/ and answer/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.
