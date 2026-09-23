@@ -29,12 +29,12 @@ import (
 // pre6761CloudSinkTargetsCypher is the single statement the loader ran before
 // #6761: it aggregated workloads per (function, action) pair in-query
 // (collect(DISTINCT workload) / size(workloads) = 1 / workloads[0]) and matched
-// on after a WITH. On NornicDB v1.3.3 it returns zero rows with no error
+// on after a WITH. On NornicDB v1.3.3 it returned zero rows with no error
 // (#6690, orneryd/NornicDB#400), silently emptying every value-flow cloud sink
 // projection. It is pinned here so the B-7 sl-value-flow-cloud-sink row (#6785)
-// keeps a proven RED case: this shape can never satisfy that row.
+// keeps a documented RED shape: this shape could never satisfy that row.
 //
-// STALE on the fix-500 pin: see the file header.
+// STALE on the fix-500 pin (returns 1 row): see the file header.
 const pre6761CloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
@@ -50,14 +50,14 @@ RETURN fn.uid AS function_uid,
        sinkNode.is_internet AS sink_is_internet
 ORDER BY function_uid, sink_rel`
 
-// TestLivePre6761CloudSinkStatementReturnsNoRows pins the #6690 defect the
-// B-7 sl-value-flow-cloud-sink row (#6785) guards: on the same seeded graph
-// where the current two-statement loader finds fn-one's sink, the pre-#6761
-// single statement returns zero rows on NornicDB v1.3.3 with no error. The
-// contrast in one run proves sensitivity: the seed is sufficient (new shape
-// finds the sink) and the old shape is empty (it cannot satisfy the gate row).
-//
-// STALE on the fix-500 pin (fails: returns 1 row). See the file header.
+// TestLivePre6761CloudSinkStatementReturnsNoRows is STALE on the fix-500
+// pin (fails: returns 1 row) and is pending re-target under #6787; see the
+// file header. It is kept (not skipped) as the documented shape of the
+// #6690 defect the B-7 sl-value-flow-cloud-sink row (#6785) guards: on the
+// same seeded graph where the current two-statement loader finds fn-one's
+// sink, the pre-#6761 single statement returned zero rows on NornicDB
+// v1.3.3 with no error. Do not read the historical note below as current
+// fact: the contrast it describes no longer reproduces on this pin.
 func TestLivePre6761CloudSinkStatementReturnsNoRows(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
 	if uri == "" {

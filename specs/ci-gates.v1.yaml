@@ -2598,6 +2598,8 @@ gates:
       - "scripts/ci/go-mod-download-retry.sh"
       - "docker-compose.live-backend-nornicdb.yml"
       - "docker-compose.live-backend-neo4j.yml"
+      - "docker-compose.yaml"
+      - "docker-compose.neo4j.yml"
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/run-live-backend-tests.sh --backend both"

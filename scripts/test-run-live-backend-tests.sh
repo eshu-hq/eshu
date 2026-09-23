@@ -46,6 +46,26 @@ probe --bogus >/dev/null 2>&1 && fail "unknown argument passed"
 probe --backend oracle >/dev/null 2>&1 && fail "bad backend passed"
 probe --backend >/dev/null 2>&1 && fail "missing --backend value passed"
 
+# ── RED: unexpected CI tag fails extraction, not silent green ─────────────
+# (a ci row with a different build tag would make go test -run match zero
+# tests and exit 0; the extractor rejects it so promotion stays a ledger edit)
+seed_dir="$(mktemp -d)"
+trap 'rm -rf "${seed_dir}"' EXIT
+printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go\n    tag: bogus_future_tag\n    class: ci\n    reason: seeded RED for the tag guard\n' >"${seed_dir}/ledger.yaml"
+tag_err="$(python3 "${targets}" "${seed_dir}/ledger.yaml" "${repo_root}" 2>&1)" && fail "wrong-tag ci row accepted"
+[[ "${tag_err}" == *"unexpected tag"* ]] || fail "wrong-tag rejection names no tag: ${tag_err}"
+
+# ── RED: extractor crash dies naming extraction, not "no targets" ─────────
+# (mapfile succeeds even when the process substitution fails, so the runner
+# must capture the extractor failure explicitly)
+mkdir -p "${seed_dir}/fakebin"
+printf '#!/usr/bin/env bash\nexit 1\n' >"${seed_dir}/fakebin/python3"
+chmod +x "${seed_dir}/fakebin/python3"
+extract_err="$(PATH="${seed_dir}/fakebin:${PATH}" ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both 2>&1)" &&
+	fail "extractor crash produced a plan"
+[[ "${extract_err}" == *"could not extract live-test targets"* ]] ||
+	fail "extractor crash misreported: ${extract_err}"
+
 # ── Image pins match the canonical compose files (no silent drift) ───────
 nornicdb_compose="$(probe | rg '^nornicdb_compose=' | cut -d= -f2-)"
 neo4j_compose="$(probe | rg '^neo4j_compose=' | cut -d= -f2-)"

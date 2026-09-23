@@ -91,7 +91,11 @@ command -v go >/dev/null 2>&1 || die "go is required"
 command -v curl >/dev/null 2>&1 || die "curl is required for backend health checks"
 [[ -f "${ledger}" ]] || die "ledger not found: ${ledger}"
 
-mapfile -t targets < <(python3 "${script_dir}/lib/live_backend_test_targets.py" "${ledger}" "${repo_root}")
+# Capture the extractor output explicitly: mapfile succeeds even when the
+# process substitution fails, which used to degrade a validator crash to
+# "no ledger targets selected" (wrong debugger direction).
+targets_raw="$(python3 "${script_dir}/lib/live_backend_test_targets.py" "${ledger}" "${repo_root}")" || die "could not extract live-test targets from ${ledger}"
+mapfile -t targets <<<"${targets_raw}"
 
 # One compose project for every stack this script starts: the --keep
 # marker records GATE_COMPOSE_PROJECT, and the reclaim path checks
