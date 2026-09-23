@@ -140,19 +140,24 @@ rather than only still compiling.
 No-Regression Evidence: three files move from `querycontract/` to
 `querycontract/entity/`, 20 files repoint `querycontract.X` to `entity.X`, and
 root's #6060 entity-name alias block is deleted with its callers naming
-`entity.*`. The perf-evidence gate selects `codequery/callers.go`,
+`entity.*`. The perf-evidence gate selects hot files including `codequery/callers.go`,
 `codequery/relationship_handlers.go`, `entity/handler.go`,
 `querycontract/entity/repo_identity.go` and
-`queryselector/entity_repo_identity.go` because they contain Cypher or worker
-tokens elsewhere; in each the diff changes only an import line and a package
+`queryselector/entity_repo_identity.go` and `impact/exposure_path.go` because
+they contain Cypher or worker tokens elsewhere; in each the diff changes only an import line and a package
 qualifier. No SQL, Cypher, call site, argument, allocation or loop bound
 changes. `buildEntityNameSearchQuery`'s body changes only type and constant
 qualifiers, so its pinned queryplan source hash is refreshed while its SQL text
-is byte-identical.
+is byte-identical. Three hot-callsite `source_sha256` pins in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`
+(`searchGraphEntitiesWithExact`, `ResolveEntity`,
+`HydrateResolvedEntityRepoIdentity`) are refreshed for the same reason: each
+body changes only an import and a qualifier.
 
 No-Observability-Change: no span, metric, log or status field is added,
 removed or renamed. The reader that owns the entity-name spans did not move.
 
 Why it is safe: `go vet` over every `//go:build` tag in `internal/query`,
-`go test ./internal/query/... -count=1` (54 ok) and `verify-dirgate.sh --all`
-all exit 0.
+`go test ./internal/query/... -count=1` (54 ok),
+`go test ./internal/queryplan/... -count=1` and `verify-dirgate.sh --all` all
+exit 0.
