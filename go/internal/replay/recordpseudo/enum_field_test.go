@@ -67,3 +67,28 @@ func TestEnumFieldsPseudonymizeCustomerTypes(t *testing.T) {
 		}
 	}
 }
+
+// TestEnumFieldsKeepAWSEnumSpellings (#6965 review N1): AWS SDK enums reach
+// these fields upper-case or hyphenated (organizations target_type ROOT /
+// ORGANIZATIONAL_UNIT, a transit-gateway resource_type "vpc"). Only a
+// customer-named type (a "::" type not owned by AWS) is pseudonymized;
+// every other spelling is verbatim and is never learned into other fields.
+func TestEnumFieldsKeepAWSEnumSpellings(t *testing.T) {
+	key := mustKey(t, keyA)
+	gen := generation("aws:"+acct+":us-east-1:organizations", nil, map[string]any{
+		"target_type":   "ORGANIZATIONAL_UNIT",
+		"resource_type": "direct-connect-gateway",
+		"state":         "ORGANIZATIONAL_UNIT",
+	})
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	p := envs[0][0].Payload
+	for field, want := range map[string]string{
+		"target_type":   "ORGANIZATIONAL_UNIT",
+		"resource_type": "direct-connect-gateway",
+		"state":         "ORGANIZATIONAL_UNIT",
+	} {
+		if got := fmt.Sprint(p[field]); got != want {
+			t.Errorf("%s = %q, want %q verbatim", field, got, want)
+		}
+	}
+}

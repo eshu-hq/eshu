@@ -14,11 +14,16 @@ var awsSpacedPhrases = []string{"CloudFront Origin Access Identity "}
 
 // learnSpacedComponent learns a resource component that contains spaces.
 // An AWS phrase keeps its words and learns only the ID-shaped tokens after
-// it. Anything else is a customer's free text (a CloudWatch alarm name,
+// it, but only in the principal AWS owns (awsPrincipal: the iam service
+// under the cloudfront account); the same words in a customer's alarm name
+// are free text. Anything else is a customer's free text (a CloudWatch alarm name,
 // for example): every word of four or more characters is learned, so it is
 // rewritten even when no other field names the resource.
-func (d *dictionary) learnSpacedComponent(component string) {
+func (d *dictionary) learnSpacedComponent(component string, awsPrincipal bool) {
 	for _, phrase := range awsSpacedPhrases {
+		if !awsPrincipal {
+			break
+		}
 		if tail, ok := strings.CutPrefix(component, phrase); ok {
 			for _, field := range strings.Fields(tail) {
 				if len(field) >= minSubstituteLen && spacedIDTokenRe.MatchString(field) {

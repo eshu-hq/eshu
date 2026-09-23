@@ -179,7 +179,7 @@ func (d *dictionary) learn(class Class, raw string) {
 	case ClassImageTag:
 		d.learnImageTag(raw)
 	case ClassEnum:
-		if !enumShapeRe.MatchString(raw) {
+		if customerTypeName(raw) {
 			// A customer-named type (Custom::<name>, <Org>::Svc::Res):
 			// learn every component but the structural Custom and AWS.
 			for _, component := range strings.Split(raw, "::") {
@@ -280,7 +280,7 @@ func (d *dictionary) learnARN(raw string) {
 	}
 	for i, component := range components[skip:] {
 		if strings.Contains(component, " ") {
-			d.learnSpacedComponent(component)
+			d.learnSpacedComponent(component, service == "iam" && account == "cloudfront")
 			continue
 		}
 		if i == 0 && numericRe.MatchString(component) {

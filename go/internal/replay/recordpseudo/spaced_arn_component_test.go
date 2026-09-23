@@ -67,3 +67,23 @@ func TestSpacedCustomerARNNamesArePseudonymized(t *testing.T) {
 		t.Errorf("alarm type token lost: %s", raw)
 	}
 }
+
+// TestAWSPhraseOnlyInTheCloudFrontPrincipal (#6965 review N2): the AWS
+// phrase keeps its words only in the IAM principal owned by the cloudfront
+// account. A customer alarm named with the same words is free text.
+func TestAWSPhraseOnlyInTheCloudFrontPrincipal(t *testing.T) {
+	key := mustKey(t, keyA)
+	gen := generation("aws:"+acct+":us-east-1:cloudwatch", nil, map[string]any{
+		"resources": []any{"arn:aws:cloudwatch:us-east-1:" + acct + ":alarm:CloudFront Origin Access Identity Plavorn Outage"},
+	})
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	raw, err := json.Marshal(envs[0][0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, word := range []string{"Plavorn", "Outage"} {
+		if strings.Contains(string(raw), word) {
+			t.Errorf("alarm word %q survived behind the AWS phrase: %s", word, raw)
+		}
+	}
+}

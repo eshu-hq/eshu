@@ -146,7 +146,7 @@ func (w *walker) rewriteString(path string, class Class, v string) string {
 		w.opaque[path]++
 		return w.opaqueValue(v)
 	case ClassEnum:
-		if enumShapeRe.MatchString(v) {
+		if !customerTypeName(v) {
 			return v
 		}
 		return w.dict.rewrite(v, true)

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"sort"
+	"strings"
 )
 
 // Class is the pseudonym shape a field's string values take. The policy
@@ -61,20 +61,23 @@ const (
 	// (v1.2.3, 1.2.3) are structural and kept, every other tag is a
 	// customer-chosen name and takes the name form.
 	ClassImageTag
-	// ClassEnum passes an enum-shaped value (snake_case, or an AWS::Svc::Res
-	// type) through verbatim and never substitutes into it, so a learned
-	// token equal to one of its words cannot rewrite it. A value outside that
-	// shape is a customer-named type (Custom::<name>, <Org>::Svc::Res) and is
-	// pseudonymized per :: component.
+	// ClassEnum passes a collector or AWS enum value through verbatim and
+	// never substitutes into it, so a learned token equal to one of its words
+	// cannot rewrite it. A customer-named type (Custom::<name>,
+	// <Org>::Svc::Res) is pseudonymized per :: component; see
+	// customerTypeName.
 	ClassEnum
 )
 
-// enumShapeRe is a collector-defined enum value: lowercase snake_case,
-// optionally dot-joined (aws_sqs_queue, lambda.function,
-// ecs.task_definition), or an AWS-owned AWS::Service::Resource type. A
-// customer-named type always carries "::" with a non-AWS owner or capitals,
-// so it never matches.
-var enumShapeRe = regexp.MustCompile(`^(?:[a-z0-9_]+(?:\.[a-z0-9_]+)*|AWS::[A-Za-z0-9]+::[A-Za-z0-9]+)$`)
+// customerTypeName reports whether an enum-field value is a customer-named
+// resource type. CloudFormation reserves the AWS:: namespace and requires
+// Org::Service::Resource for private and Custom::<name> for custom types,
+// so a customer-named type is exactly a "::" value not owned by AWS. Every
+// other spelling (aws_sqs_queue, lambda.function, ORGANIZATIONAL_UNIT,
+// direct-connect-gateway) is a collector or AWS enum and stays verbatim.
+func customerTypeName(v string) bool {
+	return strings.Contains(v, "::") && !strings.HasPrefix(v, "AWS::")
+}
 
 var classNames = map[Class]string{
 	ClassUnknown:  "unknown",
