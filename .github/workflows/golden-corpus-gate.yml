@@ -167,6 +167,15 @@ on:
       # #6782: the differential job compares the two backends' recordings with
       # the committed allowlist, so an allowlist edit must re-run it too.
       - 'specs/backend-divergence-allowlist.v1.yaml'
+      # #6988: specs/ci-gates.v1.yaml is a trigger of the differential job
+      # (golden-corpus-differential in the ci-gates registry), so the
+      # required-gates publisher selects that job as blocking on any PR
+      # touching the registry. Without this entry the workflow never starts
+      # on a registry-only PR, the job stays MISSING, and the publisher
+      # awaits until timeout leaving required-gates-complete pending
+      # forever. An edit to a gate's own definition must run the gate,
+      # never deadlock it.
+      - 'specs/ci-gates.v1.yaml'
       # #6782: the comparison itself (CompareRecordings, record shape) lives
       # here; a change that alters what is compared must re-run the oracle.
       - 'go/internal/backendconformance/**'

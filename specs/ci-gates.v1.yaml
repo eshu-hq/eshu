@@ -2609,18 +2609,22 @@ gates:
       - go
       - docker
     ci_only_reason: "needs two live graph backends (NornicDB and Neo4j) side by side; the static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
-    # #6782 slices 2-4: the flip to blocking. The oracle replays the same B-7
+    # #6782: the differential oracle, blocking. It replays the same B-7
     # corpus on both backends with differential capture on and fails on any
     # divergence the committed allowlist does not excuse. A silently dropped
     # capture cannot false-green: empty recording dirs fail closed in Compare
     # (both backends required), and the failure upload carries the recordings.
-    # Multi-leg quorum (slice 3, owner direction 2026-09-21): CI runs two
+    # Multi-leg quorum (owner direction 2026-09-21): CI runs two
     # pairings (-diff-left2/-diff-right2) and fails only on divergences
     # reproducing across both; pairing-local scheduling noise is advisory.
-    # Execution-count divergences with agreeing results (the executions
-    # kind) are advisory even when reproduced (#6782 permanent disposition,
-    # 2026-09-21): the backends drain at different speeds, so per-statement
-    # allowlist excuses were open-ended; results/missing still fail on reads.
+    # Execution-count and row-total divergences with agreeing results (the
+    # executions and rowcount kinds) are advisory even when reproduced
+    # (#6782 permanent dispositions, 2026-09-21/22): the backends drain at
+    # different speeds, so per-statement allowlist excuses were open-ended;
+    # results/missing still fail unless allowlisted. Divergences on registered
+    # transient-state reads (transient_reads, #6782 option 1) are excluded
+    # into their own advisory finding, and reproduced transient exclusions
+    # count toward the ceiling below.
     # #6941: that advisory total was unbounded, so a backend regression that
     # tripled drain passes would still pass green. CI's quorum invocation
     # (.github/workflows/golden-corpus-gate.yml, "Compare backend

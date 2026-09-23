@@ -145,6 +145,63 @@ NornicDB-only bogus `source_tool` written from a missing UNWIND row key. See
 The cross-run lock below applies to both backends, so run them one after the
 other on one host.
 
+### Differential oracle (NornicDB vs Neo4j)
+
+Beyond the per-backend snapshot, CI runs a **differential** job that replays
+the same corpus on both backends with statement capture on, then diffs the two
+recordings (`differential nornicdb vs neo4j` in `golden-corpus-gate.yml`,
+blocking via `golden-corpus-differential` in `specs/ci-gates.v1.yaml`). Every
+executed graph statement is fingerprinted (normalized text plus bound
+parameters) with a digest of its result rows; the gate fails on any statement
+whose digest differs, naming the statement so the failure points at its
+production source. A side with no
+recordings fails instead of passing vacuously, so a half-finished run can never
+look green.
+
+CI runs **two leg pairings** and fails only on divergences that reproduce
+across both (multi-leg quorum): pairing-local scheduling noise drops out,
+while a systematic backend divergence reproduces and still fails.
+
+| Finding | Meaning |
+| --- | --- |
+| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing. (Reproduced advisory divergences stay advisory here; the ceiling below is their tripwire.) |
+| `nornicdb_vs_neo4j_executions` | Reproduced execution-count or row-total divergences with agreeing results (scheduling noise: drain passes, retries, extra poll iterations). Advisory. |
+| `nornicdb_vs_neo4j_transient` | Divergences on registered transient-state reads, whose digests disagree because the result depends on the drain point. Advisory, always visible. |
+| `nornicdb_vs_neo4j_executions_ceiling` | Required tripwire: the reproduced advisory total (scheduling-noise plus transient) exceeded `-diff-executions-advisory-max` (CI passes 200). |
+| `nornicdb_vs_neo4j_nonreproducing` | Pairing-local divergences the quorum dropped. Informational. |
+
+Known, accepted divergences live in
+`specs/backend-divergence-allowlist.v1.yaml`. Each `entries` item names the
+exact statement fingerprint (plus optional binding narrowing), the divergence
+kind it excuses (`missing`, `results`, `failures`, or the whole statement —
+there is no `executions` or `rowcount` tier; the parser rejects both), the
+reason, the upstream issue, and the owner. Every entry must match at least one
+divergence in the run: a stale entry fails even a green run, so a fixed bug
+cannot linger as a permanent exemption. Beside entries, a `transient_reads`
+section registers transient-state reads (orphan scans over `uid IS NULL`,
+orphan-sweep pages on `eshu_orphan_observed_at_unix`): fingerprint-keyed with
+the same reason and upstream accountability, no tier, never stale-checked, but
+the parse guard requires a transient-state marker in the statement, and only
+the observed-noise kinds are held — a backend error or a one-sided recording
+on a transient read still fails.
+
+Replay a CI capture locally with the committed allowlist (single-pair mode,
+which reports under the `nornicdb_vs_neo4j` finding name rather than the
+quorum table above; quorum needs two pairing dirs):
+
+```bash
+cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff \
+  -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j \
+  -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml
+```
+
+The static mirror plus the gate's seeded RED/GREEN unit pair are the local
+proof (no Docker):
+
+```bash
+cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff' -count=1
+```
+
 ### The cross-run lock
 
 The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project

@@ -124,6 +124,38 @@ breadth-first route (#6849). And the Class `INHERITS` count varies run to run
 on both backends, 22 or 23 on each, so it is not a backend divergence (#6850).
 Both are recorded in `docs/internal/evidence/6782-b7-neo4j-divergences.md`.
 
+### Differential oracle contract
+
+The per-backend snapshot cannot catch a statement that returns wrong rows on
+one backend while every snapshot shape still passes. The differential oracle
+closes that gap: CI replays the same corpus on both backends with statement
+capture on and diffs the recordings statement by statement
+(`differential nornicdb vs neo4j`, blocking). Two leg pairings run, and only
+divergences reproducing across both fail — pairing-local scheduling noise
+drops out of the quorum.
+
+Two divergence classes report advisory instead of failing, and pairing-local
+noise drops out of the quorum entirely. Reproduced execution-count or
+row-total divergences with agreeing result sets are scheduling noise (the
+backends drain at systematically different speeds); the
+`-diff-executions-advisory-max` ceiling (200 in CI, ~2.9x the observed max)
+trips a required finding if that total ever explodes. Divergences on
+registered transient-state reads — orphan scans whose result depends on the
+drain point — are excluded by `transient_reads` registration and report in
+their own advisory finding, never silently. Everything else that reproduces and the allowlist does not excuse —
+digest disagreements, one-sided recordings, backend errors — fails. The full
+contract, finding table, and local replay commands are in the
+[Golden Corpus Gate](local-testing/golden-corpus-gate.md#differential-oracle-nornicdb-vs-neo4j).
+
+Every registry trigger of the differential job must also be in the
+`Golden Corpus Gate` workflow's `pull_request.paths` filter. The
+required-gates publisher selects the job as blocking for those paths; if the
+workflow does not start on such a PR the job stays `MISSING`, the publisher
+awaits until timeout, and `required-gates-complete` stays pending forever
+with no further run to flip it. An edit to a gate's own definition must run
+the gate, never deadlock it — the mirror test
+(`scripts/test-verify-golden-corpus-gate.sh`) pins both lists.
+
 ## Profile Matrix
 
 The backend matrix carries a `profile_matrix` gate for every authoritative graph
