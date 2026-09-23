@@ -1,7 +1,7 @@
 # #6693 checklist step 3: `decisions/` leaf
 
 Baseline: `origin/main`. Change: move
-`go/internal/storage/postgres/decisions.go` and its test to the new
+`decisions.go` and its test to the new
 non-root package `go/internal/storage/postgres/decisions` (package clause
 `decisionsstore`, no collision found via
 `rg -n '^package decisionsstore$' go/ --glob '*.go'`). No SQL text, DDL,
