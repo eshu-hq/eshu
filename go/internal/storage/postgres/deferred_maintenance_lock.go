@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 // deferredMaintenanceLockNamespace namespaces the deferred-relationship
@@ -38,7 +39,7 @@ func deferredMaintenanceRepoLockKey(scopeValue scope.IngestionScope) string {
 	if key := scopeValue.PartitionKey; key != "" {
 		return key
 	}
-	return scopeSourceKey(scopeValue)
+	return scopestore.SourceKey(scopeValue)
 }
 
 // deferredMaintenanceRepoLockKeyFromID returns the partition key for a known

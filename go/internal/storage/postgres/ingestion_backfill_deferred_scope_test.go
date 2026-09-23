@@ -114,7 +114,7 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 // terms, $2 raw lowercase repo_id values for exact self-exclusion, $3 scope_id
 // partition, $4 generation_id partition, $5 the nullable $6-excluded regex
 // alternation (buildDeferredRepoIDRegex), and $6 the scope_id-derived own-repo_id
-// performance hint (deferredScopedFactOwnRepoIDFromScope), and $7 repo_id
+// performance hint (scopestore.RepoIDFromScopeID), and $7 repo_id
 // reference token keys for the side-table fast path. The query uses the
 // raw repo_id values for exact self-exclusion before literal substring matching,
 // so repo_id args must not be %-wrapped LIKE terms.

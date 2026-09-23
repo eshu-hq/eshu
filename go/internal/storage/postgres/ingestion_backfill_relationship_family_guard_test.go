@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 func TestDeferredRelationshipFamilyGuardWrapsPayloadScanningArms(t *testing.T) {
@@ -418,7 +419,7 @@ func runPreRelationshipFamilyGuardDeferredScopedQuery(
 		t.Fatal("failed to derive pre-relationship-family-guard query from production query")
 	}
 
-	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
+	ownRepoID := scopestore.RepoIDFromScopeID(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
 	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString

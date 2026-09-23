@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package scopestore
 
 import (
 	"testing"
@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope pins the storage
+// TestSourceKeyUsesMetadataSourceKeyForRepositoryScope pins the storage
 // bridge in the #5192 contract chain: buildScope
 // (go/internal/collector/repo/git/source_processing.go) writes repo.ID into both
 // Metadata["source_key"] and Metadata["repo_id"] (proven by
 // TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID in
-// source_processing_test.go), and upsertIngestionScope (ingestion.go:451)
-// calls scopeSourceKey to compute the ingestion_scopes.source_key column it
+// source_processing_test.go), and the parent postgres package's upsertIngestionScope
+// calls SourceKey to compute the ingestion_scopes.source_key column it
 // persists -- the same column the console operations-board link
 // (repositorySourceHref in apps/console/src/api/operationsBoard.ts) expects
 // to equal repositoryCatalogIDExpr's
@@ -24,11 +24,11 @@ import (
 // go/internal/query/content_reader_repository_catalog_test.go).
 //
 // The fixture intentionally sets ScopeID and Metadata["repo_id"] to values
-// DIFFERENT from Metadata["source_key"], so a scopeSourceKey regression that
+// DIFFERENT from Metadata["source_key"], so a SourceKey regression that
 // reads a different key -- ScopeID, "repo_id", or anything other than
 // "source_key" -- fails this assertion instead of accidentally matching by
 // coincidence.
-func TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope(t *testing.T) {
+func TestSourceKeyUsesMetadataSourceKeyForRepositoryScope(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{
@@ -44,21 +44,21 @@ func TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope(t *testing.T) {
 		},
 	}
 
-	got := scopeSourceKey(scopeValue)
+	got := SourceKey(scopeValue)
 	const want = "the-real-source-key-value"
 	if got != want {
-		t.Fatalf("scopeSourceKey() = %q, want %q (Metadata[\"source_key\"])", got, want)
+		t.Fatalf("SourceKey() = %q, want %q (Metadata[\"source_key\"])", got, want)
 	}
 	if got == scopeValue.ScopeID {
-		t.Fatalf("scopeSourceKey() = %q equals ScopeID; the ScopeID fallback must not fire when Metadata[\"source_key\"] is set", got)
+		t.Fatalf("SourceKey() = %q equals ScopeID; the ScopeID fallback must not fire when Metadata[\"source_key\"] is set", got)
 	}
 	if got == scopeValue.Metadata["repo_id"] {
-		t.Fatalf("scopeSourceKey() = %q equals Metadata[\"repo_id\"]; want it read from Metadata[\"source_key\"] specifically, not repo_id", got)
+		t.Fatalf("SourceKey() = %q equals Metadata[\"repo_id\"]; want it read from Metadata[\"source_key\"] specifically, not repo_id", got)
 	}
 }
 
-// TestScopeSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing documents
-// and pins the ONLY conditions under which scopeSourceKey may fall back to
+// TestSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing documents
+// and pins the ONLY conditions under which SourceKey may fall back to
 // ScopeID: a nil Metadata map, a missing "source_key" entry, or a
 // whitespace-only value. buildScope always populates a non-empty
 // Metadata["source_key"] for repository scopes (see
@@ -69,7 +69,7 @@ func TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope(t *testing.T) {
 // present-but-unexpected key as "missing" -- without an explicit test update
 // here, which would otherwise let the fallback quietly start covering
 // repository scopes too.
-func TestScopeSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing(t *testing.T) {
+func TestSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]scope.IngestionScope{
@@ -91,9 +91,9 @@ func TestScopeSourceKeyFallsBackToScopeIDWhenMetadataSourceKeyMissing(t *testing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			got := scopeSourceKey(scopeValue)
+			got := SourceKey(scopeValue)
 			if got != scopeValue.ScopeID {
-				t.Fatalf("scopeSourceKey() = %q, want fallback to ScopeID %q", got, scopeValue.ScopeID)
+				t.Fatalf("SourceKey() = %q, want fallback to ScopeID %q", got, scopeValue.ScopeID)
 			}
 		})
 	}

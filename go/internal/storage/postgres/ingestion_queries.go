@@ -7,11 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 const listRepositoryCatalogQuery = `
@@ -232,7 +232,7 @@ func upsertIngestionScope(
 		scopeValue.ScopeID,
 		string(scopeValue.ScopeKind),
 		scopeValue.SourceSystem,
-		scopeSourceKey(scopeValue),
+		scopestore.SourceKey(scopeValue),
 		emptyToNil(scopeValue.ParentScopeID),
 		string(scopeValue.CollectorKind),
 		scopeValue.PartitionKey,
@@ -289,16 +289,6 @@ func upsertScopeGeneration(
 
 func shouldDiscoverStreamingRelationshipEvidence(scopeValue scope.IngestionScope) bool {
 	return scopeValue.ScopeKind == scope.KindRepository
-}
-
-func scopeSourceKey(scopeValue scope.IngestionScope) string {
-	if scopeValue.Metadata != nil {
-		if sourceKey := strings.TrimSpace(scopeValue.Metadata["source_key"]); sourceKey != "" {
-			return sourceKey
-		}
-	}
-
-	return scopeValue.ScopeID
 }
 
 func activeGenerationID(generation scope.ScopeGeneration) any {

@@ -4,9 +4,9 @@
 package postgres
 
 // DSN-gated persist-then-readback proof for the #5192 contract chain,
-// exercising the real upsertIngestionScope write path (ingestion.go:451)
-// against live Postgres instead of the hermetic scopeSourceKey unit pins in
-// ingestion_scope_source_key_test.go. Reuses
+// exercising the real upsertIngestionScope write path against live Postgres
+// instead of the hermetic scopestore.SourceKey unit pins in
+// scope/source_key_test.go. Reuses
 // openRepositoryFreshnessDBIntegrationSchema (#5148,
 // repository_freshness_db_integration_schema_test.go), which already applies
 // the ingestion_scopes DDL in an isolated throwaway schema, so this adds one

@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `ingestion/` (31 non-test, 78 test)
+### `ingestion/` (31 non-test, 77 test)
 
 ```text
 deferred_backfill_partition_memo.go -> ingestion/deferred_backfill_partition_memo.go
@@ -109,7 +109,6 @@ ingestion_reopen_partition_memo_gate_helpers_test.go -> ingestion/reopen_partiti
 ingestion_reopen_partition_memo_gate_integration_test.go -> ingestion/reopen_partition_memo_gate_integration_test.go   # external test package: imports root
 ingestion_reopen_partition_memo_gate_test.go -> ingestion/reopen_partition_memo_gate_test.go
 ingestion_scope_source_key_live_test.go -> ingestion/store_scope_source_key_live_test.go   # external test package + export_test.go shim: imports root
-ingestion_scope_source_key_test.go -> ingestion/store_scope_source_key_test.go
 ingestion_scopes_active_state_snapshot_index_live_test.go -> ingestion/store_scopes_active_state_snapshot_index_live_test.go   # external test package: imports root
 ingestion_stream_error_test.go -> ingestion/stream_error_test.go
 ingestion_tx_lock_split_deadlock_test.go -> ingestion/store_tx_lock_split_deadlock_test.go   # external test package: imports root
@@ -209,6 +208,24 @@ relationship_store_batch_test.go -> relationship/store_batch_test.go
 relationship_store_generation_test.go -> relationship/store_generation_test.go
 relationship_store_nullable_test.go -> relationship/store_nullable_test.go
 relationship_store_test.go -> relationship/store_test.go
+```
+
+</details>
+
+### `scope/` (2 non-test, 2 test; landed in checklist step 1)
+
+Hoisted helpers only; no root file moves here.
+
+```text
+scopeSourceKey (ingestion_queries.go) -> scope/source_key.go: SourceKey
+deferredScopedFactOwnRepoIDFromScope (ingestion_backfill_deferred_regex.go) -> scope/repo_id.go: RepoIDFromScopeID
+```
+
+<details><summary>Tests</summary>
+
+```text
+ingestion_scope_source_key_test.go -> scope/source_key_test.go
+TestDeferredScopedFactOwnRepoIDFromScope (ingestion_backfill_deferred_regex_test.go) -> scope/repo_id_test.go: TestRepoIDFromScopeID
 ```
 
 </details>
