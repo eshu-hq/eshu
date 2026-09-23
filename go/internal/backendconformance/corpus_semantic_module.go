@@ -207,7 +207,7 @@ func semanticModuleReadCases() []ReadCase {
 RETURN m.uid AS uid, m.lang AS lang, m.evidence_source AS evidence_source`,
 			Parameters: map[string]any{"module_name": semanticModuleAbsentName},
 			WantRows:   []map[string]any{},
-			// UNVERIFIED prediction (see evidence-notes.md): merge-first
+			// Observed live on NornicDB (see evidence-notes.md): merge-first
 			// creates and SETs the node before the File MATCH drops the row.
 			Overrides: map[BackendID]BackendOverride{
 				BackendNornicDB: {
@@ -249,7 +249,7 @@ RETURN m.uid AS uid, m.evidence_source AS evidence_source`,
 				"uid":             nil,
 				"evidence_source": "projector/canonical",
 			}},
-			// UNVERIFIED prediction (see evidence-notes.md): the canonical
+			// Observed live on NornicDB (see evidence-notes.md): the canonical
 			// MERGE binds to the stray uid-bearing node and its SET
 			// overwrites evidence_source, so no uid-NULL node exists.
 			Overrides: map[BackendID]BackendOverride{

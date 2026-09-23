@@ -65,21 +65,24 @@ shows the true values in the CI log.
 | present file | one contained Module | no override |
 | canonical import | `{uid: null, evidence_source: projector/canonical}` | `{uid: module:backend-conformance:semantic-import, evidence_source: projector/canonical}` |
 
-**UNVERIFIED: the NornicDB pinned rows and the Neo4j expectation are
-predictions, not observations.** They were derived from the Cypher each lane
-receives and the #6965 measurement (merge-first creates the uid-bearing node
-and skips only the edge). The canonical-import pin also assumes #6968's
-hypothesis: the canonical MERGE binds to the stray node and its SET
-overwrites `evidence_source`. If the hypothesis is wrong, the live NornicDB
-lane returns two rows and the failure prints them. The pins must be replaced
-with the rows `e2e-tests.yml` "Run live backend conformance" actually prints
-before this note drops the UNVERIFIED label.
+The pins were first derived from the Cypher each lane receives and the #6965
+measurement (merge-first creates the uid-bearing node and skips only the
+edge). The canonical-import pin also rested on #6968's hypothesis: the
+canonical MERGE binds to the stray node and its SET overwrites
+`evidence_source`. Both lanes were then run live, one backend at a time, each
+on a fresh container of the image the Compose files pin, on its own ports:
 
-The live lane was not run locally. Docker on this machine was carrying other
-lanes' containers (a NornicDB and two Postgres instances), neither pinned
-graph image was present, and pulling them would have written to the OrbStack
-data image on the shared USB volume. Commands, from the repo root, one backend
-at a time, each against a fresh Compose lane:
+- NornicDB, `ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`:
+  `TestLiveBackendConformance` PASS, exit 0. The absent-file and
+  canonical-import cases passed on their #6968 pins (`1 rows, pinned
+  divergence #6968`), and the present-file case passed on the default rows.
+  Validation rejects a pin equal to the correct rows, so NornicDB did not
+  return the correct rows: the divergence is observed, not assumed.
+- Neo4j, `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`:
+  `TestLiveBackendConformance` PASS, exit 0, every case on the default rows
+  (absent file 0 rows, present file 1 row, canonical import 1 uid-null row).
+
+To reproduce with Compose, from the repo root, one backend at a time:
 
 ```bash
 docker compose up -d nornicdb

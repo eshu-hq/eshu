@@ -69,9 +69,9 @@ When a backend does not give the correct rows today, a read case can carry a
 the rows the backend actually returns and must name its tracking issue in
 `Divergence`. `RunReadCorpusFor(backend)` holds that backend to the pin and
 every other backend to `WantRows`, so both lanes stay deterministic. The
-NornicDB semantic Module pins sit under #6968. Their rows are still
-unverified predictions; the reasoning and the per-backend expectation are in
-`evidence-notes.md`.
+NornicDB semantic Module pins sit under #6968. Both lanes were observed live
+returning exactly these rows; the reasoning, the commands, and the images are
+in `evidence-notes.md`.
 
 No-Regression Evidence: no production Cypher text, index, schema, queue or
 batching changed. `sourcecypher.CanonicalNodeModuleUpsertCypher` is a new
