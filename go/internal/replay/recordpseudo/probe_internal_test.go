@@ -14,7 +14,7 @@ func TestIPv4SlotProbingOnCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := newDictionary(key)
-	unprobed := first.ipv4Slot("10.1.2.3")
+	unprobed, _ := first.ipv4Slot("10.1.2.3")
 	if first.ipCollisions != 0 {
 		t.Fatalf("collision counted on an empty slot table")
 	}
@@ -24,7 +24,7 @@ func TestIPv4SlotProbingOnCollision(t *testing.T) {
 		_ = owner
 		second.ipSlots[idx] = "other-raw-address"
 	}
-	probed := second.ipv4Slot("10.1.2.3")
+	probed, _ := second.ipv4Slot("10.1.2.3")
 	if second.ipCollisions != 1 {
 		t.Errorf("collisions = %d, want 1", second.ipCollisions)
 	}

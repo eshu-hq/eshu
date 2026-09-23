@@ -26,7 +26,9 @@ func (d *dictionary) learnIPv4(raw string) {
 	if keepIPv4(raw, ip) {
 		return
 	}
-	d.set(ClassIPv4, raw, d.ipv4Slot(raw))
+	if slot, ok := d.ipv4Slot(raw); ok {
+		d.set(ClassIPv4, raw, slot)
+	}
 }
 
 func keepIPv4(raw string, ip net.IP) bool {
@@ -43,19 +45,24 @@ func keepIPv4(raw string, ip net.IP) bool {
 
 // ipv4Slot maps the address into RFC 5737 by HMAC, linear-probing past slots
 // already owned by a different raw address so two raw addresses never share
-// a pseudonym within one recording. Every probe step is counted.
-func (d *dictionary) ipv4Slot(raw string) string {
+// a pseudonym within one recording. Every probe step is counted. When every
+// slot is owned by another address the recording exceeds the declared
+// limit: the failure is recorded for Next to return and ok is false.
+func (d *dictionary) ipv4Slot(raw string) (string, bool) {
 	idx := int(binary.BigEndian.Uint64(d.key.mac(raw)) % ipv4Slots)
 	for tries := 0; tries < ipv4Slots; tries++ {
 		owner, used := d.ipSlots[idx]
 		if !used || owner == raw {
 			d.ipSlots[idx] = raw
-			return rfc5737Blocks[idx/254] + strconv.Itoa(idx%254+1)
+			return rfc5737Blocks[idx/254] + strconv.Itoa(idx%254+1), true
 		}
 		d.ipCollisions++
 		idx = (idx + 1) % ipv4Slots
 	}
-	panic("recordpseudo: RFC 5737 slot space exhausted")
+	if d.failure == nil {
+		d.failure = fmt.Errorf("%w: recording exceeds %d distinct IPv4 addresses", ErrIPv4Exhausted, ipv4Slots)
+	}
+	return "", false
 }
 
 func (d *dictionary) learnIPv6(raw string) {
@@ -97,7 +104,9 @@ func (d *dictionary) learnCIDR(raw string) {
 		if keepIPv4(network, ip) {
 			return
 		}
-		d.set(ClassCIDR, raw, d.ipv4Slot(network)+"/"+prefix)
+		if slot, ok := d.ipv4Slot(network); ok {
+			d.set(ClassCIDR, raw, slot+"/"+prefix)
+		}
 	default:
 		if strings.HasPrefix(strings.ToLower(network), "2001:db8:") {
 			return

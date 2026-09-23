@@ -7,12 +7,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+// ErrIPv4Exhausted is the declared IPv4 limit: one recording can hold at
+// most 762 distinct IPv4 addresses and CIDR networks (the RFC 5737 slot
+// space). Next returns it, wrapped with the count, instead of a cassette.
+var ErrIPv4Exhausted = errors.New("recordpseudo: RFC 5737 slot space exhausted")
 
 // Report is what a recorder logs about one pseudonymized run. It carries
 // counts, field paths and the key fingerprint -- never a raw or pseudonymized
@@ -36,6 +42,9 @@ type Report struct {
 	// IPv4Collisions counts linear-probe steps taken in the RFC 5737 slot
 	// space; a non-zero value means some address pseudonyms are order-dependent.
 	IPv4Collisions int
+	// IPv4Addresses counts the distinct IPv4 addresses and CIDR networks that
+	// took a slot, against the declared limit of 762 (ErrIPv4Exhausted).
+	IPv4Addresses int
 	// Produced is the set of pseudonym tokens this run emitted, for Verify.
 	Produced Set
 }
@@ -56,6 +65,7 @@ func (r Report) LogAttrs() []any {
 		"opaque_paths", r.OpaquePaths,
 		"unclassified_paths", r.UnclassifiedPaths,
 		"ipv4_collisions", r.IPv4Collisions,
+		"ipv4_addresses", r.IPv4Addresses,
 	}
 }
 
@@ -158,6 +168,9 @@ func (s *Source) drain(ctx context.Context) error {
 	for _, raw := range raws {
 		s.learnGeneration(raw)
 	}
+	if err := s.dict.failure; err != nil {
+		return err
+	}
 	s.queue = make([]collector.CollectedGeneration, 0, len(raws))
 	for _, raw := range raws {
 		s.queue = append(s.queue, s.rewriteGeneration(raw))
@@ -215,6 +228,7 @@ func (s *Source) fillReport(scopes int) {
 		s.report.Learned[class] = n
 	}
 	s.report.IPv4Collisions = s.dict.ipCollisions
+	s.report.IPv4Addresses = len(s.dict.ipSlots)
 	s.report.OpaquePaths = sortedKeys(s.walker.opaque)
 	s.report.UnclassifiedPaths = sortedKeys(s.walker.unclassified)
 	for _, learned := range s.dict.entries {

@@ -74,8 +74,11 @@ type dictionary struct {
 	entries      map[string]entry
 	ipSlots      map[int]string
 	ipCollisions int
-	learned      map[Class]int
-	sorted       []string
+	// failure is the first limit the recording exceeded (ErrIPv4Exhausted);
+	// learn cannot return it, so the source reads it after the learning pass.
+	failure error
+	learned map[Class]int
+	sorted  []string
 }
 
 func newDictionary(key Key) *dictionary {
