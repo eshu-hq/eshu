@@ -28,8 +28,10 @@
   `TestShortWholeNamesAreRewrittenInComposites`,
   `TestNumericNamesAreLearned`, `TestNumericNamesNeverRewriteQualifiers`,
   `TestKeepFieldsIgnoreExactOnlyTokens`,
-  `TestAccountsInsideARNPathsArePseudonymized` and
-  `TestAWSVocabularyWordsAreNeverLearned` green. The AWS vocabulary
+  `TestAccountsInsideARNPathsArePseudonymized`,
+  `TestAWSVocabularyWordsAreNeverLearned`,
+  `TestNumericNameAfterTypedColonIsAName` and
+  `TestShortNumericTagValuesAreKept` green. The AWS vocabulary
   (`arn_vocabulary.go`) is structural: a learned token equal to one of
   its words would rewrite service and type segments everywhere, so `set`
   refuses it; extend the vocabulary, never bypass the refusal. The reducer

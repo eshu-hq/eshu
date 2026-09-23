@@ -116,10 +116,12 @@ Declared limits:
   or a whole component of a composite, never inside longer text and never
   in a Keep field, so one glued into a longer word without a `/` or `:`
   boundary stays raw, and a Keep value equal to one is kept;
-- a numeric name of fewer than four digits is kept; a longer numeric name
-  never rewrites the `:`-qualifier position of an ARN (a Lambda version, a
-  task-definition revision) but does rewrite an equal trailing component
-  of a composite key;
+- a numeric name or tag value of fewer than four digits is kept; a longer
+  numeric name is rewritten wherever it is the resource name (including
+  the `:`-joined name position of `function:NAME`, `db:NAME` and
+  `log-group:NAME`) and never rewrites an ARN qualifier after the name (a
+  Lambda version, a task-definition revision), though it does rewrite an
+  equal trailing component of a composite key;
 - a name or tag value that exactly matches the AWS region or
   availability-zone grammar (`us-east-1`, `eu-central-1a`) or an AWS
   service, resource-type or host-service word (`rds`, `db`, `iam`,

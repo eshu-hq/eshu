@@ -68,8 +68,8 @@ four characters, or a purely numeric name or tag value, is rewritten only
 as a whole classified value or a whole `/`- or `:`-delimited component of
 a composite (never a Keep field), so one glued into a longer word without
 such a boundary stays raw and a Keep value equal to one is kept; a numeric
-name under four digits is kept and a longer one never rewrites an ARN's
-`:`-qualifier; a name or tag value exactly matching the region or
+name or tag value under four digits is kept and a longer numeric name
+never rewrites an ARN qualifier after the name; a name or tag value exactly matching the region or
 availability-zone grammar or an AWS service, type or host-service word is
 AWS vocabulary and is kept. The composite envelope fields (`scope_id`,
 `partition_key`, `stable_fact_key`, `source_record_id`, `source_uri`) are
@@ -158,6 +158,17 @@ are not learned and a longer one never rewrites an ARN `:`-qualifier
 (`numeric_qualifier_test.go`). F11: `rewrite` threads an exact flag so
 Keep fields never take exact-only tokens (`keep_field_test.go`).
 Corpus tests unchanged.
+
+## Review round 6 (verdict-p3-r5.md on 60e814f60)
+
+F12: for `:`-typed services (lambda `function:NAME`, rds `db:NAME`, logs
+`log-group:NAME`) the component after the type token is the name; the
+type-token skip `learnARN` computes (`arnTypeSkip`) is shared with
+`substituteARN`, and only a `:`-joined component past the name is a
+qualifier (`typed_name_position_test.go`, the reviewer's V2 values).
+F13: numeric tag values under four digits are kept like numeric names,
+so a `Name=317` tag and a `317` ARN agree (`numeric_tag_test.go`, V3).
+Both RED-first; corpus tests unchanged.
 
 ## Runtime impact
 
