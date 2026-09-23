@@ -13,7 +13,8 @@
 // fabricated subgraph.
 //
 // Import discipline: this package may import the same
-// dependency-neutral leaves codequery uses (querycontract) and the
+// dependency-neutral leaves codequery uses (querycontract and
+// querycontract/visualization) and the
 // Neo4j driver types for row projection, but NEVER package codequery
 // itself and NEVER root package query -- both would create an import
 // cycle (codequery calls this leaf, and root aliases codequery).

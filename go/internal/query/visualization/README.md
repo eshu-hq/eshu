@@ -14,9 +14,10 @@ builders (`BuildServiceStoryPacket`,
 `BuildEvidenceCitationPacket`,
 `BuildIncidentContextPacket`) plus their `FromMap` adapters.
 Does not own the `Packet`/`VisualizationBuilder` type or bound
-implementation (`querycontract`, promoted there for #6060 so a future
-handler-family subpackage could build one without an import cycle), the
-evidence-citation content model (`querycontract`), or the incident-context
+implementation (`querycontract/visualization`, promoted into querycontract
+for #6060 so a future handler-family subpackage could build one without an
+import cycle, then split into its own leaf by #6597), the evidence-citation
+content model (`querycontract/evidence`), or the incident-context
 read model (`incident/model`) -- those are separate leaves this package
 calls into. Does not own `*TruthEnvelope` itself, only the truth this route's
 own derivation reports.
@@ -27,7 +28,7 @@ own derivation reports.
   dispatch, the request/response shapes, and the route's own derivation-truth
   builder.
 - `packet.go` -- the `Visualization*` type aliases and thin function
-  forwarders onto `querycontract`'s builder implementation
+  forwarders onto `querycontract/visualization`'s builder implementation
   (`View`, `Node`, `Edge`,
   `Packet`, `MaxNodes`, `MaxEdges`,
   `newVisualizationBuilder`, `unsupportedVisualizationPacket`,

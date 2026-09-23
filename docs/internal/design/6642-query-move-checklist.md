@@ -24,8 +24,8 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
 | 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
-| 6 | `querycontract/evidence` | 3 | — | open | 46 |
-| 7 | `querycontract/visualization` | 2 | — | not started | |
+| 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
+| 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | open | 44 |
 | 8 | `querycontract/answer` | 3 | — | not started | |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
@@ -183,3 +183,23 @@ removed or renamed. The moved package holds types and pure helpers.
 Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1` (55 ok), `verify-dirgate.sh --all` (root
 re-pinned 273 -> 272) and `verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `visualization` leaf
+
+No-Regression Evidence: two files move from `querycontract/` to
+`querycontract/visualization/` (`visualization_packet.go` -> `packet.go`,
+`visualization_packet_merge.go` -> `packet_merge.go`), and five files repoint
+`querycontract.Visualization*` to `visualization.Visualization*`. Root has no
+alias for these symbols to delete: root's `visualization_alias.go` aliases the
+`query/visualization` handler package, which keeps its own forwarders. In every
+touched Go file the diff changes only an import line, a package qualifier or a
+comment. No SQL, Cypher, call site, argument, allocation or loop bound
+changes, and the queryplan source-hash pins still match.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and a pure in-memory
+builder.
+
+Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
+`verify-moved-file-refs.sh` all exit 0.

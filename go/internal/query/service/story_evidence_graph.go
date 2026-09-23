@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -95,7 +97,7 @@ func serviceEvidenceGraphEdges(workloadContext map[string]any) ([]map[string]any
 		if serviceID == "" || instanceID == "" {
 			continue
 		}
-		edgeID := querycontract.VisualizationEdgeID(serviceID, instanceID, "RUNS_AS")
+		edgeID := visualization.VisualizationEdgeID(serviceID, instanceID, "RUNS_AS")
 		if _, exists := seenEdges[edgeID]; exists {
 			continue
 		}

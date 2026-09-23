@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	contractviz "github.com/eshu-hq/eshu/go/internal/query/querycontract/visualization"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -33,8 +35,8 @@ var graphQueryNodeLabelKeys = []string{"name", "title", "path", "relative_path",
 // dangling edges into the truncation block. The packet is a pure transformation
 // of the rows already returned by the authorized query and performs no further
 // graph access.
-func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *querycontract.TruthEnvelope) querycontract.VisualizationPacket {
-	builder := querycontract.NewVisualizationBuilder(querycontract.VisualizationViewGraphQuery, "graph query result")
+func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *querycontract.TruthEnvelope) contractviz.VisualizationPacket {
+	builder := contractviz.NewVisualizationBuilder(contractviz.VisualizationViewGraphQuery, "graph query result")
 	builder.SetTruth(truth)
 
 	for _, row := range rows {
@@ -44,8 +46,8 @@ func BuildGraphQueryVisualizationPacket(rows []map[string]any, truth *querycontr
 	}
 
 	if builder.Empty() {
-		return querycontract.UnsupportedVisualizationPacket(
-			querycontract.VisualizationViewGraphQuery,
+		return contractviz.UnsupportedVisualizationPacket(
+			contractviz.VisualizationViewGraphQuery,
 			truth,
 			[]string{"query returned no graph nodes, relationships, or paths to visualize; RETURN whole nodes/relationships/paths (for example RETURN n, r, m) rather than scalar properties"},
 			graphQueryVisualizationNextCalls(),
@@ -91,7 +93,7 @@ func sortedRowKeys(row map[string]any) []string {
 // handles graph nodes, relationships, and paths (including pointer and slice
 // forms), and recurses into []any so a collected list such as collect(n) is
 // projected element by element. Non-graph values are ignored.
-func addGraphQueryValue(builder *querycontract.VisualizationBuilder, value any) {
+func addGraphQueryValue(builder *contractviz.VisualizationBuilder, value any) {
 	switch v := value.(type) {
 	case neo4jdriver.Node:
 		addGraphQueryNode(builder, v)
@@ -121,13 +123,13 @@ func addGraphQueryValue(builder *querycontract.VisualizationBuilder, value any) 
 // addGraphQueryNode adds a single graph node, keyed by its element id, and
 // returns the stable visualization node ID. A node with no element id is
 // skipped because it cannot anchor a deterministic ID or an edge endpoint.
-func addGraphQueryNode(builder *querycontract.VisualizationBuilder, node neo4jdriver.Node) string {
+func addGraphQueryNode(builder *contractviz.VisualizationBuilder, node neo4jdriver.Node) string {
 	elementID := strings.TrimSpace(node.ElementId)
 	if elementID == "" {
 		return ""
 	}
-	nodeID := querycontract.VisualizationNodeID("graph", elementID)
-	builder.AddNode(querycontract.VisualizationNode{
+	nodeID := contractviz.VisualizationNodeID("graph", elementID)
+	builder.AddNode(contractviz.VisualizationNode{
 		ID:       nodeID,
 		Type:     graphQueryNodeType(node.Labels),
 		Label:    graphQueryNodeLabel(node),
@@ -140,15 +142,15 @@ func addGraphQueryNode(builder *querycontract.VisualizationBuilder, node neo4jdr
 // their element ids. The edge is recorded with both endpoint IDs; if either
 // endpoint node was not itself returned by the query, finalize drops the edge as
 // dangling, so a relationship never invents a node.
-func addGraphQueryRelationship(builder *querycontract.VisualizationBuilder, rel neo4jdriver.Relationship) {
+func addGraphQueryRelationship(builder *contractviz.VisualizationBuilder, rel neo4jdriver.Relationship) {
 	start := strings.TrimSpace(rel.StartElementId)
 	end := strings.TrimSpace(rel.EndElementId)
 	if start == "" || end == "" {
 		return
 	}
-	builder.AddEdge(querycontract.VisualizationEdge{
-		Source:       querycontract.VisualizationNodeID("graph", start),
-		Target:       querycontract.VisualizationNodeID("graph", end),
+	builder.AddEdge(contractviz.VisualizationEdge{
+		Source:       contractviz.VisualizationNodeID("graph", start),
+		Target:       contractviz.VisualizationNodeID("graph", end),
 		Relationship: querycontract.FirstNonEmptyString(strings.TrimSpace(rel.Type), "RELATED"),
 	})
 }
@@ -156,7 +158,7 @@ func addGraphQueryRelationship(builder *querycontract.VisualizationBuilder, rel 
 // addGraphQueryPath projects every node and relationship in a path. Because the
 // path carries both endpoint nodes for each relationship, path edges always have
 // present endpoints and survive finalize.
-func addGraphQueryPath(builder *querycontract.VisualizationBuilder, path neo4jdriver.Path) {
+func addGraphQueryPath(builder *contractviz.VisualizationBuilder, path neo4jdriver.Path) {
 	for _, node := range path.Nodes {
 		addGraphQueryNode(builder, node)
 	}

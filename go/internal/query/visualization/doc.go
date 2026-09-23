@@ -22,8 +22,9 @@
 // unsupported packet with limitations and recommended next calls rather than
 // erroring.
 //
-// This package imports querycontract (the VisualizationBuilder
-// implementation, the content-model types, row/string helpers, and the HTTP
+// This package imports querycontract/visualization (the VisualizationBuilder
+// implementation), querycontract/evidence (the evidence-citation content
+// model), querycontract (the truth envelope, row/string helpers, and the HTTP
 // envelope helpers) and incident/model (the incident-context read-model
 // types the third builder consumes); it MUST NOT import the query root, or
 // root would cycle back through its own compatibility aliases in

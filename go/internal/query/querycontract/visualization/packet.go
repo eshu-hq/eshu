@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package visualization
 
 import (
 	"crypto/sha1" // #nosec G505 -- non-cryptographic stable node/edge ID digest for visualization identity, not a security primitive
@@ -10,18 +10,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
-// This file, and its sibling visualization_packet_merge.go, moved here from
-// root package query (#6060) so a handler-family subpackage can build a
-// VisualizationPacket without importing root -- it cannot do that without an
-// import cycle through root's compatibility aliases. Root keeps plain type
-// aliases and thin function forwarders (visualization_packet.go) so every
-// existing root caller (the service-story, evidence-citation, and
-// incident-context views) compiles unchanged; only their two now-exported
-// builder method calls (AddNode, AddEdge, Finalize) needed a rename, since a
-// type alias cannot carry a foreign package's unexported methods.
+// This file and its sibling packet_merge.go left root package query for
+// #6060, so a handler-family subpackage could build a VisualizationPacket
+// without an import cycle through root's compatibility aliases, and moved
+// from querycontract into this leaf for #6597. The query/visualization
+// derivation route (the service-story, evidence-citation, and
+// incident-context views) reaches it through plain type aliases and thin
+// forwarders in query/visualization/packet.go. The builder methods its
+// callers use (AddNode, AddEdge, Finalize) are exported, since a type alias
+// cannot carry a foreign package's unexported methods.
 
 const (
 	// VisualizationMaxNodes bounds the number of nodes a visualization packet
@@ -196,7 +198,7 @@ type VisualizationPacket struct {
 	Edges []VisualizationEdge `json:"edges"`
 	// Truth is a copy of the source response's TruthEnvelope, when one was
 	// provided. It is the canonical truth metadata for the subgraph.
-	Truth *TruthEnvelope `json:"truth,omitempty"`
+	Truth *querycontract.TruthEnvelope `json:"truth,omitempty"`
 	// Limits states the payload bounds and retained counts.
 	Limits VisualizationLimits `json:"limits"`
 	// Truncation records what was dropped to stay within bounds.
@@ -215,7 +217,7 @@ type VisualizationPacket struct {
 type VisualizationBuilder struct {
 	view     VisualizationView
 	title    string
-	truth    *TruthEnvelope
+	truth    *querycontract.TruthEnvelope
 	nodes    map[string]VisualizationNode
 	edges    map[string]VisualizationEdge
 	nodeKeys []string
@@ -240,7 +242,7 @@ func NewVisualizationBuilder(view VisualizationView, title string) *Visualizatio
 // the builder lived in their own package, so each of them takes SetTruth now
 // (#6060). The graph-query builder additionally read the node and edge maps to
 // decide emptiness, which is what Empty and EdgeCount below replace.
-func (b *VisualizationBuilder) SetTruth(truth *TruthEnvelope) {
+func (b *VisualizationBuilder) SetTruth(truth *querycontract.TruthEnvelope) {
 	b.truth = truth
 }
 
@@ -398,7 +400,7 @@ func (b *VisualizationBuilder) Finalize() VisualizationPacket {
 // supplied one.
 func UnsupportedVisualizationPacket(
 	view VisualizationView,
-	truth *TruthEnvelope,
+	truth *querycontract.TruthEnvelope,
 	limitations []string,
 	nextCalls []map[string]any,
 ) VisualizationPacket {
@@ -443,15 +445,14 @@ func VisualizationEdgeID(source, target, relationship string) string {
 }
 
 // cloneTruthEnvelope and appendVisualizationReason are small, self-contained
-// copies of root package query's cloneTruthEnvelope and appendReason
-// (answer_packet.go). They stayed duplicated rather than promoted-and-aliased
-// like the rest of this file: both are one-line-bodied, have no further
-// dependencies, and root's originals are shared far outside the
-// visualization-packet surface (7 other call sites), so aliasing them would
-// have pulled unrelated root files into this package's compatibility surface
-// for no benefit. Mirrors the registry family's derefString/derefBool
+// copies of the parent querycontract's CloneTruthEnvelope and AppendReason.
+// They were duplicated for #6060, when this file lived beside root's
+// originals and aliasing them would have pulled unrelated root files into
+// the builder's compatibility surface. This package now imports querycontract
+// and could call the parent's copies directly; the #6597 move keeps them so it
+// changes no code. Mirrors the registry family's derefString/derefBool
 // precedent (#6060).
-func cloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
+func cloneTruthEnvelope(truth *querycontract.TruthEnvelope) *querycontract.TruthEnvelope {
 	if truth == nil {
 		return nil
 	}

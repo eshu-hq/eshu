@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package visualization
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
@@ -113,10 +115,10 @@ func firstVisualizationString(values []string) string {
 	return values[0]
 }
 
-// firstNonEmptyVisualizationString is a small, self-contained copy of this
-// package's FirstNonEmptyString (story_row_helpers.go). See
-// visualization_packet.go's cloneTruthEnvelope/appendVisualizationReason
-// comment for why this is a duplicate rather than an alias.
+// firstNonEmptyVisualizationString is a small, self-contained copy of the
+// parent querycontract's FirstNonEmptyString (story_row_helpers.go). See
+// packet.go's cloneTruthEnvelope/appendVisualizationReason comment for why
+// this is a duplicate rather than a call.
 func firstNonEmptyVisualizationString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -174,11 +176,11 @@ func strongerVisualizationTruthLabel(left, right string) string {
 
 func visualizationTruthLabelRank(label string) int {
 	switch label {
-	case string(TruthLevelExact):
+	case string(querycontract.TruthLevelExact):
 		return 3
-	case string(TruthLevelDerived):
+	case string(querycontract.TruthLevelDerived):
 		return 2
-	case string(TruthLevelFallback):
+	case string(querycontract.TruthLevelFallback):
 		return 1
 	default:
 		return 0
