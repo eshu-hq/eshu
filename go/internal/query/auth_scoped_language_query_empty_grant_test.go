@@ -99,7 +99,7 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 // caller naming one that is not indexed gets the route's ordinary empty page
 // rather than the 400 a non-canonical selector would earn.
 //
-// queryselector.LooksCanonicalRepositoryID is what makes the two differ, and
+// selector.LooksCanonicalRepositoryID is what makes the two differ, and
 // the difference is caller-class-sensitive: for a SCOPED token the same
 // canonical id is still checked against the grant, which is
 // TestLanguageQueryUngrantedRepositorySelectorIsRejected's case (it passes
@@ -135,7 +135,7 @@ func TestLanguageQueryCanonicalRepoIDIsTakenAsGiven(t *testing.T) {
 //
 // Without this the label can quietly become a lie. `no_backend_read` asserts
 // that nothing was read, and the empty-grant page is only reachable with an
-// empty repo_id, where queryselector.ResolveExactForAccess short-circuits with
+// empty repo_id, where selector.ResolveExactForAccess short-circuits with
 // zero reads. Selector resolution itself DOES read (content.MatchRepositories
 // plus two Cypher lookups), so if anyone later relaxes the fail-closed
 // behaviour and lets an unresolvable selector fall through to the empty page

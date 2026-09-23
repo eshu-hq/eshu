@@ -17,7 +17,7 @@
 //
 // Import discipline: this package may import dependency-neutral leaves --
 // codemodel, querycontract, queryauth, tracing, rows,
-// queryselector, querytestutil, contentread, entitysemantics, codeshaping,
+// selector, querytestutil, contentread, entitysemantics, codeshaping,
 // codeprovenance, facts, parser, reducer, the internal/search* ranking
 // packages, telemetry -- but NEVER root package query itself, which would
 // create an import cycle (root imports this package for the alias and

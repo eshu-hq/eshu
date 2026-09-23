@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 func TestResolveRepositoryCatalogMatchesMatchesNameSlugAndPath(t *testing.T) {
@@ -30,10 +30,10 @@ func TestResolveRepositoryCatalogMatchesMatchesNameSlugAndPath(t *testing.T) {
 		},
 	}
 
-	for _, selector := range []string{"repository:r_payments", "payments", "/src/payments", "acme/payments"} {
-		matches := queryselector.CatalogMatches(entries, selector)
+	for _, rawSelector := range []string{"repository:r_payments", "payments", "/src/payments", "acme/payments"} {
+		matches := selector.CatalogMatches(entries, rawSelector)
 		if got, want := matches, []string{"repository:r_payments"}; len(got) != len(want) || got[0] != want[0] {
-			t.Fatalf("resolveRepositoryCatalogMatches(%q) = %#v, want %#v", selector, got, want)
+			t.Fatalf("resolveRepositoryCatalogMatches(%q) = %#v, want %#v", rawSelector, got, want)
 		}
 	}
 }

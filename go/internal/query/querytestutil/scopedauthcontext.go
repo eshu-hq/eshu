@@ -91,7 +91,7 @@ func BoundCanonicalLanguage(t *testing.T, params map[string]any) string {
 }
 
 // CodeGrantGrantedRepo and CodeGrantOtherRepo are canonical repository ids
-// (the repo:// form queryselector.LooksCanonicalRepositoryID recognises) the
+// (the repo:// form selector.LooksCanonicalRepositoryID recognises) the
 // #5167/#6642 code and language grant tests use to prove a scoped read
 // admits the granted repository and excludes the other one. They live here,
 // rather than only in package query's code_grant_test_fixtures_test.go,

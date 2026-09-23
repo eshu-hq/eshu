@@ -8,14 +8,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // hydrateResolvedEntityRepoIdentity forwards to
-// queryselector.HydrateResolvedEntityRepoIdentity. The implementation moved
-// to queryselector for #6060 (querycontract's AGENTS.md names a query-owning
+// selector.HydrateResolvedEntityRepoIdentity. The implementation moved
+// to selector for #6060 (querycontract's AGENTS.md names a query-owning
 // leaf, not the dependency-neutral contract package, as the home for a
-// complete query; queryselector already owns two complete MATCH statements
+// complete query; selector already owns two complete MATCH statements
 // and already consumes RepositoryAccessFilter) so a handler-family
 // subpackage can hydrate the same repo identity without importing root.
 // This wrapper keeps root callers (handler.go, content_types.go)
@@ -26,5 +26,5 @@ func hydrateResolvedEntityRepoIdentity(
 	content querycontract.ContentStore,
 	entities []map[string]any,
 ) (bool, error) {
-	return queryselector.HydrateResolvedEntityRepoIdentity(ctx, graph, content, entities)
+	return selector.HydrateResolvedEntityRepoIdentity(ctx, graph, content, entities)
 }

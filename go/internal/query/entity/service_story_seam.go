@@ -11,7 +11,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -128,7 +128,7 @@ func serviceStoryResolutionError(err error) (int, *querycontract.ErrorEnvelope) 
 			},
 		}
 	}
-	var repoAmbiguous queryselector.AmbiguousError
+	var repoAmbiguous selector.AmbiguousError
 	if errors.As(err, &repoAmbiguous) {
 		return http.StatusConflict, &querycontract.ErrorEnvelope{
 			Code:       querycontract.ErrorCodeAmbiguous,
@@ -142,7 +142,7 @@ func serviceStoryResolutionError(err error) (int, *querycontract.ErrorEnvelope) 
 			},
 		}
 	}
-	if queryselector.IsNotFound(err) {
+	if selector.IsNotFound(err) {
 		return http.StatusNotFound, &querycontract.ErrorEnvelope{
 			Code:       querycontract.ErrorCodeScopeNotFound,
 			Message:    err.Error(),

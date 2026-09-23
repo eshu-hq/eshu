@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // Scoped-token authorization helpers for the reducer-owned provider
@@ -35,8 +35,8 @@ func (h *Handler) securityAlertReconciliationOutOfGrant(
 	if !access.Scoped() || repositoryID == "" || access.AllowsRepositoryID(repositoryID) {
 		return false
 	}
-	selector := querycontract.QueryParam(r, "repository_id")
-	querycontract.WriteError(w, http.StatusNotFound, queryselector.NotFoundError{Selector: selector}.Error())
+	rawSelector := querycontract.QueryParam(r, "repository_id")
+	querycontract.WriteError(w, http.StatusNotFound, selector.NotFoundError{Selector: rawSelector}.Error())
 	return true
 }
 

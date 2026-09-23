@@ -375,7 +375,7 @@ func (s *capabilitySweep) resolveLocalIdent(name string, enclosing *ast.FuncDecl
 // locally assigned variable: it resolves every call site of enclosing (by
 // name, across every directory -- a leaf's callers legitimately live in
 // another package, e.g. the registry family calling
-// queryselector.ResolveForRequestWithAccess) at that parameter's argument
+// selector.ResolveForRequestWithAccess) at that parameter's argument
 // position. Each caller's argument resolves against that caller's OWN
 // directory, never enclosing's.
 func (s *capabilitySweep) resolveParam(name string, enclosing *ast.FuncDecl, visitedFuncs map[string]bool) ([]string, bool) {

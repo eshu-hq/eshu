@@ -82,7 +82,7 @@ var scopedGrantLiveSeed = []string{
 	`CREATE (:Workload {id: 'scoped-grant-6786:api-1', name: 'scoped-grant-6786-api', repo_id: 'scoped-grant-6786:repo-b'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:api-2', name: 'scoped-grant-6786-api', repo_id: 'scoped-grant-6786:repo-a'})`,
 	// #6786 review follow-up (F2): a WorkloadInstance of each workload, to
-	// exercise GetEntityContext's queryselector hydration path for entity
+	// exercise GetEntityContext's selector hydration path for entity
 	// types no File CONTAINS -- Workload and WorkloadInstance both resolve
 	// their repo_id through DEFINES, not REPO_CONTAINS/CONTAINS.
 	`CREATE (:WorkloadInstance {id: 'scoped-grant-6786:wli-in', name: 'wli-in'})`,
@@ -207,7 +207,7 @@ func TestLiveScopedEntityContextGrant(t *testing.T) {
 	// label filter, so a Workload or WorkloadInstance id reaches it too. No
 	// File CONTAINS either label, so the OPTIONAL MATCH the entity route
 	// itself renders never resolves repo_id for them; that job belongs to
-	// queryselector.HydrateResolvedEntityRepoIdentity's DEFINES-based
+	// selector.HydrateResolvedEntityRepoIdentity's DEFINES-based
 	// backfill (entity_repo_identity.go), which is NOT part of this PR's
 	// diff but was proven live to return garbage column values on NornicDB
 	// v1.3.3 (an UNWIND variable colliding with a RETURN alias). This is an

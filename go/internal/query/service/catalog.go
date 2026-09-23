@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -116,7 +116,7 @@ func (h *CatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request
 		h.writeEmptyServiceCatalogCorrelationPage(w, r, limit)
 		return
 	}
-	repositoryID, ok := queryselector.ResolveForRequestWithAccess(
+	repositoryID, ok := selector.ResolveForRequestWithAccess(
 		w,
 		r,
 		nil,

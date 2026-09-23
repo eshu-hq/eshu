@@ -17,7 +17,7 @@
 // read, tested, and changed without pulling in the rest of the query
 // surface. It depends only on dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders), queryauth (request auth
-// bounds), queryselector (repository-selector resolution), tracing (span
+// bounds), selector (repository-selector resolution), tracing (span
 // plumbing), decode-adjacent sdk/go/factschema seams, internal/scope,
 // and the advisory/impact subpackages -- never on root package query
 // itself, which would create an import cycle: root's

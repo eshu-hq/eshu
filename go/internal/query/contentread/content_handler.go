@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // Search-page bounds for the content read surface. Exported (#6060) so
@@ -335,10 +335,10 @@ func (req contentSearchRequest) explicitRepoIDs() []string {
 
 func (h *ContentHandler) resolveRepositorySelectorForAccess(
 	ctx context.Context,
-	selector string,
+	rawSelector string,
 	access querycontract.RepositoryAccessFilter,
 ) (string, error) {
-	return queryselector.ResolveExactForAccess(ctx, nil, h.Content, selector, access)
+	return selector.ResolveExactForAccess(ctx, nil, h.Content, rawSelector, access)
 }
 
 func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req contentSearchRequest) (contentSearchRequest, error) {
@@ -453,7 +453,7 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 
 func writeContentSelectorError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
-	if queryselector.IsNotFound(err) {
+	if selector.IsNotFound(err) {
 		status = http.StatusNotFound
 	}
 	querycontract.WriteError(w, status, err.Error())

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 const (
@@ -106,7 +106,7 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 		if status == http.StatusInternalServerError {
 			status = http.StatusBadRequest
 		}
-		if queryselector.IsNotFound(err) {
+		if selector.IsNotFound(err) {
 			status = http.StatusNotFound
 		}
 		querycontract.WriteError(w, status, err.Error())

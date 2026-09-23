@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // getRepositoryCoverage returns content store coverage for the repository.
@@ -48,8 +48,8 @@ func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) 
 
 // resolveRepositorySelector resolves a repository selector (canonical id, name,
 // or slug) to its canonical repository id using the graph and content backends.
-func (h *Handler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return queryselector.ResolveExactForAccess(ctx, h.Neo4j, h.Content, selector, querycontract.RepositoryAccessFilterFromContext(ctx))
+func (h *Handler) resolveRepositorySelector(ctx context.Context, rawSelector string) (string, error) {
+	return selector.ResolveExactForAccess(ctx, h.Neo4j, h.Content, rawSelector, querycontract.RepositoryAccessFilterFromContext(ctx))
 }
 
 // resolveRepositoryPathSelector reads the {repo_id} path parameter, resolves it
@@ -73,7 +73,7 @@ func (h *Handler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.R
 			return "", false
 		}
 		status := http.StatusBadRequest
-		if queryselector.IsNotFound(err) {
+		if selector.IsNotFound(err) {
 			status = http.StatusNotFound
 		}
 		querycontract.WriteError(w, status, err.Error())

@@ -13,7 +13,7 @@ import (
 // double for this family's repository-selector tests. It embeds the (nil)
 // interface to satisfy ContentStore's other ~25 methods, none of which this
 // family's tests call, and overrides only MatchRepositories -- the single
-// method queryselector.ResolveExactForAccess reads off a non-nil ContentStore.
+// method selector.ResolveExactForAccess reads off a non-nil ContentStore.
 //
 // Root's much larger fakePortContentStore (internal/query/ports_test.go)
 // cannot be reused here: Go never compiles one package's _test.go files into

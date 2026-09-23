@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
 	"github.com/eshu-hq/eshu/go/internal/iacreachability"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -363,7 +363,7 @@ func deadIaCNextOffset(offset int, returned int, total int) *int {
 
 // resolveRepositoryScope resolves each requested dead-IaC repository selector
 // exactly, bound to the caller's grant (#5167 W4). It reuses
-// queryselector.ResolveExactForAccess with
+// selector.ResolveExactForAccess with
 // querycontract.RepositoryAccessFilterFromContext -- the same access-filtered resolution
 // chain the #5167 Group A single-repository routes
 // (auth_scoped_routes_repository.go) use -- so a selector naming a repository
@@ -381,8 +381,8 @@ func (h *Handler) resolveRepositoryScope(ctx context.Context, selectors []string
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	resolved := make([]string, 0, len(selectors))
 	seen := make(map[string]struct{}, len(selectors))
-	for _, selector := range selectors {
-		repoID, err := queryselector.ResolveExactForAccess(ctx, nil, h.Content, selector, access)
+	for _, rawSelector := range selectors {
+		repoID, err := selector.ResolveExactForAccess(ctx, nil, h.Content, rawSelector, access)
 		if err != nil {
 			return nil, err
 		}

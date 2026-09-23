@@ -15,8 +15,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
@@ -257,9 +257,9 @@ func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	if err == nil {
 		t.Fatal("resolveRepositorySelector() error = nil, want not found for out-of-scope repo")
 	}
-	var notFound queryselector.NotFoundError
+	var notFound selector.NotFoundError
 	if !errors.As(err, &notFound) {
-		t.Fatalf("error = %T %v, want queryselector.NotFoundError", err, err)
+		t.Fatalf("error = %T %v, want selector.NotFoundError", err, err)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 )
 
 // applyRepositorySelectorForCapability resolves *selector, and on failure
@@ -28,7 +28,7 @@ func (h *CodeHandler) applyRepositorySelectorForCapability(w http.ResponseWriter
 //
 // POST /api/v0/code/language-query is owned by LanguageQueryHandler, so none of
 // the CodeHandler selector methods were reachable from it and req.RepoID was
-// used raw: never resolved through queryselector, never checked against the
+// used raw: never resolved through selector, never checked against the
 // caller's grant, and an ungranted repository id was pushed into the query
 // instead of being refused. Extracting the body here rather than copying it
 // onto a second handler keeps one implementation of "resolve the selector, map
@@ -39,17 +39,17 @@ func ApplyRepositorySelectorForAccess(
 	r *http.Request,
 	graph GraphQuery,
 	content ContentStore,
-	selector *string,
+	rawSelector *string,
 	capability string,
 ) bool {
-	if selector == nil {
+	if rawSelector == nil {
 		return true
 	}
-	resolved, err := queryselector.ResolveExactForAccess(
+	resolved, err := selector.ResolveExactForAccess(
 		r.Context(),
 		graph,
 		content,
-		*selector,
+		*rawSelector,
 		codeGrantAccessFilter(r.Context()),
 	)
 	if err != nil {
@@ -59,16 +59,16 @@ func ApplyRepositorySelectorForAccess(
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return false
 	}
-	*selector = resolved
+	*rawSelector = resolved
 	return true
 }
 
-func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return queryselector.ResolveExactForAccess(
+func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, rawSelector string) (string, error) {
+	return selector.ResolveExactForAccess(
 		ctx,
 		h.Neo4j,
 		h.Content,
-		selector,
+		rawSelector,
 		codeGrantAccessFilter(ctx),
 	)
 }
@@ -98,9 +98,9 @@ func codeGrantAccessFilter(ctx context.Context) querycontract.RepositoryAccessFi
 // that is optionally anchored to one repository by repoID.
 //
 // It exists because applyRepositorySelectorForCapability only binds a grant to
-// a selector the caller actually supplied: queryselector.ResolveExactForAccess
+// a selector the caller actually supplied: selector.ResolveExactForAccess
 // returns "" for an empty selector without consulting the grant at all
-// (queryselector/selector.go), so every code route that treats an omitted
+// (selector/selector.go), so every code route that treats an omitted
 // repo_id as "search everything" ran its downstream query with no grant bound.
 //
 // allowed is the granted repository id list to push into the read's own
@@ -157,7 +157,7 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 // reports that case as blocked, ahead of both entity backends. The selector's
 // own repository lookup can still run before that gate, when the request
 // carries a non-canonical repo_id to resolve; it is grant-filtered in
-// queryselector, so it cannot see outside the caller's grant either.
+// selector, so it cannot see outside the caller's grant either.
 //
 // Both fields are exported (#6060): the language family (now
 // language/handler.go and language/metadata.go, #6642) reads them from its
