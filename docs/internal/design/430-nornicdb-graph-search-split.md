@@ -56,12 +56,15 @@ Eshu pins the same eshu-hq self-built NornicDB image by digest for
 Compose, Helm, and R-5 graph startup. The per-database
 BM25/vector enable and warming controls Eshu depends on shipped in v1.1.2
 ([orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177)) and are
-preserved in later releases; `fix-499-6ac958a9` is the pinned eshu-hq self-built
+preserved in later releases; `fix-500-e022384c` is the pinned eshu-hq self-built
 ghcr.io image, built from upstream main at the merged Close-versus-commit fix
 ([orneryd/NornicDB#501](https://github.com/orneryd/NornicDB/pull/501)), which
 carries the numID counter floor ([#498](https://github.com/orneryd/NornicDB/pull/498))
 and the conjunct index-seek fix
-([orneryd/NornicDB#491](https://github.com/orneryd/NornicDB/pull/491)), with
+([orneryd/NornicDB#491](https://github.com/orneryd/NornicDB/pull/491)), plus the
+ORDER BY key fix from
+[orneryd/NornicDB#502](https://github.com/orneryd/NornicDB/pull/502) (not yet
+merged upstream), with
 `linux/amd64` and `linux/arm64` descriptors. The validated Linux amd64 artifact
 reports `NornicDB v1.3.3`; the v1.3.2 artifact reported `NornicDB v1.3.1` because
 upstream retained a stale embedded `VERSION` file;

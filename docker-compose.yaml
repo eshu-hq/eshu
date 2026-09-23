@@ -7,7 +7,7 @@ services:
     # v1.3.3 reuses the v1.3.2-format graph volume below: the on-disk format is
     # unchanged (storage v2, no migration), proven by opening v1.3.2-written
     # storage with the v1.3.3 binary and reading it back.
-    image: ${NORNICDB_IMAGE:-ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-499-6ac958a9@sha256:fc90a2c3115d5dc0fe9a69ac676e5c77428bcfdcadc3320f2e99f887bea22f26}
+    image: ${NORNICDB_IMAGE:-ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1}
     pull_policy: ${NORNICDB_PULL_POLICY:-missing}
     platform: ${NORNICDB_PLATFORM:-linux/amd64}
     ports:
