@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -104,6 +105,66 @@ func TestRunBackendDiffQuorumExecutionsAboveCeilingFails(t *testing.T) {
 	}
 	if !strings.Contains(out, "ceiling of 2") {
 		t.Fatalf("stdout = %q, want the ceiling value named", out)
+	}
+}
+
+// Transient-read exclusions count toward the same ceiling tripwire: a
+// systematic divergence on a registered statement must not hide behind
+// timing noise indefinitely (#6971 P2). One reproduced advisory plus one
+// reproduced transient is 2 against a ceiling of 1, so the gate fails.
+// RED: transient is not counted, so the gate passes.
+func TestRunBackendDiffQuorumCeilingCountsTransient(t *testing.T) {
+	const orphan = "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+	writePair := func() (string, string) {
+		nornic := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1", "d1")
+		neo := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d1", "d1", "d1")
+		appendStmt(t, nornic, "nornicdb", orphan, "left")
+		appendStmt(t, neo, "neo4j", orphan, "right")
+		return nornic, neo
+	}
+	left, right := writePair()
+	left2, right2 := writePair()
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "transient_reads:\n- statement: \"" + orphan + "\"\n  reason: \"seeded transient read\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n  owner: \"graph\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	out, err := runBackendDiffQuorumPhaseWithCeiling(t, left, right, left2, right2, allowlist, 1)
+	if err == nil {
+		t.Fatalf("advisory-plus-transient total above the ceiling passed the gate\n%s", out)
+	}
+	if !strings.Contains(out, "[FAIL] nornicdb_vs_neo4j_executions_ceiling") {
+		t.Fatalf("stdout = %q, want the required ceiling finding", out)
+	}
+	if !strings.Contains(out, "(1 scheduling-noise + 1 transient-read)") {
+		t.Fatalf("stdout = %q, want the ceiling finding to break out both buckets", out)
+	}
+}
+
+// The ceiling stays exclusive across buckets: one advisory plus one
+// transient is exactly the ceiling of 2, so the gate passes with no
+// ceiling finding (boundary pin for the mixed total).
+func TestRunBackendDiffQuorumCeilingMixedTotalAtCeilingPasses(t *testing.T) {
+	const orphan = "MATCH (n:Module) WHERE n.uid IS NULL RETURN n"
+	nornic := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1", "d1")
+	neo := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d1", "d1", "d1")
+	appendStmt(t, nornic, "nornicdb", orphan, "left")
+	appendStmt(t, neo, "neo4j", orphan, "right")
+	nornic2 := writeBackendDiffDirStmt(t, "nornicdb", "MATCH (s) RETURN s", "d1", "d1")
+	neo2 := writeBackendDiffDirStmt(t, "neo4j", "MATCH (s) RETURN s", "d1", "d1", "d1")
+	appendStmt(t, nornic2, "nornicdb", orphan, "left")
+	appendStmt(t, neo2, "neo4j", orphan, "right")
+	allowlist := filepath.Join(t.TempDir(), "allowlist.yaml")
+	raw := "transient_reads:\n- statement: \"" + orphan + "\"\n  reason: \"seeded transient read\"\n  upstream: \"https://github.com/eshu-hq/eshu/issues/6782\"\n  owner: \"graph\"\n"
+	if err := os.WriteFile(allowlist, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	out, err := runBackendDiffQuorumPhaseWithCeiling(t, nornic, neo, nornic2, neo2, allowlist, 2)
+	if err != nil {
+		t.Fatalf("mixed total at the ceiling failed the gate: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "nornicdb_vs_neo4j_executions_ceiling") {
+		t.Fatalf("stdout = %q, want no ceiling finding at exactly the ceiling", out)
 	}
 }
 

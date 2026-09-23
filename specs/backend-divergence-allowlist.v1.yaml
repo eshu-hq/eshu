@@ -297,10 +297,10 @@ entries:
 
 transient_reads:
 - statement: "MATCH (n:Module) WHERE n.evidence_source IS NOT NULL AND n.uid IS NULL AND (n.name > $cursor_0 OR (n.name = $cursor_0 AND coalesce(n.lang, '<absent>') > $cursor_1)) WITH n.name AS key_0, coalesce(n.lang, '<absent>') AS key_1, n.eshu_orphan_observed_at_unix AS observed_at RETURN key_0, key_1, observed_at ORDER BY key_0, key_1 LIMIT $limit"
-  reason: "First page of the uid-less Module orphan scan: Modules not yet resolved to a uid are transient state, so the page depends on where the parse/resolution drain is when it is read and digests disagree across legs (quorum-reproduced on PR #6971)."
+  reason: "Uid-less Module orphan scan pages: Modules not yet resolved to a uid are transient state, so each page depends on where the parse/resolution drain is when it is read and digests disagree across legs (quorum-reproduced on PR #6971). The fingerprint is the paginated template, so every page is covered."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
 - statement: "MATCH (n:EvidenceArtifact) WHERE n.evidence_source IS NOT NULL AND n.id > $cursor RETURN n.id AS key, n.eshu_orphan_observed_at_unix AS observed_at ORDER BY n.id LIMIT $limit"
-  reason: "EvidenceArtifact orphan-sweep page on the orphan-observation timestamp: the observed set depends on wall-clock drain progress, so digests disagree across legs."
+  reason: "EvidenceArtifact orphan-sweep pages on the orphan-observation timestamp: the observed set depends on wall-clock drain progress, so digests disagree across legs. The fingerprint is the paginated template, so every page is covered."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph

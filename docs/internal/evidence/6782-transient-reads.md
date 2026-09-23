@@ -43,11 +43,12 @@ parsed by `capture.ParseAllowlist` beside `entries`
   results/rowcount/executions divergences are held; a backend error or
   a one-sided recording on a transient read stays required.
 
-Committed registrations (2): the Module orphan first page and the
-EvidenceArtifact orphan-sweep page — the two reads evidenced divergent
-above. The orphan-marking write and the un-evidenced Repository,
-Platform, File, and Directory sweep pages stay under full truth
-comparison.
+Committed registrations (2): the Module orphan scan pages and the
+EvidenceArtifact orphan-sweep pages — the fingerprints are the
+paginated templates, so every page is covered (each page is equally
+drain-timing-dependent). The orphan-marking write and the un-evidenced
+Repository, Platform, File, and Directory sweep pages stay under full
+truth comparison.
 
 Wiring: `capture.Compare` and the quorum per-pairing path exclude
 transient divergences before quorum intersection and report them in the

@@ -93,7 +93,7 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		{strings.TrimSpace(o.diffLeft2), strings.TrimSpace(o.diffRight2)},
 	}
 	unexcused := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
-	var transient []backendconformance.DifferentialDifference
+	transientByPairing := make([][]backendconformance.DifferentialDifference, 0, len(pairs))
 	for i, pair := range pairs {
 		remaining, err := unexcusedPairing(pair[0], pair[1], allow)
 		if err != nil {
@@ -103,7 +103,7 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		// allowlist, before quorum intersection: an orphan page diverging
 		// in both pairings is timing in both, never reproduced truth.
 		remaining, excluded := allow.ExcludeTransient(remaining)
-		transient = append(transient, excluded...)
+		transientByPairing = append(transientByPairing, excluded)
 		if _, err := fmt.Fprintf(stdout, "pairing %d: %d unexcused divergence(s)\n", i+1, len(remaining)); err != nil {
 			return fmt.Errorf("report pairing %d: %w", i+1, err)
 		}
@@ -123,6 +123,9 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 		unexcused = append(unexcused, remaining)
 	}
 	reproduced := backendconformance.QuorumIntersection(unexcused[0], unexcused[1])
+	// Reproduced transient exclusions count toward the ceiling below,
+	// symmetric with the reproduced advisory total.
+	reproducedTransient := backendconformance.QuorumIntersection(transientByPairing[0], transientByPairing[1])
 	kept, advisory := backendconformance.SplitAdvisory(reproduced)
 	detail := "nornicdb and neo4j recordings agree across both pairings"
 	if len(kept) != 0 {
@@ -149,17 +152,34 @@ func runBackendDiffQuorum(o options, allow *capture.Allowlist, stdout io.Writer,
 	// that triples drain passes would still report as an advisory WARN and
 	// pass the gate. -diff-executions-advisory-max is a systemic-regression
 	// tripwire, not a tuning target — see the golden-corpus-gate README for
-	// the observed-count calibration.
-	if o.diffExecutionsAdvisoryMax > 0 && len(advisory) > o.diffExecutionsAdvisoryMax {
-		top := backendconformance.TopAdvisoryStatementReports(advisory, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
+	// the observed-count calibration. Reproduced transient-read exclusions
+	// count toward the same ceiling, so a systematic divergence on a
+	// registered statement cannot hide behind timing noise indefinitely
+	// (#6971 review): with no transient divergences the total is exactly
+	// the advisory total, preserving the calibrated #6941 contract.
+	ceilingTotal := len(advisory) + len(reproducedTransient)
+	if o.diffExecutionsAdvisoryMax > 0 && ceilingTotal > o.diffExecutionsAdvisoryMax {
+		topSource := make([]backendconformance.DifferentialDifference, 0, len(advisory)+len(reproducedTransient))
+		topSource = append(topSource, advisory...)
+		topSource = append(topSource, reproducedTransient...)
+		top := backendconformance.TopAdvisoryStatementReports(topSource, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
 		ceilingDetail := fmt.Sprintf("%d reproduced scheduling-noise divergence(s) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", len(advisory), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		if len(reproducedTransient) != 0 {
+			ceilingDetail = fmt.Sprintf("%d reproduced advisory divergence(s) (%d scheduling-noise + %d transient-read) exceed the advisory ceiling of %d (systemic-regression tripwire, #6941), top: %s", ceilingTotal, len(advisory), len(reproducedTransient), o.diffExecutionsAdvisoryMax, strings.Join(top, "; "))
+		}
 		r.AddCheck("backend-diff", "nornicdb_vs_neo4j_executions_ceiling", false, true, ceilingDetail)
 	}
 	// Transient-read exclusions report as their own advisory finding, not
 	// inside the executions advisory: their digests disagree, so the
 	// "agreeing results" wording would be false. Non-required, always
 	// visible: a real regression on an orphan page must stay readable in
-	// the CI log (#6782 option 1).
+	// the CI log (#6782 option 1). The finding counts every per-pairing
+	// exclusion; the ceiling below counts reproduced transient
+	// divergences, symmetric with the reproduced advisory total.
+	var transient []backendconformance.DifferentialDifference
+	for _, excluded := range transientByPairing {
+		transient = append(transient, excluded...)
+	}
 	transientDetail := "no transient-read divergences excluded"
 	if len(transient) != 0 {
 		top := backendconformance.TopAdvisoryStatementReports(transient, topAdvisoryStatementCount, backendconformance.AdvisoryStatementMaxLen)
