@@ -177,7 +177,7 @@ func scanHostnames(text string, produced Set, refuse refusal) {
 				continue
 			}
 		}
-		if !hostnameAllowed(strings.ToLower(text[start:end]), produced) {
+		if !hostnameAllowed(strings.ToLower(text[start:end]), text[start:end], produced) {
 			refuse(start, "hostname")
 		}
 	}

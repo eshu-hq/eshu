@@ -170,6 +170,20 @@ run_scan "${principaldir}" "${scratch}/service-principal.out" rc
 	|| fail "an AWS service principal was flagged; a recorded trust policy would fail the gate: $(cat "${scratch}/service-principal.out")"
 printf 'GREEN service principal: exit %s\n' "${rc}"
 
+# A customer endpoint under an AWS suffix passes only in the form record mode
+# writes: h-pseudonym customer labels, then AWS-owned labels. A raw customer
+# label fails, including one wedged between an h-label and the AWS words.
+plant_red hostname 'myapp-123.us-east-1.elb.amazonaws.com' hostname-raw-elb
+plant_red hostname 'h0a1b2c3d4e.team-b.us-east-1.rds.amazonaws.com' hostname-raw-mid-label
+endpointdir="${scratch}/aws-endpoint"
+mkdir -p "${endpointdir}"
+printf '{"a":"h1f2e3d4c5b.us-east-1.elb.amazonaws.com","b":"h1f2e3d4c5b.elb.us-east-1.amazonaws.com","c":"h1f2e3d4c5b.h0a1b2c3d4e.us-east-1.rds.amazonaws.com","d":"h1f2e3d4c5b.apigateway.amazonaws.com","e":"h1f2e3d4c5b.h0a1b2c3d4e.h9e8d7c6b5a.cloudformation.amazonaws.com","f":"h1f2e3d4c5b.execute-api.us-east-1.amazonaws.com","g":"000017213864.dkr.ecr.us-east-1.amazonaws.com"}\n' >"${endpointdir}/endpoint.json"
+rc=0
+run_scan "${endpointdir}" "${scratch}/aws-endpoint.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a pseudonymized AWS endpoint was flagged; a record-mode recording would fail the gate: $(cat "${scratch}/aws-endpoint.out")"
+printf 'GREEN pseudonymized AWS endpoint: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -270,12 +284,12 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 13 sample(s), expected 14"
+	"positive control carries 14 sample(s), expected 15"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 31 goes red, so the form cannot be dropped from
+# it and the hand count of 32 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 30 sample(s), expected 31"
+	"negative control carries 31 sample(s), expected 32"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

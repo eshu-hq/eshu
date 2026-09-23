@@ -43,10 +43,27 @@ var (
 	}
 )
 
+// awsEndpointRegion and awsEndpointWords are the AWS-owned labels the
+// endpoint allow form admits between the h-pseudonym labels and the final
+// label under amazonaws.com: the region grammar and the host service words
+// awsHostLabels keeps (awsHostServiceLabels). They are the gate's
+// aws_endpoint_region and aws_endpoint_words verbatim; a test pins that.
+const (
+	awsEndpointRegion = `(?:us|eu|ap|ca|sa|me|af|il|mx|cn)(?:-gov|-iso[a-z]?)?-(?:east|west|north|south|central|northeast|southeast|northwest|southwest)-[0-9]{1,2}`
+	awsEndpointWords  = `appsync-api|awsapprunner|cache|cloudfront|dkr|ecr|elasticbeanstalk|elb|es|execute-api|lambda-url|rds|s3|s3-website|sns|sqs|sts`
+)
+
 // servicePrincipalRe is exactly one label under amazonaws.com: a label
 // there is AWS-owned (a customer cannot register one), so it is an AWS
 // service principal such as states.amazonaws.com.
 var servicePrincipalRe = regexp.MustCompile(`^[a-z0-9-]+\.amazonaws\.com$`)
+
+// awsEndpointRe is a customer endpoint under amazonaws.com as record mode
+// writes it: one or more h-pseudonym labels, then only AWS-owned labels (a
+// region or a listed service word), then the single AWS-owned label
+// directly under amazonaws.com. A raw customer label never fits it; Verify
+// additionally admits it only when this run produced the whole host.
+var awsEndpointRe = regexp.MustCompile(`^(?:h[0-9a-f]{10}\.)+(?:(?:` + awsEndpointRegion + `|` + awsEndpointWords + `)\.)*[a-z0-9-]+\.amazonaws\.com$`)
 
 // accountAllowed admits the AWS documentation account, the zero-prefixed
 // forms, repdigits, and the reserved pseudonym form only when this run minted
@@ -74,7 +91,9 @@ func ipv4Allowed(token string) bool   { return ipv4AllowRe.MatchString(token) }
 func nodeIPAllowed(token string) bool { return nodeIPAllowRe.MatchString(token) }
 func ipv6Allowed(token string) bool   { return ipv6AllowRe.MatchString(token) }
 
-func hostnameAllowed(host string, produced Set) bool {
+// hostnameAllowed reports a documented host form. host is the lowercased
+// candidate and original the candidate as it appears in the cassette.
+func hostnameAllowed(host, original string, produced Set) bool {
 	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
 		return true
 	}
@@ -84,5 +103,15 @@ func hostnameAllowed(host string, produced Set) bool {
 	if match := ecrHostAllowRe.FindStringSubmatch(host); match != nil {
 		return accountAllowed(match[1], produced)
 	}
+	if awsEndpointRe.MatchString(host) {
+		return producedHost(original, produced) || producedHost(host, produced)
+	}
 	return strings.HasSuffix(host, ".example")
+}
+
+// producedHost reports a host this run minted whole: learnHost keeps a
+// wildcard label and a trailing dot on the pseudonym, and the scan's
+// candidate carries neither.
+func producedHost(host string, produced Set) bool {
+	return produced.Has(host) || produced.Has(host+".") || produced.Has("*."+host) || produced.Has("*."+host+".")
 }
