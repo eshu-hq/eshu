@@ -146,7 +146,9 @@ func (w *walker) rewriteString(path string, class Class, v string) string {
 		w.opaque[path]++
 		return w.opaqueValue(v)
 	case ClassKeep:
-		return w.dict.substitute(v)
+		// Keep values are substituted by substitutable tokens only: an
+		// exact-only short or numeric token never rewrites one.
+		return w.dict.rewrite(v, false)
 	default:
 		return w.dict.rewrite(v, true)
 	}

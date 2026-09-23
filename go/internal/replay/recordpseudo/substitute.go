@@ -11,9 +11,11 @@ import (
 
 // minSubstituteLen is the shortest free-text token (a name or a tag value)
 // that is rewritten inside longer text. Shorter tokens, and purely numeric
-// tag values, are exact-only: they are rewritten when they are a whole
-// field value or a whole ARN component, never as a substring, because a
-// tag value "1" or "us" otherwise rewrites every "us-east-1" in the run.
+// names and tag values, are exact-only: they are rewritten when they are a
+// whole classified field value or a whole "/"- or ":"-delimited component
+// of a composite, never as a substring (a tag value "1" or "us" would
+// otherwise rewrite every "us-east-1" in the run) and never in a Keep
+// field.
 const minSubstituteLen = 4
 
 var (
@@ -62,16 +64,19 @@ func exactOnly(raw string, class Class) bool {
 }
 
 // substitute rewrites a composite value (scope id, stable key, source uri,
-// Keep field): a whole-value match of a substitutable token, then ARN spans
-// component by component and the remaining text as a composite (each "/"-
-// or ":"-delimited component looked up whole, then free text).
-func (d *dictionary) substitute(s string) string { return d.rewrite(s, false) }
+// record id): a whole-value match, then ARN spans component by component
+// and the remaining text as a composite (each "/"- or ":"-delimited
+// component looked up whole, then free text). Exact-only tokens apply as
+// whole values and whole components.
+func (d *dictionary) substitute(s string) string { return d.rewrite(s, true) }
 
-// rewrite is substitute with the whole-value rule made explicit: with whole
-// set (a classified, non-Keep field) an exact-only token that is the entire
-// value is rewritten too.
-func (d *dictionary) rewrite(s string, whole bool) string {
-	if learned, ok := d.entries[s]; ok && (whole || !exactOnly(s, learned.class)) {
+// rewrite is substitute with the exact-only rule made explicit: with exact
+// set (a classified field or a composite) an exact-only token is rewritten
+// where it is the entire value or a whole component; without it (a Keep
+// field) only substitutable tokens apply, so a Keep value equal to a short
+// name or tag value is kept.
+func (d *dictionary) rewrite(s string, exact bool) string {
+	if learned, ok := d.entries[s]; ok && (exact || !exactOnly(s, learned.class)) {
 		return learned.pseudonym
 	}
 	var b strings.Builder
@@ -81,11 +86,11 @@ func (d *dictionary) rewrite(s string, whole bool) string {
 		if start < i || !boundedLeft(s, start) {
 			continue
 		}
-		b.WriteString(d.substituteComposite(s[i:start]))
-		b.WriteString(d.substituteARN(s[start:end]))
+		b.WriteString(d.substituteComposite(s[i:start], exact))
+		b.WriteString(d.substituteARN(s[start:end], exact))
 		i = end
 	}
-	b.WriteString(d.substituteComposite(s[i:]))
+	b.WriteString(d.substituteComposite(s[i:], exact))
 	return b.String()
 }
 
@@ -96,13 +101,13 @@ func (d *dictionary) rewrite(s string, whole bool) string {
 // then every "/"- or ":"-delimited component is looked up whole, so an
 // exact-only short or numeric name that is a whole component is rewritten,
 // and what remains is free text.
-func (d *dictionary) substituteComposite(s string) string {
+func (d *dictionary) substituteComposite(s string, exact bool) string {
 	if s == "" {
 		return s
 	}
 	s = d.substituteTokens(s, func(raw string, _ Class) bool { return strings.ContainsAny(raw, "/:") })
 	return d.forEachComponent(s, func(component string, _ byte) string {
-		return d.substituteComponent(component, false)
+		return d.substituteComponent(component, exact, false)
 	})
 }
 
@@ -132,25 +137,26 @@ func (d *dictionary) forEachComponent(s string, fn func(component string, prev b
 // component (split on "/" and ":") is looked up whole first, then as free
 // text. A numeric component is a qualifier (revision, version) unless it
 // was learned as an account or a name; a tag value never rewrites it.
-func (d *dictionary) substituteARN(arn string) string {
+func (d *dictionary) substituteARN(arn string, exact bool) string {
 	parts := strings.SplitN(arn, ":", 6)
 	if len(parts) < 6 {
 		return d.substituteFree(arn)
 	}
 	parts[4] = d.pseudonym(parts[4])
 	parts[5] = d.forEachComponent(parts[5], func(component string, prev byte) string {
-		return d.substituteComponent(component, prev == ':')
+		return d.substituteComponent(component, exact, prev == ':')
 	})
 	return strings.Join(parts, ":")
 }
 
 // substituteComponent looks a component up whole, else rewrites it as free
-// text. A numeric component is a qualifier unless the token was learned as
-// an account or a name; a numeric tag value never rewrites it, and a
-// numeric name never rewrites the ":"-qualifier position of an ARN (a
-// Lambda version, a task-definition revision), which qualifier reports.
-func (d *dictionary) substituteComponent(component string, qualifier bool) string {
-	if learned, ok := d.entries[component]; ok {
+// text. Without exact (a Keep field) an exact-only token is not applied. A
+// numeric component is a qualifier unless the token was learned as an
+// account or a name; a numeric tag value never rewrites it, and a numeric
+// name never rewrites the ":"-qualifier position of an ARN (a Lambda
+// version, a task-definition revision), which qualifier reports.
+func (d *dictionary) substituteComponent(component string, exact, qualifier bool) string {
+	if learned, ok := d.entries[component]; ok && (exact || !exactOnly(component, learned.class)) {
 		if numericRe.MatchString(component) && learned.class != ClassAccount {
 			if learned.class == ClassTagValue || qualifier {
 				return component
