@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 109 test)
+### `root (stays)` (4 non-test, 110 test)
 
 ```text
 adapters.go -> adapters.go
@@ -19,6 +19,7 @@ schema_bootstrap_lock.go -> schema_bootstrap_lock.go
 aws_bindings_test.go -> aws_bindings_test.go   # no production references
 aws_cloud_runtime_drift_admission_live_helpers_test.go -> aws_cloud_runtime_drift_admission_live_helpers_test.go
 aws_cloud_runtime_drift_value_collapse_live_test.go -> aws_cloud_runtime_drift_value_collapse_live_test.go   # spans root=50% cloud/aws/drift=50%
+cicd_run_watermark_schema_test.go -> cicd_run_watermark_schema_test.go   # asserts root BootstrapDefinitions() includes the cicd DDL (found in the cicd/ move; semantic/ precedent)
 cloud_resource_owner_page_index_live_test.go -> cloud_resource_owner_page_index_live_test.go
 cloud_resource_owner_page_index_schema_test.go -> cloud_resource_owner_page_index_schema_test.go
 code_reachability_index_replay_live_test.go -> code_reachability_index_replay_live_test.go   # spans root=100%; follows its private symbols, not its name

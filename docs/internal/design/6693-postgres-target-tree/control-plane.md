@@ -23,7 +23,7 @@ admission_decisions_validation_test.go -> admission/validation_test.go
 
 </details>
 
-### `cicd/` (1 non-test, 2 test)
+### `cicd/` (1 non-test, 1 test)
 
 ```text
 cicd_run_watermark.go -> cicd/watermark.go
@@ -32,7 +32,6 @@ cicd_run_watermark.go -> cicd/watermark.go
 <details><summary>Tests</summary>
 
 ```text
-cicd_run_watermark_schema_test.go -> cicd/watermark_schema_test.go   # spans root=75% cicd=25%
 cicd_run_watermark_test.go -> cicd/watermark_test.go
 ```
 
