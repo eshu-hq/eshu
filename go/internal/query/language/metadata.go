@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -17,7 +19,7 @@ import (
 // through a forwarding alias in language_alias.go (#6642); this is the
 // leaf's canonical spelling, exported at its declaration because that root
 // file is the caller that needs it.
-type EntitySearch = querycontract.LanguageEntitySearch
+type EntitySearch = taxonomy.LanguageEntitySearch
 
 // languageEntityContentSearcher aliases
 // querycontract.LanguageEntityContentSearcher. *ContentReader (package
@@ -26,7 +28,7 @@ type EntitySearch = querycontract.LanguageEntitySearch
 // statement per granted repository. package query's language_alias.go keeps
 // the compile-time pin against *ContentReader, since ContentReader is a
 // later lane's family and this leaf never names it.
-type languageEntityContentSearcher = querycontract.LanguageEntityContentSearcher
+type languageEntityContentSearcher = taxonomy.LanguageEntityContentSearcher
 
 // enrichLanguageResultsWithContentMetadata merges Postgres content-index
 // metadata into graph-sourced results, keyed by repository plus file
@@ -126,7 +128,7 @@ func (h *Handler) enrichLanguageResultsWithContentMetadata(
 // rather than changing the shared shape.
 // languageResultMatchKey forwards to querycontract.LanguageResultMatchKey.
 func languageResultMatchKey(filePath string, entityType string, name string, startLine int) string {
-	return querycontract.LanguageResultMatchKey(filePath, entityType, name, startLine)
+	return taxonomy.LanguageResultMatchKey(filePath, entityType, name, startLine)
 }
 
 // languageResultRepositoryMatchKey is the merge key

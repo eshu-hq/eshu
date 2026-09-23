@@ -6,7 +6,7 @@ package language
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 )
 
 // supportedLanguages lists every language name accepted by language-query.
@@ -20,7 +20,7 @@ var supportedLanguages = map[string]bool{
 }
 
 func canonicalLanguage(language string) string {
-	return querycontract.CanonicalLanguage(language)
+	return taxonomy.CanonicalLanguage(language)
 }
 
 // NormalizedVariants forwards to querycontract.NormalizedLanguageVariants.
@@ -28,7 +28,7 @@ func canonicalLanguage(language string) string {
 // language_alias.go so its content_reader_*.go callers compile unchanged
 // (#6642).
 func NormalizedVariants(language string) []string {
-	return querycontract.NormalizedLanguageVariants(language)
+	return taxonomy.NormalizedLanguageVariants(language)
 }
 
 // graphLanguageSpellings returns every value the graph's `language` property

@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -52,7 +53,7 @@ type languageMetadataCollisionStore struct {
 
 func (s *languageMetadataCollisionStore) SearchEntitiesByLanguageAndTypeForAccess(
 	_ context.Context,
-	search querycontract.LanguageEntitySearch,
+	search taxonomy.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	rows := make([]EntityContent, 0, 2)
 	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {

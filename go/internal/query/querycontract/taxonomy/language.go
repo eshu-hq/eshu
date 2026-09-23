@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package taxonomy
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // languageAliases maps a language spelling variant to its canonical name.
 // It is deliberately unexported: callers go through CanonicalLanguage or
@@ -37,7 +41,7 @@ func CanonicalLanguage(language string) string {
 //
 // This moved here from root package query's repository_coverage.go (#6060)
 // alongside the other language-taxonomy helpers.
-func CoverageLanguageMaps(languages []RepositoryLanguageCount) []map[string]any {
+func CoverageLanguageMaps(languages []querycontract.RepositoryLanguageCount) []map[string]any {
 	if len(languages) == 0 {
 		return []map[string]any{}
 	}

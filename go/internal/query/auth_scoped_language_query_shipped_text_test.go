@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -26,7 +27,7 @@ import (
 // the grant into its own statement, so one read serves the whole granted set.
 type languageQueryGrantContentStore struct {
 	fakePortContentStore
-	searches []querycontract.LanguageEntitySearch
+	searches []taxonomy.LanguageEntitySearch
 }
 
 func (s *languageQueryGrantContentStore) SearchEntitiesByLanguageAndType(
@@ -34,14 +35,14 @@ func (s *languageQueryGrantContentStore) SearchEntitiesByLanguageAndType(
 	repoID, language, entityType, query string,
 	limit int,
 ) ([]EntityContent, error) {
-	return s.SearchEntitiesByLanguageAndTypeForAccess(ctx, querycontract.LanguageEntitySearch{
+	return s.SearchEntitiesByLanguageAndTypeForAccess(ctx, taxonomy.LanguageEntitySearch{
 		RepoID: repoID, Language: language, EntityType: entityType, Query: query, Limit: limit,
 	})
 }
 
 func (s *languageQueryGrantContentStore) SearchEntitiesByLanguageAndTypeForAccess(
 	_ context.Context,
-	search querycontract.LanguageEntitySearch,
+	search taxonomy.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	s.searches = append(s.searches, search)
 	return querytestutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil

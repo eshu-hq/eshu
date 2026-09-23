@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -107,7 +109,7 @@ func GrantedCandidates(
 	// follow-up rather than an oversight. Raised independently by two reviewers
 	// on PR #6605, both scoring it non-blocking.
 	if language := strings.TrimSpace(req.Language); language != "" {
-		return SearchEntitiesForGrant(ctx, content, querycontract.LanguageEntitySearch{
+		return SearchEntitiesForGrant(ctx, content, taxonomy.LanguageEntitySearch{
 			RepoID:               repoID,
 			Language:             language,
 			Query:                target,
@@ -227,12 +229,12 @@ func ExactCandidatesPerRepository(
 func SearchEntitiesForGrant(
 	ctx context.Context,
 	content querycontract.ContentStore,
-	search querycontract.LanguageEntitySearch,
+	search taxonomy.LanguageEntitySearch,
 ) ([]querycontract.EntityContent, error) {
 	if content == nil {
 		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
 	}
-	if searcher, ok := content.(querycontract.LanguageEntityContentSearcher); ok {
+	if searcher, ok := content.(taxonomy.LanguageEntityContentSearcher); ok {
 		return searcher.SearchEntitiesByLanguageAndTypeForAccess(ctx, search)
 	}
 	if search.RepoID != "" || len(search.AllowedRepositoryIDs) == 0 {

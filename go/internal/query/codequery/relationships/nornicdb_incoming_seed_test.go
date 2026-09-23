@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships"
@@ -299,7 +301,7 @@ func TestNornicDBGraphLabelForContentEntityTypeStaysAlignedWithGraphLabels(t *te
 			// graphLabelToContentEntityType in package query is a thin
 			// forwarder for querycontract.GraphLabelToContentEntityType,
 			// which this package cannot name through the root.
-			if got, want := relationships.NornicDBGraphLabelForContentEntityType(label), querycontract.GraphLabelToContentEntityType(label); got != want {
+			if got, want := relationships.NornicDBGraphLabelForContentEntityType(label), taxonomy.GraphLabelToContentEntityType(label); got != want {
 				t.Fatalf("relationships.NornicDBGraphLabelForContentEntityType(%q) = %q, want shared graph label %q", label, got, want)
 			}
 		})

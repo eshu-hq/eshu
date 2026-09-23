@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
@@ -38,7 +40,7 @@ type entitySearchDispatchGrantBoundStore struct {
 
 func (s *entitySearchDispatchGrantBoundStore) SearchEntitiesByLanguageAndTypeForAccess(
 	_ context.Context,
-	search querycontract.LanguageEntitySearch,
+	search taxonomy.LanguageEntitySearch,
 ) ([]querycontract.EntityContent, error) {
 	return querytestutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
 }
@@ -67,25 +69,25 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		search querycontract.LanguageEntitySearch
+		search taxonomy.LanguageEntitySearch
 	}{
 		{
 			name: "repo_id_named",
-			search: querycontract.LanguageEntitySearch{
+			search: taxonomy.LanguageEntitySearch{
 				RepoID: querytestutil.CodeGrantGrantedRepo, Language: "go", EntityType: "Variable", Limit: 10,
 				AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo},
 			},
 		},
 		{
 			name: "corpus_wide_with_grant",
-			search: querycontract.LanguageEntitySearch{
+			search: taxonomy.LanguageEntitySearch{
 				Language: "go", EntityType: "Variable", Limit: 10,
 				AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo},
 			},
 		},
 		{
 			name: "corpus_wide_unscoped",
-			search: querycontract.LanguageEntitySearch{
+			search: taxonomy.LanguageEntitySearch{
 				Language: "go", EntityType: "Variable", Limit: 10,
 			},
 		},
@@ -121,11 +123,11 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 func TestSearchEntitiesForGrantRejectsANilStore(t *testing.T) {
 	t.Parallel()
 
-	if _, err := story.SearchEntitiesForGrant(t.Context(), nil, querycontract.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
+	if _, err := story.SearchEntitiesForGrant(t.Context(), nil, taxonomy.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
 		t.Fatal("a nil content store must be refused, not read")
 	}
 	if _, err := (&Handler{}).
-		searchLanguageEntities(t.Context(), querycontract.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
+		searchLanguageEntities(t.Context(), taxonomy.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
 		t.Fatal("the handler read must refuse a nil content store too")
 	}
 }

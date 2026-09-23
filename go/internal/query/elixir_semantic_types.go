@@ -6,16 +6,11 @@ package query
 import (
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
 )
 
-// elixirSemanticEntityTypes maps Elixir semantic entity types to their
-// graph/metadata resolution. The implementation moved to querycontract for
-// #6060; this alias keeps root callers unchanged.
-var elixirSemanticEntityTypes = querycontract.ElixirSemanticEntityTypes
-
 func contentEntityTypeFilter(entityType string, nextArg int) (string, []any, int) {
-	if semanticType, ok := elixirSemanticEntityTypes[entityType]; ok {
+	if semanticType, ok := taxonomy.ElixirSemanticEntityTypes[entityType]; ok {
 		clause := fmt.Sprintf(
 			"(entity_type = $%d AND coalesce(metadata ->> '%s', '') = $%d)",
 			nextArg,

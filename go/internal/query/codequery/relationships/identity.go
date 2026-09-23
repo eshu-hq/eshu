@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -34,7 +36,7 @@ var EntityLabels = []string{
 // to its graph label, or "" when the type is not a known code entity.
 func NornicDBGraphLabelForContentEntityType(entityType string) string {
 	label := strings.TrimSpace(entityType)
-	if querycontract.GraphLabelToContentEntityType(label) == "" {
+	if taxonomy.GraphLabelToContentEntityType(label) == "" {
 		return ""
 	}
 	return label
@@ -44,7 +46,7 @@ func NornicDBGraphLabelForContentEntityType(entityType string) string {
 // or "" when the row carries none.
 func PrimaryEntityLabel(row map[string]any) string {
 	for _, label := range querycontract.StringSliceVal(row, "labels") {
-		if querycontract.GraphLabelToContentEntityType(label) != "" {
+		if taxonomy.GraphLabelToContentEntityType(label) != "" {
 			return label
 		}
 	}

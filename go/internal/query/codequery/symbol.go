@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -297,7 +299,7 @@ func (r SymbolSearchRequest) NormalizedEntityTypes() []string {
 		if value == "" {
 			return
 		}
-		value = querycontract.ContentEntityTypeForResolve(value)
+		value = taxonomy.ContentEntityTypeForResolve(value)
 		if _, ok := seen[value]; ok {
 			return
 		}

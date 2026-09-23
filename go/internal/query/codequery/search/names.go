@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
@@ -40,7 +42,7 @@ func SearchGlobalEntityNames(
 		search.RepositoryIDs = access.RepositorySearchIDs()
 	}
 	if strings.TrimSpace(language) != "" {
-		search.Languages = querycontract.NormalizedLanguageVariants(language)
+		search.Languages = taxonomy.NormalizedLanguageVariants(language)
 	}
 	rows, err := searcher.SearchEntityNames(ctx, search)
 	if err != nil {

@@ -73,14 +73,6 @@ func buildWorkloadStory(ctx map[string]any) string {
 	return querycontract.BuildWorkloadStory(ctx)
 }
 
-// contentEntityTypeForResolve maps a resolve_entity entity_type filter
-// value to its content-entity label. The implementation lives in
-// querycontract; this wrapper keeps the staying content-relationship tests
-// calling the package-local name.
-func contentEntityTypeForResolve(typeName string) string {
-	return querycontract.ContentEntityTypeForResolve(typeName)
-}
-
 // provisionedPlatformTopologyEdges shapes a provisioned-platform row into
 // topology edges. Its home is entity/; this forwarder keeps the staying
 // OpenAPI deployment-identity test calling the package-local name.
