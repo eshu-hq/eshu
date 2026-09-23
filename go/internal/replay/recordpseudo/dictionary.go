@@ -83,8 +83,12 @@ type dictionary struct {
 	// failure is the first limit the recording exceeded (ErrIPv4Exhausted);
 	// learn cannot return it, so the source reads it after the learning pass.
 	failure error
-	learned map[Class]int
-	sorted  []string
+	// unlistedARNTypes counts, per "service:token", the ARNs of a service
+	// that has a type vocabulary but led with a token outside it: the token
+	// was learned as a name, so the vocabulary miss is visible in the report.
+	unlistedARNTypes map[string]int
+	learned          map[Class]int
+	sorted           []string
 }
 
 func newDictionary(key Key) *dictionary {
@@ -94,7 +98,9 @@ func newDictionary(key Key) *dictionary {
 		ipSlots:      map[int]string{},
 		accountSlots: map[uint64]string{},
 		accountByRaw: map[string]uint64{},
-		learned:      map[Class]int{},
+
+		unlistedARNTypes: map[string]int{},
+		learned:          map[Class]int{},
 	}
 }
 
@@ -237,10 +243,20 @@ func (d *dictionary) learnARN(raw string) {
 	}
 	components := strings.FieldsFunc(resource, func(r rune) bool { return r == '/' || r == ':' })
 	skip := 0
-	if len(components) >= 2 && arnTypeTokens[service][components[0]] {
-		skip = 1
-		if len(components) >= 3 && arnSecondTokens[service][components[1]] {
-			skip = 2
+	if len(components) >= 2 {
+		vocabulary := arnTypeTokens[service]
+		switch {
+		case vocabulary[components[0]]:
+			skip = 1
+			if len(components) >= 3 && arnSecondTokens[service][components[1]] {
+				skip = 2
+			}
+		case len(vocabulary) > 0:
+			// A listed service whose ARN leads with a token outside its
+			// vocabulary: the token is learned as a name below, and the
+			// miss is reported (a service with no vocabulary leads with a
+			// customer name, which is never reported).
+			d.unlistedARNTypes[service+":"+components[0]]++
 		}
 	}
 	for _, component := range components[skip:] {

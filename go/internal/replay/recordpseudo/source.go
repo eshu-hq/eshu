@@ -48,6 +48,14 @@ type Report struct {
 	// AccountCollisions counts linear-probe steps in the reserved account
 	// pseudonym space, the account counterpart of IPv4Collisions.
 	AccountCollisions int
+	// UnlistedARNTypes lists, sorted, each "service:token" where an ARN of a
+	// service that has a type vocabulary led with a token outside it. The
+	// token was learned as a name, so the ARN grammar changed for that ARN;
+	// each entry is a vocabulary gap to review. Only the type token is
+	// carried, never a later component.
+	UnlistedARNTypes []string
+	// UnlistedARNTypeCount is how many ARNs hit an unlisted type token.
+	UnlistedARNTypeCount int
 	// Produced is the set of pseudonym tokens this run emitted, for Verify.
 	Produced Set
 }
@@ -70,6 +78,8 @@ func (r Report) LogAttrs() []any {
 		"ipv4_collisions", r.IPv4Collisions,
 		"ipv4_addresses", r.IPv4Addresses,
 		"account_collisions", r.AccountCollisions,
+		"unlisted_arn_types", r.UnlistedARNTypes,
+		"unlisted_arn_type_count", r.UnlistedARNTypeCount,
 	}
 }
 
@@ -234,6 +244,10 @@ func (s *Source) fillReport(scopes int) {
 	s.report.IPv4Collisions = s.dict.ipCollisions
 	s.report.IPv4Addresses = len(s.dict.ipSlots)
 	s.report.AccountCollisions = s.dict.accountCollisions
+	s.report.UnlistedARNTypes = sortedKeys(s.dict.unlistedARNTypes)
+	for _, n := range s.dict.unlistedARNTypes {
+		s.report.UnlistedARNTypeCount += n
+	}
 	s.report.OpaquePaths = sortedKeys(s.walker.opaque)
 	s.report.UnclassifiedPaths = sortedKeys(s.walker.unclassified)
 	for _, learned := range s.dict.entries {
