@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -63,6 +64,6 @@ func readCollectorGenerationDeadLetterSnapshot(
 		DeadLetter:          int(deadLetterCount),
 		ReplayRequested:     int(replayRequestedCount),
 		ReplayAttempts:      int(replayAttemptCount),
-		OldestDeadLetterAge: durationFromSeconds(oldestAgeSeconds),
+		OldestDeadLetterAge: scalars.DurationFromSeconds(oldestAgeSeconds),
 	}, nil
 }

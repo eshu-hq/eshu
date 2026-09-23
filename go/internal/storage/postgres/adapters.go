@@ -25,21 +25,6 @@ type SQLDB struct {
 
 var concurrentIndexNamePattern = regexp.MustCompile(`(?is)\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:"(?:[^"]|"")+")|[A-Za-z_][A-Za-z0-9_$]*)`)
 
-type searchIndexTermCopyUnsupportedError struct {
-	driver string
-}
-
-func (e searchIndexTermCopyUnsupportedError) Error() string {
-	if strings.TrimSpace(e.driver) == "" {
-		return "search-index term copy is unsupported by this database"
-	}
-	return fmt.Sprintf("search-index term copy is unsupported by %s", e.driver)
-}
-
-func (e searchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bool {
-	return true
-}
-
 // QueryContext implements Queryer against a sql.DB.
 func (database SQLDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return database.DB.QueryContext(ctx, query, args...)
@@ -108,7 +93,7 @@ func (database SQLDB) copySearchIndexTermsToTable(
 	if err := conn.Raw(func(driverConn any) error {
 		stdlibConn, ok := driverConn.(*stdlib.Conn)
 		if !ok {
-			return searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", driverConn)}
+			return db.SearchIndexTermCopyUnsupportedError{Driver: fmt.Sprintf("%T", driverConn)}
 		}
 		var copyErr error
 		copied, copyErr = stdlibConn.Conn().CopyFrom(

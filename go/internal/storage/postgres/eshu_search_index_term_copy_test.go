@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 )
@@ -49,23 +48,5 @@ func TestCopySearchIndexTermsToTableChecksAlignmentBeforeEmptySkip(t *testing.T)
 	}
 	if !strings.Contains(err.Error(), "requires aligned slices") {
 		t.Fatalf("copySearchIndexTermsToTable error = %v, want aligned-slices message", err)
-	}
-}
-
-func TestSearchIndexTermCopyUnsupportedErrorIsTyped(t *testing.T) {
-	t.Parallel()
-
-	err := searchIndexTermCopyUnsupportedError{driver: "testDriver"}
-	var unsupported interface {
-		UnsupportedSearchIndexTermCopy() bool
-	}
-	if !errors.As(err, &unsupported) {
-		t.Fatal("searchIndexTermCopyUnsupportedError did not match unsupported interface")
-	}
-	if !unsupported.UnsupportedSearchIndexTermCopy() {
-		t.Fatal("UnsupportedSearchIndexTermCopy() = false, want true")
-	}
-	if !strings.Contains(err.Error(), "testDriver") {
-		t.Fatalf("error string %q missing driver", err.Error())
 	}
 }

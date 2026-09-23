@@ -3,7 +3,8 @@
 
 // Package scalars holds the shared null/blank value shaping every Postgres
 // store family uses: blank-string rejection before touching the database,
-// and zero/nil time mapping to nullable database values.
+// zero/nil time mapping to nullable database values, seconds-to-duration
+// conversion, JSON payload map widening, and string-set normalization.
 //
 // The helpers live here instead of the db contract leaf so db stays
 // interfaces-only per go/internal/storage/postgres/db/AGENTS.md, and instead

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 const listRepositoryCatalogQuery = `
@@ -220,7 +221,7 @@ func upsertIngestionScope(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 ) error {
-	payloadJSON, err := marshalPayload(stringMapToAny(scopeValue.MetadataCopy()))
+	payloadJSON, err := marshalPayload(scalars.StringMapToAny(scopeValue.MetadataCopy()))
 	if err != nil {
 		return fmt.Errorf("marshal scope payload: %w", err)
 	}
@@ -314,17 +315,4 @@ func activeTimestamp(generation scope.ScopeGeneration) any {
 	}
 
 	return nil
-}
-
-func stringMapToAny(input map[string]string) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = value
-	}
-
-	return output
 }

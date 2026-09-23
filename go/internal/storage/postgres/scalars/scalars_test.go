@@ -69,3 +69,77 @@ func TestTimePtrFromNullRoundTripsUTC(t *testing.T) {
 		t.Errorf("TimePtrFromNull = %v, want %v", got, stamp)
 	}
 }
+
+func TestDurationFromSecondsClampsNonPositive(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []float64{0, -1, -0.5} {
+		if got := DurationFromSeconds(value); got != 0 {
+			t.Errorf("DurationFromSeconds(%v) = %v, want 0", value, got)
+		}
+	}
+	if got, want := DurationFromSeconds(1.5), 1500*time.Millisecond; got != want {
+		t.Errorf("DurationFromSeconds(1.5) = %v, want %v", got, want)
+	}
+}
+
+func TestNullableTimeUTCMapsInvalidToZero(t *testing.T) {
+	t.Parallel()
+
+	if got := NullableTimeUTC(sql.NullTime{}); !got.IsZero() {
+		t.Errorf("NullableTimeUTC(invalid) = %v, want zero", got)
+	}
+	eastern := time.FixedZone("EST", -5*3600)
+	local := time.Date(2026, time.May, 12, 9, 0, 0, 0, eastern)
+	got := NullableTimeUTC(sql.NullTime{Time: local, Valid: true})
+	if want := local.UTC(); !got.Equal(want) {
+		t.Errorf("NullableTimeUTC(valid) = %v, want %v", got, want)
+	}
+}
+
+func TestNullableTimeBindsZeroAsNil(t *testing.T) {
+	t.Parallel()
+
+	if got := NullableTime(time.Time{}); got != nil {
+		t.Errorf("NullableTime(zero) = %v, want nil", got)
+	}
+	eastern := time.FixedZone("EST", -5*3600)
+	local := time.Date(2026, time.May, 12, 9, 0, 0, 0, eastern)
+	got, ok := NullableTime(local).(time.Time)
+	if !ok || !got.Equal(local.UTC()) {
+		t.Errorf("NullableTime(local) = %v, want %v", got, local.UTC())
+	}
+}
+
+func TestStringMapToAnyWidensOrNilsEmpty(t *testing.T) {
+	t.Parallel()
+
+	if got := StringMapToAny(nil); got != nil {
+		t.Errorf("StringMapToAny(nil) = %#v, want nil", got)
+	}
+	if got := StringMapToAny(map[string]string{}); got != nil {
+		t.Errorf("StringMapToAny(empty) = %#v, want nil", got)
+	}
+	got := StringMapToAny(map[string]string{"a": "1"})
+	if want := (map[string]any{"a": "1"}); len(got) != len(want) || got["a"] != want["a"] {
+		t.Errorf("StringMapToAny = %#v, want %#v", got, want)
+	}
+}
+
+func TestCleanStringSetTrimsDedupesAndDropsBlanks(t *testing.T) {
+	t.Parallel()
+
+	got := CleanStringSet([]string{" b ", "a", "b", "", "  ", "a", "c"})
+	want := []string{"b", "a", "c"}
+	if len(got) != len(want) {
+		t.Fatalf("CleanStringSet = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("CleanStringSet = %#v, want %#v", got, want)
+		}
+	}
+	if got := CleanStringSet(nil); len(got) != 0 {
+		t.Errorf("CleanStringSet(nil) = %#v, want empty", got)
+	}
+}

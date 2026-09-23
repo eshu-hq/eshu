@@ -102,9 +102,9 @@ func (database *InstrumentedDB) QueryContext(ctx context.Context, query string, 
 			),
 		)
 		defer span.End()
-		// A caller that labeled the read (withQuerySummary) names it on the span,
-		// so identical-looking status reads are attributable (#6794).
-		if summary := querySummaryFromContext(ctx); summary != "" {
+		// A caller that labeled the read (db.WithQuerySummary) names it on the
+		// span, so identical-looking status reads are attributable (#6794).
+		if summary := db.QuerySummaryFromContext(ctx); summary != "" {
 			span.SetAttributes(attribute.String("db.query.summary", summary))
 		}
 
@@ -163,7 +163,7 @@ func (database *InstrumentedDB) CopySearchIndexTerms(
 		CopySearchIndexTerms(context.Context, string, string, []string, []string, []string, []int) (int64, error)
 	})
 	if !ok {
-		return 0, searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", database.Inner)}
+		return 0, db.SearchIndexTermCopyUnsupportedError{Driver: fmt.Sprintf("%T", database.Inner)}
 	}
 
 	start := time.Now()

@@ -354,13 +354,6 @@ func listGenerationTransitions(
 	return transitions, nil
 }
 
-func durationFromSeconds(value float64) time.Duration {
-	if value <= 0 {
-		return 0
-	}
-	return time.Duration(value * float64(time.Second))
-}
-
 // readInfraInventoryStatus reports the infra read model's state for the admin
 // status surface: one query for the backfill marker and the rolling-upgrade
 // fence marks (inventory.ReadFenceState).

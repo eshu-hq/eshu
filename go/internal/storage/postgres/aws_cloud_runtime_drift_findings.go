@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -313,7 +314,7 @@ func normalizeAWSCloudRuntimeDriftFindingFilter(
 	filter.AccountID = strings.TrimSpace(filter.AccountID)
 	filter.Region = strings.TrimSpace(filter.Region)
 	filter.ARN = strings.TrimSpace(filter.ARN)
-	filter.FindingKinds = cleanStringSet(filter.FindingKinds)
+	filter.FindingKinds = scalars.CleanStringSet(filter.FindingKinds)
 	if filter.Limit <= 0 {
 		filter.Limit = awsCloudRuntimeDriftFindingDefaultLimit
 	}
@@ -372,21 +373,4 @@ func awsScopePrefix(accountID string, region string) string {
 		prefix += region + ":"
 	}
 	return prefix + "%"
-}
-
-func cleanStringSet(values []string) []string {
-	seen := map[string]struct{}{}
-	cleaned := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
-	}
-	return cleaned
 }

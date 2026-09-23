@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -200,7 +201,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			Retrying:    r.count("retrying_count"),
 			DeadLetter:  r.count("dead_letter_count"),
 			Failed:      r.count("failed_count"),
-			OldestAge:   durationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
+			OldestAge:   scalars.DurationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
 		})
 	case activeWorkSectionQueue:
 		s.Queue = statuspkg.QueueSnapshot{
@@ -214,7 +215,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			Failed:                                r.count("failed_count"),
 			ProvenanceEdgeIdentityUpgradeApplied:  r.flag("provenance_edge_identity_upgrade_applied"),
 			ProvenanceEdgeIdentityUpgradeRequired: r.count("provenance_edge_identity_upgrade_required"),
-			OldestOutstandingAge:                  durationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
+			OldestOutstandingAge:                  scalars.DurationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
 			OverdueClaims:                         r.count("overdue_claim_count"),
 		}
 	case activeWorkSectionBlockage:
@@ -224,7 +225,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			ConflictDomain: r.text("conflict_domain"),
 			ConflictKey:    r.text("conflict_key"),
 			Blocked:        r.count("blocked_count"),
-			OldestAge:      durationFromSeconds(r.seconds("oldest_blocked_age_seconds")),
+			OldestAge:      scalars.DurationFromSeconds(r.seconds("oldest_blocked_age_seconds")),
 		})
 	case activeWorkSectionFailure:
 		failure := statuspkg.QueueFailureSnapshot{

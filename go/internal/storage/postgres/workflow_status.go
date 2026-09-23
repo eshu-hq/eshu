@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -251,5 +252,5 @@ func readWorkflowCoordinatorClaimSnapshot(
 	if err := rows.Err(); err != nil {
 		return 0, 0, 0, fmt.Errorf("read workflow coordinator claim snapshot: %w", err)
 	}
-	return activeClaims, overdueClaims, durationFromSeconds(oldestPendingAgeSeconds), nil
+	return activeClaims, overdueClaims, scalars.DurationFromSeconds(oldestPendingAgeSeconds), nil
 }

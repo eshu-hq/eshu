@@ -17,11 +17,13 @@
 - This package holds interfaces only: `Rows`, `Queryer`, `Executor`,
   `ExecQueryer`, `Transaction`, `Beginner`, `ReadOnlyRepeatableReadBeginner`.
   Every name, method set, and semantic matches what the postgres root
-  declared before the hoist. The one exception is the shared
-  statement-argument builders `CleanIDs`, `IDPlaceholders`, and `IDArgs`:
-  pure stdlib string/args shaping with no SQL text and no I/O, hoisted
-  byte-identically so the webhook and incident store families share one
-  implementation (see `go/internal/storage/postgres/db/README.md`).
+  declared before the hoist. The exceptions are the shared
+  statement-argument builders `CleanIDs`, `IDPlaceholders`, and `IDArgs`
+  (pure stdlib string/args shaping, hoisted byte-identically so the webhook
+  and incident store families share one implementation), plus
+  `SearchIndexTermCopyUnsupportedError` and `WithQuerySummary` /
+  `QuerySummaryFromContext` (InstrumentedDB plumbing, also hoisted
+  byte-identically). See `go/internal/storage/postgres/db/README.md`.
 - Standard library only (`context`, `database/sql`, `fmt`, `strings`). No
   I/O, no SQL text, no migration state, no telemetry, no Eshu import --
   importing the postgres root (directly or transitively) would recreate the
