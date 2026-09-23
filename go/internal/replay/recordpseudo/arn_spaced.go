@@ -35,9 +35,21 @@ func (d *dictionary) learnSpacedComponent(component string, awsPrincipal bool) {
 	}
 	for _, field := range strings.Fields(component) {
 		if len(field) >= minSubstituteLen {
-			d.learnIdent(field)
+			d.setARNOnly(field)
 		}
 	}
+}
+
+// setARNOnly learns one word of a customer's spaced ARN name in the name
+// form, scoped to ARNs (entry.arnOnly). A word already learned by a
+// classified field keeps that broader entry.
+func (d *dictionary) setARNOnly(word string) {
+	if _, ok := d.entries[word]; ok || structural(word) {
+		return
+	}
+	d.entries[word] = entry{pseudonym: d.name(word), class: ClassIdent, arnOnly: true}
+	d.learned[ClassIdent]++
+	d.sorted = nil
 }
 
 // spacedIDTokenRe is an ID-shaped token inside a spaced ARN component: it

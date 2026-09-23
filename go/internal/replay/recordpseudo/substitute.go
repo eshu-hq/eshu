@@ -82,8 +82,14 @@ func (d *dictionary) substitute(s string) string { return d.rewrite(s, true) }
 // field) only substitutable tokens apply, so a Keep value equal to a short
 // name or tag value is kept.
 func (d *dictionary) rewrite(s string, exact bool) string {
-	if learned, ok := d.entries[s]; ok && (exact || !exactOnly(s, learned.class)) {
+	if learned, ok := d.entries[s]; ok && !learned.arnOnly && (exact || !exactOnly(s, learned.class)) {
 		return learned.pseudonym
+	}
+	if wholeARN(s) {
+		// arnSpanRe stops at whitespace, but a whole-value ARN may carry a
+		// spaced resource name (a CloudWatch alarm): rewrite it as one ARN
+		// so every word stays in the ARN context.
+		return d.substituteARN(s, exact)
 	}
 	var b strings.Builder
 	i := 0
@@ -100,6 +106,13 @@ func (d *dictionary) rewrite(s string, exact bool) string {
 	return b.String()
 }
 
+// wholeARN reports whether s is exactly one ARN, spaces allowed in its
+// resource part: it starts with "arn:", has all six ":"-separated parts, and
+// holds no second ARN.
+func wholeARN(s string) bool {
+	return strings.HasPrefix(s, "arn:") && !strings.Contains(s[4:], "arn:") && len(strings.SplitN(s, ":", 6)) == 6
+}
+
 // substituteComposite rewrites non-ARN text that may be a composite (a
 // stable key, a source uri, a scope id). Tokens that themselves carry a
 // delimiter (a CIDR, an IPv6 address, a repository path, a path:tag
@@ -113,7 +126,7 @@ func (d *dictionary) substituteComposite(s string, exact bool) string {
 	}
 	s = d.substituteTokens(s, func(raw string, _ Class) bool { return strings.ContainsAny(raw, "/:") })
 	return d.forEachComponent(s, func(component string, _ byte) string {
-		return d.substituteComponent(component, exact, false)
+		return d.substituteComponent(component, exact, false, false)
 	})
 }
 
@@ -158,7 +171,7 @@ func (d *dictionary) substituteARN(arn string, exact bool) string {
 		if component != "" {
 			index++
 		}
-		return d.substituteComponent(component, exact, prev == ':' && index > skip)
+		return d.substituteComponent(component, exact, prev == ':' && index > skip, true)
 	})
 	return strings.Join(parts, ":")
 }
@@ -169,14 +182,17 @@ func (d *dictionary) substituteARN(arn string, exact bool) string {
 // account or a name; a numeric tag value never rewrites it, and a numeric
 // name never rewrites the ":"-qualifier position of an ARN (a Lambda
 // version, a task-definition revision), which qualifier reports.
-func (d *dictionary) substituteComponent(component string, exact, qualifier bool) string {
-	if learned, ok := d.entries[component]; ok && (exact || !exactOnly(component, learned.class)) {
+func (d *dictionary) substituteComponent(component string, exact, qualifier, inARN bool) string {
+	if learned, ok := d.entries[component]; ok && (inARN || !learned.arnOnly) && (exact || !exactOnly(component, learned.class)) {
 		if numericRe.MatchString(component) && learned.class != ClassAccount {
 			if learned.class == ClassTagValue || qualifier {
 				return component
 			}
 		}
 		return learned.pseudonym
+	}
+	if inARN {
+		return d.substituteTokens(component, func(string, Class) bool { return true })
 	}
 	return d.substituteFree(component)
 }
@@ -187,7 +203,7 @@ func (d *dictionary) substituteComponent(component string, exact, qualifier bool
 // token adjacent to another letter or digit is left alone so "app" never
 // rewrites "application".
 func (d *dictionary) substituteFree(s string) string {
-	return d.substituteTokens(s, func(string, Class) bool { return true })
+	return d.substituteTokens(s, func(raw string, _ Class) bool { return !d.entries[raw].arnOnly })
 }
 
 // substituteTokens is substituteFree restricted to the tokens keep admits;

@@ -52,6 +52,10 @@ func structural(raw string) bool {
 type entry struct {
 	pseudonym string
 	class     Class
+	// arnOnly marks a word learned from a customer's spaced ARN name (a
+	// CloudWatch alarm name): it is substituted inside ARNs only, so a
+	// common word there never rewrites a Keep field or any other value.
+	arnOnly bool
 }
 
 // classRank orders classes for precedence when one raw token is met under
@@ -120,7 +124,9 @@ func (d *dictionary) set(class Class, raw, pseudonym string) {
 		return
 	}
 	if existing, ok := d.entries[raw]; ok {
-		if classRank(existing.class) >= classRank(class) {
+		// A word first met only inside a spaced ARN name widens to every
+		// field once a classified field learns it on its own.
+		if classRank(existing.class) >= classRank(class) && !existing.arnOnly {
 			return
 		}
 		d.learned[existing.class]--
