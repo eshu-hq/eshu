@@ -20,7 +20,7 @@ flowchart LR
   D -->|WriteContent| G["postgres.ContentWriter\ncontent_files, content_entities,\nrepository_refs"]
   D -->|Publish phases| H["postgres.GraphProjectionPhaseStateStore\n(graph_projection_phase_state)"]
   H -->|ReadinessLookup| F
-  F -->|WriteDecisions| I["postgres.DecisionStore\n(projection_decisions)"]
+  F -->|WriteDecisions| I["decisionsstore.DecisionStore\n(projection_decisions)"]
   F -->|WriteAdmissionDecisions| I2["postgres.AdmissionDecisionStore\n(admission_decisions)"]
   F -->|WriteIntents| J["postgres.SharedIntentStore\n(shared_projection_intents)"]
   J -->|ReadBacklog| K["postgres.StatusStore\n/admin/status domain backlog"]
@@ -40,7 +40,7 @@ flowchart TB
   C --> G["ContentWriter\ncontent_files / content_entities"]
   C --> H["GraphProjectionPhaseStateStore\ngraph_projection_phase_state\nbatched INSERT"]
   C --> I["SharedIntentStore\nshared_projection_intents\n+ SharedIntentAcceptanceWriter"]
-  C --> J["DecisionStore + AdmissionDecisionStore\nprojection and admission decisions"]
+  C --> J["decisionsstore.DecisionStore + AdmissionDecisionStore\nprojection and admission decisions"]
   C --> K["RecoveryStore\nreplay/count dead_letter / failed\nwork items + collector generation DLQ/status"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
   C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
