@@ -17,8 +17,9 @@
 ## Common changes
 
 - Changing `SourceKey`'s fallback changes a persisted column and the
-  deferred-maintenance lock key for scopes with no partition key. Update both tests in `source_key_test.go`
-  and trace every caller in the parent package before doing it.
+  deferred-maintenance lock key for scopes with no partition key. Update
+  both tests in `source_key_test.go` and trace every caller in the parent
+  package before doing it.
 - A new scope-ID prefix for `RepoIDFromScopeID` needs a table case in
   `repo_id_test.go`.
 
