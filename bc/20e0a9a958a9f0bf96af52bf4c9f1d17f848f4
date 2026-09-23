@@ -1,0 +1,16 @@
+go/cmd/golden-corpus-gate/statementcoverage.go
+  h_78a442cba0b3e6 80-81,94,96
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc20e0a9a958a9f0bf96af52bf4c9f1d17f848f4",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
