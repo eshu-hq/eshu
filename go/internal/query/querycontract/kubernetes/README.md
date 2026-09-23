@@ -25,8 +25,14 @@ different graphs from the same input.
 | `SelectReasonNameNamespace` | inference: name and namespace match | the Service's selector state was never captured |
 
 Both surface on the wire under `relationship["reason"]`, so a consumer can tell
-a proven edge from an inferred one. `docs/public/languages/kubernetes.md`
-registers them; change either constant and that page changes with it.
+a proven edge from an inferred one, and changing a value is a wire change.
+
+The two literals live only in `select_match.go` -- checked at `c31655ede`, they
+appear nowhere else in the repository, docs included.
+`docs/public/languages/kubernetes.md` documents the SELECTS capability and
+states the fallback rule ("a known selector is authoritative and never falls
+back, even on a name/namespace coincidence") but does not quote the strings. So
+a behaviour change needs that page read; a rename does not.
 
 ## Mixed vintage
 
@@ -46,5 +52,15 @@ Three symbols from the parent package and nothing else: `EntityContent`,
 `K8sSelectCandidate` and `SafeStr`. The parent does not import this package,
 which is what makes the extraction one-way.
 
-Measured at this head: 112 references across 12 files in 4 packages, and 44
-tests naming `K8s` in `internal/query` and `internal/query/impact`.
+Measured at this head, with the counting rule stated so a re-measure agrees:
+
+```
+rg -o 'kubernetes\.[A-Z][A-Za-z0-9_]*' --no-filename -g '*.go' go | wc -l   -> 112
+rg -l 'querycontract/kubernetes"' -g '*.go' go | wc -l                      ->  12 files, 4 packages
+cd go && go test -list '.*' ./internal/query/ ./internal/query/impact/ | rg -ic k8s -> 44
+```
+
+`-g '*.go'` is load-bearing. Without it the first command returns 119, because
+prose elsewhere in the repository names these identifiers too. A count whose
+scope is not written down invites the next reader to "correct" a number that
+was right.

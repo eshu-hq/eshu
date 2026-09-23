@@ -12,8 +12,12 @@ import (
 )
 
 // Relationship reasons for the k8s Service->workload SELECTS edge. Both are
-// truth labels surfaced on the wire under relationship["reason"]; keep them
-// registered in docs/public/languages/kubernetes.md if that changes.
+// truth labels surfaced on the wire under relationship["reason"], so changing a
+// value is a wire change. These two literals live only here -- checked
+// 2026-09-23, they appear nowhere else in the repository.
+// docs/public/languages/kubernetes.md documents the SELECTS capability and its
+// fallback rule but does not carry the strings, so it needs a read on a
+// behaviour change and not on a rename.
 const (
 	// SelectReasonNameNamespace marks a SELECTS edge inferred from
 	// matching name+namespace because the Service's selector state is

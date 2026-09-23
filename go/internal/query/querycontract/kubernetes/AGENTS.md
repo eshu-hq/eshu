@@ -14,9 +14,20 @@ is not: namespace equality gates matching, so a second trim is a second truth.
 ## Changing either reason constant is a wire change
 
 `SelectReasonNameNamespace` and `SelectReasonSelectorMatch` are surfaced to
-clients under `relationship["reason"]`, not internal labels. They are registered
-in `docs/public/languages/kubernetes.md`. Changing a value means changing that
-page in the same PR and treating it as a contract change.
+clients under `relationship["reason"]`, not internal labels, so changing a value
+is a contract change.
+
+Do not assume a doc carries the literals. Checked at `c31655ede`, both strings
+appear in `select_match.go` and nowhere else in the repository:
+
+```
+rg -l 'k8s_service_selector_match' .
+```
+
+`docs/public/languages/kubernetes.md` documents the capability and the fallback
+rule, so read it when the BEHAVIOUR changes. The comment that used to sit above
+these constants said the page "registers" them; it did not, and this package's
+own docs repeated that before it was checked.
 
 ## The presence flags are not redundant with the values
 
