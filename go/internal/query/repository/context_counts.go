@@ -4,10 +4,10 @@
 package repository
 
 import (
-	"context"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
+
+import "context"
 
 type repositoryContextCounts struct {
 	fileCount       int

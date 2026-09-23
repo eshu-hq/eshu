@@ -4,10 +4,10 @@
 package repository
 
 import (
-	"sort"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
+
+import "sort"
 
 func BuildRepositoryInfrastructureOverview(
 	infrastructure []map[string]any,

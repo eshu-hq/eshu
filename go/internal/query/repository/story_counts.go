@@ -4,10 +4,10 @@
 package repository
 
 import (
-	"context"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
+
+import "context"
 
 // repositoryStoryStringRowLimit bounds queryRepositoryStoryStringRows's
 // per-read row count. 500 mirrors the repo's established defensive-backstop

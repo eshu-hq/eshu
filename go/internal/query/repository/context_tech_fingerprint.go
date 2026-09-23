@@ -4,10 +4,10 @@
 package repository
 
 import (
-	"context"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
+
+import "context"
 
 // buildLanguageBreakdownFromRows converts the []map[string]any rows produced by
 // queryRepoLanguageDistribution (or repositoryLanguageDistributionFromCoverage)
