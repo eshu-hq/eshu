@@ -81,9 +81,7 @@ and `tools/golangci-lint-dirgate/grandfather.go` was regenerated.
   `TestBackendRepositoryResolverAdapterSingleOwner`,
   `TestBackendRepositoryResolverAdapterAmbiguousOwner`,
   `TestBackendRepositoryResolverAdapterNoOwner`).
-- Exact-name repoint proof for each of the 6 names: `go test
-  ./internal/storage/postgres/incident/... -list '^Name$' -count=1 | rg -q
-  '^Name$'` exits 0 for every name; the same command against
+- Exact-name repoint proof for each of the 6 names: `for n in TestLoadAppliedPagerDutyServiceRoutingDecodesRows TestLoadAppliedPagerDutyServiceRoutingRejectsBlankScope TestLoadAppliedPagerDutyServiceRoutingPropagatesQueryError TestBackendRepositoryResolverAdapterSingleOwner TestBackendRepositoryResolverAdapterAmbiguousOwner TestBackendRepositoryResolverAdapterNoOwner; do go test ./internal/storage/postgres/incident/... -list "^$n\$" -count=1 | rg -q "^$n\$" || echo "missing $n"; done` exits 0 for every name; the same command against
   `./internal/storage/postgres` exits 1 for every name (test no longer
   registered at root).
 - From the repo root: `bash scripts/verify-dirgate.sh --all`: exit 0, no
