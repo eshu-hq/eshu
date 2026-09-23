@@ -19,7 +19,7 @@ import (
 // pinned by TestRepositoryCatalogIDExprCoalesceOrder). Because
 // upsertIngestionScope (go/internal/storage/postgres/ingestion.go) marshals
 // scope.Metadata directly into the payload column and reads source_key from
-// scope.Metadata["source_key"] (scopeSourceKey), payload->>'repo_id' at
+// scope.Metadata["source_key"] (scopestore.SourceKey), payload->>'repo_id' at
 // storage time equals whatever buildScope wrote to Metadata["repo_id"] here.
 // This test asserts buildScope keeps Metadata["source_key"] and
 // Metadata["repo_id"] mirrored to the same non-empty repo.ID for

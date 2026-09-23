@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:dirgate // #6693 checklist step 22 moves this file to scope/completion/quiescence.go; this scope/ leaf lands first and holds only hoisted helpers.
 
 import (
 	"context"

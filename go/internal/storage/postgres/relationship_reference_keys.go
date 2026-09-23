@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 const relationshipReferenceCandidateKeyBatchSize = 500
@@ -70,7 +71,7 @@ func relationshipReferenceSourceRepoID(envelope facts.Envelope) string {
 	if repoID, _ := envelope.Payload["repo_id"].(string); strings.TrimSpace(repoID) != "" {
 		return strings.ToLower(strings.TrimSpace(repoID))
 	}
-	return strings.ToLower(strings.TrimSpace(deferredScopedFactOwnRepoIDFromScope(envelope.ScopeID)))
+	return strings.ToLower(strings.TrimSpace(scopestore.RepoIDFromScopeID(envelope.ScopeID)))
 }
 
 func refreshRelationshipReferenceCandidateKeys(

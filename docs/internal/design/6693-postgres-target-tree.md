@@ -336,7 +336,7 @@ Prerequisites:
 
 Domains, dependency-first, smaller first at each step (non-test files moved):
 
-1. [ ] `scope/` (new leaf; receives hoisted helpers only)
+1. [x] `scope/` (new leaf; receives hoisted helpers only)
 2. [ ] `cicd/` (1 file)
 3. [ ] `decisions/` (1 file)
 4. [ ] `facts/payload/` (1 file)
@@ -357,7 +357,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 19. [ ] `freshness/gcp/` (3 files)
 20. [ ] `freshness/incident/` (3 files)
 21. [ ] `lock/` (3 files; after `scope/`)
-22. [ ] `scope/completion/` (4 files)
+22. [ ] `scope/completion/` (4 files; removes the `scope_quiescence.go` dirgate marker)
 23. [ ] `crossplane/` (5 files)
 24. [ ] `search/document/` (6 files)
 25. [ ] `container/image/` (7 files)

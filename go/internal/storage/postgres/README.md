@@ -1633,7 +1633,7 @@ OR (own_repo_id <> $6 AND EXISTS(unnest($2) ... same fallback as #3710))       -
 ```
 
 `$6` is a lowercase "this partition's likely own repo_id" derived for free from
-`scope_id` (`deferredScopedFactOwnRepoIDFromScope`, `ingestion_backfill_deferred_regex.go`):
+`scope_id` (`scopestore.RepoIDFromScopeID`, `scope/repo_id.go`):
 `git-repository-scope:<repo_id>` scopes strip to `<repo_id>`; every other scope
 shape (GCP cloud-relationship scopes included) resolves to `""`. `$5` is a POSIX
 ARE alternation (`buildDeferredRepoIDRegex`) of the shared `$2` catalog repo_id
@@ -1689,8 +1689,8 @@ inside a `$6`-hinted git-repository-scope partition (proving the fallback still
 fires per-row when the hint is wrong for that specific row) — and asserts
 IDENTICAL fact_id sets and IDENTICAL `relationships.DiscoverEvidence` output in
 both directions (0/0 set-diff). `buildDeferredRepoIDRegex` and
-`deferredScopedFactOwnRepoIDFromScope` have dedicated non-DB unit tests
-(`ingestion_backfill_deferred_regex_test.go`) covering own-value exclusion, ARE
+`scopestore.RepoIDFromScopeID` have dedicated non-DB unit tests
+(`ingestion_backfill_deferred_regex_test.go` and `scope/repo_id_test.go`) covering own-value exclusion, ARE
 metacharacter escaping, case-insensitive dedupe, the empty/all-excluded
 "no usable alternation" case, and the `git-repository-scope:` prefix derivation
 including non-matching scope shapes. The existing #3659/#3710 non-DB regression

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 // listDeferredScopedRelationshipFactRecordsQuery is the self-exclusion variant
@@ -49,7 +50,7 @@ import (
 //
 //	$6 string — a lowercase performance-hint "this partition's own repo_id",
 //	   derived from scope_id with zero extra queries
-//	   (deferredScopedFactOwnRepoIDFromScope): git-repository-scope:<repo_id>
+//	   (scopestore.RepoIDFromScopeID): git-repository-scope:<repo_id>
 //	   scopes resolve to <repo_id>; every other scope shape (GCP cloud-relationship
 //	   scopes included) resolves to "". $6 is NOT a correctness input — see the
 //	   "$5/$6 performance-hint" section below.
@@ -130,7 +131,7 @@ import (
 // A wrong or absent $6 therefore only costs a fallback-arm evaluation for the
 // affected rows (a performance cost bounded by the partition), never a
 // correctness cost. This is why $6 can be derived for free from scope_id
-// (deferredScopedFactOwnRepoIDFromScope: strip the "git-repository-scope:"
+// (scopestore.RepoIDFromScopeID: strip the "git-repository-scope:"
 // prefix, or "" for any other scope shape) instead of requiring a discovery
 // query: loadActiveRepositoryGenerations was considered and rejected, because it
 // filters to fact_kind = 'repository' and drops every GCP cloud-relationship
@@ -387,7 +388,7 @@ func catalogRemoteURLValues(catalog []relationships.CatalogEntry) []string {
 // variant (listDeferredScopedRelationshipFactRecordsQuery) bounded to one
 // (scope_id, generation_id) partition (issue #3710). The catalog-derived $1/$2
 // parameters are shared across partitions; $3/$4 bind the partition. $6 is the
-// scope_id-derived own-repo_id performance hint (deferredScopedFactOwnRepoIDFromScope)
+// scope_id-derived own-repo_id performance hint (scopestore.RepoIDFromScopeID)
 // and $5 is the regex built by excluding $6 from params.repoIDValues
 // (buildDeferredRepoIDRegex); $5 is passed as a NULL sql.NullString when no
 // usable alternation exists, which safely disables the fast arm for this
@@ -403,7 +404,7 @@ func loadDeferredScopedRelationshipFactsForPartition(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
+	ownRepoID := scopestore.RepoIDFromScopeID(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
 	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString

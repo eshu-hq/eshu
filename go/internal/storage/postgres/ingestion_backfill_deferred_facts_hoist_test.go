@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 // preHoistListDeferredScopedRelationshipFactRecordsQuery is a frozen copy of the
@@ -344,7 +345,7 @@ func runHoistedDeferredScopedQuery(
 	scopeID, generationID string,
 ) []facts.Envelope {
 	t.Helper()
-	ownRepoID := deferredScopedFactOwnRepoIDFromScope(scopeID)
+	ownRepoID := scopestore.RepoIDFromScopeID(scopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
 	repoIDReferenceKeys := deferredRepoIDReferenceKeys(params.repoIDValues, params.repoIDReferenceKey)
 	var regexParam sql.NullString

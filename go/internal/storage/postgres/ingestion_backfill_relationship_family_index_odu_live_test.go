@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
 
 func TestRelationshipFamilyIndexOduQueryProof(t *testing.T) {
@@ -156,7 +157,7 @@ func deferredRelationshipFamilyProofArgs(
 	params deferredScopedFactQueryParams,
 	partition scopeGenerationPartition,
 ) []any {
-	ownRepoID := deferredScopedFactOwnRepoIDFromScope(partition.ScopeID)
+	ownRepoID := scopestore.RepoIDFromScopeID(partition.ScopeID)
 	regex, ok := buildDeferredRepoIDRegex([]string(params.repoIDValues), ownRepoID)
 	var regexParam sql.NullString
 	if ok {
