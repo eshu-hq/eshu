@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -363,7 +363,7 @@ func (h *Handler) findBlastRadius(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	affected = impacttrace.FilterRowsByRepoIDForAccess(affected, access)
+	affected = deployment.FilterRowsByRepoIDForAccess(affected, access)
 
 	affected, truncated := trimImpactRows(affected, limit)
 	h.enrichBlastRadiusTiers(r.Context(), affected)

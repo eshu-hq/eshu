@@ -36,7 +36,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | K8s SELECTS matcher | moved to `kubernetes/` (#6597) | callers name `kubernetes.SelectMatch` and friends directly; the #6060 root wrappers were deleted with the move |
 | Story-collection helpers | `story_collection_helpers.go` | root and `impact/` callers reference directly |
 | Story-row helpers | `story_row_helpers.go` | root and `impact/` callers reference directly, including `CapMapRows` |
-| Scoped workload grant decision | `workload_grant.go` | `entity` and `impacttrace` callers reference directly |
+| Scoped workload grant decision | `workload_grant.go` | `entity` and `deployment` callers reference directly |
 | Permission-denied envelope and gate | `permission_denied.go` | function forwarders `writePermissionDeniedEnvelope`/`requirePermissionFeature` |
 | Unauthorized (401) response, OAuth-challenge types, correlation ID | `unauthorized.go` | exported type alias (`OAuthChallengePolicy`) and function forwarders (`unauthorizedResponse`, `requestWithOAuthChallenge`, `documentationCorrelationID`); `oauthWWWAuthenticateChallengeForRequest` keeps no root forwarder because its only caller moved with it |
 
@@ -64,7 +64,7 @@ with its own `MATCH`/`RETURN` and result shape, still does not belong here.
 `workload_grant.go`'s `WorkloadGrantAdmitted` is the one exception to "emits a
 Cypher fragment": it is a pure Go decision over rows a caller already fetched
 (a workload's `repo_id` plus its DEFINES-linked repository ids), not predicate
-text. NornicDB (grant decisions for the `entity` and `impacttrace` Workload
+text. NornicDB (grant decisions for the `entity` and `deployment` Workload
 lookups) is made in Go for this reason: a multi-line
 `AND ( ... OR EXISTS {...} )` scoped WHERE group is unreliable on the pinned
 v1.3.3 image -- it can drop the whole WHERE, including an unrelated id/name
@@ -75,7 +75,7 @@ SHAPE-A) is unaffected and still belongs here as a fragment emitter.
 
 `WorkloadSelectorCandidateBound`, `ErrWorkloadSelectorCandidatesExceedBound`,
 and `WriteWorkloadSelectorOverflow` live beside it so the `entity` and
-`impacttrace` name lookups fail closed at the same bound with the same wire
+`deployment` name lookups fail closed at the same bound with the same wire
 answer: 409 Conflict and fixed text telling the caller to retry with a workload
 id. The error text carries no row count. For a scoped caller the name read
 carries `WorkloadScopePredicate`, so the bound counts granted rows only and

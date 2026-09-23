@@ -265,10 +265,10 @@ func BuildServiceDownstreamConsumers(workloadContext map[string]any) map[string]
 	// provisioning-candidate read is bounded well below that by default
 	// (defaultIndirectEvidenceSearchLimit, 25) -- so a genuinely truncated
 	// read could report truncated: false here every time. dependents_truncated
-	// closes that gap from impacttrace.QueryProvisioningRepositoryCandidates's own
+	// closes that gap from deployment.QueryProvisioningRepositoryCandidates's own
 	// truncated bool. PR #5933 review fix (Copilot): consumer_repositories_truncated
 	// is no longer that same bool -- since round 9 it is the merged
-	// consumersTruncated impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates
+	// consumersTruncated deployment.LoadConsumerRepositoryEnrichmentFromCandidates
 	// returns, which also folds in the evidence-file, hostname, and
 	// content-search bounds (see buildServiceResultLimitsWithContext's
 	// evidence_file_read_limit below for the largest of those).

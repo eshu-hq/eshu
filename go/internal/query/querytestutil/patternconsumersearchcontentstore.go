@@ -13,7 +13,7 @@ import (
 // searches from canned row maps. Exact-case falls back to the pattern rows
 // when no exact rows match, mirroring the production read it stands in
 // for. It moved here for #6060 lane B B4 because the consumer-search suites
-// live in three packages now (impacttrace, service, and the staying root
+// live in three packages now (deployment, service, and the staying root
 // deployment-trace tests); a _test.go declaration in any one of them is
 // unreachable from the others.
 type PatternConsumerSearchContentStore struct {

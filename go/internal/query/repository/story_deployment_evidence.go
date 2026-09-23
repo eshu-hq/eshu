@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -64,7 +64,7 @@ func enrichRepositoryDeploymentOverviewWithEvidence(
 	if relationshipTypes := querycontract.StringSliceVal(deploymentEvidence, "relationship_types"); len(relationshipTypes) > 0 {
 		overview["deployment_evidence_relationship_types"] = relationshipTypes
 	}
-	if evidencePaths := impacttrace.DeploymentEvidenceDeliveryPaths(deploymentEvidence); len(evidencePaths) > 0 {
+	if evidencePaths := deployment.DeploymentEvidenceDeliveryPaths(deploymentEvidence); len(evidencePaths) > 0 {
 		overview["delivery_paths"] = mergeRepositoryStoryDeliveryPaths(
 			querycontract.MapSliceValue(overview, "delivery_paths"),
 			evidencePaths,
@@ -126,5 +126,5 @@ func cloneMapRows(rows []map[string]any) []map[string]any {
 }
 
 func repositoryStoryDeliveryPathKey(row map[string]any) string {
-	return impacttrace.NormalizedDeliveryPathKey(row)
+	return deployment.NormalizedDeliveryPathKey(row)
 }

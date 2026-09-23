@@ -756,7 +756,7 @@ type Instruments struct {
 	// list -- it is documentation of the current closed set, not a runtime
 	// enum -- but MUST update it in the same change so this comment does not
 	// drift from the emitted values again (see TestQueryScopedGrantDeniedOperationValues,
-	// entity, and TestResolveWorkloadSelectorOperationLabel, impacttrace,
+	// entity, and TestResolveWorkloadSelectorOperationLabel, deployment,
 	// which each pin one call site's literal against this list).
 	//
 	// reason is "grant_denied" for an ordinary scoped-caller-not-granted-this-row

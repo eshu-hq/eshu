@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -21,7 +21,7 @@ func (h *Handler) fetchControllerEntities(
 		return nil, nil
 	}
 
-	repoIDs := impacttrace.UniqueNonEmptyRepoIDs(deploymentSources)
+	repoIDs := deployment.UniqueNonEmptyRepoIDs(deploymentSources)
 	controllers := make([]map[string]any, 0, len(repoIDs))
 	for _, repoID := range repoIDs {
 		entities, err := h.Content.ListRepoEntities(ctx, repoID, 500)
@@ -29,7 +29,7 @@ func (h *Handler) fetchControllerEntities(
 			return nil, fmt.Errorf("list controller entities for %s: %w", repoID, err)
 		}
 		for _, entity := range entities {
-			controller, ok := impacttrace.BuildDeploymentSourceControllerEntity(entity)
+			controller, ok := deployment.BuildDeploymentSourceControllerEntity(entity)
 			if !ok {
 				continue
 			}
@@ -84,7 +84,7 @@ func (h *Handler) fetchDeploymentSourceGitOpsResult(
 		return deploymentSourceGitOpsResult{}, nil
 	}
 
-	repoIDs := impacttrace.UniqueNonEmptyRepoIDs(deploymentSources)
+	repoIDs := deployment.UniqueNonEmptyRepoIDs(deploymentSources)
 	if workloadRepoID != "" && !slices.Contains(repoIDs, workloadRepoID) {
 		repoIDs = append(repoIDs, workloadRepoID)
 	}
@@ -135,10 +135,10 @@ func (h *Handler) fetchDeploymentSourceGitOpsResult(
 		}
 	}
 
-	observedControllers := impacttrace.SelectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, ownRepoWorkloadCount, deploymentSources, entities)
+	observedControllers := deployment.SelectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, ownRepoWorkloadCount, deploymentSources, entities)
 	controllers, controllersTruncated := querycontract.CapMapRows(observedControllers, querycontract.ServiceStoryItemLimit)
-	fluxTargetAttribution := impacttrace.BindFluxControllersToCrossRepoTargets(controllers, deploymentSources)
-	k8sResources, imageRefs := impacttrace.CollectDeploymentSourceK8sResources(controllers, entities)
+	fluxTargetAttribution := deployment.BindFluxControllersToCrossRepoTargets(controllers, deploymentSources)
+	k8sResources, imageRefs := deployment.CollectDeploymentSourceK8sResources(controllers, entities)
 	controllerObservedCountIsLowerBound := observedCountIsLowerBound
 	controllerTruncated := controllerObservedCountIsLowerBound || controllersTruncated
 	return deploymentSourceGitOpsResult{

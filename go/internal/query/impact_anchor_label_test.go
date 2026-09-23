@@ -6,7 +6,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -16,7 +16,7 @@ import (
 // shape must decode to the same provenance/identity, or a hop is silently dropped
 // on one backend.
 //
-// It lives in the query root (not impacttrace/) because the decoders are
+// It lives in the query root (not deployment/) because the decoders are
 // driver-aware and the driver may only be named from driver-owning root
 // files. See #6060.
 func TestImpactPathDecodersDecodeBothBackendShapes(t *testing.T) {
@@ -52,7 +52,7 @@ func TestImpactPathDecodersDecodeBothBackendShapes(t *testing.T) {
 	}
 
 	// A zipped hop uses path-order endpoints (nodes[i] -> nodes[i+1]).
-	hops := impacttrace.ImpactDependencyHops(
+	hops := deployment.ImpactDependencyHops(
 		impactNodeIdentityList(nodeCases["neo4j.Node"]),
 		impactRelProvenanceList(relCases["neo4j.Relationship"]),
 	)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -195,7 +195,7 @@ func TestBuildDeploymentTraceResponseIncludesEvidenceBoundaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := querytestutil.SampleServiceDossierContext()
-	got := impacttrace.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
+	got := deployment.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
 	// The handler attaches after buildDeploymentTraceResponse.
 	evidence.AttachEvidenceBoundaries(got, "trace_deployment_chain")

@@ -162,3 +162,105 @@ behaves.
 
 No-Observability-Change: no span name, attribute, metric, or log line
 changes; the move touches no telemetry emission point.
+
+## Performance and observability evidence for the `deployment` leaf
+
+No-Regression Evidence: 50 files move from `query/impacttrace/` to
+`query/impact/deployment/` (48 Go files including `doc.go`, plus
+`README.md`/`AGENTS.md`), package clause `impacttrace` to `deployment`,
+and 61
+importer files repoint the import path and the `impacttrace.` qualifier
+to `deployment.`. File names drop the `impact_trace_`/`deployment_trace_`
+prefixes per the #6818 plan, plus the leading `deployment_` the
+filename-stutter gate requires inside a `deployment/` leaf (rule 2:
+the stem must not repeat the leaf directory name, so
+`impact_trace_deployment_k8s.go` becomes `k8s.go`, not
+`deployment_k8s.go`). No call site, argument, Cypher text, allocation,
+loop bound, span, metric, or log change.
+
+Before tree `652fe235c5985d1e84cf4f0d9d306ee7f1a436a6`
+(`a12cdb2c:go/internal/query/impacttrace`), after tree
+`e17251df7f301a7356dd2f0d58b9237afa883367`
+(`HEAD:go/internal/query/impact/deployment`).
+
+Moved-file substitution proof, base `a12cdb2c`, run from the worktree
+root with the old→new map (`impact_trace_`/`deployment_trace_` stripped,
+then a leading `deployment_` stripped; 48 pairs, no collisions):
+
+```bash
+while read line; do
+  old="${line% -> *}"; new="${line#* -> }"
+  git show "a12cdb2c:go/internal/query/impacttrace/$old" \
+    | sed 's/impacttrace/deployment/g' \
+    | cmp -s - "go/internal/query/impact/deployment/$new" && echo "CLEAN $old"
+done < /tmp/impact-rename-map2.txt
+```
+
+48/48 moved files are byte-exact under the single sed plus the rename;
+the content transform is the package clause, qualifier-free prose, and
+one test-only meter name (`impacttrace-scoped-grant-test` →
+`deployment-scoped-grant-test`, asserted nowhere).
+
+Importer substitution proof (same base; the second sed expression repairs
+only the import path, which the first sed shortens):
+
+```bash
+while read f; do
+  git show "a12cdb2c:$f" \
+    | sed 's/impacttrace/deployment/g; s|query/deployment"|query/impact/deployment"|' \
+    | cmp -s - "$f" && echo "CLEAN $f"
+done < /tmp/impact-importers.txt
+```
+
+59/61 importer files are byte-exact. The two exceptions are each one
+known extra: `impact/trace_deployment_k8s_select_widening_test.go`
+renames seven shadowing `deployment` locals to `k8sDeployment` (a K8s
+Deployment entity map; `deployment.BuildK8sRelationships` qualifier
+sites untouched), and `impact/deployment_config_influence.go` adds the
+`//nolint:dirgate` package-clause marker the new subpackage forces
+(`deployment_config_influence{,_limits}.go` declare `*Handler` methods,
+which `deployment/` forbids by its AGENTS.md contract, so they stay in
+`impact` with the gate-sanctioned marker citing #6818).
+
+`scripts/verify-performance-evidence.sh` passes (exit 0). Five
+importer-side `query-source-coverage.yaml` pins refresh, all
+qualifier-in-body class, each body diff proven token-mechanical and each
+digest independently recomputed with `go/ast` extraction plus sha256:
+
+- `impact/contract.go:(*Handler).contractImpactResponse`:
+  `e1bf16c4…` → `674df629…`
+- `impact/handler.go:(*Handler).traceResourceToCode`:
+  `281827d1…` → `728855a8…`
+- `impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationRepoPaths`:
+  `28e0fdff…` → `64187a07…`
+- `impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationWorkloads`:
+  `0c266cfc…` → `2056d923…`
+- `impact/trace_deployment_resources.go:(*Handler).fetchCloudResourceResult`:
+  `9dd90cb7…` → `8a8ae375…`
+
+Six `file:` keys repoint (`impacttrace/` → `impact/deployment/` with the
+new basenames); their pins hash extracted symbol source and stay valid.
+`hot-cypher.yaml` repoints three rows, `specs/live-tests.v1.yaml` two
+rows, `specs/language-feature-parity-ledger.v1.yaml` one row. The
+B-12 snapshot description naming the renamed live-evidence test is
+repointed (provenance prose only; no asserted payload changes, JSON
+still parses, `go test ./cmd/golden-corpus-gate/` passes).
+`docs/public/observability/telemetry-coverage.md` repoints its
+`workload_selection.go` row; `scripts/verify-telemetry-coverage.sh`
+passes. Three public doc test-path pointers repoint; five dated
+evidence/design docs keep BEFORE-state paths via new
+`scripts/moved-file-refs-allowlist.txt` rows.
+`scripts/verify-moved-file-refs.sh` reports 48 vacated Go paths with no
+dangling references; `scripts/verify-package-docs.sh` reports the moved
+doc trio present. `go build ./...` and `go vet ./...` exit 0;
+`go test ./internal/query/impact/deployment/ -count=1` passes (86
+tests, `go test -list` confirms discovery);
+`go test ./internal/query/... ./internal/mcp/... ./internal/queryplan/ -count=1`
+pass with no failures. The Cypher text inside the moved files is
+untouched and the call graph is identical up to the qualifier rename,
+so no benchmark applies.
+
+No-Observability-Change: no span name, attribute, registered metric, or
+log line changes; the one meter rename is test-only instrumentation.
+`TestResolveWorkloadSelectorOperationLabel` still passes: the emitted
+`deployment_trace_selector` operation literal is untouched.

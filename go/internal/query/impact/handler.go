@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -43,7 +43,7 @@ type Handler struct {
 	// identity -- two workloads sharing a base image digest could promote
 	// one workload on another's live row. KubernetesPodTemplates fixes that
 	// by requiring an identity match first.
-	KubernetesPodTemplates impacttrace.KubernetesPodTemplateStore
+	KubernetesPodTemplates deployment.KubernetesPodTemplateStore
 	// CodeSurface runs the code-topic-coupled half of change-surface
 	// resolution (fetch topic rows, bind grants, shape files/symbols/
 	// evidence groups). It is an interface, not a method set, because the
@@ -149,7 +149,7 @@ type PathProbeBackend interface {
 		ctx context.Context,
 		reader querycontract.GraphQuery,
 		idParam, id string,
-	) (*impacttrace.ResolvedImpactAnchor, error)
+	) (*deployment.ResolvedImpactAnchor, error)
 	// TraceHops builds trace-resource-to-code hop provenance from a raw
 	// relationships(path) value.
 	TraceHops(relsRaw any) []map[string]any
@@ -254,7 +254,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 		// project the raw relationships(path) list, unwound into per-hop
 		// provenance in Go — the map-valued `[rel IN relationships(path) | {…}]`
 		// comprehension is mangled on the pinned build.
-		cypher := fmt.Sprintf(impacttrace.ImpactRepoPathCypher, start.Pattern("start", "start_id"), req.MaxDepth)
+		cypher := fmt.Sprintf(deployment.ImpactRepoPathCypher, start.Pattern("start", "start_id"), req.MaxDepth)
 		rows, rerr := h.Neo4j.Run(r.Context(), cypher, map[string]any{"start_id": start.ID, "limit": limit + 1})
 		if rerr != nil {
 			if querycontract.WriteGraphReadError(w, r, rerr, "platform_impact.resource_to_code") {

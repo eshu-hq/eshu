@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
 func TestDeploymentTraceProvenanceIncludesRuntimeArtifactFamilies(t *testing.T) {
@@ -29,7 +29,7 @@ func TestDeploymentTraceProvenanceIncludesRuntimeArtifactFamilies(t *testing.T) 
 		},
 	}
 
-	got := impacttrace.BuildDeploymentTraceProvenanceOverview(nil, nil, deploymentEvidence, nil)
+	got := deployment.BuildDeploymentTraceProvenanceOverview(nil, nil, deploymentEvidence, nil)
 	families := StringSliceVal(got, "families")
 	if !slices.Contains(families, "cloudformation") {
 		t.Fatalf("families = %#v, want cloudformation", families)
@@ -41,7 +41,7 @@ func TestDeploymentTraceProvenanceIncludesRuntimeArtifactFamilies(t *testing.T) 
 		t.Fatalf("runtime_artifact_count = %d, want %d", got, want)
 	}
 
-	story := impacttrace.BuildDeploymentTraceWorkflowProvenanceStory(deploymentEvidence)
+	story := deployment.BuildDeploymentTraceWorkflowProvenanceStory(deploymentEvidence)
 	if !strings.Contains(story, "Runtime provenance: template.yml.") {
 		t.Fatalf("story = %q, want runtime provenance line", story)
 	}

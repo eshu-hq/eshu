@@ -6,7 +6,7 @@ package service
 import (
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -82,7 +82,7 @@ func buildServiceNetworkPaths(workloadContext map[string]any, entrypoints []map[
 	return paths
 }
 
-func BuildGraphDependents(candidates []impacttrace.ProvisioningRepositoryCandidate) []map[string]any {
+func BuildGraphDependents(candidates []deployment.ProvisioningRepositoryCandidate) []map[string]any {
 	if len(candidates) == 0 {
 		return nil
 	}

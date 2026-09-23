@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
 func TestFetchProvisionedPlatformsReportsUniqueSentinel(t *testing.T) {
@@ -215,7 +215,7 @@ func provisionedPlatformIDs(rows []map[string]any) []string {
 func TestBuildDeploymentTraceResponseDoesNotCopyProvisioningUnderInstances(t *testing.T) {
 	t.Parallel()
 
-	got := impacttrace.BuildDeploymentTraceResponse("orders", map[string]any{
+	got := deployment.BuildDeploymentTraceResponse("orders", map[string]any{
 		"id": "workload:orders", "name": "orders",
 		"instances": []map[string]any{{"instance_id": "instance:orders:prod", "platforms": []map[string]any{}}},
 		"provisioned_platforms": []map[string]any{{

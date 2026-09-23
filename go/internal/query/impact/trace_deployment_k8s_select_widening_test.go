@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
@@ -108,14 +108,14 @@ func hasSelectsEdge(relationships []map[string]any, sourceID, targetID, reason s
 func TestImpactTraceK8sSelectWideningUnderLinkingRegression(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 	})
 	service := k8sEntity("svc-web", "web-svc", "svc/web.yaml", "Service", "prod", map[string]string{
 		"selector": "app=web",
 	})
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)
@@ -129,7 +129,7 @@ func TestImpactTraceK8sSelectWideningUnderLinkingRegression(t *testing.T) {
 		t.Fatalf("anchored Deployment web not surfaced; rows = %#v", result.rows)
 	}
 
-	relationships := impacttrace.BuildK8sRelationships(result.rows)
+	relationships := deployment.BuildK8sRelationships(result.rows)
 	if !hasSelectsEdge(relationships, "svc-web", "dep-web", kubernetes.SelectReasonSelectorMatch) {
 		t.Fatalf("missing SELECTS edge web-svc -> web (selector match); relationships = %#v", relationships)
 	}
@@ -145,7 +145,7 @@ func TestImpactTraceK8sSelectWideningUnderLinkingRegression(t *testing.T) {
 func TestImpactTraceK8sSelectWideningRespectsNonMatchingSelector(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 	})
 	// Same name as the workload, but a selector that is NOT a subset: the
@@ -154,13 +154,13 @@ func TestImpactTraceK8sSelectWideningRespectsNonMatchingSelector(t *testing.T) {
 		"selector": "app=other",
 	})
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
-	relationships := impacttrace.BuildK8sRelationships(result.rows)
+	relationships := deployment.BuildK8sRelationships(result.rows)
 	for _, rel := range relationships {
 		if querycontract.StringVal(rel, "type") == "SELECTS" {
 			t.Fatalf("unexpected SELECTS edge for non-matching selector: %#v", rel)
@@ -173,14 +173,14 @@ func TestImpactTraceK8sSelectWideningRespectsNonMatchingSelector(t *testing.T) {
 func TestImpactTraceK8sSelectWideningEnforcesNamespaceEquality(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 	})
 	service := k8sEntity("svc-web", "web-svc", "svc/web.yaml", "Service", "staging", map[string]string{
 		"selector": "app=web",
 	})
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)
@@ -189,7 +189,7 @@ func TestImpactTraceK8sSelectWideningEnforcesNamespaceEquality(t *testing.T) {
 	if _, ok := surfacedEntityIDs(result.rows)["svc-web"]; ok {
 		t.Fatalf("cross-namespace Service must not surface; rows = %#v", result.rows)
 	}
-	relationships := impacttrace.BuildK8sRelationships(result.rows)
+	relationships := deployment.BuildK8sRelationships(result.rows)
 	if hasSelectsEdge(relationships, "svc-web", "dep-web", kubernetes.SelectReasonSelectorMatch) {
 		t.Fatalf("cross-namespace SELECTS edge produced; relationships = %#v", relationships)
 	}
@@ -202,10 +202,10 @@ func TestImpactTraceK8sSelectWideningEnforcesNamespaceEquality(t *testing.T) {
 func TestImpactTraceK8sSelectWideningPoolPurity(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 	})
-	entities := []querycontract.EntityContent{deployment}
+	entities := []querycontract.EntityContent{k8sDeployment}
 	matchIDs := map[string]struct{}{"svc-match-1": {}, "svc-match-2": {}}
 	for i := range 5000 {
 		id := fmt.Sprintf("svc-noise-%04d", i)
@@ -246,7 +246,7 @@ func TestImpactTraceK8sSelectWideningPoolPurity(t *testing.T) {
 		t.Fatalf("unmatched candidate leaked into the surfaced pool: %s", marshaled)
 	}
 
-	relationships := impacttrace.BuildK8sRelationships(result.rows)
+	relationships := deployment.BuildK8sRelationships(result.rows)
 	selectsCount := 0
 	for _, rel := range relationships {
 		if querycontract.StringVal(rel, "type") == "SELECTS" {
@@ -264,14 +264,14 @@ func TestImpactTraceK8sSelectWideningPoolPurity(t *testing.T) {
 func TestImpactTraceK8sSelectWideningSelectorAbsentNeverWidens(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 	})
 	// selector key absent (vintage row) AND a different name: no authoritative
 	// selector, and the name fallback cannot fire across different names.
 	service := k8sEntity("svc-web", "web-svc", "svc/web.yaml", "Service", "prod", nil)
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)
@@ -289,12 +289,12 @@ func TestImpactTraceK8sSelectWideningMixedVintageDrops(t *testing.T) {
 	t.Parallel()
 
 	// Deployment carries no pod_template_labels key (vintage).
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", nil)
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", nil)
 	service := k8sEntity("svc-web", "web-svc", "svc/web.yaml", "Service", "prod", map[string]string{
 		"selector": "app=web",
 	})
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)
@@ -302,7 +302,7 @@ func TestImpactTraceK8sSelectWideningMixedVintageDrops(t *testing.T) {
 	if _, ok := surfacedEntityIDs(result.rows)["svc-web"]; ok {
 		t.Fatalf("mixed-vintage candidate must not surface; rows = %#v", result.rows)
 	}
-	relationships := impacttrace.BuildK8sRelationships(result.rows)
+	relationships := deployment.BuildK8sRelationships(result.rows)
 	for _, rel := range relationships {
 		if querycontract.StringVal(rel, "type") == "SELECTS" {
 			t.Fatalf("mixed-vintage produced a SELECTS edge: %#v", rel)
@@ -317,7 +317,7 @@ func TestImpactTraceK8sSelectWideningMixedVintageDrops(t *testing.T) {
 func TestImpactTraceK8sSelectWideningFrozenSubSurfaceOnNoMatch(t *testing.T) {
 	t.Parallel()
 
-	deployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
+	k8sDeployment := k8sEntity("dep-web", "web", "deploy/web.yaml", "Deployment", "prod", map[string]string{
 		"pod_template_labels": "app=web,tier=api",
 		"container_images":    "", // no images
 	})
@@ -327,7 +327,7 @@ func TestImpactTraceK8sSelectWideningFrozenSubSurfaceOnNoMatch(t *testing.T) {
 		"selector": "app=elsewhere",
 	})
 
-	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{deployment, service})}
+	handler := &Handler{Content: newK8sSelectWideningStore([]querycontract.EntityContent{k8sDeployment, service})}
 	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
 		t.Fatalf("FetchK8sResourceResult() error = %v", err)

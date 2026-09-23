@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -25,7 +25,7 @@ import (
 // subpackage) because they exercise root-owned behavior --
 // fetchServiceTraceContext builds a B5-entity handler, and the chain test
 // runs the handler against root content-reader fakes -- reaching back through
-// the impact seam and the impacttrace response builder. See #6060.
+// the impact seam and the deployment response builder. See #6060.
 
 func TestLoadUncorrelatedCloudResourceCandidatesUsesBoundedServiceSelector(t *testing.T) {
 	t.Parallel()
@@ -274,7 +274,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 		t.Fatalf("deployment_evidence.artifact_count = %#v, want %#v", got, want)
 	}
 
-	response := impacttrace.BuildDeploymentTraceResponse("checkout-service", ctx, NewDeploymentTraceContext().BuildServiceDeploymentOverview(ctx))
+	response := deployment.BuildDeploymentTraceResponse("checkout-service", ctx, NewDeploymentTraceContext().BuildServiceDeploymentOverview(ctx))
 	traceEvidence := querycontract.MapValue(response, "deployment_evidence")
 	if got, want := traceEvidence["artifact_count"], 1; got != want {
 		t.Fatalf("trace deployment_evidence.artifact_count = %#v, want %#v", got, want)

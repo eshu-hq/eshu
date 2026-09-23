@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -278,23 +278,23 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesBreaksTiesByRepoID(t *tes
 	// Both candidates share the same relationship types (so the same
 	// consumer_kinds and sort score) and the same repository display name,
 	// leaving repo_id as the only remaining stable tiebreaker.
-	candidateA := impacttrace.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
-	candidateB := impacttrace.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
+	candidateA := deployment.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
+	candidateB := deployment.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
 
-	ascending := []impacttrace.ProvisioningRepositoryCandidate{candidateA, candidateB}
-	shuffled := []impacttrace.ProvisioningRepositoryCandidate{candidateB, candidateA}
+	ascending := []deployment.ProvisioningRepositoryCandidate{candidateA, candidateB}
+	shuffled := []deployment.ProvisioningRepositoryCandidate{candidateB, candidateA}
 
 	wantOrder := []string{"repository:consumer-a", "repository:consumer-b"}
 
-	for name, candidates := range map[string][]impacttrace.ProvisioningRepositoryCandidate{"ascending": ascending, "shuffled": shuffled} {
+	for name, candidates := range map[string][]deployment.ProvisioningRepositoryCandidate{"ascending": ascending, "shuffled": shuffled} {
 		candidates := candidates
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			consumers, _, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+			consumers, _, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 				t.Context(), nil, nil, "repository:orders", "orders-api", nil, 0, candidates, false, false,
 			)
 			if err != nil {
-				t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
+				t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
 			}
 			got := make([]string, 0, len(consumers))
 			for _, consumer := range consumers {
@@ -342,7 +342,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 		{"instance_id": "workload-instance:orders:prod-a", "platform_id": "platform:eks-prod", "platform_name": "eks-prod", "platform_kind": "argocd_applicationset"},
 		{"instance_id": "workload-instance:orders:prod-b", "platform_id": "platform:eks-prod-2", "platform_name": "eks-prod-2", "platform_kind": "argocd_applicationset"},
 	}
-	candidates := []impacttrace.ProvisioningRepositoryCandidate{
+	candidates := []deployment.ProvisioningRepositoryCandidate{
 		{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}},
 		{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}},
 	}
@@ -350,7 +350,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	if shuffle {
 		runtimeRows = []map[string]any{runtimeRows[2], runtimeRows[0], runtimeRows[1]}
 		platformRows = []map[string]any{platformRows[2], platformRows[1], platformRows[0]}
-		candidates = []impacttrace.ProvisioningRepositoryCandidate{candidates[1], candidates[0]}
+		candidates = []deployment.ProvisioningRepositoryCandidate{candidates[1], candidates[0]}
 	}
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -373,11 +373,11 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	}
 	attachDirectPlatforms(topology.instances, platformResult.rows)
 
-	consumers, _, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+	consumers, _, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 		t.Context(), nil, nil, repoID, "orders-api", nil, 0, candidates, false, false,
 	)
 	if err != nil {
-		t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
+		t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
 	}
 
 	workloadContext := map[string]any{

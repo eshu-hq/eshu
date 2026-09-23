@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -48,9 +48,9 @@ func TestBuildDeploymentSourceControllerEntityFluxKustomizationUsesSourcePathAsI
 		},
 	}
 
-	controller, ok := impacttrace.BuildDeploymentSourceControllerEntity(entity)
+	controller, ok := deployment.BuildDeploymentSourceControllerEntity(entity)
 	if !ok {
-		t.Fatal("impacttrace.BuildDeploymentSourceControllerEntity() ok = false, want true for a registered FluxKustomization entity type")
+		t.Fatal("deployment.BuildDeploymentSourceControllerEntity() ok = false, want true for a registered FluxKustomization entity type")
 	}
 	if got, want := controller["controller_kind"], "flux_kustomization"; got != want {
 		t.Fatalf("controller_kind = %#v, want %#v", got, want)
@@ -114,9 +114,9 @@ func TestBuildDeploymentSourceControllerEntityFluxHelmReleaseChartAsPathRoot(t *
 				},
 			}
 
-			controller, ok := impacttrace.BuildDeploymentSourceControllerEntity(entity)
+			controller, ok := deployment.BuildDeploymentSourceControllerEntity(entity)
 			if !ok {
-				t.Fatal("impacttrace.BuildDeploymentSourceControllerEntity() ok = false, want true for a registered FluxHelmRelease entity type")
+				t.Fatal("deployment.BuildDeploymentSourceControllerEntity() ok = false, want true for a registered FluxHelmRelease entity type")
 			}
 			roots, _ := controller["source_roots"].([]string)
 			if len(roots) != len(tt.wantRoots) {

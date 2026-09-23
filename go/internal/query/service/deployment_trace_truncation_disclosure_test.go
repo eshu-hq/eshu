@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestQueryProvisioningRepositoryCandidatesDisclosesTruncation is the #5720
-// round-2 P1-1 regression. Before this fix, impacttrace.QueryProvisioningRepositoryCandidates
+// round-2 P1-1 regression. Before this fix, deployment.QueryProvisioningRepositoryCandidates
 // requested exactly `limit` rows, so "the backend had exactly limit matching
 // rows" and "the backend had more than limit and the rest were silently
 // dropped" produced an identical return value -- every caller (dependents,
@@ -46,9 +46,9 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 			return rows, nil
 		}}
 
-		candidates, truncated, err := impacttrace.QueryProvisioningRepositoryCandidates(context.Background(), reader, "repository:orders", limit)
+		candidates, truncated, err := deployment.QueryProvisioningRepositoryCandidates(context.Background(), reader, "repository:orders", limit)
 		if err != nil {
-			t.Fatalf("impacttrace.QueryProvisioningRepositoryCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.QueryProvisioningRepositoryCandidates() error = %v, want nil", err)
 		}
 		if !truncated {
 			t.Fatalf("truncated = false, want true (backend returned limit+1 = %d rows for a limit of %d)", len(rows), limit)
@@ -76,9 +76,9 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 			return rows, nil
 		}}
 
-		candidates, truncated, err := impacttrace.QueryProvisioningRepositoryCandidates(context.Background(), reader, "repository:orders", limit)
+		candidates, truncated, err := deployment.QueryProvisioningRepositoryCandidates(context.Background(), reader, "repository:orders", limit)
 		if err != nil {
-			t.Fatalf("impacttrace.QueryProvisioningRepositoryCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.QueryProvisioningRepositoryCandidates() error = %v, want nil", err)
 		}
 		if truncated {
 			t.Fatalf("truncated = true, want false (backend returned exactly limit = %d rows, nothing was dropped)", limit)
@@ -176,10 +176,10 @@ func TestBuildServiceResultLimitsWithContextDisclosesUpstreamTruncation(t *testi
 }
 
 // TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation
-// proves impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates
+// proves deployment.LoadConsumerRepositoryEnrichmentFromCandidates
 // (deployment_trace_candidate_enrichment.go) reports truncation from both of
 // its two independent sources: the upstream candidatesTruncated flag passed
-// in from impacttrace.QueryProvisioningRepositoryCandidates, and its own final
+// in from deployment.QueryProvisioningRepositoryCandidates, and its own final
 // consumers[:limit] cap over the merged graph-candidate/content-evidence set
 // (line ~146), which can trim rows even when the graph candidates themselves
 // were not truncated.
@@ -188,14 +188,14 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 
 	t.Run("propagates an upstream candidatesTruncated flag", func(t *testing.T) {
 		t.Parallel()
-		candidates := []impacttrace.ProvisioningRepositoryCandidate{
+		candidates := []deployment.ProvisioningRepositoryCandidate{
 			{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 		}
-		_, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		_, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, true, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if !truncated {
 			t.Fatalf("truncated = false, want true (must propagate the upstream candidatesTruncated flag)")
@@ -204,14 +204,14 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 
 	t.Run("no truncation when candidates fit and the flag is false", func(t *testing.T) {
 		t.Parallel()
-		candidates := []impacttrace.ProvisioningRepositoryCandidate{
+		candidates := []deployment.ProvisioningRepositoryCandidate{
 			{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 		}
-		_, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		_, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if truncated {
 			t.Fatalf("truncated = true, want false")
@@ -220,16 +220,16 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 
 	t.Run("detects its own final-cap truncation independent of the upstream flag", func(t *testing.T) {
 		t.Parallel()
-		candidates := []impacttrace.ProvisioningRepositoryCandidate{
+		candidates := []deployment.ProvisioningRepositoryCandidate{
 			{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 			{RepoID: "repository:consumer-2", RepoName: "consumer-2", RelationshipTypes: []string{"USES_MODULE"}},
 			{RepoID: "repository:consumer-3", RepoName: "consumer-3", RelationshipTypes: []string{"USES_MODULE"}},
 		}
-		consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 2, candidates, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if !truncated {
 			t.Fatalf("truncated = false, want true (3 candidates capped to a limit of 2 by the function's own final cap)")
@@ -345,7 +345,7 @@ func TestBuildServiceResultLimitsReportsTheDownstreamReadBound(t *testing.T) {
 //
 // Round 2 fixed two truncation sources and left a comment asserting there were
 // only two. Two more sit UPSTREAM of both, inside this same call:
-// impacttrace.IndirectEvidenceHostnameLimit (a hard cap of 4) drops hostnames before any
+// deployment.IndirectEvidenceHostnameLimit (a hard cap of 4) drops hostnames before any
 // consumer search runs, and each per-search content read has its own row cap.
 // A repository either bound drops never enters consumersByRepo at all, so the
 // merged set fits comfortably under limit, this function's own final cap never
@@ -356,34 +356,34 @@ func TestBuildServiceResultLimitsReportsTheDownstreamReadBound(t *testing.T) {
 func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBounds(t *testing.T) {
 	t.Parallel()
 
-	oneCandidate := []impacttrace.ProvisioningRepositoryCandidate{
+	oneCandidate := []deployment.ProvisioningRepositoryCandidate{
 		{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 	}
 
-	t.Run("hostname cap above impacttrace.IndirectEvidenceHostnameLimit discloses", func(t *testing.T) {
+	t.Run("hostname cap above deployment.IndirectEvidenceHostnameLimit discloses", func(t *testing.T) {
 		t.Parallel()
 
 		// Nine hostnames, none carrying the service's own distinctive token,
 		// so the affinity filter falls through to the first-N fallback and
-		// impacttrace.IndirectEvidenceHostnameLimit drops five of them.
-		hostnames := make([]string, 0, impacttrace.IndirectEvidenceHostnameLimit*2+1)
-		for index := range impacttrace.IndirectEvidenceHostnameLimit*2 + 1 {
+		// deployment.IndirectEvidenceHostnameLimit drops five of them.
+		hostnames := make([]string, 0, deployment.IndirectEvidenceHostnameLimit*2+1)
+		for index := range deployment.IndirectEvidenceHostnameLimit*2 + 1 {
 			hostnames = append(hostnames, fmt.Sprintf("vanity-%02d.example.test", index))
 		}
-		consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
 			hostnames, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if got, want := len(consumers), querycontract.DefaultIndirectEvidenceSearchLimit; got >= want {
 			t.Fatalf("len(consumers) = %d, want well under the limit of %d so only the hostname bound can set the flag", got, want)
 		}
 		if !truncated {
 			t.Fatalf(
-				"truncated = false, want true (%d hostnames were bounded to impacttrace.IndirectEvidenceHostnameLimit = %d, so consumers reachable only through the dropped ones were never searched for)",
-				len(hostnames), impacttrace.IndirectEvidenceHostnameLimit,
+				"truncated = false, want true (%d hostnames were bounded to deployment.IndirectEvidenceHostnameLimit = %d, so consumers reachable only through the dropped ones were never searched for)",
+				len(hostnames), deployment.IndirectEvidenceHostnameLimit,
 			)
 		}
 	})
@@ -391,7 +391,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 	t.Run("hostname affinity narrowing discloses", func(t *testing.T) {
 		t.Parallel()
 
-		// #5720 round-8 P1-2. impacttrace.BoundedIndirectEvidenceHostnamesForService has
+		// #5720 round-8 P1-2. deployment.BoundedIndirectEvidenceHostnamesForService has
 		// two drop paths and returned one bool, which reported only the 4-cap.
 		// The subtest above routes AROUND the affinity filter on purpose (nine
 		// hostnames, none carrying the service's token, so it falls through to
@@ -407,27 +407,27 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 			"legacy-billing.acme.test",
 			"cart-gw.acme.test",
 		}
-		kept, hostnamesTruncated := impacttrace.BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
+		kept, hostnamesTruncated := deployment.BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
 		if got, want := len(kept), 1; got != want {
 			t.Fatalf("len(kept hostnames) = %d, want %d (only orders.example.com carries the service token)", got, want)
 		}
-		if got := len(kept); got > impacttrace.IndirectEvidenceHostnameLimit {
-			t.Fatalf("len(kept hostnames) = %d, want at most impacttrace.IndirectEvidenceHostnameLimit = %d so the 4-cap cannot be the source", got, impacttrace.IndirectEvidenceHostnameLimit)
+		if got := len(kept); got > deployment.IndirectEvidenceHostnameLimit {
+			t.Fatalf("len(kept hostnames) = %d, want at most deployment.IndirectEvidenceHostnameLimit = %d so the 4-cap cannot be the source", got, deployment.IndirectEvidenceHostnameLimit)
 		}
 		if !hostnamesTruncated {
 			t.Fatalf(
-				"impacttrace.BoundedIndirectEvidenceHostnamesForService(%d hostnames, %q) truncated = false, want true (%d were dropped by the affinity filter, not by impacttrace.IndirectEvidenceHostnameLimit = %d)",
-				len(hostnames), "orders-api", len(hostnames)-len(kept), impacttrace.IndirectEvidenceHostnameLimit,
+				"deployment.BoundedIndirectEvidenceHostnamesForService(%d hostnames, %q) truncated = false, want true (%d were dropped by the affinity filter, not by deployment.IndirectEvidenceHostnameLimit = %d)",
+				len(hostnames), "orders-api", len(hostnames)-len(kept), deployment.IndirectEvidenceHostnameLimit,
 			)
 		}
 
 		// The signal has to survive the call that actually reaches the wire.
-		consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, querytestutil.FakePortContentStore{}, "repository:orders", "orders-api",
 			hostnames, querycontract.DefaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if got, want := len(consumers), querycontract.DefaultIndirectEvidenceSearchLimit; got >= want {
 			t.Fatalf("len(consumers) = %d, want well under the limit of %d so only the affinity drop can set the flag", got, want)
@@ -454,12 +454,12 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		content := querytestutil.PatternConsumerSearchContentStore{
 			ExactRows: map[string][]querycontract.FileContent{"orders-api": rows},
 		}
-		consumers, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		consumers, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, content, "repository:orders", "orders-api",
 			nil, limit, oneCandidate, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if got, want := len(consumers), limit; got >= want {
 			t.Fatalf("len(consumers) = %d, want under the limit of %d so only the per-search cap can set the flag", got, want)
@@ -478,12 +478,12 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 				"orders-api": {{RepoID: "repository:search-consumer", RelativePath: "deploy/values.yaml"}},
 			},
 		}
-		_, truncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
+		_, truncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, content, "repository:orders", "orders-api",
 			nil, limit, oneCandidate, false, false,
 		)
 		if err != nil {
-			t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+			t.Fatalf("deployment.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
 		}
 		if truncated {
 			t.Fatal("truncated = true, want false (one row against a cap of 3 dropped nothing)")

@@ -339,7 +339,7 @@ func serviceInvestigationCoverage(
 	// reported "25 graph dependent(s)" with truncated: false, identical to the
 	// pre-fix behavior. The three *_truncated signals
 	// service/query_enrichment.go sets from
-	// impacttrace.QueryProvisioningRepositoryCandidates are the only thing
+	// deployment.QueryProvisioningRepositoryCandidates are the only thing
 	// that makes that bound observable on this route.
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||

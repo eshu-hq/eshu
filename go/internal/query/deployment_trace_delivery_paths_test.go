@@ -6,13 +6,13 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 )
 
 func TestBuildNormalizedDeliveryPathsFiltersEmptyAndDeduplicates(t *testing.T) {
 	t.Parallel()
 
-	got := impacttrace.BuildNormalizedDeliveryPaths(
+	got := deployment.BuildNormalizedDeliveryPaths(
 		[]map[string]any{
 			{
 				"repo_id":    "repo-helm",
@@ -69,7 +69,7 @@ func TestBuildNormalizedDeliveryPathsFiltersEmptyAndDeduplicates(t *testing.T) {
 	)
 
 	if gotCount, want := len(got), 6; gotCount != want {
-		t.Fatalf("len(impacttrace.BuildNormalizedDeliveryPaths()) = %d, want %d; rows=%#v", gotCount, want, got)
+		t.Fatalf("len(deployment.BuildNormalizedDeliveryPaths()) = %d, want %d; rows=%#v", gotCount, want, got)
 	}
 
 	for _, row := range got {

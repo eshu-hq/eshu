@@ -14,14 +14,14 @@ source_coverage:
     calls:
       - {symbol: "(*Handler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot: {class: label_inventory, source_sha256: 3665a107baeaf39365f5d1ce0a1a0dcb4645afdd4d3943221c7a9c1de62b0731, label: "Workload", max_results: 5001}}
       - {symbol: "(*Handler).catalogWorkloadEnrichments", count: 3, source_sha256: 03d374880437740f9e4e833d7bd13c99486187b6ceb9b9cd106ba977e914e5fd, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
-  - file: impacttrace/cloud_resource_candidates.go
+  - file: impact/deployment/cloud_resource_candidates.go
     calls:
       - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: 4e68e222f8f3a30f8a9eecdde969a0d9c7548928f6427b43085356917659d0ed, key_bound: single_key, max_results: 51}}
-  - file: impacttrace/cloud_resource_dependencies.go
+  - file: impact/deployment/cloud_resource_dependencies.go
     calls:
       - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: cb25567150f575246fd0cbdfe9d876db5ed4b5b1ba72b33d03fe1ae012d730d9, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
       - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: c12098c98fcc3e9bbdd585558eb57eaf01e5badd257e6f24068d61e04c86cb47, entry_ids: [QP-SVC-CLOUD-DEPS]}
-  - file: impacttrace/deployment_trace_enrichment.go
+  - file: impact/deployment/enrichment.go
     calls:
       - {symbol: "QueryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 04fe31e5ded3fa10bf241df57165eb744896a77da3d5c8a6215c099560c0b76c, key_bound: single_key, max_results: 101}}
   - file: cloud_resource_owner_backfill.go
@@ -180,7 +180,7 @@ source_coverage:
       - {symbol: "(*CompareHandler).fetchWorkload", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact/contract.go
     calls:
-      - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: e1bf16c4924047b2c8232ee5b054cb70f43b13e0793b335ec63b00886ebf4612, key_bound: single_key, max_results: 101}}
+      - {symbol: "(*Handler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: 674df6290fa12d5ea54f15c195290cbf01524cf0a9edf0e56b513331b849b590, key_bound: single_key, max_results: 101}}
   - file: dependencies.go
     calls:
       - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 7654f63d3d81bd1ae83285c45cc2623a20d03dfb6d312bbb9ad02ad185f66401, entry_ids: [QP-SC-DEPS]}
@@ -324,8 +324,8 @@ source_coverage:
   - file: impact/handler.go
     calls:
       - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 3c3efdeafb018a235d55ed2b2cabf6959f484d8d7972beae169e70be1543d803, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
-      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: 281827d1a38e1076cf436fcc748b20bb302d9636603249dd61272558c1e0627d, key_bound: single_key, max_results: 201}}
-  - file: impacttrace/impact_anchor_resolve.go
+      - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: 728855a81f5bc56d71295f0b7bb101711c29ee30e3878cfc68e8f8ac74fa8209, key_bound: single_key, max_results: 201}}
+  - file: impact/deployment/impact_anchor_resolve.go
     calls:
       - {symbol: "ResolveImpactAnchorNode", count: 1, non_hot: {class: keyed_support, source_sha256: 84c0a9f746449f8a7e30dbefc8a2371b1b03d4c660b774b1bfbe39a0fe6a9800, key_bound: single_key, max_results: 1}}
   - file: impact/blast_radius.go
@@ -357,14 +357,14 @@ source_coverage:
   - file: impact/resource_investigation_reads.go
     calls:
       - {symbol: "(*Handler).ResourceInvestigationInstanceWorkloads", count: 1, source_sha256: 7939e3c2d92d21ea6ebdd792fab084628d3157a00c0138f776431b25cb7e8ffc, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
-      - {symbol: "(*Handler).ResourceInvestigationRepoPaths", count: 1, source_sha256: 28e0fdff6da6e4815ac00c3c835a7e700b590a050371b7e960d7d08df2385829, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
-      - {symbol: "(*Handler).ResourceInvestigationWorkloads", count: 1, source_sha256: 0c266cfc8585450b34d7c4008e4ce1dda5786f3b2250eae396108ed8f0217a95, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
+      - {symbol: "(*Handler).ResourceInvestigationRepoPaths", count: 1, source_sha256: 64187a07f37da9e4ec8bad8dd3512612e5218a42fac83f68c551c14250d8c751, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
+      - {symbol: "(*Handler).ResourceInvestigationWorkloads", count: 1, source_sha256: 2056d9235925f50018befedd82fbf5e1d9a0ca15a996a8f40e298897c643327e, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
   - file: impact/trace_deployment_controllers.go
     calls:
       - symbol: "countWorkloadsDefinedByRepo"
         count: 1
         non_hot: {class: keyed_support, source_sha256: 216f4cf94b082753ed5c6f832a6cae1950cd485f9cb6c11e73e2a62360bdb938, key_bound: single_key, max_results: 2}
-  - file: impacttrace/impact_trace_deployment_flux_bindings.go
+  - file: impact/deployment/flux_bindings.go
     calls:
       - {symbol: "FetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
   - file: impact/trace_deployment_sources.go
@@ -382,8 +382,8 @@ source_coverage:
       - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: 112caca2d19c87a17a7f34799ba61e7c303d8f58feede1eac0d96fc11ae10d33, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
-      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9dd90cb74928ac0f21d817744349736e7e0c38a52f5faa7cbd619eda95ab9337, key_bound: single_key, max_results: 2501}}
-  - file: impacttrace/workload_selection.go
+      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8a8ae375580c5df13960ae8c5767a0981b6ef37638bf643db72c5b4cdbf8fa7e, key_bound: single_key, max_results: 2501}}
+  - file: impact/deployment/workload_selection.go
     calls:
       - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 9f8e2cf82d5a6e8c93d76f0227be983968004d6b9208d7b8750432d3dd173d49, key_bound: single_key, max_results: 51}}
   - file: entity/workload_provisioned_platforms.go

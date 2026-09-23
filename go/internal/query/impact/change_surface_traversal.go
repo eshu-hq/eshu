@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -230,7 +230,7 @@ func changeSurfaceFilterTraversalRows(
 		if environment != "" && env != "" && env != environment {
 			continue
 		}
-		if !impacttrace.ImpactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
+		if !deployment.ImpactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
 			continue
 		}
 		if !changeSurfaceRowLabelAdmitted(row) {

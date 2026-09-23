@@ -156,6 +156,16 @@ docs/internal/evidence/5167-code-family-batch-1.md:go/internal/query/queryselect
 docs/internal/evidence/6786-nornicdb-400-409-exposure.md:go/internal/query/queryselector/entity_repo_identity.go
 docs/internal/design/6642-query-move-checklist.md:go/internal/query/queryselector/entity_repo_identity.go
 docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/queryselector/entity_repo_identity_test.go
+# #6818 deployment move evidence: same BEFORE-state pin as the rows above.
+# These dated evidence and design docs describe the tree as it stood when
+# written; repointing would falsify the record.
+docs/internal/evidence/6782-slice3-differential-oracle.md:go/internal/query/impacttrace/cloud_resource_dependencies.go
+docs/internal/evidence/6794-context-incoming-anchor.md:go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/impacttrace/workload_selection.go
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/impacttrace/scoped_selector_live_test.go
+docs/internal/evidence/6811-deployment-anchor-reads.md:go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace/impact_anchor_resolve.go
+docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace/workload_selection.go
 # #6694 cypher edge leaf moves: edge_writer_*.go -> cypher/edge/writer/*.go,
 # materialized_edge_*.go -> cypher/edge/materialized/*.go, materializededges/
 # materialized_edges_*.go -> stripped stems. The dated evidence notes, design

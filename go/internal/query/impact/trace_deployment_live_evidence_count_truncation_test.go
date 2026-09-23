@@ -13,20 +13,20 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-// atLimitMatches builds querycontract.ServiceStoryItemLimit distinct impacttrace.LiveIdentityMatch rows
+// atLimitMatches builds querycontract.ServiceStoryItemLimit distinct deployment.LiveIdentityMatch rows
 // (distinct ClusterID+ObjectID so the cross-anchor dedup never collapses
 // them), modelling a single anchor's ListLiveIdentityMatches read landing
 // exactly on the store's LIMIT -- the store cannot tell "exactly N matched
 // objects" from "N or more exist, truncated at N" (#5663).
-func atLimitMatches() []impacttrace.LiveIdentityMatch {
-	matches := make([]impacttrace.LiveIdentityMatch, querycontract.ServiceStoryItemLimit)
+func atLimitMatches() []deployment.LiveIdentityMatch {
+	matches := make([]deployment.LiveIdentityMatch, querycontract.ServiceStoryItemLimit)
 	for i := range matches {
-		matches[i] = impacttrace.LiveIdentityMatch{
+		matches[i] = deployment.LiveIdentityMatch{
 			ClusterID:     fmt.Sprintf("cluster-%d", i),
 			ObjectID:      fmt.Sprintf("obj-%d", i),
 			ReadyReplicas: int32Ptr(1),
@@ -45,7 +45,7 @@ func TestFetchWorkloadLiveInstanceSummaryAnchorAtLimitTruncated(t *testing.T) {
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: atLimitMatches(),
 		},
 	}
@@ -72,7 +72,7 @@ func TestFetchWorkloadLiveInstanceSummaryUnderLimitNotTruncated(t *testing.T) {
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: {{ClusterID: "c", ObjectID: "obj-a", ReadyReplicas: int32Ptr(3)}},
 		},
 	}
@@ -104,12 +104,12 @@ func TestFetchWorkloadLiveInstanceSummaryAnyAnchorAtLimitTruncatesWholeSummary(t
 		querytestutil.K8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1"),
 		querytestutil.K8sResourceFixture("Deployment", "workload-b", "ns", "apps/v1"),
 	}
-	trackingIDs := impacttrace.ExpectedArgoCDTrackingIDs(controllers, resources)
+	trackingIDs := deployment.ExpectedArgoCDTrackingIDs(controllers, resources)
 	if len(trackingIDs) != 2 {
 		t.Fatalf("test fixture bug: want 2 tracking ids, got %d", len(trackingIDs))
 	}
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingIDs[0]: atLimitMatches(),
 			trackingIDs[1]: {{ObjectID: "obj-under", ReadyReplicas: int32Ptr(2)}},
 		},
@@ -159,12 +159,12 @@ func TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasAtLimitStaysNil(t *t
 	t.Parallel()
 
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
-	matches := make([]impacttrace.LiveIdentityMatch, querycontract.ServiceStoryItemLimit)
+	matches := make([]deployment.LiveIdentityMatch, querycontract.ServiceStoryItemLimit)
 	for i := range matches {
-		matches[i] = impacttrace.LiveIdentityMatch{ClusterID: fmt.Sprintf("cluster-%d", i), ObjectID: fmt.Sprintf("obj-%d", i)}
+		matches[i] = deployment.LiveIdentityMatch{ClusterID: fmt.Sprintf("cluster-%d", i), ObjectID: fmt.Sprintf("obj-%d", i)}
 	}
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]impacttrace.LiveIdentityMatch{
+		matchesByTrackingID: map[string][]deployment.LiveIdentityMatch{
 			trackingID: matches,
 		},
 	}

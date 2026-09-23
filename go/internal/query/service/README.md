@@ -29,7 +29,7 @@ unchanged).
 
 The deployment-trace enrichment the service enrichment consumes
 (provisioning candidates, source chains, consumer enrichment, hostname
-bounds) lives in `impacttrace`, not here: it is deployment family, shared
+bounds) lives in `deployment`, not here: it is deployment family, shared
 with the staying deployment-trace wrappers. Shared read-model loaders, row
 decoders, bounds, and ports live in `querycontract`; YAML/OpenAPI content
 parsing lives in `service/evidence`; repository overviews live in
@@ -54,7 +54,7 @@ pins go through `querytestutil` or `querycontract`.
 
 The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds), `selector` (selector resolution),
-`querytestutil`-adjacent fakes in tests only, `impact`/`impacttrace`
+`querytestutil`-adjacent fakes in tests only, `impact`/`deployment`
 (deployment seams), `repository`/`repositoryartifacts` (deployment and
 relationship overviews), `service/evidence` (spec parsing), `supplychain`
 (image/SBOM read models), `doctruth` (image-ref normalization), and the

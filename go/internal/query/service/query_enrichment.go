@@ -9,7 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -139,8 +139,8 @@ func EnrichServiceQueryContextWithOptions(
 	if graph != nil {
 		hostnames := serviceEvidenceHostnames(evidence)
 		traceLimit := querycontract.BoundedTraceEnrichmentLimit(opts.MaxDepth)
-		candidates := []impacttrace.ProvisioningRepositoryCandidate{}
-		// #5720 round-2 P1-1: impacttrace.QueryProvisioningRepositoryCandidates is the
+		candidates := []deployment.ProvisioningRepositoryCandidate{}
+		// #5720 round-2 P1-1: deployment.QueryProvisioningRepositoryCandidates is the
 		// sole production feeder for dependents, consumer_repositories, and
 		// provisioning_source_chains, so its truncated bool is the one
 		// disclosure signal all three fields need -- carried on
@@ -152,12 +152,12 @@ func EnrichServiceQueryContextWithOptions(
 		var candidatesTruncated bool
 		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
 			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
-			candidates, candidatesTruncated, err = impacttrace.QueryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
+			candidates, candidatesTruncated, err = deployment.QueryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
 			if err != nil {
 				timer.Done(ctx, slog.Int("row_count", len(candidates)))
 				return fmt.Errorf("load graph provisioning candidates: %w", err)
 			}
-			// #5167 W3 P0 (fifth vector): impacttrace.QueryProvisioningRepositoryCandidates
+			// #5167 W3 P0 (fifth vector): deployment.QueryProvisioningRepositoryCandidates
 			// anchors on the service's own grant-verified repo and traverses to the
 			// FAR provisioning/consuming repository with no grant predicate, so a
 			// scoped caller could otherwise read a cross-tenant repo's id/name.
@@ -165,8 +165,8 @@ func EnrichServiceQueryContextWithOptions(
 			// every route that runs this enrichment (service/workload context and
 			// story, /investigations/services/{name}, and
 			// /impact/trace-deployment-chain) shares -- before BuildGraphDependents,
-			// impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates, and
-			// impacttrace.LoadProvisioningSourceChainsFromCandidates derive the dependents,
+			// deployment.LoadConsumerRepositoryEnrichmentFromCandidates, and
+			// deployment.LoadProvisioningSourceChainsFromCandidates derive the dependents,
 			// consumer_repositories, and provisioning_source_chains fields from it.
 			// Deny-by-default when scoped; all-scopes/shared/admin unaffected.
 			candidates = impact.FilterProvisioningRepositoryCandidatesForAccess(candidates, querycontract.RepositoryAccessFilterFromContext(ctx))
@@ -214,7 +214,7 @@ func EnrichServiceQueryContextWithOptions(
 
 			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
 			// #5720 round-9 P1-1: evidence.filesTruncated is source 0 of the
-			// enumeration on impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates.
+			// enumeration on deployment.LoadConsumerRepositoryEnrichmentFromCandidates.
 			// `hostnames` above is derived from the file list
 			// LoadServiceQueryEvidence read at serviceEvidenceFileLimit, so a
 			// full page there means a hostname past the cut was never
@@ -224,7 +224,7 @@ func EnrichServiceQueryContextWithOptions(
 			// candidate slice, which this file read does not touch, so
 			// stamping them would report a bound that never applied to those
 			// lists.
-			consumers, consumersTruncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
+			consumers, consumersTruncated, err := deployment.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)
@@ -244,7 +244,7 @@ func EnrichServiceQueryContextWithOptions(
 
 		if opts.IncludeRelatedModuleUsage {
 			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "provisioning_source_chains")
-			provisioningChains, err := impacttrace.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+			provisioningChains, err := deployment.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
 			timer.Done(ctx, slog.Int("row_count", len(provisioningChains)))
 			if err != nil {
 				return fmt.Errorf("load provisioning source chains: %w", err)
@@ -261,7 +261,7 @@ func EnrichServiceQueryContextWithOptions(
 		if len(querycontract.MapSliceValue(workloadContext, "cloud_resources")) == 0 {
 			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "cloud_resource_dependencies")
 			workloadID := querycontract.SafeStr(workloadContext, "id")
-			cloudResources, err := impacttrace.LoadMaterializedServiceCloudResourceDependencies(
+			cloudResources, err := deployment.LoadMaterializedServiceCloudResourceDependencies(
 				ctx,
 				graph,
 				repoID,
@@ -279,7 +279,7 @@ func EnrichServiceQueryContextWithOptions(
 		}
 		if len(querycontract.MapSliceValue(workloadContext, "cloud_resources")) == 0 {
 			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "uncorrelated_cloud_resource_candidates")
-			cloudCandidates, cloudCandidatesTruncated, err := impacttrace.LoadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, serviceStoryItemLimit)
+			cloudCandidates, cloudCandidatesTruncated, err := deployment.LoadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, serviceStoryItemLimit)
 			timer.Done(
 				ctx,
 				slog.Int("row_count", len(cloudCandidates)),

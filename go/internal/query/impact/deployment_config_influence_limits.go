@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package impact
+package impact //nolint:dirgate // Handler methods stay in impact; deployment/ holds non-method helpers only (#6818).
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"

@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -65,7 +65,7 @@ func fetchServiceTraceContext(
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
 	entityHandler := &entity.Handler{Neo4j: graph, Content: content, Logger: logger, Instruments: instruments}
-	workloadID, err := impacttrace.ResolveWorkloadSelector(ctx, graph, serviceName, logger, instruments)
+	workloadID, err := deployment.ResolveWorkloadSelector(ctx, graph, serviceName, logger, instruments)
 	if err != nil {
 		return nil, err
 	}

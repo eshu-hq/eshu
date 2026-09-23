@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -224,12 +224,12 @@ func TestBuildDeploymentTraceResponseIncludesK8sResourceLimits(t *testing.T) {
 		"observed_count_is_lower_bound": true,
 		"truncated":                     true,
 	}
-	got := impacttrace.BuildDeploymentTraceResponse("payments-api", map[string]any{
+	got := deployment.BuildDeploymentTraceResponse("payments-api", map[string]any{
 		"id":                  "workload:payments-api",
 		"name":                "payments-api",
 		"k8s_resource_limits": want,
 	}, map[string]any{})
 	if gotLimits := querycontract.MapValue(got, "k8s_resource_limits"); len(gotLimits) == 0 {
-		t.Fatal("impacttrace.BuildDeploymentTraceResponse() omitted k8s_resource_limits")
+		t.Fatal("deployment.BuildDeploymentTraceResponse() omitted k8s_resource_limits")
 	}
 }

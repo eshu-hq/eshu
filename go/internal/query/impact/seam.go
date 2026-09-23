@@ -7,7 +7,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -30,9 +30,9 @@ import (
 type K8sResourceResult = k8sResourceResult
 
 // ProvisioningRepositoryCandidate is the exported seam for
-// impacttrace.ProvisioningRepositoryCandidate, which the service family reads
+// deployment.ProvisioningRepositoryCandidate, which the service family reads
 // from outside the impact move set. See #6060.
-type ProvisioningRepositoryCandidate = impacttrace.ProvisioningRepositoryCandidate
+type ProvisioningRepositoryCandidate = deployment.ProvisioningRepositoryCandidate
 
 // DeploymentSourceResult is the exported seam for deploymentSourceResult,
 // which the deployment-config-influence family reads from outside the impact
@@ -62,9 +62,9 @@ const (
 )
 
 // ErrAmbiguousTraceWorkloadSelector is the exported seam for
-// impacttrace.ErrAmbiguousWorkloadSelector, which the deployment-config-influence
+// deployment.ErrAmbiguousWorkloadSelector, which the deployment-config-influence
 // family reads from outside the impact move set. See #6060.
-var ErrAmbiguousTraceWorkloadSelector = impacttrace.ErrAmbiguousWorkloadSelector
+var ErrAmbiguousTraceWorkloadSelector = deployment.ErrAmbiguousWorkloadSelector
 
 // BoundedK8sResourceResult is the exported seam for boundedK8sResourceResult,
 // which the deployment-config-influence family calls from outside the impact
@@ -119,13 +119,13 @@ func PreChangeSummary(data map[string]any) string {
 	return preChangeSummary(data)
 }
 
-// RepoIDAllowed is the exported seam for impacttrace.ImpactRepoIDAllowed,
+// RepoIDAllowed is the exported seam for deployment.ImpactRepoIDAllowed,
 // which the compare and contract families call from outside the impact move
 // set. The querycontract.RepositoryAccessFilter parameter names the
 // already-exported querycontract type, which root now names directly
 // (#6642 deleted root's unexported alias). See #6060.
 func RepoIDAllowed(repoID string, access querycontract.RepositoryAccessFilter) bool {
-	return impacttrace.ImpactRepoIDAllowed(repoID, access)
+	return deployment.ImpactRepoIDAllowed(repoID, access)
 }
 
 // FilterRowsByRepoIDForAccess is the exported seam for
@@ -133,7 +133,7 @@ func RepoIDAllowed(repoID string, access querycontract.RepositoryAccessFilter) b
 // calls from outside the impact move set. It forwards so the impact family
 // can move without touching callers. See #6060.
 func FilterRowsByRepoIDForAccess(rows []map[string]any, access querycontract.RepositoryAccessFilter) []map[string]any {
-	return impacttrace.FilterRowsByRepoIDForAccess(rows, access)
+	return deployment.FilterRowsByRepoIDForAccess(rows, access)
 }
 
 // FilterProvisioningRepositoryCandidatesForAccess is the exported seam for
@@ -144,7 +144,7 @@ func FilterProvisioningRepositoryCandidatesForAccess(
 	candidates []ProvisioningRepositoryCandidate,
 	access querycontract.RepositoryAccessFilter,
 ) []ProvisioningRepositoryCandidate {
-	return impacttrace.FilterProvisioningRepositoryCandidatesForAccess(candidates, access)
+	return deployment.FilterProvisioningRepositoryCandidatesForAccess(candidates, access)
 }
 
 // NormalizeImpactListLimit is the exported seam for normalizeImpactListLimit,
@@ -220,11 +220,11 @@ func FetchServiceTraceContext(
 	return DefaultTraceContext.FetchServiceTraceContext(ctx, graph, content, logger, nil, serviceName, traceOptions)
 }
 
-// JoinOrNone is the exported seam for impacttrace.JoinOrNone, which the repository and
+// JoinOrNone is the exported seam for deployment.JoinOrNone, which the repository and
 // service families call from outside the impact move set. It forwards so the
 // impact family can move without touching callers. See #6060.
 func JoinOrNone(values []string) string {
-	return impacttrace.JoinOrNone(values)
+	return deployment.JoinOrNone(values)
 }
 
 // ResolvedProfile is the exported seam for (*Handler).profile, which

@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -115,7 +115,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, req.ServiceName, traceOptions)
 	if err != nil {
-		if errors.Is(err, impacttrace.ErrAmbiguousWorkloadSelector) {
+		if errors.Is(err, deployment.ErrAmbiguousWorkloadSelector) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -168,7 +168,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(cloudResources) == 0 && len(querycontract.MapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
-			configRows, configTruncated, configErr := impacttrace.LoadConfigDerivedCloudResourceDependenciesBounded(
+			configRows, configTruncated, configErr := deployment.LoadConfigDerivedCloudResourceDependenciesBounded(
 				r.Context(),
 				h.Neo4j,
 				querycontract.MapValue(ctx, "deployment_evidence"),
@@ -185,14 +185,14 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 				ctx["uncorrelated_cloud_resources_truncated"] = true
 			}
 			if len(configRows) > 0 && len(querycontract.MapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
-				ctx["uncorrelated_cloud_resources"] = impacttrace.DeploymentTraceCloudCandidates(configRows)
+				ctx["uncorrelated_cloud_resources"] = deployment.DeploymentTraceCloudCandidates(configRows)
 			}
 		}
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")
 		} else if len(querycontract.MapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
-			cloudCandidates, cloudCandidatesTruncated, err := impacttrace.LoadUncorrelatedCloudResourceCandidatesBounded(
+			cloudCandidates, cloudCandidatesTruncated, err := deployment.LoadUncorrelatedCloudResourceCandidatesBounded(
 				r.Context(), h.Neo4j, querycontract.SafeStr(ctx, "name"), querycontract.ServiceStoryItemLimit,
 			)
 			if err != nil {
@@ -327,7 +327,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := impacttrace.BuildDeploymentTraceResponse(req.ServiceName, ctx, h.traceContext().BuildServiceDeploymentOverview(ctx))
+	response := deployment.BuildDeploymentTraceResponse(req.ServiceName, ctx, h.traceContext().BuildServiceDeploymentOverview(ctx))
 	evidence.AttachEvidenceBoundaries(response, "trace_deployment_chain")
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", querycontract.TruthBasisHybrid, "resolved from deployment topology and service evidence"))
 }

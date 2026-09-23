@@ -24,7 +24,7 @@ import (
 const queryScopedGrantDeniedMetric = "eshu_dp_query_scoped_grant_denied_total"
 
 // newTestInstruments builds a real OTEL Instruments backed by a manual
-// reader, mirroring impacttrace's sibling test helper of the same name
+// reader, mirroring deployment's sibling test helper of the same name
 // (different package, so no import cycle) so both #6786 R2-4 emission seams
 // are proven against the actual wire-level counter.
 func newTestInstruments(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -63,12 +63,12 @@ func FetchDeploymentSourceResultFromGraph(
 	}
 	repositoryReachedSentinel := len(repositoryRows) >= queryLimit
 	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
-	fluxTargetBindings, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(ctx, reader, repoID, deploymentSourceRepoIDs(repositoryRows), queryLimit, access)
+	fluxTargetBindings, err := deployment.FetchFluxDeploymentSourceTargetBindings(ctx, reader, repoID, deploymentSourceRepoIDs(repositoryRows), queryLimit, access)
 	if err != nil {
 		return deploymentSourceResult{}, err
 	}
 	fluxTargetBindingsReachedSentinel := fluxTargetBindings.FirstHopSaturated()
-	repositoryRows = impacttrace.AttachFluxDeploymentSourceTargetBindings(repositoryRows, fluxTargetBindings.Rows(), fluxTargetBindingsReachedSentinel)
+	repositoryRows = deployment.AttachFluxDeploymentSourceTargetBindings(repositoryRows, fluxTargetBindings.Rows(), fluxTargetBindingsReachedSentinel)
 	repositoryRows = deploymentSourceRowsWithCanonicalEndpoints(repositoryRows)
 	merged, err := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
 	if err != nil {

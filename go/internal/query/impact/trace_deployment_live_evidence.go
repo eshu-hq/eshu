@@ -26,7 +26,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -72,7 +72,7 @@ func (h *Handler) fetchWorkloadLiveEvidence(
 	defer span.End()
 	span.SetAttributes(attribute.Int("eshu.image_ref_count", len(imageRefs)))
 
-	anchors := impacttrace.ResolveLiveIdentityAnchors(controllers, k8sResources)
+	anchors := deployment.ResolveLiveIdentityAnchors(controllers, k8sResources)
 	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(anchors)))
 	if len(anchors) == 0 {
 		// Core fail-closed fix: no identity anchor was resolvable for the
@@ -107,7 +107,7 @@ func (h *Handler) fetchWorkloadLiveEvidence(
 	}
 
 	for _, anchor := range anchors {
-		filter := impacttrace.LiveIdentityAnchorFilter(anchor, imageRefs, access)
+		filter := deployment.LiveIdentityAnchorFilter(anchor, imageRefs, access)
 		matched, err := h.KubernetesPodTemplates.HasLiveIdentityMatch(ctx, filter)
 		if err != nil {
 			// Store errors fail closed to the config tier -- mirroring how

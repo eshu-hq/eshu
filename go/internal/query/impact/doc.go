@@ -5,5 +5,5 @@
 // lane B): the Handler HTTP surface plus every file that declares one
 // of its methods, the pre-change check types, and the exported seam the
 // staying root package consumes through aliases. Non-method helpers that the
-// family needs but do not touch handler state live in impacttrace.
+// family needs but do not touch handler state live in deployment.
 package impact
