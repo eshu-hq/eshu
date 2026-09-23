@@ -33,6 +33,24 @@
 # cannot be resolved to a merge-base (shallow history, an orphan ref, a bogus
 # override) is a hard failure, never a silent pass -- see find_merge_base.
 #
+# Base resolution order (#7002 P1, both a silent-narrowing bug class):
+#   1. ESHU_MIGRATION_IMMUTABILITY_BASE, if set -- an explicit override always
+#      wins.
+#   2. GITHUB_BASE_REF (real CI PR context): origin/$GITHUB_BASE_REF MUST
+#      resolve, after an --update-shallow fetch. If it still does not, this
+#      is a hard failure (exit 1) -- never fall back to a narrower base here,
+#      since that would silently shrink the diffed range below the PR's
+#      actual base.
+#   3. origin/main, if present (local/non-CI runs with a normal remote).
+#   4. Otherwise (no origin/main, no GITHUB_BASE_REF): walk to the root
+#      commit(s) reachable from HEAD (`git rev-list --max-parents=0 HEAD`)
+#      and diff the whole local history from there, with a loud stderr
+#      WARNING. A HEAD~1-only fallback here used to silently miss an earlier
+#      commit's violation on a >1-commit branch; a root walk always resolves
+#      locally (no network) and degrades correctly for a genuine
+#      single-commit repo (root == HEAD == an empty diff), so it needs no
+#      separate "skip, no history" case.
+#
 # Usage: scripts/verify-migration-immutability.sh
 # Exit codes:
 #   0 - no shipped migration was modified, deleted, or renamed since base
@@ -90,31 +108,64 @@ base_ref="${ESHU_MIGRATION_IMMUTABILITY_BASE:-}"
 if [ -z "$base_ref" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # An explicit destination refspec is required: `git fetch origin <branch>`
   # with no `:<dst>` only ever updates FETCH_HEAD, never
-  # refs/remotes/origin/<branch> (eshu-hq/eshu#5542). No --depth limit here:
-  # a shallow single-commit fetch of the base tip cannot reach a merge-base
-  # with HEAD once the branch has fallen behind, which is exactly the case
-  # this gate most needs to get right. find_merge_base deepens further if this
-  # still is not enough.
-  git -C "$repo_root" fetch --no-tags origin \
+  # refs/remotes/origin/<branch> (eshu-hq/eshu#5542). --update-shallow is
+  # required too: a shallow checkout can already hold this ref from an
+  # earlier fetch, and git refuses to move an existing ref in a shallow repo
+  # ("shallow roots are not allowed to be updated") unless told to (#7002
+  # P1-b) -- without it the fetch silently no-ops and origin/$GITHUB_BASE_REF
+  # is left stale or absent. No --depth limit here: a shallow single-commit
+  # fetch of the base tip cannot reach a merge-base with HEAD once the branch
+  # has fallen behind, which is exactly the case this gate most needs to get
+  # right. find_merge_base deepens further if this still is not enough.
+  #
+  # If origin/$GITHUB_BASE_REF still does not resolve after this, FAIL HARD
+  # rather than fall through to a narrower base (origin/main, a root walk):
+  # a CI PR run that cannot see its real base must never silently diff a
+  # smaller range than the actual PR -- that is the #7002 P1 class this gate
+  # exists to prevent, just on the resolution path instead of the diff path.
+  git -C "$repo_root" fetch --no-tags --update-shallow origin \
     "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base_ref="origin/$GITHUB_BASE_REF"
+  else
+    {
+      printf 'verify-migration-immutability: GITHUB_BASE_REF=%s is set but origin/%s ' \
+        "$GITHUB_BASE_REF" "$GITHUB_BASE_REF"
+      printf 'does not resolve after an --update-shallow fetch.\n'
+      printf 'Refusing to fall back to a narrower base (origin/main, a root walk) -- that\n'
+      printf 'would silently shrink the diffed range below the PR'"'"'s actual base. Give this\n'
+      printf 'job a deeper checkout (fetch-depth: 0) or a reachable origin/%s.\n' "$GITHUB_BASE_REF"
+    } >&2
+    exit 1
   fi
 fi
 if [ -z "$base_ref" ]; then
-  # Local (non-CI) runs, and CI with no resolvable GITHUB_BASE_REF: fall back
-  # to origin/main if present, else HEAD~1, else there is nothing to diff
-  # against at all (a single-commit repo/fixture) -- that is a genuine
-  # absence of history, not an error, so it is the one case that still skips.
+  # Local (non-CI) runs: prefer origin/main when present.
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
     base_ref="origin/main"
-  elif git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    base_ref="HEAD~1"
   else
-    printf 'verify-migration-immutability: no base commit available, skipping\n'
-    exit 0
+    # No origin/main and no GITHUB_BASE_REF: there is no reliable "PR base"
+    # signal at all. A HEAD~1-only fallback here used to diff just the last
+    # commit, silently missing an EARLIER commit's edit on a >1-commit local
+    # branch (#7002 P1-a) -- the same class of bug as the CI path above, on a
+    # different resolution branch. Walk to the root commit(s) reachable from
+    # HEAD instead: this always resolves purely locally (no network needed),
+    # and for a genuine single-commit repo/fixture the root IS HEAD, so the
+    # diff is naturally empty -- no separate "skip, no history" case is
+    # needed. `rev-list --max-parents=0` can print more than one root when
+    # unrelated histories were merged; taking the oldest (last line) is a
+    # deliberately conservative choice -- it only ever widens the diffed
+    # range, never narrows it.
+    base_ref="$(git -C "$repo_root" rev-list --max-parents=0 HEAD | tail -1)"
+    {
+      printf 'verify-migration-immutability: WARNING no origin/main and no GITHUB_BASE_REF -- '
+      printf 'diffing the full local history from its root commit %s.\n' "$base_ref"
+      printf 'This can be slow on a long-lived branch; set ESHU_MIGRATION_IMMUTABILITY_BASE to\n'
+      printf 'pin a real base explicitly.\n'
+    } >&2
   fi
 fi
+printf 'verify-migration-immutability: resolved base ref: %s\n' "$base_ref"
 
 base_commit="$(find_merge_base "$base_ref")" || {
   {
@@ -127,6 +178,7 @@ base_commit="$(find_merge_base "$base_ref")" || {
   } >&2
   exit 1
 }
+printf 'verify-migration-immutability: merge-base commit: %s\n' "$base_commit"
 
 # allowed_migration_fix is the sole standing exception: path + the exact
 # target sha256 the file's HEAD content must hash to. #7002 restored 093 to

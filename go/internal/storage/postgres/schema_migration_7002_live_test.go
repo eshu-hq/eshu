@@ -6,6 +6,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"log/slog"
@@ -145,8 +146,14 @@ func TestBootstrapAcceptsSupersededChecksumAliasesFor093Live(t *testing.T) {
 	}
 	for _, alias := range []string{migration093PR6785Checksum, migration093PR6923Checksum} {
 		plantChecksumAndRestore(t, ctx, db, migration093Path, alias)
-		if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		if err := ApplyBootstrapWithOptions(ctx, SQLDB{DB: db}, BootstrapOptions{Logger: logger}); err != nil {
 			t.Fatalf("ApplyBootstrap() with ledger recording superseded checksum %s = %v, want success", alias, err)
+		}
+		if !strings.Contains(logs.String(), "bootstrap.postgres.migration.checksum_alias_accepted") {
+			t.Fatalf("ApplyBootstrap() with superseded checksum %s did not log checksum_alias_accepted, got:\n%s",
+				alias, logs.String())
 		}
 	}
 }
@@ -203,8 +210,8 @@ func TestBootstrapAliasDoesNotLeakToOtherPathLive(t *testing.T) {
 // TestBootstrapFreshInstallMatchesPreFix093Live proves the restored
 // 093 -> 112 -> 120 upgrade chain lands on the same constraint and trigger
 // definitions that a fresh bootstrap of main's edited-in-place 093 produced
-// before this fix. The oracle strings below were captured live, once, from
-// this same postgres:18-alpine image, against 093 exactly as main carried it
+// before this fix. The oracle strings below were captured live, once, from a
+// disposable postgres:16 database, against 093 exactly as main carried it
 // (874012542e) prior to this fix.
 func TestBootstrapFreshInstallMatchesPreFix093Live(t *testing.T) {
 	dsn := os.Getenv("ESHU_POSTGRES_7002_FRESH_TEST_DSN")

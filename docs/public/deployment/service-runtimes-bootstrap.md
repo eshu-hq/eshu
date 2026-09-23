@@ -24,8 +24,17 @@ statement timeouts fail before DDL runs.
 Postgres records successful SQL files in the current schema's
 `eshu_schema_migrations` table by path, variant, and checksum. A later run skips
 recorded files; an invalid concurrent index triggers its migration's recovery
-path. A changed checksum fails before pending DDL starts. An existing database
-without the ledger must execute the historical files once to establish receipts.
+path. A changed checksum fails before pending DDL starts, with one narrow
+exception (#7002): migration `093` was briefly edited in place and already
+applied to real deployments before being restored to its originally shipped
+bytes, so a ledger recorded against either edited-in-place checksum is
+accepted as an alias for `093` specifically, never for any other migration.
+Each acceptance logs `bootstrap.postgres.migration.checksum_alias_accepted`
+with `path`, `variant`, `recorded_checksum`, and `current_checksum`; because
+the alias never rewrites the ledger row, the same event fires again on every
+subsequent boot of that database until the row is manually corrected. An
+existing database without the ledger must execute the historical files once to
+establish receipts.
 Before that first rollout, preserve a recoverable database copy, quiesce
 application readers and writers, and rehearse the replay against the copy with a
 bounded maintenance window. Do not mark every file applied from a graph schema marker: graph schema

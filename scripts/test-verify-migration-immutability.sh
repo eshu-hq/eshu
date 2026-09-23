@@ -259,4 +259,55 @@ if ! grep -qF -- "could not resolve a common ancestor" "${err_file}"; then
   exit 1
 fi
 
+# Regression (#7002 P1-a, silent HEAD~1 fallback misses an earlier commit):
+# no origin/main, no GITHUB_BASE_REF, no explicit ESHU_MIGRATION_IMMUTABILITY_BASE,
+# and a >1-commit local branch whose EARLIER commit (not HEAD) edits a shipped
+# migration. init_repo never sets up origin/main, so this fixture already has
+# none. A HEAD~1-only fallback would diff just the unrelated last commit and
+# wrongly pass; the fix must still see commit B's edit.
+noorigin_repo="$(init_repo no-origin-main)"
+printf -- '-- edited after shipping\n' >>"${noorigin_repo}/${migrations_dir}/001_widgets.sql"
+git -C "${noorigin_repo}" add .
+git -C "${noorigin_repo}" commit -q -m 'B: edit 001 in place'
+printf 'package unrelated\n\n// unrelated commit C\n' >"${noorigin_repo}/go/internal/unrelated/source.go"
+git -C "${noorigin_repo}" add .
+git -C "${noorigin_repo}" commit -q -m 'C: unrelated change'
+if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
+    ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${noorigin_repo}" \
+    "${verifier}" >"${out_file}" 2>"${err_file}"; then
+  printf 'expected the no-origin/main fallback to flag 001 (edited in commit B), but verifier passed\n' >&2
+  sed -n '1,40p' "${out_file}" >&2
+  exit 1
+fi
+if ! grep -qF -- "001_widgets.sql was modified" "${err_file}"; then
+  printf 'expected no-origin-main run to name 001_widgets.sql, got:\n' >&2
+  sed -n '1,120p' "${err_file}" >&2
+  exit 1
+fi
+
+# Regression (#7002 P1-b, GITHUB_BASE_REF set but unresolved must FAIL, never
+# silently narrow to a smaller base): simulates a shallow CI checkout where
+# origin/$GITHUB_BASE_REF cannot be fetched or resolved (this fixture has no
+# working "origin" remote at all, so the fetch itself fails the same way a
+# refused shallow update would -- both leave origin/$GITHUB_BASE_REF
+# unresolved). The old code fell through to HEAD~1 and could exit 0 having
+# checked only the last commit; the fix must refuse outright.
+ghbase_repo="$(init_repo gh-base-unresolved)"
+printf -- '-- edited after shipping\n' >>"${ghbase_repo}/${migrations_dir}/001_widgets.sql"
+git -C "${ghbase_repo}" add .
+git -C "${ghbase_repo}" commit -q -m 'edit 001 in place'
+if env -u ESHU_MIGRATION_IMMUTABILITY_BASE \
+    ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${ghbase_repo}" \
+    GITHUB_BASE_REF="main" \
+    "${verifier}" >"${out_file}" 2>"${err_file}"; then
+  printf 'expected verifier to FAIL when GITHUB_BASE_REF is set but origin/main cannot be resolved, but it passed\n' >&2
+  sed -n '1,60p' "${out_file}" >&2
+  exit 1
+fi
+if ! grep -qF -- "does not resolve after an --update-shallow fetch" "${err_file}"; then
+  printf 'expected the unresolved-GITHUB_BASE_REF run to explain the resolution failure, got:\n' >&2
+  sed -n '1,60p' "${err_file}" >&2
+  exit 1
+fi
+
 printf 'test-verify-migration-immutability: all scenarios passed\n'
