@@ -1,6 +1,6 @@
 # #6693 checklist step 2: `cicd/` leaf
 
-Baseline: `origin/main` `aa7cc0d1d`. Change: moved the single-file `cicd/`
+Baseline: `origin/main` `874012542` (written against `aa7cc0d1d`, rebased twice without conflicts in the moved code). Change: moved the single-file `cicd/`
 domain out of the `internal/storage/postgres` root per the target-tree
 checklist in `docs/internal/design/6693-postgres-target-tree.md` and its
 group file `docs/internal/design/6693-postgres-target-tree/control-plane.md`.
@@ -123,7 +123,7 @@ under this tree has one either.
   across the repo returns nothing.
 
 Test repoints, checked with exact-name assertions after the rebase onto
-`228ca326f`: for each of the seven moved tests (`TestCICDRunWatermarkSchemaSQL`,
+`874012542`: for each of the seven moved tests (`TestCICDRunWatermarkSchemaSQL`,
 `TestCICDRunWatermarkStoreSaveThenLoadRoundTrips`,
 `TestCICDRunWatermarkStoreLoadMissReturnsNotFound`,
 `TestCICDRunWatermarkStoreSaveRejectsOlderFence`,

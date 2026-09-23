@@ -8,8 +8,8 @@
 4. `watermark_test.go` for the store contract.
 5. `../cicd_run_watermark_schema_test.go` (stays in root) for the
    DDL-vs-migration lockstep proof.
-6. `../../collector/cicdrun/runwatermark/AGENTS.md` and
-   `../../collector/cicdrun/ghactionsruntime/README.md` for the
+6. `../../../collector/cicdrun/runwatermark/AGENTS.md` and
+   `../../../collector/cicdrun/ghactionsruntime/README.md` for the
    gap-detection consumer.
 
 ## Invariants

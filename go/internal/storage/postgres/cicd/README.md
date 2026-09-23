@@ -53,7 +53,7 @@ wrappers here.
   `runwatermark.Watermark`, `runwatermark.Store`, `runwatermark.ErrStaleFence`.
 - `database/sql`, `context`, `fmt`, `time` -- standard library.
 
-This package imports no other Eshu package -- not even the postgres root. A
+Beyond those two, it imports no Eshu package -- not even the postgres root. A
 `cicd` import of root (or of any package that imports root) would create an
 import cycle.
 

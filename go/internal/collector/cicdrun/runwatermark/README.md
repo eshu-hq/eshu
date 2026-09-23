@@ -21,7 +21,7 @@ or telemetry -- those live in
 `go/internal/collector/cicdrun/ghactionsruntime` (see
 `run_watermark.go` there). It does not own durable Postgres persistence
 either; a durable `Store` implementation lives in
-`go/internal/storage/postgres` (`CICDRunWatermarkStore`) and is wired
+`go/internal/storage/postgres/cicd` (`CICDRunWatermarkStore`) and is wired
 through `SourceConfig.Watermarks` by the hosted command.
 
 ## Exported surface
@@ -63,7 +63,7 @@ same way `AWSPaginationCheckpointStore` does.
 - `InMemoryStore` has no durability across process restarts or visibility
   across collector replicas. It narrows, but does not close, the gap the
   Postgres-backed store closes; see `CICDRunWatermarkStore` in
-  `go/internal/storage/postgres`.
+  `go/internal/storage/postgres/cicd`.
 - `LastRunID` is a decimal string (GitHub Actions run IDs), not a numeric
   type, to avoid a redundant parse/format round trip at the storage
   boundary; comparison as an integer happens in `ghactionsruntime`, which is
