@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 110 test)
+### `root (stays)` (4 non-test, 111 test)
 
 ```text
 adapters.go -> adapters.go
