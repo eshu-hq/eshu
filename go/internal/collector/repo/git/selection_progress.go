@@ -6,6 +6,8 @@ package git
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"strings"
@@ -263,6 +265,52 @@ func gitProgressLineIsTerminal(message string) bool {
 
 // sanitizeGitProgressMessage redacts URL userinfo from git stderr before the
 // text appears in logs or wrapped errors.
+// gitRunWithStderrWriter runs a git command scoped to repoPath, teeing stderr
+// through stderrWriter (a *gitProgressWriter, or nil) so long-running
+// operations can log progress while still returning the sanitized error text
+// on failure. Colocated with the rest of this file's progress/stderr
+// plumbing rather than in selection_cli.go's clone/fetch control flow.
+func gitRunWithStderrWriter(
+	ctx context.Context,
+	repoPath string,
+	config RepoSyncConfig,
+	token string,
+	stderrWriter io.Writer,
+	args ...string,
+) (string, error) {
+	commandArgs := make([]string, 0, len(args)+2)
+	commandArgs = append(commandArgs, "-C", repoPath)
+	commandArgs = append(commandArgs, args...)
+	command := newGitCommand(ctx, commandArgs...)
+	command.Env = gitCommandEnv(config, token)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	if stderrWriter != nil {
+		command.Stderr = io.MultiWriter(&stderr, stderrWriter)
+	} else {
+		command.Stderr = &stderr
+	}
+	if err := command.Run(); err != nil {
+		flushProgressWriter(stderrWriter)
+		return "", fmt.Errorf(
+			"git %s: %w: %s",
+			strings.Join(args, " "),
+			err,
+			sanitizeGitProgressMessage(strings.TrimSpace(stderr.String())),
+		)
+	}
+	flushProgressWriter(stderrWriter)
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func flushProgressWriter(writer io.Writer) {
+	flusher, ok := writer.(interface{ Flush() })
+	if ok {
+		flusher.Flush()
+	}
+}
+
 func sanitizeGitProgressMessage(message string) string {
 	fields := strings.Fields(message)
 	for i, field := range fields {
