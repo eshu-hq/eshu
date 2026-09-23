@@ -5,6 +5,7 @@ package recordpseudo_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -36,6 +37,33 @@ func TestEnumFieldsAreNeverSubstituted(t *testing.T) {
 	} {
 		if got := fmt.Sprint(p[field]); got != want {
 			t.Errorf("%s = %q, want %q verbatim", field, got, want)
+		}
+	}
+}
+
+// TestEnumFieldsPseudonymizeCustomerTypes (#6965 review R1): CloudFormation
+// stack resources set target_type to the resource type, which can be a
+// customer-named Custom::<name> or a private registry <Org>::Svc::Res. Only
+// enum-shaped values (snake_case, or AWS::Service::Resource) are verbatim;
+// a customer-named type is pseudonymized per :: component.
+func TestEnumFieldsPseudonymizeCustomerTypes(t *testing.T) {
+	key := mustKey(t, keyA)
+	gen := generation("aws:"+acct+":us-east-1:cloudformation", nil, map[string]any{
+		"resource_type": "AWS::SQS::Queue",
+		"target_type":   "Custom::ZyxcorpBillingHook",
+		"service_kind":  "cloudformation",
+	})
+	gen2 := generation("aws:"+acct+":us-east-1:cloudformation", nil, map[string]any{
+		"target_type": "Zyxcorp::Payments::Ledger",
+	})
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen, gen2}}, key, recordpolicy.Policy())
+	if got := fmt.Sprint(envs[0][0].Payload["resource_type"]); got != "AWS::SQS::Queue" {
+		t.Errorf("AWS type rewritten: %q", got)
+	}
+	for _, p := range []map[string]any{envs[0][0].Payload, envs[1][0].Payload} {
+		got := fmt.Sprint(p["target_type"])
+		if strings.Contains(got, "Zyxcorp") || strings.Contains(got, "BillingHook") || strings.Contains(got, "Payments") || strings.Contains(got, "Ledger") {
+			t.Errorf("customer-named type survived raw: %q", got)
 		}
 	}
 }

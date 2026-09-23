@@ -43,3 +43,27 @@ func TestSpacedARNComponentIDsArePseudonymized(t *testing.T) {
 		t.Errorf("AWS's fixed principal phrase was rewritten: %s", out)
 	}
 }
+
+// TestSpacedCustomerARNNamesArePseudonymized (#6965 review R2): a spaced
+// ARN component is not always an AWS phrase. CloudWatch alarm ARNs carry
+// the customer's free-text alarm name. Every word of it is pseudonymized,
+// even when no other field names the alarm.
+func TestSpacedCustomerARNNamesArePseudonymized(t *testing.T) {
+	key := mustKey(t, keyA)
+	gen := generation("aws:"+acct+":us-east-1:cloudwatch", nil, map[string]any{
+		"resources": []any{"arn:aws:cloudwatch:us-east-1:" + acct + ":alarm:Zyxcorp Payments Latency"},
+	})
+	_, envs, _ := wrapGens(t, &sliceSource{gens: []collector.CollectedGeneration{gen}}, key, recordpolicy.Policy())
+	raw, err := json.Marshal(envs[0][0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, word := range []string{"Zyxcorp", "Payments", "Latency"} {
+		if strings.Contains(string(raw), word) {
+			t.Errorf("alarm-name word %q survived raw: %s", word, raw)
+		}
+	}
+	if !strings.Contains(string(raw), ":alarm:") {
+		t.Errorf("alarm type token lost: %s", raw)
+	}
+}

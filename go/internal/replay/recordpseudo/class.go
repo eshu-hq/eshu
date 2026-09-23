@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"sort"
 )
 
@@ -60,12 +61,20 @@ const (
 	// (v1.2.3, 1.2.3) are structural and kept, every other tag is a
 	// customer-chosen name and takes the name form.
 	ClassImageTag
-	// ClassEnum passes the value through verbatim and never substitutes into
-	// it: collector-defined enum values (resource_type, relationship_type,
-	// ...) carry no customer data, and a learned token equal to one of their
-	// words must not rewrite them.
+	// ClassEnum passes an enum-shaped value (snake_case, or an AWS::Svc::Res
+	// type) through verbatim and never substitutes into it, so a learned
+	// token equal to one of its words cannot rewrite it. A value outside that
+	// shape is a customer-named type (Custom::<name>, <Org>::Svc::Res) and is
+	// pseudonymized per :: component.
 	ClassEnum
 )
+
+// enumShapeRe is a collector-defined enum value: lowercase snake_case,
+// optionally dot-joined (aws_sqs_queue, lambda.function,
+// ecs.task_definition), or an AWS-owned AWS::Service::Resource type. A
+// customer-named type always carries "::" with a non-AWS owner or capitals,
+// so it never matches.
+var enumShapeRe = regexp.MustCompile(`^(?:[a-z0-9_]+(?:\.[a-z0-9_]+)*|AWS::[A-Za-z0-9]+::[A-Za-z0-9]+)$`)
 
 var classNames = map[Class]string{
 	ClassUnknown:  "unknown",

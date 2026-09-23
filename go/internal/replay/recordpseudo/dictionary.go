@@ -178,6 +178,16 @@ func (d *dictionary) learn(class Class, raw string) {
 		d.learnEmail(raw)
 	case ClassImageTag:
 		d.learnImageTag(raw)
+	case ClassEnum:
+		if !enumShapeRe.MatchString(raw) {
+			// A customer-named type (Custom::<name>, <Org>::Svc::Res):
+			// learn every component but the structural Custom and AWS.
+			for _, component := range strings.Split(raw, "::") {
+				if component != "" && component != "Custom" && component != "AWS" {
+					d.learnIdent(component)
+				}
+			}
+		}
 	default:
 		// Keep, Enum, Opaque and Unknown learn nothing: Keep and Enum values are structural,
 		// the other two are replaced wholesale at rewrite time.
@@ -270,15 +280,7 @@ func (d *dictionary) learnARN(raw string) {
 	}
 	for i, component := range components[skip:] {
 		if strings.Contains(component, " ") {
-			// AWS writes some principals as a fixed phrase plus an issued
-			// ID ("CloudFront Origin Access Identity E1ABCD23EFGH4I"). The
-			// whole component is never learned, so learn each ID-shaped
-			// token (letters and digits) and keep the phrase readable.
-			for _, field := range strings.Fields(component) {
-				if len(field) >= minSubstituteLen && spacedIDTokenRe.MatchString(field) {
-					d.learnIdent(field)
-				}
-			}
+			d.learnSpacedComponent(component)
 			continue
 		}
 		if i == 0 && numericRe.MatchString(component) {
@@ -292,12 +294,6 @@ func (d *dictionary) learnARN(raw string) {
 		d.learnARNComponent(component)
 	}
 }
-
-// spacedIDTokenRe is an ID-shaped token inside a spaced ARN component: it
-// mixes letters and digits, or it is an uppercase run of eight or more.
-// AWS's fixed phrase words ("CloudFront Origin Access Identity") are
-// title-case and digit-free, so they never match.
-var spacedIDTokenRe = regexp.MustCompile(`^(?:[A-Za-z0-9]*[0-9][A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*|[A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*[0-9][A-Za-z0-9]*|[A-Z0-9]{8,})$`)
 
 // arnComponents splits an ARN resource part on "/" and ":".
 func arnComponents(resource string) []string {

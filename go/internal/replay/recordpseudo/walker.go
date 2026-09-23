@@ -146,7 +146,10 @@ func (w *walker) rewriteString(path string, class Class, v string) string {
 		w.opaque[path]++
 		return w.opaqueValue(v)
 	case ClassEnum:
-		return v
+		if enumShapeRe.MatchString(v) {
+			return v
+		}
+		return w.dict.rewrite(v, true)
 	case ClassKeep:
 		// Keep values are substituted by substitutable tokens only: an
 		// exact-only short or numeric token never rewrites one.
