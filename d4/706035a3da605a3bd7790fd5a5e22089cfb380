@@ -1,0 +1,18 @@
+docs/public/reference/backend-conformance.md
+  h_78a442cba0b3e6 127-149
+docs/public/reference/local-testing/golden-corpus-gate.md
+  h_78a442cba0b3e6 148-202
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2612,2617,2620-2627
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4706035a3da605a3bd7790fd5a5e22089cfb380",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
