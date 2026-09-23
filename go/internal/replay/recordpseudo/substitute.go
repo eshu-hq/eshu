@@ -125,8 +125,8 @@ func (d *dictionary) forEachComponent(s string, fn func(string) string) string {
 // substituteARN rewrites one ARN by position: partition, service and region
 // are never touched, the account is looked up whole, and every resource
 // component (split on "/" and ":") is looked up whole first, then as free
-// text. A numeric component is a qualifier (revision, version) and only ever
-// carries an account pseudonym, never a tag value's.
+// text. A numeric component is a qualifier (revision, version) unless it
+// was learned as an account or a name; a tag value never rewrites it.
 func (d *dictionary) substituteARN(arn string) string {
 	parts := strings.SplitN(arn, ":", 6)
 	if len(parts) < 6 {
@@ -137,9 +137,12 @@ func (d *dictionary) substituteARN(arn string) string {
 	return strings.Join(parts, ":")
 }
 
+// substituteComponent looks a component up whole, else rewrites it as free
+// text. A numeric component is a qualifier unless the token was learned as
+// an account or a name: a numeric tag value never rewrites it.
 func (d *dictionary) substituteComponent(component string) string {
 	if learned, ok := d.entries[component]; ok {
-		if !numericRe.MatchString(component) || learned.class == ClassAccount {
+		if !numericRe.MatchString(component) || learned.class != ClassTagValue {
 			return learned.pseudonym
 		}
 		return component

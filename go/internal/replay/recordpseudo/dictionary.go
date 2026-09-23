@@ -237,7 +237,7 @@ func (d *dictionary) learnARN(raw string) {
 		// customer names; "*" and empty components are structural and
 		// ignored by learnIdent, so the path shape survives.
 		for _, component := range strings.Split(resource, "/") {
-			d.learnIdent(component)
+			d.learnARNComponent(component)
 		}
 		return
 	}
@@ -260,8 +260,20 @@ func (d *dictionary) learnARN(raw string) {
 		}
 	}
 	for _, component := range components[skip:] {
-		d.learnIdent(component)
+		d.learnARNComponent(component)
 	}
+}
+
+// learnARNComponent learns one ARN resource component. A purely numeric
+// component is a qualifier (a task-definition revision, a function
+// version, a date in an S3 key) and is never learned from the ARN; a
+// numeric resource name is learned from its name field and then rewrites
+// the matching component whole.
+func (d *dictionary) learnARNComponent(component string) {
+	if numericRe.MatchString(component) {
+		return
+	}
+	d.learnIdent(component)
 }
 
 // learnIdent sniffs// learnTagValue: a tag value with a structured shape (an ARN in the
@@ -329,7 +341,10 @@ func (d *dictionary) learnIdent(raw string) {
 	case ipv4Re.MatchString(raw):
 		d.learnIPv4(raw)
 	case numericRe.MatchString(raw):
-		return
+		// A purely numeric name is customer data too. It takes the name
+		// form and is exact-only (substitute.go), so it is rewritten as a
+		// whole value or a whole component and never inside other digits.
+		d.set(ClassIdent, raw, d.name(raw))
 	case emailRe.MatchString(raw):
 		d.learnEmail(raw)
 	case hostShapeRe.MatchString(raw) && lastLabelAlphabetic(raw):
