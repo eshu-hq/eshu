@@ -113,7 +113,28 @@ const (
 	// Match the entire body: a constraint diagnostic can contain arbitrary
 	// evidence-derived identities, including the words "storage closed".
 	nornicDBStoreClosedCommitValidationMsg = "commit failed: storage closed"
+	// nornicDBStoreClosedCommitReadOpener and ...Tail bracket the fourth
+	// commit-side spelling, observed in Ifa run 35819550601: a Badger point
+	// read inside commit validation on a store Close has already torn down.
+	// Badger v4.9.6 txn.go:470 wraps it y.Wrapf(err, "DB::Get key: %q", key)
+	// and y.Wrap (y/error.go:60) renders "%s err: %+v", so the body reads
+	// `commit failed: DB::Get key: "<key bytes>" err: DB Closed`. Both Commit
+	// callers at NornicDB 6ac958a9 (validateAllConstraints,
+	// validateSnapshotIsolationConflicts) roll back with discard before any
+	// durable write, so replay is safe. The quoted-key opener plus the exact
+	// tail is what keeps a constraint diagnostic terminal: that one ends in
+	// "already exists" whatever its inlined identity carries.
+	nornicDBStoreClosedCommitReadOpener = `DB::Get key: "`
+	nornicDBStoreClosedCommitReadTail   = `" err: DB Closed`
 )
+
+// isNornicDBStoreClosedCommitReadBody matches the Badger Get wrap of a closed
+// store as the executor reports it at commit (see the two constants above).
+func isNornicDBStoreClosedCommitReadBody(msg string) bool {
+	return strings.HasPrefix(msg, "commit failed: ") &&
+		strings.Contains(msg, nornicDBStoreClosedCommitReadOpener) &&
+		strings.HasSuffix(msg, nornicDBStoreClosedCommitReadTail)
+}
 
 // isNornicDBWriteConflict recognizes NornicDB transaction-age conflicts. The
 // v1.3.1 wording is accepted only with the typed Transaction.Outdated code: a
@@ -376,6 +397,8 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 //	                                   version-allocation call just before it
 //	nornicDBStoreClosedCommitValidationMsg  a closed-store read during commit
 //	                                         validation on v1.3.3
+//	nornicDBStoreClosedCommitRead{Opener,Tail}  the same read, reported through
+//	                                         Badger's own Get wrap (run 35819550601)
 //
 // so the full second shape reads:
 //
@@ -402,6 +425,7 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
 		(neo4jErr.Msg == nornicDBStoreClosedCommitValidationMsg ||
+			isNornicDBStoreClosedCommitReadBody(neo4jErr.Msg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitAllocMsg))
