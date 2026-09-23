@@ -57,12 +57,11 @@ column, zero rows, through the real bootstrap apply path
 session runs `SELECT pg_sleep(3)` (opened ~200ms before the build starts):
 
 ```
-schema_lock_timeout_integration_test.go:264: CREATE INDEX CONCURRENTLY behind a 3s open transaction (lock_timeout 1s) failed after 1.011s:
-apply proof_index: ERROR: canceling statement due to lock timeout (SQLSTATE 55P03), want it to wait out the transaction instead of canceling
+schema_lock_timeout_integration_test.go:266: CREATE INDEX CONCURRENTLY behind a 3s open transaction (lock_timeout 1s) failed after 1.014s: apply proof_index: ERROR: canceling statement due to lock timeout (SQLSTATE 55P03), want it to wait out the transaction instead of canceling
 --- FAIL: TestConcurrentIndexBuildOutlivesOlderTransactionLive (3.04s)
 ```
 
-Failure lands at ~1.01 s, matching the configured `lock_timeout`; the
+Failure lands at ~1.014 s, matching the configured `lock_timeout`; the
 blocking session is still running (3 s hold) when it fails.
 
 Second baseline shape, `-tags integration`, `TestBootstrapConcurrentIndexBuildWaitsOutLockHolderLive`

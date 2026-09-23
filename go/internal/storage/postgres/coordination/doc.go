@@ -16,8 +16,9 @@
 // It also classifies one statement shape that must NOT go through the retry
 // loop above: a bare CREATE/DROP INDEX CONCURRENTLY statement is exempt from
 // lock_timeout entirely rather than retried, because retrying restarts its
-// table scan from zero every attempt (#7004). ConcurrentIndexBuildLockTimeout
-// and IsSoleConcurrentIndexStatement make that call; RunWithConcurrentIndexBuildLogging
+// table scan from zero every attempt (#7004). ConcurrentIndexBuildPlan makes
+// that call (its own IsSoleConcurrentIndexStatement classification is
+// production's only caller of that check); RunWithConcurrentIndexBuildLogging
 // gives the exempted statement its own start/finish log pair since it has no
 // lock_timeout left to retry after.
 package coordination

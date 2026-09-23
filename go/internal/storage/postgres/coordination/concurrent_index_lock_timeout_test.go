@@ -107,17 +107,18 @@ func TestIsSoleConcurrentIndexStatement(t *testing.T) {
 	}
 }
 
-// TestConcurrentIndexBuildLockTimeout pins that only a sole CIC/DIC statement
-// has its lock_timeout overridden to disabled (0); everything else keeps the
-// caller's requested bound unchanged.
-func TestConcurrentIndexBuildLockTimeout(t *testing.T) {
+// TestConcurrentIndexBuildPlan pins that only a sole CIC/DIC statement has
+// its lock_timeout overridden to disabled (0) and its isConcurrentIndexBuild
+// flag set true; everything else keeps the caller's requested bound
+// unchanged and a false flag, from the same single classification.
+func TestConcurrentIndexBuildPlan(t *testing.T) {
 	t.Parallel()
 	const requested = 5 * time.Second
-	if got := ConcurrentIndexBuildLockTimeout("CREATE INDEX CONCURRENTLY t_v_idx ON t (v)", requested); got != 0 {
-		t.Fatalf("concurrent index build lock timeout = %s, want disabled (0)", got)
+	if lockTimeout, isConcurrentIndexBuild := ConcurrentIndexBuildPlan("CREATE INDEX CONCURRENTLY t_v_idx ON t (v)", requested); lockTimeout != 0 || !isConcurrentIndexBuild {
+		t.Fatalf("concurrent index build plan = (%s, %v), want (disabled, true)", lockTimeout, isConcurrentIndexBuild)
 	}
-	if got := ConcurrentIndexBuildLockTimeout("ALTER TABLE t ADD COLUMN w INT", requested); got != requested {
-		t.Fatalf("non-concurrent-index statement lock timeout = %s, want unchanged %s", got, requested)
+	if lockTimeout, isConcurrentIndexBuild := ConcurrentIndexBuildPlan("ALTER TABLE t ADD COLUMN w INT", requested); lockTimeout != requested || isConcurrentIndexBuild {
+		t.Fatalf("non-concurrent-index statement plan = (%s, %v), want (unchanged %s, false)", lockTimeout, isConcurrentIndexBuild, requested)
 	}
 }
 

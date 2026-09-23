@@ -68,9 +68,19 @@ func stripWholeLineSQLComments(sql string) string {
 	return strings.Join(kept, "\n")
 }
 
-// ConcurrentIndexBuildLockTimeout returns the effective lock_timeout applied
-// while query runs: disabled (0) for a bare CREATE/DROP INDEX CONCURRENTLY
-// statement, the caller's requested bound for everything else (#7004).
+// ConcurrentIndexBuildPlan classifies query once and returns both the
+// effective lock_timeout to apply and whether query is a bare CIC/DIC
+// statement, so a caller that needs both values -- the timeout to apply and
+// whether to run RunWithConcurrentIndexBuildLogging -- gets them from a
+// single classification instead of calling IsSoleConcurrentIndexStatement
+// twice and risking the two calls diverging (#7004 review thread
+// 4085764532). This is production's only call site for
+// IsSoleConcurrentIndexStatement; both adapters.go and schema_bootstrap_lock.go
+// call this function exactly once per statement.
+//
+// The effective lock_timeout is disabled (0) for a bare CREATE/DROP INDEX
+// CONCURRENTLY statement, the caller's requested bound for everything else
+// (#7004).
 //
 // A concurrent index build takes ShareUpdateExclusiveLock on its table. That
 // mode does not conflict with the RowExclusiveLock ordinary INSERT/UPDATE/
@@ -97,17 +107,6 @@ func stripWholeLineSQLComments(sql string) string {
 // canceled, terminated, or errors leaves an INVALID index instead, which the
 // next run's invalid-index cleanup drops (also without lock_timeout; see
 // dropInvalidConcurrentIndexes in the root package) before rebuilding it.
-func ConcurrentIndexBuildLockTimeout(query string, requested time.Duration) time.Duration {
-	lockTimeout, _ := ConcurrentIndexBuildPlan(query, requested)
-	return lockTimeout
-}
-
-// ConcurrentIndexBuildPlan classifies query once and returns both the
-// effective lock_timeout (see ConcurrentIndexBuildLockTimeout) and whether
-// query is a bare CIC/DIC statement. Callers that need both values -- the
-// timeout to apply and whether to run RunWithConcurrentIndexBuildLogging --
-// use this instead of calling IsSoleConcurrentIndexStatement a second time
-// (#7004 review thread 4085764532).
 func ConcurrentIndexBuildPlan(query string, requested time.Duration) (lockTimeout time.Duration, isConcurrentIndexBuild bool) {
 	if IsSoleConcurrentIndexStatement(query) {
 		return 0, true

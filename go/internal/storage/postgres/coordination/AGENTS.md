@@ -33,7 +33,7 @@
   concurrent index build's wait. It bounds only the bootstrap client; the
   Postgres backend runs the statement to completion or error regardless,
   holding the session schema advisory lock the whole time. See
-  `ConcurrentIndexBuildLockTimeout`'s godoc for the full explanation.
+  `ConcurrentIndexBuildPlan`'s godoc for the full explanation.
 - No import of the postgres root package: the dependency is root ->
   coordination only, so `SQLDB.withSchemaBootstrapLock` keeps satisfying the
   root's package-private locker contract.
