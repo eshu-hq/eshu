@@ -230,8 +230,10 @@ Why it is safe: `go vet ./...`, `go test ./internal/query/...
 
 The leaf was planned as `querycontract/language`. It is named `taxonomy`
 because three of its seventeen exported symbols are about languages,
-`query/language` already exists and is its largest consumer, and six caller
-files declare a `language` local that would shadow a package of that name.
+`query/language` already exists and is its largest consumer, and a package of
+that name would force a rename or import alias in six of its 28 importing files
+(five declare a `language` local that shadows it, one collides on the package
+name), measured by compiling that variant.
 
 No-Regression Evidence: three files move from `querycontract/` to
 `querycontract/taxonomy/` (`language_registry.go` -> `language.go`,

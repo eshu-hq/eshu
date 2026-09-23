@@ -360,9 +360,9 @@ When adding or promoting language-query support:
    and `tsx` normalizations above, and the coverage maps, live separately in
    `go/internal/query/querycontract/taxonomy/language.go` so every
    handler-family subpackage, this one included, can reach them.
-   `language/registry.go` calls `querycontract` directly as
+   `language/registry.go` calls `taxonomy` directly as
    `canonicalLanguage` and `NormalizedVariants`; root package `query` (#6642)
-   does not re-export the querycontract helpers itself, it forwards to this
+   does not re-export the taxonomy helpers itself, it forwards to this
    package's own spellings (`normalizedLanguageVariants`) for its own staying
    callers.
 2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value

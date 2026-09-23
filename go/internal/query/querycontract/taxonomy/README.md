@@ -6,9 +6,9 @@ projection, and the language-scoped entity search shapes.
 
 It was planned as `querycontract/language`. Only three of its seventeen exported
 symbols are about languages, a handler package named `language` already exists
-at `query/language`, and a package named `language` would be shadowed by the
-`language` parameter six caller files declare. `taxonomy` has none of those
-problems.
+at `query/language`, and a package named `language` would need a rename or
+import alias in six of its 28 importing files, five of them because a
+`language` local shadows the import. `taxonomy` has none of those problems.
 
 ## What is here
 
