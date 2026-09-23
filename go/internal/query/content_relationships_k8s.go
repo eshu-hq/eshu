@@ -172,7 +172,7 @@ func isK8sResourceKind(entity EntityContent, kind string) bool {
 }
 
 // The namespace normalization this file used to declare moved to
-// kubernetes.Namespace, because K8sSelectCandidateFromEntity needs it
+// kubernetes.Namespace, because SelectCandidateFromEntity needs it
 // from there (#6060). Call sites in this package call it directly rather than
 // through a wrapper; a second copy would be free to drift, and namespace
 // equality gates SELECTS matching.

@@ -13,8 +13,9 @@ import (
 
 // Relationship reasons for the k8s Service->workload SELECTS edge. Both are
 // truth labels surfaced on the wire under relationship["reason"], so changing a
-// value is a wire change. These two literals live only here -- checked
-// 2026-09-23, they appear nowhere else in the repository.
+// value is a wire change. Both literals are pinned outside this package,
+// including across a language boundary -- see the consumer table in README.md
+// before changing either value.
 // docs/public/languages/kubernetes.md documents the SELECTS capability and its
 // fallback rule but does not carry the strings, so it needs a read on a
 // behaviour change and not on a rename.
@@ -170,7 +171,7 @@ func SelectorSubsetOf(selector, labels string) bool {
 	return SelectorSubsetOfParsed(selector, parseLabelPairs(labels))
 }
 
-// SelectorSubsetOfParsed is k8sSelectorSubsetOf with the label side already
+// SelectorSubsetOfParsed is SelectorSubsetOf with the label side already
 // parsed, so a directed scan of many selectors against one prepared workload
 // (WorkloadMatchTarget.Match) parses the workload label map once. An empty
 // selector is never a subset of anything (the emptiness rule, guarded here as
