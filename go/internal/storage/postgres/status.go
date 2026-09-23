@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -170,7 +171,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		}
 	}
 	q, done = s.read(ctx, statusReadTerraformState)
-	terraformStateEvidence, err := readTerraformStateAdminEvidence(
+	terraformStateEvidence, err := statestore.ReadTerraformStateAdminEvidence(
 		ctx,
 		q,
 		statuspkg.MaxTerraformStateRecentWarnings,

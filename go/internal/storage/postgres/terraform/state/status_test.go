@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package statestore
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -16,17 +19,17 @@ func TestListTerraformStateLastSerialsParsesGenerationID(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
-	queryer := &fakeQueryer{
-		responses: []fakeRows{
+	queryer := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
 			{
-				rows: [][]any{
+				Data: [][]any{
 					{
 						"hash-aaa",
 						"s3",
 						"lineage-aaa",
 						"42",
 						"terraform_state:state_snapshot:s3:hash-aaa:lineage-aaa:serial:42",
-						observedAt,
+						sql.NullTime{Time: observedAt, Valid: true},
 					},
 					{
 						"hash-bbb",
@@ -34,7 +37,7 @@ func TestListTerraformStateLastSerialsParsesGenerationID(t *testing.T) {
 						"lineage-bbb",
 						"7",
 						"terraform_state:state_snapshot:local:hash-bbb:lineage-bbb:serial:7",
-						observedAt.Add(-time.Hour),
+						sql.NullTime{Time: observedAt.Add(-time.Hour), Valid: true},
 					},
 				},
 			},
@@ -60,10 +63,10 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
-	queryer := &fakeQueryer{
-		responses: []fakeRows{
+	queryer := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
 			{
-				rows: [][]any{
+				Data: [][]any{
 					{
 						"hash-1",
 						"s3",
@@ -74,7 +77,7 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 						"git_local_file",
 						"state_snapshot:s3:hash-1",
 						"terraform_state:state_snapshot:s3:hash-1:lineage-1:serial:5",
-						observedAt,
+						sql.NullTime{Time: observedAt, Valid: true},
 					},
 					{
 						"hash-1",
@@ -86,7 +89,7 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 						"outputs.x",
 						"state_snapshot:s3:hash-1",
 						"terraform_state:state_snapshot:s3:hash-1:lineage-1:serial:5",
-						observedAt.Add(time.Minute),
+						sql.NullTime{Time: observedAt.Add(time.Minute), Valid: true},
 					},
 				},
 			},
@@ -109,11 +112,11 @@ func TestListTerraformStateRecentWarningsBoundsLimit(t *testing.T) {
 	if rows[0].SourceHandle != "state_snapshot:s3:hash-1" {
 		t.Fatalf("rows[0].SourceHandle = %q, want state_snapshot:s3:hash-1", rows[0].SourceHandle)
 	}
-	if len(queryer.queries) != 1 {
-		t.Fatalf("queries = %d, want 1", len(queryer.queries))
+	if len(queryer.Queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(queryer.Queries))
 	}
-	if !strings.Contains(queryer.queries[0], "rank <= $1") {
-		t.Fatalf("expected limit binding in query: %s", queryer.queries[0])
+	if !strings.Contains(queryer.Queries[0].Query, "rank <= $1") {
+		t.Fatalf("expected limit binding in query: %s", queryer.Queries[0].Query)
 	}
 }
 
@@ -121,10 +124,10 @@ func TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings(t 
 	t.Parallel()
 
 	observedAt := time.Date(2026, 6, 13, 15, 30, 0, 0, time.UTC)
-	queryer := &fakeQueryer{
-		responses: []fakeRows{
+	queryer := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
 			{
-				rows: [][]any{
+				Data: [][]any{
 					{
 						"repository:r_12345678:env/backend.tf",
 						"git",
@@ -135,7 +138,7 @@ func TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings(t 
 						"terraform_backend",
 						"env/backend.tf",
 						"git:repository:r_12345678:run-backend-warning",
-						observedAt,
+						sql.NullTime{Time: observedAt, Valid: true},
 					},
 				},
 			},
@@ -157,10 +160,10 @@ func TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings(t 
 		row.SourceHandle != "env/backend.tf" {
 		t.Fatalf("row = %+v, want Git backend-expression warning", row)
 	}
-	if len(queryer.queries) != 1 {
-		t.Fatalf("queries = %d, want 1", len(queryer.queries))
+	if len(queryer.Queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(queryer.Queries))
 	}
-	query := queryer.queries[0]
+	query := queryer.Queries[0].Query
 	for _, want := range []string{
 		"collector_kind IN ('terraform_state', 'git')",
 		"scope_kind IN ('state_snapshot', 'repository')",
@@ -175,7 +178,7 @@ func TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings(t 
 func TestListTerraformStateRecentWarningsAppliesContractDefaultLimit(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
+	queryer := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{}}}}
 	if _, err := listTerraformStateRecentWarnings(context.Background(), queryer, 0); err != nil {
 		t.Fatalf("listTerraformStateRecentWarnings() error = %v, want nil", err)
 	}
@@ -187,10 +190,10 @@ func TestListTerraformStateRecentWarningsAppliesContractDefaultLimit(t *testing.
 func TestListTerraformStateLastSerialsSkipsMalformedRows(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{
-		rows: [][]any{
-			{"hash-good", "s3", "lineage", "12", "terraform_state:state_snapshot:s3:hash-good:lineage:serial:12", time.Date(2026, 5, 3, 1, 0, 0, 0, time.UTC)},
-			{"hash-bad", "s3", "lineage", "not-a-number", "terraform_state:state_snapshot:s3:hash-bad:lineage:serial:bogus", time.Date(2026, 5, 3, 2, 0, 0, 0, time.UTC)},
+	queryer := &fake.ExecQueryer{QueryResponses: []fake.Rows{{
+		Data: [][]any{
+			{"hash-good", "s3", "lineage", "12", "terraform_state:state_snapshot:s3:hash-good:lineage:serial:12", sql.NullTime{Time: time.Date(2026, 5, 3, 1, 0, 0, 0, time.UTC), Valid: true}},
+			{"hash-bad", "s3", "lineage", "not-a-number", "terraform_state:state_snapshot:s3:hash-bad:lineage:serial:bogus", sql.NullTime{Time: time.Date(2026, 5, 3, 2, 0, 0, 0, time.UTC), Valid: true}},
 		},
 	}}}
 	rows, err := listTerraformStateLastSerials(context.Background(), queryer)

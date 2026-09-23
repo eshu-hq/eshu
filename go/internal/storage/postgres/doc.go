@@ -156,7 +156,8 @@
 // Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also
-// runs the bounded Terraform-state admin queries from tfstate_status.go: one
+// runs the bounded Terraform-state admin queries via
+// statestore.ReadTerraformStateAdminEvidence (terraform/state/status.go): one
 // row per state_snapshot scope keyed by safe locator hash, plus up to
 // MaxTerraformStateRecentWarnings recent warning_fact rows per locator so the
 // admin status surface shows tfstate liveness without scanning the fact stream.
