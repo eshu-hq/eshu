@@ -131,7 +131,11 @@ cassette_private_data_patterns() {
 	# Documentation account forms, shared by three alternatives: the AWS
 	# documentation account, zero-prefixed values, and repdigits. One digit is
 	# bracketed so this source line is not itself a 12-digit run.
-	doc_account='(?:12345678901[2]|0{11}[0-9]|([0-9])\1{11})'
+	# The fourth form, 0000 + 8 digits, is the reserved range record-mode
+	# pseudonymization (#6965 Phase 3, go/internal/replay/recordpseudo) mints
+	# accounts into; the recorder's Verify belt admits it only for accounts
+	# that run produced, so here it is a shape check on committed files.
+	doc_account='(?:12345678901[2]|0{11}[0-9]|([0-9])\1{11}|0000[0-9]{8})'
 	# Detection. One line per alternative, so the test mirror can delete each
 	# in turn and show the control go red.
 	# A dot next to the quad closes it unless a digit follows the dot, so an
@@ -224,6 +228,7 @@ cassette_private_data_patterns() {
 		'account12 1234''56789012'
 		'account12 0000''00000001'
 		'account12 5555''55555555'
+		'account12 0000''17213864'
 		'arn arn:aw''s:s3:::example-bucket'
 		'arn arn:aw''s:iam::aws:policy/example'
 		'arn arn:aw''s:iam::123456789012:role/example'
@@ -244,14 +249,14 @@ cassette_private_data_patterns() {
 	# patterns: 7 alternatives, 12 planted samples (hostname carries five: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
 	# host and a Consul name; ipv4 carries two: a bare address and one ending
-	# a sentence), 28 allowed samples. Adding an alternative or an allowed form means adding
+	# a sentence), 29 allowed samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
 	[[ "${#planted[@]}" -eq 12 ]] \
 		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 12 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 28 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 28 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#allowed[@]}" -eq 29 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 29 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()

@@ -41,8 +41,12 @@ func cassetteFormatSchema() map[string]any {
 		// documented property but not required. schema_version and scopes are.
 		"required": []string{"schema_version", "scopes"},
 		"properties": map[string]any{
-			"collector":      map[string]any{"type": "string"},
-			"schema_version": map[string]any{"const": cassette.SchemaVersionV1},
+			"collector": map[string]any{"type": "string"},
+			// pseudonym_key_fingerprint is informational (replay ignores it):
+			// the 8-hex recording-key fingerprint a pseudonymized recording
+			// carries so a gate can check sibling cassettes share one key.
+			"pseudonym_key_fingerprint": map[string]any{"type": "string", "pattern": "^[0-9a-f]{8}$"},
+			"schema_version":            map[string]any{"const": cassette.SchemaVersionV1},
 			"scopes": map[string]any{
 				"type":     "array",
 				"minItems": 1,
