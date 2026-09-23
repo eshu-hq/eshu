@@ -39,7 +39,7 @@ source_coverage:
   - file: codequery/handler.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 9fdb8ce7873e0849bf9222dac4703a3d8f50fed6f845f84fe5698bf71051d498, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: dd6f92ff749416fa04cdc0919346b1f44ce1e63a1b6c3ded1a02df20b034f3b3, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: codequery/callers.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: b7dc27071813d89a487879f42df7a05db22a47e2a7a6c1be303fadca97ef729e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
@@ -54,7 +54,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 440e23b1ed943d788c193b30980b9c9180821d8beb2e5a8f9b8cd8f7cab346b0
+          source_sha256: aff14629da23ff0f3d1bb4a83abed64973bdbe3326ba84b7de2505b9690d0659
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
@@ -190,10 +190,10 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 4e739380f30a041c42808316b697f64ab5d6ce8a04dda4dee102169a9fd7ee82
+          source_sha256: cdff58d5d803e0ead3dedeae8b9186ac244c58f4fd65062c27bcd2d61bcbdd25
           key_bound: single_key
           max_results: 1
-      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 07158242bd3cb3a8084c3f6a24a5d1c1dc09e15f5a9de0dfa9ec55d7e86dad4a, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 5c4a6153f21d3ef702bc7a10e8c5eeaabc447e7d9d16f8a59c08b8cac4eba252, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity/resolve_workload.go
     calls:
       - {symbol: "(*Handler).ResolveWorkloadEntities", count: 2, source_sha256: 0f5ae69f1f825814cd2e58fecb146589dc2733e95fe9dd24163c0bb2939473ad, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
