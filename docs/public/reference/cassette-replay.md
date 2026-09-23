@@ -189,6 +189,9 @@ Declared limits of the pilot:
   with `recording exceeds 762 distinct IPv4 addresses`, and no cassette is
   written; the `collector.record.pseudonymized` event reports
   `ipv4_addresses` so an operator can see how close a recording is;
+- account pseudonyms share a space of 10^8 `0000xxxxxxxx` slots; a
+  recording that would exceed it fails with `ErrAccountsExhausted` rather
+  than letting two accounts share a pseudonym;
 - a name or tag value shorter than four characters, or a purely numeric
   name or tag value, is rewritten only where it is a whole field value or
   a whole `/`- or `:`-delimited component of a composite (an ARN, a stable

@@ -82,8 +82,11 @@ type dictionary struct {
 	// accountSlots and accountCollisions are the account counterpart of
 	// ipSlots/ipCollisions: the 10^8 pseudonym space is linear-probed so two
 	// raw accounts never share a pseudonym within one recording.
-	accountSlots      map[uint64]string
-	accountByRaw      map[string]uint64
+	accountSlots map[uint64]string
+	accountByRaw map[string]uint64
+	// accountSpace is the account pseudonym space, accountSlotCount outside
+	// tests; a test shrinks it to prove exhaustion fails closed.
+	accountSpace      uint64
 	accountCollisions int
 	// failure is the first limit the recording exceeded (ErrIPv4Exhausted);
 	// learn cannot return it, so the source reads it after the learning pass.
@@ -103,6 +106,7 @@ func newDictionary(key Key) *dictionary {
 		ipSlots:      map[int]string{},
 		accountSlots: map[uint64]string{},
 		accountByRaw: map[string]uint64{},
+		accountSpace: accountSlotCount,
 
 		unlistedARNTypes: map[string]int{},
 		learned:          map[Class]int{},
@@ -194,13 +198,22 @@ func (d *dictionary) account(raw string) string {
 	if idx, ok := d.accountByRaw[raw]; ok {
 		return fmt.Sprintf("0000%08d", idx)
 	}
-	idx := binary.BigEndian.Uint64(d.key.mac(raw)) % accountSlotCount
-	for tries := 0; tries < accountSlotCount; tries++ {
+	if uint64(len(d.accountSlots)) >= d.accountSpace {
+		// Every slot is owned: fail the recording like IPv4 exhaustion
+		// rather than overwrite a slot and merge two accounts' joins. The
+		// returned value is never written, because drain stops on failure.
+		if d.failure == nil {
+			d.failure = fmt.Errorf("%w: recording exceeds %d distinct AWS accounts", ErrAccountsExhausted, d.accountSpace)
+		}
+		return "000000000000"
+	}
+	idx := binary.BigEndian.Uint64(d.key.mac(raw)) % d.accountSpace
+	for {
 		if _, used := d.accountSlots[idx]; !used {
 			break
 		}
 		d.accountCollisions++
-		idx = (idx + 1) % accountSlotCount
+		idx = (idx + 1) % d.accountSpace
 	}
 	d.accountSlots[idx] = raw
 	d.accountByRaw[raw] = idx

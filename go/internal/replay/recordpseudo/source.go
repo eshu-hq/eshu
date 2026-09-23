@@ -20,6 +20,12 @@ import (
 // space). Next returns it, wrapped with the count, instead of a cassette.
 var ErrIPv4Exhausted = errors.New("recordpseudo: RFC 5737 slot space exhausted")
 
+// ErrAccountsExhausted is the declared account limit: one recording can
+// hold at most accountSlotCount distinct accounts in the reserved
+// 0000xxxxxxxx pseudonym space. Past that, the recording fails rather than
+// letting two accounts share a pseudonym and merge their joins.
+var ErrAccountsExhausted = errors.New("recordpseudo: account pseudonym space exhausted")
+
 // Report is what a recorder logs about one pseudonymized run. It carries
 // counts, field paths and the key fingerprint -- never a raw or pseudonymized
 // value.

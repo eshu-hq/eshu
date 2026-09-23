@@ -111,6 +111,9 @@ Declared limits:
 - one recording holds at most 762 distinct IPv4 addresses and CIDR
   networks; the 763rd is a returned `ErrIPv4Exhausted` and
   `Report.IPv4Addresses` shows the count;
+- account pseudonyms share 10^8 `0000xxxxxxxx` slots; past that the
+  recording fails with `ErrAccountsExhausted` instead of merging two
+  accounts onto one pseudonym;
 - a name or tag value shorter than four characters, or a purely numeric
   name or tag value, is exact-only: rewritten as a whole classified value
   or a whole component of a composite, never inside longer text and never
