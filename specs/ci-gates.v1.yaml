@@ -2573,17 +2573,18 @@ gates:
     ci_only_reason: ""
 
   # #6784 slice B: every CI-class row from specs/live-tests.v1.yaml runs on
-  # NornicDB and Neo4j. It lands non-blocking because required-gates judges
+  # NornicDB and Neo4j. It landed non-blocking because required-gates judges
   # a PR with main's registry: a new blocking check_name cannot be
-  # introduced in the PR that first produces it. Flip blocking to true in a
-  # follow-up once main is green on this job. Triggers mirror the workflow
+  # introduced in the PR that first produces it. Blocking flipped to true in
+  # the follow-up once main went green on this job (run 35901630978 on the
+  # slice-B merge commit). Triggers mirror the workflow
   # paths (whole-module go/**: the ledger validator scans every go package
   # for live tests, so any Go change can add an unclassified live test).
   - id: live-backend-tests
     name: Live Backend Tests on NornicDB and Neo4j (Docker)
     category: exactness
     tier: ci-heavy
-    blocking: false
+    blocking: true
     triggers:
       - "go/**"
       - "specs/live-tests.v1.yaml"

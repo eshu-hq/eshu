@@ -15,6 +15,7 @@ on:
       - Frontend
       - Golden Corpus Gate
       - Ifa Determinism Gate
+      - Live Backend Tests
       - macOS CI
       - MCP Schema Drift
       - Payload Usage Manifest
