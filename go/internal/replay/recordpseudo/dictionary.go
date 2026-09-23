@@ -309,6 +309,12 @@ func (d *dictionary) learnTagValue(raw string) {
 		d.learnIdent(raw)
 		return
 	}
+	if numericRe.MatchString(raw) && len(raw) < minSubstituteLen {
+		// The same rule as a numeric name: fewer than four digits carry no
+		// customer data, and learning them as a tag would make a Name=317
+		// tag rewrite the name field while the ARN keeps 317.
+		return
+	}
 	d.set(ClassTagValue, raw, "t"+d.key.hexOf(raw, 11))
 }
 

@@ -37,7 +37,10 @@ func TestKeepFieldsIgnoreExactOnlyTokens(t *testing.T) {
 	mustMatch(t, "name", fmt.Sprint(p["name"]), `^`+hexName+`$`)
 	mustMatch(t, "Keep owner equal to a long tag value", fmt.Sprint(p["owner"]), `^t[0-9a-f]{11}$`)
 	tags, _ := p["tags"].(map[string]any)
-	for _, tagKey := range []string{"Name", "Tier", "Owner"} {
+	for _, tagKey := range []string{"Name", "Owner"} {
 		mustMatch(t, "tag "+tagKey, fmt.Sprint(tags[tagKey]), `^[tn][0-9a-f]{11}$`)
+	}
+	if got := fmt.Sprint(tags["Tier"]); got != "7" {
+		t.Errorf("short numeric tag value rewritten to shape %q", shapeOf(got))
 	}
 }

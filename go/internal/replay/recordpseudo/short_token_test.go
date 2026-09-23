@@ -13,8 +13,8 @@ import (
 
 // TestShortTokensNeverRewriteStructure (P1): a tag value "1", a tag value
 // "us" and a resource named "east" must not rewrite the region inside
-// scope ids, ARNs, Keep fields or ECR hosts, and the short values are still
-// pseudonymized where they are the whole value.
+// scope ids, ARNs, Keep fields or ECR hosts; the short alphabetic values
+// are still pseudonymized where they are the whole value.
 func TestShortTokensNeverRewriteStructure(t *testing.T) {
 	key := mustKey(t, keyA)
 	lambdaARN := "arn:aws:lambda:us-east-1:" + acct + ":function:img-resizer"
@@ -42,7 +42,14 @@ func TestShortTokensNeverRewriteStructure(t *testing.T) {
 	mustMatch(t, "image_uri", fmt.Sprint(payload["image_uri"]), `^`+pseudoAcct+`\.dkr\.ecr\.us-east-1\.amazonaws\.com/`+hexName+`:latest$`)
 	mustMatch(t, "name", fmt.Sprint(payload["name"]), `^`+hexName+`$`)
 	tags, _ := payload["tags"].(map[string]any)
-	for _, tagKey := range []string{"Name", "Tier", "Project", "Version"} {
+	for _, tagKey := range []string{"Name", "Project"} {
 		mustMatch(t, "tag "+tagKey, fmt.Sprint(tags[tagKey]), `^[tn][0-9a-f]{11}$`)
+	}
+	// Numeric tag values under four digits carry no customer data and are
+	// kept (round-5 F13), exactly like numeric names of that length.
+	for tagKey, want := range map[string]string{"Tier": "1", "Version": "7"} {
+		if got := fmt.Sprint(tags[tagKey]); got != want {
+			t.Errorf("tag %s: short numeric value rewritten to shape %q", tagKey, shapeOf(got))
+		}
 	}
 }
