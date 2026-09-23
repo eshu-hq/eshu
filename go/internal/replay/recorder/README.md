@@ -44,7 +44,45 @@ reviewable example (regenerate with `-update`).
 
 A collector adds record mode symmetric to its existing `-mode=cassette`: build
 the live source, then call `recorder.Run` with the `-cassette-file` path.
-`collector-kubernetes-live` is the pilot. Collectors whose fact payloads can
-carry a secret pass `Options.RedactKeys`; most pass none because fact payloads
-are already collector-sanitized (the HTTP boundary is redacted by the input
-tape, R-4).
+`collector-kubernetes-live` was the first; `collector-aws-cloud` is the first
+pseudonymizing recorder. Collectors whose fact payloads can carry a secret
+pass `Options.RedactKeys`; most pass none because fact payloads are
+secret-sanitized by their collector (the HTTP boundary is redacted by the
+input tape, R-4). Secret-sanitized is not identifier-free: account ids, ARNs,
+names, hostnames and addresses do reach envelopes, which is what the next
+section is for.
+
+## Pseudonymized record mode (#6965 Phase 3)
+
+A recording of a real estate must still be committable. With
+`Options.Pseudonymize` set to a `recordpseudo.Config` (a corpus `Key` plus the
+collector's field `Policy`), `Run` wraps the source with `recordpseudo.Wrap`
+so every identifier reaches the cassette as a keyed, structure-preserving
+pseudonym: accounts stay 12 digits in the reserved `0000` range, ARNs keep
+their grammar, names become `n` + 11 hex, addresses land in RFC 5737, and so
+on (the shapes are tabled in `go/internal/replay/recordpseudo/README.md`).
+Equal raw tokens under one key give equal pseudonyms, so joins between facts
+and between sibling cassettes survive -- which is why the key is per corpus,
+not per recording.
+
+`Options.RequirePseudonymization` makes `Run` refuse, before polling the
+source, unless a usable key is configured: a collector that records real
+estates sets it so a missing key can never produce a raw cassette.
+`Options.OnPseudonymized` receives the `recordpseudo.Report` (counts, opaque
+and unclassified field paths, IPv4 slot collisions, key fingerprint -- never
+a value) for the collector to log.
+
+Two belts guard the write, pseudonymized or not:
+
+1. `recordpseudo.Verify` runs on the canonical bytes between `Canonicalize`
+   and `WriteFile`. It scans with the private-data gate's own alternatives
+   and refuses any candidate that is neither a documented safe form nor a
+   pseudonym this run produced; a refused recording leaves no file behind.
+   The reserved `0000` account form is admitted only when this run minted
+   it, which closes the residual of a raw account that happens to start
+   with `0000`.
+2. The load-back through `cassette.LoadFile`, as before.
+
+The cassette records the key's 8-hex fingerprint in
+`pseudonym_key_fingerprint` (never the key), so a gate can check that every
+cassette of one corpus was recorded under one key.

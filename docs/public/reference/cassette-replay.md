@@ -47,9 +47,11 @@ go test ./conformance -count=1
 The first and last commands are credential-free. The `-mode=record` command is
 the optional live step: it runs your collector once against your source system,
 writes a canonical cassette, and does not require Postgres, NornicDB, or Docker.
-Use a binary that actually implements record mode. The current in-tree pilot is
-`collector-kubernetes-live`; out-of-tree collectors should substitute their own
-record-capable binary after adding the same recorder seam.
+Use a binary that actually implements record mode. The in-tree pilots are
+`collector-kubernetes-live` (raw) and `collector-aws-cloud` (pseudonymized, see
+[Record-Mode Pseudonymization](#record-mode-pseudonymization)); out-of-tree
+collectors should substitute their own record-capable binary after adding the
+same recorder seam.
 
 After recording real collector facts, update `conformance/observe.go` so
 `Observe` maps those fact kinds into the node, edge, correlation, property, and
@@ -122,12 +124,47 @@ go run ./cmd/collector-<record-capable-collector> -mode=record \
   -cassette-file=../testdata/cassettes/<collector>/<recording>.json
 ```
 
-For the current in-tree pilot, that is:
+For the current in-tree pilots, that is:
 
 ```bash
 go run ./cmd/collector-kubernetes-live -mode=record \
   -cassette-file=../testdata/cassettes/kuberneteslive/supply-chain-demo.json
+ESHU_RECORD_PSEUDONYM_KEY="$(cat /path/to/corpus.key)" \
+  go run ./cmd/collector-aws-cloud -mode=record \
+  -cassette-file=../testdata/cassettes/awscloud/supply-chain-demo.json
 ```
+
+### Record-Mode Pseudonymization
+
+A recording of a real estate carries account ids, ARNs, resource names,
+hostnames and addresses, none of which may be committed. Recorders that
+implement it (`collector-aws-cloud` is the pilot) rewrite every identifier
+before the recorder sees it, through `go/internal/replay/recordpseudo`:
+each raw token becomes a keyed pseudonym of the same shape (12-digit accounts
+in the reserved `0000` range, ARNs with their grammar intact, `n` + 11 hex
+names, RFC 5737 addresses), so the reducers project the same graph from the
+recording as from the raw run. Equal raw tokens under one key give equal
+pseudonyms, which is what keeps cross-cassette joins alive.
+
+The key is `ESHU_RECORD_PSEUDONYM_KEY`:
+
+- generate it with `openssl rand -hex 32`;
+- use **one key per corpus**: every cassette whose facts join each other
+  (for example the AWS, OCI registry and Terraform-state cassettes of one
+  demo estate) must be recorded under the same key, or the joins break;
+- keep it with the corpus's other secrets and never commit it; the cassette
+  carries only its 8-character fingerprint in `pseudonym_key_fingerprint`.
+
+A recorder that pseudonymizes refuses to run without the key and refuses to
+write a file the private-data gate would reject: `recordpseudo.Verify` scans
+the canonical bytes with the gate's own alternatives before the file exists,
+and admits the reserved `0000` account form only when that run minted it.
+Field paths the collector's policy does not classify are made opaque and
+listed in the `collector.record.pseudonymized` log event, never their values.
+Declared limits: two private CIDRs lose their overlap relation, resource
+names lose readability, and a recording that carries an AWS service
+principal hostname (`*.amazonaws.com`) is refused until a reviewed allow row
+exists for it.
 
 Before committing a refreshed cassette:
 

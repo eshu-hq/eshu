@@ -3,7 +3,8 @@
 ## Read First
 
 1. `README.md` - command purpose, configuration, and invariants.
-2. `main.go` - `-mode fixture|claimed-live` flag parsing and runner selection.
+2. `main.go` - `-mode fixture|claimed-live|cassette|record` flag parsing and
+   runner selection; record mode short-circuits before pprof and Postgres.
 3. `config.go` - collector instance selection and target-scope parsing.
 4. `fixture_config.go` - declarative fixture-mode config loading
    (`loadFixtureConfig`) into `awsruntime.FixtureConfig`.
@@ -11,6 +12,9 @@
    (live) runtime wiring.
 6. `status_committer.go` - commit-side AWS scan status updates after fenced
    fact persistence.
+6. `record.go` - `-mode=record`: `buildRecordSource` (the claimed-live source
+   minus its three Postgres-backed stores) and `recordCassette` (recorder
+   with pseudonymization required, the three `collector.record.*` events).
 7. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
    contract.
 8. Service `awssdk` README files under
@@ -22,7 +26,14 @@
 
 - Keep `-mode` defaulting to `claimed-live`. Fixture mode is opt-in; flipping the
   default would silently change live deployments. `-config` is required in
-  fixture mode and rejected in claimed-live mode.
+  fixture mode and rejected in claimed-live and record modes.
+- Keep `buildClaimedService` untouched by record mode. `buildRecordSource`
+  must stay the same `awsruntime.ClaimedSource` literal with `Limiter`,
+  `Checkpoints`, `ScanStatus` and the factory's `Checkpoints` nil;
+  `TestRecordSourceIsClaimedLiveWiringMinusStores` pins that.
+- Record mode always pseudonymizes (`RequirePseudonymization`), reads
+  `ESHU_RECORD_PSEUDONYM_KEY` once through `loadRecordPseudonymKey`, and never
+  logs the key or a value. Do not add a raw-record flag.
 - Fixture mode requires no redaction key (AWS resource/relationship envelopes
   carry no fingerprinted material). Do not add one.
 - Do not accept static AWS credential fields.

@@ -20,4 +20,11 @@
 //
 // Recording is deterministic: re-recording the same input yields byte-identical
 // output, so refreshing a fixture produces a reviewable diff instead of churn.
+//
+// Fact payloads are secret-sanitized by their collector but not
+// identifier-free. Options.Pseudonymize wraps the source with
+// replay/recordpseudo so identifiers reach the cassette as keyed,
+// structure-preserving pseudonyms, Options.RequirePseudonymization refuses to
+// run without a key, and recordpseudo.Verify runs on the canonical bytes
+// before the file is written -- a refused recording leaves no file behind.
 package recorder
