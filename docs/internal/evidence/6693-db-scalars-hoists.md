@@ -25,7 +25,10 @@ Every root call site was found with `rg` across all of `go/` (not just the
 postgres tree) and repointed to the exported name; no caller outside
 `internal/storage/postgres` referenced any of the seven helpers. The one root
 type assertion / `errors.As` user of the copy-unsupported error
-(`instrumented.go`) and the `TestSearchIndexTermCopyUnsupportedErrorIsTyped`
+(`instrumented.go`; a second consumer, `isSearchIndexTermCopyUnsupported` in
+`reducer/eshusearch/eshu_search_document_index_writer.go:226`, matches only the
+`UnsupportedSearchIndexTermCopy() bool` method and never imports the type, so
+renaming that method would break it) and the `TestSearchIndexTermCopyUnsupportedErrorIsTyped`
 test both still match the moved type's `UnsupportedSearchIndexTermCopy() bool`
 method. No collisions: neither leaf declared any of the seven exported names
 before this change (checked by listing `^func |^type ` in both packages).
