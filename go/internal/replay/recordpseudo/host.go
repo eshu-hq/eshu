@@ -62,8 +62,14 @@ func lastLabelAlphabetic(host string) bool {
 }
 
 // safeHost reports a hostname that already carries no organisation data:
-// the reserved names and zones the private-data gate admits unconditionally.
+// the reserved names and zones the private-data gate admits unconditionally
+// and the public hosts on the gate-mirrored allow list (publicHostsList in
+// verify_forms.go, one list shared with Verify), so ghcr.io or
+// registry.npmjs.org stay readable instead of collapsing to h....example.
 func safeHost(lower string) bool {
+	if _, public := publicHostsList[lower]; public {
+		return true
+	}
 	for _, suffix := range []string{".example", ".test", ".invalid", ".localhost", "example.com", "example.net", "example.org"} {
 		if lower == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(lower, suffix) {
 			return true
