@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
@@ -196,7 +197,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID == "" {
 		entities, err := h.resolveGlobalContentEntities(r.Context(), req.Name, req.Type, limit+1)
 		if err != nil {
-			if errors.Is(err, querycontract.ErrEntityNameSearchUnavailable) {
+			if errors.Is(err, entity.ErrEntityNameSearchUnavailable) {
 				querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
 				return
 			}

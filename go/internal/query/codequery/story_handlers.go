@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 const (
@@ -229,7 +230,7 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 	if len(candidates) == 0 {
 		return codemodel.RelationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
-	candidates = querycontract.ExactEntityNameMatches(candidates, target)
+	candidates = entity.ExactEntityNameMatches(candidates, target)
 	if req.NormalizedQueryType() == "class_hierarchy" {
 		candidates = relationshipStoryClassHierarchyCandidates(candidates)
 	}

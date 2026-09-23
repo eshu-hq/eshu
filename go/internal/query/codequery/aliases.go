@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // The codemodel.RubyRailsControllerActionRootKind constant split to
@@ -118,20 +119,20 @@ const (
 	ErrorCodeInternalError         = querycontract.ErrorCodeInternalError
 
 	// EntityNameMatchExact requires a case-sensitive complete name match.
-	EntityNameMatchExact = querycontract.EntityNameMatchExact
+	EntityNameMatchExact = entity.EntityNameMatchExact
 	// EntityNameMatchSubstring requires a case-sensitive substring match.
-	EntityNameMatchSubstring = querycontract.EntityNameMatchSubstring
+	EntityNameMatchSubstring = entity.EntityNameMatchSubstring
 	// EntityNameScopeAll searches every repository visible to an all-scopes caller.
-	EntityNameScopeAll = querycontract.EntityNameScopeAll
+	EntityNameScopeAll = entity.EntityNameScopeAll
 	// EntityNameScopeRepositories searches one explicit authorized repository set.
-	EntityNameScopeRepositories = querycontract.EntityNameScopeRepositories
+	EntityNameScopeRepositories = entity.EntityNameScopeRepositories
 )
 
 // EntityNameSearch is the bounded, authorization-aware content name-search contract.
-type EntityNameSearch = querycontract.EntityNameSearch
+type EntityNameSearch = entity.EntityNameSearch
 
 // EntityNameSearcher is the narrow extension used by global entity-name routes.
-type EntityNameSearcher = querycontract.EntityNameSearcher
+type EntityNameSearcher = entity.EntityNameSearcher
 
 // ErrContentSubstringIndexesNotReady aliases querycontract's sentinel so
 // callers here and in root compare the same instance with errors.Is.
@@ -226,7 +227,7 @@ func resolveExactGraphEntityCandidates(
 	repoID string,
 	name string,
 ) ([]EntityContent, error) {
-	return querycontract.ResolveExactGraphEntityCandidates(ctx, reader, repoID, name)
+	return entity.ResolveExactGraphEntityCandidates(ctx, reader, repoID, name)
 }
 
 // VisualizationView names the derived-view family a packet was built from.

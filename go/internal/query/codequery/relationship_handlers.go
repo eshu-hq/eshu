@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	entitycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
@@ -249,7 +250,7 @@ func (h *CodeHandler) hydrateRelationshipResponseRepoIdentity(ctx context.Contex
 		"repo_name": StringVal(response, "repo_name"),
 		"labels":    response["labels"],
 	}
-	querycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
+	entitycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
 	if h == nil {
 		return nil
 	}

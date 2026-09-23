@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -89,8 +90,8 @@ func TestGlobalCodeSearchMaximumPublicLimitUsesOneRowProbe(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
 	}
-	if len(content.Searches) != 1 || content.Searches[0].Limit != querycontract.EntityNameSearchMaxLimit+1 {
-		t.Fatalf("content searches = %#v, want internal limit %d", content.Searches, querycontract.EntityNameSearchMaxLimit+1)
+	if len(content.Searches) != 1 || content.Searches[0].Limit != entity.EntityNameSearchMaxLimit+1 {
+		t.Fatalf("content searches = %#v, want internal limit %d", content.Searches, entity.EntityNameSearchMaxLimit+1)
 	}
 }
 
@@ -100,11 +101,11 @@ func TestGlobalCodeSearchMaximumPublicLimitUsesOneRowProbe(t *testing.T) {
 // not importable across the package boundary (#6060).
 type recordingEntityNameSearcher struct {
 	querytestutil.FakePortContentStore
-	Searches []querycontract.EntityNameSearch
+	Searches []entity.EntityNameSearch
 	Rows     []querycontract.EntityContent
 }
 
-func (s *recordingEntityNameSearcher) SearchEntityNames(_ context.Context, search querycontract.EntityNameSearch) ([]querycontract.EntityContent, error) {
+func (s *recordingEntityNameSearcher) SearchEntityNames(_ context.Context, search entity.EntityNameSearch) ([]querycontract.EntityContent, error) {
 	s.Searches = append(s.Searches, search)
 	return append([]querycontract.EntityContent(nil), s.Rows...), nil
 }

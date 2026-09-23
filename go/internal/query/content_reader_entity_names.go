@@ -10,46 +10,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	entityNameSearchMaxLimit   = querycontract.EntityNameSearchMaxLimit
-	entityNameSearchProbeLimit = querycontract.EntityNameSearchProbeLimit
-)
-
-// EntityNameMatch controls the case-sensitive entity_name predicate.
-type EntityNameMatch = querycontract.EntityNameMatch
-
-const (
-	// EntityNameMatchExact requires a case-sensitive complete name match.
-	EntityNameMatchExact = querycontract.EntityNameMatchExact
-	// EntityNameMatchSubstring requires a case-sensitive substring match.
-	EntityNameMatchSubstring = querycontract.EntityNameMatchSubstring
-)
-
-// EntityNameScope controls repository authorization for an entity-name search.
-type EntityNameScope = querycontract.EntityNameScope
-
-const (
-	// EntityNameScopeAll searches every repository visible to an all-scopes caller.
-	EntityNameScopeAll = querycontract.EntityNameScopeAll
-	// EntityNameScopeRepositories searches one explicit authorized repository set.
-	EntityNameScopeRepositories = querycontract.EntityNameScopeRepositories
-)
-
-// EntityNameSearch is the bounded, authorization-aware content name-search contract.
-type EntityNameSearch = querycontract.EntityNameSearch
-
-// EntityNameSearcher is the narrow extension used by global entity-name routes.
-type EntityNameSearcher = querycontract.EntityNameSearcher
-
 // SearchEntityNames searches current content entities with every authorization
 // and semantic filter applied before the bounded deterministic LIMIT.
-func (cr *ContentReader) SearchEntityNames(ctx context.Context, search EntityNameSearch) ([]EntityContent, error) {
+func (cr *ContentReader) SearchEntityNames(ctx context.Context, search entity.EntityNameSearch) ([]EntityContent, error) {
 	search, empty, err := normalizeEntityNameSearch(search)
 	if err != nil || empty {
 		return []EntityContent{}, err
@@ -96,10 +65,10 @@ func (cr *ContentReader) SearchEntityNames(ctx context.Context, search EntityNam
 	return results, nil
 }
 
-func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
+func buildEntityNameSearchQuery(search entity.EntityNameSearch) (string, []any) {
 	operator := "= $1"
 	nameArg := search.Name
-	if search.Match == EntityNameMatchSubstring {
+	if search.Match == entity.EntityNameMatchSubstring {
 		operator = `LIKE '%' || $1 || '%' ESCAPE '\'`
 		nameArg = escapeEntityNameLikeLiteral(search.Name)
 	}
@@ -112,7 +81,7 @@ func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
 			WHERE eshu_require_content_substring_indexes_ready()
 			  AND entity_name ` + operator
 	args := []any{nameArg}
-	if search.Scope == EntityNameScopeRepositories {
+	if search.Scope == entity.EntityNameScopeRepositories {
 		args = append(args, array.Of(search.RepositoryIDs))
 		query += fmt.Sprintf(" AND repo_id = ANY($%d::text[])", len(args))
 	}
@@ -162,25 +131,25 @@ func buildEntityNameSearchQuery(search EntityNameSearch) (string, []any) {
 	return query, args
 }
 
-func normalizeEntityNameSearch(search EntityNameSearch) (EntityNameSearch, bool, error) {
+func normalizeEntityNameSearch(search entity.EntityNameSearch) (entity.EntityNameSearch, bool, error) {
 	search.Name = strings.TrimSpace(search.Name)
 	if search.Name == "" {
 		return search, false, errors.New("entity name is required")
 	}
-	if search.Match != EntityNameMatchExact && search.Match != EntityNameMatchSubstring {
+	if search.Match != entity.EntityNameMatchExact && search.Match != entity.EntityNameMatchSubstring {
 		return search, false, fmt.Errorf("invalid entity name match mode %q", search.Match)
 	}
-	if search.Scope != EntityNameScopeAll && search.Scope != EntityNameScopeRepositories {
+	if search.Scope != entity.EntityNameScopeAll && search.Scope != entity.EntityNameScopeRepositories {
 		return search, false, fmt.Errorf("invalid entity name scope %q", search.Scope)
 	}
-	if search.Limit <= 0 || search.Limit > entityNameSearchProbeLimit {
-		return search, false, fmt.Errorf("entity name search limit must be between 1 and %d", entityNameSearchProbeLimit)
+	if search.Limit <= 0 || search.Limit > entity.EntityNameSearchProbeLimit {
+		return search, false, fmt.Errorf("entity name search limit must be between 1 and %d", entity.EntityNameSearchProbeLimit)
 	}
 	search.RepositoryIDs = sortedUniqueNonEmptyStrings(search.RepositoryIDs)
-	if search.Scope == EntityNameScopeAll && len(search.RepositoryIDs) > 0 {
+	if search.Scope == entity.EntityNameScopeAll && len(search.RepositoryIDs) > 0 {
 		return search, false, errors.New("all-repository entity name scope rejects repository IDs")
 	}
-	if search.Scope == EntityNameScopeRepositories && len(search.RepositoryIDs) == 0 {
+	if search.Scope == entity.EntityNameScopeRepositories && len(search.RepositoryIDs) == 0 {
 		return search, true, nil
 	}
 	languageVariants := make([]string, 0, len(search.Languages))

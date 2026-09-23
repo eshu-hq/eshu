@@ -20,9 +20,9 @@ subpackage can call the same logic without an import cycle (#6060):
 
 | Promoted seam | File here | What root keeps |
 | --- | --- | --- |
-| `#6408` projection-placeholder scrubber | `entity_repo_identity.go` | unexported function forwarder |
+| `#6408` projection-placeholder scrubber | moved to `entity/` (#6597) | `codequery` and `queryselector` call `entity.ClearResolvedEntityRepoProjectionPlaceholders` directly |
 | Visualization packet, builder and merge | `visualization_packet.go`, `visualization_packet_merge.go` | exported type and const aliases, function forwarders |
-| Entity-name search | `entity_name_search.go` | exported type aliases, unexported const and sentinel-error aliases |
+| Entity-name search and resolution | moved to `entity/` (#6597) | callers name `entity.EntityNameSearch`, `entity.ResolveExactGraphEntityCandidates` and friends directly; root's #6060 aliases were deleted with the move |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
 | Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
 | Evidence-citation packet read models (#6642) | `evidence_citation.go` | unexported type aliases in root `evidence_citation.go` and `evidence_citation_unified.go` (`evidenceCitation`, `evidenceCitationResponse`, `evidenceCitationCoverage`, `evidenceCitationProvenance`); root's `toCanonical` method became the free function `citationToCanonical` because an alias cannot carry methods |
@@ -30,7 +30,6 @@ subpackage can call the same logic without an import cycle (#6060):
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go` | 20 unexported type aliases in root, plus four exported ones |
 | `AnswerMetadata` attach helper | `answer_metadata.go` | exported type alias + wrapper in `answer_metadata_alias.go`; `AssertAnswerMetadata` pin in `impact/` test |
 | Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |
-| Entity resolution | `entity_resolution.go` | unexported forwarding wrappers in root `entity_resolution.go`; root callers go through them |
 | Evidence-boundary disclosures | `evidence_boundaries.go` | type and const aliases in root `evidence_boundaries.go` |
 | Hostname environment inference | `hostname_environment.go` | root service-evidence callers reference directly |
 | Infra-label helpers | `infra_labels.go` | root infra-aggregate callers reference directly |

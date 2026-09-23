@@ -40,17 +40,14 @@
 // UnsupportedVisualizationPacket. EvidenceCitationHandle and its dedup key are
 // the citation handles those packets carry, and EvidenceCitationResponse,
 // EvidenceCitation, EvidenceCitationCoverage and EvidenceCitationProvenance
-// are the citation packet those handles resolve into. Entity-name search covers
-// EntityNameSearch, EntityNameMatch, EntityNameScope, the EntityNameSearcher
-// port, its limit constants, and the sentinel errors
-// ErrEntityNameSearchUnavailable and ErrGlobalGraphEntitySearchUnsupported.
+// are the citation packet those handles resolve into. Entity-name search, exact
+// graph entity resolution and the #6408 projection-placeholder scrubber moved
+// to the entity subpackage (#6597).
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
 // WriteContentSubstringIndexUnavailable. The language taxonomy covers
 // CanonicalLanguage, NormalizedLanguageVariants and CoverageLanguageMaps over
 // an unexported alias table; the accepted-language set lives in the
 // language leaf (go/internal/query/language, registry.go).
-// ClearResolvedEntityRepoProjectionPlaceholders is the #6408 workaround that
-// blanks a projection expression a backend returned as literal text.
 //
 // The sentinel errors are the reason several of these moved rather than being
 // copied: root compares them with errors.Is, so both sides have to resolve to
@@ -99,4 +96,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/, rowvalue/ and code/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.
+package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/, rowvalue/, code/ and entity/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -159,8 +161,8 @@ type entityNameSearchPlanNode struct {
 
 func assertEntityNameSearchLargeCatalogPlan(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
-	search, empty, err := normalizeEntityNameSearch(EntityNameSearch{
-		Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeAll, Limit: 51,
+	search, empty, err := normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll, Limit: 51,
 	})
 	if err != nil || empty {
 		t.Fatalf("normalize plan proof search: empty=%t err=%v", empty, err)

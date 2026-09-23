@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package entity
 
 import (
 	"context"
 	"errors"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // EntityNameSearchMaxLimit bounds a global entity-name search's page size.
@@ -61,7 +63,7 @@ type EntityNameSearch struct {
 // root's content_reader_entity_names.go; only the request/response contract
 // shape and the shared errors live here.
 type EntityNameSearcher interface {
-	SearchEntityNames(context.Context, EntityNameSearch) ([]EntityContent, error)
+	SearchEntityNames(context.Context, EntityNameSearch) ([]querycontract.EntityContent, error)
 }
 
 // ErrEntityNameSearchUnavailable reports that the content store passed to a

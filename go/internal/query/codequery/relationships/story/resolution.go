@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
 )
 
 // Target resolution and the grant-bound candidate reads live here,
@@ -185,7 +186,7 @@ func ExactCandidatesPerRepository(
 		if err != nil {
 			return nil, err
 		}
-		candidates = append(candidates, querycontract.ExactEntityNameMatches(rows, target)...)
+		candidates = append(candidates, entity.ExactEntityNameMatches(rows, target)...)
 	}
 	if len(candidates) > limit {
 		candidates = candidates[:limit]

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -36,8 +38,8 @@ func TestSearchEntityNamesPushesFiltersBeforeLimit(t *testing.T) {
 			"LIMIT $5",
 		},
 	}})
-	rows, err := NewContentReader(db).SearchEntityNames(context.Background(), EntityNameSearch{
-		Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories,
+	rows, err := NewContentReader(db).SearchEntityNames(context.Background(), entity.EntityNameSearch{
+		Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories,
 		RepositoryIDs: []string{"repo-a", "repo-a"}, Languages: []string{"go"}, EntityType: "Function", Limit: 2,
 	})
 	if err != nil {
@@ -54,8 +56,8 @@ func TestSearchEntityNamesEscapesLiteralSubstringMetacharacters(t *testing.T) {
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
 		columns: []string{"entity_id", "repo_id", "relative_path", "entity_type", "entity_name", "start_line", "end_line", "language", "source_cache", "metadata", "repo_name"},
 	}})
-	_, err := NewContentReader(db).SearchEntityNames(context.Background(), EntityNameSearch{
-		Name: `server_100%\δοκιμή`, Match: EntityNameMatchSubstring, Scope: EntityNameScopeAll, Limit: 5,
+	_, err := NewContentReader(db).SearchEntityNames(context.Background(), entity.EntityNameSearch{
+		Name: `server_100%\δοκιμή`, Match: entity.EntityNameMatchSubstring, Scope: entity.EntityNameScopeAll, Limit: 5,
 	})
 	if err != nil {
 		t.Fatalf("SearchEntityNames() error = %v", err)
@@ -74,8 +76,8 @@ func TestSearchEntityNamesAppliesSemanticAndAuthorizationFiltersBeforePageAndCat
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
 		columns: []string{"entity_id", "repo_id", "relative_path", "entity_type", "entity_name", "start_line", "end_line", "language", "source_cache", "metadata", "repo_name"},
 	}})
-	_, err := NewContentReader(db).SearchEntityNames(context.Background(), EntityNameSearch{
-		Name: "is_valid", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories,
+	_, err := NewContentReader(db).SearchEntityNames(context.Background(), entity.EntityNameSearch{
+		Name: "is_valid", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories,
 		RepositoryIDs: []string{"repo-a"}, EntityType: "Function",
 		MetadataKey: "semantic_kind", MetadataValue: "guard", Limit: 5,
 	})
@@ -108,13 +110,13 @@ func TestSearchEntityNamesSubstringAndEmptyGrantContracts(t *testing.T) {
 		queryContains: []string{"entity_name LIKE '%' || $1 || '%'", "LIMIT $2"},
 	}})
 	reader := NewContentReader(db)
-	if _, err := reader.SearchEntityNames(context.Background(), EntityNameSearch{
-		Name: "Serv", Match: EntityNameMatchSubstring, Scope: EntityNameScopeAll, Limit: 5,
+	if _, err := reader.SearchEntityNames(context.Background(), entity.EntityNameSearch{
+		Name: "Serv", Match: entity.EntityNameMatchSubstring, Scope: entity.EntityNameScopeAll, Limit: 5,
 	}); err != nil {
 		t.Fatalf("substring SearchEntityNames() error = %v", err)
 	}
-	if rows, err := reader.SearchEntityNames(context.Background(), EntityNameSearch{
-		Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories, Limit: 5,
+	if rows, err := reader.SearchEntityNames(context.Background(), entity.EntityNameSearch{
+		Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories, Limit: 5,
 	}); err != nil || len(rows) != 0 {
 		t.Fatalf("empty-grant SearchEntityNames() = %#v, %v; want empty without query", rows, err)
 	}
@@ -123,17 +125,17 @@ func TestSearchEntityNamesSubstringAndEmptyGrantContracts(t *testing.T) {
 func TestNormalizeEntityNameSearchRejectsAmbiguousOrUnboundedRequests(t *testing.T) {
 	t.Parallel()
 
-	valid := EntityNameSearch{Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeAll, Limit: 10}
+	valid := entity.EntityNameSearch{Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll, Limit: 10}
 	for _, tc := range []struct {
 		name   string
-		mutate func(*EntityNameSearch)
+		mutate func(*entity.EntityNameSearch)
 	}{
-		{name: "whitespace name", mutate: func(s *EntityNameSearch) { s.Name = " \t " }},
-		{name: "invalid match", mutate: func(s *EntityNameSearch) { s.Match = "fuzzy" }},
-		{name: "invalid scope", mutate: func(s *EntityNameSearch) { s.Scope = "implicit" }},
-		{name: "all scope with repositories", mutate: func(s *EntityNameSearch) { s.RepositoryIDs = []string{"repo-a"} }},
-		{name: "zero limit", mutate: func(s *EntityNameSearch) { s.Limit = 0 }},
-		{name: "over internal probe limit", mutate: func(s *EntityNameSearch) { s.Limit = entityNameSearchProbeLimit + 1 }},
+		{name: "whitespace name", mutate: func(s *entity.EntityNameSearch) { s.Name = " \t " }},
+		{name: "invalid match", mutate: func(s *entity.EntityNameSearch) { s.Match = "fuzzy" }},
+		{name: "invalid scope", mutate: func(s *entity.EntityNameSearch) { s.Scope = "implicit" }},
+		{name: "all scope with repositories", mutate: func(s *entity.EntityNameSearch) { s.RepositoryIDs = []string{"repo-a"} }},
+		{name: "zero limit", mutate: func(s *entity.EntityNameSearch) { s.Limit = 0 }},
+		{name: "over internal probe limit", mutate: func(s *entity.EntityNameSearch) { s.Limit = entity.EntityNameSearchProbeLimit + 1 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			search := valid
@@ -148,11 +150,11 @@ func TestNormalizeEntityNameSearchRejectsAmbiguousOrUnboundedRequests(t *testing
 func TestNormalizeEntityNameSearchAcceptsOneRowPaginationProbe(t *testing.T) {
 	t.Parallel()
 
-	search, empty, err := normalizeEntityNameSearch(EntityNameSearch{
-		Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeAll,
-		Limit: entityNameSearchProbeLimit,
+	search, empty, err := normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeAll,
+		Limit: entity.EntityNameSearchProbeLimit,
 	})
-	if err != nil || empty || search.Limit != entityNameSearchMaxLimit+1 {
+	if err != nil || empty || search.Limit != entity.EntityNameSearchMaxLimit+1 {
 		t.Fatalf("normalizeEntityNameSearch() = %#v, empty=%t, err=%v", search, empty, err)
 	}
 }
@@ -160,8 +162,8 @@ func TestNormalizeEntityNameSearchAcceptsOneRowPaginationProbe(t *testing.T) {
 func TestNormalizeEntityNameSearchCanonicalizesExplicitScope(t *testing.T) {
 	t.Parallel()
 
-	search, empty, err := normalizeEntityNameSearch(EntityNameSearch{
-		Name: " Server ", Match: EntityNameMatchSubstring, Scope: EntityNameScopeRepositories,
+	search, empty, err := normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: " Server ", Match: entity.EntityNameMatchSubstring, Scope: entity.EntityNameScopeRepositories,
 		RepositoryIDs: []string{"repo-b", "", "repo-a", "repo-b"},
 		Languages:     []string{"TSX", "typescript", ""}, Limit: 10,
 	})
@@ -173,8 +175,8 @@ func TestNormalizeEntityNameSearchCanonicalizesExplicitScope(t *testing.T) {
 		t.Fatalf("normalized search = %#v", search)
 	}
 
-	search, empty, err = normalizeEntityNameSearch(EntityNameSearch{
-		Name: "Server", Match: EntityNameMatchExact, Scope: EntityNameScopeRepositories,
+	search, empty, err = normalizeEntityNameSearch(entity.EntityNameSearch{
+		Name: "Server", Match: entity.EntityNameMatchExact, Scope: entity.EntityNameScopeRepositories,
 		RepositoryIDs: []string{"", "  "}, Limit: 10,
 	})
 	if err != nil || !empty || len(search.RepositoryIDs) != 0 {
@@ -184,11 +186,11 @@ func TestNormalizeEntityNameSearchCanonicalizesExplicitScope(t *testing.T) {
 
 type recordingEntityNameSearcher struct {
 	fakePortContentStore
-	searches []EntityNameSearch
+	searches []entity.EntityNameSearch
 	rows     []EntityContent
 }
 
-func (s *recordingEntityNameSearcher) SearchEntityNames(_ context.Context, search EntityNameSearch) ([]EntityContent, error) {
+func (s *recordingEntityNameSearcher) SearchEntityNames(_ context.Context, search entity.EntityNameSearch) ([]EntityContent, error) {
 	s.searches = append(s.searches, search)
 	return append([]EntityContent(nil), s.rows...), nil
 }
@@ -221,7 +223,7 @@ func TestGlobalCodeSearchUsesOneAuthorizedContentNameQuery(t *testing.T) {
 		t.Fatalf("search calls = %d, want 1", len(content.searches))
 	}
 	got := content.searches[0]
-	if got.Match != EntityNameMatchSubstring || got.Scope != EntityNameScopeRepositories || !slices.Equal(got.RepositoryIDs, []string{"repo-a", "repo-b"}) {
+	if got.Match != entity.EntityNameMatchSubstring || got.Scope != entity.EntityNameScopeRepositories || !slices.Equal(got.RepositoryIDs, []string{"repo-a", "repo-b"}) {
 		t.Fatalf("search = %#v, want one sorted scoped substring query", got)
 	}
 	if !slices.Equal(got.Languages, []string{"typescript", "tsx"}) {
@@ -307,7 +309,7 @@ func TestGlobalEntityResolveFailsClosedOrUsesExactContent(t *testing.T) {
 			if len(content.searches) != tc.wantCalls {
 				t.Fatalf("search calls = %d, want %d", len(content.searches), tc.wantCalls)
 			}
-			if tc.wantCalls == 1 && (content.searches[0].Match != EntityNameMatchExact || content.searches[0].EntityType != "Function") {
+			if tc.wantCalls == 1 && (content.searches[0].Match != entity.EntityNameMatchExact || content.searches[0].EntityType != "Function") {
 				t.Fatalf("search = %#v, want exact Function", content.searches[0])
 			}
 			if tc.wantCalls == 1 {
