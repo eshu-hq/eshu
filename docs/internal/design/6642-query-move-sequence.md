@@ -242,8 +242,11 @@ What remains is one item, and the issue itself defers it.
 
 Updated as each PR lands.
 
-- [ ] PR 1 — spine repoint
-- [ ] PR 2 — `capability/`
+- [x] PR 1a — envelope spine repoint ([#6977](https://github.com/eshu-hq/eshu/pull/6977), merged `a42ad3788`). 0 files moved.
+- [ ] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), open). 0 files moved.
+- [ ] PR 2 — `capability/`. **Held for owner approval of this mapping**: it is
+      the first PR in the series that actually moves a file, and the approval
+      gate in the drive brief has not been answered. Built and green locally.
 - [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
 - [ ] PR 4 — `testutil/` ← `querytestutil`
 - [ ] PR 6 — `auth/`
