@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // baseSupplyChainInput returns a complete, deterministic supply-chain impact
@@ -42,7 +44,7 @@ func baseSupplyChainInput() InvestigationPacketInput {
 			{Relationship: "RUNS_IN", From: "image:sha256:abc", To: "workload:checkout", Hop: "workload", Present: true, TruthClass: AnswerTruthDeterministic},
 			{Relationship: "SERVES", From: "workload:checkout", To: "service:svc-checkout", Hop: "service", Present: true, TruthClass: AnswerTruthDeterministic},
 		},
-		Citations: []evidenceCitationHandle{
+		Citations: []evidence.EvidenceCitationHandle{
 			{Kind: "supply_chain_finding", EvidenceFamily: "vulnerability_advisory", Reason: "advisory evidence"},
 		},
 	}

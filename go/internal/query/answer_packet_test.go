@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 func TestAnswerPacketFromExactGraphEnvelopeIsDeterministic(t *testing.T) {
@@ -156,8 +158,8 @@ func TestAnswerPacketMissingEvidenceIsPartialWithSummary(t *testing.T) {
 		PromptFamily:    "evidence_citation.packet",
 		Question:        "Cite the evidence for AdmitWorkload.",
 		Summary:         "1 citation resolved.",
-		EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
-		MissingEvidence: []evidenceCitationHandle{{Kind: "file", RepoID: "r1", RelativePath: "missing.go"}},
+		EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
+		MissingEvidence: []evidence.EvidenceCitationHandle{{Kind: "file", RepoID: "r1", RelativePath: "missing.go"}},
 		Envelope:        &ResponseEnvelope{Data: map[string]any{}, Truth: truth},
 	})
 
@@ -182,13 +184,13 @@ func TestAnswerPacketFromCitationResponseMapsEvidence(t *testing.T) {
 		Basis:      TruthBasisContentIndex,
 		Freshness:  TruthFreshness{State: FreshnessFresh},
 	}
-	citation := evidenceCitationResponse{
+	citation := evidence.EvidenceCitationResponse{
 		Question:  "Cite the evidence for AdmitWorkload.",
-		Citations: []evidenceCitation{{CitationID: "citation:abc", Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
-		MissingHandles: []evidenceCitationHandle{
+		Citations: []evidence.EvidenceCitation{{CitationID: "citation:abc", Kind: "entity", EntityID: "go:func:AdmitWorkload"}},
+		MissingHandles: []evidence.EvidenceCitationHandle{
 			{Kind: "file", RepoID: "r1", RelativePath: "missing.go"},
 		},
-		Coverage:             evidenceCitationCoverage{ResolvedCount: 1, MissingCount: 1, Truncated: true},
+		Coverage:             evidence.EvidenceCitationCoverage{ResolvedCount: 1, MissingCount: 1, Truncated: true},
 		RecommendedNextCalls: []map[string]any{{"tool": "search_file_content", "reason": "rediscover"}},
 	}
 	packet := NewAnswerPacketFromCitations(AnswerPacketInput{

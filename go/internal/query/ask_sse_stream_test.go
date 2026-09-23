@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // TestAskSSE_Streaming_ForwardsValidatedTokenEvents verifies that a
@@ -192,7 +194,7 @@ func TestAskSSE_StreamingFinalAnswerSuppressesUnsafeNarration(t *testing.T) {
 				Packets: []AnswerPacket{{
 					TruthClass:      AnswerTruthDeterministic,
 					Supported:       true,
-					EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+					EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
 				}},
 			},
 		},
@@ -241,7 +243,7 @@ func TestAskSSE_StreamingDropsUnsafeTokenEvents(t *testing.T) {
 				Packets: []AnswerPacket{{
 					TruthClass:      AnswerTruthDeterministic,
 					Supported:       true,
-					EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+					EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
 				}},
 			},
 		},

@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // TestEvidenceHandlerBuildEvidenceCitationsPacketFromFileAndEntityHandles
@@ -242,7 +244,7 @@ func TestNormalizeEvidenceCitationRequestPreservesDistinctFileCitations(t *testi
 
 	handles, limit, truncated, err := normalizeEvidenceCitationRequest(evidenceCitationRequest{
 		Limit: 10,
-		Handles: []evidenceCitationHandle{
+		Handles: []evidence.EvidenceCitationHandle{
 			{
 				Kind:         "file",
 				RepoID:       "repo-service",
@@ -286,13 +288,13 @@ func TestNormalizeEvidenceCitationRequestStopsAfterTruncationProbe(t *testing.T)
 
 	req := evidenceCitationRequest{Limit: 2}
 	for _, path := range []string{"one.md", "two.md", "three.md"} {
-		req.Handles = append(req.Handles, evidenceCitationHandle{
+		req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{
 			Kind:         "file",
 			RepoID:       "repo-service",
 			RelativePath: path,
 		})
 	}
-	req.Handles = append(req.Handles, evidenceCitationHandle{Kind: "bogus"})
+	req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{Kind: "bogus"})
 
 	handles, _, truncated, err := normalizeEvidenceCitationRequest(req)
 	if err != nil {
@@ -311,7 +313,7 @@ func TestNormalizeEvidenceCitationRequestRejectsOversizedHandleArrays(t *testing
 
 	req := evidenceCitationRequest{Limit: 50}
 	for i := 0; i < evidenceCitationMaxInputHandles+1; i++ {
-		req.Handles = append(req.Handles, evidenceCitationHandle{
+		req.Handles = append(req.Handles, evidence.EvidenceCitationHandle{
 			Kind:         "file",
 			RepoID:       "repo-service",
 			RelativePath: "README.md",

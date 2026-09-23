@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // Default per-layer caps for a v2 packet. They bound the artifact so a large
@@ -49,7 +51,7 @@ type InvestigationPacketInput struct {
 	// GraphAnswers is the graph/query-truth layer.
 	GraphAnswers []PacketGraphAnswer
 	// Citations is the addressable-evidence layer.
-	Citations []evidenceCitationHandle
+	Citations []evidence.EvidenceCitationHandle
 	// MissingEvidence is the explicit missing-hop layer.
 	MissingEvidence []PacketMissingHop
 	// SemanticObservations is the optional semantic layer. It is only permitted
@@ -168,7 +170,7 @@ func buildRefusalPacket(in InvestigationPacketInput) (InvestigationEvidencePacke
 		SourceFacts:      []PacketSourceFact{},
 		ReducerDecisions: []PacketReducerDecision{},
 		GraphAnswers:     []PacketGraphAnswer{},
-		Citations:        []evidenceCitationHandle{},
+		Citations:        []evidence.EvidenceCitationHandle{},
 		MissingEvidence:  []PacketMissingHop{},
 		Redaction:        defaultPacketRedaction(),
 		Limitations:      dedupeStrings(in.Limitations),

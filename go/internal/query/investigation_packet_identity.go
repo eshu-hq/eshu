@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // investigationPacketID derives a deterministic identity from the packet's
@@ -54,13 +56,13 @@ func investigationPacketID(packet InvestigationEvidencePacket) (string, error) {
 // digest is reproducible for identical evidence.
 func packetContentDigest(packet InvestigationEvidencePacket) (string, error) {
 	content := struct {
-		Truth     *TruthEnvelope              `json:"truth"`
-		Source    []PacketSourceFact          `json:"source_facts"`
-		Decisions []PacketReducerDecision     `json:"reducer_decisions"`
-		Graph     []PacketGraphAnswer         `json:"graph_answers"`
-		Citations []evidenceCitationHandle    `json:"citations"`
-		Missing   []PacketMissingHop          `json:"missing_evidence"`
-		Semantic  []PacketSemanticObservation `json:"semantic_observations"`
+		Truth     *TruthEnvelope                    `json:"truth"`
+		Source    []PacketSourceFact                `json:"source_facts"`
+		Decisions []PacketReducerDecision           `json:"reducer_decisions"`
+		Graph     []PacketGraphAnswer               `json:"graph_answers"`
+		Citations []evidence.EvidenceCitationHandle `json:"citations"`
+		Missing   []PacketMissingHop                `json:"missing_evidence"`
+		Semantic  []PacketSemanticObservation       `json:"semantic_observations"`
 	}{
 		Truth:     packet.Truth,
 		Source:    packet.SourceFacts,

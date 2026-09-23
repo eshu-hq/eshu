@@ -6,6 +6,8 @@ package query
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -21,7 +23,7 @@ func TestCitationFromFileCarriesConfidenceAndByteCitation(t *testing.T) {
 		Language:     "go",
 		ArtifactType: "source",
 	}
-	handle := evidenceCitationHandle{
+	handle := evidence.EvidenceCitationHandle{
 		Kind:         "file",
 		RepoID:       "repo-service",
 		RelativePath: "cmd/api/main.go",
@@ -51,7 +53,7 @@ func TestCitationFromFileCarriesConfidenceAndByteCitation(t *testing.T) {
 func TestEvidenceCitationRoundTripsCanonical(t *testing.T) {
 	t.Parallel()
 
-	cite := evidenceCitation{
+	cite := evidence.EvidenceCitation{
 		CitationID:     "citation:x",
 		Kind:           "file",
 		EvidenceFamily: "source",
@@ -64,7 +66,7 @@ func TestEvidenceCitationRoundTripsCanonical(t *testing.T) {
 		ByteLength:     24,
 		ContentHash:    "sha256:file",
 		CommitSHA:      "abc123",
-		Provenance:     evidenceCitationProvenance{Basis: string(truth.ProvenanceBasisSourceContent), Rationale: "entry point"},
+		Provenance:     evidence.EvidenceCitationProvenance{Basis: string(truth.ProvenanceBasisSourceContent), Rationale: "entry point"},
 		Excerpt:        "func main() {\n\tstartAPI()",
 	}
 

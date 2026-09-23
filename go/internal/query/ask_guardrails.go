@@ -12,6 +12,8 @@ package query
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/answerguardrail"
 )
 
@@ -147,7 +149,7 @@ func applyDerivedProseCoverage(resp *askResponse) {
 		"answer_prose citation coverage is the packet truth provenance (truth_class: "+truthClass+"); no citation_ref or evidence handles were resolved")
 }
 
-func askCitationHandleStrings(handles []evidenceCitationHandle) []string {
+func askCitationHandleStrings(handles []evidence.EvidenceCitationHandle) []string {
 	if len(handles) == 0 {
 		return nil
 	}
@@ -186,13 +188,13 @@ func publishSafeAskLimitations(limitations []string) []string {
 	return out
 }
 
-func publishSafeAskEvidenceHandles(handles []evidenceCitationHandle) []evidenceCitationHandle {
+func publishSafeAskEvidenceHandles(handles []evidence.EvidenceCitationHandle) []evidence.EvidenceCitationHandle {
 	if len(handles) == 0 {
 		return handles
 	}
-	out := make([]evidenceCitationHandle, 0, len(handles))
+	out := make([]evidence.EvidenceCitationHandle, 0, len(handles))
 	for _, handle := range handles {
-		if answerguardrail.FirstUnsafeString(askCitationHandleStrings([]evidenceCitationHandle{handle})) != "" {
+		if answerguardrail.FirstUnsafeString(askCitationHandleStrings([]evidence.EvidenceCitationHandle{handle})) != "" {
 			continue
 		}
 		out = append(out, handle)

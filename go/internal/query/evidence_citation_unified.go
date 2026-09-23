@@ -12,11 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// evidenceCitationProvenance aliases evidence.EvidenceCitationProvenance
-// (moved for #6642); it is the wire shape of the canonical truth.Provenance
-// carried on every citation (issue #3489).
-type evidenceCitationProvenance = evidence.EvidenceCitationProvenance
-
 // excerptByteWindow locates the byte offset and length of an excerpt inside the
 // original content. boundedLineExcerpt drops a single trailing newline before
 // splitting, so the excerpt is a verbatim substring of content trimmed of that
@@ -61,8 +56,8 @@ func normalizeCitationConfidence(c float64) float64 {
 // citationProvenance builds the typed provenance for a content-hydrated
 // citation. Citations always read indexed source content, so the basis is
 // source_content; the rationale carries the handle reason.
-func citationProvenance(reason string) evidenceCitationProvenance {
-	return evidenceCitationProvenance{
+func citationProvenance(reason string) evidence.EvidenceCitationProvenance {
+	return evidence.EvidenceCitationProvenance{
 		Basis:     string(truth.ProvenanceBasisSourceContent),
 		Rationale: strings.TrimSpace(reason),
 		Source:    "postgres_content_store",
@@ -75,7 +70,7 @@ func citationProvenance(reason string) evidenceCitationProvenance {
 // function rather than a method because evidenceCitation is now an alias of
 // evidence.EvidenceCitation (#6642) and an alias cannot carry methods
 // declared in another package.
-func citationToCanonical(c evidenceCitation) truth.Evidence {
+func citationToCanonical(c evidence.EvidenceCitation) truth.Evidence {
 	basis := truth.ProvenanceBasis(c.Provenance.Basis)
 	if basis.Validate() != nil {
 		basis = truth.ProvenanceBasisSourceContent

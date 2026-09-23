@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
@@ -14,11 +16,11 @@ import (
 
 // evidenceBoundariesFromMap extracts []PostgresOnlyBoundary from a response
 // map. Returns nil when the key is absent or the value has the wrong type.
-func evidenceBoundariesFromMap(data map[string]any) []PostgresOnlyBoundary {
+func evidenceBoundariesFromMap(data map[string]any) []evidence.PostgresOnlyBoundary {
 	if data == nil {
 		return nil
 	}
-	boundaries, _ := data["evidence_boundaries"].([]PostgresOnlyBoundary)
+	boundaries, _ := data["evidence_boundaries"].([]evidence.PostgresOnlyBoundary)
 	return boundaries
 }
 
@@ -31,7 +33,7 @@ func evidenceBoundariesFromMap(data map[string]any) []PostgresOnlyBoundary {
 func TestEvidenceBoundariesForServiceStoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	got := evidenceBoundariesFor("get_service_story")
+	got := evidence.EvidenceBoundariesFor("get_service_story")
 	if got != nil {
 		t.Fatalf("evidence_boundaries = %#v, want nil for get_service_story", got)
 	}
@@ -46,7 +48,7 @@ func TestEvidenceBoundariesForServiceStoryIsEmpty(t *testing.T) {
 func TestEvidenceBoundariesForWorkloadStory(t *testing.T) {
 	t.Parallel()
 
-	got := evidenceBoundariesFor("get_workload_story")
+	got := evidence.EvidenceBoundariesFor("get_workload_story")
 	if len(got) != 2 {
 		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(got), got)
 	}
@@ -59,8 +61,8 @@ func TestEvidenceBoundariesForWorkloadStory(t *testing.T) {
 		if b.ReadSurface != "get_workload_story" {
 			t.Errorf("boundary[%d].read_surface = %q, want get_workload_story", i, b.ReadSurface)
 		}
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, boundaryReasonPostgresOnly)
+		if b.Reason != evidence.BoundaryReasonPostgresOnly {
+			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, evidence.BoundaryReasonPostgresOnly)
 		}
 	}
 }
@@ -74,7 +76,7 @@ func TestEvidenceBoundariesForWorkloadStory(t *testing.T) {
 func TestEvidenceBoundariesForRepoStoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	got := evidenceBoundariesFor("get_repo_story")
+	got := evidence.EvidenceBoundariesFor("get_repo_story")
 	if got != nil {
 		t.Fatalf("evidence_boundaries = %#v, want nil for get_repo_story", got)
 	}
@@ -83,7 +85,7 @@ func TestEvidenceBoundariesForRepoStoryIsEmpty(t *testing.T) {
 func TestEvidenceBoundariesForTraceDeployment(t *testing.T) {
 	t.Parallel()
 
-	got := evidenceBoundariesFor("trace_deployment_chain")
+	got := evidence.EvidenceBoundariesFor("trace_deployment_chain")
 	if len(got) != 2 {
 		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(got), got)
 	}
@@ -96,8 +98,8 @@ func TestEvidenceBoundariesForTraceDeployment(t *testing.T) {
 		if b.ReadSurface != "trace_deployment_chain" {
 			t.Errorf("boundary[%d].read_surface = %q, want trace_deployment_chain", i, b.ReadSurface)
 		}
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, boundaryReasonPostgresOnly)
+		if b.Reason != evidence.BoundaryReasonPostgresOnly {
+			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, evidence.BoundaryReasonPostgresOnly)
 		}
 	}
 }
@@ -105,7 +107,7 @@ func TestEvidenceBoundariesForTraceDeployment(t *testing.T) {
 func TestEvidenceBoundariesNilForUnknownSurface(t *testing.T) {
 	t.Parallel()
 
-	got := evidenceBoundariesFor("unknown_surface")
+	got := evidence.EvidenceBoundariesFor("unknown_surface")
 	if got != nil {
 		t.Fatalf("evidence_boundaries = %#v, want nil for unknown surface", got)
 	}
@@ -116,8 +118,8 @@ func TestEvidenceBoundariesDeterministicOrder(t *testing.T) {
 
 	// Run twice and confirm identical output; stable sort is required for
 	// golden-assertion compatibility.
-	first := evidenceBoundariesFor("get_workload_story")
-	second := evidenceBoundariesFor("get_workload_story")
+	first := evidence.EvidenceBoundariesFor("get_workload_story")
+	second := evidence.EvidenceBoundariesFor("get_workload_story")
 	if len(first) != len(second) {
 		t.Fatalf("length mismatch: %d != %d", len(first), len(second))
 	}
@@ -156,7 +158,7 @@ func TestBuildWorkloadStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
 		"result_limits":   workloadContextResultLimits(ctx, "workload:sample-service-api", "story"),
 		"partial_reasons": contextPartialReasons(ctx),
 	}
-	attachEvidenceBoundaries(response, "get_workload_story")
+	evidence.AttachEvidenceBoundaries(response, "get_workload_story")
 
 	boundaries := evidenceBoundariesFromMap(response)
 	if len(boundaries) != 2 {
@@ -182,7 +184,7 @@ func TestBuildRepositoryStoryResponseOmitsEvidenceBoundaries(t *testing.T) {
 	// evidence_boundaries are attached by the handler, not the builder. All
 	// three domains get_repo_story once claimed now project canonical graph
 	// edges (#5457), so the field is omitted entirely.
-	attachEvidenceBoundaries(got, "get_repo_story")
+	evidence.AttachEvidenceBoundaries(got, "get_repo_story")
 
 	if _, ok := got["evidence_boundaries"]; ok {
 		t.Fatalf("evidence_boundaries = %#v, want omitted for get_repo_story", got["evidence_boundaries"])
@@ -196,7 +198,7 @@ func TestBuildDeploymentTraceResponseIncludesEvidenceBoundaries(t *testing.T) {
 	got := impacttrace.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
 	// The handler attaches after buildDeploymentTraceResponse.
-	attachEvidenceBoundaries(got, "trace_deployment_chain")
+	evidence.AttachEvidenceBoundaries(got, "trace_deployment_chain")
 
 	boundaries := evidenceBoundariesFromMap(got)
 	if len(boundaries) != 2 {
@@ -215,7 +217,7 @@ func TestAttachEvidenceBoundariesNilWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	response := map[string]any{"key": "value"}
-	attachEvidenceBoundaries(response, "unknown_surface")
+	evidence.AttachEvidenceBoundaries(response, "unknown_surface")
 
 	if _, exists := response["evidence_boundaries"]; exists {
 		t.Fatalf("evidence_boundaries set for unknown surface; want absent: %#v", response["evidence_boundaries"])
@@ -226,18 +228,18 @@ func TestAttachEvidenceBoundariesSliceUsesPostgresOnlyBoundary(t *testing.T) {
 	t.Parallel()
 
 	response := map[string]any{"key": "value"}
-	attachEvidenceBoundaries(response, "trace_deployment_chain")
+	evidence.AttachEvidenceBoundaries(response, "trace_deployment_chain")
 
-	boundaries, ok := response["evidence_boundaries"].([]PostgresOnlyBoundary)
+	boundaries, ok := response["evidence_boundaries"].([]evidence.PostgresOnlyBoundary)
 	if !ok {
-		t.Fatalf("evidence_boundaries type = %T, want []PostgresOnlyBoundary", response["evidence_boundaries"])
+		t.Fatalf("evidence_boundaries type = %T, want []evidence.PostgresOnlyBoundary", response["evidence_boundaries"])
 	}
 	if len(boundaries) != 2 {
 		t.Fatalf("len(evidence_boundaries) = %d, want 2", len(boundaries))
 	}
 	for _, b := range boundaries {
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary %q reason = %q, want %q", b.Domain, b.Reason, boundaryReasonPostgresOnly)
+		if b.Reason != evidence.BoundaryReasonPostgresOnly {
+			t.Errorf("boundary %q reason = %q, want %q", b.Domain, b.Reason, evidence.BoundaryReasonPostgresOnly)
 		}
 		if !slices.Contains([]string{"ci_cd_run_correlation", "container_image_identity"}, b.Domain) {
 			t.Errorf("unexpected domain %q in trace_deployment_chain boundaries", b.Domain)

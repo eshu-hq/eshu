@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // fakeAsker is an Asker stub for unit tests. AskStream returns ErrNoStreaming
@@ -229,7 +231,7 @@ func TestBuildAskResponse_SuppressesUnsafeNarratedOutput(t *testing.T) {
 		Packets: []AnswerPacket{{
 			TruthClass:      AnswerTruthDeterministic,
 			Supported:       true,
-			EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+			EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
 		}},
 	}
 
@@ -257,7 +259,7 @@ func TestBuildAskResponse_DropsUnsafeGuardrailFields(t *testing.T) {
 		Packets: []AnswerPacket{{
 			TruthClass: AnswerTruthDeterministic,
 			Supported:  true,
-			EvidenceHandles: []evidenceCitationHandle{{
+			EvidenceHandles: []evidence.EvidenceCitationHandle{{
 				Kind:     "entity",
 				EntityID: "service:checkout",
 				Reason:   rawToken,
@@ -449,7 +451,7 @@ func TestBuildAskResponse_DerivedProseFallbackKeepsEvidenceHandleCoverage(t *tes
 			TruthClass:      AnswerTruthDeterministic,
 			Supported:       true,
 			Summary:         summary,
-			EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
+			EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "service:checkout"}},
 		}},
 	}
 

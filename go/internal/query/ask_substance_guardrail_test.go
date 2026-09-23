@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 func TestApplyAskSubstanceGuardrailWithholdsCircularAnswer(t *testing.T) {
@@ -15,7 +17,7 @@ func TestApplyAskSubstanceGuardrailWithholdsCircularAnswer(t *testing.T) {
 		AnswerProse:     "The payments service is a service named payments.",
 		TruthClass:      string(AnswerTruthDerived),
 		Artifacts:       []askArtifact{{Format: "markdown", Content: "x"}},
-		EvidenceHandles: []evidenceCitationHandle{{Kind: "file", RepoID: "demo"}},
+		EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "file", RepoID: "demo"}},
 	}
 	applyAskSubstanceGuardrail(resp, "give me an overview of the payments service", true)
 
