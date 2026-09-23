@@ -59,11 +59,8 @@ name the destination.
 No-Regression Evidence: both list-query bodies, both SQL constants, and the
 reader's evidence-assembly logic are unchanged apart from two identifier
 exports, so no SQL text, predicate, lock, lease, batch size, worker count, or
-graph write changed. Root's non-test file count in `internal/storage/postgres`
-dropped from 362 to 361 (`bash scripts/verify-dirgate.sh --digest
-internal/storage/postgres` before: count 362, after: count 361, digest
-`54f3a1599ba27bc548fe064af8595a9d85929cf1e7d6d140fdca0ad525bff83a`), which is
-now the pinned row in `scripts/lib/dirgate-grandfather.tsv`, regenerated via
+graph write changed. One non-test file leaves root, so the `internal/storage/postgres` row in `scripts/lib/dirgate-grandfather.tsv` is re-pinned to what `bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for the rebased tree (each rebase onto a sibling move re-derives it), which is
+the pinned row in `scripts/lib/dirgate-grandfather.tsv`, regenerated via
 `bash scripts/generate-dirgate-grandfather-go.sh`. After the final edit, from
 `go/`: `gofumpt -l -w` on every changed file reports no diffs; `go build
 ./...` exits 0; `go vet ./...` exits 0; `go vet -tags "integration
