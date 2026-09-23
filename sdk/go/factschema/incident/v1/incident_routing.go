@@ -21,7 +21,7 @@ package v1
 // BackendKind, LocatorHash, ResourceClass, DeclaredMatchState, and
 // RedactionState (alongside the optional ProviderObjectID and NameFingerprint
 // above) are additionally the fields the two raw-SQL-JSONB loaders
-// (incident_repository_correlation_loader.go and
+// (incident/repository_correlation_loader.go and
 // service_incident_evidence_loader.go) read from this fact kind. Those loaders
 // read `payload->>'field'` directly in SQL text and stay that way permanently —
 // see docs/internal/design/4683-incident-routing-sql-decision.md (#4683) —

@@ -37,7 +37,9 @@ import (
 // repository-uniqueness gate above by hand in Go. See
 // docs/internal/design/4683-incident-routing-sql-decision.md for the full
 // rationale and the companion EXPLAIN ANALYZE evidence for
-// listAppliedPagerDutyServiceRoutingQuery's index dependence. The compensating
+// incidentstore.ListAppliedPagerDutyServiceRoutingQuery's index dependence
+// (go/internal/storage/postgres/incident/repository_correlation_loader.go).
+// The compensating
 // governance for the #4573 payload-usage manifest gate's resulting blind spot
 // is TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared
 // (incident_routing_sql_schema_lockstep_test.go), not a future migration onto

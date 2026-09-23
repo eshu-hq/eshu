@@ -66,7 +66,7 @@ whose wire string does not already carry it. The reducer-side
   `go/internal/storage/postgres` that the #4573 payload-usage manifest gate
   cannot see. Keep them declared here; the reducer-side
   `TestIncidentRoutingSQLProjectedFieldsAreSchemaDeclared` fails the build if one
-  is dropped. Those two loaders (`incident_repository_correlation_loader.go`
+  is dropped. Those two loaders (`incident/repository_correlation_loader.go`
   and `service_incident_evidence_loader.go`) stay raw SQL permanently — see
   `docs/internal/design/4683-incident-routing-sql-decision.md` (#4683) — so
   this is not a migration TODO; it is the compensating governance for a

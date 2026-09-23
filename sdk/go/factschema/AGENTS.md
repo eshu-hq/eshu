@@ -102,7 +102,7 @@ remain independent from Eshu internals, mirroring `sdk/go/collector`'s
   valid and needs no transform in schemagen, `payloadContracts`, or the diff
   tooling.
 - Some incident payload fields are read only by raw-SQL-JSONB loaders in
-  `go/internal/storage/postgres` (`incident_repository_correlation_loader.go`,
+  `go/internal/storage/postgres` (`incident/repository_correlation_loader.go`,
   `service_incident_evidence_loader.go`), which the #4573 payload-usage manifest
   gate cannot see (it scans reducer decode calls only). Those fields MUST still
   be declared in the incident schemas; the reducer-side

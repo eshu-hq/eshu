@@ -12,8 +12,8 @@ Two loaders in `go/internal/storage/postgres` read incident-routing fact
 payloads with raw `payload->>'field'` SQL instead of the typed
 `sdk/go/factschema` decode seam every other reducer-facing loader uses:
 
-- `listAppliedPagerDutyServiceRoutingQuery`
-  (`incident_repository_correlation_loader.go`) filters
+- `incidentstore.ListAppliedPagerDutyServiceRoutingQuery`
+  (`storage/postgres/incident/repository_correlation_loader.go`) filters
   `payload->>'resource_class' = 'service'` and orders by
   `payload->>'provider_object_id'`.
 - `serviceIncidentEvidenceQuery`
@@ -42,7 +42,7 @@ filtering/ordering/joining in application code, was considered and rejected.
 
 ## 4. Rationale — the index and the JOIN are load-bearing
 
-`listAppliedPagerDutyServiceRoutingQuery`'s `resource_class = 'service'`
+`incidentstore.ListAppliedPagerDutyServiceRoutingQuery`'s `resource_class = 'service'`
 predicate and `provider_object_id` ordering push directly into the partial
 expression index `fact_records_incident_routing_applied_service_idx`
 (`schema_fact_records_incident_indexes.go`, mirrored in
@@ -87,7 +87,7 @@ spread over 10 scopes, plus 5,000
 20% of which carry `resource_class = 'service'`), `ANALYZE`d, with only the
 one partial index above present.
 
-**Current shape** (`listAppliedPagerDutyServiceRoutingQuery`, indexed
+**Current shape** (`incidentstore.ListAppliedPagerDutyServiceRoutingQuery`, indexed
 pushdown):
 
 ```
@@ -162,7 +162,7 @@ asserted.
 
 ## 7. Consequences
 
-- `listAppliedPagerDutyServiceRoutingQuery` and `serviceIncidentEvidenceQuery`
+- `incidentstore.ListAppliedPagerDutyServiceRoutingQuery` and `serviceIncidentEvidenceQuery`
   stay raw SQL permanently. No follow-up conversion issue exists or is
   needed.
 - `sdk/go/factschema/incident/v1/incident_routing.go` and

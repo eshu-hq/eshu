@@ -26,6 +26,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/incident"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -237,8 +238,8 @@ func incidentRepositoryCorrelationWiring(database db.ExecQueryer) (
 	incident.BackendRepositoryResolver,
 	incident.IncidentRepositoryCorrelationWriter,
 ) {
-	loader := postgres.PostgresAppliedPagerDutyServiceRoutingLoader{DB: database}
-	resolver := postgres.BackendRepositoryResolverAdapter{
+	loader := incidentstore.PostgresAppliedPagerDutyServiceRoutingLoader{DB: database}
+	resolver := incidentstore.BackendRepositoryResolverAdapter{
 		Resolver: tfstatebackend.NewResolver(
 			postgres.PostgresTerraformBackendQuery{DB: database},
 		),
