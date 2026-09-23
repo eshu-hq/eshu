@@ -60,6 +60,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 			return fmt.Errorf("backend-diff phase: %w", err)
 		}
 	}
+	if phases["statement-coverage"] {
+		if err := runStatementCoverage(o, stdout, &r); err != nil {
+			return fmt.Errorf("statement-coverage phase: %w", err)
+		}
+	}
 	var snap Snapshot
 	if needsSnapshot(phases) {
 		var err error
@@ -290,8 +295,9 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 }
 
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.
-// backend-diff is opt-in and excluded from "all": it needs two backends'
-// capture directories, which a normal single-backend B-7 run never has.
+// backend-diff and statement-coverage are opt-in and excluded from "all":
+// they need capture directories, which a normal single-backend B-7 run
+// never has.
 func phaseSet(raw string) map[string]bool {
 	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true}
 	out := map[string]bool{}
@@ -305,7 +311,7 @@ func phaseSet(raw string) map[string]bool {
 			}
 			continue
 		}
-		if all[p] || p == "backend-diff" {
+		if all[p] || p == "backend-diff" || p == "statement-coverage" {
 			out[p] = true
 		}
 	}
@@ -313,11 +319,12 @@ func phaseSet(raw string) map[string]bool {
 }
 
 // needsSnapshot reports whether any requested phase reads the golden
-// snapshot. backend-diff compares capture recordings, so a pure
-// -phase=backend-diff invocation skips the snapshot load.
+// snapshot. backend-diff and statement-coverage compare capture
+// recordings, so pure -phase=backend-diff or -phase=statement-coverage
+// invocations skip the snapshot load.
 func needsSnapshot(phases map[string]bool) bool {
 	for p := range phases {
-		if p != "backend-diff" {
+		if p != "backend-diff" && p != "statement-coverage" {
 			return true
 		}
 	}

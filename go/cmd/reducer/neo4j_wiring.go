@@ -53,8 +53,15 @@ func (r neo4jSessionRunner) RunCypher(ctx context.Context, cypher string, params
 	if err != nil {
 		return err
 	}
-	_, err = result.Consume(ctx)
-	return err
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		return err
+	}
+	// Issue #6783: publish Bolt summary counters to the call's
+	// write-counts collector. Without a stashed collector this is a
+	// one-lookup no-op.
+	sourcecypher.ReportWriteCounts(ctx, cypher, params, sourcecypher.WriteCountersFromSummary(summary.Counters()))
+	return nil
 }
 
 // RunCypherGroup executes multiple Cypher statements inside a single write
@@ -81,9 +88,11 @@ func (r neo4jSessionRunner) RunCypherGroup(ctx context.Context, stmts []sourcecy
 			if runErr != nil {
 				return nil, runErr
 			}
-			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+			summary, consumeErr := result.Consume(ctx)
+			if consumeErr != nil {
 				return nil, consumeErr
 			}
+			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 		}
 		return nil, nil
 	}, r.transactionConfigurers()...)

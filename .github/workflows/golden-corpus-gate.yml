@@ -179,6 +179,10 @@ on:
       # #6782: the comparison itself (CompareRecordings, record shape) lives
       # here; a change that alters what is compared must re-run the oracle.
       - 'go/internal/backendconformance/**'
+      # #6783: the statement-coverage manifest, discovery, and validator live
+      # here; a manifest or rule change must re-run the differential legs it
+      # joins against.
+      - 'go/internal/queryplan/**'
       - '.github/workflows/golden-corpus-gate.yml'
 
 concurrency:
@@ -356,6 +360,17 @@ jobs:
           "-diff-right2=${{ runner.temp }}/diff-capture/pair2/neo4j"
           -diff-allowlist=specs/backend-divergence-allowlist.v1.yaml
           -diff-executions-advisory-max=200
+
+      # #6783: statement-level execution coverage over the same pair
+      # captures. Recordings merge by backend across pairings, so all four
+      # dirs join in one invocation: every inventoried builder must have
+      # executed on both backends and no recorded read may stay always-empty
+      # unless the manifest exempts it with reason.
+      - name: Check statement coverage on capture recordings
+        run: >
+          "${{ runner.temp }}/golden-corpus-gate" -phase=statement-coverage
+          -coverage-manifest=go/internal/queryplan/testdata/statement-builders.yaml
+          "-coverage-dirs=${{ runner.temp }}/diff-capture/pair1/nornicdb,${{ runner.temp }}/diff-capture/pair1/neo4j,${{ runner.temp }}/diff-capture/pair2/nornicdb,${{ runner.temp }}/diff-capture/pair2/neo4j"
 
       - name: Upload capture recordings on failure
         if: failure()

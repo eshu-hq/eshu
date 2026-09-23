@@ -343,6 +343,7 @@ func (e bootstrapNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []source
 				return consumeErr
 			}
 			counts = append(counts, bootstrapStatementRetractionCounts(stmt, summary))
+			sourcecypher.ReportWriteCounts(ctx, stmt.Cypher, stmt.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 			return nil
 		}, e.ProfileGroupStatements, nil)
 		if err != nil {
@@ -385,6 +386,7 @@ func (e bootstrapNeo4jExecutor) Execute(ctx context.Context, statement sourcecyp
 			int64(summary.Counters().NodesDeleted()),
 			int64(summary.Counters().RelationshipsDeleted()),
 		)
+		sourcecypher.ReportWriteCounts(ctx, statement.Cypher, statement.Parameters, sourcecypher.WriteCountersFromSummary(summary.Counters()))
 	}
 	return err
 }

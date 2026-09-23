@@ -111,3 +111,7 @@ func recordReconciliationDriftRetraction(
 		telemetry.AttrKind(kind),
 	))
 }
+
+// Write-count capture plumbing (WriteCounters, WriteCountsCollector, and
+// the Bolt summary-counter surface) lives in write_counts.go; this file
+// keeps only reconciliation-drift OTEL telemetry.
