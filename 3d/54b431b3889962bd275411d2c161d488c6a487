@@ -1,0 +1,20 @@
+go/cmd/golden-corpus-gate/main.go
+  h_78a442cba0b3e6 71-72,79,107-108
+go/cmd/golden-corpus-gate/runner.go
+  h_78a442cba0b3e6 63-67,298-300,314,322-324,327
+go/cmd/golden-corpus-gate/statementcoverage.go
+  h_78a442cba0b3e6 1-118
+go/cmd/golden-corpus-gate/statementcoverage_test.go
+  h_78a442cba0b3e6 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3d54b431b3889962bd275411d2c161d488c6a487",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
