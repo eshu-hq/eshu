@@ -41,6 +41,15 @@ schemaBootstrap:
   enabled: true
   useHelmHooks: true
   backoffLimit: 1
+  # A CREATE/DROP INDEX CONCURRENTLY migration statement is exempt from the
+  # schema lock_timeout and waits out a conflicting lock or older
+  # transaction instead of retrying (#7004; see docs/public/deployment/
+  # service-runtimes-bootstrap.md). That wait is bounded only by this
+  # deadline. On a database with a large target table or routinely
+  # long-running transactions, that single statement can need most of a
+  # 600 s budget by itself; raise this value for that upgrade rather than
+  # assuming the default always fits (not bumped here without a measured
+  # case to size it against).
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 86400
   serviceAccountName: ""

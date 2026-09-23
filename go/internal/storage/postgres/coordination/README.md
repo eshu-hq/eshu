@@ -36,6 +36,10 @@ lock clears, no retry on other errors, budget exhaustion (error keeps its
 55P03 classification), context cancellation during backoff, ownership
 polling until release, and ownership give-up after the wait. The live
 regressions `TestBootstrapWaitsForOwnershipHeldLongerThanLockTimeoutLive`
-and `TestBootstrapRetriesStatementLockTimeoutLive` in the root package
-(`-tags integration`, `ESHU_POSTGRES_RECOVERY_TEST_DSN`) drive the real
-migrator against a held advisory lock and a held table lock.
+and `TestBootstrapConcurrentIndexBuildWaitsOutLockHolderLive` in the root
+package (`-tags integration`, `ESHU_POSTGRES_RECOVERY_TEST_DSN`) drive the
+real migrator against a held advisory lock and a held table lock. The
+second no longer exercises this package's retry loop for that statement
+shape: `concurrentIndexBuildLockTimeout` (#7004) exempts a bare CREATE/DROP
+INDEX CONCURRENTLY statement from lock_timeout entirely, so it waits out a
+conflicting lock instead of hitting 55P03 and retrying.

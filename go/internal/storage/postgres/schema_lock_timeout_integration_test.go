@@ -162,6 +162,117 @@ func TestSQLDBRebuildsInvalidConcurrentIndexLive(t *testing.T) {
 	}
 }
 
+// TestConcurrentIndexBuildOutlivesOlderTransactionLive pins #7004: another
+// session running an ordinary query for longer than the schema lock_timeout
+// -- not a table lock, and not touching the built table at all -- must not
+// fail a CREATE INDEX CONCURRENTLY build. Before the fix,
+// ApplyDefinitionsWithLockTimeout applied the same lock_timeout to the
+// build's internal wait for pre-existing snapshots to finish, so the holder
+// alone canceled the build. This reproduces the issue's own evidence (a
+// lead-verified local shim: postgres 16, one other session holding an open
+// transaction, `lock_timeout='2s'; CREATE INDEX CONCURRENTLY ...` fails with
+// "canceling statement due to lock timeout" and leaves indisvalid=false)
+// through the real bootstrap apply path (ApplyDefinitionsWithLockTimeout),
+// not a hand probe.
+//
+// The holder must be an ACTIVELY RUNNING statement, not merely an idle-in-
+// transaction session: a bare BEGIN + a completed SELECT with no further
+// statement does not hold back the snapshot horizon CIC waits on (verified
+// against postgres:16 directly: an idle-in-transaction holder let a
+// concurrent lock_timeout='1s' build finish immediately, while the same
+// holder running SELECT pg_sleep(n) reproduced the cancellation), matching
+// the issue's own description of "steady transactions" -- ordinary
+// in-flight application queries, not idle sessions.
+func TestConcurrentIndexBuildOutlivesOlderTransactionLive(t *testing.T) {
+	if os.Getenv(schemaLockTimeoutProofEnv) != "1" {
+		t.Skip("set ESHU_SCHEMA_LOCK_TIMEOUT_PROOF=1 and ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run live schema lock-timeout proof")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	applyDB := openSchemaLockTimeoutProofDB(t, dsn)
+	blockerDB := openSchemaLockTimeoutProofDB(t, dsn)
+
+	tableName := fmt.Sprintf("schema_cic_older_tx_proof_%d", time.Now().UnixNano())
+	indexName := tableName + "_id_idx"
+	t.Cleanup(func() {
+		if _, err := applyDB.ExecContext(context.Background(), "DROP TABLE IF EXISTS "+tableName); err != nil {
+			t.Errorf("cleanup: drop %s: %v", tableName, err)
+		}
+	})
+
+	if _, err := applyDB.ExecContext(ctx, "CREATE TABLE "+tableName+" (id INTEGER NOT NULL)"); err != nil {
+		t.Fatalf("create proof table: %v", err)
+	}
+
+	// The lock_timeout applied to the build (were it not disabled for a
+	// sole CIC statement) is well under how long the blocker transaction
+	// stays open, so an unfixed build must hit it.
+	const lockTimeout = 1 * time.Second
+	const hold = 3 * time.Second
+
+	// A context independent of the main ctx/cancel, and canceled through
+	// t.Cleanup (registered before the "wait for release" cleanup below, so
+	// LIFO runs it after) rather than a plain defer: t.Fatalf unwinds the
+	// test function's own defers via runtime.Goexit before t.Cleanup funcs
+	// run, so a plain defer here would cut off the still-sleeping holder
+	// whenever the assertion below fails fast (the RED/unfixed case) and
+	// mask the real failure with an unrelated "context canceled".
+	blockerCtx, blockerCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	t.Cleanup(blockerCancel)
+
+	blockerTx, err := blockerDB.BeginTx(blockerCtx, nil)
+	if err != nil {
+		t.Fatalf("begin blocker transaction: %v", err)
+	}
+	holderStarted := make(chan struct{})
+	holderReleased := make(chan struct{})
+	go func() {
+		defer close(holderReleased)
+		close(holderStarted)
+		// An actively running statement, never touching tableName or
+		// taking any lock CIC's ShareUpdateExclusiveLock conflicts with,
+		// so nothing here can legitimately block writers either.
+		if _, err := blockerTx.ExecContext(blockerCtx, "SELECT pg_sleep($1)", hold.Seconds()); err != nil {
+			t.Errorf("hold blocker transaction: %v", err)
+			return
+		}
+		if err := blockerTx.Commit(); err != nil {
+			t.Errorf("release blocker transaction: %v", err)
+		}
+	}()
+	<-holderStarted
+	time.Sleep(200 * time.Millisecond) // let pg_sleep actually start server-side
+	t.Cleanup(func() { <-holderReleased })
+
+	exec := SQLDB{DB: applyDB}
+	started := time.Now()
+	err = ApplyDefinitionsWithLockTimeout(ctx, exec, []Definition{
+		{
+			Name: "proof_index",
+			Path: "schema_cic_older_tx_proof_index.sql",
+			SQL:  "CREATE INDEX CONCURRENTLY " + indexName + " ON " + tableName + " (id)",
+		},
+	}, lockTimeout)
+	elapsed := time.Since(started)
+	if err != nil {
+		t.Fatalf("CREATE INDEX CONCURRENTLY behind a %s open transaction (lock_timeout %s) failed after %s: %v, want it to wait out the transaction instead of canceling",
+			hold, lockTimeout, elapsed.Round(time.Millisecond), err)
+	}
+	if elapsed < hold-500*time.Millisecond {
+		t.Fatalf("build finished after %s, before the blocker released at %s; it did not actually wait out the older transaction",
+			elapsed.Round(time.Millisecond), hold)
+	}
+	if valid := proofIndexValidity(t, ctx, applyDB, indexName); !valid {
+		t.Fatalf("index %s is invalid after the build, want valid", indexName)
+	}
+}
+
 func proofIndexValidity(t *testing.T, ctx context.Context, db *sql.DB, indexName string) bool {
 	t.Helper()
 	var valid bool

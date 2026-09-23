@@ -79,6 +79,27 @@ own work and the graph schema; keep that relation when raising either
 bound, because a bound the Job cannot reach never prints its holder
 diagnostic (#6956).
 
+A `CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY` statement (see the
+`CREATE INDEX CONCURRENTLY` paragraph above) is exempt from `lock_timeout`
+entirely rather than retried (#7004): it takes `ShareUpdateExclusiveLock`,
+which never conflicts with the `RowExclusiveLock` ordinary application
+writes take, so a build waiting -- either to acquire that lock behind
+another session's conflicting DDL/VACUUM, or internally for transactions
+open when the build started to finish -- never blocks writers. Retrying such
+a build with `lock_timeout` restarts its table scan from zero every attempt,
+so on a database with steady transactions longer than the timeout the
+statement never converges before `ESHU_SCHEMA_LOCK_RETRY_BUDGET` runs out;
+waiting it out avoids that failure mode. The build logs
+`bootstrap.postgres.migration.concurrent_index_build.starting` and
+`.finished` (with `duration_ms`) instead of the `lock_wait`/`lock_recovered`
+pair, since it is never subject to a timeout to retry after. This wait is
+bounded only by the schema bootstrap Job's `activeDeadlineSeconds`: an
+upgrade against a database whose target table is large, or whose
+transactions routinely run long, can need a Job deadline well past the 600 s
+default for that build alone to complete, on top of the other work the
+default already budgets for; raise `activeDeadlineSeconds` for that upgrade
+rather than assuming the existing default always fits.
+
 ## Deployment Contract
 
 Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
