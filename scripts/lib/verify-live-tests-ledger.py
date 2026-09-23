@@ -2,7 +2,9 @@
 # Live-test ledger integrity check (#6784). Verifies that every
 # *_live_test.go file under go/ is classified in specs/live-tests.v1.yaml
 # with a valid class and a non-blank reason, and that every ledger row
-# names a tracked or present file exactly once.
+# names a tracked or present file exactly once. An optional `backends:`
+# line (nornicdb, neo4j, or both; default both) pins which backends the
+# test can run on.
 #
 # Invoked by scripts/verify-live-tests-ledger.sh as a file (not a bash
 # heredoc) so the heredoc-budget gate stays green: Homebrew bash >= 5.1
@@ -20,7 +22,7 @@ ledger_path, repo_root = sys.argv[1], sys.argv[2]
 text = open(ledger_path).read()
 
 rows = re.findall(
-    r"^  - file: (\S+)\n    tag: (.*)\n    class: (\S+)\n    reason: (.*)$",
+    r"^  - file: (\S+)\n    tag: (.*)\n    class: (\S+)\n    reason: ([^\n]*)(?:\n    backends: (\S+))?",
     text,
     re.M,
 )
@@ -29,13 +31,20 @@ if not rows:
 
 seen_files = set()
 classes = {}
-for path, tag, cls, reason in rows:
+for path, tag, cls, reason, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
     if cls not in ("ci", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
+    # Backend targeting defaults to both; a row naming a backend-specific
+    # test pins the backends it can run on so the runner never schedules
+    # a hardcoded-"nornic" test against Neo4j.
+    if not backends:
+        backends = "both"
+    if backends not in ("nornicdb", "neo4j", "both"):
+        sys.exit(f"invalid backends {backends!r} for {path}")
     if not reason.strip():
         sys.exit(f"blank reason for {path}")
     try:

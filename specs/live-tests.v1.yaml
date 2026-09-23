@@ -26,10 +26,14 @@ design: >
   live definition, and the reason names the repair commit). A missing
   or blank reason fails validation. A row for a deleted file is removed
   in the deleting commit; the validator rejects rows naming missing
-  files, and rejects a retired row that still names a live file. CI-class
-  rows must be fast and deterministic: seeded fixtures, unique seed
-  prefixes, cleanup on both pass and fail paths. Promotion from scheduled
-  to CI needs measured timing evidence cited in the reason.
+  files, and rejects a retired row that still names a live file. An
+  optional `backends:` line (nornicdb, neo4j, or both; default both)
+  pins which backends a file can run on: tests that hardcode the
+  "nornic" database pin nornicdb so the runner never schedules them
+  against Neo4j. CI-class rows must be fast and deterministic: seeded
+  fixtures, unique seed prefixes, cleanup on both pass and fail paths.
+  Promotion from scheduled to CI needs measured timing evidence cited
+  in the reason.
 
 tests:
   - file: go/cmd/bootstrap-data-plane/postgres_schema_tracking_live_test.go
@@ -239,7 +243,8 @@ tests:
   - file: go/internal/query/codequery/complexity_list_answer_truth_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/codequery/deadcode/incoming_probe_nornicdb_live_test.go
     tag: live_nornicdb_dead_code_incoming
     class: scheduled
@@ -463,7 +468,8 @@ tests:
   - file: go/internal/query/nornicdb_answer_truth_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/package_registry_nornicdb_live_test.go
     tag: ~
     class: scheduled
@@ -487,7 +493,8 @@ tests:
   - file: go/internal/query/repository/nornicdb_answer_truth_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/repository/nornicdb_dependency_marker_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
@@ -495,15 +502,18 @@ tests:
   - file: go/internal/query/repository/nornicdb_deployment_evidence_anchor_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/repository/nornicdb_deployment_evidence_anchor_timing_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/repository/nornicdb_incoming_anchor_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+    reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
+    backends: nornicdb
   - file: go/internal/query/semanticsearch/semantic_search_index_cache_live_test.go
     tag: ~
     class: scheduled
@@ -604,6 +614,10 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/code/value/cloud_sink_red_case_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: scheduled
+    reason: stale RED case for the B-7 sl-value-flow-cloud-sink row; the pre-6761 shape returns the correct row on the fix-500 pin (#6690 not reproduced on a fresh DB 2026-09-23) — re-target under #6787 before promoting to blocking
   - file: go/internal/reducer/containerimage/container_image_identity_cte_theory_live_test.go
     tag: perf5854_theory
     class: scheduled

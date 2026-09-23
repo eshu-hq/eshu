@@ -120,6 +120,20 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-badclass.yaml" "${scr
 	fail "validator passed with an unknown class"
 fi
 
+# ── RED: an invalid backends pin fails ─────────────────────────────────
+cp "${ledger}" "${fixture}/ledger-badbackends.yaml"
+python3 - "${fixture}/ledger-badbackends.yaml" <<'EOF'
+import sys
+path = sys.argv[1]
+lines = open(path).read().splitlines(keepends=True)
+idx = next(i for i, l in enumerate(lines) if l.startswith("    reason: "))
+lines.insert(idx + 1, "    backends: oracle\n")
+open(path, "w").write("".join(lines))
+EOF
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-badbackends.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator passed with an invalid backends pin"
+fi
+
 # ── RED: a tag mismatch fails ────────────────────────────────────────────
 cp "${ledger}" "${fixture}/ledger-badtag.yaml"
 python3 - "${fixture}/ledger-badtag.yaml" <<'EOF'
