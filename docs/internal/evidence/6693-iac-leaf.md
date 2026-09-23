@@ -1,6 +1,6 @@
 # #6693 checklist step 5: `iac/` leaf
 
-Baseline: `origin/main` `aa7cc0d1d`. Change: `git mv
+Baseline: `origin/main` `d36974b92` (written against `aa7cc0d1d`, rebased after #7005, #7012 and #7017). Change: `git mv
 iac_reachability.go
 go/internal/storage/postgres/iac/reachability.go` and `git mv
 iac_reachability_test.go
