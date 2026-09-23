@@ -89,5 +89,5 @@ Sources used:
 - `go/internal/storage/postgres/aws_scan_status.go`
 - `go/internal/storage/postgres/aws_pagination_checkpoint.go`
 - `go/internal/storage/postgres/vulnerability_source_state.go`
-- `go/internal/storage/postgres/status_requests.go`
+- `go/internal/storage/postgres/maintenance/requests.go`
 - `docs/internal/design/431-nornicdb-primary-store-evaluation.md`

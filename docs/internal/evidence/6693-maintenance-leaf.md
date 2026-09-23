@@ -1,7 +1,7 @@
 # #6693 checklist step 7: `maintenance/` leaf move
 
 Baseline: `origin/main` `a12cdb2c7` (written against `228ca326f`, rebased after #7026). Change: move
-`go/internal/storage/postgres/status_requests.go` and its test to
+`status_requests.go` and its test to
 `go/internal/storage/postgres/maintenance/` (package `maintenancestore`), the
 scan/reindex request lifecycle store (`StatusRequestStore`,
 `NewStatusRequestStore`) over `runtime_ingester_control`. No SQL text, logic,
