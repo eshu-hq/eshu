@@ -6,7 +6,6 @@ package capability
 import (
 	"net/http"
 	"reflect"
-	"strconv"
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
@@ -104,15 +103,15 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit, ok := parseBoundedLimit(w, r, DefaultLimit, capabilitiesMaxLimit)
+	limit, ok := querycontract.ParseBoundedLimit(w, r, DefaultLimit, capabilitiesMaxLimit)
 	if !ok {
 		return
 	}
-	offset, ok := parseOffset(w, r)
+	offset, ok := querycontract.ParseOffset(w, r)
 	if !ok {
 		return
 	}
-	full, ok := parseCatalogView(w, r)
+	full, ok := querycontract.ParseCatalogView(w, r)
 	if !ok {
 		return
 	}
@@ -160,33 +159,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		"limit":         limit,
 		"offset":        offset,
 		"truncated":     truncated,
-		"next_offset":   nextOffset(offset, limit, truncated),
+		"next_offset":   querycontract.NextOffset(offset, limit, truncated),
 	}, truth)
-}
-
-// nextOffset returns the offset value a caller should pass to fetch the next
-// page, or nil when the current page is not truncated. This mirrors the
-// next_offset convention used across the other paginated list handlers in
-// this package (e.g. nextInfraResourceAggregateOffset).
-func nextOffset(offset, limit int, truncated bool) any {
-	if !truncated {
-		return nil
-	}
-	return offset + limit
-}
-
-// parseCatalogView reads the view query param, defaulting to the compact view
-// (full=false). An unrecognized value is a bounded 400, not a silent default.
-func parseCatalogView(w http.ResponseWriter, r *http.Request) (full bool, ok bool) {
-	switch raw := querycontract.QueryParam(r, "view"); raw {
-	case "", "compact":
-		return false, true
-	case "full":
-		return true, true
-	default:
-		querycontract.WriteError(w, http.StatusBadRequest, "view must be compact or full")
-		return false, false
-	}
 }
 
 // parseIncludeAuthorization reads the include_authorization query param,
@@ -236,13 +210,6 @@ func pageEntries(entries []capabilitycatalog.Entry, offset, limit int) ([]capabi
 	return entries[offset:end], truncated
 }
 
-// parseBoundedLimit reads the limit query param, applying the default when blank
-// and rejecting values outside [1, max]. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
-func parseBoundedLimit(w http.ResponseWriter, r *http.Request, def, max int) (int, bool) {
-	return querycontract.ParseBoundedLimit(w, r, def, max)
-}
-
 // emptyAuthorizationCatalog returns an AuthorizationCatalog whose slice
 // fields -- including nested ones such as bootstrap_owner.delegable_roles --
 // are non-nil, zero-length slices instead of Go's zero-value nil. The
@@ -283,19 +250,4 @@ func nilSlicesToEmpty(v reflect.Value) {
 			// nil-to-empty normalization.
 		}
 	}
-}
-
-// parseOffset reads the offset query param, defaulting to 0 and rejecting
-// negative values.
-func parseOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := querycontract.QueryParam(r, "offset")
-	if raw == "" {
-		return 0, true
-	}
-	offset, err := strconv.Atoi(raw)
-	if err != nil || offset < 0 {
-		querycontract.WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
-		return 0, false
-	}
-	return offset, true
 }
