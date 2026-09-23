@@ -247,27 +247,39 @@ func (d *dictionary) learnARN(raw string) {
 		}
 		return
 	}
-	components := strings.FieldsFunc(resource, func(r rune) bool { return r == '/' || r == ':' })
-	skip := 0
-	if len(components) >= 2 {
-		vocabulary := arnTypeTokens[service]
-		switch {
-		case vocabulary[components[0]]:
-			skip = 1
-			if len(components) >= 3 && arnSecondTokens[service][components[1]] {
-				skip = 2
-			}
-		case len(vocabulary) > 0:
-			// A listed service whose ARN leads with a token outside its
-			// vocabulary: the token is learned as a name below, and the
-			// miss is reported (a service with no vocabulary leads with a
-			// customer name, which is never reported).
-			d.unlistedARNTypes[service+":"+components[0]]++
-		}
+	components := arnComponents(resource)
+	skip := arnTypeSkip(service, components)
+	if skip == 0 && len(components) >= 2 && len(arnTypeTokens[service]) > 0 {
+		// A listed service whose ARN leads with a token outside its
+		// vocabulary: the token is learned as a name below, and the miss
+		// is reported (a service with no vocabulary leads with a customer
+		// name, which is never reported).
+		d.unlistedARNTypes[service+":"+components[0]]++
 	}
 	for _, component := range components[skip:] {
 		d.learnARNComponent(component)
 	}
+}
+
+// arnComponents splits an ARN resource part on "/" and ":".
+func arnComponents(resource string) []string {
+	return strings.FieldsFunc(resource, func(r rune) bool { return r == '/' || r == ':' })
+}
+
+// arnTypeSkip is how many leading components of an ARN resource part are
+// structural type tokens for service: 1 when the first is in the
+// service's vocabulary, 2 when the second is a listed second-position
+// token as well, else 0. The component at index skip is the resource
+// name, whatever delimiter precedes it; only components after it can be
+// qualifiers.
+func arnTypeSkip(service string, components []string) int {
+	if len(components) < 2 || !arnTypeTokens[service][components[0]] {
+		return 0
+	}
+	if len(components) >= 3 && arnSecondTokens[service][components[1]] {
+		return 2
+	}
+	return 1
 }
 
 // learnARNComponent learns one ARN resource component. A 12-digit

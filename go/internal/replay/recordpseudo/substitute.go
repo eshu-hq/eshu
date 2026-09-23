@@ -143,8 +143,16 @@ func (d *dictionary) substituteARN(arn string, exact bool) string {
 		return d.substituteFree(arn)
 	}
 	parts[4] = d.pseudonym(parts[4])
+	// The component at index skip is the resource name even when a ":"
+	// joins it to its type token (lambda function:NAME, rds db:NAME, logs
+	// log-group:NAME); a qualifier is a ":"-joined component after it.
+	skip := arnTypeSkip(parts[2], arnComponents(parts[5]))
+	index := -1
 	parts[5] = d.forEachComponent(parts[5], func(component string, prev byte) string {
-		return d.substituteComponent(component, exact, prev == ':')
+		if component != "" {
+			index++
+		}
+		return d.substituteComponent(component, exact, prev == ':' && index > skip)
 	})
 	return strings.Join(parts, ":")
 }
