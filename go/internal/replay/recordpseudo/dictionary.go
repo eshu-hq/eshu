@@ -31,7 +31,7 @@ var structuralWords = map[string]struct{}{
 	"prod": {}, "production": {}, "stage": {}, "staging": {}, "dev": {}, "development": {},
 	"test": {}, "qa": {}, "latest": {}, "default": {}, "main": {}, "master": {},
 	"app": {}, "net": {}, "gwy": {}, "true": {}, "false": {}, "none": {}, "null": {},
-	"$LATEST": {}, "aws": {}, "*": {},
+	"$LATEST": {}, "aws": {}, "*": {}, "root": {},
 }
 
 // dictionary learns raw tokens and their pseudonyms. It is single-goroutine:
@@ -121,11 +121,13 @@ func (d *dictionary) learnAccount(raw string) {
 	d.learnIdent(raw)
 }
 
-// learnARN keeps partition, service, region, the leading resource-type token
-// (a lowercase word such as instance, role, function, task-definition) and
-// the ELBv2 type token after loadbalancer/targetgroup; the account and every
-// other component are learned. AWS-managed policies (account "aws") are
-// public and stay whole.
+// learnARN keeps partition, service, region and the leading resource-type
+// token -- but only when the service's vocabulary (arnTypeTokens) names it:
+// an SNS topic, an SQS queue or any unknown first component is a customer
+// name and is learned. The ELBv2 and WAFv2 second-position type tokens are
+// kept the same way (arnSecondTokens); every other component is learned.
+// AWS-managed policies (account "aws") are public and stay whole; the
+// account-root principal keeps "root" (a structural word).
 func (d *dictionary) learnARN(raw string) {
 	parts := strings.SplitN(raw, ":", 6)
 	if len(parts) < 6 {
@@ -139,19 +141,17 @@ func (d *dictionary) learnARN(raw string) {
 	if account != "" {
 		d.learnAccount(account)
 	}
-	resource := parts[5]
-	if parts[2] == "s3" {
+	service, resource := parts[2], parts[5]
+	if service == "s3" {
 		d.learnIdent(strings.SplitN(resource, "/", 2)[0])
 		return
 	}
 	components := strings.FieldsFunc(resource, func(r rune) bool { return r == '/' || r == ':' })
 	skip := 0
-	if len(components) >= 2 && isTypeToken(components[0]) {
+	if len(components) >= 2 && arnTypeTokens[service][components[0]] {
 		skip = 1
-		if len(components) >= 3 && (components[0] == "loadbalancer" || components[0] == "targetgroup") {
-			if _, ok := map[string]struct{}{"app": {}, "net": {}, "gwy": {}}[components[1]]; ok {
-				skip = 2
-			}
+		if len(components) >= 3 && arnSecondTokens[service][components[1]] {
+			skip = 2
 		}
 	}
 	for _, component := range components[skip:] {
@@ -159,19 +159,7 @@ func (d *dictionary) learnARN(raw string) {
 	}
 }
 
-func isTypeToken(component string) bool {
-	if component == "" {
-		return false
-	}
-	for _, r := range component {
-		if (r < 'a' || r > 'z') && r != '-' {
-			return false
-		}
-	}
-	return true
-}
-
-// learnIdent sniffs the shape of a name-like value and delegates.
+// learnIdent sniffs// learnIdent sniffs the shape of a name-like value and delegates.
 func (d *dictionary) learnIdent(raw string) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || d.known(raw) {
