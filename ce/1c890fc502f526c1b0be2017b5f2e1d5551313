@@ -1,0 +1,16 @@
+go/internal/backendconformance/statement_coverage.go
+  h_78a442cba0b3e6 1-265
+go/internal/backendconformance/statement_coverage_test.go
+  h_78a442cba0b3e6 1-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce1c890fc502f526c1b0be2017b5f2e1d5551313",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
