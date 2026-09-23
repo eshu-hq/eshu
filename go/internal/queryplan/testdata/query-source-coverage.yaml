@@ -39,7 +39,7 @@ source_coverage:
   - file: codequery/handler.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: cc958c7c0b0d8f0dc159243fa251f761c2bec3ba689ea3da0c9fc20aa7c36a06, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 9fdb8ce7873e0849bf9222dac4703a3d8f50fed6f845f84fe5698bf71051d498, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: codequery/callers.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: b7dc27071813d89a487879f42df7a05db22a47e2a7a6c1be303fadca97ef729e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
@@ -193,7 +193,7 @@ source_coverage:
           source_sha256: 4e739380f30a041c42808316b697f64ab5d6ce8a04dda4dee102169a9fd7ee82
           key_bound: single_key
           max_results: 1
-      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: dea7fac14e7e669be41c9e37aa40b5ed421ff7a81dfb0a00a195686756c46838, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 91a04b4ee252c5b10037bf1e5ad536f82fb8f83c4a04cf9166c259b0c2bdcf66, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity/resolve_workload.go
     calls:
       - {symbol: "(*Handler).ResolveWorkloadEntities", count: 2, source_sha256: 0f5ae69f1f825814cd2e58fecb146589dc2733e95fe9dd24163c0bb2939473ad, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
@@ -217,7 +217,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 751df60bdbd58511107869a5169cb1dab8c0fdef66b7f1d055e2deedd029c016
+          source_sha256: 85498c159b850c53245dd419dcc9de29e047efb5cff5f97a7efcddca3fdce7ed
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
