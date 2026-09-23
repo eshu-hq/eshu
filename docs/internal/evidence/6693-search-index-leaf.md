@@ -118,10 +118,7 @@ TestBootstrapDefinitionsDropSearchIndexTermsDocumentIndex.
 
 ## dirgate
 
-`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` moved
-`internal/storage/postgres` from 362 files (digest
-`3d1e93c5a585c623628fb10a9e82c0939c6d5984761bcd6384dc7457e15dd1a3`) to 361
-(digest `fdde5a6acf1dde81323c88f9714bc5a48e9eb5c04c6807922aa5d1623e841fa8`);
+The move takes one non-test file out of `internal/storage/postgres`, so the `internal/storage/postgres` row in `scripts/lib/dirgate-grandfather.tsv` is re-pinned to what `bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for the rebased tree (each rebase onto a sibling move re-derives it);
 `scripts/lib/dirgate-grandfather.tsv` and the generated
 `tools/golangci-lint-dirgate/grandfather.go` were updated to match. The run
 also prints a pre-existing, unrelated `naming_violation` for
