@@ -156,6 +156,19 @@ if [ -z "$base_ref" ]; then
     # unrelated histories were merged; taking the oldest (last line) is a
     # deliberately conservative choice -- it only ever widens the diffed
     # range, never narrows it.
+    #
+    # In a shallow clone the "root" is only the graft boundary, so the walk
+    # would diff a truncated range and could miss an earlier edit (#7002
+    # review F-5). There is no base to deepen toward here, so fail instead.
+    if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      {
+        printf 'verify-migration-immutability: shallow checkout with no origin/main, no GITHUB_BASE_REF\n'
+        printf 'and no ESHU_MIGRATION_IMMUTABILITY_BASE -- the root commit is only the shallow\n'
+        printf 'boundary, so the full history cannot be diffed. Refusing to pass. Fetch the base\n'
+        printf 'branch, unshallow, or set ESHU_MIGRATION_IMMUTABILITY_BASE.\n'
+      } >&2
+      exit 1
+    fi
     base_ref="$(git -C "$repo_root" rev-list --max-parents=0 HEAD | tail -1)"
     {
       printf 'verify-migration-immutability: WARNING no origin/main and no GITHUB_BASE_REF -- '

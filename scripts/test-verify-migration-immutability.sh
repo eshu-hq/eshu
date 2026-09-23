@@ -296,6 +296,11 @@ ghbase_repo="$(init_repo gh-base-unresolved)"
 printf -- '-- edited after shipping\n' >>"${ghbase_repo}/${migrations_dir}/001_widgets.sql"
 git -C "${ghbase_repo}" add .
 git -C "${ghbase_repo}" commit -q -m 'edit 001 in place'
+# An unrelated HEAD commit on top, so a HEAD~1-only narrowing would diff just
+# this commit and pass: the case fails on behavior, not only on its message.
+printf 'package unrelated\n\n// unrelated commit after the edit\n' >"${ghbase_repo}/go/internal/unrelated/source.go"
+git -C "${ghbase_repo}" add .
+git -C "${ghbase_repo}" commit -q -m 'unrelated change after the edit'
 if env -u ESHU_MIGRATION_IMMUTABILITY_BASE \
     ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${ghbase_repo}" \
     GITHUB_BASE_REF="main" \
@@ -306,6 +311,35 @@ if env -u ESHU_MIGRATION_IMMUTABILITY_BASE \
 fi
 if ! grep -qF -- "does not resolve after an --update-shallow fetch" "${err_file}"; then
   printf 'expected the unresolved-GITHUB_BASE_REF run to explain the resolution failure, got:\n' >&2
+  sed -n '1,60p' "${err_file}" >&2
+  exit 1
+fi
+
+# Regression (#7002 review F-5, silent narrowing on a shallow no-base
+# fallback): in a shallow clone, `rev-list --max-parents=0 HEAD` returns the
+# graft boundary instead of the real root, so the root walk diffs only the
+# commits inside the shallow window and can miss an earlier edit. With no
+# origin/main, no GITHUB_BASE_REF and no explicit base, a shallow checkout must
+# fail rather than diff a truncated range.
+shallow_src="$(init_repo shallow-source)"
+printf -- '-- edited after shipping\n' >>"${shallow_src}/${migrations_dir}/001_widgets.sql"
+git -C "${shallow_src}" add .
+git -C "${shallow_src}" commit -q -m 'B: edit 001 in place'
+printf 'package unrelated\n\n// unrelated commit C\n' >"${shallow_src}/go/internal/unrelated/source.go"
+git -C "${shallow_src}" add .
+git -C "${shallow_src}" commit -q -m 'C: unrelated change'
+shallow_repo="${tmp_root}/shallow-clone"
+git clone -q --depth 1 "file://${shallow_src}" "${shallow_repo}"
+git -C "${shallow_repo}" remote remove origin
+if env -u ESHU_MIGRATION_IMMUTABILITY_BASE -u GITHUB_BASE_REF \
+    ESHU_MIGRATION_IMMUTABILITY_REPO_ROOT="${shallow_repo}" \
+    "${verifier}" >"${out_file}" 2>"${err_file}"; then
+  printf 'expected a shallow checkout with no base to fail, but the verifier passed:\n' >&2
+  sed -n '1,40p' "${out_file}" "${err_file}" >&2
+  exit 1
+fi
+if ! grep -qF -- "shallow" "${err_file}"; then
+  printf 'expected the shallow no-base failure to say the checkout is shallow, got:\n' >&2
   sed -n '1,60p' "${err_file}" >&2
   exit 1
 fi
