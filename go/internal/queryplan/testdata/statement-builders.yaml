@@ -1,0 +1,189 @@
+version: 1
+builders:
+    - file: cmd/bootstrap-index/graph_schema.go
+      builders:
+        - symbol: (bootstrapNeo4jExecutor).ExecuteCypher
+          count: 1
+          variants:
+            - {}
+          source_sha256: 77fd268a1901a8739d40b46f447bfbfe7fdfdcfe4186134e747059c8c2292e16
+    - file: cmd/reducer/executor_adapters.go
+      builders:
+        - symbol: (reducerCypherExecutor).ExecuteCypher
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - {}
+          source_sha256: 63fefb1e9bdb28be7c398fde5ae481198e13094091da1b58affebf12f793d9a6
+        - symbol: (reducerCypherExecutor).ExecuteCypherGroup
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - {}
+          source_sha256: 8466d3c3242fda3e42f3ef6e74f028d3c39b3d8fa6e82fa166eb9b2f6cbe5226
+        - symbol: (reducerCypherExecutor).ProbeGraphExists
+          count: 1
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - {}
+          source_sha256: c1216da8aa445d0c7e9da65b934c8bcf85d19989ff79723b2640389acb78de80
+    - file: internal/backendconformance/corpus.go
+      builders:
+        - symbol: DefaultWriteCorpus
+          count: 9
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - template: 'MERGE (r:Repository {id: $repo_id}) SET r.name = $name'
+            - template: 'MERGE (caller:Function {uid: $caller_uid}) SET caller.repo_id = $repo_id, caller.name = $caller_name'
+            - template: 'MERGE (callee:Function {uid: $callee_uid}) SET callee.repo_id = $repo_id, callee.name = $callee_name'
+            - template: 'MATCH (caller:Function {uid: $caller_uid}) MATCH (callee:Function {uid: $callee_uid}) MERGE (caller)-[:CALLS]->(callee)'
+            - template: 'MERGE (r:Repository {id: $repo_id}) SET r.name = $repo_name, r.path = $repo_path, r.scope_id = $scope_id, r.generation_id = $generation_id, r.evidence_source = ''projector/canonical'''
+            - template: 'MATCH (r:Repository {id: $repo_id}) MERGE (d:Directory {path: $dir_path}) SET d.name = $dir_name, d.repo_id = $repo_id, d.scope_id = $scope_id, d.generation_id = $generation_id MERGE (r)-[rel:CONTAINS]->(d) SET rel.evidence_source = ''projector/canonical'', rel.generation_id = $generation_id'
+            - template: 'MATCH (r:Repository {id: $repo_id}) MATCH (d:Directory {path: $dir_path}) MERGE (f:File {path: $file_path}) SET f.name = $file_name, f.relative_path = $relative_path, f.language = $language, f.lang = $language, f.repo_id = $repo_id, f.scope_id = $scope_id, f.generation_id = $generation_id, f.evidence_source = ''projector/canonical'' MERGE (r)-[repoRel:REPO_CONTAINS]->(f) SET repoRel.evidence_source = ''projector/canonical'', repoRel.generation_id = $generation_id MERGE (d)-[dirRel:CONTAINS]->(f) SET dirRel.evidence_source = ''projector/canonical'', dirRel.generation_id = $generation_id'
+            - template: 'MERGE (n:Function {uid: $entity_uid}) SET n.id = $entity_uid, n.name = $entity_name, n.path = $file_path, n.relative_path = $relative_path, n.line_number = $line_number, n.start_line = $line_number, n.end_line = $line_number, n.repo_id = $repo_id, n.language = $language, n.lang = $language, n.scope_id = $scope_id, n.generation_id = $generation_id, n.evidence_source = ''projector/canonical'''
+            - template: 'MATCH (f:File {path: $file_path}) MATCH (n:Function {uid: $entity_uid}) MERGE (f)-[rel:CONTAINS]->(n) SET rel.evidence_source = ''projector/canonical'', rel.generation_id = $generation_id'
+          source_sha256: 0b2ec6e4515aaa0a0a51548a0e8253916bca0d6efa0ad8b531a07fe996b8201d
+    - file: internal/backendconformance/corpus_answer_truth.go
+      builders:
+        - symbol: answerTruthWriteCases
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - {}
+          source_sha256: e6f2c93b4d793040013c020da7efbc4c62cb3853420c3c23edebe0e6cdf885dd
+    - file: internal/backendconformance/corpus_value_flow.go
+      builders:
+        - symbol: valueFlowUpsert
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - {}
+          source_sha256: 3d29b246f8c90e30a0ae881c2edcc9613468d8c5168c5ae896733f85b47dfff8
+    - file: internal/storage/cypher/edge/writer/documentation_labels.go
+      builders:
+        - symbol: BuildRetractDocumentationEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 718fda4c6d7ead7456f57b419ea5e514c4fc0d638e1bc28a432b887ef46a1c30
+        - symbol: BuildRetractDocumentationEdgesByDocumentID
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND section.document_id IN $document_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 1f4d342e5834db0317cc62e47c4e33eaea6ae731e3d3ee6bb16a74fe24c2cd7b
+        - symbol: BuildRetractDocumentationEdgesBySectionUID
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND section.uid IN $section_uids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 35a0e6ffb807c8a6db9ce2caef5ec1f780370e976f49bb90643544d3ab1df73d
+    - file: internal/storage/cypher/edge/writer/provenance.go
+      builders:
+        - symbol: (*ProvenanceEdgeWriter).retract
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: de7c58e966b6ba151d564eae9180d70a33f1adb5451091cd4daf187fdaf5229b
+    - file: internal/storage/cypher/edge/writer/rationale_labels.go
+      builders:
+        - symbol: BuildProbeRationaleEdges
+          count: 2
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source IN $evidence_sources RETURN true LIMIT 1
+            - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source RETURN true LIMIT 1
+          source_sha256: 743f4ddcad4fa2e05285b7bc99878131ce2be655872692a045de662331212f3a
+        - symbol: BuildRetractRationaleEdges
+          count: 2
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source IN $evidence_sources DELETE rel
+            - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 9db5027b17dd49b9b9658cdb84fb8c31d8efdbadc36b66f43072ae2699449f64
+        - symbol: buildRationaleDeltaStatementsByFilePath
+          count: 1
+          variants:
+            - fragments:
+                - 'MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:'
+                - )
+                - WHERE target.path IN $file_paths
+                - AND
+          source_sha256: 763b54bba843f795e0d5a3ab2087405ac01b76d5791aaac10ffbe53fc0efad36
+    - file: internal/storage/cypher/edge/writer/retract.go
+      builders:
+        - symbol: buildRetractStatement
+          count: 4
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $repo_ids AS repo_id MATCH (:Function)-[rel:HANDLES_ROUTE]->(e:Endpoint {repo_id: repo_id}) WHERE rel.evidence_source = $evidence_source DELETE rel'
+            - template: 'UNWIND $repo_ids AS repo_id MATCH (f:Function {repo_id: repo_id})-[rel:RUNS_IN]->(:Workload) WHERE rel.evidence_source = $evidence_source DELETE rel'
+            - template: 'UNWIND $repo_ids AS repo_id MATCH (func:Function {repo_id: repo_id})-[rel:INVOKES_CLOUD_ACTION]->(:CloudAction) WHERE rel.evidence_source = $evidence_source DELETE rel'
+            - {}
+          source_sha256: 57ba290eeaa5ce7eda3501f02cd1edd8b2c73b1fc6c9ef0d1e91c96ca2a7d6be
+    - file: internal/storage/cypher/edge/writer/retract_repo.go
+      builders:
+        - symbol: BuildRepoDependencySplitRetractStatements
+          count: 3
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+            - {}
+            - {}
+          source_sha256: e9a08aa739afe07136ce635279120b891172610cac59acf98fc9d55d905865f7
+    - file: internal/storage/cypher/edge/writer/shell_exec.go
+      builders:
+        - symbol: (*EdgeWriter).cleanupOrphanShellCommands
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $keys AS candidate_key MATCH (target:ShellCommand {uid: candidate_key}) DELETE target'
+          source_sha256: 803c8161ec3457cdc11a851f70fbd240e8161142729a4c8c2c3bb5dfaa15798c
+        - symbol: BuildRetractShellExecEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $repo_ids AS repo_id MATCH (target:ShellCommand {repo_id: repo_id}) MATCH ()-[rel:EXECUTES_SHELL]->(target) WHERE rel.evidence_source = $evidence_source DELETE rel'
+          source_sha256: 5cb689994cc5cb5074b7cdacb4dfa9426b22742b8cde6cff0eea870d12e9a1bd
+        - symbol: BuildRetractShellExecEdgesByFilePath
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $file_paths AS file_path MATCH (target:ShellCommand {path: file_path}) MATCH ()-[rel:EXECUTES_SHELL]->(target) WHERE rel.evidence_source = $evidence_source DELETE rel'
+          source_sha256: daf8ee230238f15e8c50c6c399e258ce2604f9e8c0fdb793019606b1d78592b5
+    - file: internal/storage/cypher/edge/writer/sql.go
+      builders:
+        - symbol: buildSQLRelationshipRetractStatements
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - fragments:
+                - UNWIND $
+                - AS
+                - 'MATCH (source:'
+                - '{'
+                - ':'
+                - '})-[rel:'
+                - ']->() WHERE rel.evidence_source = $evidence_source DELETE rel'
+          source_sha256: d05473ec960b3845dec78d196a3097d8b3558c6c273839fc76c365bd319678b7
+    - file: internal/storage/cypher/edge/writer/unroutable.go
+      builders:
+        - symbol: buildTargetPresenceProbeStatement
+          count: 4
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - {}
+            - {}
+            - {}
+            - {}
+          source_sha256: b0d65e81bc31805690d7093d4a3442c3115b85d0354c024a77f1955c03e38365
+    - file: internal/storage/nornicdb/phase_group_executor_drain.go
+      builders:
+        - symbol: (PhaseGroupExecutor).executeDrainLoop
+          count: 1
+          operation: sourcecypher.OperationCanonicalProbe
+          variants:
+            - {}
+          source_sha256: 859f49c5e59199350d80aaeae51ac46c535520583b5b30ece45921d83b9884a7

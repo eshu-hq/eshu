@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -24,19 +23,36 @@ type StatementBuilderCoverage struct {
 	Builders []StatementBuilder `yaml:"builders"`
 }
 
-// StatementBuilder records one enclosing production symbol that builds a
-// sourcecypher.Statement, how many it builds, and what is statically known
-// about the built statement: the Operation expression text (empty when the
-// operation is computed, not a literal or package-qualified name) and the
-// whitespace-normalized Cypher template (empty with Dynamic set when the
-// Cypher text is composed at runtime, e.g. label-interpolated).
+// StatementVariant is the statically known text of one built statement:
+// the whitespace-normalized Cypher template when the text is static, or
+// the ordered static fragments the runtime text is composed from when it
+// is dynamic (label-interpolated, Sprintf-composed). A recording matches
+// a template by equality and fragments by ordered containment. A variant
+// with neither matches nothing: user-supplied or fully computed text is
+// unattributable by construction.
+type StatementVariant struct {
+	Template  string   `yaml:"template,omitempty"`
+	Fragments []string `yaml:"fragments,omitempty"`
+}
+
+// StatementBuilder records one enclosing production symbol that builds
+// sourcecypher.Statements: how many literals it builds, the Operation
+// expression text (empty when the operation is computed, not a literal or
+// package-qualified name), and one match variant per literal in source
+// order. A symbol whose literals build different texts needs every
+// variant: matching only the first would prove one statement and silently
+// assume the rest.
 type StatementBuilder struct {
-	Symbol       string `yaml:"symbol"`
-	Count        int    `yaml:"count"`
-	Operation    string `yaml:"operation,omitempty"`
-	Template     string `yaml:"template,omitempty"`
-	Dynamic      bool   `yaml:"dynamic,omitempty"`
-	SourceDigest string `yaml:"source_sha256,omitempty"`
+	Symbol       string             `yaml:"symbol"`
+	Count        int                `yaml:"count"`
+	Operation    string             `yaml:"operation,omitempty"`
+	Variants     []StatementVariant `yaml:"variants"`
+	SourceDigest string             `yaml:"source_sha256,omitempty"`
+	// Exempt excuses execution proof with a reason when the builder's
+	// text is statically unknowable. It never excuses drift: variants
+	// and digest still pin the symbol. Discovery leaves it empty; only
+	// the manifest sets it.
+	Exempt string `yaml:"exempt,omitempty"`
 }
 
 // DiscoverStatementBuilders returns every sourcecypher.Statement composite
@@ -50,6 +66,7 @@ type StatementBuilder struct {
 // count, never pass-through parameters.
 func DiscoverStatementBuilders(sourceDir string) ([]StatementBuilderCoverage, error) {
 	coverage := make([]StatementBuilderCoverage, 0)
+	resolver := newConstResolver(sourceDir)
 	err := filepath.WalkDir(sourceDir, func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -65,7 +82,7 @@ func DiscoverStatementBuilders(sourceDir string) ([]StatementBuilderCoverage, er
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		builders, err := discoverFileStatementBuilders(path)
+		builders, err := discoverFileStatementBuilders(path, resolver)
 		if err != nil {
 			return err
 		}
@@ -86,7 +103,7 @@ func DiscoverStatementBuilders(sourceDir string) ([]StatementBuilderCoverage, er
 	return coverage, nil
 }
 
-func discoverFileStatementBuilders(path string) ([]StatementBuilder, error) {
+func discoverFileStatementBuilders(path string, resolver *constResolver) ([]StatementBuilder, error) {
 	fileSet := token.NewFileSet()
 	file, err := parser.ParseFile(fileSet, path, nil, 0)
 	if err != nil {
@@ -98,19 +115,22 @@ func discoverFileStatementBuilders(path string) ([]StatementBuilder, error) {
 	}
 	type site struct {
 		operation string
-		template  string
-		dynamic   bool
+		variants  []StatementVariant
 	}
 	counts := make(map[string]int)
 	details := make(map[string]site)
 	digests := make(map[string]string)
-	record := func(symbol string, literal *ast.CompositeLit, fileSet *token.FileSet, source []byte) {
+	fileDir := filepath.Dir(path)
+	imports := fileImports(file)
+	record := func(symbol string, literal *ast.CompositeLit, scope *cypherScope) {
 		counts[symbol]++
-		if _, seen := details[symbol]; seen {
-			return
+		operation, template, fragments := describeStatementLiteral(literal, scope)
+		detail := details[symbol]
+		if detail.operation == "" {
+			detail.operation = operation
 		}
-		operation, template, dynamic := describeStatementLiteral(literal)
-		details[symbol] = site{operation: operation, template: template, dynamic: dynamic}
+		detail.variants = append(detail.variants, StatementVariant{Template: template, Fragments: fragments})
+		details[symbol] = detail
 	}
 	for _, declaration := range file.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
@@ -123,13 +143,20 @@ func discoverFileStatementBuilders(path string) ([]StatementBuilder, error) {
 		if start < 0 || end < start || end > len(source) {
 			return nil, fmt.Errorf("invalid source offsets for %s", symbol)
 		}
+		assigns := collectAssignments(function.Body)
 		ast.Inspect(function.Body, func(node ast.Node) bool {
 			literal, ok := node.(*ast.CompositeLit)
 			if !ok {
 				return true
 			}
+			scope := &cypherScope{
+				resolver: resolver,
+				fileDir:  fileDir,
+				imports:  imports,
+				funcVars: visibleVars(assigns, node.Pos()),
+			}
 			if isSourceCypherStatement(literal.Type) {
-				record(symbol, literal, fileSet, source)
+				record(symbol, literal, scope)
 				return true
 			}
 			// Elements of a []sourcecypher.Statement slice literal carry
@@ -137,7 +164,7 @@ func discoverFileStatementBuilders(path string) ([]StatementBuilder, error) {
 			if isSourceCypherStatementSlice(literal.Type) {
 				for _, element := range literal.Elts {
 					if item, ok := element.(*ast.CompositeLit); ok && item.Type == nil {
-						record(symbol, item, fileSet, source)
+						record(symbol, item, scope)
 					}
 				}
 			}
@@ -157,8 +184,7 @@ func discoverFileStatementBuilders(path string) ([]StatementBuilder, error) {
 			Symbol:       symbol,
 			Count:        count,
 			Operation:    detail.operation,
-			Template:     detail.template,
-			Dynamic:      detail.dynamic,
+			Variants:     detail.variants,
 			SourceDigest: digests[symbol],
 		})
 	}
@@ -192,9 +218,11 @@ func isSourceCypherStatementSlice(expr ast.Expr) bool {
 // describeStatementLiteral extracts what is statically known about one
 // sourcecypher.Statement literal: the Operation expression text when it is
 // a literal or package-qualified name (empty otherwise), and the
-// whitespace-normalized Cypher template when the Cypher field is a string
-// literal (dynamic otherwise, e.g. label-interpolated composition).
-func describeStatementLiteral(literal *ast.CompositeLit) (operation, template string, dynamic bool) {
+// whitespace-normalized Cypher template when the Cypher field resolves to
+// static text (fragments of the composed expression otherwise). Text
+// resolution lives in statement_text.go; this stays the per-literal
+// orchestrator.
+func describeStatementLiteral(literal *ast.CompositeLit, scope *cypherScope) (operation, template string, fragments []string) {
 	for _, element := range literal.Elts {
 		pair, ok := element.(*ast.KeyValueExpr)
 		if !ok {
@@ -208,75 +236,12 @@ func describeStatementLiteral(literal *ast.CompositeLit) (operation, template st
 		case "Operation":
 			operation = staticExpressionText(pair.Value)
 		case "Cypher":
-			if text, ok := staticString(pair.Value); ok {
+			if text, ok := scope.templateText(pair.Value, 0); ok {
 				template = normalizeStatementTemplate(text)
 			} else {
-				dynamic = true
+				fragments = scope.textFragments(pair.Value, 0)
 			}
 		}
 	}
-	return operation, template, dynamic
-}
-
-// staticExpressionText renders short static operation expressions: string
-// literals and package-qualified names. Anything computed (calls,
-// variables, concatenation) renders empty so the manifest marks the
-// operation unknown instead of recording a guess.
-func staticExpressionText(expr ast.Expr) string {
-	switch value := expr.(type) {
-	case *ast.BasicLit:
-		if value.Kind == token.STRING {
-			if text, err := strconv.Unquote(value.Value); err == nil {
-				return text
-			}
-		}
-		return ""
-	case *ast.SelectorExpr:
-		ident, ok := value.X.(*ast.Ident)
-		if !ok {
-			return ""
-		}
-		return ident.Name + "." + value.Sel.Name
-	default:
-		return ""
-	}
-}
-
-// staticString reports whether the expression is a static string: a plain
-// literal or a concatenation of plain literals. Anything else (calls,
-// variables, formatting) is dynamic.
-func staticString(expr ast.Expr) (string, bool) {
-	switch value := expr.(type) {
-	case *ast.BasicLit:
-		if value.Kind != token.STRING {
-			return "", false
-		}
-		text, err := strconv.Unquote(value.Value)
-		if err != nil {
-			return "", false
-		}
-		return text, true
-	case *ast.BinaryExpr:
-		if value.Op != token.ADD {
-			return "", false
-		}
-		left, ok := staticString(value.X)
-		if !ok {
-			return "", false
-		}
-		right, ok := staticString(value.Y)
-		if !ok {
-			return "", false
-		}
-		return left + right, true
-	default:
-		return "", false
-	}
-}
-
-// normalizeStatementTemplate collapses whitespace runs so template
-// comparison ignores formatting. Case, comments, and literals are
-// preserved: the template identifies the statement shape, not its data.
-func normalizeStatementTemplate(cypher string) string {
-	return strings.Join(strings.Fields(cypher), " ")
+	return operation, template, fragments
 }

@@ -40,6 +40,50 @@ func buildBatch() []sourcecypher.Statement {
 			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    "MATCH (n) DETACH DELETE n",
 		},
+		{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    "MATCH (m) DETACH DELETE m",
+		},
+	}
+}
+
+func buildSprintf(label string) sourcecypher.Statement {
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    fmt.Sprintf("MATCH (n:%s) RETURN n", label),
+	}
+}
+
+func buildOpaque(cypher string) sourcecypher.Statement {
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    cypher,
+	}
+}
+
+const writerConstCypher = "MATCH (n:Const) RETURN n"
+
+func buildConst() sourcecypher.Statement {
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    writerConstCypher,
+	}
+}
+
+func buildVar() sourcecypher.Statement {
+	cypher := "MATCH (n:Var) RETURN n"
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    cypher,
+	}
+}
+
+func buildReassigned(dynamic string) sourcecypher.Statement {
+	cypher := "MATCH (n:First) RETURN n"
+	cypher = dynamic
+	return sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalUpsert,
+		Cypher:    cypher,
 	}
 }
 `
@@ -69,9 +113,31 @@ func buildBatch() []sourcecypher.Statement {
 		{
 			File: "writer.go",
 			Builders: []StatementBuilder{
-				{Symbol: "buildBatch", Count: 1, Operation: "sourcecypher.OperationCanonicalRetract", Template: "MATCH (n) DETACH DELETE n"},
-				{Symbol: "buildDynamic", Count: 1, Operation: "", Template: "", Dynamic: true},
-				{Symbol: "buildUpsert", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Template: "MATCH (n) RETURN n"},
+				{Symbol: "buildBatch", Count: 2, Operation: "sourcecypher.OperationCanonicalRetract", Variants: []StatementVariant{
+					{Template: "MATCH (n) DETACH DELETE n"},
+					{Template: "MATCH (m) DETACH DELETE m"},
+				}},
+				{Symbol: "buildConst", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{Template: "MATCH (n:Const) RETURN n"},
+				}},
+				{Symbol: "buildDynamic", Count: 1, Operation: "", Variants: []StatementVariant{
+					{Fragments: []string{"MATCH (n:", ") RETURN n"}},
+				}},
+				{Symbol: "buildOpaque", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{},
+				}},
+				{Symbol: "buildReassigned", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{},
+				}},
+				{Symbol: "buildSprintf", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{Fragments: []string{"MATCH (n:", ") RETURN n"}},
+				}},
+				{Symbol: "buildUpsert", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{Template: "MATCH (n) RETURN n"},
+				}},
+				{Symbol: "buildVar", Count: 1, Operation: "sourcecypher.OperationCanonicalUpsert", Variants: []StatementVariant{
+					{Template: "MATCH (n:Var) RETURN n"},
+				}},
 			},
 		},
 	}
