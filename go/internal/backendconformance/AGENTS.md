@@ -50,6 +50,16 @@
   in `live_test.go` in the same change** — a write case with no cleanup
   leaks its fixtures permanently on a persistent developer database.
 
+- **Add a write case whose Cypher differs per backend** (a writer the
+  reducer wires differently for NornicDB and Neo4j) → build it from the
+  production writer, as `corpus_semantic_module.go` does, and return it from
+  `WriteCorpusFor`, not `DefaultWriteCorpus`. Pin the mirrored writer choice
+  to the reducer wiring with a `go/cmd/reducer` test
+  (`TestSemanticModuleConformanceCasesUseTheReducerWiring`). A hand-copied
+  statement string would pass while the real write diverges. Decide the one
+  correct outcome and encode it as `WantRows` for both lanes. Never give a
+  backend its own expected rows: that encodes the divergence as correct.
+
 - **Prefer `WantRows` for any shape a backend can misanswer with the right
   row count** (a count that ignores DISTINCT, a projection that echoes its
   expression text). `MinRows` cannot see those. Compare `corpus_answer_truth.go`

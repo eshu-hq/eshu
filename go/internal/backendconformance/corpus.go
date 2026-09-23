@@ -61,8 +61,10 @@ type CaseResult struct {
 
 // DefaultReadCorpus returns the deterministic read corpus used as the common
 // graph-query adapter smoke for Chunk 5 backend conformance. It ends with the
-// value-flow cloud sink statements (#6690) and the answer-truth shapes (#6689),
-// which assert exact rows.
+// value-flow cloud sink statements (#6690), the answer-truth shapes (#6689),
+// and the semantic Module write outcomes (#6965, #6968), which assert exact
+// rows. The semantic Module seeds are backend-dialect writes, so they live in
+// WriteCorpusFor rather than DefaultWriteCorpus.
 func DefaultReadCorpus() []ReadCase {
 	cases := append([]ReadCase{
 		{
@@ -111,7 +113,8 @@ RETURN contains_count, file_count, entity_count`,
 			MinRows: 1,
 		},
 	}, valueFlowReadCases()...)
-	return append(cases, answerTruthReadCases()...)
+	cases = append(cases, answerTruthReadCases()...)
+	return append(cases, semanticModuleReadCases()...)
 }
 
 // DefaultWriteCorpus returns the deterministic write corpus used as the common

@@ -1,5 +1,79 @@
 # Backend conformance evidence notes
 
+## Semantic Module write path (#6965 Phase 4, 2026-09-23)
+
+`corpus_semantic_module.go` adds three exact-row cases for the semantic-entity
+`:Module` write. Each backend runs the statements its reducer really sends:
+the case builder drives the production `SemanticEntityWriter` through a
+recording executor. `WriteCorpusFor(backend)` picks the writer the reducer
+wires. For Neo4j that is `NewSemanticEntityWriter` (MATCH-first). For NornicDB
+it is `NewSemanticEntityWriterWithCanonicalNodeRows(...).WithLabelScopedRetract()`,
+which rewrites Module MERGE-first through
+`semanticEntityMergeFirstRowsUpsertCypher`.
+`TestSemanticModuleConformanceCasesUseTheReducerWiring` in `go/cmd/reducer`
+pins that mirror to `semanticEntityWriterForGraphBackend` by deep equality of
+the emitted statements. Swapping either backend's mirror to
+`NewSemanticEntityWriterWithMergeFirstRows` fails it for that backend (both
+mutations run, both red). Dropping only `WithLabelScopedRetract()` does not
+fail it, because canonical-node-rows mode ignores the retract mode
+(`semanticRetractStatements`), so the statements stay identical.
+
+| Case | Seed | Expected rows |
+| --- | --- | --- |
+| absent file | Module row, File never written | none |
+| present file | File seeded, then the same row shape | one contained Module, uid set, `parser/semantic-entities` |
+| canonical import | absent-file Module row, then the production `CanonicalNodeModuleUpsertCypher` for the same `(name, lang)` | one Module, `uid` null, `projector/canonical` |
+
+### Why "no Module" is the correct absent-file outcome
+
+- `semanticModuleUpsertCypher` is the source template. The default writer
+  runs it, and so does Neo4j. It creates the node only for a row whose File
+  exists. The merge-first form rewrites that template to keep NornicDB on its
+  UNWIND/MERGE hot path (see the reducer wiring comment and
+  `NewSemanticEntityWriterWithMergeFirstRows`), and nothing documents a change
+  of meaning. #6965 Problem 3 states the contract: different statements, same
+  semantics.
+- A semantic Module with no File has no `CONTAINS` edge, and the `:Module`
+  orphan sweep only acts on `n.uid IS NULL` (`orphanSweepClassPredicate`). So
+  only the next repo-scoped semantic retract removes it.
+- It captures the import graph. `MERGE (m:Module {name, lang})` matches any
+  Module with that name and language, so a later canonical import binds to the
+  stray semantic node and overwrites its `evidence_source`. No uid-NULL node is
+  created. This is #6968's mechanism, and the third case pins it.
+
+### Result per backend
+
+Not run locally. Docker on this machine was carrying other lanes' containers
+(a NornicDB and two Postgres instances), neither pinned graph image was
+present, and pulling them would have written to the OrbStack data image on the
+shared USB volume. From the Cypher each lane receives:
+
+- Neo4j is expected to pass all three. MATCH-first yields no row when the File
+  is absent, so no Module is created, and the canonical MERGE creates its own
+  uid-NULL node.
+- NornicDB is expected to fail the absent-file case with one uid-bearing row.
+  That is the behaviour #6965 measured: MERGE-first creates the node and only
+  the containment edge is skipped. `RunReadCorpus` stops at the first failing
+  read, so the canonical-import case only reports once the absent-file case
+  passes. Run it on its own to test the #6968 hypothesis: one row with a
+  non-null `uid` confirms it, and two rows refute it.
+
+Both labels stay predictions until the live lane runs them. Commands, from the
+repo root, one backend at a time, each against a fresh Compose lane:
+
+```bash
+docker compose up -d nornicdb
+ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
+
+docker compose -f docker-compose.neo4j.yml up -d neo4j
+ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_conformance_live.sh
+```
+
+In CI the same script is the "Run live backend conformance" step of
+`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`,
+blocking). A NornicDB failure on the absent-file case turns that gate red until
+#6968 fixes the write path.
+
 ## Current state: value-flow statements and answer-truth shapes (2026-09-18)
 
 Measured on the pinned image

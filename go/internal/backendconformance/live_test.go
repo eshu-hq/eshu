@@ -67,15 +67,21 @@ func TestLiveBackendConformance(t *testing.T) {
 		}
 	}()
 
+	// The write corpus carries backend-dialect cases (the semantic Module
+	// writes), built from the production writer this backend runs.
+	writeCorpus, err := WriteCorpusFor(BackendID(backend))
+	if err != nil {
+		t.Fatalf("build %s write corpus: %v", backend, err)
+	}
 	for attempt := 1; attempt <= liveWriteAttempts; attempt++ {
 		attemptCtx, attemptCancel := context.WithTimeout(ctx, liveWriteAttemptTimeout)
 		if backend == runtimecfg.GraphBackendNornicDB {
-			if _, err := RunPhaseWriteCorpus(attemptCtx, executor, DefaultWriteCorpus()); err != nil {
+			if _, err := RunPhaseWriteCorpus(attemptCtx, executor, writeCorpus); err != nil {
 				attemptCancel()
 				t.Fatalf("run %s live write corpus attempt %d: %v", backend, attempt, err)
 			}
 		} else {
-			if _, err := RunWriteCorpus(attemptCtx, executor, DefaultWriteCorpus()); err != nil {
+			if _, err := RunWriteCorpus(attemptCtx, executor, writeCorpus); err != nil {
 				attemptCancel()
 				t.Fatalf("run %s live write corpus attempt %d: %v", backend, attempt, err)
 			}
@@ -227,7 +233,7 @@ func (e liveCypherExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourc
 	return e.ExecuteGroup(ctx, stmts)
 }
 
-// cleanupLiveCorpus removes only nodes created by DefaultWriteCorpus, keeping
+// cleanupLiveCorpus removes only nodes created by WriteCorpusFor, keeping
 // live proofs safe to run against developer Compose databases. Every write case
 // needs a matching retract here: a case whose fixtures are not listed leaks
 // them permanently on a persistent database, which is the dev workflow this
@@ -306,6 +312,21 @@ DELETE rel`,
 			Operation:  sourcecypher.OperationCanonicalRetract,
 			Cypher:     `MATCH (callee:Function {uid: $callee_uid}) DELETE callee`,
 			Parameters: map[string]any{"callee_uid": "function:backend-conformance:callee"},
+		},
+		{
+			// The semantic Module fixtures: every Module either case can
+			// leave behind, whichever uid, lang, or evidence_source it
+			// ended up with, plus the seeded File.
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    `MATCH (m:Module) WHERE m.name IN $names DETACH DELETE m`,
+			Parameters: map[string]any{"names": []string{
+				semanticModuleAbsentName, semanticModulePresentName, semanticModuleImportName,
+			}},
+		},
+		{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     `MATCH (f:File {path: $file_path}) DETACH DELETE f`,
+			Parameters: map[string]any{"file_path": semanticModulePresentFilePath},
 		},
 		{
 			Operation:  sourcecypher.OperationCanonicalRetract,
