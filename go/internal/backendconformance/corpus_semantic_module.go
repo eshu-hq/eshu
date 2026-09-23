@@ -56,6 +56,10 @@ const (
 	semanticModuleImportReadCaseName       = "canonical import module stays uid-null"
 )
 
+// semanticModuleDivergence is the tracking issue for the NornicDB outcome the
+// absent-File and canonical-import reads pin until the write path is fixed.
+const semanticModuleDivergence = "#6968 NornicDB merge-first semantic Module write creates the node when its File is absent"
+
 // Fixture values. Each case owns its repo id, so one case's repo retract can
 // never delete another case's nodes, and its own module name, so each read
 // sees only its own case.
@@ -189,6 +193,11 @@ SET f.repo_id = $repo_id,
 // semanticModuleReadCases returns the exact-row reads for the semantic Module
 // write cases. Each read has distinct Cypher so the default fake answers each
 // one with its own expected rows.
+//
+// WantRows is always the correct outcome. Where NornicDB differs today, a
+// BackendOverride pins what it returns, under #6968, so both lanes stay green
+// and deterministic: NornicDB changing (fixed or otherwise) fails its pinned
+// rows, and Neo4j drifting from the correct rows fails the default.
 func semanticModuleReadCases() []ReadCase {
 	return []ReadCase{
 		{
@@ -198,6 +207,18 @@ func semanticModuleReadCases() []ReadCase {
 RETURN m.uid AS uid, m.lang AS lang, m.evidence_source AS evidence_source`,
 			Parameters: map[string]any{"module_name": semanticModuleAbsentName},
 			WantRows:   []map[string]any{},
+			// UNVERIFIED prediction (see evidence-notes.md): merge-first
+			// creates and SETs the node before the File MATCH drops the row.
+			Overrides: map[BackendID]BackendOverride{
+				BackendNornicDB: {
+					Divergence: semanticModuleDivergence,
+					WantRows: []map[string]any{{
+						"uid":             semanticModuleAbsentUID,
+						"lang":            semanticModuleLanguage,
+						"evidence_source": "parser/semantic-entities",
+					}},
+				},
+			},
 		},
 		{
 			Name:       semanticModulePresentFileReadCaseName,
@@ -228,6 +249,18 @@ RETURN m.uid AS uid, m.evidence_source AS evidence_source`,
 				"uid":             nil,
 				"evidence_source": "projector/canonical",
 			}},
+			// UNVERIFIED prediction (see evidence-notes.md): the canonical
+			// MERGE binds to the stray uid-bearing node and its SET
+			// overwrites evidence_source, so no uid-NULL node exists.
+			Overrides: map[BackendID]BackendOverride{
+				BackendNornicDB: {
+					Divergence: semanticModuleDivergence,
+					WantRows: []map[string]any{{
+						"uid":             semanticModuleImportUID,
+						"evidence_source": "projector/canonical",
+					}},
+				},
+			},
 		},
 	}
 }

@@ -91,13 +91,17 @@ func TestLiveBackendConformance(t *testing.T) {
 
 	readCtx, readCancel := context.WithTimeout(ctx, liveReadTimeout)
 	defer readCancel()
-	report, err := RunReadCorpus(readCtx, executor, DefaultReadCorpus())
+	report, err := RunReadCorpusFor(readCtx, executor, BackendID(backend), DefaultReadCorpus())
 	if err != nil {
 		t.Fatalf("run %s live read corpus: %v", backend, err)
 	}
 	// One line per case, so a reader can see which cases actually ran on this
 	// backend rather than inferring it from a pass.
 	for _, result := range report.Results {
+		if result.Divergence != "" {
+			t.Logf("read case passed: %s (%d rows, pinned divergence %s)", result.Name, result.Rows, result.Divergence)
+			continue
+		}
 		t.Logf("read case passed: %s (%d rows)", result.Name, result.Rows)
 	}
 }

@@ -18,8 +18,11 @@
 // [WriteCorpusFor] adds the write cases whose Cypher depends on the backend
 // dialect. For the semantic :Module write, the statements come from the
 // production semantic-entity writer that the reducer wires for that backend.
-// The matching reads hold both backends to one outcome, so a dialect rewrite
-// that changes what gets written fails the live run.
+// The matching reads hold both backends to one correct outcome. A backend
+// that does not give it today carries a [BackendOverride]: the rows it does
+// return, pinned under a required tracking issue. [RunReadCorpusFor] applies
+// the override for the backend it runs as, so both lanes stay deterministic
+// and a change on either side fails the live run.
 //
 // Differential recording ([DifferentialRecorder] with the WrapGraphQuery and
 // WrapExecutor decorators) captures statement fingerprints and result digests

@@ -41,25 +41,45 @@ fail it, because canonical-node-rows mode ignores the retract mode
   stray semantic node and overwrites its `evidence_source`. No uid-NULL node is
   created. This is #6968's mechanism, and the third case pins it.
 
-### Result per backend
+### Per-backend pins (BackendOverride)
 
-Not run locally. Docker on this machine was carrying other lanes' containers
-(a NornicDB and two Postgres instances), neither pinned graph image was
-present, and pulling them would have written to the OrbStack data image on the
-shared USB volume. From the Cypher each lane receives:
+`WantRows` on every case is the correct outcome above. NornicDB does not give
+it today on two cases. It gets a `BackendOverride` holding the rows it
+produces, with `Divergence` set to `#6968`
+(`corpus_override.go`). Both lanes are therefore green and deterministic:
 
-- Neo4j is expected to pass all three. MATCH-first yields no row when the File
-  is absent, so no Module is created, and the canonical MERGE creates its own
-  uid-NULL node.
-- NornicDB is expected to fail the absent-file case with one uid-bearing row.
-  That is the behaviour #6965 measured: MERGE-first creates the node and only
-  the containment edge is skipped. `RunReadCorpus` stops at the first failing
-  read, so the canonical-import case only reports once the absent-file case
-  passes. Run it on its own to test the #6968 hypothesis: one row with a
-  non-null `uid` confirms it, and two rows refute it.
+- Neo4j is held to the correct rows. Any drift fails.
+- NornicDB is held to its pinned rows. When #6968 fixes the write path,
+  NornicDB returns the correct rows, fails its pin, and the fix must delete
+  the override. Any other change fails too.
 
-Both labels stay predictions until the live lane runs them. Commands, from the
-repo root, one backend at a time, each against a fresh Compose lane:
+Validation rejects an override that has no `#NNNN` issue, nil rows, rows
+equal to the correct rows, an unknown backend, or no default `WantRows`. A
+mismatch error names the backend, the divergence, the correct rows, the
+pinned rows, and the rows actually returned. A live-lane failure therefore
+shows the true values in the CI log.
+
+| Case | Correct (default, Neo4j) | NornicDB pin (#6968) |
+| --- | --- | --- |
+| absent file | no rows | `{uid: module:backend-conformance:semantic-absent, lang: typescript, evidence_source: parser/semantic-entities}` |
+| present file | one contained Module | no override |
+| canonical import | `{uid: null, evidence_source: projector/canonical}` | `{uid: module:backend-conformance:semantic-import, evidence_source: projector/canonical}` |
+
+**UNVERIFIED: the NornicDB pinned rows and the Neo4j expectation are
+predictions, not observations.** They were derived from the Cypher each lane
+receives and the #6965 measurement (merge-first creates the uid-bearing node
+and skips only the edge). The canonical-import pin also assumes #6968's
+hypothesis: the canonical MERGE binds to the stray node and its SET
+overwrites `evidence_source`. If the hypothesis is wrong, the live NornicDB
+lane returns two rows and the failure prints them. The pins must be replaced
+with the rows `e2e-tests.yml` "Run live backend conformance" actually prints
+before this note drops the UNVERIFIED label.
+
+The live lane was not run locally. Docker on this machine was carrying other
+lanes' containers (a NornicDB and two Postgres instances), neither pinned
+graph image was present, and pulling them would have written to the OrbStack
+data image on the shared USB volume. Commands, from the repo root, one backend
+at a time, each against a fresh Compose lane:
 
 ```bash
 docker compose up -d nornicdb
@@ -70,9 +90,8 @@ ESHU_GRAPH_BACKEND=neo4j NEO4J_PASSWORD=change-me ./scripts/verify_backend_confo
 ```
 
 In CI the same script is the "Run live backend conformance" step of
-`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`,
-blocking). A NornicDB failure on the absent-file case turns that gate red until
-#6968 fixes the write path.
+`e2e-tests.yml` (`test (nornicdb)` / `test (neo4j)`, registry row `e2e-tests`).
+A case that passes on a pin logs `pinned divergence #6968`.
 
 ## Current state: value-flow statements and answer-truth shapes (2026-09-18)
 

@@ -57,7 +57,9 @@ func TestSemanticModuleCasesAreInTheCorpora(t *testing.T) {
 
 // TestSemanticModuleAbsentFileReadWantsNoRows pins the decided outcome: a row
 // whose File is absent creates no Module. An empty non-nil WantRows is what
-// makes RunReadCorpus require zero rows; nil would disable the check.
+// makes RunReadCorpus require zero rows; nil would disable the check. The
+// NornicDB divergence is pinned as an override under #6968, never as the
+// default, and Neo4j carries no override.
 func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	t.Parallel()
 
@@ -68,12 +70,24 @@ func TestSemanticModuleAbsentFileReadWantsNoRows(t *testing.T) {
 	if c.WantRows == nil || len(c.WantRows) != 0 {
 		t.Fatalf("WantRows = %#v, want empty non-nil", c.WantRows)
 	}
+	if _, ok := c.Overrides[BackendNeo4j]; ok {
+		t.Fatalf("absent-file case overrides neo4j; only the backend that diverges may be pinned")
+	}
+	if o, ok := c.Overrides[BackendNornicDB]; !ok || !strings.HasPrefix(o.Divergence, "#6968") {
+		t.Fatalf("absent-file NornicDB override = %#v, want one pinned under #6968", c.Overrides)
+	}
 	imp, ok := readCaseByName(semanticModuleImportReadCaseName)
 	if !ok {
 		t.Fatalf("read case %q missing", semanticModuleImportReadCaseName)
 	}
 	if len(imp.WantRows) != 1 || imp.WantRows[0]["uid"] != nil {
 		t.Fatalf("import WantRows = %#v, want exactly one uid-NULL row", imp.WantRows)
+	}
+	if _, ok := imp.Overrides[BackendNeo4j]; ok {
+		t.Fatalf("import case overrides neo4j; only the backend that diverges may be pinned")
+	}
+	if o, ok := imp.Overrides[BackendNornicDB]; !ok || !strings.HasPrefix(o.Divergence, "#6968") {
+		t.Fatalf("import NornicDB override = %#v, want one pinned under #6968", imp.Overrides)
 	}
 }
 

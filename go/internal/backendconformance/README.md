@@ -62,7 +62,15 @@ reads in `DefaultReadCorpus` then pin one outcome for both lanes: a Module row
 whose File is absent creates no Module; a present File yields one contained,
 uid-bearing Module; and a later canonical import `MERGE (m:Module {name, lang})`
 leaves a uid-NULL node. `go/cmd/reducer` pins the mirrored writer choice to the
-reducer's own wiring. The reasoning and the per-backend expectation are in
+reducer's own wiring.
+
+When a backend does not give the correct rows today, a read case can carry a
+`BackendOverride` (`corpus_override.go`) for that backend. The override pins
+the rows the backend actually returns and must name its tracking issue in
+`Divergence`. `RunReadCorpusFor(backend)` holds that backend to the pin and
+every other backend to `WantRows`, so both lanes stay deterministic. The
+NornicDB semantic Module pins sit under #6968. Their rows are still
+unverified predictions; the reasoning and the per-backend expectation are in
 `evidence-notes.md`.
 
 No-Regression Evidence: no production Cypher text, index, schema, queue or

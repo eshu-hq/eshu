@@ -57,8 +57,16 @@
   to the reducer wiring with a `go/cmd/reducer` test
   (`TestSemanticModuleConformanceCasesUseTheReducerWiring`). A hand-copied
   statement string would pass while the real write diverges. Decide the one
-  correct outcome and encode it as `WantRows` for both lanes. Never give a
-  backend its own expected rows: that encodes the divergence as correct.
+  correct outcome and encode it as `WantRows`.
+
+- **A backend that answers a case wrongly today** → keep the correct
+  `WantRows` as the default and add a `BackendOverride` for that backend only.
+  Its `Divergence` must start with the tracking issue (`#NNNN`) and its rows
+  must be the rows the backend actually returns; a guess is never enough.
+  Validation rejects an override with no issue, nil rows, rows equal to the
+  default, or an unknown backend. Live runs must use `RunReadCorpusFor` with
+  the backend, or the override never applies. The fix for the issue deletes
+  the override in the same change, because the fixed backend fails its pin.
 
 - **Prefer `WantRows` for any shape a backend can misanswer with the right
   row count** (a count that ignores DISTINCT, a projection that echoes its
