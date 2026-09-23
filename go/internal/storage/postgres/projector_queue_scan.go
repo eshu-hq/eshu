@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -62,7 +63,7 @@ func projectorWorkItemID(scopeID string, generationID string) string {
 }
 
 func projectorScopeMetadata(rawPayload []byte) map[string]string {
-	payload, err := unmarshalPayload(rawPayload)
+	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil || len(payload) == 0 {
 		return nil
 	}

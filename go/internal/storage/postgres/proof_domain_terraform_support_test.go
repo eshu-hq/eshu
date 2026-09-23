@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
 func cloneEvidenceFacts(input map[string]evidenceRecord) map[string]evidenceRecord {
@@ -115,10 +116,10 @@ func proofFactEnvelopeRow(envelope facts.Envelope, payload []byte) []any {
 		envelope.GenerationID,
 		envelope.FactKind,
 		envelope.StableFactKey,
-		emptyToDefault(envelope.SchemaVersion, "0.0.0"),
-		emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
+		payloadstore.EmptyToDefault(envelope.SchemaVersion, "0.0.0"),
+		payloadstore.EmptyToDefault(envelope.CollectorKind, payloadstore.EmptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
 		envelope.FencingToken,
-		emptyToDefault(envelope.SourceConfidence, "unknown"),
+		payloadstore.EmptyToDefault(envelope.SourceConfidence, "unknown"),
 		envelope.SourceRef.SourceSystem,
 		envelope.SourceRef.FactKey,
 		envelope.SourceRef.SourceURI,

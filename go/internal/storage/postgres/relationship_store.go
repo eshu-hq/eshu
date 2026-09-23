@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -119,7 +120,7 @@ func (s *RelationshipStore) CreateGeneration(
 	genID := relationshipDigest("generation", scopeID, runID, fmt.Sprintf("%d", now.UnixNano()))
 	if _, err := s.database.ExecContext(
 		ctx, createGenerationSQL,
-		genID, scopeID, emptyToNil(runID), now,
+		genID, scopeID, payloadstore.EmptyToNil(runID), now,
 	); err != nil {
 		return "", fmt.Errorf("create generation: %w", err)
 	}
@@ -320,10 +321,10 @@ func (s *RelationshipStore) UpsertCandidates(
 			ctx, insertCandidateSQL,
 			candidateID,
 			generationID,
-			emptyToNil(c.SourceRepoID),
-			emptyToNil(c.TargetRepoID),
-			emptyToNil(c.SourceEntityID),
-			emptyToNil(c.TargetEntityID),
+			payloadstore.EmptyToNil(c.SourceRepoID),
+			payloadstore.EmptyToNil(c.TargetRepoID),
+			payloadstore.EmptyToNil(c.SourceEntityID),
+			payloadstore.EmptyToNil(c.TargetEntityID),
 			string(c.RelationshipType),
 			c.Confidence,
 			c.EvidenceCount,
@@ -356,10 +357,10 @@ func (s *RelationshipStore) UpsertResolved(
 			ctx, insertResolvedSQL,
 			resolvedID,
 			generationID,
-			emptyToNil(r.SourceRepoID),
-			emptyToNil(r.TargetRepoID),
-			emptyToNil(r.SourceEntityID),
-			emptyToNil(r.TargetEntityID),
+			payloadstore.EmptyToNil(r.SourceRepoID),
+			payloadstore.EmptyToNil(r.TargetRepoID),
+			payloadstore.EmptyToNil(r.SourceEntityID),
+			payloadstore.EmptyToNil(r.TargetEntityID),
 			string(r.RelationshipType),
 			r.Confidence,
 			r.EvidenceCount,

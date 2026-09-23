@@ -339,7 +339,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 1. [x] `scope/` (new leaf; receives hoisted helpers only)
 2. [x] `cicd/` (1 file)
 3. [x] `decisions/` (1 file)
-4. [ ] `facts/payload/` (1 file)
+4. [x] `facts/payload/` (1 file)
 5. [ ] `iac/` (1 file)
 6. [ ] `incident/` (1 file)
 7. [ ] `maintenance/` (1 file)

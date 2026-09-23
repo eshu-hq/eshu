@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -95,7 +97,7 @@ func buildUpsertFactBatchQuery(suffix string, batch []facts.Envelope) (string, [
 			return "", nil, err
 		}
 
-		payloadJSON, err := marshalPayload(envelope.Payload)
+		payloadJSON, err := payloadstore.MarshalPayload(envelope.Payload)
 		if err != nil {
 			return "", nil, fmt.Errorf("marshal payload for fact %q: %w", envelope.FactID, err)
 		}
@@ -122,14 +124,14 @@ func buildUpsertFactBatchQuery(suffix string, batch []facts.Envelope) (string, [
 			envelope.GenerationID,
 			envelope.FactKind,
 			envelope.StableFactKey,
-			emptyToDefault(envelope.SchemaVersion, "0.0.0"),
-			emptyToDefault(envelope.CollectorKind, emptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
+			payloadstore.EmptyToDefault(envelope.SchemaVersion, "0.0.0"),
+			payloadstore.EmptyToDefault(envelope.CollectorKind, payloadstore.EmptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
 			envelope.FencingToken,
-			emptyToDefault(envelope.SourceConfidence, "unknown"),
+			payloadstore.EmptyToDefault(envelope.SourceConfidence, "unknown"),
 			envelope.SourceRef.SourceSystem,
 			envelope.SourceRef.FactKey,
-			emptyToNil(envelope.SourceRef.SourceURI),
-			emptyToNil(envelope.SourceRef.SourceRecordID),
+			payloadstore.EmptyToNil(envelope.SourceRef.SourceURI),
+			payloadstore.EmptyToNil(envelope.SourceRef.SourceRecordID),
 			observedAt,
 			observedAt,
 			envelope.IsTombstone,

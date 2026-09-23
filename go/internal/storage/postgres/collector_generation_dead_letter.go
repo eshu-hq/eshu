@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -118,7 +119,7 @@ func (s CollectorGenerationDeadLetterStore) RecordGenerationDeadLetter(
 			"trigger_kind":   string(record.Generation.TriggerKind),
 		}
 	}
-	payload, err := marshalPayload(scalars.StringMapToAny(payloadReference))
+	payload, err := payloadstore.MarshalPayload(scalars.StringMapToAny(payloadReference))
 	if err != nil {
 		return fmt.Errorf("marshal collector generation dead-letter payload: %w", err)
 	}

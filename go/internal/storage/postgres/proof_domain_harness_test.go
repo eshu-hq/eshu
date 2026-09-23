@@ -16,7 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
+	semanticstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 type recordingCanonicalWriter struct {
@@ -139,7 +140,7 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 		if _, exists := database.state.workItems[workItemID]; exists {
 			return proofResult{}, nil
 		}
-		payload, err := unmarshalPayload(args[7].([]byte))
+		payload, err := payloadstore.UnmarshalPayload(args[7].([]byte))
 		if err != nil {
 			return nil, err
 		}

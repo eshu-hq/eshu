@@ -357,7 +357,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/storage/postgres/code_call_intent_writer.go|go/internal/storage/postgres/code_call_intent_writer.go'
 	'go/internal/storage/postgres/facts_active_code_call_symbols.go|go/internal/storage/postgres/facts_active_code_call_symbols.go'
 	'go/internal/storage/postgres/facts_filtered.go|go/internal/storage/postgres/facts_filtered.go'
-	'go/internal/storage/postgres/facts_payload.go|go/internal/storage/postgres/facts_payload.go'
+	'go/internal/storage/postgres/facts/payload/json.go|go/internal/storage/postgres/facts/payload/json.go'
 	'go/internal/storage/postgres/shared_intent_acceptance_writer.go|go/internal/storage/postgres/shared_intent_acceptance_writer.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance.go'
 	'go/internal/storage/postgres/shared_projection_acceptance*.go|go/internal/storage/postgres/shared_projection_acceptance_rowcount_test.go'

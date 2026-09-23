@@ -59,7 +59,8 @@
 // None of these six kinds are registered in specs/fact-kind-registry.v1.yaml
 // (deferred to issue #4752): they are version-less on the wire, so the
 // Postgres persist layer stamps SchemaVersion="0.0.0"
-// (go/internal/storage/postgres/facts_streaming.go emptyToDefault), which the
+// (go/internal/storage/postgres/facts_streaming.go, calling
+// payloadstore.EmptyToDefault), which the
 // reducer's factschemaEnvelope adapter (factschema_decode.go) normalizes to
 // the latest major exactly like codegraph's "file"/"repository" kinds.
 //

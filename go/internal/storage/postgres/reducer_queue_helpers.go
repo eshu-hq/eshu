@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
+
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -151,7 +153,7 @@ func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 		return reducer.Intent{}, err
 	}
 
-	payload, err := unmarshalPayload(rawPayload)
+	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
 		return reducer.Intent{}, err
 	}

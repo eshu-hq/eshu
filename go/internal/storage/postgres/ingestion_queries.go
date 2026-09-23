@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope"
 )
@@ -221,7 +222,7 @@ func upsertIngestionScope(
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 ) error {
-	payloadJSON, err := marshalPayload(scalars.StringMapToAny(scopeValue.MetadataCopy()))
+	payloadJSON, err := payloadstore.MarshalPayload(scalars.StringMapToAny(scopeValue.MetadataCopy()))
 	if err != nil {
 		return fmt.Errorf("marshal scope payload: %w", err)
 	}
@@ -233,7 +234,7 @@ func upsertIngestionScope(
 		string(scopeValue.ScopeKind),
 		scopeValue.SourceSystem,
 		scopestore.SourceKey(scopeValue),
-		emptyToNil(scopeValue.ParentScopeID),
+		payloadstore.EmptyToNil(scopeValue.ParentScopeID),
 		string(scopeValue.CollectorKind),
 		scopeValue.PartitionKey,
 		generation.ObservedAt.UTC(),
@@ -262,8 +263,8 @@ func upsertScopeGeneration(
 		generation.GenerationID,
 		generation.ScopeID,
 		string(generation.TriggerKind),
-		emptyToNil(generation.FreshnessHint),
-		emptyToNil(generation.SourceCommitSHA),
+		payloadstore.EmptyToNil(generation.FreshnessHint),
+		payloadstore.EmptyToNil(generation.SourceCommitSHA),
 		generation.IsDelta,
 		generation.ObservedAt.UTC(),
 		generation.IngestedAt.UTC(),

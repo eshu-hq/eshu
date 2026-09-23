@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -320,7 +321,7 @@ func scanTaggedSupplyChainImpactFact(rows db.Rows) (int, int64, facts.Envelope, 
 	); err != nil {
 		return 0, 0, facts.Envelope{}, err
 	}
-	payload, err := unmarshalPayload(rawPayload)
+	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil {
 		return 0, 0, facts.Envelope{}, err
 	}
