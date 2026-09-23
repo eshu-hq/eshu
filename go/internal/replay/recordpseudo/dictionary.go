@@ -34,11 +34,34 @@ var structuralWords = map[string]struct{}{
 	"$LATEST": {}, "aws": {}, "*": {}, "root": {},
 }
 
+// entry is one learned token: its pseudonym and the class that shaped it.
+type entry struct {
+	pseudonym string
+	class     Class
+}
+
+// classRank orders classes for precedence when one raw token is met under
+// two classes: a structured shape (account, ARN, AWS id, name, host,
+// address, email) always beats a tag value, so a resource whose Name tag
+// equals its name is a name in every field and on every run. Keep, Opaque
+// and Unknown never learn and rank lowest.
+func classRank(class Class) int {
+	switch class {
+	case ClassKeep, ClassOpaque, ClassUnknown:
+		return 0
+	case ClassTagValue:
+		return 1
+	default:
+		return 2
+	}
+}
+
 // dictionary learns raw tokens and their pseudonyms. It is single-goroutine:
-// the source wrapper drives it.
+// the source wrapper drives it, and it walks fields in sorted key order so
+// the outcome never depends on map iteration.
 type dictionary struct {
 	key          Key
-	entries      map[string]string
+	entries      map[string]entry
 	ipSlots      map[int]string
 	ipCollisions int
 	learned      map[Class]int
@@ -48,31 +71,50 @@ type dictionary struct {
 func newDictionary(key Key) *dictionary {
 	return &dictionary{
 		key:     key,
-		entries: map[string]string{},
+		entries: map[string]entry{},
 		ipSlots: map[int]string{},
 		learned: map[Class]int{},
 	}
 }
 
+// set records a pseudonym unless the token is already held by a class of
+// equal or higher rank; a higher-ranked class replaces a lower one.
 func (d *dictionary) set(class Class, raw, pseudonym string) {
 	if raw == pseudonym {
 		return
 	}
-	d.entries[raw] = pseudonym
+	if existing, ok := d.entries[raw]; ok {
+		if classRank(existing.class) >= classRank(class) {
+			return
+		}
+		d.learned[existing.class]--
+	}
+	d.entries[raw] = entry{pseudonym: pseudonym, class: class}
 	d.learned[class]++
 	d.sorted = nil
 }
 
-func (d *dictionary) known(raw string) bool {
-	_, ok := d.entries[raw]
-	return ok
+// pseudonym returns the learned pseudonym for raw, or raw itself.
+func (d *dictionary) pseudonym(raw string) string {
+	if existing, ok := d.entries[raw]; ok {
+		return existing.pseudonym
+	}
+	return raw
+}
+
+// settled reports whether raw is already held by a class that outranks or
+// equals the class asking to learn it.
+func (d *dictionary) settled(class Class, raw string) bool {
+	existing, ok := d.entries[raw]
+	return ok && classRank(existing.class) >= classRank(class)
 }
 
 // learn classifies one raw value and records its pseudonym. Empty values,
-// wildcards and already-learned tokens are ignored.
+// structural words and tokens already settled by an equal- or
+// higher-ranked class are ignored.
 func (d *dictionary) learn(class Class, raw string) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || d.known(raw) {
+	if raw == "" || d.settled(class, raw) {
 		return
 	}
 	if _, structural := structuralWords[raw]; structural {
@@ -98,7 +140,7 @@ func (d *dictionary) learn(class Class, raw string) {
 	case ClassCIDR:
 		d.learnCIDR(raw)
 	case ClassTagValue:
-		d.set(ClassTagValue, raw, "t"+d.key.hexOf(raw, 11))
+		d.learnTagValue(raw)
 	case ClassEmail:
 		d.learnEmail(raw)
 	default:
@@ -159,10 +201,38 @@ func (d *dictionary) learnARN(raw string) {
 	}
 }
 
-// learnIdent sniffs// learnIdent sniffs the shape of a name-like value and delegates.
+// learnIdent sniffs// learnTagValue: a tag value with a structured shape (an ARN in the
+// cloudformation:stack-id tag, an account, an address, an email, a host) is
+// learned by its structure so the same token in a structured field keeps
+// its grammar; free-text values take the tag format.
+func (d *dictionary) learnTagValue(raw string) {
+	if structuredShape(raw) {
+		d.learnIdent(raw)
+		return
+	}
+	d.set(ClassTagValue, raw, "t"+d.key.hexOf(raw, 11))
+}
+
+// structuredShape reports whether learnIdent would pick a structured
+// pseudonym for raw rather than the plain name format.
+func structuredShape(raw string) bool {
+	switch {
+	case strings.HasPrefix(raw, "arn:"), strings.Contains(raw, ".dkr.ecr."), strings.Contains(raw, "@sha256:"):
+		return true
+	case cidrRe.MatchString(raw), awsIDRe.MatchString(raw), hex32Re.MatchString(raw), account12Re.MatchString(raw), ipv4Re.MatchString(raw), emailRe.MatchString(raw):
+		return true
+	case isIPv6(raw):
+		return true
+	case hostShapeRe.MatchString(raw) && lastLabelAlphabetic(raw):
+		return true
+	}
+	return false
+}
+
+// learnIdent sniffs the shape of a name-like value and delegates.
 func (d *dictionary) learnIdent(raw string) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || d.known(raw) {
+	if raw == "" || d.settled(ClassIdent, raw) {
 		return
 	}
 	if _, structural := structuralWords[raw]; structural {
@@ -184,6 +254,8 @@ func (d *dictionary) learnIdent(raw string) {
 		d.learnIdent(before)
 	case cidrRe.MatchString(raw):
 		d.learnCIDR(raw)
+	case isIPv6(raw):
+		d.learnIPv6(raw)
 	case strings.Contains(raw, ":") && !strings.Contains(raw, "/"):
 		// name:revision or repo:tag: the suffix is structural.
 		before, _, _ := strings.Cut(raw, ":")

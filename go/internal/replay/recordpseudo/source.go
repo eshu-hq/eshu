@@ -207,8 +207,8 @@ func (s *Source) fillReport(scopes int) {
 	s.report.IPv4Collisions = s.dict.ipCollisions
 	s.report.OpaquePaths = sortedKeys(s.walker.opaque)
 	s.report.UnclassifiedPaths = sortedKeys(s.walker.unclassified)
-	for _, pseudonym := range s.dict.entries {
-		s.report.Produced[pseudonym] = struct{}{}
+	for _, learned := range s.dict.entries {
+		s.report.Produced[learned.pseudonym] = struct{}{}
 	}
 }
 

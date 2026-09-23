@@ -18,6 +18,8 @@ func (d *dictionary) tokens() []string {
 	for raw := range d.entries {
 		out = append(out, raw)
 	}
+	// Longest first, then lexicographic: a total order, so the substitution
+	// sequence never depends on map iteration.
 	sort.Slice(out, func(a, b int) bool {
 		if len(out[a]) != len(out[b]) {
 			return len(out[a]) > len(out[b])
@@ -36,7 +38,7 @@ func (d *dictionary) substitute(s string) string {
 		if !strings.Contains(s, raw) {
 			continue
 		}
-		s = replaceBounded(s, raw, d.entries[raw])
+		s = replaceBounded(s, raw, d.pseudonym(raw))
 	}
 	return s
 }
@@ -102,7 +104,9 @@ func newWalker(policy Policy, dict *dictionary) *walker {
 
 // learn walks the value under key (class taken from the policy, or inherited
 // when the parent is a tag map) and feeds every classified string to the
-// dictionary.
+// dictionary. Map children are visited in sorted key order: with class
+// precedence in the dictionary this makes the learned table, and so the
+// output, independent of map iteration.
 func (w *walker) learn(key string, value any, inherited Class) {
 	class := w.classFor(key, inherited)
 	switch v := value.(type) {
@@ -113,7 +117,8 @@ func (w *walker) learn(key string, value any, inherited Class) {
 			w.learn(key, element, inherited)
 		}
 	case map[string]any:
-		for childKey, child := range v {
+		for _, childKey := range sortedMapKeys(v) {
+			child := v[childKey]
 			if class == ClassTagValue {
 				if !safeTagKey(childKey) {
 					w.dict.learn(ClassTagValue, childKey)
@@ -124,13 +129,23 @@ func (w *walker) learn(key string, value any, inherited Class) {
 			w.learn(childKey, child, ClassUnknown)
 		}
 	case map[string]string:
-		for childKey, child := range v {
+		for _, childKey := range sortedMapKeys(v) {
+			child := v[childKey]
 			if class == ClassTagValue && !safeTagKey(childKey) {
 				w.dict.learn(ClassTagValue, childKey)
 			}
 			w.learn(childKey, child, class)
 		}
 	}
+}
+
+func sortedMapKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // classFor resolves the class of a key: an inherited tag-value class wins

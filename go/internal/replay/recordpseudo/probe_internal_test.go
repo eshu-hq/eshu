@@ -35,7 +35,7 @@ func TestIPv4SlotProbingOnCollision(t *testing.T) {
 	// no-op: the pseudonym stays and no further collision is counted.
 	second.set(ClassIPv4, "10.1.2.3", probed)
 	second.learn(ClassIPv4, "10.1.2.3")
-	if second.entries["10.1.2.3"] != probed || second.ipCollisions != 1 {
+	if second.pseudonym("10.1.2.3") != probed || second.ipCollisions != 1 {
 		t.Errorf("re-learning the same address moved it or counted a collision")
 	}
 }

@@ -109,3 +109,9 @@ func (d *dictionary) learnCIDR(raw string) {
 func (d *dictionary) learnEmail(raw string) {
 	d.set(ClassEmail, raw, d.key.hexOf(raw, 11)+"@example.com")
 }
+
+// isIPv6 reports a parseable IPv6 literal (never an IPv4 one).
+func isIPv6(raw string) bool {
+	ip := net.ParseIP(raw)
+	return ip != nil && ip.To4() == nil
+}

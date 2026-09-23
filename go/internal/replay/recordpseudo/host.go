@@ -149,7 +149,7 @@ func (d *dictionary) learnImageRef(raw string) {
 		hostOnly, _, _ := strings.Cut(ref, ":")
 		if hostShapeRe.MatchString(hostOnly) && lastLabelAlphabetic(hostOnly) {
 			d.learnHost(hostOnly)
-		} else if hostOnly != "" && !d.known(hostOnly) {
+		} else if hostOnly != "" {
 			d.set(ClassIdent, hostOnly, d.name(hostOnly))
 		}
 		return
@@ -164,7 +164,7 @@ func (d *dictionary) learnImageRef(raw string) {
 	if i := strings.LastIndex(path, ":"); i >= 0 && !strings.Contains(path[i:], "/") {
 		path = path[:i]
 	}
-	if path == "" || d.known(path) {
+	if path == "" || d.settled(ClassIdent, path) {
 		return
 	}
 	if strings.Contains(path, ".dkr.ecr.") {
