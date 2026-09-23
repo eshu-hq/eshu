@@ -1,0 +1,24 @@
+docs/internal/evidence/6782-transient-reads.md
+  h_78a442cba0b3e6 46-51
+go/cmd/golden-corpus-gate/README.md
+  h_78a442cba0b3e6 95-99
+go/cmd/golden-corpus-gate/backenddiff.go
+  h_78a442cba0b3e6 96,106,126-128,155-165,167-169,176-182
+go/cmd/golden-corpus-gate/backenddiff_ceiling_test.go
+  h_78a442cba0b3e6 11,111-170
+go/cmd/golden-corpus-gate/main.go
+  h_78a442cba0b3e6 104
+specs/backend-divergence-allowlist.v1.yaml
+  h_78a442cba0b3e6 300,304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bdbf28b21bd9f804f64fff7c2ea6651118ec1e9e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
