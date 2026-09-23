@@ -243,10 +243,8 @@ What remains is one item, and the issue itself defers it.
 Updated as each PR lands.
 
 - [x] PR 1a — envelope spine repoint ([#6977](https://github.com/eshu-hq/eshu/pull/6977), merged `a42ad3788`). 0 files moved.
-- [ ] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), open). 0 files moved.
-- [ ] PR 2 — `capability/`. **Held for owner approval of this mapping**: it is
-      the first PR in the series that actually moves a file, and the approval
-      gate in the drive brief has not been answered. Built and green locally.
+- [x] PR 1b — authz/capability spine repoint ([#6982](https://github.com/eshu-hq/eshu/pull/6982), merged `a07ee93bf`). 0 files moved. The spine is now clear.
+- [ ] PR 2 — `capability/` ([#6985](https://github.com/eshu-hq/eshu/pull/6985), open). 2 files moved, `permission_catalog.go` dissolved.
 - [ ] PR 3 — `querycontract` seven-leaf split (closes #6597's split question)
 - [ ] PR 4 — `testutil/` ← `querytestutil`
 - [ ] PR 6 — `auth/`
