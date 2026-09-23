@@ -351,3 +351,15 @@ require_workflow_path "URL credential redaction (#6119)" "go/internal/urlredact/
 # changes what the gate tests without touching any covered Go package, so the
 # file must trigger the gate too.
 require_workflow_path "Neo4j compose image digest (#6782 P3-4)" "docker-compose.neo4j.yml"
+
+# --- #6988 --------------------------------------------------------------------
+# specs/ci-gates.v1.yaml is a trigger of the golden-corpus-differential gate
+# (its ci-gates registry entry), so the required-gates publisher selects the
+# differential job as blocking on any PR touching the registry. The filter
+# had no such entry, so the workflow never started on a registry-only PR,
+# the job stayed MISSING, and the publisher awaited until timeout leaving
+# required-gates-complete pending forever. An edit to a gate's own
+# definition must run the gate, never deadlock it. The allowlist assertion
+# pins the pre-existing entry the same deadlock would have taken with it.
+require_workflow_path "gate registry definition (#6988)" "specs/ci-gates.v1.yaml"
+require_workflow_path "backend divergence allowlist (#6988)" "specs/backend-divergence-allowlist.v1.yaml"

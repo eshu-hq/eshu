@@ -164,7 +164,7 @@ while a systematic backend divergence reproduces and still fails.
 
 | Finding | Meaning |
 | --- | --- |
-| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing, unless the ceiling below also trips. |
+| `nornicdb_vs_neo4j_quorum` | Reproduced divergences of a required kind. Failing. (Reproduced advisory divergences stay advisory here; the ceiling below is their tripwire.) |
 | `nornicdb_vs_neo4j_executions` | Reproduced execution-count or row-total divergences with agreeing results (scheduling noise: drain passes, retries, extra poll iterations). Advisory. |
 | `nornicdb_vs_neo4j_transient` | Divergences on registered transient-state reads, whose digests disagree because the result depends on the drain point. Advisory, always visible. |
 | `nornicdb_vs_neo4j_executions_ceiling` | Required tripwire: the reproduced advisory total (scheduling-noise plus transient) exceeded `-diff-executions-advisory-max` (CI passes 200). |
