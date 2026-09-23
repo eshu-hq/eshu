@@ -58,9 +58,9 @@ step 39, `facts/`). Per the executor brief, each got
 `//nolint:dirgate // #6693 checklist step N moves this file to <dest>; not yet
 executed` on its `package postgres` line instead of being moved early.
 `internal/storage/postgres`'s row in `scripts/lib/dirgate-grandfather.tsv` was
-re-pinned from `362 3d1e93c5a585c623628fb10a9e82c0939c6d5984761bcd6384dc7457e15dd1a3`
-to `361 126ad159b78f0139803adb9060e4be7fe948866fe9d62040c65515d70690133f`
-(printed by `bash scripts/verify-dirgate.sh --digest internal/storage/postgres`),
+re-pinned (one file leaves root; each rebase onto a sibling move re-derives
+the row) to what
+`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints,
 and `tools/golangci-lint-dirgate/grandfather.go` was regenerated.
 
 ## Verification (from `go/` unless noted)
