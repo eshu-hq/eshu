@@ -171,3 +171,48 @@ var arnSecondTokens = map[string]tokenSet{
 	"elasticloadbalancing": tokens("app", "net", "gwy"),
 	"wafv2":                tokens("webacl", "rulegroup", "ipset", "regexpatternset", "managedruleset"),
 }
+
+// awsServiceWords are the ARN service names and collector service kinds
+// that are not already keys of arnTypeTokens: the services the aws-cloud
+// collector scans (one config test per service in cmd/collector-aws-cloud)
+// plus the ARN-only names. AWS-defined words, never customer-chosen.
+var awsServiceWords = []string{
+	"s3", "sns", "sqs", "apigateway", "apigatewayv2", "execute-api", "appmesh", "autoscaling", "bedrock",
+	"cloudtrail", "config", "codepipeline", "cognito", "cognito-idp", "cognito-identity", "directconnect",
+	"ds", "efs", "elasticbeanstalk", "emr", "elasticmapreduce", "globalaccelerator", "inspector2", "kinesis",
+	"firehose", "macie", "macie2", "mq", "neptune", "network-firewall", "networkfirewall", "opensearch",
+	"ram", "route53resolver", "servicediscovery", "ssoadmin", "transitgateway", "vpc", "xray",
+	"ecr-public", "eks-auth", "elasticloadbalancing", "s3-object-lambda", "s3-outposts",
+}
+
+// awsVocabulary is every AWS-defined structural word: ARN service names,
+// resource-type tokens, second-position tokens, AWS host service labels
+// and the collector's service kinds. A learned token equal to one would
+// rewrite the service or type segment of every scope id, stable key,
+// source uri and ARN that carries it, so the dictionary never learns one
+// (structural in dictionary.go). Case-sensitive: the words are lowercase
+// or camelCase exactly as AWS writes them.
+var awsVocabulary = buildAWSVocabulary()
+
+func buildAWSVocabulary() map[string]struct{} {
+	out := map[string]struct{}{}
+	for service, words := range arnTypeTokens {
+		out[service] = struct{}{}
+		for word := range words {
+			out[word] = struct{}{}
+		}
+	}
+	for service, words := range arnSecondTokens {
+		out[service] = struct{}{}
+		for word := range words {
+			out[word] = struct{}{}
+		}
+	}
+	for label := range awsHostServiceLabels {
+		out[label] = struct{}{}
+	}
+	for _, word := range awsServiceWords {
+		out[word] = struct{}{}
+	}
+	return out
+}

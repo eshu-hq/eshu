@@ -34,11 +34,16 @@ var structuralWords = map[string]struct{}{
 	"$LATEST": {}, "aws": {}, "*": {}, "root": {},
 }
 
-// structural reports a token that is never learned: a structural word or an
-// AWS region / availability zone (awsRegionExactRe), whose grammar every
-// scope id, ARN and ECR host depends on.
+// structural reports a token that is never learned: a structural word, an
+// AWS service, resource-type or host-service word (awsVocabulary) or an
+// AWS region / availability zone (awsRegionExactRe) -- the finite AWS
+// grammar every scope id, ARN, stable key and ECR host is built from. A
+// name or tag value equal to one carries no customer data and is kept.
 func structural(raw string) bool {
 	if _, ok := structuralWords[raw]; ok {
+		return true
+	}
+	if _, ok := awsVocabulary[raw]; ok {
 		return true
 	}
 	return awsRegionExactRe.MatchString(raw)
@@ -104,10 +109,11 @@ func newDictionary(key Key) *dictionary {
 	}
 }
 
-// set records a pseudonym unless the token is already held by a class of
-// equal or higher rank; a higher-ranked class replaces a lower one.
+// set records a pseudonym unless the token is structural (the one choke
+// point every learner passes through) or already held by a class of equal
+// or higher rank; a higher-ranked class replaces a lower one.
 func (d *dictionary) set(class Class, raw, pseudonym string) {
-	if raw == pseudonym {
+	if raw == pseudonym || structural(raw) {
 		return
 	}
 	if existing, ok := d.entries[raw]; ok {
