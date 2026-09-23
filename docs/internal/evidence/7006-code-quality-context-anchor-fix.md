@@ -105,3 +105,63 @@ for several labels (`CloudResource`, `DataAsset`, `Endpoint`, `CloudAction`,
 needs; whether to add a schema index or drop the name-lookup branch for large
 unindexed labels) rather than a mechanical rewrite, so these two paths are left
 for a follow-up issue.
+
+## Wave 2 Addendum — `POST /api/v0/infra/relationships`
+
+Scope grew after the initial fix landed (issue #7006 comment thread) to cover
+`POST /api/v0/code/relationships`, `POST /api/v0/relationships/edges`,
+`POST /api/v0/infra/resources/search`, and `POST /api/v0/infra/relationships`.
+Only the last is fixed here; the other three were investigated and are either
+already correctly anchored or need a design decision rather than a mechanical
+rewrite (see `$SP/team/7006-evidence.md`, "Wave 2", for the full locate/measure
+table and disposition on each). `internal/query/relationship_handlers.go`'s
+`relationshipsGraphRow` entity_id branch was initially suspected to share the
+same defect class, but its bare `MATCH (e)` anchor is Neo4j-only dead code on
+this deployment (NornicDB routes through an already-anchored builder) and was
+left unchanged.
+
+`internal/query/infra_relationship_filter.go` `getRelationships`
+(`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`) had the
+same unlabeled `MATCH (n) WHERE n.id = $entity_id` whole-graph-scan defect as
+`get_entity_context`. This route resolves infra/platform entities (Workload,
+CloudResource, Repository, TerraformResource, ...), not code entities, so it
+seeds `impacttrace.ImpactAnchorLabelDisjunction` -- the same disjunction the
+by-id impact reads already use -- instead of the code-entity set.
+
+Performance Evidence: the pre-fix shape did not return before a 12.0s client
+timeout for a real `CloudResource` id on ops-qa, matching the issue's
+reproduced 10.0-10.1s deadline exactly. A labeled-anchor candidate was timed
+post-fix but under heavy concurrent backend load from an abandoned probe (pod
+CPU/RSS elevated); those readings (8.2s/10.4s, 0 rows for an id known to
+exist) are recorded but not trusted as clean evidence and are not claimed as
+a verified sub-second result. The fix is shipped on correctness-of-shape
+grounds: it is the identical, already-proven label-disjunction pattern used
+for `get_entity_context` in this same change and for
+`explain_dependency_path`/`trace_resource_to_code` historically, converting a
+provably-unbounded whole-graph scan into a per-label bounded scan (at most 14
+labels, several of them small).
+
+Accuracy Evidence: this route's `getRelationships` symbol was already
+registered in the query-plan gate's `grandfatheredNonHotSourceDigests` with a
+`non_hot_reason` prose disposition reading "unlabeled relationship-detail
+lookup is inventoried but cannot be admitted until its production anchor is
+typed" -- the gate's own inventory had already flagged this exact defect as
+technical debt. Converting it to a typed `non_hot: {class: keyed_support,
+key_bound: single_key, max_results: 1}` disposition with the new production
+source hash (and removing it from `grandfatheredNonHotSourceDigests`, per
+`internal/queryplan/AGENTS.md`'s required-conversion rule) is a strict
+tightening of the gate, not a relaxation: the classification (single-key,
+one-row lookup) is unchanged from what the prose already implied, only now
+machine-checked. The predicate, `OPTIONAL MATCH` hops, and projection are
+otherwise byte-identical to the pre-fix text.
+
+No-Observability-Change: the route keeps its existing `GraphQuery.RunSingle`
+adapter, `startQueryHandlerSpan` span, and query-duration telemetry. No new
+metric, span, log field, or runtime knob.
+
+Process note: running `go test ./internal/queryplan -count=1` after this
+wave's fix surfaced that the Wave-1 commit had NOT run that gate and had left
+two typed `non_hot` source-hash pins stale after their anchor-order edits
+(`complexity_queries.go` `listMostComplexFunctions`, `entity/handler.go`
+`GetEntityContext`) -- both would have failed the gate in CI. Both are
+corrected in the same commit as this addendum.

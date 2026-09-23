@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -392,8 +393,8 @@ func TestInfraRelationshipsUnscopedCypherUnchanged(t *testing.T) {
 	if strings.Contains(cypher, "scopeRepo") {
 		t.Fatalf("unscoped relationships Cypher must not traverse repositories:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (n) WHERE n.id = $entity_id") {
-		t.Fatalf("unscoped relationships Cypher must keep the pinned anchor:\n%s", cypher)
+	if !strings.Contains(cypher, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $entity_id") {
+		t.Fatalf("unscoped relationships Cypher must keep the labeled anchor (#7006):\n%s", cypher)
 	}
 }
 

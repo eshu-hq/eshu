@@ -427,7 +427,13 @@ source_coverage:
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_relationship_filter.go
     calls:
-      - {symbol: "(*InfraHandler).getRelationships", count: 1, non_hot_reason: "unlabeled relationship-detail lookup is inventoried but cannot be admitted until its production anchor is typed"}
+      - symbol: "(*InfraHandler).getRelationships"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: a0b59cdcdaa89916b4bea3d2b7d4728ed9da1a175eca30d5e5f2969841873813
+          key_bound: single_key
+          max_results: 1
   - file: infra_resource_aggregates.go
     calls:
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}

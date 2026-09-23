@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 )
 
 func TestInfraRelationshipsLocalAuthoritativeUsesGraphInsteadOfCapabilityGate(t *testing.T) {
@@ -22,8 +24,8 @@ func TestInfraRelationshipsLocalAuthoritativeUsesGraphInsteadOfCapabilityGate(t 
 		Neo4j: fakeRepoGraphReader{
 			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				graphCalled = true
-				if !strings.Contains(cypher, "MATCH (n) WHERE n.id = $entity_id") {
-					t.Fatalf("cypher = %q, want entity relationship query", cypher)
+				if !strings.Contains(cypher, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $entity_id") {
+					t.Fatalf("cypher = %q, want the labeled entity relationship anchor (#7006)", cypher)
 				}
 				if got, want := params["entity_id"], "workload:eshu"; got != want {
 					t.Fatalf("entity_id param = %#v, want %#v", got, want)

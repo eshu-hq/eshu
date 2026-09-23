@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -85,8 +86,15 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}
 
 	typeFilter := infraRelationshipTypeClause(relationshipTypes)
+	// The bare `MATCH (n)` anchor scanned every node in the graph on every
+	// call regardless of scope -- proven live on ops-qa (issue #7006) to blow
+	// the 10s bounded-read deadline. This route only ever resolves the
+	// infra/platform entities the by-id impact reads already anchor on, so it
+	// seeds the same label disjunction (impacttrace.ImpactAnchorLabelDisjunction)
+	// for a per-label index seek instead of a whole-graph scan. See
+	// docs/public/reference/cypher-performance.md.
 	cypher := `
-		MATCH (n) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
+		MATCH (n:` + impacttrace.ImpactAnchorLabelDisjunction + `) WHERE n.id = $entity_id` + infraRelationshipAnchorClause(access) + `
 		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + infraRelationshipNeighborClause(access, "target") + `
 		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + infraRelationshipNeighborClause(access, "source") + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
