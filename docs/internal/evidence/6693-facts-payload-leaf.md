@@ -8,9 +8,9 @@ new leaf package, `go/internal/storage/postgres/facts/payload` (package
 
 ## What moved
 
-- `go/internal/storage/postgres/facts_payload.go` ->
+- `facts_payload.go` ->
   `go/internal/storage/postgres/facts/payload/json.go`.
-- `go/internal/storage/postgres/facts_payload_test.go` ->
+- `facts_payload_test.go` ->
   `go/internal/storage/postgres/facts/payload/json_test.go` (in-package
   `payloadstore` test; it only exercised the moved codec, no root symbols).
 - Exported the four functions every caller across the repo needs:
@@ -76,7 +76,7 @@ symbol or the old file path so they no longer describe stale identifiers:
 Updated the two CI-gate trigger path lists in `specs/ci-gates.v1.yaml`
 (ifa-determinism gate, both occurrences) and the ifa live-gate selector case
 table in `scripts/lib/ifa_live_gate_selector_cases.sh` from
-`go/internal/storage/postgres/facts_payload.go` to
+`facts_payload.go` to
 `go/internal/storage/postgres/facts/payload/json.go` so the gate keeps
 triggering on the moved file.
 

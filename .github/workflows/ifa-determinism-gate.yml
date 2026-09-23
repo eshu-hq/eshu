@@ -192,7 +192,7 @@ on:
       - 'go/internal/storage/postgres/ingestion_backfill_generation_guard.go'
       - 'go/internal/storage/postgres/facts_streaming.go'
       - 'go/internal/storage/postgres/facts.go'
-      - 'go/internal/storage/postgres/facts_payload.go'
+      - 'go/internal/storage/postgres/facts/payload/json.go'
       - 'go/internal/storage/postgres/migrations/008_shared_projection_intents.sql'
       - 'go/internal/storage/postgres/migrations/011_shared_projection_acceptance.sql'
       - 'go/internal/storage/postgres/migrations/012_graph_projection_phase_state.sql'
