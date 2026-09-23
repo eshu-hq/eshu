@@ -4,7 +4,7 @@ Part of the [storage/postgres target tree](../6693-postgres-target-tree.md). Des
 
 Paths are relative to `go/internal/storage/postgres/`. Each line reads `current -> new`.
 
-### `root (stays)` (4 non-test, 111 test)
+### `root (stays)` (4 non-test, 113 test)
 
 ```text
 adapters.go -> adapters.go
@@ -51,10 +51,12 @@ deferred_maintenance_lock_fakes_test.go -> deferred_maintenance_lock_fakes_test.
 deferred_maintenance_lock_test.go -> deferred_maintenance_lock_test.go   # SPLIT: reads private symbols of ingestion, lock
 documentation_findings_index_restart_live_test.go -> documentation_findings_index_restart_live_test.go
 drift_runtime_trigger_test.go -> drift_runtime_trigger_test.go   # SPLIT: reads private symbols of ingestion, queue/reducer
+eshu_search_index_bm25_partition_live_test.go -> eshu_search_index_bm25_partition_live_test.go   # SPLIT: reads private symbols of root, search/index
 eshu_search_index_partition_contention_live_test.go -> eshu_search_index_partition_contention_live_test.go   # spans root=100%; follows its private symbols, not its name
 eshu_search_index_partition_live_test.go -> eshu_search_index_partition_live_test.go   # spans root=100%; follows its private symbols, not its name
 eshu_search_index_term_copy_bench_live_test.go -> eshu_search_index_term_copy_bench_live_test.go   # spans root=100%; follows its private symbols, not its name
 eshu_search_index_term_copy_test.go -> eshu_search_index_term_copy_test.go   # SPLIT: reads private symbols of db, root
+eshu_search_index_terms_doc_plan_live_test.go -> eshu_search_index_terms_doc_plan_live_test.go   # spans root=100%; follows its private symbols, not its name
 facts_active_container_image_identity_warnings_index_lifecycle_live_test.go -> facts_active_container_image_identity_warnings_index_lifecycle_live_test.go   # spans root=100%; follows its private symbols, not its name
 facts_active_container_image_identity_warnings_test.go -> facts_active_container_image_identity_warnings_test.go   # SPLIT: reads private symbols of facts, facts/schema
 facts_cross_batch_fencing_proof_test.go -> facts_cross_batch_fencing_proof_test.go   # SPLIT: reads private symbols of facts, facts/schema

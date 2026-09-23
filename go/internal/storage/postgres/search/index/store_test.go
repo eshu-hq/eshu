@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package indexstore
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
@@ -22,13 +24,13 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
+			{Data: [][]any{{
 				int64(2500),
 				false,
 			}}},
-			{rows: [][]any{{
+			{Data: [][]any{{
 				payload,
 				1.75,
 				int64(2500),
@@ -68,13 +70,13 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 		t.Fatalf("search_method = %q, want %q", got, want)
 	}
 
-	if len(db.queries) != 2 {
-		t.Fatalf("queries = %d, want 2", len(db.queries))
+	if len(db.Queries) != 2 {
+		t.Fatalf("queries = %d, want 2", len(db.Queries))
 	}
-	if q := db.queries[0].query; !strings.Contains(q, "FROM eshu_search_index_stats") {
+	if q := db.Queries[0].Query; !strings.Contains(q, "FROM eshu_search_index_stats") {
 		t.Fatalf("stats query missing index stats table:\n%s", q)
 	}
-	q := db.queries[1].query
+	q := db.Queries[1].Query
 	for _, fragment := range []string{
 		"FROM eshu_search_index_terms",
 		"JOIN eshu_search_index_documents",
@@ -89,24 +91,24 @@ func TestEshuSearchIndexStoreSearchesActiveGenerationBM25(t *testing.T) {
 			t.Errorf("query missing %q:\n%s", fragment, q)
 		}
 	}
-	if got, ok := db.queries[1].args[1].([]string); !ok || len(got) != 2 {
-		t.Fatalf("query term arg = %#v, want two token strings", db.queries[1].args[1])
+	if got, ok := db.Queries[1].Args[1].([]string); !ok || len(got) != 2 {
+		t.Fatalf("query term arg = %#v, want two token strings", db.Queries[1].Args[1])
 	}
-	if got, ok := db.queries[1].args[2].([]string); !ok || len(got) != 2 {
-		t.Fatalf("query term key arg = %#v, want two token keys", db.queries[1].args[2])
+	if got, ok := db.Queries[1].Args[2].([]string); !ok || len(got) != 2 {
+		t.Fatalf("query term key arg = %#v, want two token keys", db.Queries[1].Args[2])
 	}
 }
 
 func TestEshuSearchIndexStoreReportsIndexedCountWithoutMatches(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
+			{Data: [][]any{{
 				int64(3800),
 				false,
 			}}},
-			{rows: [][]any{}},
+			{Data: [][]any{}},
 		},
 	}
 	store := NewEshuSearchIndexStore(db)
@@ -132,7 +134,7 @@ func TestEshuSearchIndexStoreReportsIndexedCountWithoutMatches(t *testing.T) {
 func TestEshuSearchIndexStoreRequiresBoundedSearch(t *testing.T) {
 	t.Parallel()
 
-	store := NewEshuSearchIndexStore(&fakeExecQueryer{})
+	store := NewEshuSearchIndexStore(&fake.ExecQueryer{})
 	if _, err := store.Search(context.Background(), EshuSearchIndexSearch{}); err == nil {
 		t.Fatal("expected error when search lacks scope, query, anchor, and limit")
 	}
@@ -141,10 +143,10 @@ func TestEshuSearchIndexStoreRequiresBoundedSearch(t *testing.T) {
 func TestEshuSearchIndexStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{int64(100), false}}},
-			{rows: [][]any{}},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
+			{Data: [][]any{{int64(100), false}}},
+			{Data: [][]any{}},
 		},
 	}
 	store := NewEshuSearchIndexStore(db)
@@ -161,10 +163,10 @@ func TestEshuSearchIndexStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
 		t.Fatalf("Search error = %v", err)
 	}
 
-	if len(db.queries) < 2 {
-		t.Fatalf("queries = %d, want at least 2", len(db.queries))
+	if len(db.Queries) < 2 {
+		t.Fatalf("queries = %d, want at least 2", len(db.Queries))
 	}
-	q := db.queries[1].query
+	q := db.Queries[1].Query
 	if !strings.Contains(q, "jsonb_array_elements_text") {
 		t.Errorf("query missing jsonb_array_elements_text for language filter:\n%s", q)
 	}
@@ -173,7 +175,7 @@ func TestEshuSearchIndexStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
 		t.Errorf("language value was interpolated into SQL instead of parameterised:\n%s", q)
 	}
 	found := false
-	for _, arg := range db.queries[1].args {
+	for _, arg := range db.Queries[1].Args {
 		if langs, ok := arg.([]string); ok {
 			for _, l := range langs {
 				if strings.HasPrefix(l, "language:") {
@@ -184,17 +186,17 @@ func TestEshuSearchIndexStoreLanguageFilterAppendsLabelPredicate(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("expected a []string arg containing language: prefixed values; args = %#v", db.queries[1].args)
+		t.Errorf("expected a []string arg containing language: prefixed values; args = %#v", db.Queries[1].Args)
 	}
 }
 
 func TestEshuSearchIndexStoreNoLanguageFilterOmitsLabelPredicate(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{int64(100), false}}},
-			{rows: [][]any{}},
+	db := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
+			{Data: [][]any{{int64(100), false}}},
+			{Data: [][]any{}},
 		},
 	}
 	store := NewEshuSearchIndexStore(db)
@@ -211,10 +213,10 @@ func TestEshuSearchIndexStoreNoLanguageFilterOmitsLabelPredicate(t *testing.T) {
 		t.Fatalf("Search error = %v", err)
 	}
 
-	if len(db.queries) < 2 {
-		t.Fatalf("queries = %d, want at least 2", len(db.queries))
+	if len(db.Queries) < 2 {
+		t.Fatalf("queries = %d, want at least 2", len(db.Queries))
 	}
-	q := db.queries[1].query
+	q := db.Queries[1].Query
 	if strings.Contains(q, "jsonb_array_elements_text") {
 		t.Errorf("query unexpectedly contains language filter when no languages requested:\n%s", q)
 	}

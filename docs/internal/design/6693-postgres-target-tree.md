@@ -300,11 +300,11 @@ its name says. Then Go's package rules decide the form:
 
 | form | tests | when |
 | --- | ---: | --- |
-| in-package test | 375 | it only needs its own package and packages below it |
+| in-package test | 373 | it only needs its own package and packages below it |
 | external test package (`package x_test`) | 139 | it also needs a package that imports its subject (root's `ApplyBootstrap` for live tests, for example); uses exported symbols only |
 | external test package plus `export_test.go` shim | 88 | as above, and it also reads its subject's private symbols |
-| stays in root, split at move time (`SPLIT`) | 39 | it reads private symbols of two or more future packages |
-| stays in root | 72 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
+| stays in root, split at move time (`SPLIT`) | 40 | it reads private symbols of two or more future packages |
+| stays in root | 73 | it exercises the 4 root files or root's private bootstrap symbols, or has no production references at all (14, such as migration-file checks) |
 
 Test names drop leading words the destination path already says. The census
 reports no stutter and no duplicate name in any destination. Test files do not
@@ -343,7 +343,7 @@ Domains, dependency-first, smaller first at each step (non-test files moved):
 5. [x] `iac/` (1 file)
 6. [x] `incident/` (1 file)
 7. [x] `maintenance/` (1 file)
-8. [ ] `search/index/` (1 file)
+8. [x] `search/index/` (1 file)
 9. [ ] `terraform/state/` (1 file)
 10. [ ] `vulnerability/` (1 file)
 11. [ ] `cloud/aws/` (2 files)
@@ -419,7 +419,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 
 | destination | non-test | test | cap |
 | --- | ---: | ---: | --- |
-| `storage/postgres` (root) | 4 | 111 | ok |
+| `storage/postgres` (root) | 4 | 113 | ok |
 | `admission/` | 3 | 4 | ok |
 | `cicd/` | 1 | 1 | ok |
 | `cloud/aws/` | 2 | 2 | ok |
@@ -472,7 +472,7 @@ Non-test count is the dirgate number; every row must read 40 or under.
 | `scope/` | 2 | 2 | ok |
 | `scope/completion/` | 4 | 6 | ok |
 | `search/document/` | 6 | 7 | ok |
-| `search/index/` | 1 | 4 | ok |
+| `search/index/` | 1 | 2 | ok |
 | `search/vector/` | 10 | 19 | ok |
 | `service/` | 4 | 3 | ok |
 | `status/` | 17 | 20 | ok |

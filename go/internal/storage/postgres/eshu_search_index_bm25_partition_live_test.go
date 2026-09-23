@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index"
 
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
@@ -30,7 +32,7 @@ func TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive(t *test
 	seedBM25PartitionProofRows(t, ctx, controlConn)
 	seedBM25PartitionProofRows(t, ctx, candidateConn)
 
-	search := EshuSearchIndexSearch{
+	search := indexstore.EshuSearchIndexSearch{
 		ScopeID: "scope-bm25-active",
 		RepoID:  "repo-bm25",
 		Query:   "alpha beta",
@@ -41,8 +43,8 @@ func TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive(t *test
 	candidateResult := searchBM25PartitionProof(t, ctx, candidateConn, search)
 	assertBM25PartitionProofEquivalent(t, controlResult, candidateResult)
 
-	terms, termKeys := sortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
-	query, args := buildEshuSearchIndexQuery(search, terms, termKeys)
+	terms, termKeys := indexstore.SortedSearchIndexTerms(searchhybrid.QueryTerms(search.Query))
+	query, args := indexstore.BuildEshuSearchIndexQuery(search, terms, termKeys)
 	var raw []byte
 	if err := candidateConn.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query, args...).Scan(&raw); err != nil {
 		t.Fatalf("explain partitioned BM25 query: %v", err)
@@ -198,10 +200,10 @@ func searchBM25PartitionProof(
 	t *testing.T,
 	ctx context.Context,
 	conn *sql.Conn,
-	search EshuSearchIndexSearch,
-) EshuSearchIndexSearchResult {
+	search indexstore.EshuSearchIndexSearch,
+) indexstore.EshuSearchIndexSearchResult {
 	t.Helper()
-	result, err := NewEshuSearchIndexStore(searchIndexSQLConn{conn: conn}).Search(ctx, search)
+	result, err := indexstore.NewEshuSearchIndexStore(searchIndexSQLConn{conn: conn}).Search(ctx, search)
 	if err != nil {
 		t.Fatalf("search BM25 proof: %v", err)
 	}
@@ -222,8 +224,8 @@ func (c searchIndexSQLConn) ExecContext(ctx context.Context, query string, args 
 
 func assertBM25PartitionProofEquivalent(
 	t *testing.T,
-	control EshuSearchIndexSearchResult,
-	candidate EshuSearchIndexSearchResult,
+	control indexstore.EshuSearchIndexSearchResult,
+	candidate indexstore.EshuSearchIndexSearchResult,
 ) {
 	t.Helper()
 	if control.IndexedDocumentCount != candidate.IndexedDocumentCount {
@@ -242,5 +244,35 @@ func assertBM25PartitionProofEquivalent(
 			t.Fatalf("candidate[%d] score control=%.15f candidate=%.15f",
 				i, controlCandidate.Score, candidateCandidate.Score)
 		}
+	}
+}
+
+// searchIndexDocumentFixture is a deliberate copy of search/index's own
+// store_test.go fixture of the same name. This file stays in root (it reads
+// root's own private live-DB proof helpers, which cannot cross a package
+// boundary since they live in root's _test.go files), but it also needs a
+// searchdocs.Document to seed the BM25 proof tables. Go cannot import one
+// package's test-only symbols from another package's tests, so the two
+// copies necessarily diverge only if one of them is intentionally changed;
+// keep them in sync by eye if either fixture's shape changes.
+func searchIndexDocumentFixture(id string, repoID string, title string) searchdocs.Document {
+	return searchdocs.Document{
+		ID:          id,
+		RepoID:      repoID,
+		SourceKind:  searchdocs.SourceKindRuntimeSummary,
+		Title:       title,
+		Path:        "docs/runbook.md",
+		ContextText: "payment runbook escalation",
+		UpdatedAt:   time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC),
+		TruthScope: searchdocs.TruthScope{
+			Level: searchdocs.TruthLevelDerived,
+			Basis: searchdocs.TruthBasisReadModel,
+		},
+		Freshness:   searchdocs.Freshness{State: searchdocs.FreshnessFresh},
+		AccessScope: searchdocs.AccessScope{RepoID: repoID},
+		GraphHandles: []searchdocs.GraphHandle{
+			{Kind: "repository", ID: repoID},
+			{Kind: "service", ID: "svc-payments"},
+		},
 	}
 }

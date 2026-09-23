@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index"
 )
 
 // PostgresSemanticSearchIndexStore adapts the durable Postgres search index to
@@ -31,9 +32,9 @@ func (s PostgresSemanticSearchIndexStore) Search(
 	if s.db == nil {
 		return SemanticSearchIndexResult{}, fmt.Errorf("semantic search index database is required")
 	}
-	result, err := postgres.NewEshuSearchIndexStore(postgres.SQLDB{DB: s.db}).Search(
+	result, err := indexstore.NewEshuSearchIndexStore(postgres.SQLDB{DB: s.db}).Search(
 		ctx,
-		postgres.EshuSearchIndexSearch{
+		indexstore.EshuSearchIndexSearch{
 			ScopeID:     query.ScopeID,
 			RepoID:      query.RepoID,
 			Query:       query.Request.Query,
