@@ -94,14 +94,14 @@ the store type.
 Added `doc.go`, `README.md`, `AGENTS.md` for `iac/`, modeled on
 `storage/postgres/semantic/`. Root's `doc.go`/`README.md`/`AGENTS.md`
 mentioned neither the moved file names nor `IaCReachabilityStore` (checked
-with `rg`), so no root doc edit was needed beyond the nolint marker above.
+with `rg`), so the only root doc edit is `exported-surface-guide.md`, which now lists the moved symbols as `iacstore.*`.
 
-`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` printed
-`count 361`, digest `5440ee0adebd2d4fc1284f0f535c005077789713a3960ff739c33d9aeab1968a`
-(down from 362, one file left root). `scripts/lib/dirgate-grandfather.tsv`'s
-`internal/storage/postgres` row was updated to those values and
-`bash scripts/generate-dirgate-grandfather-go.sh` regenerated
-`tools/golangci-lint-dirgate/grandfather.go`.
+One non-test file leaves root, so the `internal/storage/postgres` row in
+`scripts/lib/dirgate-grandfather.tsv` is re-pinned to what
+`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` prints for
+the rebased tree (each rebase onto a sibling move re-derives it), and
+`bash scripts/generate-dirgate-grandfather-go.sh` regenerates
+`tools/golangci-lint-dirgate/grandfather.go` from it.
 
 ## Test-repoint proof (exact names, both packages)
 
