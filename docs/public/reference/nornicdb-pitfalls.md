@@ -8,10 +8,10 @@ proof work.
 Cypher **query-shape** pitfalls — label disjunctions, bare top-level unions
 that drop their second branch, label predicates whose clause position decides
 if they run, outer aggregation over `CALL {}`, and multi-clause reads — live in
-the companion [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md).
-
-Use it to avoid rediscovering the same failure shape. Still check the current
-NornicDB source before patching.
+the companion [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md). The
+ten confirmed upstream defects `#400`–`#409` are indexed with safe shapes in
+[NornicDB Upstream Defects](nornicdb-upstream-defects.md). Use these pages to avoid rediscovering
+the same failure shape; still check the current NornicDB source before patching.
 
 ## Which Build "The Pinned Build" Means Here
 
