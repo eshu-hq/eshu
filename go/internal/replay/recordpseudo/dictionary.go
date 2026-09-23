@@ -18,7 +18,6 @@ var (
 	cidrRe      = regexp.MustCompile(`^[0-9A-Fa-f.:]+/[0-9]{1,3}$`)
 	ecrHostRe   = regexp.MustCompile(`^([0-9]{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com$`)
 	numericRe   = regexp.MustCompile(`^[0-9]+$`)
-	regionRe    = regexp.MustCompile(`^(?:[a-z]{2}(?:-gov|-iso[a-z]?)?-[a-z]+-[0-9])$`)
 	hostShapeRe = regexp.MustCompile(`^\*?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\.?$`)
 	emailRe     = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 )

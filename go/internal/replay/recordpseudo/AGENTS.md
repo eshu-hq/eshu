@@ -41,7 +41,12 @@
 - **Verify mirrors the gate.** The allow forms in `verify_forms.go` follow
   `scripts/lib/cassette_private_data_pattern.sh`; when the gate's allowlist
   changes, change both and keep `TestVerifyAgreesWithGateOnCommittedCorpus`
-  green. The `0000` account form is admitted only from `produced`.
+  green. The `0000` account form and the `h`-label AWS endpoint form are
+  admitted only from `produced`. The endpoint form's region grammar and
+  word list are pinned to the gate lib by `TestAWSEndpointFormMirrorsTheGate`
+  and to `awsHostServiceLabels` by
+  `TestAWSEndpointWordsAreTheKeptServiceLabels`: add a kept host service
+  word in all three places.
 - **Determinism.** Same key, same input, same bytes. No time, no randomness,
   no map-order-dependent output.
 

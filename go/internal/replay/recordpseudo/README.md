@@ -82,7 +82,8 @@ collector gets one pseudonym and their join survives.
 | AWS-issued id | prefix kept, hex run replaced with HMAC hex of equal length; 32-hex ids stay 32 hex |
 | ECR host / image ref | `<pseudo-account>.dkr.ecr.<region>.amazonaws.com/<pseudo-repo>[:<pseudo-tag>\|@digest]`; public registry hosts on the gate's list (`ghcr.io`, ...) kept |
 | image tag | `latest`, pure semver (`v1.2.3`, `1.2.3`) and digests kept; every other tag is a customer word and takes the name form, in the tag field and inside the reference |
-| other hostname | each customer label `h` + 10 hex, public suffix collapsed to `.example`; AWS-owned suffixes (`amazonaws.com`, `on.aws`, `cloudfront.net`) keep their structural tail and region; `*` and a trailing dot kept |
+| other hostname | each customer label `h` + 10 hex, public suffix collapsed to `.example`; AWS-owned suffixes (`amazonaws.com`, `on.aws`, `cloudfront.net`) keep their structural tail, the region (the finite AWS region grammar, so a customer label such as `db-main-1` that only looks like one is still pseudonymized) and the host service words (`elb`, `rds`, `execute-api`, ...); `*` and a trailing dot kept |
+| AWS service principal | a single label directly under `amazonaws.com` (`states.amazonaws.com`, `ecs-tasks.amazonaws.com`) is AWS-owned and kept verbatim, including where a customer resource carries the same word as its name |
 | IPv4 | HMAC slot in RFC 5737 (762 slots), linear probing on collision, collisions counted; loopback, unspecified and documentation addresses kept; the 763rd distinct address or network is `ErrIPv4Exhausted` from `Next`, not a cassette |
 | IPv6 | `2001:db8:` + 96 bits of HMAC |
 | CIDR | network address as above, prefix length kept; `0.0.0.0/0` and `::/0` kept |
@@ -96,11 +97,24 @@ Declared limits:
 - IPv4 pseudonyms of the linear-probed minority depend on learning order
   across separate recordings (no join reads an address today);
 - names lose readability;
-- a customer host under an AWS-owned suffix (an ELB DNS name, an RDS or
-  OpenSearch endpoint, a Route53 alias target) becomes
-  `h<hex>.<region>.<service>.amazonaws.com`, and the private-data gate has
-  no allow row for that form yet, so `Verify` refuses the whole recording
-  -- fail closed, not a leak -- until a reviewed row exists;
+- a customer host under `amazonaws.com` (an ELB DNS name, an RDS or API
+  Gateway endpoint, a Route53 alias target) is admitted by `Verify` and the
+  private-data gate only in the form record mode writes: one or more
+  `h` + 10 hex labels, then only AWS region labels or the listed host
+  service words (`appsync-api`, `awsapprunner`, `cache`, `cloudfront`,
+  `dkr`, `ecr`, `elasticbeanstalk`, `elb`, `es`, `execute-api`,
+  `lambda-url`, `rds`, `s3`, `s3-website`, `sns`, `sqs`, `sts`), then the
+  single AWS-owned label directly under `amazonaws.com`; `Verify` also
+  requires that the run produced the whole host. A host with any other
+  label in the middle (an availability zone, an unlisted AWS word) fits no
+  form and `Verify` refuses the recording -- fail closed, not a leak --
+  until the word list is extended by review. Hosts under `on.aws`,
+  `cloudfront.net` and `awsapps.com` still have no allow form and are
+  refused the same way;
+- a multi-label AWS service principal (`ops.apigateway.amazonaws.com`,
+  `delivery.logs.amazonaws.com`) keeps only its last label and suffix; the
+  leading AWS-owned labels are pseudonymized like customer labels, so the
+  principal no longer reads as the AWS service it names;
 - Keep-class free text (`environment`, `version`, `engine`, `status`,
   `device_name`, ...) is written verbatim when the value is not also
   learned from a classified field, and `Verify` carries no

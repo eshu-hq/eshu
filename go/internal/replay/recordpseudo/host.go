@@ -131,11 +131,14 @@ func awsSuffixTail(lower string) (int, bool) {
 
 // awsHostLabels keeps the suffix tail, the region label and everything right
 // of it, and the known service labels; account-shaped labels become account
-// pseudonyms and every other customer label becomes h+10hex.
+// pseudonyms and every other customer label becomes h+10hex. The region is
+// found by the finite AWS region grammar (awsRegionExactRe), never by a
+// loose shape: a customer label such as db-main-1 only looks like a region,
+// and treating it as one would keep it and every label right of it raw.
 func (d *dictionary) awsHostLabels(labels []string, tail int) []string {
 	keepFrom := len(labels) - tail
 	for i := 0; i < keepFrom; i++ {
-		if regionRe.MatchString(strings.ToLower(labels[i])) {
+		if awsRegionExactRe.MatchString(strings.ToLower(labels[i])) {
 			keepFrom = i
 			break
 		}

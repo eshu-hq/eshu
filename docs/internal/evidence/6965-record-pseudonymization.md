@@ -181,3 +181,19 @@ bytes of a fixture-sized document at the end of a record run.
 No-Regression Evidence: no live ingest, reducer, projector or query path changes. The touched runtime files are the record-mode branch in `cmd/collector-aws-cloud/main.go` (taken only for `-mode=record`, before Postgres is opened), the key loader in `config.go` (called only from `runRecord`), `awsruntime/record_source.go` (constructed only by `buildRecordSource`) and the recorder's `Verify` call, which runs once per record run over the canonical bytes (68-file corpus, 27 KB awscloud cassette: `go test ./internal/replay/recordpseudo -run TestAWSCorpus -count=1` completes in well under a second including two full record passes). `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/awsruntime -count=1` passes with the existing claimed-live and fixture tests untouched.
 
 Observability Evidence: the record run logs `collector.record.started` (path, key_fingerprint), `collector.record.pseudonymized` (scopes, facts, tokens, learned_by_class, opaque_paths, unclassified_paths, ipv4_collisions, ipv4_addresses, account_collisions, unlisted_arn_types, unlisted_arn_type_count, key_fingerprint) and `collector.record.completed`; `TestRecordCassetteIsGateCleanAndLogsNoValue` decodes the pseudonymized event and asserts every field is present and that neither the key nor any raw value appears in the log. The scans record mode drives keep emitting `eshu_dp_aws_scan_duration_seconds`, `eshu_dp_aws_resources_emitted_total` and `eshu_dp_aws_relationships_emitted_total` from their unmoved awsruntime call sites; no metric was added because a one-shot CLI run has no steady state to alert on.
+
+## Follow-up: AWS host, 0.0.0.0 and wildcard ARN allow forms
+
+The first real recording through the merged layer was refused by `Verify`
+(2,468 candidates, no file written). Diagnosed by shape only, the refusals
+were non-private forms: `0.0.0.0` in security-group `source_value`, AWS
+service principals `<service>.amazonaws.com`, pseudonymized customer
+endpoints under AWS suffixes, and `*` / `cloudfront` ARN account fields. This
+change admits exactly those forms in `Verify` and the gate, keeps service
+principals structural, and adds a RED plant for each raw variant. With it, a
+real recording is accepted by `Verify` and passes the gate and an
+independently written sweep.
+
+No-Regression Evidence: record mode only. The claimed-live service path is unchanged, and the record-time learner changes are two: region detection in AWS hosts now uses the exact region grammar (closing a leak of region-shaped customer labels such as `db-main-1`), and labels directly under `amazonaws.com` are protected spans so service principals stay verbatim. The `*` and `cloudfront` account rule lives in `Verify` and the gate, not the learner. `go test ./internal/replay/... ./internal/collector/awscloud/... ./cmd/collector-aws-cloud -count=1` passes (428 ok), and `TestAWSCorpusShapePreserved` keeps its numbers.
+
+No-Observability-Change: no new metric, span or log key. The existing `collector.record.pseudonymized` event already reports counts and opaque paths, and `Verify` still names offsets and alternatives, never values.

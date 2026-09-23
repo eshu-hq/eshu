@@ -171,11 +171,21 @@ Declared limits of the pilot:
 
 - two private CIDRs lose their overlap relation, and resource names lose
   readability;
-- any customer host under an AWS-owned suffix -- an ELB DNS name, an RDS or
-  OpenSearch endpoint, a Route53 alias target, an AWS service principal --
-  is pseudonymized to a form (`h<hex>.<region>.<service>.amazonaws.com`) the
-  private-data gate has no allow row for, so the recording is refused, not
-  written, until a reviewed row exists;
+- a single-label AWS service principal (`states.amazonaws.com`,
+  `ecs-tasks.amazonaws.com`) is AWS-owned and kept verbatim. A
+  multi-label one (`ops.apigateway.amazonaws.com`) keeps only its last
+  label and suffix; its leading AWS-owned labels are pseudonymized like
+  customer labels;
+- a customer host under `amazonaws.com` -- an ELB DNS name, an RDS or API
+  Gateway endpoint, a Route53 alias target -- is written as
+  `h<10 hex>` customer labels followed by AWS-owned labels
+  (`h<hex>.us-east-1.elb.amazonaws.com`). The private-data gate admits it
+  only when every label between the `h` labels and the last label under
+  `amazonaws.com` is an AWS region or a listed host service word, and the
+  recorder's belt also requires that the run produced the whole host. Any
+  other shape, and any customer host under `on.aws`, `cloudfront.net` or
+  `awsapps.com`, makes the recording refused, not written, until a reviewed
+  allow form exists;
 - Keep-class free text (an environment name, an engine or status string)
   is written verbatim when it is not also learned from a classified field,
   and the recorder's belt carries no organisation identifiers. Run
@@ -235,12 +245,12 @@ slipping past a blocklist:
 
 | Alternative | Allowed forms |
 | --- | --- |
-| `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) and loopback |
+| `ipv4` | RFC 5737 documentation ranges (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), loopback, and exactly the unspecified address `0.0.0.0` (the `0.0.0.0/0` "any address" CIDR of a security-group rule, which record mode keeps) |
 | `nodeip` | EKS-style `ip-A-B-C-D` node names only in those documentation ranges or loopback |
 | `ipv6` | RFC 3849 `2001:db8::/32` and `::1`; six-group MAC addresses also land here, and only the RFC 7042 documentation block (`00:00:5e:00:53:xx`) and the all-zero MAC pass |
 | `account12` | `123456789012`, zero-prefixed `00000000000N`, repdigits, and the reserved `0000` + 8-digit range that record-mode pseudonymization mints accounts into (the recorder's own belt checks that a run minted them; here it is a shape check); twelve digits inside a hex digest are not a candidate |
-| `arn` | an empty, `aws`, or documentation account field |
-| `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
+| `arn` | an empty, `aws`, or documentation account field, or one that is exactly `*` (an IAM policy resource such as `arn:aws:iam::*:role/*`) or exactly `cloudfront` (the legacy origin access identity principal); no other word |
+| `hostname` | reserved names (`.example`, `.test`, `.invalid`, `.localhost`, `example.com/.net/.org`; never `.local`, because `<svc>.<namespace>.svc.cluster.local` carries the namespace out), the exact public service hosts the corpus uses, `<service>.googleapis.com`, a single label under `amazonaws.com` (an AWS service principal such as `states.amazonaws.com`; a customer cannot register a name there), a record-mode AWS endpoint (one or more `h` + 10 hex labels, then only AWS region labels or the listed host service words, then one label under `amazonaws.com`), ECR under a documentation account, and the corpus's own `supply-chain-demo` synthetic zones |
 | `identifier` | nothing; the committed canary `eshu-canary-org` plus every literal in `ESHU_PRIVATE_IDENTIFIERS_FILE` |
 
 The hostname alternative is lexical: a dotted token is a candidate only when

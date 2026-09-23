@@ -144,6 +144,60 @@ run_scan "${reserveddir}" "${scratch}/reserved-account.out" rc
 	|| fail "the reserved 0000 account form was flagged; record-mode output would fail the gate: $(cat "${scratch}/reserved-account.out")"
 printf 'GREEN reserved account form: exit %s\n' "${rc}"
 
+# 0.0.0.0 is the unspecified address; 0.0.0.0/0 is a security-group rule's
+# "any address" CIDR, which record mode keeps. It is not private data, so it
+# passes; the allow is exact, so a neighbouring address stays a finding.
+plant_red ipv4 '0.0.0.1/32' ipv4-unspecified-neighbour
+anydir="${scratch}/unspecified-ipv4"
+mkdir -p "${anydir}"
+printf '{"source_value":"0.0.0.0/0","bind":"0.0.0.0"}\n' >"${anydir}/any.json"
+rc=0
+run_scan "${anydir}" "${scratch}/unspecified-ipv4.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "the unspecified address 0.0.0.0 was flagged; a recorded security-group rule would fail the gate: $(cat "${scratch}/unspecified-ipv4.out")"
+printf 'GREEN unspecified ipv4: exit %s\n' "${rc}"
+
+# A single label directly under amazonaws.com is an AWS service principal
+# (a customer cannot register one) and passes; two raw labels there are a
+# customer name and stay a finding.
+plant_red hostname 'billing-api.team-c.amazonaws.com' hostname-raw-under-amazonaws
+principaldir="${scratch}/service-principal"
+mkdir -p "${principaldir}"
+printf '{"principal_service":"states.amazonaws.com","assume_principals":["ecs-tasks.amazonaws.com","monitoring.amazonaws.com"]}\n' >"${principaldir}/principal.json"
+rc=0
+run_scan "${principaldir}" "${scratch}/service-principal.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "an AWS service principal was flagged; a recorded trust policy would fail the gate: $(cat "${scratch}/service-principal.out")"
+printf 'GREEN service principal: exit %s\n' "${rc}"
+
+# A customer endpoint under an AWS suffix passes only in the form record mode
+# writes: h-pseudonym customer labels, then AWS-owned labels. A raw customer
+# label fails, including one wedged between an h-label and the AWS words.
+plant_red hostname 'myapp-123.us-east-1.elb.amazonaws.com' hostname-raw-elb
+plant_red hostname 'h0a1b2c3d4e.team-b.us-east-1.rds.amazonaws.com' hostname-raw-mid-label
+endpointdir="${scratch}/aws-endpoint"
+mkdir -p "${endpointdir}"
+printf '{"a":"h1f2e3d4c5b.us-east-1.elb.amazonaws.com","b":"h1f2e3d4c5b.elb.us-east-1.amazonaws.com","c":"h1f2e3d4c5b.h0a1b2c3d4e.us-east-1.rds.amazonaws.com","d":"h1f2e3d4c5b.apigateway.amazonaws.com","e":"h1f2e3d4c5b.h0a1b2c3d4e.h9e8d7c6b5a.cloudformation.amazonaws.com","f":"h1f2e3d4c5b.execute-api.us-east-1.amazonaws.com","g":"000017213864.dkr.ecr.us-east-1.amazonaws.com"}\n' >"${endpointdir}/endpoint.json"
+rc=0
+run_scan "${endpointdir}" "${scratch}/aws-endpoint.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "a pseudonymized AWS endpoint was flagged; a record-mode recording would fail the gate: $(cat "${scratch}/aws-endpoint.out")"
+printf 'GREEN pseudonymized AWS endpoint: exit %s\n' "${rc}"
+
+# An ARN account field that is exactly `*` (an IAM policy resource) or
+# exactly `cloudfront` (the legacy origin access identity principal) is
+# AWS's own and passes; a raw account and any other word stay findings.
+plant_red arn 'arn:aws:iam::987654321098:role/*' arn-raw-account-wildcard-resource
+plant_red arn 'arn:aws:iam::acmecorp:user/example' arn-word-account
+wildarndir="${scratch}/arn-special-account"
+mkdir -p "${wildarndir}"
+printf '{"resources":["arn:aws:iam::*:role/*","arn:aws:logs:us-east-1:*:log-group:*"],"principal_arns":["arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity E2EXAMPLE1ABC"]}\n' >"${wildarndir}/policy.json"
+rc=0
+run_scan "${wildarndir}" "${scratch}/arn-special-account.out" rc
+[[ "${rc}" -eq 0 ]] \
+	|| fail "an ARN with a wildcard or cloudfront account field was flagged: $(cat "${scratch}/arn-special-account.out")"
+printf 'GREEN wildcard and cloudfront ARN accounts: exit %s\n' "${rc}"
+
 # Terraform addresses glue a dotted token to `_`; they are not hosts and the
 # corpus asserts them, so they must not be candidates.
 tfdir="${scratch}/tf-address"
@@ -244,12 +298,12 @@ mutate_expect_red "never-match alternative identifier" \
 mutate_expect_red "widen hostname allow to everything" "s/^\\([[:space:]]*_cpd_allow\\[hostname\\]=\\).*/\\1'.*'/" \
 	"alternative hostname allows its own planted sample"
 mutate_expect_red "delete the ipv4 planted sample" "/^[[:space:]]*'ipv4 10\\.0''\\.0\\.5'$/d" \
-	"positive control carries 11 sample(s), expected 12"
+	"positive control carries 15 sample(s), expected 16"
 # The reserved-account allowed sample pins the doc_account extension: delete
-# it and the hand count of 29 goes red, so the form cannot be dropped from
+# it and the hand count of 34 goes red, so the form cannot be dropped from
 # the allowlist without touching the number.
 mutate_expect_red "delete the reserved-account allowed sample" "/^[[:space:]]*'account12 0000''17213864'$/d" \
-	"negative control carries 28 sample(s), expected 29"
+	"negative control carries 33 sample(s), expected 34"
 
 # The library must not depend on its caller's pipefail. A probe written as
 # `rg | head` returned head's status in a caller without pipefail, so an

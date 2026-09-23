@@ -182,17 +182,38 @@ cassette_private_data_patterns() {
 	# and each one carries the namespace out), an exact list of public service hosts the
 	# committed corpus uses (including the google.cloud and Microsoft.<Provider>
 	# vendor namespaces, which end in a TLD without being hosts), a single
-	# service label under googleapis.com, ECR under a documentation account,
-	# and the corpus's own synthetic zones.
-	_cpd_allow[ipv4]='^(?:192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
+	# service label under googleapis.com, a single label under amazonaws.com
+	# (an AWS service principal such as states.amazonaws.com: a customer
+	# cannot register a name directly under amazonaws.com, so the label is
+	# AWS-owned), ECR under a documentation account, and the corpus's own
+	# synthetic zones.
+	# 0.0.0.0 is the unspecified address, and 0.0.0.0/0 the "any address"
+	# CIDR of a security-group rule (the detector takes the quad without its
+	# prefix). Record mode keeps it; it names no host. Exact, so 0.0.0.1 is
+	# still a finding.
+	_cpd_allow[ipv4]='^(?:0\.0\.0\.0|192\.0\.2\.[0-9]{1,3}|198\.51\.100\.[0-9]{1,3}|203\.0\.113\.[0-9]{1,3}|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$'
 	# The ipv6 detector also sees six-group MAC addresses. A real MAC is a
 	# hardware identifier and stays a finding; the RFC 7042 documentation block
 	# (00:00:5e:00:53:xx) and the all-zero MAC are what a redacted recording
 	# writes, so they pass.
 	_cpd_allow[ipv6]='(?i)^(?:2001:db8:[0-9a-f:]*|::1|00:00:5e:00:53:[0-9a-f]{2}|00:00:00:00:00:00)$'
 	_cpd_allow[account12]="^${doc_account}\$"
-	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|${doc_account}):\$"
-	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
+	# The account field may also be exactly `*` (an IAM policy resource such
+	# as arn:aws:iam::*:role/*) or exactly `cloudfront` (the legacy origin
+	# access identity principal arn:aws:iam::cloudfront:user/...): both are
+	# written by AWS, not by a customer. No other word is allowed.
+	_cpd_allow[arn]="^arn:aws(?:-[a-z]+)*:[a-z0-9-]*:[a-z0-9-]*:(?:|aws|\\*|cloudfront|${doc_account}):\$"
+	# A customer endpoint under amazonaws.com as record mode writes it: one or
+	# more h+10hex pseudonym labels, then only AWS-owned labels -- the region
+	# grammar or a host service word record mode keeps (awsHostServiceLabels
+	# in go/internal/replay/recordpseudo; a Go test pins these two lines to
+	# Verify's copy) -- then the single AWS-owned label directly under
+	# amazonaws.com. A raw customer label never fits. Here it is a shape
+	# check on committed files; the recorder's Verify belt also requires that
+	# the run produced the host.
+	local aws_endpoint_region='(?:us|eu|ap|ca|sa|me|af|il|mx|cn)(?:-gov|-iso[a-z]?)?-(?:east|west|north|south|central|northeast|southeast|northwest|southwest)-[0-9]{1,2}'
+	local aws_endpoint_words='appsync-api|awsapprunner|cache|cloudfront|dkr|ecr|elasticbeanstalk|elb|es|execute-api|lambda-url|rds|s3|s3-website|sns|sqs|sts'
+	_cpd_allow[hostname]="(?i)^(?:(?:[a-z0-9-]+\\.)*(?:example|test|invalid|localhost)|(?:[a-z0-9-]+\\.)*example\\.(?:com|net|org)|github\\.com|gitlab\\.com|ghcr\\.io|registry\\.terraform\\.io|registry\\.npmjs\\.org|proxy\\.golang\\.org|console\\.cloud\\.google\\.com|google\\.cloud|microsoft\\.[a-z]+|slsa\\.dev|in-toto\\.io|kubernetes\\.io|app\\.kubernetes\\.io|argoproj\\.io|argocd\\.argoproj\\.io|us-docker\\.pkg\\.dev|[a-z0-9-]+\\.googleapis\\.com|[a-z0-9-]+\\.amazonaws\\.com|(?:h[0-9a-f]{10}\\.)+(?:(?:${aws_endpoint_region}|${aws_endpoint_words})\\.)*[a-z0-9-]+\\.amazonaws\\.com|${doc_account}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com|(?:[a-z0-9-]+\\.)*supply-chain-demo\\.internal|supply-chain-demo\\.pagerduty\\.internal|supply-chain-demo-project\\.iam\\.gserviceaccount\\.com|supply-chain-demo-project\\.uc\\.r\\.appspot\\.com|supplychaindemoacr\\.azurecr\\.io|supply-chain-demo\\.eastus\\.azurecontainerapps\\.io)\$"
 	_cpd_allow[identifier]=''
 	_cpd_allow[nodeip]='(?i)^ip-(?:192-0-2-[0-9]{1,3}|198-51-100-[0-9]{1,3}|203-0-113-[0-9]{1,3}|127-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3})$'
 
@@ -210,6 +231,10 @@ cassette_private_data_patterns() {
 		'hostname vault.service''.consul'
 		'ipv4 reachable at 172.16''.9.4.'
 		'nodeip ip-10''-0-1-5'
+		'ipv4 0.0.0''.1'
+		'hostname orders-api.team-b.amazonaws''.com'
+		'hostname payments-lb-1234.us-east-1.elb.amazonaws''.com'
+		'arn arn:aw''s:iam::acmecorp:user/example'
 		'identifier eshu-canar''y-org'
 	)
 	# Negative control: `<alternative> <value>`, one per allowed FORM, each a
@@ -219,6 +244,7 @@ cassette_private_data_patterns() {
 		'ipv4 198.51''.100.7'
 		'ipv4 203.0''.113.9'
 		'ipv4 127.0''.0.1'
+		'ipv4 0.0.0''.0/0'
 		'nodeip ip-192''-0-2-10'
 		'ipv6 2001:db8::1'
 		'ipv6 2001:db8:85a3::8a2e:370:7334'
@@ -233,11 +259,15 @@ cassette_private_data_patterns() {
 		'arn arn:aw''s:iam::aws:policy/example'
 		'arn arn:aw''s:iam::123456789012:role/example'
 		'arn arn:aw''s:iam::000000000000:role/example'
+		'arn arn:aw''s:iam::*:role/*'
+		'arn arn:aw''s:iam::cloudfront:user/example'
 		'hostname registry.example''.invalid'
 		'hostname registry.local''host'
 		'hostname registry.example''.com'
 		'hostname github''.com'
 		'hostname compute.googleapis''.com'
+		'hostname states.amazonaws''.com'
+		'hostname h0a1b2c3d4e.us-east-1.elb.amazonaws''.com'
 		'hostname Microsoft.Ap''p'
 		'hostname 123456789012.dkr.ecr.us-east-1.amazonaws''.com'
 		'hostname vault.supply-chain-demo''.internal'
@@ -246,17 +276,20 @@ cassette_private_data_patterns() {
 		'hostname supplychaindemoacr.azurecr''.io'
 	)
 	# Hand-counted, deliberately not derived from the arrays above or from the
-	# patterns: 7 alternatives, 12 planted samples (hostname carries five: a
+	# patterns: 7 alternatives, 16 planted samples (arn carries two: a raw
+	# account and a word that is not `cloudfront`; hostname carries seven: a
 	# public-TLD host, an in-cluster FQDN, a short in-cluster name, a wildcard
-	# host and a Consul name; ipv4 carries two: a bare address and one ending
-	# a sentence), 29 allowed samples. Adding an alternative or an allowed form means adding
+	# host, a Consul name, two raw labels under amazonaws.com and a raw ELB
+	# endpoint; ipv4 carries three: a bare address, one ending
+	# a sentence, and the neighbour of the unspecified address), 34 allowed
+	# samples. Adding an alternative or an allowed form means adding
 	# its sample and bumping the number, and that is the point.
 	[[ "${#_cpd_detect[@]}" -eq 7 ]] \
 		|| fail "cassette private-data pattern carries ${#_cpd_detect[@]} alternative(s), expected 7 -- an alternative was added or removed without re-checking its controls"
-	[[ "${#planted[@]}" -eq 12 ]] \
-		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 12 -- a sample was added or removed without re-checking it against the alternatives"
-	[[ "${#allowed[@]}" -eq 29 ]] \
-		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 29 -- an allowed form was added or removed without re-checking it against the allow patterns"
+	[[ "${#planted[@]}" -eq 16 ]] \
+		|| fail "cassette private-data positive control carries ${#planted[@]} sample(s), expected 16 -- a sample was added or removed without re-checking it against the alternatives"
+	[[ "${#allowed[@]}" -eq 34 ]] \
+		|| fail "cassette private-data negative control carries ${#allowed[@]} sample(s), expected 34 -- an allowed form was added or removed without re-checking it against the allow patterns"
 
 	local entry alt value token rc
 	local -A planted_per_alt=()
