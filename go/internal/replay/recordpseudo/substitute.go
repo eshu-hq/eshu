@@ -101,21 +101,26 @@ func (d *dictionary) substituteComposite(s string) string {
 		return s
 	}
 	s = d.substituteTokens(s, func(raw string, _ Class) bool { return strings.ContainsAny(raw, "/:") })
-	return d.forEachComponent(s, d.substituteComponent)
+	return d.forEachComponent(s, func(component string, _ byte) string {
+		return d.substituteComponent(component, false)
+	})
 }
 
 // forEachComponent applies fn to every "/"- or ":"-delimited component of
-// s, keeping the delimiters in place.
-func (d *dictionary) forEachComponent(s string, fn func(string) string) string {
+// s, keeping the delimiters in place; prev is the delimiter before the
+// component (0 for the first).
+func (d *dictionary) forEachComponent(s string, fn func(component string, prev byte) string) string {
 	var b strings.Builder
 	start := 0
+	var prev byte
 	for i := 0; i <= len(s); i++ {
 		if i < len(s) && s[i] != '/' && s[i] != ':' {
 			continue
 		}
-		b.WriteString(fn(s[start:i]))
+		b.WriteString(fn(s[start:i], prev))
 		if i < len(s) {
 			b.WriteByte(s[i])
+			prev = s[i]
 		}
 		start = i + 1
 	}
@@ -133,19 +138,25 @@ func (d *dictionary) substituteARN(arn string) string {
 		return d.substituteFree(arn)
 	}
 	parts[4] = d.pseudonym(parts[4])
-	parts[5] = d.forEachComponent(parts[5], d.substituteComponent)
+	parts[5] = d.forEachComponent(parts[5], func(component string, prev byte) string {
+		return d.substituteComponent(component, prev == ':')
+	})
 	return strings.Join(parts, ":")
 }
 
 // substituteComponent looks a component up whole, else rewrites it as free
 // text. A numeric component is a qualifier unless the token was learned as
-// an account or a name: a numeric tag value never rewrites it.
-func (d *dictionary) substituteComponent(component string) string {
+// an account or a name; a numeric tag value never rewrites it, and a
+// numeric name never rewrites the ":"-qualifier position of an ARN (a
+// Lambda version, a task-definition revision), which qualifier reports.
+func (d *dictionary) substituteComponent(component string, qualifier bool) string {
 	if learned, ok := d.entries[component]; ok {
-		if !numericRe.MatchString(component) || learned.class != ClassTagValue {
-			return learned.pseudonym
+		if numericRe.MatchString(component) && learned.class != ClassAccount {
+			if learned.class == ClassTagValue || qualifier {
+				return component
+			}
 		}
-		return component
+		return learned.pseudonym
 	}
 	return d.substituteFree(component)
 }

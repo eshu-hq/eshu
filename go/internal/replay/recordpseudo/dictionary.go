@@ -353,10 +353,15 @@ func (d *dictionary) learnIdent(raw string) {
 	case ipv4Re.MatchString(raw):
 		d.learnIPv4(raw)
 	case numericRe.MatchString(raw):
-		// A purely numeric name is customer data too. It takes the name
-		// form and is exact-only (substitute.go), so it is rewritten as a
-		// whole value or a whole component and never inside other digits.
-		d.set(ClassIdent, raw, d.name(raw))
+		// A purely numeric name of four or more digits is customer data
+		// too. It takes the name form and is exact-only (substitute.go), so
+		// it is rewritten as a whole value or a whole component, never
+		// inside other digits and never in an ARN's ":"-qualifier position.
+		// Fewer digits (a version, a revision, a count) carry no customer
+		// data and would rewrite every equal qualifier: kept.
+		if len(raw) >= minSubstituteLen {
+			d.set(ClassIdent, raw, d.name(raw))
+		}
 	case emailRe.MatchString(raw):
 		d.learnEmail(raw)
 	case hostShapeRe.MatchString(raw) && lastLabelAlphabetic(raw):
