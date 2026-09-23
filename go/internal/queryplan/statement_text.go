@@ -177,6 +177,7 @@ func findModule(dir string) (root, path string) {
 		return "", ""
 	}
 	for {
+		// #nosec G304 -- path is the caller-provided directory joined with the literal go.mod, walking upward
 		data, err := os.ReadFile(filepath.Join(abs, "go.mod"))
 		if err == nil {
 			for _, line := range strings.Split(string(data), "\n") {
