@@ -10,7 +10,8 @@ each one reaches at a given profile.
   compact and a full projection, selected by `?view=`.
 - `lookup.go` — the live registry view plus `CatalogKey`, the capability id
   for the catalog read itself.
-- `permission_catalog.go` — the authorization catalog this surface returns.
+- `handler_list_test.go` — drives the route through a bare `ServeMux`, without
+  root's `APIRouter`. The router-level tests stay in package `query`.
 
 ## What it does not own
 
