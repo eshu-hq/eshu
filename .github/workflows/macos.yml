@@ -42,6 +42,14 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      # go/internal/replay/recorder and go/cmd/collector-aws-cloud run the
+      # committed private-data gate library in-process; it needs ripgrep and
+      # a bash >= 4.3 (the tests look for /opt/homebrew/bin/bash first, and
+      # macOS ships 3.2). Without both the assertion skips or fails, and the
+      # tests deliberately no longer skip on a missing rg (#6987 review).
+      - name: Install ripgrep and bash
+        run: brew install ripgrep bash
+
       - name: Build Go CLI
         working-directory: go
         run: |
