@@ -34,7 +34,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Evidence-boundary disclosures | `evidence_boundaries.go` | type and const aliases in root `evidence_boundaries.go` |
 | Hostname environment inference | `hostname_environment.go` | root service-evidence callers reference directly |
 | Infra-label helpers | `infra_labels.go` | root infra-aggregate callers reference directly |
-| K8s SELECTS matcher | moved to `kubernetes/` (#6597) | callers name `kubernetes.SelectMatch` and friends directly; `k8s_match_alias.go` was deleted with the move |
+| K8s SELECTS matcher | moved to `kubernetes/` (#6597) | callers name `kubernetes.SelectMatch` and friends directly; the #6060 root wrappers were deleted with the move |
 | Story-collection helpers | `story_collection_helpers.go` | root and `impact/` callers reference directly |
 | Story-row helpers | `story_row_helpers.go` | root and `impact/` callers reference directly, including `CapMapRows` |
 | Scoped workload grant decision | `workload_grant.go` | `entity` and `impacttrace` callers reference directly |

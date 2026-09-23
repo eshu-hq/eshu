@@ -44,6 +44,7 @@ It must stay at exit 0 with this directory removed from the parent's build.
 
 ## No compatibility aliases
 
-The wrappers this package replaced (`internal/query/k8s_match_alias.go`) were
-deleted with the move. #6642's rule is that a move repoints its callers; it does
-not leave a forwarding layer behind. Do not add one back for a future move.
+The #6060 wrappers that once carried these names on package `query` were
+deleted with the move, not repointed. #6642's rule is that a move repoints its
+callers; it does not leave a forwarding layer behind. Do not add one back for a
+future move.
