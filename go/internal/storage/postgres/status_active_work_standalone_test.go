@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -118,7 +119,7 @@ func listDomainBacklogs(
 			Retrying:    int(retryingCount),
 			DeadLetter:  int(deadLetterCount),
 			Failed:      int(failedCount),
-			OldestAge:   durationFromSeconds(oldestOutstandingAgeSeconds),
+			OldestAge:   scalars.DurationFromSeconds(oldestOutstandingAgeSeconds),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -189,7 +190,7 @@ func readQueueSnapshot(
 		Failed:                                int(failedCount),
 		ProvenanceEdgeIdentityUpgradeApplied:  provenanceEdgeIdentityUpgradeApplied,
 		ProvenanceEdgeIdentityUpgradeRequired: int(provenanceEdgeIdentityUpgradeRequired),
-		OldestOutstandingAge:                  durationFromSeconds(oldestOutstandingAgeSeconds),
+		OldestOutstandingAge:                  scalars.DurationFromSeconds(oldestOutstandingAgeSeconds),
 		OverdueClaims:                         int(overdueClaimCount),
 	}, nil
 }
@@ -231,7 +232,7 @@ func listReducerConflictBlockages(
 			ConflictDomain: conflictDomain,
 			ConflictKey:    conflictKey,
 			Blocked:        int(blockedCount),
-			OldestAge:      durationFromSeconds(oldestBlockedAgeSeconds),
+			OldestAge:      scalars.DurationFromSeconds(oldestBlockedAgeSeconds),
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -126,7 +127,7 @@ func (s *WorkflowControlStore) execClaimMutation(
 
 	args := []any{
 		mutation.ObservedAt.UTC(),
-		nullableTime(leaseExpiresAt),
+		scalars.NullableTime(leaseExpiresAt),
 		mutation.FencingToken,
 		mutation.OwnerID,
 		mutation.ClaimID,
@@ -152,7 +153,7 @@ func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mu
 	}
 	args := []any{
 		mutation.ObservedAt.UTC(),
-		nullableTime(time.Time{}),
+		scalars.NullableTime(time.Time{}),
 		mutation.FencingToken,
 		mutation.OwnerID,
 		mutation.ClaimID,
@@ -455,11 +456,4 @@ func nullableRFC3339(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339)
-}
-
-func nullableTime(value time.Time) any {
-	if value.IsZero() {
-		return nil
-	}
-	return value.UTC()
 }

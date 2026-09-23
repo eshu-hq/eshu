@@ -40,22 +40,6 @@ const (
 	statusReadOutcomeError   = "error"
 )
 
-// querySummaryKey carries a bounded read name for the Postgres query a caller
-// is about to run.
-type querySummaryKey struct{}
-
-// withQuerySummary labels ctx with a bounded read name. InstrumentedDB stamps it
-// on the postgres.query span as db.query.summary.
-func withQuerySummary(ctx context.Context, summary string) context.Context {
-	return context.WithValue(ctx, querySummaryKey{}, summary)
-}
-
-// querySummaryFromContext returns the read name withQuerySummary set, or "".
-func querySummaryFromContext(ctx context.Context) string {
-	summary, _ := ctx.Value(querySummaryKey{}).(string)
-	return summary
-}
-
 // read starts one labeled status snapshot read (#6794). It returns the store's
 // queryer labeled with the read, so each statement is attributable on the
 // postgres.query span, and a done func the caller passes the reader's returned
@@ -92,5 +76,5 @@ type statusReadQueryer struct {
 
 // QueryContext runs the query with the read label on ctx.
 func (q statusReadQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return q.inner.QueryContext(withQuerySummary(ctx, q.read), query, args...)
+	return q.inner.QueryContext(db.WithQuerySummary(ctx, q.read), query, args...)
 }

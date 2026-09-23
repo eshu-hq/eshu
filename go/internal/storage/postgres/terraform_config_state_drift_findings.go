@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -283,7 +284,7 @@ func normalizeTerraformConfigStateDriftFindingFilter(
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
 	filter.Address = strings.TrimSpace(filter.Address)
 	filter.Outcome = strings.TrimSpace(filter.Outcome)
-	filter.DriftKinds = cleanStringSet(filter.DriftKinds)
+	filter.DriftKinds = scalars.CleanStringSet(filter.DriftKinds)
 	if filter.Limit <= 0 {
 		filter.Limit = terraformConfigStateDriftFindingDefaultLimit
 	}

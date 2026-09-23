@@ -3,7 +3,9 @@
 ## Read first
 
 1. `README.md` in this directory -- why the helpers left the `db` leaf.
-2. `scalars.go` -- `Blank`, `NullTime`, `NullTimePtr`, `TimePtrFromNull`.
+2. `scalars.go` -- `Blank`, `NullTime`, `NullTimePtr`, `TimePtrFromNull`,
+   `DurationFromSeconds`, `NullableTimeUTC`, `NullableTime`,
+   `StringMapToAny`, `CleanStringSet`.
 3. `../db/AGENTS.md` -- the interfaces-only invariant this package protects.
 
 ## Invariants

@@ -7,9 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -83,10 +83,10 @@ func readAWSCloudScanStatuses(ctx context.Context, queryer db.Queryer) ([]status
 		); err != nil {
 			return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)
 		}
-		row.LastStartedAt = nullableTimeUTC(lastStartedAt)
-		row.LastObservedAt = nullableTimeUTC(lastObservedAt)
-		row.LastCompletedAt = nullableTimeUTC(lastCompletedAt)
-		row.LastSuccessfulAt = nullableTimeUTC(lastSuccessfulAt)
+		row.LastStartedAt = scalars.NullableTimeUTC(lastStartedAt)
+		row.LastObservedAt = scalars.NullableTimeUTC(lastObservedAt)
+		row.LastCompletedAt = scalars.NullableTimeUTC(lastCompletedAt)
+		row.LastSuccessfulAt = scalars.NullableTimeUTC(lastSuccessfulAt)
 		row.UpdatedAt = row.UpdatedAt.UTC()
 		output = append(output, row)
 	}
@@ -97,11 +97,4 @@ func readAWSCloudScanStatuses(ctx context.Context, queryer db.Queryer) ([]status
 		return output[:awsCloudScanStatusLimit], true, nil
 	}
 	return output, false, nil
-}
-
-func nullableTimeUTC(value sql.NullTime) time.Time {
-	if !value.Valid {
-		return time.Time{}
-	}
-	return value.Time.UTC()
 }

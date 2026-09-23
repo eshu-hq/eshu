@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -67,5 +68,5 @@ func readAWSFreshnessOldestQueuedAge(ctx context.Context, queryer db.Queryer, as
 	if seconds < 0 {
 		seconds = 0
 	}
-	return durationFromSeconds(seconds), nil
+	return scalars.DurationFromSeconds(seconds), nil
 }

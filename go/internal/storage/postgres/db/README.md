@@ -39,6 +39,11 @@ no wrapper or adapter was needed and no wire contract changed.
 - `Beginner` -- opens a `Transaction` (`Begin`).
 - `ReadOnlyRepeatableReadBeginner` -- opens a read-only repeatable-read
   `Transaction` (`BeginReadOnlyRepeatableRead`).
+- `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
+  check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for
+  `errors.As` callers.
+- `WithQuerySummary` / `QuerySummaryFromContext` -- bounded read-name context
+  plumbing for the `postgres.query` span's `db.query.summary` attribute.
 
 Every symbol keeps the exact name, method set, and semantics it had in the
 root package. There are no aliases left behind in root and no forwarding
@@ -50,12 +55,21 @@ the webhook trigger store under #6693 so the webhook and incident families
 share one implementation without one family importing the other. They are
 pure stdlib string/args shaping with no SQL text and no I/O.
 
+Two more pieces of `InstrumentedDB` plumbing hoisted here under #6693's
+prerequisite-hoists table: `SearchIndexTermCopyUnsupportedError` (with its
+`Driver` field), the generic driver-capability error `SQLDB` and
+`InstrumentedDB` both return when a driver cannot satisfy the PostgreSQL COPY
+protocol; and `WithQuerySummary` / `QuerySummaryFromContext`, the bounded
+read-label context plumbing `StatusStore` and `InstrumentedDB` use so a
+labeled read is attributable on the `postgres.query` span. Both hoisted
+byte-identically from the root `adapters.go` and `status_read_telemetry.go`.
+
 ## Dependencies
 
-Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`). The package
-performs no I/O and imports no Eshu package -- not even the postgres root.
-A `db` import of root (or of any package that imports root) would recreate
-the cycle this package exists to prevent.
+Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`).
+The package performs no I/O and imports no Eshu package -- not even the
+postgres root. A `db` import of root (or of any package that imports root)
+would recreate the cycle this package exists to prevent.
 
 ## Telemetry
 

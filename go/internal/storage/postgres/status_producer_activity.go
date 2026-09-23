@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -45,7 +46,7 @@ func readProducerActivitySnapshot(
 		HasActiveOrPendingGeneration: hasActiveOrPendingGeneration,
 	}
 	if latestGenerationAgeSeconds.Valid {
-		snapshot.LatestGenerationAge = durationFromSeconds(latestGenerationAgeSeconds.Float64)
+		snapshot.LatestGenerationAge = scalars.DurationFromSeconds(latestGenerationAgeSeconds.Float64)
 	}
 	return snapshot, nil
 }

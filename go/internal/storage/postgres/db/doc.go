@@ -18,6 +18,13 @@
 // and no I/O, hoisted byte-identically from the webhook trigger store under
 // #6693 so the webhook and incident families share one implementation.
 //
+// Two InstrumentedDB plumbing pieces hoisted here under #6693's
+// prerequisite-hoists table: SearchIndexTermCopyUnsupportedError, the typed
+// driver-capability error for the PostgreSQL COPY protocol; and
+// WithQuerySummary / QuerySummaryFromContext, the bounded read-label context
+// plumbing InstrumentedDB and StatusStore use to attribute a labeled read on
+// the postgres.query span.
+//
 // The concrete adapters (SQLDB, SQLTx, SQLQueryer), the schema bootstrap and
 // migration ledger, and the advisory-lock machinery stay in the root package
 // with the types they guard. SQLDB.withSchemaBootstrapLock satisfies the

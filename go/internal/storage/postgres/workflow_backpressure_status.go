@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -204,10 +205,10 @@ func readWorkflowCollectorBackpressureStatus(
 		); scanErr != nil {
 			return nil, fmt.Errorf("read workflow collector backpressure: %w", scanErr)
 		}
-		row.OldestPendingAge = durationFromSeconds(oldestPendingSeconds)
-		row.OldestRetryAge = durationFromSeconds(oldestRetrySeconds)
-		row.OldestClaimAge = durationFromSeconds(oldestClaimSeconds)
-		row.NextRetryDelay = durationFromSeconds(nextRetrySeconds)
+		row.OldestPendingAge = scalars.DurationFromSeconds(oldestPendingSeconds)
+		row.OldestRetryAge = scalars.DurationFromSeconds(oldestRetrySeconds)
+		row.OldestClaimAge = scalars.DurationFromSeconds(oldestClaimSeconds)
+		row.NextRetryDelay = scalars.DurationFromSeconds(nextRetrySeconds)
 		byKey[collectorBackpressureKey(row.CollectorKind, row.CollectorInstanceID, row.SourceSystem)] = len(backpressure)
 		backpressure = append(backpressure, row)
 	}

@@ -330,7 +330,7 @@ Prerequisites:
 - [x] This target-tree doc: #6973; owner answers and corrections: this PR
 - [x] D5: delete the six empty files (368 -> 362); the other three (notes-carrying) go in the `service/` and `supply/chain/impact/` moves
 - [x] D6: `fake/` package added (injectable routes); root's test-only fake retires as its tests move
-- [ ] Hoists into `db/` and `scalars/` (table above)
+- [x] Hoists into `db/` and `scalars/` (the `db/` and `scalars/` rows of the table above)
 - [ ] D2: `migrations/embed.go` leaf
 - [ ] `pgarray/` -> `array/`; `rebuildreset/` -> `rebuild/reset/`
 

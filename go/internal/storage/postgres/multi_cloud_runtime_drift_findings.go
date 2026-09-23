@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // MultiCloudRuntimeDriftFindingFactKind is the durable reducer fact emitted for
@@ -267,7 +268,7 @@ func normalizeMultiCloudRuntimeDriftFindingFilter(
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
 	filter.Provider = strings.ToLower(strings.TrimSpace(filter.Provider))
 	filter.CloudResourceUID = strings.TrimSpace(filter.CloudResourceUID)
-	filter.FindingKinds = cleanStringSet(filter.FindingKinds)
+	filter.FindingKinds = scalars.CleanStringSet(filter.FindingKinds)
 	if filter.Limit <= 0 {
 		filter.Limit = multiCloudRuntimeDriftFindingDefaultLimit
 	}

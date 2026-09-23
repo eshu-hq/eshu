@@ -50,7 +50,7 @@ type stageCountingQueryer struct {
 }
 
 func (q *stageCountingQueryer) QueryContext(ctx context.Context, query string, _ ...any) (db.Rows, error) {
-	q.summaries = append(q.summaries, querySummaryFromContext(ctx))
+	q.summaries = append(q.summaries, db.QuerySummaryFromContext(ctx))
 	if query != activeWorkSummaryQuery {
 		return &fakeRows{}, nil
 	}
@@ -150,7 +150,7 @@ func TestInstrumentedDBStampsQuerySummary(t *testing.T) {
 		Tracer:    sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test"),
 		StoreName: "status_snapshot",
 	}
-	ctx := withQuerySummary(context.Background(), "active_work_summary")
+	ctx := db.WithQuerySummary(context.Background(), "active_work_summary")
 	rows, err := instrumented.QueryContext(ctx, "SELECT 1")
 	if err != nil {
 		t.Fatalf("QueryContext() error = %v", err)
