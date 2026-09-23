@@ -325,7 +325,7 @@ the concrete adapters stay here.
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
-  `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
+  `iacstore.IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
   `VulnerabilitySourceStateSchemaSQL`, `tenantstore.TenantWorkspaceGrantSchemaSQL`,
   `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`, `OIDCLoginSchemaSQL`,
   `SAMLSSOSchemaSQL`,
@@ -334,8 +334,8 @@ the concrete adapters stay here.
 
 **IaC reachability**
 
-- `IaCReachabilityStore` / `NewIaCReachabilityStore` — IaC-to-workload
-  reachability rows; `IaCReachabilityRow`, `IaCReachability`, `IaCFinding`
+- `iacstore.IaCReachabilityStore` / `iacstore.NewIaCReachabilityStore` — IaC-to-workload
+  reachability rows; `iacstore.IaCReachabilityRow`, `iacstore.IaCReachability`, `iacstore.IaCFinding`
 - `CodeReachabilityStore` / `NewCodeReachabilityStore` — reducer-materialized
   code reachable-set rows keyed by active source generation; dead-code reads use
   `ListLatestByEntities` before falling back to completed shared intents.
