@@ -154,8 +154,12 @@ run_one() {
 	printf 'run-live-backend-tests: %s %s (%s)\n' "${name}" "${file}" "${package}"
 	if [[ "${use_compose}" == "1" ]]; then
 		compose_down "${compose_file}"
+		# A failed up can leave a half-started stack behind, and the EXIT
+		# trap only knows stacks recorded in active_compose_file (assigned
+		# after a successful start), so tear the half-started stack down
+		# here before dying instead of littering it.
 		docker compose -p "${compose_project}" -f "${repo_root}/${compose_file}" up -d --wait --wait-timeout 180 ||
-			die "could not start ${name} stack"
+			{ compose_down "${compose_file}"; die "could not start ${name} stack"; }
 		active_compose_file="${compose_file}"
 		wait_healthy "${NEO4J_HTTP_PORT}" "${health_path}" || die "${name} stack never became healthy"
 	fi

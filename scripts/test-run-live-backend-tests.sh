@@ -3,7 +3,8 @@
 # Exercises argument parsing (both --flag value and --flag=value forms),
 # the pinned-image drift check against the compose files, the ledger
 # target extraction, and the failure modes that must stay loud — all
-# without Docker, via ESHU_LIVE_RUNNER_SELFTEST=1.
+# without a Docker daemon, via ESHU_LIVE_RUNNER_SELFTEST=1 probes and
+# stub binaries on PATH (no containers, no network).
 # Fast, credential-free, Docker-free, network-free.
 set -euo pipefail
 
@@ -65,6 +66,30 @@ extract_err="$(PATH="${seed_dir}/fakebin:${PATH}" ESHU_LIVE_RUNNER_SELFTEST=plan
 	fail "extractor crash produced a plan"
 [[ "${extract_err}" == *"could not extract live-test targets"* ]] ||
 	fail "extractor crash misreported: ${extract_err}"
+
+# ── RED: failed up tears down its half-started stack ──────────────────────
+# (the EXIT trap only knows stacks recorded after a successful start, so
+# the up-failure branch must compose_down before dying; stubbed docker:
+# `up` leaves a marker then fails, `down` clears it — no daemon involved)
+cat >"${seed_dir}/fakebin/docker" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do
+	if [[ "${a}" == "up" ]]; then touch "${ESHU_LIVE_RUNNER_STUB_MARKER}"; exit 1; fi
+	if [[ "${a}" == "down" ]]; then rm -f "${ESHU_LIVE_RUNNER_STUB_MARKER}"; exit 0; fi
+done
+exit 0
+EOF
+chmod +x "${seed_dir}/fakebin/docker"
+# The extraction-crash seed above left a failing python3 stub behind;
+# this seed needs real extraction, so drop it (docker stays stubbed).
+rm -f "${seed_dir}/fakebin/python3"
+export ESHU_LIVE_RUNNER_STUB_MARKER="${seed_dir}/partial-stack"
+up_err="$(PATH="${seed_dir}/fakebin:${PATH}" bash "${script}" --backend nornicdb 2>&1)" &&
+	fail "failed up did not die"
+[[ "${up_err}" == *"could not start nornicdb stack"* ]] ||
+	fail "failed up misreported: ${up_err}"
+[[ ! -f "${ESHU_LIVE_RUNNER_STUB_MARKER}" ]] ||
+	fail "failed up littered its half-started stack"
 
 # ── Image pins match the canonical compose files (no silent drift) ───────
 nornicdb_compose="$(probe | rg '^nornicdb_compose=' | cut -d= -f2-)"
