@@ -105,7 +105,7 @@ the rebased tree (each rebase onto a sibling move re-derives it), and
 
 ## Test-repoint proof (exact names, both packages)
 
-For each moved test, `go test -list '^Name$' -count=1` against the new
+For each moved test, `for n in TestIaCReachabilityStoreUpsertAndListCleanupFindings TestIaCReachabilitySchemaSQL TestIngestionStoreMaterializeIaCReachabilityWritesActiveCorpusRows; do go test ./internal/storage/postgres/iac/... -list "^$n\$" -count=1 | rg -q "^$n\$" || echo "missing $n"; done` against the new
 package exits 0 and matches; against `internal/storage/postgres` it exits 1
 (name gone):
 
