@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // #6642: these six capability ids are named by root's own route handlers, not by the capability package. Moving this file into capability/ leaves all six undefined at root -- reproduce with the move plus `go build -gcflags=-e ./internal/query/`. Only CatalogKey, which both sides name, lives in capability/.
+package query //nolint:dirgate // #6642: these five capability ids are named by root's own route handlers, not by the capability package. Moving this file into capability/ leaves all five undefined at root -- reproduce with the move plus `go test -c -gcflags=-e ./internal/query/`, which has to compile the tests: two of the five are named only by root test files, so a plain `go build` strands just three. Only CatalogKey, which both sides name, lives in capability/.
 
 // The capability keys root's own handlers name. They used to be declared
 // beside their registration in the contract_*.go files; those registrations

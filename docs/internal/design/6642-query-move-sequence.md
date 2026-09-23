@@ -50,9 +50,10 @@ The earlier "7 files / small" estimate was wrong in both halves. Measured on
 
 - It is **8 files** — 3 from root and 5 from `contract/`. Both the earlier
   "7" here and the cost page's "4 root + 5 = 9" were wrong.
-  `capability_keys.go` does not move: it holds the six capability-id
+  `capability_keys.go` does not move: it holds the five capability-id
   constants root's own handlers name, and its own doc comment says they
-  stayed at root "because the routes did". Moving it strands all six.
+  stayed at root "because the routes did". Moving it strands all five
+  under `go test -c -gcflags=-e`; a plain `go build` sees only three.
 - The move breaks **42 files with 57 distinct undefined symbols, across two
   packages** — root `query` and `contract`. `registry.go` holds `register`,
   `capabilitySupport`, `truthExact` and `truthDerived`, which all 36 remaining

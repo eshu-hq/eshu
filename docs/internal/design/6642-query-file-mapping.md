@@ -128,10 +128,11 @@ across the boundary and its usage drops to zero, where `unused` sees it.
 root's `APIRouter`, so it cannot follow without an import cycle.
 
 `capability_keys.go` does **not** move, though its name says it should. It
-holds the six capability-id constants root's own handlers name, and its doc
+holds the five capability-id constants root's own handlers name, and its doc
 comment records why they are there: the registrations moved to `contract/` in
 Part C and "these keys stayed because the routes did". A trial move plus
-`go build -gcflags=-e` strands all six. This is another entry for
+`go test -c -gcflags=-e` strands all five; a plain `go build` sees only
+three, because two are named just by root test files. This is another entry for
 [Where the prefix lies](6642-query-target-tree.md#where-the-prefix-lies).
 
 #### `query/cicd/` — 5 non-test, 8 test files

@@ -17,7 +17,7 @@ family (#6642).
 
 ## Root still owns some capability names
 
-`go/internal/query/capability_keys.go` stays in `package query`. Its six ids
+`go/internal/query/capability_keys.go` stays in `package query`. Its five ids
 are named by root's own handlers. Only `CatalogKey`, which both sides name,
 lives here — exported, and spelled without the package-name stutter that
 `CatalogCapability` would carry.

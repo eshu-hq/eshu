@@ -22,7 +22,7 @@ reads the resulting registry through
 directly would create a cycle, because those rows depend on the shared
 contract types this package also uses.
 
-Root's `capability_keys.go` likewise stays in `package query`: those six ids
+Root's `capability_keys.go` likewise stays in `package query`: those five ids
 are named by root's own routes, not by this handler.
 
 ## Dependencies and telemetry
