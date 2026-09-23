@@ -4,6 +4,7 @@
 package recordpseudo_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,18 +35,39 @@ func committedCassettes(t *testing.T) []string {
 	return out
 }
 
-// TestVerifyAgreesWithGateOnCommittedCorpus: the committed cassettes pass the
-// gate, so Verify must accept every one of them with no produced set --
-// the allow forms in verify_forms.go mirror the gate's.
+// TestVerifyAgreesWithGateOnCommittedCorpus: the committed hand-authored
+// cassettes pass the gate, so Verify must accept every one of them with no
+// produced set -- the allow forms in verify_forms.go mirror the gate's.
+//
+// A recorded cassette (named recorded-*.json and carrying
+// pseudonym_key_fingerprint) is skipped:
+// Verify admits a 0000xxxxxxxx pseudonym only when this run produced it, and
+// that set exists only at record time. Such a file was Verify-checked with
+// its produced set before the recorder wrote it, and the gate
+// (scripts/verify-cassette-author.sh) scans it at commit time.
 func TestVerifyAgreesWithGateOnCommittedCorpus(t *testing.T) {
+	checked := 0
 	for _, path := range committedCassettes(t) {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		var header struct {
+			PseudonymKeyFingerprint string `json:"pseudonym_key_fingerprint"`
+		}
+		// Both markers are required, so a hand-authored cassette that merely
+		// sets the field cannot leave the agreement check.
+		if err := json.Unmarshal(raw, &header); err == nil && header.PseudonymKeyFingerprint != "" &&
+			strings.HasPrefix(filepath.Base(path), "recorded-") {
+			continue
+		}
+		checked++
 		if err := recordpseudo.Verify(raw, recordpseudo.Set{}); err != nil {
 			t.Errorf("%s: %v", path, err)
 		}
+	}
+	if checked == 0 {
+		t.Fatal("no hand-authored cassette was checked; the agreement proof is vacuous")
 	}
 }
 
