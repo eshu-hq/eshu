@@ -311,7 +311,7 @@ func buildOutgoingKustomizeRelationships(
 
 // K8s SELECTS relationship building (buildOutgoingK8sSelectRelationships,
 // buildIncomingK8sSelectRelationships, fetchK8sResourceCandidates,
-// logK8sSelectMixedVintageDrop, isK8sResourceKind, k8sNamespace) lives in
+// logK8sSelectMixedVintageDrop, isK8sResourceKind) lives in
 // content_relationships_k8s.go to keep this file under the repo's 500-line
 // package-file cap.
 

@@ -260,13 +260,13 @@ func LogSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, service
 	)
 }
 
-// SelectMatchInputFromRow adapts a flattened map[string]any row (the
-// shape used by impact/trace_deployment_k8s_select.go and its resource
-// builders)
+// SelectMatchInputFromRow adapts a flattened map[string]any row (the shape
+// used by impact/trace_deployment_k8s_select.go and its resource builders)
 // into SelectMatchInput. Presence of the "selector"/"pod_template_labels"
 // keys in the row carries the same tri-state meaning as the metadata map
-// keys on querycontract.EntityContent -- callers that build these rows must omit the key
-// entirely rather than set it to a zero value when the source data lacks it.
+// keys on querycontract.EntityContent -- callers that build these rows must
+// omit the key entirely rather than set it to a zero value when the source
+// data lacks it.
 func SelectMatchInputFromRow(row map[string]any) SelectMatchInput {
 	selector, selectorPresent := row["selector"].(string)
 	podTemplateLabels, podTemplateLabelsPresent := row["pod_template_labels"].(string)

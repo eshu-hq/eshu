@@ -61,7 +61,8 @@ func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) kubernetes.SelectMat
 // (kubernetes.SelectMatchInputFromEntity). A present-but-null or non-string value is
 // treated as absent by both paths, preserving the tri-state the matcher's
 // anti-false-positive-masking logic depends on. namespace is trimmed in Go to
-// mirror k8sNamespace exactly (namespace equality is a correctness gate).
+// mirror kubernetes.Namespace exactly (namespace equality is a correctness
+// gate).
 //
 // There is intentionally no SQL kind filter: candidacy (kind == "Service") is
 // decided in Go by the caller. #5490 measured a SQL-level

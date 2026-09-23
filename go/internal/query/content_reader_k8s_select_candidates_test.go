@@ -13,7 +13,8 @@ import (
 
 // TestContentReaderListRepoK8sSelectCandidatesScansTriState proves the narrow
 // projection scan maps its eight positional columns into K8sSelectCandidate
-// correctly: the namespace text is trimmed to mirror k8sNamespace, and the
+// correctly: the namespace text is trimmed to mirror kubernetes.Namespace,
+// and the
 // jsonb_typeof presence booleans drive SelectorPresent / PodTemplateLabelsPresent
 // independently of the (possibly empty) value column, preserving the tri-state
 // the matcher depends on. Converting through matchInput yields the same
