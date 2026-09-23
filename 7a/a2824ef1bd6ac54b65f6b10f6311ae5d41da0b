@@ -1,0 +1,304 @@
+go/internal/query/entity/live_schema_helper_test.go
+  h_78a442cba0b3e6 30,48
+go/internal/query/impact/deployment/live_evidence_store_declared.go
+  h_78a442cba0b3e6 4
+go/internal/query/repository/nornicdb_deployment_evidence_anchor_live_test.go
+  h_78a442cba0b3e6 8,45,473
+testdata/golden/e2e-20repo-snapshot.json
+  h_78a442cba0b3e6 7684
+go/internal/query/impact/deployment/impact_anchor_resolve.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/workload_selection.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_argocd_test.go
+  h_78a442cba0b3e6 10,52
+go/internal/query/impact/path_probe_test.go
+  h_78a442cba0b3e6 14,21-22,25
+go/internal/query/service/investigation_packet.go
+  h_78a442cba0b3e6 342
+go/internal/query/neo4j.go
+  h_78a442cba0b3e6 14,140,143,148,163-164,180,185,202-203
+go/internal/query/impact/resource_investigation_test.go
+  h_78a442cba0b3e6 17,32
+go/internal/query/impact/trace_deployment_live_evidence_test.go
+  h_78a442cba0b3e6 11,19,21,24,34,46,60,99,142,158,183,188,195,201,217-218,223,381
+go/internal/queryplan/testdata/hot-cypher.yaml
+  h_78a442cba0b3e6 311,640,668
+go/internal/query/entity/service_story_determinism_test.go
+  h_78a442cba0b3e6 18,281-282,284-285,289,293,297,345,353,376,380
+go/internal/query/impact/trace_deployment.go
+  h_78a442cba0b3e6 13,118,171,188,195,330
+go/internal/query/impact/trace_deployment_flux_test.go
+  h_78a442cba0b3e6 10,51,53,117,119
+go/internal/query/impact/trace_deployment_live_evidence_declared_test.go
+  h_78a442cba0b3e6 9,50,80,118
+go/internal/query/impact/deployment/impact_access_filter.go
+  h_78a442cba0b3e6 4,77
+go/internal/query/impact/AGENTS.md
+  h_78a442cba0b3e6 16,31,41
+docs/public/languages/kubernetes.md
+  h_78a442cba0b3e6 25
+go/internal/query/impact/trace_deployment_live_evidence.go
+  h_78a442cba0b3e6 29,75,110
+go/internal/query/impact/trace_deployment_live_evidence_count.go
+  h_78a442cba0b3e6 28,111,142
+go/internal/query/impact/deployment/flux_bindings_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/querytestutil/dossier.go
+  h_78a442cba0b3e6 9
+go/internal/query/gitops_signal_flux_surface_test.go
+  h_78a442cba0b3e6 9,54,57,63,71
+go/internal/query/impact/trace_deployment_k8s_select.go
+  h_78a442cba0b3e6 13,73
+go/internal/query/cloud_resource_forwarders.go
+  h_78a442cba0b3e6 9,12,14,17-19,28,37,47,56,65,69
+go/internal/query/impact/handler.go
+  h_78a442cba0b3e6 12,46,152,257
+go/internal/query/impact/deployment/live_evidence_identity.go
+  h_78a442cba0b3e6 4
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  h_78a442cba0b3e6 17,20,24,183,327-328,360-361,367,385-386
+go/internal/query/impact/deployment/cloud_resource_candidates.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/response.go
+  h_78a442cba0b3e6 4
+go/internal/query/service/query_enrichment.go
+  h_78a442cba0b3e6 12,142-143,155,160,168-169,217,227,247,264,282
+go/internal/query/impact_anchor_resolve_live_test.go
+  h_78a442cba0b3e6 17,74
+go/internal/query/impact/deployment/workload_selection_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_config_bounds_test.go
+  h_78a442cba0b3e6 15,23-24
+go/internal/query/service/deployment_trace_truncation_disclosure_test.go
+  h_78a442cba0b3e6 11,17,49,51,79,81,179,182,191,194,198,207,210,214,223,228,232,348,359,363,368-370,373,378,385-386,394,410,414-415,419-420,425,430,457,462,481,486
+go/internal/query/impact/deployment/terraform_relationships.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/enrichment_support.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/flux_targets.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/change_surface_traversal.go
+  h_78a442cba0b3e6 12,233
+go/internal/query/impact/trace_deployment_k8s_tristate_test.go
+  h_78a442cba0b3e6 10,31,119,167
+go/internal/query/impact/deployment/workload_selection_bound_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/family_impact_shim.go
+  h_78a442cba0b3e6 11,17,52,57
+go/internal/query/service/evidence_file_bound_test.go
+  h_78a442cba0b3e6 17,147,151,156,185,190,193,196,201,251
+go/internal/query/impact_trace_deployment_topology_response_test.go
+  h_78a442cba0b3e6 9,15,66
+go/internal/query/service_alias.go
+  h_78a442cba0b3e6 9,16,199,201,205,212,218
+go/internal/query/service/contract_helpers.go
+  h_78a442cba0b3e6 9,85
+go/internal/query/impact_trace_deployment_adapter_test.go
+  h_78a442cba0b3e6 17,28,277
+go/internal/query/impact/deployment_config_influence_limits.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact_trace_deployment_flux_bindings_live_test.go
+  h_78a442cba0b3e6 14,107,111,118,127-128,148
+go/internal/query/impact_trace_deployment_live_evidence_store_test.go
+  h_78a442cba0b3e6 13,19,30,38-39,71-72,84-85,99,110,139,162,178,181-182,192,199,209-210,228-229,245-246,272,309
+go/internal/query/deployment_trace_delivery_paths_test.go
+  h_78a442cba0b3e6 9,15,72
+go/internal/query/impact/deployment/consumer_search.go
+  h_78a442cba0b3e6 4
+go/internal/telemetry/instruments.go
+  h_78a442cba0b3e6 759
+go/internal/query/impact/blast_radius.go
+  h_78a442cba0b3e6 11,366
+go/internal/query/service/story_dossier.go
+  h_78a442cba0b3e6 268,271
+go/internal/query/impact/trace_deployment_controllers.go
+  h_78a442cba0b3e6 12,24,32,87,138,140-141
+go/internal/query/impact/trace_deployment_live_evidence_count_test.go
+  h_78a442cba0b3e6 11,27-28,30,34,42,49-50,55,63,71,165,195,230,268,273,302,329,362,368,390,412,421,423,426
+docs/public/reference/nornicdb-query-pitfalls.md
+  h_78a442cba0b3e6 703
+go/internal/query/impact/deployment/live_evidence_store.go
+  h_78a442cba0b3e6 4
+go/internal/query/auth_scoped_routes_impact.go
+  h_78a442cba0b3e6 38
+go/internal/query/content_relationships.go
+  h_78a442cba0b3e6 12,76
+docs/public/languages/argocd.md
+  h_78a442cba0b3e6 30
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 159-168
+go/internal/query/entity/scoped_grant_telemetry_test.go
+  h_78a442cba0b3e6 27
+go/internal/query/impact/deployment/scoped_grant_telemetry.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/scoped_selector_live_test.go
+  h_78a442cba0b3e6 27,31,33
+go/internal/query/impact/deployment/gitops_helpers.go
+  h_78a442cba0b3e6 4,20-21
+go/internal/query/impact_trace_deployment_live_evidence_store_declared_test.go
+  h_78a442cba0b3e6 13,24,37,42-43,52-53,63,81,84-85,95,102,116,121-122,128,133,138,155-157,174-176,199-200,234-235,254-256,277-278,321-323
+go/internal/query/impact/deployment/flux_bindings.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_oci.go
+  h_78a442cba0b3e6 12,17,391
+go/internal/query/impact/trace_deployment_oci_test.go
+  h_78a442cba0b3e6 13,269
+go/internal/query/impact/deployment/lineage_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/entity/workload_provisioned_platform_contract_test.go
+  h_78a442cba0b3e6 19,218
+go/internal/query/impact/deployment/cloud_resource_dependencies_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/scoped_selector_bound_live_test.go
+  h_78a442cba0b3e6 6
+go/internal/query/impact/deployment/delivery_paths_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/service_query_enrichment_provisioning_leak_test.go
+  h_78a442cba0b3e6 19
+go/internal/query/graph_read_error_impact_test.go
+  h_78a442cba0b3e6 135
+go/internal/query/impact_trace_deployment_live_evidence_truncation_test.go
+  h_78a442cba0b3e6 4,15,31
+go/internal/query/impact/deployment/response_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/response_provenance_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/doc.go
+  h_78a442cba0b3e6 4,7,9
+go/internal/query/impact/resource_investigation_reads.go
+  h_78a442cba0b3e6 11,172,295
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 885
+go/internal/query/impact/deployment/delivery_paths.go
+  h_78a442cba0b3e6 4,22
+go/internal/query/querytestutil/envelope.go
+  h_78a442cba0b3e6 27,80
+go/internal/query/repository/story_deployment_evidence.go
+  h_78a442cba0b3e6 11,67,129
+go/internal/query/evidence_boundaries_test.go
+  h_78a442cba0b3e6 12,198
+go/internal/query/impact/deployment/cloud_evidence.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment_config_influence.go
+  h_78a442cba0b3e6 4,14,61,125
+go/internal/query/impact/deployment/impact_anchor_label_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/k8s.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/seam.go
+  h_78a442cba0b3e6 10,33,35,65,67,122,128,136,147,223,227
+go/internal/query/impact/deployment/gitops_helpers_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/story_facts.go
+  h_78a442cba0b3e6 4,16
+go/internal/query/impact/deployment/consumer_search_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/querytestutil/patternconsumersearchcontentstore.go
+  h_78a442cba0b3e6 16
+go/internal/query/impact/contract.go
+  h_78a442cba0b3e6 14,163
+go/internal/query/service/contract_helpers_test.go
+  h_78a442cba0b3e6 10,287
+go/internal/query/impact/deployment/story_helpers.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/live_evidence_identity_declared_test.go
+  h_78a442cba0b3e6 4
+specs/live-tests.v1.yaml
+  h_78a442cba0b3e6 396,400
+go/internal/query/impact/deployment/scoped_grant_telemetry_test.go
+  h_78a442cba0b3e6 4,34
+go/internal/query/impact_seam_export_test.go
+  h_78a442cba0b3e6 13,52-53,105-106,110,112,116,118,143,158-159
+go/internal/query/impact/deployment/story_summary.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/hostnames.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/flux_targets_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/live_evidence_identity_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_k8s_select_widening_test.go
+  h_78a442cba0b3e6 13,111,118,132,148,157,163,176,183,192,205,208,249,267,274,292,297,305,320,330
+go/internal/query/impact/trace_deployment_sources.go
+  h_78a442cba0b3e6 11,66,71
+go/internal/query/impact/deployment/cloud_resource_dependencies.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_live_evidence_count_truncation_test.go
+  h_78a442cba0b3e6 16,21,26-27,29,48,75,107,112,162,164,167
+go/internal/query/impact/trace_deployment_enrichment_test.go
+  h_78a442cba0b3e6 11,18,114,203,300
+go/internal/query/queryplan_legacy_production_binding_test.go
+  h_78a442cba0b3e6 21,274
+go/internal/query/impact/deployment/k8s_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/service/query_truncation_wiring_test.go
+  h_78a442cba0b3e6 23,78,220
+go/internal/query/family_impact_path_probe_adapter.go
+  h_78a442cba0b3e6 10,19,35-36,41,46
+go/internal/query/impact/doc.go
+  h_78a442cba0b3e6 8
+go/internal/query/impact_anchor_label_test.go
+  h_78a442cba0b3e6 9,19,55
+go/internal/query/impact/deployment/workload_selection_grant_test.go
+  h_78a442cba0b3e6 4
+docs/internal/evidence/6818-query-package-moves.md
+  h_78a442cba0b3e6 165-266
+go/internal/query/impact_trace_runtime_provenance_test.go
+  h_78a442cba0b3e6 11,32,44
+go/internal/query/family_impact_trace_deployment.go
+  h_78a442cba0b3e6 13,68
+go/internal/query/deployment_trace_support_helpers.go
+  h_78a442cba0b3e6 9,20,23,52,56,105,109,114,122,127,141,146,149
+go/internal/query/impact/deployment/enrichment.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/impact_anchor_label.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/lineage.go
+  h_78a442cba0b3e6 4
+specs/language-feature-parity-ledger.v1.yaml
+  h_78a442cba0b3e6 113
+go/internal/query/impact/deployment/grant_cap_telemetry_test.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/deployment/live_evidence_identity_declared.go
+  h_78a442cba0b3e6 4
+go/internal/query/impact/trace_deployment_resources.go
+  h_78a442cba0b3e6 12,89,228,301
+go/internal/query/impact/trace_deployment_k8s_limits_test.go
+  h_78a442cba0b3e6 11,227,233
+go/internal/query/impact/candidate_access_filter.go
+  h_78a442cba0b3e6 7,14-17,35,54
+go/internal/query/impact/README.md
+  h_78a442cba0b3e6 17-18,51,183
+go/internal/query/impact/deployment/AGENTS.md
+  h_78a442cba0b3e6 1,17,24
+go/internal/query/impact/deployment/README.md
+  h_78a442cba0b3e6 5,15
+go/internal/query/querycontract/README.md
+  h_78a442cba0b3e6 39,67,78
+go/internal/query/querycontract/kubernetes/README.md
+  h_78a442cba0b3e6 9,35-36
+go/internal/query/repository/README.md
+  h_78a442cba0b3e6 97
+go/internal/query/repository/readmodel/AGENTS.md
+  h_78a442cba0b3e6 20
+go/internal/query/service/AGENTS.md
+  h_78a442cba0b3e6 15
+go/internal/query/service/README.md
+  h_78a442cba0b3e6 32,57
+go/internal/telemetry/README.md
+  h_78a442cba0b3e6 288
+specs/evidence-continuity.v1.yaml
+  h_78a442cba0b3e6 41,43,49,51-52,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7aa2824ef1bd6ac54b65f6b10f6311ae5d41da0b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
