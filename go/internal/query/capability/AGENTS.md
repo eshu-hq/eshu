@@ -1,11 +1,24 @@
 # capability — scoped agent instructions
 
-## Do not import query/contract from here
+## Keep the blank query/contract import in lookup.go
 
-The capability rows in `go/internal/query/contract` register themselves at
-init time and depend on shared contract types this package also uses. An
-import edge from here to there cycles. Read the registry through
-`querycontract.CompatibilityCapabilityMatrix` instead.
+`lookup.go` imports `go/internal/query/contract` blank. It is load-bearing:
+the capability rows register themselves from that package's `init()`s, and
+this import is the only thing that links them into a binary. Nothing fails to
+compile without it -- measured: `go build ./internal/query/capability/` still
+exits 0. What breaks is the first request, at run time:
+`querycontract.BuildTruthEnvelope` panics with
+`query capability "capability_catalog.list" missing from capability matrix`,
+which `TestHandlerListServesCatalogAtItsOwnRoute` catches.
+
+It is a blank import and must stay one. Read the assembled registry through
+`querycontract.CompatibilityCapabilityMatrix`, never by naming a `contract`
+symbol: the registry is the seam, and a symbol reference would put this
+package's read path on registration's internals.
+
+There is no cycle in either direction -- nothing under `contract/` or
+`querycontract/` imports this package. Check before claiming otherwise:
+`go list -deps ./internal/query/contract/ | grep query/capability` is empty.
 
 ## Registration belongs to contract, not here
 

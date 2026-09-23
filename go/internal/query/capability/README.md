@@ -16,18 +16,23 @@ each one reaches at a given profile.
 ## What it does not own
 
 Capability **registration**. The `register` function, the per-capability rows,
-and the support matrix live in `go/internal/query/contract`. This package
-reads the resulting registry through
-`querycontract.CompatibilityCapabilityMatrix`; importing `query/contract`
-directly would create a cycle, because those rows depend on the shared
-contract types this package also uses.
+and the support matrix live in `go/internal/query/contract`. Those rows add
+themselves to the registry from their own `init()`s, so `lookup.go` imports
+that package blank -- for the linkage, not for any symbol -- and then reads
+the assembled registry back through
+`querycontract.CompatibilityCapabilityMatrix`. Nothing under `contract/` or
+`querycontract/` imports this package, so the edge runs one way.
 
 Root's `capability_keys.go` likewise stays in `package query`: those five ids
 are named by root's own routes, not by this handler.
 
 ## Dependencies and telemetry
 
-Depends only on `query/querycontract` for HTTP, profile, and truth-envelope
-primitives, and on `query/queryauth` for permission checks. It adds no span,
-metric, or log of its own; its reads are served from an in-memory registry
-with no backend call, so there is nothing to time.
+Three imports, all one-way: `query/querycontract` for HTTP, profile,
+pagination, and truth-envelope primitives; `capabilitycatalog` for the `Entry`,
+`Maturity`, and `Surface` shapes the full view serializes; and a blank
+`query/contract` for registration linkage. Verify with
+`go list -f '{{range .Imports}}{{.}}\n{{end}}' ./internal/query/capability/`.
+
+It adds no span, metric, or log of its own; its reads are served from an
+in-memory registry with no backend call, so there is nothing to time.

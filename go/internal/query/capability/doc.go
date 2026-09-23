@@ -7,9 +7,10 @@
 //
 // Handler mounts GET /api/v0/capabilities and the MCP get_capability_catalog
 // tool. It answers from the live registry that query/contract populates
-// through init-time registration, reached here via
-// querycontract.CompatibilityCapabilityMatrix rather than by importing
-// query/contract, which would cycle.
+// through init-time registration. lookup.go imports query/contract blank to
+// link those registrations in; the rows themselves are read back through
+// querycontract.CompatibilityCapabilityMatrix, so no contract symbol is
+// named here.
 //
 // This package deliberately does NOT own capability registration. Every
 // capability row, the register function that records it, and the support
