@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -62,7 +64,7 @@ func deriveVisualizationPacket(req visualizationDeriveRequest) (Packet, error) {
 		}
 		return BuildServiceStoryPacket(source, req.SourceTruth), nil
 	case ViewEvidenceCitation:
-		var source querycontract.EvidenceCitationResponse
+		var source evidence.EvidenceCitationResponse
 		if err := decodeVisualizationSource(req.SourceResponse, &source); err != nil {
 			return Packet{}, err
 		}

@@ -6,6 +6,8 @@ package visualization
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -84,7 +86,7 @@ func addServiceStoryServiceNode(builder *visualizationBuilder, identity map[stri
 		Role:     "workload",
 	}
 	if repoID != "" {
-		node.EvidenceHandle = &querycontract.EvidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
+		node.EvidenceHandle = &evidence.EvidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
 	}
 	builder.AddNode(node)
 	return nodeID
@@ -241,7 +243,7 @@ func serviceStoryVisualizationNodeID(kind, rawID, canonicalKey string) string {
 	return visualizationNodeID(kind, identity)
 }
 
-func serviceStoryEvidenceHandle(kind, id, repoID string) *querycontract.EvidenceCitationHandle {
+func serviceStoryEvidenceHandle(kind, id, repoID string) *evidence.EvidenceCitationHandle {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil
@@ -249,7 +251,7 @@ func serviceStoryEvidenceHandle(kind, id, repoID string) *querycontract.Evidence
 	if kind == "repository" || kind == "service" {
 		return serviceStoryRepoHandle(kind, id)
 	}
-	return &querycontract.EvidenceCitationHandle{
+	return &evidence.EvidenceCitationHandle{
 		Kind:           "entity",
 		RepoID:         strings.TrimSpace(repoID),
 		EntityID:       id,
@@ -264,12 +266,12 @@ func serviceStoryDownstreamTruncated(downstream map[string]any) bool {
 // serviceStoryRepoHandle returns an evidence_citation handle for a repository or
 // service node, so a rendered node maps back to the citation handle shape. It is
 // derived only from the node id already present in the response.
-func serviceStoryRepoHandle(kind, id string) *querycontract.EvidenceCitationHandle {
+func serviceStoryRepoHandle(kind, id string) *evidence.EvidenceCitationHandle {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil
 	}
-	return &querycontract.EvidenceCitationHandle{Kind: "entity", RepoID: id, EntityID: id, EvidenceFamily: kind}
+	return &evidence.EvidenceCitationHandle{Kind: "entity", RepoID: id, EntityID: id, EvidenceFamily: kind}
 }
 
 // serviceStoryConfidenceLabel folds a relationship confidence into a truth-style

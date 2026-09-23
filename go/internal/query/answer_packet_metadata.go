@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // attachPreChangeImpactPacket attaches the pre-change answer packet to an
@@ -72,13 +73,13 @@ func NewAnswerPacketFromMetadata(in AnswerPacketInput, metadata AnswerMetadata) 
 	return NewAnswerPacket(in)
 }
 
-func citationHandlesFromMetadata(rows []map[string]any) []evidenceCitationHandle {
+func citationHandlesFromMetadata(rows []map[string]any) []evidence.EvidenceCitationHandle {
 	if len(rows) == 0 {
 		return nil
 	}
-	handles := make([]evidenceCitationHandle, 0, len(rows))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(rows))
 	for _, row := range rows {
-		handle := evidenceCitationHandle{
+		handle := evidence.EvidenceCitationHandle{
 			Kind:           StringVal(row, "kind"),
 			RepoID:         StringVal(row, "repo_id"),
 			RelativePath:   StringVal(row, "relative_path"),
@@ -103,13 +104,13 @@ func citationHandlesFromMetadata(rows []map[string]any) []evidenceCitationHandle
 	return handles
 }
 
-func missingCitationHandlesFromMetadata(rows []map[string]any) []evidenceCitationHandle {
+func missingCitationHandlesFromMetadata(rows []map[string]any) []evidence.EvidenceCitationHandle {
 	if len(rows) == 0 {
 		return nil
 	}
-	handles := make([]evidenceCitationHandle, 0, len(rows))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(rows))
 	for _, row := range rows {
-		handle := evidenceCitationHandle{
+		handle := evidence.EvidenceCitationHandle{
 			Kind:           StringVal(row, "kind"),
 			RepoID:         StringVal(row, "repo_id"),
 			RelativePath:   StringVal(row, "relative_path"),

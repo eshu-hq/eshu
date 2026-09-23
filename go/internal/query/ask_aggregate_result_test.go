@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 const indexedRepositoriesResultRef = "eshu://api-result/repositories"
@@ -180,7 +182,7 @@ func multiPacketExactIndexedRepositoriesAnswer(total int64) AskAnswer {
 				ResultRef:       "eshu://api-result/collectors",
 				Result:          map[string]any{"count": int64(12)},
 				CitationRef:     "eshu://citations/unrelated",
-				EvidenceHandles: []evidenceCitationHandle{{Kind: "entity", EntityID: "unrelated"}},
+				EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "entity", EntityID: "unrelated"}},
 			},
 			{
 				PrimaryTool:     indexedRepositoryInventoryToolForTest,
@@ -190,7 +192,7 @@ func multiPacketExactIndexedRepositoriesAnswer(total int64) AskAnswer {
 				ResultRef:       indexedRepositoriesResultRef,
 				Result:          map[string]any{"total": total},
 				CitationRef:     "eshu://citations/repository-inventory",
-				EvidenceHandles: []evidenceCitationHandle{{Kind: "repository", RepoID: "repository-inventory"}},
+				EvidenceHandles: []evidence.EvidenceCitationHandle{{Kind: "repository", RepoID: "repository-inventory"}},
 			},
 		},
 		Trace: []AskTraceEntry{

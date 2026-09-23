@@ -3,6 +3,8 @@
 
 package query
 
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 // InvestigationEvidencePacketSchema is the stable schema identifier for the
 // portable, source-backed investigation evidence packet (packet v2). The "v2"
 // distinguishes this layered, portable artifact from the v1 answer-facing
@@ -168,7 +170,7 @@ type PacketSourceFact struct {
 	Summary string `json:"summary,omitempty"`
 	// Citation is an optional addressable handle into the underlying evidence,
 	// in the evidence-citation handle shape.
-	Citation *evidenceCitationHandle `json:"citation,omitempty"`
+	Citation *evidence.EvidenceCitationHandle `json:"citation,omitempty"`
 }
 
 // PacketReducerDecision is one entry in the reducer-decision layer: a
@@ -361,7 +363,7 @@ type InvestigationEvidencePacket struct {
 	// GraphAnswers is the graph/query-truth layer.
 	GraphAnswers []PacketGraphAnswer `json:"graph_answers"`
 	// Citations is the addressable-evidence layer, in the citation handle shape.
-	Citations []evidenceCitationHandle `json:"citations"`
+	Citations []evidence.EvidenceCitationHandle `json:"citations"`
 	// MissingEvidence is the explicit missing-hop layer.
 	MissingEvidence []PacketMissingHop `json:"missing_evidence"`
 	// SemanticObservations is the optional, policy-gated semantic layer.

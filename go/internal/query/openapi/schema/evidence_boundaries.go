@@ -4,8 +4,9 @@
 package schema
 
 // EvidenceBoundaries is the shared OpenAPI schema fragment for
-// the evidence_boundaries response field emitted by attachEvidenceBoundaries
-// (evidence_boundaries.go). Field names match the PostgresOnlyBoundary struct
+// the evidence_boundaries response field emitted by evidence.AttachEvidenceBoundaries
+// (querycontract/evidence/boundaries.go). Field names match the
+// evidence.PostgresOnlyBoundary struct
 // tags exactly (domain, read_surface, reason) so the documented contract
 // stays in lockstep with the Go type actually serialized onto the wire.
 const EvidenceBoundaries = `{

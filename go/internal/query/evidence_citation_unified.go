@@ -7,14 +7,10 @@ import (
 	"math"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
-
-// evidenceCitationProvenance aliases querycontract.EvidenceCitationProvenance
-// (moved for #6642); it is the wire shape of the canonical truth.Provenance
-// carried on every citation (issue #3489).
-type evidenceCitationProvenance = querycontract.EvidenceCitationProvenance
 
 // excerptByteWindow locates the byte offset and length of an excerpt inside the
 // original content. boundedLineExcerpt drops a single trailing newline before
@@ -60,21 +56,21 @@ func normalizeCitationConfidence(c float64) float64 {
 // citationProvenance builds the typed provenance for a content-hydrated
 // citation. Citations always read indexed source content, so the basis is
 // source_content; the rationale carries the handle reason.
-func citationProvenance(reason string) evidenceCitationProvenance {
-	return evidenceCitationProvenance{
+func citationProvenance(reason string) evidence.EvidenceCitationProvenance {
+	return evidence.EvidenceCitationProvenance{
 		Basis:     string(truth.ProvenanceBasisSourceContent),
 		Rationale: strings.TrimSpace(reason),
 		Source:    "postgres_content_store",
 	}
 }
 
-// citationToCanonical projects one wire evidenceCitation into the unified
+// citationToCanonical projects one wire evidence.EvidenceCitation into the unified
 // truth.Evidence record, proving the citation packet carries BOTH confidence
 // and a byte-level citation under one contract (issue #3489). It is a free
-// function rather than a method because evidenceCitation is now an alias of
-// querycontract.EvidenceCitation (#6642) and an alias cannot carry methods
-// declared in another package.
-func citationToCanonical(c evidenceCitation) truth.Evidence {
+// function rather than a method because EvidenceCitation is declared in
+// querycontract/evidence (#6597), and Go cannot add methods to a type from
+// another package.
+func citationToCanonical(c evidence.EvidenceCitation) truth.Evidence {
 	basis := truth.ProvenanceBasis(c.Provenance.Basis)
 	if basis.Validate() != nil {
 		basis = truth.ProvenanceBasisSourceContent

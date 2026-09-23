@@ -6,6 +6,8 @@ package visualization
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -17,7 +19,7 @@ import (
 // the citation handle shape. The citation packet has no relationships, so the
 // packet carries nodes with no synthetic edges. The builder reads only the
 // citations the response already resolved and never re-queries content.
-func BuildEvidenceCitationPacket(response querycontract.EvidenceCitationResponse, truth *querycontract.TruthEnvelope) Packet {
+func BuildEvidenceCitationPacket(response evidence.EvidenceCitationResponse, truth *querycontract.TruthEnvelope) Packet {
 	if len(response.Citations) == 0 {
 		return unsupportedVisualizationPacket(
 			ViewEvidenceCitation,
@@ -59,7 +61,7 @@ func BuildEvidenceCitationPacket(response querycontract.EvidenceCitationResponse
 // citationVisualizationIdentity returns the stable identity anchor and a default
 // evidence family for one citation. The anchor prefers the entity id, then
 // repo_id+relative_path, so equal citations always yield the same node ID.
-func citationVisualizationIdentity(citation querycontract.EvidenceCitation) (string, string) {
+func citationVisualizationIdentity(citation evidence.EvidenceCitation) (string, string) {
 	if entity := strings.TrimSpace(citation.EntityID); entity != "" {
 		return "entity\x00" + entity, "source"
 	}
@@ -71,15 +73,15 @@ func citationVisualizationIdentity(citation querycontract.EvidenceCitation) (str
 	return "", ""
 }
 
-func citationVisualizationLabel(citation querycontract.EvidenceCitation) string {
+func citationVisualizationLabel(citation evidence.EvidenceCitation) string {
 	return querycontract.FirstNonEmptyString(citation.EntityName, citation.RelativePath, citation.EntityID, citation.CitationID)
 }
 
 // citationVisualizationHandle rebuilds the evidence_citation handle for a
 // citation node from fields the citation already carried, so a node maps back to
 // a citation handle without inventing new fields.
-func citationVisualizationHandle(citation querycontract.EvidenceCitation) *querycontract.EvidenceCitationHandle {
-	handle := &querycontract.EvidenceCitationHandle{
+func citationVisualizationHandle(citation evidence.EvidenceCitation) *evidence.EvidenceCitationHandle {
+	handle := &evidence.EvidenceCitationHandle{
 		Kind:           citation.Kind,
 		RepoID:         citation.RepoID,
 		RelativePath:   citation.RelativePath,
@@ -92,7 +94,7 @@ func citationVisualizationHandle(citation querycontract.EvidenceCitation) *query
 	return handle
 }
 
-func evidenceCitationVisualizationNextCalls(response querycontract.EvidenceCitationResponse) []map[string]any {
+func evidenceCitationVisualizationNextCalls(response evidence.EvidenceCitationResponse) []map[string]any {
 	if len(response.RecommendedNextCalls) > 0 {
 		return response.RecommendedNextCalls
 	}

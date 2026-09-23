@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package evidence
 
 // EvidenceCitationResponse is the wire shape of an evidence-citation packet:
 // the citations resolved for the caller's handles, the handles that resolved
@@ -13,9 +13,9 @@ package querycontract
 // the visualization and evidence family moves) alongside
 // EvidenceCitationHandle, which moved for the same reason under #6060: the
 // visualization, answer, ask, and investigation families all read them, and a
-// handler-family subpackage cannot import root. Root keeps unexported type
-// aliases at the original declaration sites, so every existing root caller
-// compiles unchanged; every field and JSON tag is unchanged.
+// handler-family subpackage cannot import root. #6597 moved them into this
+// leaf and deleted root's #6060 aliases; every field and JSON tag is
+// unchanged.
 type EvidenceCitationResponse struct {
 	Subject              map[string]any           `json:"subject,omitempty"`
 	Question             string                   `json:"question,omitempty"`

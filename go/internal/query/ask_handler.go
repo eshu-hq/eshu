@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/ask/facet"
 	"github.com/eshu-hq/eshu/go/internal/ask/render"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
@@ -162,9 +164,9 @@ type askResponse struct {
 	TruthClass  string        `json:"truth_class,omitempty"`
 	// ResultRef references the primary packet's canonical API result. Result is
 	// the packet's bounded embedded projection of that result.
-	ResultRef       string                   `json:"result_ref,omitempty"`
-	Result          any                      `json:"result,omitempty"`
-	EvidenceHandles []evidenceCitationHandle `json:"evidence_handles,omitempty"`
+	ResultRef       string                            `json:"result_ref,omitempty"`
+	Result          any                               `json:"result,omitempty"`
+	EvidenceHandles []evidence.EvidenceCitationHandle `json:"evidence_handles,omitempty"`
 	// CitationRef references the citation packet that hydrates the primary
 	// packet's evidence handles. It is the packet-level citation coverage for the
 	// answer prose when individual EvidenceHandles are not inlined, and is the

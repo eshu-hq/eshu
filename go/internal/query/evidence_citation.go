@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -25,30 +27,11 @@ const (
 )
 
 type evidenceCitationRequest struct {
-	Subject  map[string]any           `json:"subject,omitempty"`
-	Question string                   `json:"question,omitempty"`
-	Handles  []evidenceCitationHandle `json:"handles"`
-	Limit    int                      `json:"limit,omitempty"`
+	Subject  map[string]any                    `json:"subject,omitempty"`
+	Question string                            `json:"question,omitempty"`
+	Handles  []evidence.EvidenceCitationHandle `json:"handles"`
+	Limit    int                               `json:"limit,omitempty"`
 }
-
-// evidenceCitationHandle aliases querycontract.EvidenceCitationHandle, which
-// this type moved to (#6060) alongside the visualization-packet builder, so a
-// handler-family subpackage can build a VisualizationPacket without importing
-// this package. Every field stays exported and unchanged.
-type evidenceCitationHandle = querycontract.EvidenceCitationHandle
-
-// evidenceCitationResponse aliases querycontract.EvidenceCitationResponse,
-// which this type moved to (#6642) with evidenceCitation and
-// evidenceCitationCoverage so the visualization and evidence families can
-// build citation packets without importing this package.
-type evidenceCitationResponse = querycontract.EvidenceCitationResponse
-
-// evidenceCitation aliases querycontract.EvidenceCitation (moved for #6642).
-type evidenceCitation = querycontract.EvidenceCitation
-
-// evidenceCitationCoverage aliases querycontract.EvidenceCitationCoverage
-// (moved for #6642).
-type evidenceCitationCoverage = querycontract.EvidenceCitationCoverage
 
 type evidenceCitationFileLookup struct {
 	RepoID       string
@@ -59,10 +42,6 @@ type evidenceCitationFileKey struct {
 	repoID       string
 	relativePath string
 }
-
-// evidenceCitationHandleKey aliases querycontract.EvidenceCitationHandleKey,
-// which moved alongside evidenceCitationHandle (#6060).
-type evidenceCitationHandleKey = querycontract.EvidenceCitationHandleKey
 
 type evidenceCitationFileStore interface {
 	EvidenceCitationFiles(context.Context, []evidenceCitationFileLookup) (map[evidenceCitationFileKey]FileContent, error)
@@ -104,8 +83,8 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 		return
 	}
 
-	citations := make([]evidenceCitation, 0, len(handles))
-	missing := make([]evidenceCitationHandle, 0)
+	citations := make([]evidence.EvidenceCitation, 0, len(handles))
+	missing := make([]evidence.EvidenceCitationHandle, 0)
 	for _, handle := range handles {
 		switch handle.Kind {
 		case "file":
@@ -125,12 +104,12 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 		}
 	}
 
-	response := evidenceCitationResponse{
+	response := evidence.EvidenceCitationResponse{
 		Subject:        req.Subject,
 		Question:       strings.TrimSpace(req.Question),
 		Citations:      citations,
 		MissingHandles: missing,
-		Coverage: evidenceCitationCoverage{
+		Coverage: evidence.EvidenceCitationCoverage{
 			QueryShape:       "bounded_evidence_citation_packet",
 			InputHandleCount: len(req.Handles),
 			ResolvedCount:    len(citations),
@@ -152,7 +131,7 @@ func (h *EvidenceHandler) buildEvidenceCitations(w http.ResponseWriter, r *http.
 
 func normalizeEvidenceCitationRequest(
 	req evidenceCitationRequest,
-) ([]evidenceCitationHandle, int, bool, error) {
+) ([]evidence.EvidenceCitationHandle, int, bool, error) {
 	limit := req.Limit
 	if limit <= 0 {
 		limit = evidenceCitationDefaultLimit
@@ -164,8 +143,8 @@ func normalizeEvidenceCitationRequest(
 		return nil, limit, false, fmt.Errorf("handles exceeds maximum of %d", evidenceCitationMaxInputHandles)
 	}
 
-	handles := make([]evidenceCitationHandle, 0, min(len(req.Handles), limit+1))
-	seen := make(map[evidenceCitationHandleKey]struct{}, min(len(req.Handles), limit+1))
+	handles := make([]evidence.EvidenceCitationHandle, 0, min(len(req.Handles), limit+1))
+	seen := make(map[evidence.EvidenceCitationHandleKey]struct{}, min(len(req.Handles), limit+1))
 	for _, handle := range req.Handles {
 		normalized, ok := normalizeEvidenceCitationHandle(handle)
 		if !ok {
@@ -187,7 +166,7 @@ func normalizeEvidenceCitationRequest(
 	return handles, limit, false, nil
 }
 
-func normalizeEvidenceCitationHandle(handle evidenceCitationHandle) (evidenceCitationHandle, bool) {
+func normalizeEvidenceCitationHandle(handle evidence.EvidenceCitationHandle) (evidence.EvidenceCitationHandle, bool) {
 	handle.Kind = strings.ToLower(strings.TrimSpace(handle.Kind))
 	handle.RepoID = strings.TrimSpace(handle.RepoID)
 	handle.RelativePath = strings.TrimSpace(filepath.ToSlash(handle.RelativePath))
@@ -207,13 +186,13 @@ func normalizeEvidenceCitationHandle(handle evidenceCitationHandle) (evidenceCit
 	case "entity":
 		return handle, handle.EntityID != ""
 	default:
-		return evidenceCitationHandle{}, false
+		return evidence.EvidenceCitationHandle{}, false
 	}
 }
 
 func (h *EvidenceHandler) evidenceCitationFileContents(
 	ctx context.Context,
-	handles []evidenceCitationHandle,
+	handles []evidence.EvidenceCitationHandle,
 ) (map[evidenceCitationFileKey]FileContent, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
@@ -258,7 +237,7 @@ func (h *EvidenceHandler) evidenceCitationFileContents(
 
 func (h *EvidenceHandler) evidenceCitationEntityContents(
 	ctx context.Context,
-	handles []evidenceCitationHandle,
+	handles []evidence.EvidenceCitationHandle,
 ) (map[string]*EntityContent, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
@@ -299,10 +278,10 @@ func filterEvidenceCitationEntitiesForAccess(
 	return filtered
 }
 
-func citationFromFile(rank int, handle evidenceCitationHandle, file FileContent) evidenceCitation {
+func citationFromFile(rank int, handle evidence.EvidenceCitationHandle, file FileContent) evidence.EvidenceCitation {
 	excerpt, startLine, endLine := boundedLineExcerpt(file.Content, handle.StartLine, handle.EndLine)
 	byteOffset, byteLength := excerptByteWindow(file.Content, startLine, excerpt)
-	return evidenceCitation{
+	return evidence.EvidenceCitation{
 		CitationID:     evidenceCitationID("file", file.RepoID, file.RelativePath, startLine, endLine),
 		Rank:           rank,
 		Kind:           "file",
@@ -324,7 +303,7 @@ func citationFromFile(rank int, handle evidenceCitationHandle, file FileContent)
 	}
 }
 
-func citationFromEntity(rank int, handle evidenceCitationHandle, entity EntityContent) evidenceCitation {
+func citationFromEntity(rank int, handle evidence.EvidenceCitationHandle, entity EntityContent) evidence.EvidenceCitation {
 	excerpt, offsetStart, offsetEnd := boundedLineExcerpt(entity.SourceCache, 1, 0)
 	byteOffset, byteLength := excerptByteWindow(entity.SourceCache, offsetStart, excerpt)
 	startLine := entity.StartLine
@@ -332,7 +311,7 @@ func citationFromEntity(rank int, handle evidenceCitationHandle, entity EntityCo
 	if excerpt != "" && startLine > 0 {
 		endLine = startLine + offsetEnd - offsetStart
 	}
-	return evidenceCitation{
+	return evidence.EvidenceCitation{
 		CitationID:     evidenceCitationID("entity", entity.EntityID, entity.RepoID, entity.RelativePath),
 		Rank:           rank,
 		Kind:           "entity",
@@ -402,7 +381,7 @@ func evidenceCitationID(parts ...any) string {
 	return "citation:" + hex.EncodeToString(hash.Sum(nil))[:16]
 }
 
-func evidenceCitationNextCalls(missing []evidenceCitationHandle, truncated bool) []map[string]any {
+func evidenceCitationNextCalls(missing []evidence.EvidenceCitationHandle, truncated bool) []map[string]any {
 	calls := make([]map[string]any, 0, 2)
 	if truncated {
 		calls = append(calls, map[string]any{

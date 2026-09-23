@@ -23,8 +23,8 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 2 | `querycontract/kubernetes` | 2 | [#6990](https://github.com/eshu-hq/eshu/pull/6990) | **merged** `a8b9da00b` | 54 |
 | 3 | `querycontract/code` | 2 | [#6998](https://github.com/eshu-hq/eshu/pull/6998) | **merged** `874012542` | 52 |
 | 4 | `querycontract/language` | 4 | — | not started | |
-| 5 | `querycontract/entity` | 3 | — | open | 49 |
-| 6 | `querycontract/evidence` | 3 | — | not started | |
+| 5 | `querycontract/entity` | 3 | [#7010](https://github.com/eshu-hq/eshu/pull/7010) | **merged** `91105376d` | 49 |
+| 6 | `querycontract/evidence` | 3 | — | open | 46 |
 | 7 | `querycontract/visualization` | 2 | — | not started | |
 | 8 | `querycontract/answer` | 3 | — | not started | |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
@@ -161,3 +161,25 @@ Why it is safe: `go vet` over every `//go:build` tag in `internal/query`,
 `go test ./internal/query/... -count=1` (54 ok),
 `go test ./internal/queryplan/... -count=1` and `verify-dirgate.sh --all` all
 exit 0.
+
+## Performance and observability evidence for the `evidence` leaf
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/evidence/`, 17 files repoint `querycontract.X` to `evidence.X`,
+root's `evidence_boundaries.go` shim is deleted, and root's six unexported
+evidence-citation aliases are removed with their callers naming `evidence.*`.
+The exported `query.EvidenceCitationHandle` in `evidence_citation_public.go`
+stays for `serviceintel` until the root drain (mapping row 294).
+The perf-evidence gate selects hot files including `repository/handler.go`;
+in each the diff changes only an import line and a package qualifier. No SQL,
+Cypher, call site, argument, allocation or loop bound changes.
+`getRepositoryStory`'s pin in
+`go/internal/queryplan/testdata/query-source-coverage.yaml` is refreshed for
+the same reason.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types and pure helpers.
+
+Why it is safe: `go vet ./internal/query/...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1` (55 ok), `verify-dirgate.sh --all` (root
+re-pinned 273 -> 272) and `verify-moved-file-refs.sh` all exit 0.

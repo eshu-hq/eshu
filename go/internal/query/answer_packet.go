@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 )
 
 // AnswerTruthClass is the prompt-facing classification of an answer's truth.
@@ -49,7 +50,7 @@ func NewAnswerPacket(in AnswerPacketInput) AnswerPacket {
 // handles, truncation, and recommended next calls onto the packet. The
 // evidence-citation shape is reused rather than duplicated. Explicit fields on
 // the input still apply; the citation-derived fields fill the evidence slots.
-func NewAnswerPacketFromCitations(in AnswerPacketInput, citation evidenceCitationResponse) AnswerPacket {
+func NewAnswerPacketFromCitations(in AnswerPacketInput, citation evidence.EvidenceCitationResponse) AnswerPacket {
 	if len(in.EvidenceHandles) == 0 {
 		in.EvidenceHandles = handlesFromCitations(citation.Citations)
 	}
@@ -98,13 +99,13 @@ func appendReason(reasons []string, reason string) []string {
 	return querycontract.AppendReason(reasons, reason)
 }
 
-func handlesFromCitations(citations []evidenceCitation) []evidenceCitationHandle {
+func handlesFromCitations(citations []evidence.EvidenceCitation) []evidence.EvidenceCitationHandle {
 	if len(citations) == 0 {
 		return nil
 	}
-	handles := make([]evidenceCitationHandle, 0, len(citations))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(citations))
 	for _, citation := range citations {
-		handles = append(handles, evidenceCitationHandle{
+		handles = append(handles, evidence.EvidenceCitationHandle{
 			Kind:           citation.Kind,
 			RepoID:         citation.RepoID,
 			RelativePath:   citation.RelativePath,

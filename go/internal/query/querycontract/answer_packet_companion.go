@@ -3,7 +3,11 @@
 
 package querycontract
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+)
 
 // AnswerPacketCompanionInput carries the composition inputs
 // WithAnswerPacketCompanion needs to attach an answer_packet field onto an
@@ -20,7 +24,7 @@ type AnswerPacketCompanionInput struct {
 	Limitations          []string
 	Truncated            bool
 	NoEvidence           bool
-	EvidenceHandles      []EvidenceCitationHandle
+	EvidenceHandles      []evidence.EvidenceCitationHandle
 	RecommendedNextCalls []map[string]any
 }
 
@@ -87,15 +91,15 @@ func CodeTopicAnswerLimitations(data map[string]any) []string {
 // code-topic investigation's evidence_groups. The implementation moved from
 // root's answer_packet_routes.go for #6060 so the code family can build the
 // same handles without importing root.
-func CodeTopicEvidenceHandles(data map[string]any) []EvidenceCitationHandle {
+func CodeTopicEvidenceHandles(data map[string]any) []evidence.EvidenceCitationHandle {
 	groups := MapSliceValue(data, "evidence_groups")
-	handles := make([]EvidenceCitationHandle, 0, len(groups))
+	handles := make([]evidence.EvidenceCitationHandle, 0, len(groups))
 	for _, group := range groups {
 		handle := MapValue(group, "source_handle")
 		if len(handle) == 0 {
 			continue
 		}
-		handles = append(handles, EvidenceCitationHandle{
+		handles = append(handles, evidence.EvidenceCitationHandle{
 			Kind:         "source",
 			RepoID:       StringVal(handle, "repo_id"),
 			RelativePath: StringVal(handle, "relative_path"),

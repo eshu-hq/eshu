@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
@@ -332,7 +334,7 @@ func TestEvidenceCitationVisualizationTruncates(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationUnsupported(t *testing.T) {
-	packet := BuildEvidenceCitationPacket(querycontract.EvidenceCitationResponse{}, querytestutil.FreshTruth())
+	packet := BuildEvidenceCitationPacket(evidence.EvidenceCitationResponse{}, querytestutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet for empty citations")
 	}

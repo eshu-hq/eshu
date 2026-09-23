@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
@@ -116,6 +118,6 @@ func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 		"result_limits":   querycontract.WorkloadContextResultLimits(ctx, workloadID, "story"),
 		"partial_reasons": querycontract.ContextPartialReasons(ctx),
 	}
-	querycontract.AttachEvidenceBoundaries(response, "get_workload_story")
+	evidence.AttachEvidenceBoundaries(response, "get_workload_story")
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, workloadContextTruthEnvelope(h.profile(), "story"))
 }
