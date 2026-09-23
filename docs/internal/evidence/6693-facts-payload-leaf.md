@@ -90,7 +90,7 @@ sibling move re-derives it), and
 `bash scripts/generate-dirgate-grandfather-go.sh` regenerates
 `tools/golangci-lint-dirgate/grandfather.go` from it.
 
-Test repoints, checked with exact-name assertions after the rebase onto `44b557438`: for `TestMarshalPayloadSanitizesForPostgresJSONB` and `BenchmarkMarshalPayloadSourceText`, `go test ./internal/storage/postgres/facts/payload/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
+Test repoints, checked with exact-name `-list` patterns: `go test ./internal/storage/postgres/facts/payload/... -list '^(TestMarshalPayloadSanitizesForPostgresJSONB|BenchmarkMarshalPayloadSourceText)$' -count=1` prints all 2 moved names (`TestMarshalPayloadSanitizesForPostgresJSONB`, `BenchmarkMarshalPayloadSourceText`), and the same `-list` pattern against `./internal/storage/postgres` prints none of them.
 
 No-Regression Evidence: this is a byte-identical move plus symbol export —
 `MarshalPayload`, `UnmarshalPayload`, `EmptyToNil`, and `EmptyToDefault`
