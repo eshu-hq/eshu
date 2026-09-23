@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/decisions"
 )
 
 // NewStore constructs an admin.Store backed by Postgres.
@@ -27,14 +28,14 @@ func NewStore(database *sql.DB) admin.Store {
 	sqlDB := pgstatus.SQLDB{DB: database}
 	return &postgresStore{
 		database:  sqlDB,
-		decisions: pgstatus.NewDecisionStore(sqlDB),
+		decisions: decisionsstore.NewDecisionStore(sqlDB),
 		now:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
 type postgresStore struct {
 	database  db.ExecQueryer
-	decisions *pgstatus.DecisionStore
+	decisions *decisionsstore.DecisionStore
 	now       func() time.Time
 }
 
@@ -265,7 +266,7 @@ WHERE 1=1
 }
 
 func (s *postgresStore) ListDecisions(ctx context.Context, f admin.DecisionQueryFilter) ([]admin.DecisionRow, error) {
-	rows, err := s.decisions.ListDecisions(ctx, pgstatus.DecisionFilter{
+	rows, err := s.decisions.ListDecisions(ctx, decisionsstore.DecisionFilter{
 		RepositoryID: f.RepositoryID,
 		SourceRunID:  f.SourceRunID,
 		DecisionType: f.DecisionType,

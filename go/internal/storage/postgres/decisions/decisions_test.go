@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package decisionsstore
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
@@ -311,7 +312,7 @@ func (database *decisionTestDB) ExecContext(_ context.Context, query string, arg
 			}
 		}
 		database.decisions[row.DecisionID] = row
-		return proofResult{}, nil
+		return fake.Result{}, nil
 
 	case strings.Contains(query, "INSERT INTO projection_decision_evidence"):
 		factID := stringPtrFromAny(args[2])
@@ -329,7 +330,7 @@ func (database *decisionTestDB) ExecContext(_ context.Context, query string, arg
 			}
 		}
 		database.evidence[row.EvidenceID] = row
-		return proofResult{}, nil
+		return fake.Result{}, nil
 
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
