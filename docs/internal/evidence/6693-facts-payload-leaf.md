@@ -4,7 +4,7 @@ Baseline: `origin/main` `aa7cc0d1d`. Change: move the JSON payload codec and
 empty-string SQL-binding helpers out of the `storage/postgres` root into a
 new leaf package, `go/internal/storage/postgres/facts/payload` (package
 `payloadstore`), per
-[6693-postgres-target-tree/facts.md](../design/6693-postgres-target-tree/facts.md#factspayload-1-non-test-2-test).
+[6693-postgres-target-tree/facts.md](../design/6693-postgres-target-tree/facts.md).
 
 ## What moved
 
@@ -82,12 +82,13 @@ triggering on the moved file.
 
 ## dirgate
 
-`bash scripts/verify-dirgate.sh --digest internal/storage/postgres` now
-prints `count 361`, `digest 136a827c92e817e562c30d6ca279fabea1b57e8b73e105c66352177e6a30f016`.
-Replaced the `internal/storage/postgres` row in
-`scripts/lib/dirgate-grandfather.tsv` with that count and digest, then ran
-`bash scripts/generate-dirgate-grandfather-go.sh` to regenerate
-`tools/golangci-lint-dirgate/grandfather.go`.
+The move takes one non-test file out of the root, so the
+`internal/storage/postgres` row in `scripts/lib/dirgate-grandfather.tsv` is
+re-pinned to what `bash scripts/verify-dirgate.sh --digest
+internal/storage/postgres` prints for the rebased tree (each rebase onto a
+sibling move re-derives it), and
+`bash scripts/generate-dirgate-grandfather-go.sh` regenerates
+`tools/golangci-lint-dirgate/grandfather.go` from it.
 
 Test repoints, checked with exact-name assertions after the rebase onto `ebe632a56`: for `TestMarshalPayloadSanitizesForPostgresJSONB` and `BenchmarkMarshalPayloadSourceText`, `go test ./internal/storage/postgres/facts/payload/... -list '^Name$' -count=1 | rg -q '^Name$'` exits 0, and the same assertion against `./internal/storage/postgres` exits 1.
 
