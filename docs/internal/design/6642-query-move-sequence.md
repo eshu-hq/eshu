@@ -46,7 +46,9 @@ order is the shared spine: nothing moves before PR 1.
 
 The earlier "7 files / small" estimate was wrong in both halves. Measured on
 2026-09-22 by performing the move in a throwaway worktree and compiling with
-`go build -gcflags=-e ./internal/query/...`:
+`go build -gcflags=-e ./internal/query/...`. That command compiles no
+`_test.go` file, so any symbol a test alone names is invisible to it; the
+`capability_keys.go` count below needed `go test -c` to see all of them:
 
 - It is **8 files** — 3 from root and 5 from `contract/`. Both the earlier
   "7" here and the cost page's "4 root + 5 = 9" were wrong.

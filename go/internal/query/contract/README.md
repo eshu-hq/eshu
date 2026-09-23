@@ -40,7 +40,7 @@ Where the family owning a route has already moved to a leaf package, the key
 forwards that package's exported const so the two cannot drift. Where the route
 still lives in the query root, the key is a string literal on purpose: the
 capability sweep gate resolves string literals, not cross-package const
-aliases. Root declares its own copy of those six in `capability_keys.go`
+aliases. Root declares its own copy of those five in `capability_keys.go`
 beside the handlers that name them.
 
 ## Checks that cover this package
