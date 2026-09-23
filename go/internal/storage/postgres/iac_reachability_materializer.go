@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:dirgate // #6693 checklist step 47 moves this file to ingestion/ (methods on IngestionStore); it now sits beside the sibling iac/ leaf this PR creates
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iac"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -60,7 +61,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 
 	analyzedRows := iacreachability.Analyze(filesByRepo, iacreachability.Options{IncludeAmbiguous: true})
 	materializedRows := iacReachabilityRowsForActiveGenerations(analyzedRows, activeGenerations, s.now())
-	if err := NewIaCReachabilityStore(s.database).Upsert(ctx, materializedRows); err != nil {
+	if err := iacstore.NewIaCReachabilityStore(s.database).Upsert(ctx, materializedRows); err != nil {
 		return err
 	}
 
@@ -116,22 +117,22 @@ func iacReachabilityRowsForActiveGenerations(
 	rows []iacreachability.Row,
 	activeGenerations map[string]repositoryGenerationIdentity,
 	now time.Time,
-) []IaCReachabilityRow {
-	result := make([]IaCReachabilityRow, 0, len(rows))
+) []iacstore.IaCReachabilityRow {
+	result := make([]iacstore.IaCReachabilityRow, 0, len(rows))
 	for _, row := range rows {
 		identity, ok := activeGenerations[row.RepoID]
 		if !ok {
 			continue
 		}
-		result = append(result, IaCReachabilityRow{
+		result = append(result, iacstore.IaCReachabilityRow{
 			ScopeID:      identity.ScopeID,
 			GenerationID: identity.GenerationID,
 			RepoID:       row.RepoID,
 			Family:       row.Family,
 			ArtifactPath: row.ArtifactPath,
 			ArtifactName: row.ArtifactName,
-			Reachability: IaCReachability(row.Reachability),
-			Finding:      IaCFinding(row.Finding),
+			Reachability: iacstore.IaCReachability(row.Reachability),
+			Finding:      iacstore.IaCFinding(row.Finding),
 			Confidence:   row.Confidence,
 			Evidence:     append([]string(nil), row.Evidence...),
 			Limitations:  append([]string(nil), row.Limitations...),
@@ -145,9 +146,9 @@ func iacReachabilityRowsForActiveGenerations(
 func recordIaCReachabilityRows(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	rows []IaCReachabilityRow,
+	rows []iacstore.IaCReachabilityRow,
 ) {
-	counts := map[IaCReachability]int64{}
+	counts := map[iacstore.IaCReachability]int64{}
 	for _, row := range rows {
 		counts[row.Reachability]++
 	}

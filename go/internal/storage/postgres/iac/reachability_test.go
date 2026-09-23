@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package iacstore_test
 
 import (
 	"context"
@@ -13,18 +13,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iac"
 )
 
 func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 	t.Parallel()
 
 	database := newIaCReachabilityTestDB()
-	store := NewIaCReachabilityStore(database)
+	store := iacstore.NewIaCReachabilityStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	rows := []IaCReachabilityRow{
+	rows := []iacstore.IaCReachabilityRow{
 		{
 			ScopeID:      "scope-1",
 			GenerationID: "gen-1",
@@ -32,8 +35,8 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 			Family:       "terraform",
 			ArtifactPath: "modules/checkout-service",
 			ArtifactName: "checkout-service",
-			Reachability: IaCReachabilityUsed,
-			Finding:      IaCFindingInUse,
+			Reachability: iacstore.IaCReachabilityUsed,
+			Finding:      iacstore.IaCFindingInUse,
 			Confidence:   0.99,
 			Evidence:     []string{"terraform-stack/main.tf: source modules/checkout-service"},
 			ObservedAt:   now,
@@ -46,8 +49,8 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 			Family:       "terraform",
 			ArtifactPath: "modules/orphan-cache",
 			ArtifactName: "orphan-cache",
-			Reachability: IaCReachabilityUnused,
-			Finding:      IaCFindingCandidateDead,
+			Reachability: iacstore.IaCReachabilityUnused,
+			Finding:      iacstore.IaCFindingCandidateDead,
 			Confidence:   0.75,
 			Evidence:     []string{"module directory exists"},
 			ObservedAt:   now,
@@ -60,8 +63,8 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 			Family:       "terraform",
 			ArtifactPath: "modules/dynamic-target",
 			ArtifactName: "dynamic-target",
-			Reachability: IaCReachabilityAmbiguous,
-			Finding:      IaCFindingAmbiguousDynamic,
+			Reachability: iacstore.IaCReachabilityAmbiguous,
+			Finding:      iacstore.IaCFindingAmbiguousDynamic,
 			Confidence:   0.40,
 			Evidence:     []string{"terraform-stack/main.tf: dynamic source"},
 			Limitations:  []string{"dynamic reference requires renderer evidence"},
@@ -84,8 +87,8 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 	if got[0].ArtifactName != "dynamic-target" {
 		t.Fatalf("first artifact = %q, want dynamic-target", got[0].ArtifactName)
 	}
-	if got[0].Reachability != IaCReachabilityAmbiguous {
-		t.Fatalf("first reachability = %q, want %q", got[0].Reachability, IaCReachabilityAmbiguous)
+	if got[0].Reachability != iacstore.IaCReachabilityAmbiguous {
+		t.Fatalf("first reachability = %q, want %q", got[0].Reachability, iacstore.IaCReachabilityAmbiguous)
 	}
 	if got[1].ArtifactName != "orphan-cache" {
 		t.Fatalf("second artifact = %q, want orphan-cache", got[1].ArtifactName)
@@ -98,8 +101,8 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 	if gotLen, wantLen := len(withoutAmbiguous), 1; gotLen != wantLen {
 		t.Fatalf("len without ambiguous = %d, want %d", gotLen, wantLen)
 	}
-	if withoutAmbiguous[0].Reachability != IaCReachabilityUnused {
-		t.Fatalf("reachability without ambiguous = %q, want %q", withoutAmbiguous[0].Reachability, IaCReachabilityUnused)
+	if withoutAmbiguous[0].Reachability != iacstore.IaCReachabilityUnused {
+		t.Fatalf("reachability without ambiguous = %q, want %q", withoutAmbiguous[0].Reachability, iacstore.IaCReachabilityUnused)
 	}
 
 	latest, err := store.ListLatestCleanupFindings(ctx, []string{"terraform-modules"}, nil, true, 100, 0)
@@ -113,7 +116,7 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 		if row.RepoID != "terraform-modules" {
 			t.Fatalf("latest repo_id = %q, want terraform-modules", row.RepoID)
 		}
-		if row.Reachability == IaCReachabilityUsed {
+		if row.Reachability == iacstore.IaCReachabilityUsed {
 			t.Fatalf("latest returned used row: %#v", row)
 		}
 	}
@@ -161,7 +164,7 @@ func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 func TestIaCReachabilitySchemaSQL(t *testing.T) {
 	t.Parallel()
 
-	sqlStr := IaCReachabilitySchemaSQL()
+	sqlStr := iacstore.IaCReachabilitySchemaSQL()
 	if !strings.Contains(sqlStr, "CREATE TABLE IF NOT EXISTS iac_reachability_rows") {
 		t.Fatal("missing iac_reachability_rows table")
 	}
@@ -180,16 +183,16 @@ func TestIngestionStoreMaterializeIaCReachabilityWritesActiveCorpusRows(t *testi
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 1, 12, 0, 0, 0, time.UTC)
-	database := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
+	database := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{
 			{
-				rows: [][]any{
+				Data: [][]any{
 					{"terraform-modules", "scope-modules", "gen-modules"},
 					{"terraform-stack", "scope-stack", "gen-stack"},
 				},
 			},
 			{
-				rows: [][]any{
+				Data: [][]any{
 					{"terraform-modules", "modules/checkout-service/main.tf", `variable "x" {}`},
 					{"terraform-modules", "modules/orphan-cache/main.tf", `variable "x" {}`},
 					{"terraform-modules", "modules/dynamic-target/main.tf", `variable "x" {}`},
@@ -209,14 +212,14 @@ variable "module_name" {
 			},
 		},
 	}
-	store := NewIngestionStore(database)
+	store := postgres.NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	if err := store.MaterializeIaCReachability(context.Background(), nil, nil); err != nil {
 		t.Fatalf("MaterializeIaCReachability() error = %v, want nil", err)
 	}
 
-	inserted := iacReachabilityRowsFromExecs(t, database.execs)
+	inserted := iacReachabilityRowsFromExecs(t, database.Execs)
 	if got, want := len(inserted), 3; got != want {
 		t.Fatalf("materialized row count = %d, want %d: %#v", got, want, inserted)
 	}
@@ -232,13 +235,13 @@ variable "module_name" {
 		}
 	}
 
-	if got := byPath["modules/checkout-service"].Reachability; got != string(IaCReachabilityUsed) {
+	if got := byPath["modules/checkout-service"].Reachability; got != string(iacstore.IaCReachabilityUsed) {
 		t.Fatalf("checkout reachability = %q, want used", got)
 	}
-	if got := byPath["modules/orphan-cache"].Reachability; got != string(IaCReachabilityUnused) {
+	if got := byPath["modules/orphan-cache"].Reachability; got != string(iacstore.IaCReachabilityUnused) {
 		t.Fatalf("orphan reachability = %q, want unused", got)
 	}
-	if got := byPath["modules/dynamic-target"].Reachability; got != string(IaCReachabilityAmbiguous) {
+	if got := byPath["modules/dynamic-target"].Reachability; got != string(iacstore.IaCReachabilityAmbiguous) {
 		t.Fatalf("dynamic reachability = %q, want ambiguous", got)
 	}
 	if _, ok := byPath["modules/ghost"]; ok {
@@ -300,10 +303,10 @@ func (database *iacReachabilityTestDB) ExecContext(_ context.Context, query stri
 			}
 			database.rows[iacReachabilityKey(row)] = row
 		}
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
-		return sharedIntentResult{}, nil
+		return fake.Result{}, nil
 
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
@@ -377,8 +380,8 @@ func (database *iacReachabilityTestDB) QueryContext(_ context.Context, query str
 		}
 		if !existenceQuery {
 			switch row.Reachability {
-			case string(IaCReachabilityUnused):
-			case string(IaCReachabilityAmbiguous):
+			case string(iacstore.IaCReachabilityUnused):
+			case string(iacstore.IaCReachabilityAmbiguous):
 				if !includeAmbiguous {
 					continue
 				}
@@ -485,41 +488,41 @@ func decodeStringArrayJSON(raw any) ([]string, error) {
 	return out, nil
 }
 
-func iacReachabilityRowsFromExecs(t *testing.T, execs []fakeExecCall) []iacReachabilityStoredRow {
+func iacReachabilityRowsFromExecs(t *testing.T, execs []fake.ExecCall) []iacReachabilityStoredRow {
 	t.Helper()
 
 	var rows []iacReachabilityStoredRow
 	for _, execCall := range execs {
-		if !strings.Contains(execCall.query, "INSERT INTO iac_reachability_rows") {
+		if !strings.Contains(execCall.Query, "INSERT INTO iac_reachability_rows") {
 			continue
 		}
 		const columnsPerRow = 13
-		if len(execCall.args)%columnsPerRow != 0 {
-			t.Fatalf("iac reachability insert args = %d, want multiple of %d", len(execCall.args), columnsPerRow)
+		if len(execCall.Args)%columnsPerRow != 0 {
+			t.Fatalf("iac reachability insert args = %d, want multiple of %d", len(execCall.Args), columnsPerRow)
 		}
-		for i := 0; i < len(execCall.args); i += columnsPerRow {
-			evidence, err := decodeStringArrayJSON(execCall.args[i+9])
+		for i := 0; i < len(execCall.Args); i += columnsPerRow {
+			evidence, err := decodeStringArrayJSON(execCall.Args[i+9])
 			if err != nil {
 				t.Fatalf("decode evidence: %v", err)
 			}
-			limitations, err := decodeStringArrayJSON(execCall.args[i+10])
+			limitations, err := decodeStringArrayJSON(execCall.Args[i+10])
 			if err != nil {
 				t.Fatalf("decode limitations: %v", err)
 			}
 			rows = append(rows, iacReachabilityStoredRow{
-				ScopeID:      execCall.args[i+0].(string),
-				GenerationID: execCall.args[i+1].(string),
-				RepoID:       execCall.args[i+2].(string),
-				Family:       execCall.args[i+3].(string),
-				ArtifactPath: execCall.args[i+4].(string),
-				ArtifactName: execCall.args[i+5].(string),
-				Reachability: execCall.args[i+6].(string),
-				Finding:      execCall.args[i+7].(string),
-				Confidence:   execCall.args[i+8].(float64),
+				ScopeID:      execCall.Args[i+0].(string),
+				GenerationID: execCall.Args[i+1].(string),
+				RepoID:       execCall.Args[i+2].(string),
+				Family:       execCall.Args[i+3].(string),
+				ArtifactPath: execCall.Args[i+4].(string),
+				ArtifactName: execCall.Args[i+5].(string),
+				Reachability: execCall.Args[i+6].(string),
+				Finding:      execCall.Args[i+7].(string),
+				Confidence:   execCall.Args[i+8].(float64),
 				Evidence:     evidence,
 				Limitations:  limitations,
-				ObservedAt:   execCall.args[i+11].(time.Time),
-				UpdatedAt:    execCall.args[i+12].(time.Time),
+				ObservedAt:   execCall.Args[i+11].(time.Time),
+				UpdatedAt:    execCall.Args[i+12].(time.Time),
 			})
 		}
 	}
