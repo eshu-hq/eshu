@@ -130,9 +130,10 @@ also prints a pre-existing, unrelated `naming_violation` for
 ## Unrelated same-name symbol (verified, not a collision)
 
 `rg` for `sortedSearchIndexTerms` outside `docs/internal/design` and
-`docs/internal/evidence` also matches
-`go/internal/reducer/eshusearch/eshu_search_document_index_writer.go:305` and
-its benchmark test. That is an independent, pre-existing private function in
+`docs/internal/evidence` also matches its own definition in
+`go/internal/reducer/eshusearch` (`eshu_search_document_index_writer.go`) and
+that package's benchmark test. That is an independent, pre-existing private
+function in
 package `eshusearch` (different package, different signature: returns three
 slices including frequencies, ours returns two) that never called or was
 called by the store moved here; confirmed unrelated, not a naming collision.
