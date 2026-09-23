@@ -1,0 +1,14 @@
+docs/public/reference/nornicdb-upstream-defects.md
+  h_78a442cba0b3e6 4-6,27-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e8a43de5a7235a7b4d9cdac8bb606ebeed6cd538",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
