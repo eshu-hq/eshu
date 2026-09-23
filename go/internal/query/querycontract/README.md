@@ -24,7 +24,6 @@ subpackage can call the same logic without an import cycle (#6060):
 | Visualization packet, builder and merge | `visualization_packet.go`, `visualization_packet_merge.go` | exported type and const aliases, function forwarders |
 | Entity-name search and resolution | moved to `entity/` (#6597) | callers name `entity.EntityNameSearch`, `entity.ResolveExactGraphEntityCandidates` and friends directly; root's #6060 aliases were deleted with the move |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
-| Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
 | Evidence-citation packet read models (#6642) | moved to `evidence/` (#6597) | callers name `evidence.EvidenceCitationHandle` and friends directly; root's unexported #6060 aliases were deleted with the move |
 | Language alias table and coverage maps | `language/registry.go` | unexported function forwarders |
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go` | 20 unexported type aliases in root, plus four exported ones |

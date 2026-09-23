@@ -14,8 +14,8 @@ import (
 // inlineContentKeys names JSON object keys that carry verbatim inline content
 // bytes rather than metadata, and so must never appear in a public-profile
 // bundle even though they are not credential-shaped. "excerpt" mirrors
-// query.evidenceCitation's own JSON tag
-// (go/internal/query/evidence_citation.go:75): a query response commonly
+// evidence.EvidenceCitation's own JSON tag
+// (go/internal/query/querycontract/evidence/citation.go, EvidenceCitation.Excerpt): a query response commonly
 // embeds an evidence/citation list directly inside its Data payload (not only
 // via the separate Citations field this package's own CitationRef type
 // exposes), and that embedded citation's Excerpt is exactly the "inline

@@ -166,8 +166,10 @@ exit 0.
 
 No-Regression Evidence: three files move from `querycontract/` to
 `querycontract/evidence/`, 17 files repoint `querycontract.X` to `evidence.X`,
-root's `evidence_boundaries.go` shim is deleted, and root's seven
+root's `evidence_boundaries.go` shim is deleted, and root's six unexported
 evidence-citation aliases are removed with their callers naming `evidence.*`.
+The exported `query.EvidenceCitationHandle` in `evidence_citation_public.go`
+stays for `serviceintel` until the root drain (mapping row 294).
 The perf-evidence gate selects hot files including `repository/handler.go`;
 in each the diff changes only an import line and a package qualifier. No SQL,
 Cypher, call site, argument, allocation or loop bound changes.

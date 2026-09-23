@@ -96,7 +96,7 @@ func TestEvaluateQueryShapeRequiredAbsentWhenPresent(t *testing.T) {
 // ci_cd_evidence field in the SAME response actually serves it) at the
 // goldengate assertion layer, not just the query-package unit tests that
 // caught the original bug. The honest current shape of get_service_story
-// (no evidence_boundaries field at all, per evidenceBoundariesFor) is GREEN;
+// (no evidence_boundaries field at all, per evidence.EvidenceBoundariesFor) is GREEN;
 // re-introducing the false boundary turns the SAME shape RED.
 func TestEvaluateQueryShapeSeededDisclosureContradiction(t *testing.T) {
 	t.Parallel()

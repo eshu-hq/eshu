@@ -12,8 +12,8 @@ import "sort"
 // graph-sourced story surface. It is a static, closed-vocabulary disclosure —
 // never a per-request probe. These live here rather than in package query
 // because the impact family's trace handler attaches them and cannot import
-// the root package back without an import cycle. Package query keeps
-// forwarding wrappers under the original names.
+// the root package back without an import cycle. Root's #6060 forwarding
+// wrappers were deleted in #6597; callers name this package directly.
 
 // PostgresOnlyBoundary records a gap between a Postgres-only reducer domain
 // and a graph-sourced story surface.

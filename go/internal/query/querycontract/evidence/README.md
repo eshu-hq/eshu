@@ -13,8 +13,9 @@ responses.
 
 ## Dependencies
 
-Inbound: 17 files, including the parent `querycontract` (its visualization
-and answer packets name `EvidenceCitationHandle`).
+Inbound: 23 non-test and 10 test files import this package, including the
+parent `querycontract` (its visualization and answer packets name
+`EvidenceCitationHandle`).
 
 Outbound: the standard library only. This package must not import
 `querycontract`, or the parent's import of it becomes a cycle.
